@@ -14,6 +14,19 @@ recreated on 2026-09-03 from `origin/main` @ `5535cd90` to continue with Phase 1
 If the worktree is missing again at session start, recreate it the same way:
 `git worktree add -b audit/remediation-2026-08 .claude/worktrees/audit-remediation origin/main`.
 
+Shipped so far:
+- 2026-09-03, merge `f3de2bc6`: Phase 0 (SEC-01..SEC-08) + SEC-14 prerequisites.
+- 2026-09-03, later the same day: SEC-10 steps (a) and (c)'s parent cluster
+  landed on `main` directly (`4dc501fe`, `89560e28`) — including the gate bug
+  fixed below, which is why it reached production.
+- 2026-09-03, this branch merged to `main` on the user's instruction: FU-01..FU-04,
+  the SEC-10(a) fix, SEC-10(b)'s widened census, and SEC-10(c) for dependents,
+  transcript_generator, SIS students and SIS staff. Verified before pushing —
+  ruff clean, mypy clean (1030 files), pyflakes clean, backend 4810 passed /
+  160 skipped / 0 failed, web v1 2474 passed / 281 files. The v2 mobile suite
+  was NOT run locally (no `frontend-v2/node_modules` in this worktree); no v2
+  source changed on this branch, and CI runs it on the push.
+
 ## Working protocol (instructions to the agent running this plan)
 
 1. **Session start:** re-read this file. Pick the highest-priority item that is
@@ -41,15 +54,21 @@ If the worktree is missing again at session start, recreate it the same way:
    them in front of the user at the end of a working session.
 8. **Do not modify the main working tree** at `~/pathweaver_2.0` — other agents
    work there. Everything happens in this worktree.
-9. **Frontend tooling note:** this worktree has no `node_modules`. Before the first
-   frontend item, run `npm install` in `frontend/` (and `frontend-v2/` if needed)
-   inside the worktree.
-10. **Security fixes must fail closed.** When in doubt between breaking a caller
+9. **Frontend tooling note:** `frontend/node_modules` is installed in this
+   worktree; `frontend-v2/` is NOT, so the mobile jest suite cannot run here
+   without an `npm install` first. `mypy` is likewise not in the shared venv by
+   default — `pip install mypy types-requests` (done 2026-09-03).
+10. **Never assert a migration's state from a neighbouring object.** Nothing
+    in the pipeline applies `supabase/migrations/` (OPS-03), so "is this live?"
+    is always a question for the database, not the repo. Check the objects that
+    migration actually changes — a file can deliberately skip one function and
+    fix four others. See "Migrations: what is actually applied to production".
+11. **Security fixes must fail closed.** When in doubt between breaking a caller
     and widening access, break the caller and note it in the Log.
-11. **When editing auth/authz code** (SEC items): read the whole function and its
+12. **When editing auth/authz code** (SEC items): read the whole function and its
     call sites first; sample tests exist under `backend/tests/` for most of it.
     New routes' role lists always include `superadmin` (CLAUDE.md rule 8).
-12. **Statuses:** `TODO`, `IN PROGRESS`, `DONE`, `WONTFIX(reason)`,
+13. **Statuses:** `TODO`, `IN PROGRESS`, `DONE`, `WONTFIX(reason)`,
     `BLOCKED(what it waits on)`, `NEEDS-USER(the question)`.
 
 ---
@@ -563,6 +582,21 @@ Log:
   module), the staff path propagates too so the two branches cannot drift, and
   a denial still stops the view from running. The first two FAIL against the
   pre-fix decorator; verified by restoring it and watching them go red.
+
+  SHIPPED to prod 2026-09-03 on the user's instruction, in the merge of this
+  branch into `main`. It was not branch-local: `origin/main` @ `89560e28`
+  carried it and release `e4df8fef` deployed it at 20:54 UTC the same day, so
+  the 37 collapsed parent routes ran it in production for roughly two hours.
+  Measured exposure while it was live: 30 of the 37 catch their own exceptions
+  and never reached the gate's handler; the 7 that do not are
+  analytics_insights.get_student_progress and .get_learning_insights,
+  child_overview.get_child_overview, dashboard_overview.get_parent_dashboard,
+  evidence_view.get_task_details and .get_recent_completions, and
+  quests_view.get_student_calendar. For those, an error inside the view reached
+  the parent as a 403 and reached neither middleware/error_handler nor Sentry —
+  so there is no Sentry trail from that window to go back and read, which is
+  itself the reason to treat "the gate swallowed it" as a whole bug class
+  rather than one incident.
 - 2026-09-03: (c) continues — the eight student routes in `routes/sis/__init__.py`
   migrated. Declared 59 -> 67, allowlist 107 -> 99, superadmin 21. 187 accounted.
 
@@ -1441,8 +1475,10 @@ Log:
 - 2026-09-03: Carried in from a prior session's notes. Not yet verified.
 - 2026-09-03: Verified against the live DB and DROPPED —
   `supabase/migrations/20260903210000_drop_dead_get_human_quest_performance.sql`.
-  NOT APPLIED to prod; the file is written and waiting, like 20260903200000
-  before it (see OPS-03).
+  APPLIED TO PROD the same day on the user's instruction, and verified: the
+  function is gone from `pg_proc`. (An earlier line here said it was waiting
+  alongside 20260903200000 — which was itself already applied. See the
+  Migrations section near the end of this file.)
 
   Confirmed broken: `quest_ratings` and `quest_tasks_archived` are both absent
   from pg_class, so the body raises 42P01 on every call. It also still carries
@@ -1595,25 +1631,47 @@ Log:
 
 ---
 
+## Migrations: what is actually applied to production
+
+Read this before claiming a migration in `supabase/migrations/` is or is not
+live. Nothing in the release pipeline applies them (OPS-03), so the only way to
+know is to look — either `list_migrations` on the Supabase MCP, or the object
+itself in `pg_proc` / `information_schema`.
+
+| File | Applied to prod | How |
+|---|---|---|
+| `20260903200000_qualify_tables_in_empty_search_path_functions.sql` | YES, 2026-09-03 20:25 UTC | applied by hand before this session looked; recorded as version `20260903202528` |
+| `20260903210000_drop_dead_get_human_quest_performance.sql` | YES, 2026-09-03 | applied this session via `apply_migration`, verified with `pg_proc` (0 rows) and a live call to `get_user_organization` returning data |
+
+A MISTAKE WORTH NOT REPEATING: this session reported the first file as
+unapplied. The evidence used was `get_human_quest_performance` still carrying
+unqualified table names in prod — which is the one function that migration
+DELIBERATELY DOES NOT TOUCH, and says so in a comment block at the bottom.
+Generalising from the excluded case to the whole file was the error. The four
+functions it does fix (`get_user_organization`, `add_user_skill_xp`,
+`log_observer_access`, `verify_parent_student_access`) all had the corrected
+bodies in prod the whole time. Check the objects a migration actually changes,
+not a neighbour.
+
+VERSION DRIFT, harmless but worth knowing: the applied version stamps
+(`20260903202528`, and whatever the drop was recorded as) do not match the
+filenames, because both went in through `apply_migration` rather than a file
+push. A future `supabase db push` will therefore see both filenames as
+unapplied and re-run them. Both are idempotent — `CREATE OR REPLACE` and
+`DROP ... IF EXISTS` — so that is safe, just noisy.
+
+---
+
 ## Open questions for the user (rolling)
 
-- **URGENT — SEC-10(a) is a live production bug and the fix is sitting on this
-  branch.** `origin/main` @ `89560e28` shipped `@require_relationship_to` with
-  the view call inside the predicate loop's `try`, and release `e4df8fef`
-  deployed it at 20:54 UTC on 2026-09-03. On the 37 collapsed parent-dashboard
-  routes it is the only gate. Measured exposure: 7 of the 37 have no blanket
-  `except Exception` of their own, so any error inside them reaches the parent
-  as 403 "Not authorized to access this student" and reaches neither
-  middleware/error_handler nor Sentry — `get_child_overview` and
-  `get_parent_dashboard` among them. The other 30 catch their own exceptions
-  and are unaffected. Fix is commit `d7fc7780`; its two code files cherry-pick
-  onto main cleanly (only this plan file conflicts, because main's copy is
-  older). Push?
-- Two migrations are written and NOT applied to prod:
-  `20260903200000_qualify_tables_in_empty_search_path_functions.sql` (fixes
-  SECURITY DEFINER functions that raise 42P01 on every call) and
-  `20260903210000_drop_dead_get_human_quest_performance.sql`. See OPS-03 —
-  nothing in the pipeline applies them.
+ANSWERED 2026-09-03 (user: "run migrations and push to prod"):
+
+- ~~SEC-10(a) is a live production bug~~ — SHIPPED. See the SEC-10 Log.
+- ~~Two migrations written and not applied~~ — both live in prod. One of the
+  two was already applied before I looked; see the Migrations note below.
+
+Still open:
+
 - SEC-14: DONE, verified, and `FLASK_SECRET_KEY_OLD` confirmed set by the user
   on 2026-09-03. One dated action remains: do NOT remove FLASK_SECRET_KEY_OLD
   before 2027-03-02 — LTI evidence tokens run 180 days and are stateless.
