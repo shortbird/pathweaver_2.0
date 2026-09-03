@@ -1933,12 +1933,32 @@ Log:
 
 ## Phase 7 — Hygiene (low)
 
-### HYG-01 — Committed junk `[TODO]`
+### HYG-01 — Committed junk `[DONE]`
 `frontend/test-output.txt` (226KB), `.debug-sessions/`, tracked `__pycache__`
 under scripts dirs, dead Windows tooling (`*.ps1`, `*.bat` from the pre-macOS
 era — verify unreferenced first).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Nine files untracked or deleted, and `.gitignore` extended so the
+  first two cannot come back.
+
+  Untracked but LEFT ON DISK (they are somebody's local state, not mine to
+  delete): `frontend/test-output.txt` — 226KB of a vitest run from a machine
+  nobody has — and `.debug-sessions/`, a local scratchpad. Both are now
+  gitignored with a comment saying why.
+
+  DELETED: the six Windows scripts — `check_bundle.ps1`, `check_privacy.ps1`,
+  `poll_build.ps1`, `restart_v2.ps1`, `setup-local.bat`, `start-local.bat`.
+  The item said to verify they were unreferenced first, so I did: zero
+  references from any doc, workflow, package.json or source file. They are also
+  actively misleading — `restart_v2.ps1` calls `Get-NetTCPConnection`, and
+  development moved to macOS long enough ago that CLAUDE.md's own local-setup
+  section is written in `lsof`.
+
+  NOT FOUND, so nothing to do: the tracked `__pycache__` the item mentions.
+  `git ls-files | grep __pycache__` returns zero — already handled.
+
+  Backend 4856 passed; web 2479 passed.
 
 ### HYG-02 — `verify/` — 20 tracked hash-named .mjs scripts `[NEEDS-USER]`
 Per-ticket client-verification scripts; unclear if still wanted. Ask before

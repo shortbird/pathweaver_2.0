@@ -170,3 +170,9 @@ frontend/.ds-brand-safelist.html
 
 # Saved third-party registration pages used as porting reference (contain account-session artifacts)
 OSH Form/
+
+# Build/debug output that was committed once and kept coming back (HYG-01).
+# frontend/test-output.txt was 226KB of a vitest run from a machine nobody has;
+# .debug-sessions/ is a local scratchpad.
+frontend/test-output.txt
+.debug-sessions/
