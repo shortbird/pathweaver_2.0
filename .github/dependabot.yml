@@ -3,6 +3,11 @@
 #
 # Grouped and weekly on purpose. Ungrouped dependabot on a repo with three
 # ecosystems opens a dozen PRs a week, which is how teams learn to ignore it.
+#
+# The per-ecosystem limit is 2, not 5. On its first run this config opened 20
+# PRs at once across five ecosystems and every one of them started a full CI
+# run, which buried the queue. Grouping does not help with the initial backlog
+# -- only the limit does.
 # Minor and patch updates arrive as ONE pr per ecosystem; majors come
 # individually, because those are the ones that need reading.
 #
@@ -19,7 +24,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     groups:
       python-minor-patch:
         update-types: ["minor", "patch"]
@@ -29,7 +34,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     groups:
       python-minor-patch:
         update-types: ["minor", "patch"]
@@ -39,7 +44,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     groups:
       web-minor-patch:
         update-types: ["minor", "patch"]
@@ -49,7 +54,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
     groups:
       mobile-minor-patch:
         update-types: ["minor", "patch"]

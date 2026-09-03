@@ -6,7 +6,7 @@ Tracks API calls to ensure we stay within rate limits:
 - Resets every hour
 """
 from datetime import datetime, timedelta
-from typing import Dict
+from typing import Any, Dict
 
 from utils.logger import get_logger
 
@@ -44,7 +44,10 @@ class APIUsageTracker:
         self.usage[hour_key] = self.usage.get(hour_key, 0) + 1
         return self.usage[hour_key]
 
-    def get_usage(self) -> Dict[str, int]:
+    # Dict[str, Any], not Dict[str, int]: three of the four values are counts
+    # but 'resets_at' is a formatted time string. The old annotation said int
+    # and the code has always returned a str there.
+    def get_usage(self) -> Dict[str, Any]:
         """
         Get current API usage stats
 
