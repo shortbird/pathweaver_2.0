@@ -13,7 +13,7 @@ User transcript routes
 """
 
 from flask import Blueprint, jsonify
-from database import get_user_client
+from database import get_user_client, get_supabase_admin_client
 from repositories import (
     UserRepository,
     QuestRepository,
@@ -50,8 +50,16 @@ def get_transcript(user_id):
         # Get all completed quests
         completed_quests = get_all_completed_quests(supabase, user_id)
         
-        # Calculate XP totals and breakdown
-        total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
+        # Calculate XP totals and breakdown.
+        #
+        # The source of truth, user_skill_xp, is service-role-only: no Data API
+        # grant, and RLS on with no policies. The RLS client above is denied it,
+        # which used to leave every transcript reporting 0 XP and an empty
+        # pillar breakdown (Sentry OPTIO-BACKEND-7T/7V, 2026-09-03).
+        #
+        # admin client justified: transcript XP stats for caller (self) under
+        # @require_auth -- same call and same reason as profile.py
+        total_xp, skill_breakdown = calculate_user_xp(get_supabase_admin_client(), user_id)
         
         # Get user level info
         level_info = get_user_level(total_xp)
