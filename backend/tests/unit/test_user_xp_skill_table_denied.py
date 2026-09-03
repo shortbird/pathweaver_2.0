@@ -9,7 +9,6 @@ granted tables and produces the right number, was never reached: every
 transcript answered 200 with "0 XP" and an empty pillar breakdown
 (Sentry OPTIO-BACKEND-7T/7V, 2026-09-03).
 """
-import pytest
 
 from routes.users.helpers import calculate_user_xp
 
