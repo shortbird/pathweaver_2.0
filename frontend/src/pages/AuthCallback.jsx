@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient'
 import { useQueryClient } from '@tanstack/react-query'
 import TosConsentModal from '../components/auth/TosConsentModal'
 import { resumePendingRegistrationFunnel } from '../components/auth/registrationFunnelResume'
+import logger from '../utils/logger'
 
 /**
  * OAuth Authorization Callback Page
@@ -42,7 +43,7 @@ export default function AuthCallback() {
     const hash = window.location.hash.substring(1)
     if (hash && hash.includes('access_token')) {
       const params = new URLSearchParams(hash)
-      console.log('[AuthCallback] Captured tokens from hash before Supabase processing')
+      logger.debug('[AuthCallback] Captured tokens from hash before Supabase processing')
       return {
         accessToken: params.get('access_token'),
         refreshToken: params.get('refresh_token')
@@ -105,10 +106,10 @@ export default function AuthCallback() {
     const pendingInvitation = localStorage.getItem('pendingObserverInvitation')
     if (pendingInvitation) {
       try {
-        console.log('[AuthCallback] Accepting pending observer invitation:', pendingInvitation)
+        logger.debug('[AuthCallback] Accepting pending observer invitation:', pendingInvitation)
         await observerAPI.acceptInvitation(pendingInvitation, {})
         localStorage.removeItem('pendingObserverInvitation')
-        console.log('[AuthCallback] Observer invitation accepted')
+        logger.debug('[AuthCallback] Observer invitation accepted')
         return true
       } catch (err) {
         console.error('[AuthCallback] Failed to accept observer invitation:', err)
@@ -131,13 +132,13 @@ export default function AuthCallback() {
     // X-CSRF-Token header gets a 400 and the join silently fails.
     localStorage.removeItem('pendingOrgInvitation')
     try {
-      console.log('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
+      logger.debug('[AuthCallback] Accepting pending org invitation:', pendingInvitation, 'for user:', userEmail)
       const response = await api.post(
         `/api/admin/organizations/invitations/accept/${pendingInvitation}`,
         { email: userEmail, skip_password_check: true }
       )
       if (response.data.success) {
-        console.log('[AuthCallback] Org invitation accepted successfully')
+        logger.debug('[AuthCallback] Org invitation accepted successfully')
         return { accepted: true, orgName: response.data.organization_name }
       }
       console.error('[AuthCallback] Failed to accept org invitation:', response.data.error)

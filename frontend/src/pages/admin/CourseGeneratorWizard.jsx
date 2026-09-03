@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
+import logger from '../../utils/logger'
 
 // =============================================================================
 // WIZARD PROGRESS COMPONENT
@@ -826,7 +827,6 @@ const CourseGeneratorWizard = () => {
 
   // Debug: Log state changes
   useEffect(() => {
-    console.log('[Wizard] State:', { currentStage, loading, regenerating, courseId: urlCourseId, requestInProgress: requestInProgress.current })
   }, [currentStage, loading, regenerating, urlCourseId])
 
   // Stage 1 state
@@ -984,18 +984,18 @@ const CourseGeneratorWizard = () => {
   const handleGenerateLessons = async () => {
     // Prevent duplicate requests
     if (requestInProgress.current) {
-      console.log('[Wizard] Request already in progress, ignoring')
+      logger.debug('[Wizard] Request already in progress, ignoring')
       return
     }
 
-    console.log('[Wizard] handleGenerateLessons called, courseId:', courseId)
+    logger.debug('[Wizard] handleGenerateLessons called, courseId:', courseId)
     requestInProgress.current = true
     setLoading(true)
 
     try {
-      console.log('[Wizard] Loading set to true')
+      logger.debug('[Wizard] Loading set to true')
       const response = await api.post(`/api/admin/curriculum/generate/${courseId}/lessons`, {})
-      console.log('[Wizard] Lessons response:', response.data)
+      logger.debug('[Wizard] Lessons response:', response.data)
       if (response.data.success) {
         await loadCourseState(courseId, false) // Don't manage loading - we handle it
         toast.success('Lessons generated')
@@ -1008,7 +1008,7 @@ const CourseGeneratorWizard = () => {
       console.error('[Wizard] Error response:', error.response?.data)
       toast.error('Failed to generate lessons')
     } finally {
-      console.log('[Wizard] Setting loading to false')
+      logger.debug('[Wizard] Setting loading to false')
       requestInProgress.current = false
       setLoading(false)
     }
@@ -1033,18 +1033,18 @@ const CourseGeneratorWizard = () => {
   const handleGenerateTasks = async () => {
     // Prevent duplicate requests
     if (requestInProgress.current) {
-      console.log('[Wizard] Tasks - Request already in progress, ignoring')
+      logger.debug('[Wizard] Tasks - Request already in progress, ignoring')
       return
     }
 
-    console.log('[Wizard] handleGenerateTasks called, courseId:', courseId)
+    logger.debug('[Wizard] handleGenerateTasks called, courseId:', courseId)
     requestInProgress.current = true
     setLoading(true)
 
     try {
-      console.log('[Wizard] Tasks - Loading set to true')
+      logger.debug('[Wizard] Tasks - Loading set to true')
       const response = await api.post(`/api/admin/curriculum/generate/${courseId}/tasks`, {})
-      console.log('[Wizard] Tasks response:', response.data)
+      logger.debug('[Wizard] Tasks response:', response.data)
       if (response.data.success) {
         await loadCourseState(courseId, false) // Don't manage loading - we handle it
         toast.success('Tasks generated')
@@ -1057,7 +1057,7 @@ const CourseGeneratorWizard = () => {
       console.error('[Wizard] Tasks error response:', error.response?.data)
       toast.error('Failed to generate tasks')
     } finally {
-      console.log('[Wizard] Tasks - Setting loading to false')
+      logger.debug('[Wizard] Tasks - Setting loading to false')
       requestInProgress.current = false
       setLoading(false)
     }

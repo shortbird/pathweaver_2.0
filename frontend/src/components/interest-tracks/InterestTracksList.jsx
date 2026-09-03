@@ -109,7 +109,6 @@ const InterestTracksList = ({
         ? `/api/parent/children/${studentId}/topics/suggestions`
         : '/api/interest-tracks/suggestions';
       const response = await api.get(endpoint);
-      console.log('Suggestions response:', response.data);
       if (response.data.success) {
         setSuggestedTracks(response.data.suggested_tracks || []);
       }
@@ -127,15 +126,12 @@ const InterestTracksList = ({
       if (selectedSuggestion?.moment_ids) {
         payload.moment_ids = selectedSuggestion.moment_ids;
       }
-      console.log('Creating track with payload:', payload);
-      console.log('Selected suggestion:', selectedSuggestion);
 
       // Use parent API when viewing child's topics
       const endpoint = isParentView
         ? `/api/parent/children/${studentId}/topics`
         : '/api/interest-tracks';
       const response = await api.post(endpoint, payload);
-      console.log('Create track response:', response.data);
       if (response.data.success) {
         const assignedCount = response.data.assigned_count || 0;
         toast.success(response.data.message || 'Topic created!');
@@ -284,7 +280,6 @@ const InterestTracksList = ({
                 <button
                   key={quest.id}
                   onClick={() => {
-                    console.log('[InterestTracksList] Quest clicked:', quest.id, quest.name);
                     onSelectQuest?.(quest.id);
                   }}
                   className={`
@@ -359,7 +354,6 @@ const InterestTracksList = ({
                           <button
                             key={project.id}
                             onClick={() => {
-                              console.log('[InterestTracksList] Project clicked:', project.id, project.name);
                               onSelectQuest?.(project.id);
                             }}
                             className={`
@@ -422,14 +416,12 @@ const InterestTracksList = ({
                 <button
                   key={idx}
                   onClick={() => {
-                    console.log('Clicked suggestion:', suggestion);
                     const suggestionData = {
                       name: suggestion.name,
                       description: suggestion.description || '',
                       color: suggestion.color,
                       moment_ids: suggestion.moment_ids || []
                     };
-                    console.log('Setting selected suggestion:', suggestionData);
                     setSelectedSuggestion(suggestionData);
                     setShowCreateModal(true);
                   }}

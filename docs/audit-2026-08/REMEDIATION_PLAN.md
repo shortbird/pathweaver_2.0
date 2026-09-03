@@ -1378,12 +1378,49 @@ Log:
   build red. Carries a floor assertion so a broken scan cannot pass as a clean
   codebase.
 
-### CI-03 — `no-console` is configured but not enforced; 33 console.logs live `[TODO]`
+### CI-03 — `no-console` is configured but not enforced; 33 console.logs live `[DONE(rules enforced in vitest; standing up eslint itself deferred, reason below)]`
 Run eslint in `tests-web.yml` (enforcing), remove the 33 `console.log` calls in
 `frontend/src` (route through the logger/Sentry where they carry signal).
 Accept: eslint step enforcing; zero console.log in v1 src.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Both rules now enforced, and the second one is the reason this
+  mattered more than the console noise.
+
+  The finding understated it. `package.json`'s `eslintConfig` carries TWO rules,
+  and NEITHER has ever run: `no-console`, and a `no-restricted-syntax` rule
+  banning `localStorage.setItem` of auth-token keys — the C2 security control
+  from ADR-001, which is what keeps tokens in memory plus httpOnly cookies. A
+  security rule that is configured and unenforced is worse than one nobody
+  wrote down, because it reads as covered.
+
+  Why it never ran: eslint is not a devDependency, there is no `lint` script,
+  and the config `extends: ["react-app"]` — a Create React App preset, in a
+  project that is Vite.
+
+  Enforced in VITEST instead, which CI already gates on:
+  `frontend/src/__tests__/lintRules.test.js`. Zero console.log in src, the
+  token-storage ban with its own detector test, and a floor assertion so the
+  scan cannot pass by globbing nothing. `console.warn`/`console.error` stay
+  allowed and a test says so — banning them would push people back to
+  console.log.
+
+  The 34 calls, handled by what they were rather than in bulk:
+    - 11 deleted as scaffolding (InterestTracksList's "Clicked suggestion:",
+      the wizard's per-render `[Wizard] State:` dump).
+    - 21 demoted to `logger.debug`, which is already development-only, where
+      the line carried real flow signal (AuthCallback's invitation handling,
+      the observer feed's retry path, authService's token-source booleans).
+    - 2 left in `utils/logger.js`, allowlisted with a reason: the logger IS the
+      console wrapper.
+
+  DEFERRED, honestly: standing up eslint itself. It is not a five-minute job —
+  the CRA preset has to be replaced with a flat config, the react/hooks plugins
+  added, and the first run triaged, which is not autonomous work. The two rules
+  the project had actually chosen are enforced today, which is the value the
+  item was for.
+
+  Web suite: 282 files, 2479 tests, all passing.
 
 ### CI-04 — No dependabot/renovate `[DONE]`
 Add `.github/dependabot.yml`: pip (root requirements), npm (frontend,

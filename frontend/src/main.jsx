@@ -8,6 +8,7 @@ import App from './App'
 import './index.css'
 import { initSentry } from './services/sentry'
 import { installChunkErrorRecovery } from './utils/liveReload'
+import logger from './utils/logger'
 
 // Initialize error tracking as early as possible (no-op without VITE_SENTRY_DSN).
 initSentry()
@@ -21,7 +22,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
-        console.log('[Main] Service Worker registered:', registration.scope)
+        logger.debug('[Main] Service Worker registered:', registration.scope)
       })
       .catch((error) => {
         console.warn('[Main] Service Worker registration failed:', error)

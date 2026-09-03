@@ -10,6 +10,7 @@ import {
   SparklesIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
+import logger from '../utils/logger'
 
 export default function ObserverFeedPage() {
   const { user } = useAuth();
@@ -50,7 +51,7 @@ export default function ObserverFeedPage() {
     didInitRef.current = true;
     // If coming from a fresh invitation, add initial delay to allow DB commit to complete
     if (freshInvitation) {
-      console.log('[ObserverFeedPage] Fresh invitation detected, delaying initial fetch');
+      logger.debug('[ObserverFeedPage] Fresh invitation detected, delaying initial fetch');
       const timer = setTimeout(() => {
         fetchMyStudents();
       }, 800); // Give DB time to commit the observer_student_link
@@ -77,7 +78,7 @@ export default function ObserverFeedPage() {
       // This handles race condition where DB write hasn't completed yet
       if (fetchedStudents.length === 0 && wasFreshInvitationRef.current && retryCountRef.current < 3) {
         retryCountRef.current += 1;
-        console.log(`[ObserverFeedPage] No students found after fresh invitation, retry ${retryCountRef.current}/3`);
+        logger.debug(`[ObserverFeedPage] No students found after fresh invitation, retry ${retryCountRef.current}/3`);
         setTimeout(() => fetchMyStudents(true), 800 * retryCountRef.current); // Progressive backoff
         return;
       }

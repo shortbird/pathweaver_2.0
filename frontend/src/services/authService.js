@@ -379,8 +379,8 @@ class AuthService {
       const finalAccessToken = session?.access_token || accessToken
       const finalRefreshToken = session?.refresh_token || refreshToken
 
-      console.log('[AuthService] Token sources - hash:', !!accessToken, 'session:', !!session?.access_token)
-      console.log('[AuthService] Final token present:', !!finalAccessToken)
+      logger.debug('[AuthService] Token sources - hash:', !!accessToken, 'session:', !!session?.access_token)
+      logger.debug('[AuthService] Final token present:', !!finalAccessToken)
 
       // Exchange Supabase token for our app session.
       //
