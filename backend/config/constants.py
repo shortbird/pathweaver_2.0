@@ -5,6 +5,20 @@ All magic numbers, thresholds, and configuration values go here.
 This eliminates duplicate constants across the codebase.
 """
 
+# Family / household
+# Household roles that make somebody a guardian of the students in that
+# household. There were two copies of this tuple before
+# (sis_parent_service.GUARDIAN_RELATIONSHIPS and
+# sis_waitlist_service._GUARDIAN_RELATIONSHIPS, the second carrying a comment
+# admitting the duplication), and utils/ needs it too but may not import
+# services/ (tests/unit/test_import_layers.py). config/ is the one layer all
+# three may read, so the tuple lives here and they import it.
+#
+# 'other' counts: the registration funnel writes it for a guardian who is not
+# the parent -- a grandparent, an aunt -- and dropping it would lock those
+# families out of their own children's schedules.
+GUARDIAN_RELATIONSHIPS = ('guardian', 'other')
+
 # File Upload Limits
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB (keep under Render memory budget; applies to legacy multipart POSTs)

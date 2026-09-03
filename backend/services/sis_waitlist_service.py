@@ -695,9 +695,10 @@ def alert_admins_seat_opened(org_id: str, class_id: str) -> bool:
 
 
 # ── Family-facing offer notification (guardian, not the dependent student) ────
-# A household member who isn't the student counts as a guardian (mirrors
-# sis_parent_service.GUARDIAN_RELATIONSHIPS).
-_GUARDIAN_RELATIONSHIPS = ('guardian', 'other')
+# A household member who isn't the student counts as a guardian. The tuple used
+# to be copied here with a comment pointing at sis_parent_service's copy; both
+# now read the single definition in config/constants.
+from config.constants import GUARDIAN_RELATIONSHIPS as _GUARDIAN_RELATIONSHIPS  # noqa: E402
 
 
 def _display_name(u: Dict[str, Any]) -> str:

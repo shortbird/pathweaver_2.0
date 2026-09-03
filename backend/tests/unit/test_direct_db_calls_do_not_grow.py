@@ -39,11 +39,18 @@ BACKEND = Path(__file__).resolve().parents[2]
 # routes/ into repositories/crm_repository.py (the webhook, the admin console
 # and the unsubscribe link all needed to agree on it). routes/ fell by the
 # same migration.
+# utils/ raised 128 -> 130 for is_household_guardian in utils/portfolio_access,
+# the module whose entire job is answering cross-user access questions against
+# the database -- every predicate beside it (is_parent_of, is_advisor_of,
+# is_observer_of, teaches_student) is two such reads. A repository for it would
+# be a repository with one caller, and utils/ may not import repositories/
+# anyway (test_import_layers). This is the "small and mostly legitimate"
+# category the docstring describes, not creeping debt.
 BASELINES = {
     'routes': 2336,
     'services': 1779,
     'repositories': 415,
-    'utils': 128,
+    'utils': 130,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

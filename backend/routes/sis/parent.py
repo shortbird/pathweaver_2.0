@@ -18,6 +18,7 @@ import uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from modules.gate import require_module
 from utils.logger import get_logger
 from services import sis_parent_service as parent
@@ -323,6 +324,7 @@ def upload_my_photo(user_id):
 
 @bp.route('/students/<student_id>/photo', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def upload_student_photo(user_id, student_id):
     """A guardian uploads (or replaces) one of their students' photos."""
     org_id = request.form.get('organization_id') or request.args.get('organization_id')
@@ -428,6 +430,7 @@ def cancel_absences(user_id):
 @bp.route('/students/<student_id>/schedule', methods=['GET'])
 @require_auth
 @require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def student_schedule(user_id, student_id):
     """The student's current schedule (active classes + waitlist) plus whether
     self-service changes are still open (locks on the first day of school)."""
@@ -443,6 +446,7 @@ def student_schedule(user_id, student_id):
 @bp.route('/students/<student_id>/classes', methods=['POST'])
 @require_auth
 @require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def add_student_class(user_id, student_id):
     """Add a class to the student's schedule: enrolls if there's a seat, joins
     the waitlist when full (and allowed)."""
@@ -461,6 +465,7 @@ def add_student_class(user_id, student_id):
 @bp.route('/students/<student_id>/classes/<class_id>', methods=['DELETE'])
 @require_auth
 @require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def drop_student_class(user_id, student_id, class_id):
     """Drop a class from the student's schedule (and/or leave its waitlist)."""
     org_id = _org(request)
@@ -476,6 +481,7 @@ def drop_student_class(user_id, student_id, class_id):
 @bp.route('/students/<student_id>/classes/<class_id>/claim', methods=['POST'])
 @require_auth
 @require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def claim_student_spot(user_id, student_id, class_id):
     """Claim a per-class waitlist spot the school offered: enrolls the student if
     the offer is still live and the seat is still open."""
@@ -493,6 +499,7 @@ def claim_student_spot(user_id, student_id, class_id):
 @bp.route('/students/<student_id>/learning-day', methods=['PUT'])
 @require_auth
 @require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def set_learning_day(user_id, student_id):
     """Save (or clear with choice=null) the student's learning-day choice —
     the UFA private school third instructional day (not an enrollable class)."""
@@ -738,6 +745,7 @@ def home_learning_courses(user_id):
 @bp.route('/students/<student_id>/courses', methods=['POST'])
 @require_auth
 @require_module('courses')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def add_student_course(user_id, student_id):
     data = request.json or {}
     org_id = _org(request)
@@ -754,6 +762,7 @@ def add_student_course(user_id, student_id):
 @bp.route('/students/<student_id>/courses/<course_id>', methods=['DELETE'])
 @require_auth
 @require_module('courses')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def drop_student_course(user_id, student_id, course_id):
     org_id = _org(request)
     if not org_id:

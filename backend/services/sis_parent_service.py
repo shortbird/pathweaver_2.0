@@ -32,7 +32,9 @@ from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in
 logger = get_logger(__name__)
 
 # A household member counts as a guardian for self-service if they're not the student.
-GUARDIAN_RELATIONSHIPS = ('guardian', 'other')
+# Re-exported, not redefined: config/constants owns it now, because
+# utils/portfolio_access needs the same tuple and may not import services.
+from config.constants import GUARDIAN_RELATIONSHIPS  # noqa: E402,F401
 
 
 def _admin():

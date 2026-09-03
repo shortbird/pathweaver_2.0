@@ -45,6 +45,10 @@ ACTIVE_LINK_STATUSES = ('approved', 'active')
 # Who may stand in for a parent when a student has none.
 ORG_APPROVER_ROLES = ('org_admin', 'advisor')
 
+# Household roles that make somebody a guardian of that household's students.
+# Imported, not redefined -- see config/constants.
+from config.constants import GUARDIAN_RELATIONSHIPS  # noqa: E402
+
 
 def _admin():
     # admin client justified: every function here answers a cross-user
@@ -183,6 +187,40 @@ def is_parent_of(caller_id: str, student_id: str) -> bool:
         .eq('parent_user_id', caller_id).eq('student_user_id', student_id) \
         .execute().data or []
     return any(l.get('status') in ACTIVE_LINK_STATUSES for l in links)
+
+
+def is_household_guardian(caller_id: str, student_id: str) -> bool:
+    """True if caller and student share a household, as guardian and student.
+
+    THE THIRD WAY A FAMILY IS LINKED, and the one is_parent_of does not know
+    about. `parent_student_links` and `users.managed_by_parent_id` are the
+    platform's mechanisms; the SIS registration funnel builds families out of
+    `household_members` rows instead, and for a microschool that is how nearly
+    every family exists. sis_parent_service.registerable_students resolves all
+    three, which is why the SIS family routes work for households today -- but
+    a relationship gate that only asked is_parent_of would have refused those
+    guardians at the door.
+
+    Deliberately does NOT check that the household's org has SIS enabled, as
+    registerable_students does. This answers "are these two family?", which
+    does not stop being true because a school turned a module off; the module
+    gate is a separate question with its own answer.
+    """
+    if not caller_id or not student_id or caller_id == student_id:
+        return False
+
+    admin = _admin()
+    mine = admin.table('household_members').select('household_id, relationship') \
+        .eq('user_id', pgrst_uuid(caller_id)).execute().data or []
+    household_ids = [m['household_id'] for m in mine
+                     if m.get('relationship') in GUARDIAN_RELATIONSHIPS and m.get('household_id')]
+    if not household_ids:
+        return False
+
+    theirs = admin.table('household_members').select('household_id') \
+        .eq('user_id', pgrst_uuid(student_id)).eq('relationship', 'student') \
+        .in_('household_id', household_ids).limit(1).execute().data or []
+    return bool(theirs)
 
 
 def is_advisor_of(caller_id: str, student_id: str) -> bool:

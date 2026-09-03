@@ -18,7 +18,11 @@ with a written reason.
 
 The relationship predicates are NOT new. They are the ones
 ``utils/portfolio_access`` already uses to answer "may this caller see this
-student's work", which is the same question in a different coat. Re-deriving
+student's work", which is the same question in a different coat. The one
+exception is ``household_guardian``, added there on 2026-09-03 because no
+predicate covered the way the SIS registration funnel links a family --
+``household_members`` rows rather than ``parent_student_links`` or
+``managed_by_parent_id`` -- and for a microschool that is nearly every family. Re-deriving
 them here would re-create the divergence that module was written to end (four
 copies of the parent check that disagreed with each other).
 
@@ -64,6 +68,11 @@ def _parent(caller_id: str, target_id: str) -> bool:
     return is_parent_of(caller_id, target_id)
 
 
+def _household_guardian(caller_id: str, target_id: str) -> bool:
+    from utils.portfolio_access import is_household_guardian
+    return is_household_guardian(caller_id, target_id)
+
+
 def _advisor(caller_id: str, target_id: str) -> bool:
     from utils.portfolio_access import is_advisor_of
     return is_advisor_of(caller_id, target_id)
@@ -105,6 +114,7 @@ def _org_staff(caller_id: str, target_id: str) -> bool:
 RELATIONSHIPS: Dict[str, Callable[[str, str], bool]] = {
     'self': _self,
     'parent': _parent,
+    'household_guardian': _household_guardian,
     'advisor': _advisor,
     'observer': _observer,
     'teacher': _teacher,

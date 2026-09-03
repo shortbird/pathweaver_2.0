@@ -291,18 +291,23 @@ _reviewed(
     'sis_student_records.parent_student_record',
     'sis_student_records.save_student_record',
 )
-_reviewed(
-    '_can_register(caller, org, student) in services/sis_parent_service -- SIS '
-    'household guardianship, checked at every service entry point',
-    'sis_parent.add_student_class',
-    'sis_parent.add_student_course',
-    'sis_parent.claim_student_spot',
-    'sis_parent.drop_student_class',
-    'sis_parent.drop_student_course',
-    'sis_parent.set_learning_day',
-    'sis_parent.student_schedule',
-    'sis_parent.upload_student_photo',
-)
+# MIGRATED 2026-09-03: the eight sis_parent routes naming a student declare
+# @require_relationship_to('student_id', allow=('parent', 'household_guardian')).
+#
+# `household_guardian` is a NEW predicate, added because none of the existing
+# ones could express this cluster. These routes authorize through
+# sis_parent_service.registerable_students, which resolves a family THREE ways:
+# household_members rows, users.managed_by_parent_id, and approved
+# parent_student_links. is_parent_of knows the last two. The first is how the
+# SIS registration funnel builds a family, and for a microschool it is nearly
+# every family -- so declaring ('parent',) here would have been NARROWER than
+# the view and would have refused those guardians at the door. That is the
+# failure this whole exercise is supposed to prevent, so it is worth saying
+# plainly: the right move when the vocabulary does not fit is to extend the
+# vocabulary, not to round the declaration to the nearest existing word.
+#
+# Not collapsed: _can_register additionally scopes to the org in the request
+# and to SIS-enabled orgs, neither of which the relationship answers.
 _reviewed(
     '_authorize(caller, class_id) proves class moderator, then the student must '
     'hold an active class_enrollments row on that class',

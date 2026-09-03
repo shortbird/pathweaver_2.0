@@ -734,6 +734,51 @@ Log:
   the thing they are not testing. It now grants both gates and says why.
 
   ruff clean, mypy clean. Tests: 4810 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — `routes/sis/parent.py`, 8 routes. Declared
+  92 -> 100, allowlist 99 -> 91. This one needed a NEW RELATIONSHIP first.
+
+  These routes authorize through `sis_parent_service.registerable_students`,
+  which resolves a family THREE ways: `household_members` rows,
+  `users.managed_by_parent_id`, and approved `parent_student_links`.
+  `is_parent_of` knows the last two. The first is how the SIS registration
+  funnel builds a family, and for a microschool it is nearly every family — so
+  declaring `('parent',)` would have been NARROWER than the view and refused
+  those guardians at the door. Worth stating plainly because the pull is real:
+  when the vocabulary does not fit, extend the vocabulary; do not round the
+  declaration to the nearest existing word.
+
+  So: `utils/portfolio_access.is_household_guardian` (caller holds a guardian
+  `household_members` row in a household where the student holds a 'student'
+  row), registered as `household_guardian`. It deliberately does NOT re-check
+  that the org has SIS enabled, as registerable_students does — "are these two
+  family" does not stop being true because a school turned a module off, and
+  the module gate is a separate question with its own answer. Declared set:
+  `('parent', 'household_guardian')`. Not collapsed; `_can_register` also scopes
+  to the requested org.
+
+  ONE DEFINITION OF GUARDIAN, while I was here. The tuple `('guardian', 'other')`
+  existed twice — `sis_parent_service.GUARDIAN_RELATIONSHIPS` and
+  `sis_waitlist_service._GUARDIAN_RELATIONSHIPS`, the second carrying a comment
+  admitting it was a copy. utils/ needs it too and may not import services/
+  (test_import_layers), so it moved to `config/constants`, which all three
+  layers may read, and both services now import it. A third copy in utils would
+  have been exactly the divergence portfolio_access was written to end.
+
+  Ratchet raised deliberately: `test_direct_db_calls_do_not_grow` BASELINES
+  ['utils'] 128 -> 130 for the new predicate's two reads. utils/portfolio_access
+  is the module whose entire job is answering cross-user questions against the
+  database — every predicate beside it is two such reads — and utils/ may not
+  import repositories/ anyway. Reason recorded in the file.
+
+  Tests reworked, not just repaired: TestParentClaimRoute's three cases now go
+  through a `_post` helper that grants the relationship by default, so each is
+  about the SERVICE's decision; `test_claim_not_authorized` in particular would
+  otherwise have kept passing on a 403 from the wrong gate even if the service
+  check were deleted. A fourth case stubs the service to SUCCEED and denies the
+  relationship, so a 200 would prove the request got through on nothing but a
+  student id in the URL.
+
+  ruff clean, mypy clean. Tests: 4811 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

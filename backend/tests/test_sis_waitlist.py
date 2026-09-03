@@ -215,28 +215,50 @@ class TestOfferSweepRoute:
 
 @pytest.mark.unit
 class TestParentClaimRoute:
-    """The guardian-facing claim-spot route (family-relationship auth in the service)."""
+    """The guardian-facing claim-spot route.
+
+    Two gates since 2026-09-03 (SEC-10): @require_relationship_to runs first and
+    asks whether the caller is family, then sis_parent_service decides whether
+    THIS student, in THIS org, may claim THIS spot. `_post` below grants the
+    first by default so each test is about the second, and takes
+    `is_guardian=False` for the one test that is about the first.
+    """
+
+    def _post(self, client, auth_headers, service_result, is_guardian=True):
+        with patch('routes.sis.parent.parent.claim_offered_spot',
+                   return_value=service_result), \
+             patch('utils.portfolio_access.is_household_guardian', return_value=is_guardian), \
+             patch('utils.portfolio_access.is_parent_of', return_value=False):
+            return client.post('/api/sis/parent/students/s1/classes/c1/claim',
+                               headers=auth_headers, json={'organization_id': 'org-1'})
 
     def test_claim_success(self, client, auth_headers, mock_verify_token):
-        with patch('routes.sis.parent.parent.claim_offered_spot',
-                   return_value={'enrolled': True, 'class_name': 'Art'}):
-            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
-                               headers=auth_headers, json={'organization_id': 'org-1'})
+        resp = self._post(client, auth_headers, {'enrolled': True, 'class_name': 'Art'})
         assert resp.status_code == 200
         assert json.loads(resp.data)['enrolled'] is True
 
     def test_claim_no_live_offer(self, client, auth_headers, mock_verify_token):
-        with patch('routes.sis.parent.parent.claim_offered_spot',
-                   return_value={'error': 'There is no spot being offered for this class right now.'}):
-            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
-                               headers=auth_headers, json={'organization_id': 'org-1'})
+        resp = self._post(client, auth_headers,
+                          {'error': 'There is no spot being offered for this class right now.'})
         assert resp.status_code == 400
 
     def test_claim_not_authorized(self, client, auth_headers, mock_verify_token):
-        with patch('routes.sis.parent.parent.claim_offered_spot',
-                   return_value={'error': 'Not authorized for this student'}):
-            resp = client.post('/api/sis/parent/students/s1/classes/c1/claim',
-                               headers=auth_headers, json={'organization_id': 'org-1'})
+        """The SERVICE's refusal, with the relationship gate deliberately open.
+
+        Without granting the gate this would still be a 403 -- from the wrong
+        place -- and would keep passing if the service check were deleted.
+        """
+        resp = self._post(client, auth_headers, {'error': 'Not authorized for this student'})
+        assert resp.status_code == 403
+
+    def test_a_household_guardian_of_someone_else_is_refused_before_the_service(
+            self, client, auth_headers, mock_verify_token):
+        """The other gate: no family relationship, so the view never runs.
+
+        The service is stubbed to SUCCEED here, so a 200 would mean the request
+        got through on nothing but a student id in the URL.
+        """
+        resp = self._post(client, auth_headers, {'enrolled': True}, is_guardian=False)
         assert resp.status_code == 403
 
 
