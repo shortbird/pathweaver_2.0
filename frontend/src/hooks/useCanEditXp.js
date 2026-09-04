@@ -1,7 +1,7 @@
 import { useContext } from 'react'
 import { AuthContext } from '../contexts/AuthContext'
 import { OrganizationContext } from '../contexts/OrganizationContext'
-import { isStaffUser } from '../utils/userRoles'
+import { userHasRole } from '../utils/userRoles'
 
 /**
  * Whether the current user may choose or change a task's XP value.
@@ -20,6 +20,14 @@ import { isStaffUser } from '../utils/userRoles'
  * the safe answer is the platform default: XP stays editable.
  */
 
+/**
+ * Mirrors XP_GUIDE_ROLES in backend/utils/xp_permissions.py, which is the
+ * authority. useCanEditXp.roles.test.jsx reads that file and fails if the two
+ * lists stop matching -- a client list that is WIDER shows a control the server
+ * refuses, and one that is NARROWER hides a control a teacher is entitled to.
+ */
+export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor']
+
 export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.'
 
 export default function useCanEditXp() {
@@ -29,8 +37,17 @@ export default function useCanEditXp() {
   const locked = Boolean(org?.organization?.feature_flags?.lock_xp_editing)
   if (!locked) return true
 
-  // isStaffUser covers every shape a role arrives in -- `role`, the `org_roles`
+  // Exactly the server's XP_GUIDE_ROLES, not "staff".
+  //
+  // This used isStaffUser until 2026-09-03, which is WIDER: it also returns
+  // true for campus_coordinator and for anyone with has_advisor_assignments.
+  // The server rejects both, so a coordinator in a locked org was shown an XP
+  // control whose save the server refused -- the precise failure the comment
+  // above says this hook exists to prevent. Latent rather than reported: the
+  // one org with the flag on has no coordinators yet.
+  //
+  // userHasRole checks every shape a role arrives in -- `role`, the `org_roles`
   // array, and legacy `org_role` -- so an org teacher who is also a parent keeps
   // the XP control. A plain `role === 'advisor'` check would miss them.
-  return isStaffUser(auth?.user)
+  return XP_GUIDE_ROLES.some((role) => userHasRole(auth?.user, role))
 }

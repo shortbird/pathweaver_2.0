@@ -55,10 +55,33 @@ describe('useCanEditXp', () => {
     ).toBe(true)
   })
 
-  it('allows a guardian flagged as advising students', () => {
+  it('blocks a guardian flagged as advising students, because the server does', () => {
+    // This asserted `true` until 2026-09-03, and it was the client disagreeing
+    // with the server. has_advisor_assignments only means the user has rows in
+    // advisor_student_assignments; it puts nothing into get_effective_roles, so
+    // is_xp_guide_user says no and the save is refused. The old behaviour came
+    // in with 70adf776, which reached for isStaffUser because it "additionally
+    // covers guardians marked has_advisor_assignments" -- a bonus that was
+    // never added to the server.
+    //
+    // Whether such a guardian SHOULD be allowed to set XP is a real question
+    // and is in the plan's Open Questions. Until it is answered the client must
+    // not offer a control the server rejects.
     expect(
       canEdit({ role: 'parent', has_advisor_assignments: true }, { lock_xp_editing: true })
-    ).toBe(true)
+    ).toBe(false)
+  })
+
+  it('blocks a campus coordinator, because the server does', () => {
+    // Same drift, other half: isStaffUser includes campus_coordinator and
+    // XP_GUIDE_ROLES does not. No coordinator has hit it yet -- the one org
+    // with the lock on has none -- which is why it went unreported.
+    expect(
+      canEdit(
+        { role: 'org_managed', org_role: 'campus_coordinator', org_roles: ['campus_coordinator'] },
+        { lock_xp_editing: true }
+      )
+    ).toBe(false)
   })
 
   it('still blocks a parent who only parents', () => {

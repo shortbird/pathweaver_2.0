@@ -14,7 +14,13 @@
 import { useAuthStore } from '@/src/stores/authStore';
 import { userHasRole } from '@/src/utils/effectiveRole';
 
-const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor'];
+/**
+ * Mirrors XP_GUIDE_ROLES in backend/utils/xp_permissions.py, which is the
+ * authority. __tests__/useCanEditXp.roles.test.ts reads that file and fails if
+ * the lists stop matching. The web app's copy drifted WIDER once and offered
+ * the control to people the server turns away; exported so the test can see it.
+ */
+export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor'];
 
 export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.';
 

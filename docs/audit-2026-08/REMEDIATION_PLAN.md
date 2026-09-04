@@ -2285,6 +2285,37 @@ Log:
   Backend 4891 passed. v1: 289 files / 2535 passed. v2: 100 suites / 766
   passed, tsc clean, iOS bundle rebuilt with the entity table inside it.
 
+- 2026-09-03: THIRD BUG, SAME METHOD — **the web app offered the XP control to
+  people the server refuses.** Swept for modules implemented in both apps and
+  compared behaviour; `useCanEditXp` is a permission decision, so it was the
+  one worth reading closely.
+
+  `backend/utils/xp_permissions.py` is the authority:
+  `XP_GUIDE_ROLES = {superadmin, org_admin, advisor}`. Mobile matched. The web
+  hook delegated to `isStaffUser`, which additionally passes
+  `campus_coordinator` and anyone with `has_advisor_assignments` — a derived
+  flag meaning "has rows in advisor_student_assignments", which puts nothing
+  into `get_effective_roles`. So in a locked org those users got a control
+  whose save the server rejects: exactly what the hook's docstring says it
+  exists to prevent.
+
+  Not a decision anyone made. Commit 70adf776 chose `isStaffUser` because it
+  "additionally covers guardians marked has_advisor_assignments", and the
+  server was never widened to match.
+
+  Latent, not live: checked prod, and the only org with `lock_xp_editing` on is
+  Arete Academy, which has no campus coordinators. Both clients now use the
+  three server roles, and BOTH have a test that parses `XP_GUIDE_ROLES` out of
+  the Python file — so neither list can move without the server's moving. The
+  existing web test that asserted the wider behaviour now asserts the narrower
+  one and says why.
+
+  Whether coordinators *should* be XP guides is a fair question and is in Open
+  Questions above. Answering it is a one-line server change; the guards go
+  green by themselves.
+
+  v1: 290 files / 2539 passed. v2: 101 suites / 768 passed, tsc clean.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
@@ -3142,6 +3173,35 @@ ANSWERED 2026-09-03 (user: "run migrations and push to prod"):
   two was already applied before I looked; see the Migrations note below.
 
 Still open:
+
+- **XP lock: should a campus coordinator, or a guardian who advises students,
+  be allowed to set a task's XP?** One line either way; I have aligned the
+  clients to the server in the meantime so nothing offers a control that fails.
+
+  `backend/utils/xp_permissions.py` says the XP guides are
+  `{superadmin, org_admin, advisor}`. The web hook was checking `isStaffUser`,
+  which is wider — it also passes `campus_coordinator` and anyone carrying
+  `has_advisor_assignments`. So in an org with `lock_xp_editing` on, those
+  people saw an XP control the API refuses on save, which is the exact failure
+  the hook's own docstring says it exists to prevent.
+
+  It went unreported because only one org has the flag on (Arete Academy) and
+  it has no campus coordinators. Verified against prod.
+
+  The drift was incidental, not a decision: commit 70adf776 reached for
+  `isStaffUser` because it "additionally covers guardians marked
+  has_advisor_assignments", and nobody added that to the server.
+
+  Two reasonable answers, and I am not picking:
+  - **Coordinators**: CLAUDE.md says a coordinator has everything an org admin
+    has *minus the money*, and XP is not money. That argues for adding
+    `campus_coordinator` to the SERVER's set.
+  - **Guardians with advisor assignments**: they are functionally teaching
+    those students. Also defensible, but it is a real privilege change and
+    `has_advisor_assignments` is a derived flag, not a role.
+
+  Change `XP_GUIDE_ROLES` in `xp_permissions.py` and the guard tests on both
+  clients go green on their own.
 
 - **QF-01 / BRAND: the web app and the mobile app disagree about two pillar
   colours, and one of them is wrong.** Needs a one-word answer from you; the
