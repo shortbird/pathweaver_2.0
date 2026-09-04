@@ -103,6 +103,7 @@ def generate_endpoint_specs(app):
         'analytics': 'Admin - Analytics',
         'admin_analytics_v1': 'Admin - Analytics',
         'organization_management': 'Admin - Organizations',
+        'organization_users': 'Admin - Organizations',
         'admin_organization_management_v1': 'Admin - Organizations',
         'crm': 'Admin - CRM',
         'admin_crm_v1': 'Admin - CRM',

@@ -578,7 +578,7 @@ class TestGenerateUsername:
 
     def test_generated_usernames_match_pattern(self):
         """Generated usernames must pass the platform username validation"""
-        from routes.admin.organization_management import USERNAME_PATTERN
+        from utils.org_student_credentials import USERNAME_PATTERN
         cases = [('Maya', 'Jones'), ("Mary-Kate", "O'Brien"), ('Li', 'Wu'), ('', '')]
         taken = set()
         for first, last in cases:

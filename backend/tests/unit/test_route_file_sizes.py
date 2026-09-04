@@ -33,12 +33,17 @@ EXEMPTIONS: dict[str, int] = {
     # routes moved to routes/evidence_uploads.py (505 lines, under the cap and
     # so not exempt), taking it from 1718 to 1252 -- under the cap on its own,
     # so its exemption is DELETED rather than lowered. Two exemptions left.
+    # 2026-09-03: admin/organization_management.py SPLIT AGAIN, and its
+    # exemption is gone too. It had already come 2006 -> 1552 on 2026-09-02
+    # (course-registration endpoints to admin/organization_courses.py); the
+    # membership + username-login routes now move to
+    # admin/organization_users.py (655 lines) and the password/username
+    # helpers to utils/org_student_credentials.py, leaving 891.
+    #
+    # ONE ENTRY LEFT. registration_funnel.py is the live iCreate payment
+    # funnel with an outage history, so it wants a browser on the funnel
+    # after the split, not just a green suite.
     "registration_funnel.py": 2300,
-    # 2026-09-02: ratcheted 1950 -> 1700. The course-registration endpoints
-    # moved to admin/organization_courses.py (481 lines, under the cap and
-    # so not exempt), taking this file from 2006 to 1552. Still needs a
-    # second split; this entry goes away when that happens.
-    "admin/organization_management.py": 1700,
 }
 
 

@@ -199,6 +199,9 @@ def register_all(app):
     # to get that file back under its size cap. Paths do not overlap, so the URLs
     # are unchanged.
     app.register_blueprint(organization_courses.bp, url_prefix='/api/admin/organizations')
+    # Membership + username-login student accounts (QB-04 split).
+    from routes.admin import organization_users
+    app.register_blueprint(organization_users.bp, url_prefix='/api/admin/organizations')
     # The Blocks panel API (building-block toggles).
     from routes.admin import org_modules
     app.register_blueprint(org_modules.bp, url_prefix='/api/admin/organizations')

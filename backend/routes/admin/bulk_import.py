@@ -253,7 +253,7 @@ def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, o
         ]
     }
     """
-    from routes.admin.organization_management import USERNAME_PATTERN, generate_simple_password
+    from utils.org_student_credentials import USERNAME_PATTERN, generate_simple_password
 
     if not is_superadmin and current_org_id != org_id:
         return jsonify({'error': 'Access denied'}), 403

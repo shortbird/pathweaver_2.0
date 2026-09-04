@@ -1825,7 +1825,7 @@ Log:
   already documents as unavoidable — a real circular dependency, no logger
   yet.
 
-### QB-04 — Decompose the top god route files `[TODO(one of five split; the rest need the same treatment)]`
+### QB-04 — Decompose the top god route files `[TODO(two split; one exemption left, and it is the risky one)]`
 `registration_funnel.py` (2,143 — payments+OTP+provisioning in the route layer),
 `admin/organization_management.py` (1,950), `evidence_documents.py` (1,716),
 `admin/curriculum_upload.py` (1,400), `admin/user_management.py` (1,389).
@@ -1887,6 +1887,45 @@ Log:
   bindings only. Worth knowing for the other 74: this is not 74 files of real
   bugs, it is one missing type on the Supabase client repeated everywhere.
   Typing `.data` once at the client boundary would retire most of the list.
+
+- 2026-09-03: SECOND FILE SPLIT — `admin/organization_management.py`,
+  1,554 -> 891 lines, and its exemption is deleted too. **One exemption left**
+  in `test_route_file_sizes.py`: `registration_funnel.py`.
+
+  The seam is membership vs. the organization record. Moved to
+  `admin/organization_users.py` (655 lines): add/remove/bulk-remove members,
+  create-username student accounts, reset password. Stayed: the org row, its
+  settings and secrets, quest/course grants, analytics, student progress.
+
+  A THIRD file came out of it, and this one was forced rather than chosen.
+  `admin/bulk_import.py` was importing `USERNAME_PATTERN` and
+  `generate_simple_password` *from another route module* — so the split had to
+  either keep that layering violation or fix it. Those plus
+  `validate_simple_password` and the kid-friendly word list now live in
+  `utils/org_student_credentials.py` (58 lines), which both route modules
+  import. This matters beyond tidiness: the generator and the validator have to
+  agree, and a password one route mints must be one the other accepts.
+
+  UNLIKE the evidence_documents split, this one uses a SEPARATE blueprint at
+  the same `url_prefix`. That is this file's own established pattern —
+  `organization_courses`, `org_modules` and `org_member_status` all came out of
+  it that way — and it is safe here only because nothing resolves these five
+  routes by endpoint name (checked across the backend first). Where a name IS
+  load-bearing, use `register_routes(bp)` on the same blueprint instead.
+
+  THE CHECK THAT ACTUALLY PROVES IT: the `/api/admin/organizations` URL map was
+  dumped before and after. 55 rules both times, every path and method
+  byte-identical, and exactly five endpoint names changed
+  `organization_management.* -> organization_users.*`. Route splits break URLs
+  silently; a green test suite does not notice a rule that stopped existing.
+
+  Left alone on purpose: `_ensure_shared_household` hardcodes
+  `('guardian', 'other')` where `config.constants.GUARDIAN_RELATIONSHIPS`
+  exists. That is a fourth copy of the constant this plan already
+  de-duplicated three times, but folding it in belongs in its own commit, not
+  in a code move.
+
+  ruff clean, mypy clean (1036 files), pyflakes clean. Tests: 4858 passed.
 
   ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 
