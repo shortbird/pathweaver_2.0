@@ -96,20 +96,13 @@ afterEach(() => {
   clearAuthState();
 });
 
-// Suppress AggregateError from React 19 act() for components with many async effects
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args: any[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('AggregateError')) return;
-    if (args[0] instanceof Error && args[0].constructor.name === 'AggregateError') return;
-    originalError(...args);
-  };
-});
-afterAll(() => { console.error = originalError; });
+// The AggregateError these files used to swallow was a real failure, not a
+// React 19 quirk: `withRepeat` was missing from the reanimated mock, so any
+// loading Skeleton threw from its mount effect and render() rethrew it. Fixed
+// in src/__tests__/setup.tsx; a throw from render() here is a bug now.
 
-/** Render dashboard, returning null if AggregateError from async effects */
 function tryRender(ui: React.ReactElement) {
-  try { return render(ui); } catch { return null; }
+  return render(ui);
 }
 
 describe('DashboardScreen', () => {
@@ -117,13 +110,11 @@ describe('DashboardScreen', () => {
 
   it('renders welcome greeting with user first name', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText(/Welcome back, Test/)).toBeTruthy();
   });
 
   it('displays stats in welcome header', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('5')).toBeTruthy();
     expect(r.getByText('1,250')).toBeTruthy();
     expect(r.getByText('2')).toBeTruthy();
@@ -133,7 +124,6 @@ describe('DashboardScreen', () => {
 
   it('renders active quest cards', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('Build a Robot')).toBeTruthy();
     expect(r.getByText('Write a Story')).toBeTruthy();
   });
@@ -144,14 +134,12 @@ describe('DashboardScreen', () => {
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('Nothing here yet')).toBeTruthy();
     expect(r.getByTestId('empty-state-cta')).toBeTruthy();
   });
 
   it('quest card navigates to quest detail on press', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     fireEvent.press(r.getByTestId('quest-card-q-1'));
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-1');
   });
@@ -174,7 +162,6 @@ describe('DashboardScreen', () => {
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('Volcano Project')).toBeTruthy();
     expect(r.getByText('Assigned')).toBeTruthy();
     expect(r.getByText(/Homeroom A/)).toBeTruthy();
@@ -191,7 +178,6 @@ describe('DashboardScreen', () => {
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     fireEvent.press(r.getByTestId('assigned-quest-card-q-9'));
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/quests/q-9');
   });
@@ -209,7 +195,6 @@ describe('DashboardScreen', () => {
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.queryByTestId('empty-state-cta')).toBeNull();
     expect(r.getByText('Volcano Project')).toBeTruthy();
   });
@@ -218,19 +203,16 @@ describe('DashboardScreen', () => {
 
   it('renders the enrolled course card', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('Intro to Engineering')).toBeTruthy();
   });
 
   it('shows course progress', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.getByText('1 of 3 projects')).toBeTruthy();
   });
 
   it('course card navigates to course detail on press', () => {
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     fireEvent.press(r.getByTestId('course-card-c-1'));
     expect(mockRouter.push).toHaveBeenCalledWith('/(app)/courses/c-1');
   });
@@ -241,7 +223,6 @@ describe('DashboardScreen', () => {
       loading: false, error: null, refetch: jest.fn(),
     });
     const r = tryRender(<DashboardScreen />);
-    if (!r) return;
     expect(r.queryByText('Intro to Engineering')).toBeNull();
   });
 

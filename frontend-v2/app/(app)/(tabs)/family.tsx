@@ -183,7 +183,7 @@ function ChildHero({ child, stats, onOpenSettings }: { child: any; stats: any; o
           <Pressable onPress={openProfile} accessibilityRole="button">
             <Heading size="xl" numberOfLines={1}>{nameFor(child)}</Heading>
             <UIText size="xs" className="text-typo-400 mt-0.5 dark:text-dark-typo-400" numberOfLines={2}>
-              Tap the photo to open {firstName}'s profile
+              Tap the photo for {firstName}'s profile — change their picture there
             </UIText>
           </Pressable>
         </VStack>

@@ -113,5 +113,6 @@ export function mockApiModule() {
     uploadMessageAttachment: jest.fn().mockResolvedValue({
       url: 'https://x/attachment.jpg', type: 'image', name: 'attachment.jpg', size: 1234,
     }),
+    uploadChildAvatar: jest.fn().mockResolvedValue({ avatar_url: 'https://x/avatar.jpg' }),
   };
 }

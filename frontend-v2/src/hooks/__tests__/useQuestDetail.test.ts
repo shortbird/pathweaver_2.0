@@ -130,6 +130,25 @@ describe('generateTasks', () => {
     expect(genCalls[1][1]).not.toHaveProperty('challenge_level');
   });
 
+  it('sends no student_id when a learner generates on their own quest', async () => {
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
+    (api.post as jest.Mock)
+      .mockResolvedValueOnce({ data: { session_id: 'sess-1' } })
+      .mockResolvedValueOnce({ data: { tasks: [] } });
+
+    const { result } = renderHook(() => useQuestDetail('quest-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.generateTasks('robots'); });
+
+    // student_id means "personalize for somebody else" — never on a learner's
+    // own quest.
+    expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/start-personalization', {});
+    const body = (api.post as jest.Mock).mock.calls
+      .find((c: any[]) => c[0] === '/api/quests/quest-1/generate-tasks')?.[1];
+    expect(body).not.toHaveProperty('student_id');
+  });
+
   it('reuses session_id on subsequent calls', async () => {
     (api.get as jest.Mock).mockResolvedValueOnce({ data: { quest: mockQuest } });
     (api.post as jest.Mock)
@@ -369,6 +388,30 @@ describe('useQuestDetail in parent mode', () => {
     // working through the wizard on their own quest.
     expect(api.post).not.toHaveBeenCalledWith(
       '/api/quests/quest-1/start-personalization', expect.anything(),
+    );
+  });
+
+  it('personalizes the AI generation to the CHILD, not the signed-in parent', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock)
+      .mockResolvedValueOnce({ data: { session_id: 'sess-1' } })
+      .mockResolvedValueOnce({ data: { tasks: [] } });
+
+    await act(async () => {
+      await result.current.generateTasks('woodworking', undefined, undefined, 'challenge');
+    });
+
+    // The vision statement, challenge level and AI-consent toggle all hang off
+    // whoever this id names. Sent as the parent, a 16-year-old's tasks were
+    // shaped by his mother's profile and her challenge preference was
+    // overwritten with his.
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/quests/quest-1/start-personalization', { student_id: 'kid-1' },
+    );
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/quests/quest-1/generate-tasks',
+      expect.objectContaining({ session_id: 'sess-1', student_id: 'kid-1' }),
+      expect.anything(),
     );
   });
 

@@ -411,8 +411,23 @@ function TaskItem({
     ? { borderLeftColor: subjectMeta.accent, borderLeftWidth: 4 }
     : undefined;
 
+  // The whole row is the tap target, and it says so: a task's instructions live
+  // behind this toggle, and a parent reported not realising a task could be
+  // opened at all ("I cannot click on it to read the whole thing"). Collapsed,
+  // the row now previews the description as well as the title, so the tap is an
+  // invitation rather than the only way to learn there is more.
+  const hasMoreToRead = !!(task.description
+    || (Array.isArray(task.success_criteria) && task.success_criteria.length > 0)
+    || evidenceBlocks.length > 0);
+
   return (
-    <Pressable onPress={() => setExpanded(!expanded)}>
+    <Pressable
+      onPress={() => setExpanded(!expanded)}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      accessibilityLabel={task.title}
+      accessibilityHint={expanded ? 'Collapses this task' : 'Opens this task to read the full details'}
+    >
       <Card
         variant={expanded ? 'elevated' : 'outline'}
         size="sm"
@@ -440,15 +455,16 @@ function TaskItem({
             )}
             <VStack className="flex-1 min-w-0">
               <HStack className="items-center gap-1.5">
-                {/* Clamped to one line while collapsed so the list stays
-                    scannable, but never clamped once opened: a task's
-                    instruction often IS its title ("Find the classroom that has
-                    a bright yellow pocket folder in it…"), and clamping it
-                    everywhere left the edit dialog as the only place in the app
-                    that showed the whole thing. */}
+                {/* Clamped while collapsed so the list stays scannable, but
+                    never clamped once opened: a task's instruction often IS its
+                    title ("Find the classroom that has a bright yellow pocket
+                    folder in it…"), and clamping it everywhere left the edit
+                    dialog as the only place in the app that showed the whole
+                    thing. Two lines, not one — at one line a wrapped title lost
+                    so much that the row read as a stub. */}
                 <UIText
                   size="sm"
-                  numberOfLines={expanded ? undefined : 1}
+                  numberOfLines={expanded ? undefined : 2}
                   className={`flex-shrink font-poppins-medium ${task.is_completed && !task.is_moment ? 'text-typo-400 dark:text-dark-typo-400 line-through' : ''}`}
                 >
                   {task.title}
@@ -498,6 +514,19 @@ function TaskItem({
                   </HStack>
                 )}
               </HStack>
+              {/* A two-line taste of the instructions while collapsed. Without
+                  it the row showed a title and nothing else, and the only clue
+                  that a task had directions at all was pressing it. */}
+              {!expanded && !!task.description && (
+                <UIText size="xs" numberOfLines={2} className="text-typo-500 dark:text-dark-typo-500 mt-1">
+                  {task.description}
+                </UIText>
+              )}
+              {!expanded && hasMoreToRead && (
+                <UIText size="xs" className="text-optio-purple font-poppins-medium mt-1">
+                  Tap to read the whole task
+                </UIText>
+              )}
             </VStack>
             <Ionicons
               name={expanded ? 'chevron-up' : 'chevron-down'}
@@ -617,7 +646,9 @@ function TaskItem({
                     <HStack className="items-center gap-1.5">
                       <Ionicons name="information-circle-outline" size={13} color={c.iconMuted} />
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                        Add evidence first — a photo, note or link showing what you did.
+                        {studentId
+                          ? 'Add evidence first — a photo, note or link showing what they did.'
+                          : 'Add evidence first — a photo, note or link showing what you did.'}
                       </UIText>
                     </HStack>
                   )}
@@ -699,9 +730,15 @@ export interface QuestDetailViewProps {
   questId: string | null;
   /** Parent mode: whose quest this is. Omit for the signed-in user's own. */
   studentId?: string | null;
+  /** Set when the viewer has just created this quest. A brand-new quest has no
+   *  tasks and nothing to copy from, so the screen opens the task wizard on its
+   *  AI step rather than presenting an empty list and a small "Add Task" pill
+   *  the author has to find. A parent hit exactly that: created a quest for her
+   *  son, got no tasks, and reported that it "didn't generate AI tasks". */
+  autoOpenTaskWizard?: boolean;
 }
 
-export function QuestDetailView({ questId: id, studentId = null }: QuestDetailViewProps) {
+export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWizard = false }: QuestDetailViewProps) {
   const {
     quest, loading, error,
     refetch, enroll, completeTask, generateTasks, acceptTask, adjustTask, deleteTask,
@@ -721,6 +758,14 @@ export function QuestDetailView({ questId: id, studentId = null }: QuestDetailVi
   const childName = (viewer?.student_name || '').trim();
   const [enrolling, setEnrolling] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  // Which step the wizard lands on. The AI step when the caller asked for it
+  // (a just-created quest, or the empty state's "Generate task ideas"); the
+  // method chooser otherwise, which is what the header's Add Task pill means.
+  const [wizardStep, setWizardStep] = useState<'choose' | 'ai-personalize'>('choose');
+  // Fires once: only for a freshly created, enrolled, still-empty quest. A
+  // ref, not state, so a refetch that arrives while the wizard is open (or
+  // after the author closed it) cannot pop it back up.
+  const autoOpenedRef = React.useRef(false);
   const [restartModalVisible, setRestartModalVisible] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   // Moment being edited via the in-quest "Edit moment" button (bug #16). We
@@ -761,6 +806,18 @@ export function QuestDetailView({ questId: id, studentId = null }: QuestDetailVi
       return () => clearQuestCtx();
     }, [studentId, quest?.id, quest?.title, quest?.user_enrollment, setQuestCtx, clearQuestCtx]),
   );
+
+  // Open the task wizard straight onto the AI step for a quest the viewer just
+  // created. Waits for the quest to load AND for the enrollment, because in the
+  // parent flow the enrollment is a second request behind the create.
+  useEffect(() => {
+    if (!autoOpenTaskWizard || autoOpenedRef.current) return;
+    if (!quest || !quest.user_enrollment) return;
+    if ((quest.quest_tasks || []).length > 0) return;
+    autoOpenedRef.current = true;
+    setWizardStep('ai-personalize');
+    setAddTaskOpen(true);
+  }, [autoOpenTaskWizard, quest]);
 
   const handleEnroll = async () => {
     setEnrolling(true);
@@ -908,11 +965,18 @@ export function QuestDetailView({ questId: id, studentId = null }: QuestDetailVi
                   screen is otherwise identical to the child's, and a parent has
                   to know at a glance that "Complete task" finishes THEIR work. */}
               {studentId && (
-                <HStack className="items-center gap-1.5">
-                  <Ionicons name="people-outline" size={14} color={c.brand} />
-                  <UIText size="xs" className="text-optio-purple font-poppins-medium">
-                    {childName ? `${childName}'s quest` : "Your kid's quest"}
-                  </UIText>
+                <HStack className="items-start gap-2 px-3 py-2 rounded-xl bg-optio-purple/10">
+                  <Ionicons name="people-outline" size={16} color={c.brand} style={{ marginTop: 1 }} />
+                  <VStack className="flex-1 min-w-0">
+                    <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                      {childName ? `${childName}'s quest` : "Your kid's quest"}
+                    </UIText>
+                    <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                      {childName
+                        ? `You're looking at this as ${childName}'s parent. Anything you add lands on their account, not yours.`
+                        : "You're looking at this as a parent. Anything you add lands on your kid's account, not yours."}
+                    </UIText>
+                  </VStack>
                 </HStack>
               )}
               {/* leading-snug: the default RN line height clipped descenders
@@ -1033,12 +1097,42 @@ export function QuestDetailView({ questId: id, studentId = null }: QuestDetailVi
                     ))}
                   </VStack>
                 ) : (
-                  <Card variant="filled" size="md" className="items-center py-6">
-                    <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                      {studentId
-                        ? `No tasks yet. Add one and it lands on ${childName || 'their'} quest.`
-                        : 'No tasks yet. Add your first task below.'}
-                    </UIText>
+                  /* An empty quest is the moment to offer the AI, not a dead
+                     end with the offer hidden behind a pill in the header. A
+                     quest someone writes themselves starts with no tasks at
+                     all, so this IS the first screen its author sees. */
+                  <Card variant="filled" size="md" className="py-6">
+                    <VStack space="md" className="items-center">
+                      <Ionicons name="sparkles-outline" size={28} color={c.brand} />
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 text-center">
+                        {studentId
+                          ? `No tasks yet. Generate a few ideas for ${childName || 'them'}, or write your own — either way they land on ${childName ? `${childName}'s` : 'their'} account.`
+                          : 'No tasks yet. Generate a few ideas built around this quest, or write your own.'}
+                      </UIText>
+                      {/* Offered on exactly the terms the header's Add Task
+                          pill is: a quest whose author un-ticked "let people add
+                          their own tasks" gets the message and no buttons. */}
+                      {canAddTasks && quest.allow_custom_tasks !== false && (
+                        <VStack space="sm" className="w-full">
+                          <Button
+                            size="lg"
+                            className="w-full"
+                            testID="empty-generate-tasks-btn"
+                            onPress={() => { setWizardStep('ai-personalize'); setAddTaskOpen(true); }}
+                          >
+                            <ButtonText>Generate task ideas</ButtonText>
+                          </Button>
+                          <Button
+                            size="lg"
+                            variant="outline"
+                            className="w-full"
+                            onPress={() => { setWizardStep('choose'); setAddTaskOpen(true); }}
+                          >
+                            <ButtonText>Write my own</ButtonText>
+                          </Button>
+                        </VStack>
+                      )}
+                    </VStack>
                   </Card>
                 )}
 
@@ -1050,11 +1144,18 @@ export function QuestDetailView({ questId: id, studentId = null }: QuestDetailVi
                   questId={quest.id}
                   questTitle={quest.title}
                   open={addTaskOpen}
-                  onClose={() => setAddTaskOpen(false)}
+                  initialStep={wizardStep}
+                  // Back to the chooser once this visit to the wizard is over,
+                  // so the next Add Task press is the plain three-way choice.
+                  onClose={() => { setAddTaskOpen(false); setWizardStep('choose'); }}
                   onGenerate={generateTasks}
                   onAcceptTask={acceptTask}
                   onAdjustTask={adjustTask}
-                  defaultChallengeLevel={preferredChallengeLevel}
+                  // The signed-in user's remembered level, and only theirs. In
+                  // parent mode that would preselect the PARENT's preference
+                  // for the child's tasks; let the backend fall back to the
+                  // child's own instead.
+                  defaultChallengeLevel={studentId ? null : preferredChallengeLevel}
                   isClassQuest={quest.quest_type === 'class'}
                   classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />

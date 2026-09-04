@@ -158,7 +158,11 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
   const ensureSession = async (): Promise<string> => {
     if (sessionRef.current) return sessionRef.current;
     if (!questId) throw new Error('No quest ID');
-    const { data } = await api.post(`/api/quests/${questId}/start-personalization`, {});
+    // Parent mode: the session, and everything generated in it, belongs to the
+    // CHILD. Without student_id the backend personalized off the signed-in
+    // parent — a 16-year-old's tasks shaped by his mother's profile.
+    const { data } = await api.post(`/api/quests/${questId}/start-personalization`,
+      studentId ? { student_id: studentId } : {});
     const sid = data.session_id;
     if (!sid) throw new Error('No session ID returned');
     sessionRef.current = sid;
@@ -181,8 +185,11 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       interests: interestList,
       cross_curricular_subjects: subject ? [subject] : [],
       exclude_tasks: existingTitles,
-      // Omitted -> backend falls back to the user's stored preference.
+      // Omitted -> backend falls back to the LEARNER's stored preference.
       ...(challengeLevel ? { challenge_level: challengeLevel } : {}),
+      // Parent mode: personalize to the child, and remember the challenge level
+      // on the child, not on the parent.
+      ...(studentId ? { student_id: studentId } : {}),
       // AI generation runs several model calls; override the 15s global timeout.
     }, { timeout: 90000 });
     return data.tasks || data.generated_tasks || [];

@@ -67,7 +67,7 @@ const dependentContext = {
 /** ...and for a student who keeps their own login (an approved link). */
 const linkedContext = { ...dependentContext, is_dependent: false, can_complete_tasks: false, can_remove_tasks: false };
 
-function mockQuestRead(viewer_context: typeof dependentContext) {
+function mockQuestRead(viewer_context: typeof dependentContext, quest: any = baseQuest) {
   (api.get as jest.Mock).mockImplementation((url: string) => {
     if (url.startsWith('/api/quests/quest-1/engagement')) {
       return Promise.resolve({ data: { engagement: null } });
@@ -75,7 +75,7 @@ function mockQuestRead(viewer_context: typeof dependentContext) {
     if (url.startsWith('/api/evidence/documents/')) {
       return Promise.resolve({ data: { blocks: [] } });
     }
-    return Promise.resolve({ data: { quest: { ...baseQuest, viewer_context } } });
+    return Promise.resolve({ data: { quest: { ...quest, viewer_context } } });
   });
 }
 
@@ -90,29 +90,19 @@ afterEach(() => {
   clearAuthState();
 });
 
-// React 19 act() surfaces an AggregateError for screens with many async effects.
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args: any[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('AggregateError')) return;
-    if (args[0] instanceof Error && args[0].constructor.name === 'AggregateError') return;
-    originalError(...args);
-  };
-});
-afterAll(() => { console.error = originalError; });
-
+// This used to swallow an AggregateError out of render() and return null, and
+// every test below then returned early -- the whole file passed without
+// asserting anything. The AggregateError was React 19 rethrowing a real
+// failure: `withRepeat` was missing from the reanimated mock, so the loading
+// Skeleton threw from its mount effect. Fixed in src/__tests__/setup.tsx.
+// Render plainly; a throw here is a bug, not weather.
 function renderScreen() {
-  try {
-    return render(<ParentQuestViewPage />);
-  } catch {
-    return null; // act() AggregateError - expected on this screen
-  }
+  return render(<ParentQuestViewPage />);
 }
 
 describe('ParentQuestViewPage', () => {
   it("reads the CHILD's copy of the quest, not the parent's", async () => {
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByText('Bridge Building')).toBeTruthy());
     expect(api.get).toHaveBeenCalledWith('/api/quests/quest-1', {
@@ -122,14 +112,12 @@ describe('ParentQuestViewPage', () => {
 
   it('names whose quest it is', async () => {
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByText("Ada's quest")).toBeTruthy());
   });
 
   it('offers the task wizard - the same one the kid uses', async () => {
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByTestId('add-task-btn')).toBeTruthy());
   });
@@ -137,7 +125,6 @@ describe('ParentQuestViewPage', () => {
   it("still offers the wizard for a student with their own login", async () => {
     mockQuestRead(linkedContext);
     const result = renderScreen();
-    if (!result) return;
 
     // The 403 this used to be: task authoring was gated on is_dependent, so a
     // Hearthwood family whose tie is an approved link had no way in at all.
@@ -146,14 +133,12 @@ describe('ParentQuestViewPage', () => {
 
   it('shows the quest description the learner sees', async () => {
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByText('Design and test a bridge')).toBeTruthy());
   });
 
   it("lets a dependent's parent finish and remove a task", async () => {
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByText('Sketch three designs')).toBeTruthy());
     fireEvent.press(result.getByText('Sketch three designs'));
@@ -162,10 +147,45 @@ describe('ParentQuestViewPage', () => {
     expect(result.getByText('Remove from quest')).toBeTruthy();
   });
 
+  it('offers to generate tasks when the quest is empty', async () => {
+    // A parent creates a quest for her kid and lands here with nothing on it.
+    // The offer has to be ON this screen: hiding AI generation behind the small
+    // "Add Task" pill read as the app failing to generate anything at all.
+    mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByTestId('empty-generate-tasks-btn')).toBeTruthy());
+    expect(result.getByText('Write my own')).toBeTruthy();
+  });
+
+  it('opens the wizard on its AI step for a quest the parent just created', async () => {
+    (useLocalSearchParams as jest.Mock).mockReturnValue({
+      studentId: 'kid-1', questId: 'quest-1', new: '1',
+    });
+    mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
+    const result = renderScreen();
+
+    // 'Personalize' is the wizard's header on the ai-personalize step, and it
+    // appears nowhere else — reaching it with no press means the screen opened
+    // the wizard and skipped the method chooser.
+    await waitFor(() => expect(result.getByText('Personalize')).toBeTruthy());
+  });
+
+  it('says a collapsed task can be opened when it has more to read', async () => {
+    mockQuestRead(linkedContext, {
+      ...baseQuest,
+      quest_tasks: [{ ...baseQuest.quest_tasks[0], description: 'Three sketches, front and side.' }],
+    });
+    const result = renderScreen();
+
+    // The report this fixes: "I cannot click on it to read the whole thing."
+    await waitFor(() => expect(result.getByText('Tap to read the whole task')).toBeTruthy());
+    expect(result.getByText('Three sketches, front and side.')).toBeTruthy();
+  });
+
   it('withholds both from the parent of a student with their own login', async () => {
     mockQuestRead(linkedContext);
     const result = renderScreen();
-    if (!result) return;
 
     await waitFor(() => expect(result.getByText('Sketch three designs')).toBeTruthy());
     fireEvent.press(result.getByText('Sketch three designs'));

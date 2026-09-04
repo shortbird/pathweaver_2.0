@@ -16,6 +16,16 @@ import { useLocalSearchParams } from 'expo-router';
 import { QuestDetailView } from '@/src/components/quests/QuestDetailView';
 
 export default function ParentQuestViewPage() {
-  const { studentId, questId } = useLocalSearchParams<{ studentId: string; questId: string }>();
-  return <QuestDetailView questId={questId || null} studentId={studentId || null} />;
+  const { studentId, questId, new: isNew } = useLocalSearchParams<{
+    studentId: string; questId: string; new?: string;
+  }>();
+  return (
+    <QuestDetailView
+      questId={questId || null}
+      studentId={studentId || null}
+      // Set by CreateQuestSheet right after a parent authors the quest: it has
+      // no tasks yet, so the screen opens the task wizard on its AI step.
+      autoOpenTaskWizard={isNew === '1'}
+    />
+  );
 }
