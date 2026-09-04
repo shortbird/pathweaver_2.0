@@ -10,10 +10,8 @@ kid sees. Two things must hold, and neither is visible by reading the view:
      somebody's kid's tasks half-assembled behind it.
 """
 
-import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 from flask import Flask
 
 from routes.quest import detail

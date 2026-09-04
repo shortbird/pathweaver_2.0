@@ -125,7 +125,7 @@ def resolve_student_scope(caller_id: str, student_id) -> str:
     try:
         student_id = pgrst_uuid(student_id, 'student_id')
     except PostgrestFilterError as e:
-        raise GuardianAccessError(str(e))
+        raise GuardianAccessError(str(e)) from e
 
     if student_id == caller_id:
         return caller_id
