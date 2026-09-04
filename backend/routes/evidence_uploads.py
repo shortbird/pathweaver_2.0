@@ -16,6 +16,8 @@ tests resolve routes BY THAT NAME. Creating a second blueprint here would have
 renamed every one of these endpoints silently.
 """
 
+from typing import Any, cast
+
 from flask import request, jsonify
 
 from database import get_supabase_admin_client
@@ -49,7 +51,7 @@ def register_routes(bp):
 
             if not task_check.data:
                 return jsonify({'success': False, 'error': 'Task not found'}), 404
-            if task_check.data[0]['user_id'] != user_id:
+            if cast(dict[str, Any], task_check.data[0])['user_id'] != user_id:
                 return jsonify({'success': False, 'error': 'Access denied'}), 403
 
             file = request.files.get('file')
@@ -68,7 +70,7 @@ def register_routes(bp):
                 status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
                 return jsonify({'success': False, 'error': result.error_message}), status
 
-            response_data = {
+            response_data: dict[str, Any] = {
                 'success': True,
                 # `url` is the durable pointer the client persists on the block;
                 # `display_url` is the signed, expiring twin it renders right away.
@@ -123,7 +125,7 @@ def register_routes(bp):
             )
             if not task_check.data:
                 return jsonify({'success': False, 'error': 'Task not found'}), 404
-            if task_check.data[0]['user_id'] != user_id:
+            if cast(dict[str, Any], task_check.data[0])['user_id'] != user_id:
                 return jsonify({'success': False, 'error': 'Access denied'}), 403
 
             data = request.get_json() or {}
@@ -175,7 +177,7 @@ def register_routes(bp):
                 .execute()
             if not task_check.data:
                 return jsonify({'success': False, 'error': 'Task not found'}), 404
-            if task_check.data[0]['user_id'] != user_id:
+            if cast(dict[str, Any], task_check.data[0])['user_id'] != user_id:
                 return jsonify({'success': False, 'error': 'Access denied'}), 403
 
             data = request.get_json() or {}
@@ -199,7 +201,7 @@ def register_routes(bp):
                 status = 413 if result.error_code == 'FILE_TOO_LARGE' else 400
                 return jsonify({'success': False, 'error': result.error_message, 'error_code': result.error_code}), status
 
-            response_data = {
+            response_data: dict[str, Any] = {
                 'success': True,
                 # `url` is the durable pointer the client persists on the block;
                 # `display_url` is the signed, expiring twin it renders right away.
@@ -250,7 +252,7 @@ def register_routes(bp):
             if not block_response.data:
                 return jsonify({'success': False, 'error': 'Block not found'}), 404
 
-            block = block_response.data
+            block = cast(dict[str, Any], block_response.data)
             document_user_id = (
                 block.get('user_task_evidence_documents', {}).get('user_id')
                 if isinstance(block.get('user_task_evidence_documents'), dict)
@@ -313,7 +315,7 @@ def register_routes(bp):
             if not block_response.data:
                 return jsonify({'success': False, 'error': 'Block not found'}), 404
 
-            block = block_response.data
+            block = cast(dict[str, Any], block_response.data)
             document_user_id = (
                 block.get('user_task_evidence_documents', {}).get('user_id')
                 if isinstance(block.get('user_task_evidence_documents'), dict)
@@ -375,7 +377,7 @@ def register_routes(bp):
                 .eq('id', block_id)\
                 .execute()
 
-            response_data = {
+            response_data: dict[str, Any] = {
                 'success': True,
                 'message': 'File uploaded successfully',
                 # The block row already holds the canonical pointer (set above), so
@@ -422,7 +424,7 @@ def register_routes(bp):
             if not block_response.data:
                 return jsonify({'success': False, 'error': 'Block not found'}), 404
 
-            block = block_response.data
+            block = cast(dict[str, Any], block_response.data)
             document_user_id = block.get('user_task_evidence_documents', {}).get('user_id') if isinstance(block.get('user_task_evidence_documents'), dict) else None
             if document_user_id != user_id:
                 return jsonify({'success': False, 'error': 'Access denied'}), 403
@@ -479,7 +481,7 @@ def register_routes(bp):
                 .eq('id', block_id)\
                 .execute()
 
-            response_data = {
+            response_data: dict[str, Any] = {
                 'success': True,
                 'message': 'File uploaded successfully',
                 # The block row already holds the canonical pointer (set above), so

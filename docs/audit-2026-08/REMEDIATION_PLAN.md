@@ -1867,6 +1867,27 @@ Log:
   so the exemption is the minority holdout, not the convention, and a split that
   grew the debt list would be a step backwards.
 
+- 2026-09-03: THE INHERITED MYPY EXEMPTION IS GONE. `routes.evidence_uploads`
+  is now type-clean and its `mypy.ini` section is deleted, one commit after it
+  was added. 74 of 247 route modules carry `ignore_errors = True`; the split
+  had briefly made it 75.
+
+  All 83 errors were one shape — Supabase `.execute().data` is typed as a JSON
+  union, so `row['col']` and `row.get(...)` are errors on it. Five bindings
+  fixed the lot:
+  - `block = block_response.data` x3 -> `cast(dict[str, Any], ...)`. This also
+    silently fixed `current_content = block.get('content')` downstream, which
+    was ~40 of the 83 on its own.
+  - `task_check.data[0]['user_id']` x3 -> same cast.
+  - `response_data = {` x4 -> `response_data: dict[str, Any] = {`. Inferred
+    from the literal it was `dict[str, int | str | None]`, so the later
+    `response_data['duration_seconds'] = <float>` did not fit.
+
+  No logic changed; `cast` is erased at runtime and the annotations are on
+  bindings only. Worth knowing for the other 74: this is not 74 files of real
+  bugs, it is one missing type on the Supabase client repeated everywhere.
+  Typing `.data` once at the client boundary would retire most of the list.
+
   ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 
 ### QB-05 — Three migration directories with ambiguous authority `[DONE]`
