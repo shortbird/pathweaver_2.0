@@ -23,8 +23,12 @@ def _admin_client_for_role(role):
 
 
 @contextmanager
-def staff(role='org_admin', org='org-1'):
+def staff(role='org_admin', org='org-1', same_org_as_student=True):
+    """`same_org_as_student` grants the SEC-10 relationship gate, which asks
+    caller_can_access_user before the view runs. The org resolution these tests
+    already stub is the in-view gate, not the only one."""
     with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role(role)), \
+         patch('utils.auth.org_scope.caller_can_access_user', return_value=same_org_as_student), \
          patch('services.sis_service.resolve_org_id', return_value=org):
         yield
 

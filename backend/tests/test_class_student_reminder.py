@@ -41,7 +41,14 @@ def _work(started=True, tasks=None, completed=False, title='Bridge Building'):
 
 def _call_remind(work, parents=(), enrolled=True):
     """Drive the view with the roster check and the work list stubbed."""
-    view = getattr(cq.remind_student, '__wrapped__', cq.remind_student)
+    # Unwrap the WHOLE decorator stack, not one layer. These tests call the
+    # view directly to exercise its logic rather than its gates, and the stack
+    # grew from one to two when @require_relationship_to landed (SEC-10) -- a
+    # single __wrapped__ then lands on the relationship gate instead of the
+    # view, and every test 403s for a reason unrelated to what it is testing.
+    view = cq.remind_student
+    while hasattr(view, '__wrapped__'):
+        view = view.__wrapped__
     admin = Mock()
     table = Mock()
     admin.table.return_value = table
@@ -111,7 +118,9 @@ class TestRemindStudent:
         """The student's own notification failing must not cost the guardian
         theirs, and vice versa."""
         work = [_work(tasks=[{'id': 't1', 'title': 'Sketch designs', 'done': False}])]
-        view = getattr(cq.remind_student, '__wrapped__', cq.remind_student)
+        view = cq.remind_student          # unwrap the whole stack; see _call_remind
+        while hasattr(view, '__wrapped__'):
+            view = view.__wrapped__
         admin = Mock()
         table = Mock()
         admin.table.return_value = table

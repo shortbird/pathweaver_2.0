@@ -30,6 +30,7 @@ Python above every read/write.
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
@@ -928,6 +929,7 @@ def _student_work(admin, class_row, student_id):
 
 @bp.route('/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=('teacher', 'org_staff'), discloses='progress')
 def student_class_progress(user_id, class_id, student_id):
     """What one student on this class has finished, and what they have not."""
     class_row, admin, err = _authorize(user_id, class_id)
@@ -957,6 +959,7 @@ def student_class_progress(user_id, class_id, student_id):
 
 @bp.route('/classes/<class_id>/students/<student_id>/remind', methods=['POST'])
 @require_auth
+@require_relationship_to('student_id', allow=('teacher', 'org_staff'))
 def remind_student(user_id, class_id, student_id):
     """Nudge a student, and their guardians, about work that is still open.
 

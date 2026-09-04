@@ -158,10 +158,6 @@ _reviewed(
 _reviewed(
     '_can_manage_student_tasks(supabase, caller, target) -- advisor assignment '
     'or same-org admin',
-    'admin_student_task_management.delete_student_task',
-    'admin_student_task_management.get_student_quest_tasks',
-    'admin_student_task_management.reorder_student_tasks',
-    'admin_student_task_management.update_student_task',
 )
 _reviewed(
     'org_admin gate plus an explicit "student is in this organization" check '
@@ -274,9 +270,6 @@ _reviewed(
     'organization_id, so a cross-org student id does not resolve',
     'sis_catalog.unenroll_student',
     'sis_prior_learning.student_accepted',
-    'sis_tuition.preview_tuition_invoice',
-    'sis_tuition.send_tuition_invoice',
-    'sis_tuition.tuition_preview',
     'school_inbox.send_as_school',
 )
 _reviewed(
@@ -303,8 +296,6 @@ _reviewed(
 _reviewed(
     '_authorize(caller, class_id) proves class moderator, then the student must '
     'hold an active class_enrollments row on that class',
-    'sis_class_quests.remind_student',
-    'sis_class_quests.student_class_progress',
     'sis_goals.save_goals',
 )
 _reviewed(

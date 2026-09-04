@@ -899,7 +899,25 @@ Log:
   the in-view org scoping it already stubbed is the SECOND gate now, not the
   only one.
 
-  SESSION TOTAL for (c): declared 37 -> 139 of 217, allowlist 166 -> 52.
+- 2026-09-03: (c) continues — admin student-task management (4), SIS tuition
+  (3), SIS class quests (2). Declared 139 -> 148, allowlist 52 -> 43.
+
+  `admin/student_task_management` declares `('advisor', 'org_staff')`, the union
+  of what `_can_manage_student_tasks` grants (superadmin any, org_admin
+  same-org, advisor with an active assignment). `sis/tuition` declares
+  `('org_staff',)`. `sis/class_quests` declares `('teacher', 'org_staff')` —
+  `teaches_student` is exactly the "teaches a class this student is actively
+  enrolled in" relationship those two routes gate on through `_authorize` plus
+  an active `class_enrollments` row.
+
+  Two more test-seam repairs of the shapes already seen: another `staff()`
+  context manager that granted only the in-view org check, and
+  `test_class_student_reminder`'s `getattr(view, '__wrapped__', view)` — a
+  single-layer unwrap that landed on the relationship gate instead of the view
+  once the stack grew. Both now unwrap or grant completely, with the reason
+  written down.
+
+  SESSION TOTAL for (c): declared 37 -> 148 of 217, allowlist 166 -> 43.
 
   WHAT IS LEFT, and a good part of it should STAY: of the 52, eight are the
   row-selector cases named above (removing an advisor from a class, a family

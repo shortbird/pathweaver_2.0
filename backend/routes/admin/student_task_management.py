@@ -16,6 +16,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin, require_role
 from utils.roles import get_effective_role
 from utils.auth.org_scope import caller_can_access_user
+from utils.auth.relationships import require_relationship_to
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_utils import normalize_pillar_name
 from utils.storage_urls import sign_in_place
@@ -407,6 +408,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['GET'])
 @require_role('advisor', 'org_admin', 'superadmin')
+@require_relationship_to('target_user_id', allow=('advisor', 'org_staff'), discloses='tasks')
 def get_student_quest_tasks(user_id, target_user_id, quest_id):
     """
     Get all tasks for a specific student's quest.
@@ -489,6 +491,7 @@ def get_student_quest_tasks(user_id, target_user_id, quest_id):
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['PUT'])
 @require_role('advisor', 'org_admin', 'superadmin')
+@require_relationship_to('target_user_id', allow=('advisor', 'org_staff'))
 def update_student_task(user_id, target_user_id, quest_id, task_id):
     """
     Update a task for a specific student's quest.
@@ -607,6 +610,7 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
 @require_role('advisor', 'org_admin', 'superadmin')
+@require_relationship_to('target_user_id', allow=('advisor', 'org_staff'))
 def delete_student_task(user_id, target_user_id, quest_id, task_id):
     """
     Delete a task from a specific student's quest.
@@ -672,6 +676,7 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks/reorder', methods=['POST'])
 @require_role('advisor', 'org_admin', 'superadmin')
+@require_relationship_to('target_user_id', allow=('advisor', 'org_staff'))
 def reorder_student_tasks(user_id, target_user_id, quest_id):
     """
     Reorder tasks for a specific student's quest.

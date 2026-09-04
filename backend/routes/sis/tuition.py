@@ -10,6 +10,7 @@ per student to the family.
 from flask import Blueprint, request, jsonify, Response
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_tuition_service as tuition
@@ -47,6 +48,7 @@ def tuition_queue(user_id):
 
 @bp.route('/tuition/students/<student_id>/preview', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='tuition')
 def tuition_preview(user_id, student_id):
     """One student's tuition previewed for verification (schedule + line items +
     funding). The invoice this would send, before any manual adjustment."""
@@ -61,6 +63,7 @@ def tuition_preview(user_id, student_id):
 
 @bp.route('/tuition/students/<student_id>/invoice', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def send_tuition_invoice(user_id, student_id):
     """Send one tuition invoice for the student from the approver-verified line
     items. Body: {line_items:[{description, amount_cents, class_id?}],
@@ -87,6 +90,7 @@ def send_tuition_invoice(user_id, student_id):
 
 @bp.route('/tuition/students/<student_id>/invoice-preview.pdf', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='tuition')
 def preview_tuition_invoice(user_id, student_id):
     """The exact PDF the family will receive, built from what the approver is
     looking at right now.
