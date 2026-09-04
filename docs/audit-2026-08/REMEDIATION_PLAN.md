@@ -2781,12 +2781,46 @@ Log:
   dashboard edits nobody can make from here — adding ffmpeg to the backend
   build commands, and adding the header suite to optio-marketing.
 
-### OPS-03 — Nothing applies `supabase/migrations/` to production `[NEEDS-USER]`
+### OPS-03 — Nothing applies `supabase/migrations/` to production `[NEEDS-USER(workflow written; needs 2 secrets, a protected environment, and history reconciliation before the first apply)]`
 Migrations reach prod by hand (MCP/dashboard) — the exposure-audit workflow exists
 because of exactly this. Proposal: a gated `supabase db push` step in release.yml
 (or a manual-approval workflow). Prod risk -> user decision.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: User chose the manual-approval workflow over a step in
+  release.yml. Written: `.github/workflows/migrate-prod.yml`. Ships inert.
+
+  NOT IN release.yml, and that was the user's call as well as the right one: a
+  schema change applied by a deploy is a schema change nobody chose to make at
+  that moment, and its worst case is a lock on a production table during a
+  release.
+
+  Two modes. `plan` is read-only — it links, runs `migration list --linked`,
+  counts what `db push` would attempt, and writes the table to the job summary.
+  `apply` runs the push and is guarded three ways: a typed
+  `APPLY TO PRODUCTION`, a refusal when nothing is pending, and a refusal when
+  more than `max_pending` (default 3) migrations are pending.
+
+  THAT THIRD GUARD IS THE POINT OF THE WHOLE FILE. QB-05 established that the
+  history table is incomplete — 56 files carry a drifted version stamp and 3
+  have no row at all — so `db push` against prod today would attempt ~59
+  already-applied migrations. Some are `IF NOT EXISTS`-guarded. Not all are.
+  A workflow that made that one click away would be worse than the hand
+  application it replaces, so the pending count IS the tripwire: the
+  unreconciled state cannot be applied by accident, only by deliberately
+  raising a number.
+
+  Also runs in the `production` GitHub environment, so required reviewers there
+  become the approval gate.
+
+  STILL NEEDS THE USER, three things:
+    1. Secrets `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`.
+    2. A `production` environment with required reviewers (optional — without
+       it the typed confirmation is the only gate).
+    3. Reconcile the history before the first apply:
+       `supabase migration repair --status applied <version>` per already-applied
+       file. Until then, run `plan` only. The recipe is in
+       supabase/migrations/README.md.
 
 ### OPS-04 — Storage objects (student evidence) have no backups `[NEEDS-USER(create 4 secrets + 1 var, then run it once by hand)]`
 `backup-db.yml` covers Postgres only and says so. Write a storage-backup workflow

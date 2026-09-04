@@ -38,6 +38,29 @@ So nothing is missing from production; the HISTORY is incomplete.
 applied. Many are `IF NOT EXISTS`-guarded and would be harmless; not all are.
 **Do not run `db push` against production** until the history is reconciled.
 
+Reconcile by telling the history what is already true, one line per file:
+
+```bash
+supabase migration repair --status applied <version>
+```
+
+`<version>` is the recorded version, not always the filename stamp — 56 of
+these differ. `supabase migration list --linked` prints both columns.
+
+### The workflow that applies them
+
+[.github/workflows/migrate-prod.yml](../../.github/workflows/migrate-prod.yml)
+(OPS-03) is the intended mechanism. It is `workflow_dispatch` only and never
+runs from a deploy. Two modes:
+
+- **plan** — read-only. Prints `migration list` and counts what `db push` would
+  attempt. Run this first, always; it is also how you see the drift above.
+- **apply** — runs `db push`. Refuses unless you type `APPLY TO PRODUCTION`,
+  refuses when nothing is pending, and refuses when more than `max_pending`
+  (default 3) migrations are pending — which is precisely the unreconciled
+  state described above. It runs in the `production` GitHub environment, so
+  configuring required reviewers there adds human approval.
+
 The files were deliberately NOT renamed to match. A rename changes nothing in
 the database, and tooling that diffs by filename would read 56 renames as 56 new
 migrations — trading a quiet inconsistency for a loud one. Reconciling means

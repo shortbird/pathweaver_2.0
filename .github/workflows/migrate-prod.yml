@@ -1,0 +1,182 @@
+name: Apply migrations to production
+
+# OPS-03. Until this existed, migrations reached production by hand -- MCP
+# apply_migration, the SQL editor, or a local CLI -- and supabase/migrations/
+# was a record of intent rather than the mechanism. That is why the history
+# table and the directory disagree (see supabase/migrations/README.md), and why
+# the db-exposure audit workflow had to exist at all.
+#
+# ── THIS IS MANUAL ON PURPOSE
+#
+# It is workflow_dispatch only. It is deliberately NOT wired into release.yml:
+# a schema change that a deploy applies for you is a schema change nobody
+# decided to make at a particular moment, and the failure mode is a locked table
+# on a production database during a release.
+#
+# ── READ BEFORE THE FIRST APPLY
+#
+# `supabase db push` would currently attempt ~59 migrations that are ALREADY
+# applied, because they were applied by hand and the history rows were never
+# written (56 carry a drifted version stamp, 3 have no row at all). Many are
+# IF NOT EXISTS-guarded; not all are. The `plan` mode below shows you exactly
+# this, and the apply path refuses to run while the pending count is
+# implausible. Reconcile first with:
+#
+#     supabase migration repair --status applied <version>
+#
+# for each already-applied file, then apply mode becomes safe for the ONE new
+# migration you actually want.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan = show what would apply (safe, read-only). apply = run db push."
+        type: choice
+        options: [plan, apply]
+        default: plan
+      confirm:
+        description: "For apply only: type  APPLY TO PRODUCTION"
+        type: string
+        default: ""
+      max_pending:
+        description: "Refuse to apply if more than this many migrations are pending."
+        type: string
+        default: "3"
+
+concurrency:
+  # Two concurrent db pushes against one database is the worst outcome here.
+  group: migrate-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      pending: ${{ steps.list.outputs.pending }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check configuration
+        env:
+          ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1 is not set — see supabase/migrations/README.md"; exit 1; }
+          [ -n "${ACCESS_TOKEN:-}" ] || fail "secret SUPABASE_ACCESS_TOKEN"
+          [ -n "${DB_PASSWORD:-}" ]  || fail "secret SUPABASE_DB_PASSWORD"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link to the production project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'vvfgxcykxjybtvpfzwyx' }}
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: What would apply
+        id: list
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee /tmp/migrations.txt
+          # Rows are "  local | remote | time". A row with a local version and
+          # an empty remote column is a migration db push would attempt.
+          pending=$(awk -F'|' '
+            NF >= 2 {
+              gsub(/ /, "", $1); gsub(/ /, "", $2)
+              if ($1 ~ /^[0-9]{14}$/ && $2 == "") n++
+            }
+            END { print n+0 }' /tmp/migrations.txt)
+          echo "pending=$pending" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Migrations pending against production: **$pending**"
+            echo
+            echo '```'
+            cat /tmp/migrations.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Interpret the count
+        run: |
+          set -euo pipefail
+          pending='${{ steps.list.outputs.pending }}'
+          echo "Pending: $pending"
+          if [ "$pending" -gt 10 ]; then
+            echo "::warning::$pending migrations are pending. If you expected one or two, the history table is out of sync with supabase/migrations/ — see that directory's README. Do NOT apply until it is reconciled."
+          fi
+
+  apply:
+    name: Apply (db push)
+    needs: [plan]
+    if: inputs.mode == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Requires a reviewer if the `production` environment has required
+    # reviewers configured — which is the manual-approval gate this item asked
+    # for. Without that configuration the environment is inert and the typed
+    # confirmation below is the only thing standing between a dispatch and a
+    # schema change.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm intent
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          PENDING: ${{ needs.plan.outputs.pending }}
+          MAX_PENDING: ${{ inputs.max_pending }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "APPLY TO PRODUCTION" ]; then
+            echo "::error::confirm input must be exactly: APPLY TO PRODUCTION"
+            exit 1
+          fi
+          if [ "$PENDING" -eq 0 ]; then
+            echo "Nothing pending. Stopping before touching anything."
+            exit 1
+          fi
+          if [ "$PENDING" -gt "$MAX_PENDING" ]; then
+            echo "::error::$PENDING migrations are pending, above the max_pending of $MAX_PENDING."
+            echo "::error::This is what an unreconciled history looks like: db push would re-run migrations that are already applied. Reconcile with 'supabase migration repair --status applied <version>' (see supabase/migrations/README.md), or raise max_pending deliberately if you really do mean to apply $PENDING."
+            exit 1
+          fi
+          echo "Applying $PENDING migration(s) to production."
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'vvfgxcykxjybtvpfzwyx' }}
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$PROJECT_REF"
+          supabase db push --linked
+
+      - name: Record what is now applied
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Applied. History now reads:"
+            echo '```'
+            supabase migration list --linked
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
