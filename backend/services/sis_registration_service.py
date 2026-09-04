@@ -449,6 +449,9 @@ def complete(org_id: str, reg_id: str, completed_by: str) -> Dict[str, Any]:
             from services.class_group_sync_service import sync_class_group
             sync_class_group(item['class_id'], actor_id=completed_by)
             _enroll_in_class_quests(_admin(), item['class_id'], student_id)
+            from services import class_roster_alerts
+            class_roster_alerts.notify_teachers_of_new_student(
+                item['class_id'], student_id, actor_id=completed_by)
             # Re-registering into a class they were queued for clears the queue
             # entry — otherwise the family sees enrolled and waitlisted at once.
             from services import sis_waitlist_service

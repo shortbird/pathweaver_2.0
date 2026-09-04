@@ -4,6 +4,7 @@ import api from '../services/api'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import useSchoolContext from '../hooks/useSchoolContext'
 import BackToSchool from '../components/navigation/BackToSchool'
+import AnnouncementBody from '../components/announcements/AnnouncementBody'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
@@ -271,7 +272,16 @@ const FamilyCalendarPage = () => {
                       ))}
                     </div>
                     <p className="text-sm text-gray-500 mt-0.5">{when}{e.location ? ` · ${e.location}` : ''}</p>
-                    {e.description && <p className="text-sm text-gray-600 mt-1">{e.description}</p>}
+                    {/* A URL in an event's notes is a live link. Schools put a
+                        sign-up form or a ticket page in here and families had to
+                        select and paste it (iCreate, 2026-09-04: "we need the
+                        ability to make live links on events on the calendar so
+                        families can go directly to a form"). AnnouncementBody is
+                        what already does this for announcements — same rules,
+                        one implementation. */}
+                    {e.description && (
+                      <AnnouncementBody text={e.description} className="text-sm text-gray-600 mt-1" />
+                    )}
                   </div>
                 )
               })}

@@ -4,9 +4,10 @@ Class messaging groups: keep two group chats per class, mirroring the roster.
 Since 2026-08-31 a class has a PARENT chat and a STUDENT chat, told apart by
 group_conversations.audience:
 
-    - 'family'  — the adults (2026-08-22): guardians of the class's ACTIVE
-      students as members, teachers as admins. Students are deliberately NOT in
-      it; the class-wide conversation between adults stays between adults.
+    - 'family'  — the adults (2026-08-22), named "<Class> Parent Chat":
+      guardians of the class's ACTIVE students as members, teachers as admins.
+      Students are deliberately NOT in it; the class-wide conversation between
+      adults stays between adults.
     - 'student' — the class's ACTIVE students as members, teachers as admins.
       This replaces the retired class discussion board as the students'
       class-wide space.
@@ -30,7 +31,7 @@ student who dropped), so membership self-heals on the next enrollment change or
 teacher visit to the Messages tab.
 """
 
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, Tuple
 
 from database import get_supabase_admin_client
 from utils import class_membership as membership
@@ -71,9 +72,16 @@ def sync_class_groups(class_id: str, actor_id: Optional[str] = None) -> Dict[str
         name = (cls.get('name') or 'Class')
         out['family'] = _sync_one(
             admin, cls, class_id, actor_id, audience='family',
-            group_name=f'{name} Class Chat',
+            group_name=f'{name} Parent Chat',
             description=f'Group chat for {name} families and teachers',
             member_ids=parent_ids, advisor_ids=advisor_ids,
+            # "Class Chat" was the parent chat's name for its first fortnight,
+            # and it reads as "the chat for this class" — which is how a teacher
+            # came to write to her students in it for two days and wonder why
+            # none of them answered (iCreate, 2026-09-03: "the students saw each
+            # others messages, just not the teacher's"). Rename the ones nobody
+            # has touched; a group the school renamed by hand keeps its name.
+            rename_from=(f'{name} Class Chat',),
         )
         out['student'] = _sync_one(
             admin, cls, class_id, actor_id, audience='student',
@@ -95,11 +103,22 @@ def sync_class_group(class_id: str, actor_id: Optional[str] = None) -> Optional[
 
 def _sync_one(admin, cls: Dict[str, Any], class_id: str, actor_id: Optional[str],
               audience: str, group_name: str, description: str,
-              member_ids: Set[str], advisor_ids: Set[str]) -> Optional[str]:
-    group_rows = (admin.table('group_conversations').select('id')
+              member_ids: Set[str], advisor_ids: Set[str],
+              rename_from: Tuple[str, ...] = ()) -> Optional[str]:
+    group_rows = (admin.table('group_conversations').select('id, name')
                   .eq('source_class_id', class_id).eq('audience', audience)
                   .eq('is_active', True).limit(1).execute()).data
     group_id = group_rows[0]['id'] if group_rows else None
+
+    # A superseded auto-name is corrected in place. Matching the exact old
+    # generated string (rather than renaming whatever is there) is what keeps a
+    # school's own rename: only a name this service itself wrote is replaced.
+    if group_id and group_rows[0].get('name') in rename_from:
+        try:
+            admin.table('group_conversations').update({'name': group_name}) \
+                .eq('id', group_id).execute()
+        except Exception as e:  # noqa: BLE001 — a stale name must not stop the sync
+            logger.warning(f'Could not rename group {group_id}: {e}')
 
     if not group_id:
         if not (member_ids or advisor_ids):

@@ -61,6 +61,10 @@ const DASHBOARD = {
   ],
   quick_links: [{ label: 'Opening Checklist', url: '/resources' }],
   staff_resources: [],
+  pinned_links: [
+    { id: 'r1', title: 'Purchase Request', url: 'https://forms.gle/DTzmyXGcckFFbyYV9',
+      description: 'Request to purchase supplies for your class or school here.' },
+  ],
 }
 
 beforeEach(() => {
@@ -87,6 +91,16 @@ describe('coordinator dashboard', () => {
     expect(screen.getByText('Check broken printer')).toBeInTheDocument()
     // Quick links
     expect(screen.getByRole('link', { name: /opening checklist/i })).toBeInTheDocument()
+  })
+
+  // iCreate, 2026-09-01: the office pinned five staff links and ticked
+  // "Coordinators" on four of them, and Katrina saw none — only the teacher
+  // dashboard rendered a Links section, so the setting saved and showed nobody.
+  it('shows the links the office pinned for coordinators', async () => {
+    renderPage()
+    const link = await screen.findByRole('link', { name: 'Purchase Request' })
+    expect(link).toHaveAttribute('href', 'https://forms.gle/DTzmyXGcckFFbyYV9')
+    expect(link).toHaveAttribute('target', '_blank')
   })
 
   it('shows the accountability board and resolves an alert', async () => {

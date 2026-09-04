@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
@@ -65,6 +66,7 @@ const TABS = [
 
 const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
   const confirm = useConfirm()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('family')
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name || '')
@@ -107,10 +109,25 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
       + 'registration), use ⋯ › Remove from school on that person.'
     ))) return
     try {
-      await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
+      const { data } = await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
       toast.success('Family deleted')
       onSaved?.()
       onClose()
+      // ...and then say it again, now that it matters. The warning above is
+      // read while deciding whether to delete, not while wondering why the
+      // children are still on the allergy report an hour later (iCreate,
+      // 2026-09-01: "I deleted 'Tester' family but now the kids still show").
+      // Offering to go there beats naming a path they have to walk from memory.
+      const left = data?.orphaned_members || []
+      if (left.length && await confirm(
+        `${household.name} is deleted, but ${left.length === 1 ? 'one person' : `these ${left.length} people`} `
+        + `still ${left.length === 1 ? 'has' : 'have'} an account at the school:\n\n`
+        + `${left.map((m) => m.name).join(', ')}\n\n`
+        + 'That is why they still appear on rosters and reports. Open People › Everyone '
+        + 'to remove them as well?',
+      )) {
+        navigate(`/people?q=${encodeURIComponent(household.name || '')}`)
+      }
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not delete family') }
   }
 

@@ -337,6 +337,62 @@ def teacher_schedule(user_id: str, org_id: str) -> Dict[str, Any]:
     return {'meetings': meetings, 'assignments': duties}
 
 
+# How many of the school's staff resources a dashboard card lists before it
+# sends the reader to the full library.
+STAFF_RESOURCE_LIMIT = 8
+
+
+def staff_resources_for(user_id: str, org_id: str,
+                        limit: int = STAFF_RESOURCE_LIMIT) -> List[Dict[str, Any]]:
+    """The staff-facing resource library for one person, newest rules applied.
+
+    The trim to `limit` happens AFTER the role filter. It used to be a .limit()
+    in the query, so the database returned eight rows and the filter then took
+    a bite out of those eight — anything sorting past the eighth title was gone
+    before the viewer was considered at all. iCreate's library sorts
+    "Substitute Availability/Contact Info" and "Weekly Teacher Survey" ninth and
+    twelfth, and neither reached any dashboard.
+    """
+    rows = sis_service.filter_role_visible(user_id, (
+        _admin().table('org_resources')
+        .select('id, title, url, category, audience, visible_to_roles')
+        .eq('organization_id', org_id)
+        .in_('audience', ['staff', 'all'])
+        .order('title').execute()
+    ).data or [])
+    out = [{'id': r['id'], 'title': r['title'], 'url': r.get('url'),
+            'category': r.get('category')} for r in rows[:limit]]
+    # Uploaded docs live in the private `org-documents` bucket — one batched
+    # signing call for the list; external links pass through.
+    sign_in_place(out, ['url'])
+    return out
+
+
+def pinned_links_for(user_id: str, org_id: str) -> List[Dict[str, Any]]:
+    """The school's permanent staff links — Resources' "Pin to teacher home".
+
+    Shared by the teacher dashboard and the coordinator dashboard. Only the
+    teacher one rendered them, so a link the office pinned and ticked
+    "Coordinators" on appeared nowhere for a coordinator: iCreate pinned five,
+    of which four name coordinators, and Katrina saw none of them (2026-09-01,
+    "it doesn't show on Katrine who is a coordinator - because she doesn't even
+    seem to have a portal").
+    """
+    out = [
+        {'id': r['id'], 'title': r['title'], 'url': r.get('url'),
+         'description': r.get('description')}
+        for r in sis_service.filter_role_visible(user_id, (
+            _admin().table('org_resources')
+            .select('id, title, url, description, audience, visible_to_roles')
+            .eq('organization_id', org_id).eq('pinned', True)
+            .in_('audience', ['staff', 'all'])
+            .order('sort_order').order('title').execute()
+        ).data or [])
+    ]
+    sign_in_place(out, ['url'])
+    return out
+
+
 def _today_items(user_id: str, org_id: str) -> List[Dict[str, Any]]:
     """Today's classes + duties for the dashboard, sorted by start time."""
     now = _org_now(org_id)
@@ -428,35 +484,12 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     # Staff-facing resources (the mentor handbook and friends). These already
     # existed but only surfaced when an acknowledgment was outstanding, so a
     # teacher had no way to find the handbook again afterwards.
-    staff_resources = [
-        {'id': r['id'], 'title': r['title'], 'url': r.get('url'), 'category': r.get('category')}
-        for r in sis_service.filter_role_visible(user_id, (
-            _admin().table('org_resources')
-            .select('id, title, url, category, audience, visible_to_roles')
-            .eq('organization_id', org_id)
-            .in_('audience', ['staff', 'all'])
-            .order('title').limit(8).execute()
-        ).data or [])
-    ]
-    # Uploaded docs live in the private `org-documents` bucket — one batched
-    # signing call for the list; external links pass through.
-    sign_in_place(staff_resources, ['url'])
+    staff_resources = staff_resources_for(user_id, org_id)
 
     # Pinned links: the school's permanent teacher links (iCreate 2026-08-28),
     # rendered as their own section between Today and My classes. Same
     # audience/role visibility rules as the library.
-    pinned_links = [
-        {'id': r['id'], 'title': r['title'], 'url': r.get('url'),
-         'description': r.get('description')}
-        for r in sis_service.filter_role_visible(user_id, (
-            _admin().table('org_resources')
-            .select('id, title, url, description, audience, visible_to_roles')
-            .eq('organization_id', org_id).eq('pinned', True)
-            .in_('audience', ['staff', 'all'])
-            .order('sort_order').order('title').execute()
-        ).data or [])
-    ]
-    sign_in_place(pinned_links, ['url'])
+    pinned_links = pinned_links_for(user_id, org_id)
 
     return {
         # Before the first day of school the daily schedule stays empty — weekly

@@ -194,7 +194,11 @@ const TaskCenterPage = () => {
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">
-          What people send the office, and what the office asks of people.
+          {/* Naming the nouns: checklists lost their own tab in the reorg and
+              the admin who used them went looking on Documents for them
+              (iCreate, 2026-09-01: "what happened to the checklists?"). */}
+          What people send the office, and what the office asks of people —
+          tasks, checklists and documents for signature are all under Assigned.
         </p>
       </div>
 

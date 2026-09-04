@@ -949,6 +949,9 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
     _enroll_in_class_quests(_admin(), class_id, student_user_id)
+    from services import class_roster_alerts
+    class_roster_alerts.notify_teachers_of_new_student(
+        class_id, student_user_id, actor_id=user_id)
     from services import sis_waitlist_service
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_user_id)
     return {'enrolled': True}

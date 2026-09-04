@@ -29,11 +29,22 @@ const TypeBadge = ({ children }) => (
   <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{children}</span>
 )
 
+// The three kinds of send, as the office names them. Checklists lost their own
+// tab in the 2026-08-31 reorg and the word went with them, so the admin who had
+// been using them went looking on the Documents tab and asked "what happened to
+// the checklists?" (iCreate, 2026-09-01). One list is still right — they are one
+// table and one sentence — but the nouns have to stay visible in it.
+const TYPES = [['task', 'Tasks'], ['checklist', 'Checklists'], ['signature', 'Signatures']]
+
 export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCount = null }) {
   const [assignments, setAssignments] = useState([])
   const [batches, setBatches] = useState([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('outstanding')
+  // Which kind to show. Also the answer to "this lists some by the form and
+  // some by person, can we sort it?" (iCreate, 2026-09-01) — the two shapes in
+  // that list are a signature batch and a checklist, and they separate here.
+  const [type, setType] = useState('')
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -63,6 +74,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
     const rows = [
       ...assignments.map((a) => ({
         key: `a:${a.id}`,
+        type: a.template_id ? 'checklist' : 'task',
         outstanding: a.status !== 'complete',
         when: a.created_at || '',
         node: (
@@ -72,6 +84,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
       })),
       ...batches.map((b) => ({
         key: `b:${b.batch_id}`,
+        type: 'signature',
         outstanding: b.signed_count < b.total_count,
         when: b.sent_at || '',
         node: (
@@ -85,7 +98,9 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
   }, [assignments, batches, orgId, sigEndpoint, load])
 
   const outstanding = entries.filter((e) => e.outstanding)
-  const shown = view === 'outstanding' ? outstanding : entries
+  const byStatus = view === 'outstanding' ? outstanding : entries
+  const shown = type ? byStatus.filter((e) => e.type === type) : byStatus
+  const countOf = (t) => entries.filter((e) => e.type === t).length
 
   return (
     <div className="space-y-6">
@@ -101,6 +116,15 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
               {label}
             </button>
           ))}
+          <span className="mx-1 h-5 w-px bg-gray-200" aria-hidden="true" />
+          {[['', 'Every kind'], ...TYPES].map(([value, label]) => (
+            <button key={value || 'any'} onClick={() => setType(value)} aria-pressed={type === value}
+              className={`px-3 py-1.5 rounded-lg text-sm ${type === value
+                ? 'bg-optio-purple/10 text-optio-purple font-semibold'
+                : 'text-neutral-600 hover:bg-gray-100'}`}>
+              {value ? `${label} (${countOf(value)})` : label}
+            </button>
+          ))}
         </div>
 
         {loading && <p className="text-sm text-neutral-500">Loading…</p>}
@@ -110,7 +134,11 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
           </p>
         )}
         {!loading && entries.length > 0 && !shown.length && (
-          <p className="text-sm text-neutral-500">Everything assigned is done.</p>
+          <p className="text-sm text-neutral-500">
+            {type && byStatus.length
+              ? `No ${(TYPES.find(([v]) => v === type) || [, 'items'])[1].toLowerCase()} here.`
+              : 'Everything assigned is done.'}
+          </p>
         )}
         <div className="space-y-2">
           {shown.map((e) => e.node)}

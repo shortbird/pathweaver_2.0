@@ -34,7 +34,7 @@ import ClassMessagesTab from './ClassMessagesTab'
 
 const PAYLOAD = {
   class: { id: 'c1', name: 'Musical Theater' },
-  group: { id: 'g1', name: 'Musical Theater Class Chat', announcement_only: false },
+  group: { id: 'g1', name: 'Musical Theater Parent Chat', announcement_only: false },
   student_group: { id: 'g2', name: 'Musical Theater Student Chat', announcement_only: false },
   students: [
     { id: 's1', name: 'Ada Byron', preferred_name: null, avatar_url: null, relationship: 'student' },
@@ -78,6 +78,26 @@ describe('ClassMessagesTab', () => {
     await userEvent.click(screen.getByText('Student chat'))
 
     expect(await screen.findByTestId('group-chat')).toHaveTextContent('group:g2')
+  })
+
+  // iCreate, 2026-09-03: "one teacher was sending messages to her students but
+  // they were not receiving them." She was writing in the parent chat, which
+  // opens first and which nothing in the chat pane said was parents-only. The
+  // audience is now stated above the composer, either way round.
+  it('says who each class chat reaches, above the composer', async () => {
+    api.get.mockResolvedValue({ data: PAYLOAD })
+    render(<ClassMessagesTab classId="c1" orgId="org1" className="Musical Theater" />)
+    await screen.findByTestId('group-chat')
+
+    expect(screen.getByText(
+      'Goes to the 1 parent of this class, and its teachers. Students do not see it.',
+    )).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('Student chat'))
+
+    expect(await screen.findByText(
+      'Goes to the 2 students in this class, and its teachers. Parents do not see it.',
+    )).toBeInTheDocument()
   })
 
   it('switches to a one-to-one conversation with a student', async () => {
