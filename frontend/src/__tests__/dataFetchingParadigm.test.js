@@ -23,6 +23,13 @@ import path from 'path'
  * retry/backoff, and every page inventing its own loading and error state --
  * which is also how QF-05's silent-empty-section pattern spreads.
  *
+ * MIGRATION HAS STARTED. Four of the highest-churn SIS pages now read through
+ * hooks/api: RosterPage (19 commits in six months), StaffPage (16),
+ * HouseholdsPage (18), TeacherClassPage (15). Their hooks are
+ * useSisRoster/useSisStaff/useSisHouseholds/useSisTeacherClass, and each keys
+ * on orgId so a superadmin switching orgs cannot be served the previous org's
+ * rows from cache. 555 call sites -> 540, 12 hooked pages -> 16.
+ *
  * COUNTED IN CALL SITES, NOT FILES, since 2026-09-04. The file count is not
  * the quantity anyone cares about and it moves for reasons that have nothing
  * to do with this item: splitting ClassesPage into seven components (QF-02)
@@ -35,7 +42,7 @@ import path from 'path'
 const PAGES = path.resolve(__dirname, '../pages')
 
 /** Measured 2026-09-04. Ratchet DOWN as pages migrate. */
-const CALL_SITE_BASELINE = 555
+const CALL_SITE_BASELINE = 540
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

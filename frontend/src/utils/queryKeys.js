@@ -38,6 +38,16 @@ export const queryKeys = {
     activity: (userId) => [...queryKeys.social.all, 'activity', userId],
   },
 
+  // SIS console. Everything here is org-scoped, so orgId is part of the key --
+  // a superadmin switching orgs must not be served the previous org's cache.
+  sis: {
+    all: ['sis'],
+    roster: (orgId) => [...queryKeys.sis.all, 'roster', orgId],
+    staff: (orgId) => [...queryKeys.sis.all, 'staff', orgId],
+    households: (orgId) => [...queryKeys.sis.all, 'households', orgId],
+    teacherClassRoster: (orgId, classId) => [...queryKeys.sis.all, 'teacherClassRoster', orgId, classId],
+  },
+
   // Evidence
   evidence: {
     all: ['evidence'],

@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ExclamationTriangleIcon, PrinterIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useSisTeacherClass } from '../../hooks/api/useSisTeacherClass'
 import { useSisOrg, withOrg } from './useSisOrg'
 import StudentProgressTab from '../../components/sis/StudentProgressTab'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
@@ -60,10 +61,13 @@ const TeacherClassPage = () => {
   const { classId } = useParams()
   const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
-  const [cls, setCls] = useState(null)
-  const [budget, setBudget] = useState(null)
-  const [students, setStudents] = useState([])
-  const [loading, setLoading] = useState(true)
+  // QF-03: the class, its budget and its roster arrive together and are only
+  // ever set together, so they are one query. Keyed on classId too, so moving
+  // between classes no longer shows the previous roster until the next response.
+  const { data: classData, isLoading: loading, refetch: load } = useSisTeacherClass(orgId, classId)
+  const cls = classData?.cls ?? null
+  const budget = classData?.budget ?? null
+  const students = classData?.students || []
   const [date, setDate] = useState(today())
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
@@ -76,20 +80,7 @@ const TeacherClassPage = () => {
   const initialTab = VALID_TABS.includes(requestedTab) ? requestedTab : 'roster'
   const [tab, setTab] = useState(initialTab)
 
-  const load = useCallback(() => {
-    if (!orgId) { setLoading(false); return }
-    setLoading(true)
-    api.get(withOrg(`/api/sis/teacher/classes/${classId}/roster`, orgId))
-      .then((r) => {
-        setCls(r.data?.class)
-        setBudget(r.data?.supply_budget || null)
-        setStudents(r.data?.students || [])
-      })
-      .catch((e) => toast.error(e?.response?.data?.error || 'Failed to load the roster'))
-      .finally(() => setLoading(false))
-  }, [orgId, classId])
 
-  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     if (!orgId || !date) return

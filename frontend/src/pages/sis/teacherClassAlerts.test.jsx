@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * Health alerts on a teacher's class roster.
@@ -15,11 +16,18 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
  * teachers actually take attendance on.
  */
 
-const render = (ui) => rtlRender(
-  <MemoryRouter initialEntries={['/my-classes/c1']}>
-    <Routes><Route path="/my-classes/:classId" element={ui} /></Routes>
-  </MemoryRouter>,
-)
+// TeacherClassPage reads its roster through hooks/api/useSisTeacherClass
+// (QF-03), so it needs a QueryClient. Fresh per render, retry off.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/my-classes/c1']}>
+        <Routes><Route path="/my-classes/:classId" element={ui} /></Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

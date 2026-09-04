@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * People › Everyone — CSV export and removing a person.
@@ -15,7 +16,18 @@ import { MemoryRouter } from 'react-router-dom'
  * members of that family are still showing and Idk how to remove them."
  */
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// RosterPage reads its roster through hooks/api/useSisRoster (QF-03), so it
+// needs a QueryClient. A fresh client per render keeps one test's cache out of
+// the next one's, and retry:false makes a failed query fail the assertion
+// rather than hang for three backoff rounds.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

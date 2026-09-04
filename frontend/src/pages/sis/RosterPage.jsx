@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useSisRoster } from '../../hooks/api/useSisRoster'
 import Button from '../../components/ui/Button'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
@@ -36,8 +37,10 @@ const fmtDate = (d) => {
 const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const navigate = useNavigate()
-  const [roster, setRoster] = useState([])
-  const [loading, setLoading] = useState(true)
+  // QF-03: roster + loading come from react-query now, so a return to this page
+  // reads cache instead of refetching, and two components mounting it share one
+  // request. `refetch` is what used to be `load`.
+  const { data: roster = [], isLoading: loading, refetch: load } = useSisRoster(orgId)
   const [selected, setSelected] = useState(null)   // Manage modal (tabbed)
   const [showNewUser, setShowNewUser] = useState(false)  // + New User modal
   const [showExport, setShowExport] = useState(false)     // Export CSV modal
@@ -51,16 +54,7 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [recentOnly, setRecentOnly] = useState(false)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
-  const load = useCallback(() => {
-    if (!orgId) { setLoading(false); return }
-    setLoading(true)
-    api.get(withOrg('/api/sis/roster', orgId))
-      .then((r) => setRoster(r.data?.roster || []))
-      .catch(() => toast.error('Failed to load roster'))
-      .finally(() => setLoading(false))
-  }, [orgId])
 
-  useEffect(() => { load() }, [load])
 
   // Keep the open Manage modal in sync with fresh roster data (e.g. after assigning
   // a student to a family, the modal reflects it without reopening).

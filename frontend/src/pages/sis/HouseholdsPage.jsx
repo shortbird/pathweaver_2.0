@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import { useSisHouseholds } from '../../hooks/api/useSisHouseholds'
 import Button from '../../components/ui/Button'
 import SearchSelect from '../../components/ui/SearchSelect'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyDetailModal from './FamilyDetailModal'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
@@ -133,34 +134,20 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
 
 const HouseholdsPage = ({ embedded = false }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const [households, setHouseholds] = useState([])
-  const [members, setMembers] = useState([])
-  const [unassigned, setUnassigned] = useState([])
-  const [loading, setLoading] = useState(true)
+  // QF-03: one query for all three lists -- the page is meaningless with a
+  // subset, and separate queries would let a student show as both assigned and
+  // unassigned mid-flight. `refetch` is the old `load`.
+  const { data: sisData, isLoading: loading, refetch: load } = useSisHouseholds(orgId)
+  const households = sisData?.households || []
+  const members = sisData?.members || []
+  const unassigned = sisData?.unassigned || []
   const [newName, setNewName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [payFilter, setPayFilter] = useState('')
   const [selected, setSelected] = useState(null)
 
-  const load = useCallback(() => {
-    if (!orgId) { setLoading(false); return }
-    setLoading(true)
-    Promise.all([
-      api.get(withOrg('/api/sis/households', orgId)),
-      api.get(withOrg('/api/sis/members', orgId)),
-      api.get(withOrg('/api/sis/unassigned-students', orgId)),
-    ])
-      .then(([h, m, u]) => {
-        setHouseholds(h.data?.households || [])
-        setMembers(m.data?.members || [])
-        setUnassigned(u.data?.students || [])
-      })
-      .catch(() => toast.error('Failed to load families'))
-      .finally(() => setLoading(false))
-  }, [orgId])
 
-  useEffect(() => { load() }, [load])
 
   // Keep the open modal in sync with fresh data (after edits reflect immediately).
   useEffect(() => {

@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisStaff } from '../../hooks/api/useSisStaff'
+import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import Button from '../../components/ui/Button'
 import { RolePill } from '../../components/ui/RolePill'
@@ -66,8 +67,8 @@ const StatusPills = ({ s }) => (
 const StaffPage = ({ embedded = false, toolbarEl = null }) => {
   const confirm = useConfirm()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  const [staff, setStaff] = useState([])
-  const [loading, setLoading] = useState(true)
+  // QF-03: staff + loading come from react-query. `refetch` is the old `load`.
+  const { data: staff = [], isLoading: loading, refetch: load } = useSisStaff(orgId)
   const [adding, setAdding] = useState(false)
   // Clicking a card opens the detail modal; its footer actions hand off to the
   // edit / employment / link modals (same clickable-card pattern as Users and
@@ -113,16 +114,7 @@ const StaffPage = ({ embedded = false, toolbarEl = null }) => {
     window.location.reload()
   }
 
-  const load = useCallback(() => {
-    if (!orgId) { setLoading(false); return }
-    setLoading(true)
-    api.get(withOrg('/api/sis/staff', orgId))
-      .then((r) => setStaff(r.data?.staff || []))
-      .catch(() => toast.error('Failed to load staff'))
-      .finally(() => setLoading(false))
-  }, [orgId])
 
-  useEffect(() => { load() }, [load])
 
   const closeModals = () => { setAdding(false); setEditing(null) }
 
