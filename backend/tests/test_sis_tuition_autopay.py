@@ -137,6 +137,33 @@ class TestAutopayConfirm:
 
 
 @pytest.mark.unit
+class TestPaymentPlanPreference:
+    def test_requires_household_id(self, client, auth_headers, mock_verify_token):
+        resp = client.post('/api/sis/parent/billing/payment-plan-preference', headers=auth_headers, json={})
+        assert resp.status_code == 400
+
+    def test_invalid_preference_rejected(self, client, auth_headers, mock_verify_token):
+        resp = client.post('/api/sis/parent/billing/payment-plan-preference', headers=auth_headers,
+                           json={'household_id': 'hh1', 'payment_plan_preference': 'invalid_plan'})
+        assert resp.status_code == 400
+
+    def test_success(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_billing_service.set_payment_plan_preference',
+                   return_value={'household_id': 'hh1', 'payment_plan_preference': 'monthly'}):
+            resp = client.post('/api/sis/parent/billing/payment-plan-preference', headers=auth_headers,
+                               json={'household_id': 'hh1', 'payment_plan_preference': 'monthly'})
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['payment_plan_preference'] == 'monthly'
+
+    def test_forbidden_if_not_guardian(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_billing_service.set_payment_plan_preference',
+                   side_effect=PermissionError('Not authorized to update this household')):
+            resp = client.post('/api/sis/parent/billing/payment-plan-preference', headers=auth_headers,
+                               json={'household_id': 'hh2', 'payment_plan_preference': 'monthly'})
+        assert resp.status_code == 403
+
+
+@pytest.mark.unit
 class TestAutopayCron:
     def test_unauthorized_without_secret(self, client):
         resp = client.post('/api/sis/internal/tuition-autopay',

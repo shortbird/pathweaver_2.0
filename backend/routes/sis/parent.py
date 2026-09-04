@@ -284,6 +284,29 @@ def billing_autopay_confirm(user_id, invoice_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/billing/payment-plan-preference', methods=['POST'])
+@require_auth
+@require_module('billing')
+def billing_payment_plan_preference(user_id):
+    """Set or update the family's tuition payment plan preference (in_full or monthly).
+    Body: {household_id, payment_plan_preference}."""
+    from services import sis_billing_service as billing
+    data = request.get_json(silent=True) or {}
+    household_id = data.get('household_id')
+    if not household_id:
+        return jsonify({'success': False, 'error': 'household_id is required'}), 400
+    plan_pref = data.get('payment_plan_preference')
+    if plan_pref and plan_pref not in ('in_full', 'monthly'):
+        return jsonify({'success': False, 'error': 'invalid payment_plan_preference'}), 400
+    try:
+        result = billing.set_payment_plan_preference(user_id, household_id, plan_pref or None)
+        return jsonify({'success': True, **result})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 # ── Family photos (self-service) ──────────────────────────────────────────────
 def _photo_file_or_error():
     """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""
