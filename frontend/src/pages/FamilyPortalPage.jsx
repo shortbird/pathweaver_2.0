@@ -6,6 +6,7 @@ import { AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import BackToSchool from '../components/navigation/BackToSchool'
 import ChecklistSignature from '../components/sis/ChecklistSignature'
 import { itemDocuments } from './sis/checklistDocuments'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * Family portal (Learning app) — the checklists a school assigns to a guardian.
@@ -40,6 +41,7 @@ const questProgressStyle = (p) => {
 }
 
 const FamilyPortalPage = () => {
+  const confirm = useConfirm()
   const [loading, setLoading] = useState(true)
   const [orgs, setOrgs] = useState([])
   const [orgId, setOrgId] = useState('')
@@ -105,7 +107,7 @@ const FamilyPortalPage = () => {
   }
 
   const removeDoc = async (assignmentId, itemKey, doc) => {
-    if (!window.confirm(`Remove ${doc.filename || 'this document'}?`)) return
+    if (!(await confirm(`Remove ${doc.filename || 'this document'}?`))) return
     await patchItem(assignmentId, itemKey, { remove_document: doc.path })
   }
 
