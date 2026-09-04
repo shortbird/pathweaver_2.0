@@ -1,0 +1,201 @@
+{
+  "_comment": [
+    "One corpus, three implementations. A message body is turned into readable text",
+    "in three places -- backend/utils/rich_text.py for email and notification",
+    "previews, frontend/src/utils/richText.js for the web app (via the DOM), and",
+    "frontend-v2/src/utils/richText.ts for mobile (via regex, because native has no",
+    "DOM). All three docstrings claim to mirror each other. Two of them did not.",
+    "",
+    "On 2026-09-03 the mobile one was found leaving uncommon named entities",
+    "undecoded, so an announcement containing 'caf&eacute;' or '&copy;' read",
+    "correctly in email and on the web and showed the raw entity on a phone; and it",
+    "decoded &nbsp; to a plain space where the other two produce U+00A0.",
+    "",
+    "Expected values are generated from backend/utils/rich_text.py, which is",
+    "canonical: it is the one that decides what gets STORED and what an email says.",
+    "Each side has a test that reads this file. Adding a case here makes all three",
+    "prove they still agree.",
+    "",
+    "Not included: '&notarealentity;'. Python's html.unescape and the browser DOM",
+    "both implement HTML5's legacy no-semicolon entities and read that as '&not' +",
+    "'arealentity;'. A regex decoder reasonably does not, and it is not a contract",
+    "worth forcing on three implementations for input nobody types."
+  ],
+  "cases": [
+    {
+      "why": "plain text passes through untouched",
+      "input": "Early dismissal at noon",
+      "text": "Early dismissal at noon",
+      "isHtml": false,
+      "isBlank": false
+    },
+    {
+      "why": "a paragraph is just its text",
+      "input": "<p>Early dismissal</p>",
+      "text": "Early dismissal",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "an empty editor is blank, not '<p></p>'",
+      "input": "<p></p>",
+      "text": "",
+      "isHtml": true,
+      "isBlank": true
+    },
+    {
+      "why": "list items become lines, not one run-on",
+      "input": "<ul><li>Bring shoes</li><li>Pack lunch</li></ul>",
+      "text": "Bring shoes\nPack lunch",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "paragraph boundaries become newlines",
+      "input": "<p>One</p><p>Two</p>",
+      "text": "One\nTwo",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "a <br> is a line break",
+      "input": "Line<br>Break",
+      "text": "Line\nBreak",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "divs break lines too",
+      "input": "<div>d1</div><div>d2</div>",
+      "text": "d1\nd2",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "blockquote is a block",
+      "input": "<blockquote>Quoted</blockquote>",
+      "text": "Quoted",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "inline tags leave no gap",
+      "input": "<p>a<strong>b</strong>c</p>",
+      "text": "abc",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "empty paragraphs between real ones are dropped",
+      "input": "<p>Real</p><p></p><p>Also real</p>",
+      "text": "Real\nAlso real",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "editor whitespace around text is trimmed",
+      "input": "<p>  spaced  </p>",
+      "text": "spaced",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "ampersand",
+      "input": "<p>a &amp; b</p>",
+      "text": "a & b",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "numeric entity",
+      "input": "<p>it&#8217;s</p>",
+      "text": "it’s",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "hex numeric entity",
+      "input": "<p>it&#x2019;s</p>",
+      "text": "it’s",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "curly apostrophe by name",
+      "input": "<p>it&rsquo;s</p>",
+      "text": "it’s",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "nbsp is U+00A0, not a plain space",
+      "input": "<p>a&nbsp;b</p>",
+      "text": "a b",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "a paragraph of only nbsp is blank",
+      "input": "<p>&nbsp;</p>",
+      "text": "",
+      "isHtml": true,
+      "isBlank": true
+    },
+    {
+      "why": "copyright: pasted from a web page",
+      "input": "<p>&copy; 2026 Optio</p>",
+      "text": "© 2026 Optio",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "accented letter: pasted from Word",
+      "input": "<p>caf&eacute;</p>",
+      "text": "café",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "punctuation a paste carries",
+      "input": "<p>&trade; &hellip; &mdash; &ndash;</p>",
+      "text": "™ … — –",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "escaped angle brackets are text",
+      "input": "<p>Macaroni &amp; cheese &lt;3</p>",
+      "text": "Macaroni & cheese <3",
+      "isHtml": true,
+      "isBlank": false
+    },
+    {
+      "why": "plain text with bare angle brackets is not HTML",
+      "input": "5 < 6 and 7 > 6",
+      "text": "5 < 6 and 7 > 6",
+      "isHtml": false,
+      "isBlank": false
+    },
+    {
+      "why": "empty string",
+      "input": "",
+      "text": "",
+      "isHtml": false,
+      "isBlank": true
+    },
+    {
+      "why": "only whitespace",
+      "input": "   ",
+      "text": "   ",
+      "isHtml": false,
+      "isBlank": true
+    },
+    {
+      "why": "an unknown entity is left alone rather than mangled",
+      "input": "<p>&zzz; x</p>",
+      "text": "&zzz; x",
+      "isHtml": true,
+      "isBlank": false
+    }
+  ]
+}

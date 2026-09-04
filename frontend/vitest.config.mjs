@@ -53,7 +53,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@legal': path.resolve(__dirname, '../shared/legal'),
+      // Must match vite.config.js -- see sharedAlias.test.ts, which checks all five.
+      '@shared': path.resolve(__dirname, '../shared'),
       '@components': path.resolve(__dirname, './src/components'),
       '@pages': path.resolve(__dirname, './src/pages'),
       '@services': path.resolve(__dirname, './src/services'),

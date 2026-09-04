@@ -9,6 +9,12 @@
  *   frontend-v2/tsconfig.json     a paths entry           (tsc only)
  *   frontend-v2/jest.config.js    a moduleNameMapper      (the mobile tests)
  *   frontend/vite.config.js       a resolve.alias         (the web app)
+ *   frontend/vitest.config.mjs    a resolve.alias again   (the web tests)
+ *
+ * That last one is the proof this test earns its keep: it was written checking
+ * four files, and the fifth was found hours later by a web test that failed to
+ * resolve the alias. vitest does NOT read vite.config.js here -- it has its own
+ * config with its own copy of the alias list.
  *
  * Each covers a different surface, so a missing one does not fail everywhere --
  * it fails in exactly one place. Drop the metro hook and tsc, jest and the web
@@ -67,6 +73,16 @@ describe('the @shared alias', () => {
     const jestConfig = read('frontend-v2/jest.config.js');
     if (!jestConfig.includes('@shared/(.*)') || !jestConfig.includes('../shared/$1')) {
       throw new Error('frontend-v2/jest.config.js lost the @shared mapping. Every mobile test touching shared code fails to resolve it.');
+    }
+  });
+
+  it("is declared in v1's vitest.config.mjs, which does NOT read vite.config.js", () => {
+    const vitest = read('frontend/vitest.config.mjs');
+    if (!vitest.includes("'@shared'")) {
+      throw new Error(
+        "frontend/vitest.config.mjs lost the '@shared' alias. vitest has its own " +
+        'resolve.alias and ignores vite.config.js, so the web app builds and only ' +
+        'its TESTS fail to resolve shared imports.');
     }
   });
 

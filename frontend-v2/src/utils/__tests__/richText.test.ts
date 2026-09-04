@@ -47,7 +47,12 @@ describe('htmlToText', () => {
   it('decodes HTML entities', () => {
     expect(htmlToText('<p>Macaroni &amp; cheese &#39;day&#39; &lt;3</p>'))
       .toBe("Macaroni & cheese 'day' <3");
-    expect(htmlToText('<p>a&nbsp;b</p>')).toBe('a b');
+    // A non-breaking space, U+00A0 -- not a plain space. This asserted a plain
+    // space until 2026-09-03, which was this implementation disagreeing with
+    // the other two: the web app decodes through a DOM and the backend through
+    // html.unescape, and both produce U+00A0. shared/richTextCases.json now
+    // pins all three together.
+    expect(htmlToText('<p>a&nbsp;b</p>')).toBe('a\u00A0b');
   });
 
   it('drops empty lines left by empty paragraphs', () => {

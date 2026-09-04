@@ -2244,6 +2244,47 @@ Log:
 
   v1: 288 files / 2509 passed. v2: 99 suites / 739 passed, tsc clean.
 
+- 2026-09-03: SECOND BUG FROM THE SAME EXERCISE — **the mobile app shows raw
+  HTML entities where the web app and the email show the character.**
+
+  `htmlToText` exists three times, and all three docstrings claim to mirror each
+  other: `backend/utils/rich_text.py` (email, notification previews, search),
+  `frontend/src/utils/richText.js` (web, via the DOM),
+  `frontend-v2/src/utils/richText.ts` (mobile, via regex — native has no DOM).
+  Two of them did not.
+
+  Ran all three over the same twenty inputs. Three disagreed, and all three
+  disagreements were the mobile one:
+
+      <p>&copy; 2026 Optio</p>   backend/web "© 2026 Optio"   mobile "&copy; 2026 Optio"
+      <p>caf&eacute;</p>         backend/web "café"           mobile "caf&eacute;"
+      <p>&trade; …</p>           backend/web "™ …"            mobile "&trade; …"
+
+  Mobile decoded thirteen named entities and passed everything else through.
+  Entities get into a body by pasting from Word or a web page, so a school
+  announcement reads correctly in the parent's email and on the web and shows
+  `caf&eacute;` on their phone. Now the HTML 4.01 set (252 entries, ~5KB —
+  HTML5's 2231 would be 40KB of names no editor emits).
+
+  A FOURTH disagreement turned up while fixing it: mobile decoded `&nbsp;` to a
+  plain space, where the DOM and `html.unescape` both give U+00A0. The existing
+  mobile test asserted the wrong one, so the bug had a test defending it.
+
+  THE DURABLE PART: `shared/richTextCases.json` — 25 cases, each with a `why`,
+  expectations generated from the backend (canonical: it decides what is stored
+  and what an email says). All three sides have a test that reads it. Reading
+  the code catches none of this, because the implementations differ ON PURPOSE;
+  what they owe each other is the same output.
+
+  AND A FIFTH ALIAS DECLARATION. The v1 conformance test would not resolve
+  `@shared`: `frontend/vitest.config.mjs` has its OWN `resolve.alias` and does
+  not read `vite.config.js`, so it was still on `@legal`. The alias guard
+  written this morning checked four files and did not know about it — it checks
+  five now. Exactly the drift it exists for, found the hard way, hours later.
+
+  Backend 4891 passed. v1: 289 files / 2535 passed. v2: 100 suites / 766
+  passed, tsc clean, iOS bundle rebuilt with the entity table inside it.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
