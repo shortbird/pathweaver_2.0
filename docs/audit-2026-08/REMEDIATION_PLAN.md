@@ -865,6 +865,31 @@ Log:
   `is_parent_of` alongside it, with a comment saying why.
 
   ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — three more clusters, 11 routes.
+  Declared 124 -> 135, allowlist 67 -> 56.
+
+  `routes/xp_goals.py` (4): declares
+  `('self','parent','advisor','teacher','observer','org_staff')` — exactly
+  `can_view_goal`, which is `can_view_portfolio(allow_peers=False)`. The
+  ABSENCE of `peer` is the declaration's whole content, and it is now written
+  where a reviewer sees it: peer connections were sold to families as "see each
+  other's work", and a personal weekly XP target is not work.
+
+  `routes/sis/student_records.py` (4): three staff routes declare
+  `('org_staff',)`, and `parent_student_record` — the parent-facing mirror of
+  the same record — declares `('parent',)`, because `_is_my_student` is a family
+  check and not an org one. Two of them carry
+  `discloses='student_record'` (SEC-15); the writes do not.
+
+  `routes/treehouse.py` (3): the wallet-balance read, the manual balance
+  adjustment and the cohort withdrawal declare `('org_staff',)`, matching
+  `_context`'s facilitator-in-this-org check. `remove_cohort_advisor` stays
+  allowlisted — it is one of the row-selector cases, gated on rights over the
+  COHORT.
+
+  ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
+
+  SESSION TOTAL for (c): declared 37 -> 135 of 217, allowlist 166 -> 56.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

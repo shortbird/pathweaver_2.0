@@ -23,6 +23,7 @@ assessments jsonb shape: {key: {boy: 'value', eoy: 'value'}}.
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth, require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.validation import sanitize_input
 from services import sis_service
@@ -195,6 +196,7 @@ def _student_payload(org_id, u):
 # ── Staff: record read/write ──────────────────────────────────────────────────
 @bp.route('/students/<student_id>/record', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='student_record')
 def get_student_record(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -217,6 +219,7 @@ def get_student_record(user_id, student_id):
 
 @bp.route('/students/<student_id>/record', methods=['PUT'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def save_student_record(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -260,6 +263,7 @@ def save_student_record(user_id, student_id):
 # ── Staff: curriculum materials checklist ─────────────────────────────────────
 @bp.route('/students/<student_id>/materials', methods=['POST'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def add_material(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -413,6 +417,9 @@ def _scores_by_class(org_id, student_id):
 
 @bp.route('/parent/students/<student_id>/record', methods=['GET'])
 @require_auth
+# ('parent',) and NOT org_staff: this is the parent-facing mirror of the
+# staff route above, and _is_my_student is a family check, not an org one.
+@require_relationship_to('student_id', allow=('parent',), discloses='student_record')
 def parent_student_record(user_id, student_id):
     """Read-only student record for the student's parent/guardian: profile,
     BOY/EOY assessments (+ field labels), materials checklist, and a per-class

@@ -25,6 +25,7 @@ from repositories.class_repository import ClassRepository
 from services.notification_service import NotificationService
 from utils.treehouse import facilitators_for_student
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from middleware.rate_limiter import rate_limit
 from utils.db_fetch import fetch_all_rows
 from utils.session_manager import SessionManager
@@ -579,6 +580,7 @@ def mark_pins(user_id):
 @bp.route('/students/<student_id>/balance', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('org_staff',))
 def student_balance(user_id, student_id):
     ctx = _context(user_id)
     if not ctx['is_facilitator']:
@@ -596,6 +598,7 @@ def student_balance(user_id, student_id):
 @bp.route('/students/<student_id>/balance/adjust', methods=['POST'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('org_staff',))
 def adjust_balance(user_id, student_id):
     """Facilitator manual balance adjustment. Body: {amount: int (+/-)}."""
     ctx = _context(user_id)
@@ -938,6 +941,7 @@ def enroll_cohort_students(user_id, class_id):
 @require_auth
 @validate_uuid_param('class_id')
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('org_staff',))
 def withdraw_cohort_student(user_id, class_id, student_id):
     ctx = _context(user_id)
     if not _is_admin(ctx):

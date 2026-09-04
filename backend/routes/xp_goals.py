@@ -28,6 +28,7 @@ from flask import Blueprint, request, jsonify
 
 from services import xp_goal_service as goals
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -57,6 +58,11 @@ def _parse_week_start(raw):
 
 @bp.route('/student/<student_id>', methods=['GET'])
 @require_auth
+# can_view_goal is can_view_portfolio(allow_peers=False). PEER IS ABSENT
+# from this set on purpose: peer connections were sold to families as
+# "see each other's work", and a personal weekly XP target is not work.
+@require_relationship_to('student_id', allow=(
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'org_staff'))
 def get_student_goal(user_id, student_id):
     """The student's target and this week's progress, plus whether the caller
     may change it."""
@@ -72,6 +78,8 @@ def get_student_goal(user_id, student_id):
 
 @bp.route('/student/<student_id>/history', methods=['GET'])
 @require_auth
+@require_relationship_to('student_id', allow=(
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'org_staff'))
 def get_student_goal_history(user_id, student_id):
     """Past targets, newest first — what the goal was, and who set it.
 
@@ -93,6 +101,8 @@ def get_student_goal_history(user_id, student_id):
 
 @bp.route('/student/<student_id>', methods=['PUT'])
 @require_auth
+@require_relationship_to('student_id', allow=(
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'org_staff'))
 def set_student_goal(user_id, student_id):
     """Set the standing weekly target, from this week forward."""
     role = goals.setter_role(user_id, student_id)
@@ -137,6 +147,8 @@ def set_student_goal(user_id, student_id):
 
 @bp.route('/student/<student_id>', methods=['DELETE'])
 @require_auth
+@require_relationship_to('student_id', allow=(
+    'self', 'parent', 'advisor', 'teacher', 'observer', 'org_staff'))
 def clear_student_goal(user_id, student_id):
     """Remove the target set for this week, falling back to whatever stood before."""
     role = goals.setter_role(user_id, student_id)

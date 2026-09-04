@@ -286,10 +286,6 @@ _reviewed(
 _reviewed(
     '_student_in_org(org_id, student_id) in routes/sis/student_records.py; the '
     'parent-facing read checks guardianship instead',
-    'sis_student_records.add_material',
-    'sis_student_records.get_student_record',
-    'sis_student_records.parent_student_record',
-    'sis_student_records.save_student_record',
 )
 # MIGRATED 2026-09-03: the eight sis_parent routes naming a student declare
 # @require_relationship_to('student_id', allow=('parent', 'household_guardian')).
@@ -322,9 +318,6 @@ _reviewed(
 )
 _reviewed(
     'facilitator of the student\'s Treehouse cohort, checked in the view',
-    'treehouse.adjust_balance',
-    'treehouse.student_balance',
-    'treehouse.withdraw_cohort_student',
 )
 
 # --- portfolio / transcript: the consent model, not a relationship -----------
@@ -388,14 +381,11 @@ _reviewed(
     'member can be removed',
     'group_messages.remove_member',
 )
-_reviewed(
-    'xp_goal_service.can_view_goal(caller, student) -- can_view_portfolio with '
-    'allow_peers=False, because a private goal is not shared work',
-    'xp_goals.clear_student_goal',
-    'xp_goals.get_student_goal',
-    'xp_goals.get_student_goal_history',
-    'xp_goals.set_student_goal',
-)
+# MIGRATED 2026-09-03: routes/xp_goals.py (4 routes) declares
+# ('self','parent','advisor','teacher','observer','org_staff') -- can_view_goal's
+# grants, which are can_view_portfolio's minus PEER. The absence is the
+# declaration's whole content: peer connections were sold to families as "see
+# each other's work", and a personal weekly XP target is not work.
 _reviewed(
     'the transcript is the caller\'s own unless they can_view_portfolio',
     'credits.get_transcript',
