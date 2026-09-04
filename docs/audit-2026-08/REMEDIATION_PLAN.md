@@ -2314,7 +2314,7 @@ Log:
 
   ruff clean, mypy clean, 4739 passed / 160 skipped / 0 failed.
 
-### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[TODO]`
+### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[NEEDS-USER(half fixed; the other half needs a browser)]`
 Found by SEC-03. Parent -> dependent acting-as (`routes/dependents.py`
 `/<id>/act-as`, `/stop-acting-as`) has no cookie of its own: the token is
 returned in the body to every client and replayed as a Bearer. Masquerade was
@@ -2323,6 +2323,48 @@ cookie the way masquerade does. Allowlisted in `test_token_delivery.py` with
 that reason.
 Log:
 - 2026-09-03: Carried in from SEC-03's Log.
+- 2026-09-03: The finding is TWO endpoints, not one, and they are not the same
+  problem. Half is fixed; half genuinely needs a browser.
+
+  FIXED — `/stop-acting-as`. It was returning the PARENT'S OWN access token and
+  30-day refresh token in the body to every caller, and setting no cookies at
+  all. That is exactly the defect SEC-03 fixed on masquerade's `/exit`, in the
+  endpoint next door, and it has nothing to do with the missing acting-as
+  cookie: de-escalation hands somebody back their own cookie-anchored session.
+  It now goes through `refresh_body_tokens()` and calls `set_auth_cookies()`.
+  Cookie-capable browsers get cookies and an empty body; Safari/iOS and the
+  mobile app still get tokens, because gating them would log the parent out
+  rather than harden anything.
+
+  The web client needed the matching change — `ActingAsContext.clearActingAs`
+  called `tokenStore.setTokens(access_token, ...)` unconditionally, so with an
+  empty body it would have wiped the in-memory token with `undefined`. It now
+  stores only what was actually sent and clears otherwise.
+
+  NOT FIXED — `/act-as` itself. That one really does need the cookie: the
+  acting-as token is read ONLY from `Authorization: Bearer` (session_manager
+  reads a `masquerade_token` cookie but has no equivalent for acting-as), so
+  gating the body would delete the feature. The change is: set an
+  `acting_as_token` cookie on `/act-as`, teach `get_effective_user_id` and
+  `get_actual_admin_id` to read it beside `masquerade_token`, clear it on
+  `/stop-acting-as`, and drop the web client's reliance on the body copy.
+
+  WHY THAT HALF IS NOT AUTONOMOUS: it moves identity resolution, which is the
+  path SEC-08 was written about, and its failure mode is "a parent is stuck
+  inside — or locked out of — their child's account". No unit test in this
+  suite would catch a stale cookie that survives `/stop-acting-as`; that needs
+  someone clicking through it. Doing it blind is the same class of mistake as
+  the phone-verification hold that had to be flag-disabled for three weeks.
+
+  SEVERITY NOTE, so this is not over-read: the remaining exposure is smaller
+  than masquerade's was. The acting-as token grants the DEPENDENT'S authority
+  to a parent who already controls that account outright, so there is no
+  escalation — it is a credential living in JS memory that should be in an
+  httpOnly cookie. The design around it is already careful: 24h access token,
+  a 30-day ceiling on the chain, and `iat0` pinning so refreshes cannot extend
+  a grant indefinitely.
+
+  ruff clean, mypy clean. Backend 4858 passed; web 2479 passed.
 
 ---
 

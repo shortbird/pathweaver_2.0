@@ -154,10 +154,18 @@ _LEGITIMATE_TOKEN_ISSUERS = {
     'routes/auth/oauth.py',
     # LTI 1.3 client-credentials grant, same shape, same reason.
     'routes/lti/token.py',
-    # Acting-as (parent -> dependent) has NO cookie of its own: the token is
-    # delivered in the body and replayed as a Bearer, so gating it would delete
-    # the feature rather than harden it. Giving it a cookie the way masquerade
-    # has one is the fix, and it is not this test's job to pretend otherwise.
+    # Acting-as (parent -> dependent) START still hands out
+    # `acting_as_refresh_token` in the body, because that flow has NO COOKIE of
+    # its own: the token is replayed as a Bearer, so gating it would delete the
+    # feature rather than harden it. Giving it a cookie the way masquerade has
+    # one is the fix (FU-05), and it needs a browser to verify.
+    #
+    # NARROWED 2026-09-03: /stop-acting-as no longer qualifies. It was returning
+    # the PARENT'S OWN access + 30-day refresh token to every client, which is
+    # the same defect SEC-03 fixed on masquerade's /exit and has nothing to do
+    # with the missing acting-as cookie -- de-escalation hands somebody back
+    # their own cookie-anchored session. It now goes through
+    # refresh_body_tokens() and sets auth cookies.
     'routes/dependents.py',
 }
 
@@ -236,3 +244,57 @@ class TestTheServerAndClientAgree:
                 f'{probe} no longer decides header auth on the client; '
                 'update _blocks_our_cookies() in routes/auth/token_delivery.py '
                 'to match or those users lose their session')
+
+
+@pytest.mark.unit
+class TestStopActingAsDeEscalation:
+    """/stop-acting-as hands a parent back their OWN session.
+
+    It was returning the parent's own access token and 30-day refresh token in
+    the JSON body to every caller, and setting no cookies at all -- the same
+    defect SEC-03 fixed on masquerade's /exit, in the endpoint right next to it.
+    That is the widest possible delivery of the longest-lived credential the
+    platform issues, to a browser that did not need it.
+
+    This is separable from the rest of acting-as, which still needs its body
+    token because that flow has no cookie of its own (FU-05). De-escalation is
+    different: what it returns is the caller's own cookie-anchored session.
+    """
+
+    PARENT_ID = '11111111-1111-1111-1111-111111111111'
+
+    def _stop(self, client, headers):
+        from unittest.mock import MagicMock, patch
+        from utils.session_manager import session_manager
+
+        PARENT_ID = self.PARENT_ID
+        admin = MagicMock()
+        admin.table.return_value.select.return_value.eq.return_value.single \
+            .return_value.execute.return_value = MagicMock(
+                data={'id': PARENT_ID, 'display_name': 'Pat'})
+        with patch('routes.dependents.get_supabase_admin_client', return_value=admin), \
+             patch.object(session_manager, 'get_deescalation_user_id',
+                          return_value=PARENT_ID):
+            return client.post('/api/dependents/stop-acting-as', json={}, headers=headers)
+
+    def test_a_cookie_capable_browser_gets_cookies_and_no_body_tokens(self, client):
+        resp = self._stop(client, {'User-Agent': CHROME, 'Origin': _v1_origin()})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert 'access_token' not in body, (
+            "the parent's own tokens must not travel in a body a script can read "
+            "when the browser can hold an httpOnly cookie")
+        assert 'refresh_token' not in body
+        cookies = resp.headers.getlist('Set-Cookie')
+        assert any('access_token=' in c for c in cookies), (
+            'the endpoint set no cookies, so a cookie-capable browser would be '
+            'left with no session at all')
+
+    def test_a_header_auth_client_still_gets_its_tokens(self, client):
+        """Safari/iOS and the mobile app cannot use our cookies. Gating them out
+        would not harden anything, it would log the parent out."""
+        resp = self._stop(client, {'User-Agent': IPHONE})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body.get('access_token'), 'header-auth client lost its way back'
+        assert body.get('refresh_token')

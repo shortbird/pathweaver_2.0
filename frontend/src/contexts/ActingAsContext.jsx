@@ -66,9 +66,20 @@ export const ActingAsProvider = ({ children }) => {
       if (response.data.success) {
         const { access_token, refresh_token } = response.data;
 
-        // Store fresh parent tokens
-        await tokenStore.setTokens(access_token, refresh_token);
-        logger.debug('[ActingAsContext] Fresh parent tokens received from backend');
+        // The body no longer always carries tokens. Since 2026-09-03 the
+        // backend gates them through token_delivery: a cookie-capable browser
+        // gets httpOnly cookies (which this same response sets) and an empty
+        // body, while Safari/iOS and the mobile app -- which cannot use our
+        // cookies -- still get them here. Calling setTokens(undefined) would
+        // wipe the in-memory access token the cookie session does not need but
+        // the header-auth path does, so only store what was actually sent.
+        if (access_token) {
+          await tokenStore.setTokens(access_token, refresh_token);
+          logger.debug('[ActingAsContext] Fresh parent tokens received from backend');
+        } else {
+          tokenStore.clearTokens();
+          logger.debug('[ActingAsContext] Parent session restored via cookies');
+        }
       } else {
         console.error('[ActingAsContext] Backend returned error:', response.data.error);
         // Fall through to sessionStorage fallback

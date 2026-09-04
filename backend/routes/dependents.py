@@ -13,7 +13,7 @@ NOTE: Admin client usage justified throughout this file for cross-user operation
 Parents managing dependents requires elevated privileges to create/update dependent records.
 All endpoints verify parent role before allowing operations.
 """
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, make_response, send_file
 from datetime import datetime
 from database import get_supabase_admin_client
 from repositories.dependent_repository import DependentRepository
@@ -21,6 +21,7 @@ from repositories.base_repository import NotFoundError, PermissionError, Validat
 from services.dependent_progress_service import DependentProgressService
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
+from routes.auth.token_delivery import refresh_body_tokens
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
@@ -1197,12 +1198,19 @@ def stop_acting_as():
 
         logger.info(f"Parent {user_id} stopped acting as dependent, fresh tokens generated")
 
-        return jsonify({
+        # SEC-03's gate, for the same reason it was applied to masquerade's
+        # /exit next door: these are the parent's OWN tokens and the refresh
+        # token lives 30 days. refresh_body_tokens() hands them only to clients
+        # that cannot use cookies; everyone else gets the cookies below, which
+        # this endpoint never set at all before -- so a cookie-capable browser
+        # was relying entirely on the body copy reaching tokenStore.
+        response = make_response(jsonify({
             'success': True,
-            'access_token': access_token,
-            'refresh_token': refresh_token,
+            **refresh_body_tokens(access_token, refresh_token),
             'user': user_response.data
-        }), 200
+        }), 200)
+        session_manager.set_auth_cookies(response, user_id, access_token, refresh_token)
+        return response
 
     except Exception as e:
         logger.error(f"Error stopping acting-as for parent {user_id}: {str(e)}")
