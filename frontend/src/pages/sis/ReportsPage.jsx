@@ -38,6 +38,7 @@ const PRINT_CSS = `
 /* Printing every block at once: one block per page, the way they are read. */
 @media print {
   .sis-block + .sis-block { break-before: page; }
+  .sis-day-section + .sis-day-section { break-before: page; }
 }
 `
 
@@ -70,7 +71,7 @@ export const DayRosters = ({ days }) => {
   return (
     <div className="space-y-6">
       {days.map((d) => (
-        <section key={d.key} id={`sis-day-${d.key}`} className="break-inside-avoid">
+        <section key={d.key} id={`sis-day-${d.key}`} className="sis-day-section break-inside-avoid">
           <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1 mb-3">
             <h4 className="font-semibold text-neutral-900">
               {d.label} <span className="text-sm font-normal text-neutral-500">
