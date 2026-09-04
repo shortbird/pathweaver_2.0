@@ -15,6 +15,11 @@ accounts. Now:
     household by staff (org fields + parent links).
 """
 
+# QB-04 (2026-09-03): /start, /verify, /resend-code, /login and /attach moved to
+# routes/registration_entry.py. They stay on the `registration` blueprint, so the
+# URLs and endpoint names are unchanged -- but the handlers resolve their helpers
+# from THAT module now, so that is where these patches have to land.
+
 from unittest.mock import patch
 
 import pytest
@@ -319,9 +324,9 @@ _INVITE = ({'organization': {'id': 'org1', 'name': 'iCreate', 'slug': 'icreate'}
 
 def _login(client, user, regs=()):
     admin = _FakeAdmin({'users': [user], 'registrations': list(regs)})
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
-         patch('routes.registration_funnel._password_ok', return_value=True):
+    with patch('routes.registration_entry._admin', return_value=admin), \
+         patch('routes.registration_entry._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_entry._password_ok', return_value=True):
         resp = client.post('/api/registration/login',
                            json={'code': 'c', 'email': 'a@x.com', 'password': 'pw'})
     return resp, admin

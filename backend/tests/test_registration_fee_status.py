@@ -14,6 +14,13 @@ pin that mirror across the fee matrix (stripe on/off, deferred, $0, prepaid,
 completed) plus the /fee branches that reach it.
 """
 
+# QB-04 (2026-09-03): the payment steps moved to routes/registration_payments.py.
+# They stay on the `registration` blueprint, so the URLs and endpoint names are
+# unchanged, but the handlers now resolve their helpers from THAT module -- so
+# that is where the patches have to land. _family_directive is the exception: it
+# is read inside services/registration_funnel_support._apply_prepaid_directive,
+# which is why it is patched there instead.
+
 from unittest.mock import patch
 
 import pytest
@@ -105,12 +112,12 @@ def _call(client, admin, path, reg, cfg=_CFG_STRIPE, directive=None, token='tok'
     # fixtures still express it as cfg['stripe_secret_key'], which stays the
     # readable way to say "this school takes cards" -- translate it here.
     key = cfg.get('stripe_secret_key') or None
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration', return_value=reg), \
-         patch('routes.registration_funnel._org_config', return_value=cfg), \
-         patch('routes.registration_funnel._org_stripe_key', return_value=key), \
-         patch('routes.registration_funnel._org_stripe_enabled', return_value=bool(key)), \
-         patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+    with patch('routes.registration_payments._admin', return_value=admin), \
+         patch('routes.registration_payments._load_registration', return_value=reg), \
+         patch('routes.registration_payments._org_config', return_value=cfg), \
+         patch('routes.registration_payments._org_stripe_key', return_value=key), \
+         patch('routes.registration_payments._org_stripe_enabled', return_value=bool(key)), \
+         patch('routes.registration_payments._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
          patch('routes.registration_funnel._family_directive', return_value=directive), \

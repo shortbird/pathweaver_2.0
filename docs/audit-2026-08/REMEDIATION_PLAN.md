@@ -1825,7 +1825,7 @@ Log:
   already documents as unavoidable — a real circular dependency, no logger
   yet.
 
-### QB-04 — Decompose the top god route files `[TODO(two split; one exemption left, and it is the risky one)]`
+### QB-04 — Decompose the top god route files `[DONE(all three split; the exemption list is empty — but see the verification note)]`
 `registration_funnel.py` (2,143 — payments+OTP+provisioning in the route layer),
 `admin/organization_management.py` (1,950), `evidence_documents.py` (1,716),
 `admin/curriculum_upload.py` (1,400), `admin/user_management.py` (1,389).
@@ -1998,6 +1998,46 @@ Log:
   ruff clean, mypy clean (1039 files; `dateutil` needed an
   `ignore_missing_imports` section, the same treatment supabase and flask_cors
   already have), pyflakes clean. Tests: 4864 passed.
+
+- 2026-09-03: REGISTRATION FUNNEL, STAGES 2 AND 3 — routes split, and
+  **`EXEMPTIONS` in `test_route_file_sizes.py` is now EMPTY**, for the first
+  time since the cap was added.
+
+      routes/registration_funnel.py   2,149 -> 1,258
+      routes/registration_entry.py      new -> 282   (/start /verify
+                                                      /resend-code /login
+                                                      /attach)
+      routes/registration_payments.py   new -> 373   (checkout, the Stripe
+                                                      return, the two fee
+                                                      recorders)
+
+  Both new modules attach to the EXISTING `registration` blueprint through
+  `register_routes(bp)`. Neither creates a blueprint of its own, and that is
+  the whole safety argument: the funnel's CSRF exemption list is keyed on
+  endpoint names like `registration.create_checkout`, so a second blueprint
+  would have renamed them out of the set and 403'd every parent who reached the
+  payment step already signed in — which is precisely the 2026-07-21 outage.
+
+  PROOF, not inference: the `registration.*` URL map was dumped before stage 2
+  and after stage 3 and the two files are IDENTICAL — 20 rules, same paths,
+  same methods, same endpoint names. Nothing moved.
+
+  Seven test files needed their patch targets repointed at the module each
+  handler now lives in. Every one of them failed LOUDLY (a real Supabase client,
+  "Invalid URL") rather than passing on a mock nothing consulted, which is the
+  good version of this failure. `test_registration_fk_hints.py` also pinned the
+  path of the file holding the `users!registrations_parent_user_id_fkey` embed
+  hint; it now globs `routes/registration_*.py`, so it follows /start instead of
+  failing for the one reason it does not care about.
+
+  **STILL WANTS A BROWSER BEFORE IT SHIPS.** The suite covers this well — about
+  130 tests across 14 files, including checkout, prepaid directives,
+  multi-session confirm-payment, and the passwordless/existing-account doors —
+  and the URL map is proven unchanged. But nothing here exercises a real Stripe
+  redirect, and this is a live revenue path for three orgs. Run one registration
+  end to end on dev before this goes to `main`.
+
+  ruff clean, mypy clean (1041 files), pyflakes clean. Tests: 4864 passed.
 
   ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 

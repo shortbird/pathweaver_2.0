@@ -12,6 +12,11 @@ of children (Samuel Harrison et al. doubled on the family dashboard, 2026-07-09)
   - none       -> start a fresh 'family' registration (only genuinely-new case)
 """
 
+# QB-04 (2026-09-03): /start, /verify, /resend-code, /login and /attach moved to
+# routes/registration_entry.py. They stay on the `registration` blueprint, so the
+# URLs and endpoint names are unchanged -- but the handlers resolve their helpers
+# from THAT module now, so that is where these patches have to land.
+
 from unittest.mock import patch
 
 import pytest
@@ -91,9 +96,9 @@ _BODY = {'code': 'invite-code', 'email': 'amy@example.com', 'password': 'pw'}
 
 
 def _post(client, admin):
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
-         patch('routes.registration_funnel._password_ok', return_value=True):
+    with patch('routes.registration_entry._admin', return_value=admin), \
+         patch('routes.registration_entry._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_entry._password_ok', return_value=True):
         return client.post('/api/registration/login', json=_BODY)
 
 

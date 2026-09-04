@@ -17,6 +17,11 @@ Two things are locked down here:
    /login — the two must never drift apart.
 """
 
+# QB-04 (2026-09-03): /start, /verify, /resend-code, /login and /attach moved to
+# routes/registration_entry.py. They stay on the `registration` blueprint, so the
+# URLs and endpoint names are unchanged -- but the handlers resolve their helpers
+# from THAT module now, so that is where these patches have to land.
+
 from unittest.mock import patch
 
 import pytest
@@ -111,16 +116,16 @@ def _parent(**over):
 
 
 def _login(client, admin, password_ok=False):
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
-         patch('routes.registration_funnel._password_ok', return_value=password_ok):
+    with patch('routes.registration_entry._admin', return_value=admin), \
+         patch('routes.registration_entry._load_registration_invite', return_value=_INVITE), \
+         patch('routes.registration_entry._password_ok', return_value=password_ok):
         return client.post('/api/registration/login',
                            json={'code': 'invite-code', 'email': 'c@example.com', 'password': 'pw'})
 
 
 def _attach(client, admin, user_id='u1'):
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
+    with patch('routes.registration_entry._admin', return_value=admin), \
+         patch('routes.registration_entry._load_registration_invite', return_value=_INVITE), \
          patch('utils.session_manager.session_manager.get_effective_user_id', return_value=user_id):
         return client.post('/api/registration/attach', json={'code': 'invite-code'})
 
@@ -193,8 +198,8 @@ class TestAttachBySession:
     def test_requires_a_session(self, client):
         from utils.auth.decorators import AuthenticationError
         admin = _FakeAdmin({'users': [_parent()], 'registrations': []})
-        with patch('routes.registration_funnel._admin', return_value=admin), \
-             patch('routes.registration_funnel._load_registration_invite', return_value=_INVITE), \
+        with patch('routes.registration_entry._admin', return_value=admin), \
+             patch('routes.registration_entry._load_registration_invite', return_value=_INVITE), \
              patch('utils.session_manager.session_manager.get_effective_user_id', return_value=None):
             with pytest.raises(AuthenticationError):
                 client.post('/api/registration/attach', json={'code': 'invite-code'})

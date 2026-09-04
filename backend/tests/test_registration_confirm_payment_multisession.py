@@ -14,6 +14,13 @@ confirm_payment must find a paid session among:
      (rescues registrations from before the history column existed).
 """
 
+# QB-04 (2026-09-03): the payment steps moved to routes/registration_payments.py.
+# They stay on the `registration` blueprint, so the URLs and endpoint names are
+# unchanged, but the handlers now resolve their helpers from THAT module -- so
+# that is where the patches have to land. _family_directive is the exception: it
+# is read inside services/registration_funnel_support._apply_prepaid_directive,
+# which is why it is patched there instead.
+
 import sys
 import types
 from unittest.mock import patch
@@ -90,16 +97,16 @@ def client():
 def _confirm(client, reg, stripe_fake, finish_result=None):
     finish_result = finish_result or {'success': True, 'status': 'completed'}
     with patch.dict(sys.modules, {'stripe': stripe_fake.mod}), \
-         patch('routes.registration_funnel._load_registration', return_value=reg), \
-         patch('routes.registration_funnel._admin'), \
-         patch('routes.registration_funnel._parent_row',
+         patch('routes.registration_payments._load_registration', return_value=reg), \
+         patch('routes.registration_payments._admin'), \
+         patch('routes.registration_payments._parent_row',
                return_value={'email': PARENT_EMAIL}), \
          patch('services.registration_funnel_service._parent_row',
                return_value={'email': PARENT_EMAIL}), \
-         patch('routes.registration_funnel._org_config', return_value={}), \
-         patch('routes.registration_funnel._org_stripe_key', return_value=SECRET), \
-         patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
-         patch('routes.registration_funnel._finish_fee_step',
+         patch('routes.registration_payments._org_config', return_value={}), \
+         patch('routes.registration_payments._org_stripe_key', return_value=SECRET), \
+         patch('routes.registration_payments._org_stripe_enabled', return_value=True), \
+         patch('routes.registration_payments._finish_fee_step',
                return_value=finish_result) as finish:
         res = client.post(f'/api/registration/registrations/{REG_ID}/confirm-payment',
                           json={'access_token': 'funnel-token'})

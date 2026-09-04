@@ -14,6 +14,13 @@ _apply_prepaid_directive re-checks the directive at resume/fee/checkout time:
   - /registrations/<id>/checkout -> a prepaid family is never card-charged
 """
 
+# QB-04 (2026-09-03): the payment steps moved to routes/registration_payments.py.
+# They stay on the `registration` blueprint, so the URLs and endpoint names are
+# unchanged, but the handlers now resolve their helpers from THAT module -- so
+# that is where the patches have to land. _family_directive is the exception: it
+# is read inside services/registration_funnel_support._apply_prepaid_directive,
+# which is why it is patched there instead.
+
 from unittest.mock import patch
 
 import pytest
@@ -109,12 +116,12 @@ _KEY = _CFG['stripe_secret_key']
 # still reaches the database.
 def _call(client, admin, path, reg, directive):
     # Stripe key now lives in organization_secrets, not feature_flags -- AUDIT.md C1.
-    with patch('routes.registration_funnel._admin', return_value=admin), \
-         patch('routes.registration_funnel._load_registration', return_value=reg), \
-         patch('routes.registration_funnel._org_config', return_value=_CFG), \
-         patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
-         patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
-         patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+    with patch('routes.registration_payments._admin', return_value=admin), \
+         patch('routes.registration_payments._load_registration', return_value=reg), \
+         patch('routes.registration_payments._org_config', return_value=_CFG), \
+         patch('routes.registration_payments._org_stripe_key', return_value=_KEY), \
+         patch('routes.registration_payments._org_stripe_enabled', return_value=True), \
+         patch('routes.registration_payments._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
          patch('routes.registration_funnel._family_directive', return_value=directive), \
@@ -159,12 +166,12 @@ class TestPrepaidDirectiveFee:
 
     def test_checkout_refuses_to_charge_a_prepaid_family(self, client):
         admin = _FakeAdmin()
-        with patch('routes.registration_funnel._admin', return_value=admin), \
-             patch('routes.registration_funnel._load_registration', return_value=_reg()), \
-             patch('routes.registration_funnel._org_config', return_value=_CFG), \
-             patch('routes.registration_funnel._org_stripe_key', return_value=_KEY), \
-             patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
-             patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
+        with patch('routes.registration_payments._admin', return_value=admin), \
+             patch('routes.registration_payments._load_registration', return_value=_reg()), \
+             patch('routes.registration_payments._org_config', return_value=_CFG), \
+             patch('routes.registration_payments._org_stripe_key', return_value=_KEY), \
+             patch('routes.registration_payments._org_stripe_enabled', return_value=True), \
+             patch('routes.registration_payments._parent_row', return_value=_PARENT), \
              patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
              patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
              patch('routes.registration_funnel._family_directive',

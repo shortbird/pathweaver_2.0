@@ -83,7 +83,18 @@ class TestFkEmbedHints:
 
     def test_the_registration_funnel_hint_matches_its_table(self):
         """The specific one that broke. Pinned by name so a future edit that
-        reintroduces the old spelling fails here with an obvious message."""
-        src = (BACKEND / 'routes' / 'registration_funnel.py').read_text(encoding='utf-8')
-        assert 'users!registrations_parent_user_id_fkey' in src
+        reintroduces the old spelling fails here with an obvious message.
+
+        Searched across the funnel's route modules rather than one file: the
+        hint sits in /start, which moved to routes/registration_entry.py when
+        registration_funnel.py was split (QB-04, 2026-09-03). Pinning a path
+        made this test fail for the one reason it does not care about.
+        """
+        modules = sorted((BACKEND / 'routes').glob('registration_*.py'))
+        assert modules, 'no registration route modules found -- the glob is wrong'
+        src = '\n'.join(m.read_text(encoding='utf-8') for m in modules)
+        assert 'users!registrations_parent_user_id_fkey' in src, (
+            'The parent-user embed hint is not in any routes/registration_*.py. '
+            'If /start moved again, this test follows it; if the hint was '
+            'deleted, /start can no longer resume a half-finished registration.')
         assert 'icreate_registrations_parent_user_id_fkey' not in src

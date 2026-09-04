@@ -80,8 +80,6 @@ Account model (see memory: project_icreate_program):
 - Fee is RECORD-ONLY (Optio never processes payments).
 """
 
-import re
-import secrets
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify
@@ -97,9 +95,6 @@ from services import academy_enrollment_service as academy_enrollment
 from services.registration_identity_service import (
     calc_age as _calc_age,
     parse_dob as _parse_dob,
-    parent_guardrails as _parent_guardrails,
-    attach_and_resume as _attach_and_resume,
-    password_failure as _password_failure,
 )
 from utils.logger import get_logger
 # QB-04: the funnel's helpers moved to services/ so the route handlers could be
@@ -112,26 +107,19 @@ from services.registration_funnel_support import (
     _load_registration_invite,
     _load_registration,
     _authz,
-    _org_stripe_key,
     _org_stripe_enabled,
     _parent_row,
     _family_directive,
     _apply_prepaid_directive,
 )
 from services.registration_accounts_service import (
-    _email_exists,
-    _password_ok,
     _insert_user_with_retry,  # noqa: F401 -- patched by tests, called via the service
-    _create_org_parent,
     _create_org_student,
     _existing_account_for_kid,
     _match_existing_dependent,
     _existing_org_student_by_name_dob,
     _attach_existing_student,
     _create_dependent,
-    _hash_otp,
-    _issue_otp,
-    _send_otp_email,
 )
 # One definition of "a phone number", shared with the SMS verification flow.
 from services.phone_verification_service import normalize_phone
@@ -141,10 +129,6 @@ logger = get_logger(__name__)
 bp = Blueprint('registration', __name__, url_prefix='/api/registration')
 
 
-# Max wrong OTP guesses per registration before the code is invalidated and a
-# resend is required. Independent of the IP rate limit (which is spoofable), this
-# caps the 6-digit guessing space to a few tries per issued code.
-MAX_OTP_ATTEMPTS = 5
 
 
 
@@ -312,7 +296,6 @@ def _public_config(org, cfg, paperwork_urls=None):
 # module's own call sites and tests.
 from services.registration_funnel_service import (  # noqa: E402
     _abs_url,
-    finish_fee_step as _finish_fee_step,
     org_funnel_config as _org_config,
 )
 
@@ -486,223 +469,14 @@ def my_registration(user_id):
     }), 200
 
 
-@bp.route('/start', methods=['POST'])
-@rate_limit(max_requests=10, window_seconds=300)
-def start():
-    """Create the parent's account and email a 6-digit confirmation code. The
-    funnel access_token is NOT returned here — only /verify issues it."""
-    body = request.get_json(silent=True) or {}
-    data, err = _load_registration_invite(body.get('code') or '')
-    if err:
-        return err
-    org = data['organization']
-    org_id = org['id']
-    admin = _admin()
-
-    email = (body.get('email') or '').strip().lower()
-    password = body.get('password') or ''
-    first = sanitize_input(body.get('first_name', ''))
-    last = sanitize_input(body.get('last_name', ''))
-
-    if not _valid_email(email):
-        return jsonify({'error': 'A valid email is required'}), 400
-    if len(password) < 8:
-        return jsonify({'error': 'Password must be at least 8 characters'}), 400
-    if not first or not last:
-        return jsonify({'error': 'First and last name are required'}), 400
-
-    if _email_exists(admin, email):
-        # If THIS funnel created the account but the email was never verified,
-        # let the parent pick up where they left off (password must match).
-        pending = (
-            admin.table('registrations')
-            # The embed names the FK constraint explicitly, so this string is
-            # coupled to a database object: the constraint was renamed with the
-            # table on 2026-08-25 and a stale hint here is a PGRST200 at
-            # request time, not an import error. tests/test_registration_fk_hints.py
-            # checks every hint in this file against the live schema.
-            .select('id, parent_user_id, status, users!registrations_parent_user_id_fkey(email)')
-            .eq('organization_id', org_id).eq('status', 'verify')
-            .order('created_at', desc=True).limit(20).execute()
-        ).data or []
-        match = next((p for p in pending if (p.get('users') or {}).get('email') == email), None)
-        if match:
-            if not _password_ok(email, password):
-                return jsonify({'error': 'This email already started registering. Enter the same password, or use "Sign in" instead.'}), 409
-            code = _issue_otp(admin, match['id'])
-            sent = _send_otp_email(email, first, org.get('name') or 'your school', code)
-            return jsonify({'success': True, 'registration_id': match['id'], 'email': email,
-                            'otp_sent': bool(sent),
-                            'message': 'We re-sent your confirmation code.'}), 200
-        return jsonify({'error': 'An account with this email already exists — use "Sign in with Optio" below.'}), 409
-
-    try:
-        parent_id = _create_org_parent(admin, org_id, email, password, first, last)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'registration start: parent creation failed: {e}')
-        return jsonify({'error': 'Could not create your account. Please try again.'}), 500
-
-    reg = admin.table('registrations').insert({
-        'organization_id': org_id,
-        'parent_user_id': parent_id,
-        'access_token': secrets.token_urlsafe(32),
-        'status': 'verify',
-    }).execute()
-    reg_id = reg.data[0]['id']
-
-    code = _issue_otp(admin, reg_id)
-    sent = _send_otp_email(email, first, org.get('name') or 'your school', code)
-
-    logger.info(f'registration start: registration {reg_id} awaiting email verification (otp_sent={bool(sent)})')
-    return jsonify({'success': True, 'registration_id': reg_id, 'email': email,
-                    'otp_sent': bool(sent)}), 201
 
 
-@bp.route('/verify', methods=['POST'])
-@rate_limit(max_requests=15, window_seconds=300)
-def verify_code():
-    """Confirm the emailed 6-digit code. On success, marks the auth email
-    verified and returns the funnel access_token."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(body.get('registration_id') or '')
-    if not reg or reg.get('status') != 'verify':
-        return jsonify({'error': 'Nothing to verify for this registration'}), 400
-
-    code = str(body.get('code') or '').strip()
-    if not re.fullmatch(r'\d{6}', code):
-        return jsonify({'error': 'Enter the 6-digit code from your email'}), 400
-    if not reg.get('otp_hash') or not reg.get('otp_expires_at'):
-        return jsonify({'error': 'No code issued — request a new one'}), 400
-    expires = datetime.fromisoformat(str(reg['otp_expires_at']).replace('Z', '+00:00'))
-    if datetime.utcnow().replace(tzinfo=expires.tzinfo) > expires:
-        return jsonify({'error': 'That code has expired — request a new one'}), 400
-
-    admin = _admin()
-
-    # Per-registration brute-force cap (independent of the spoofable IP limit).
-    attempts = reg.get('otp_attempts') or 0
-    if attempts >= MAX_OTP_ATTEMPTS:
-        # Invalidate the code so further guesses are useless until a resend.
-        admin.table('registrations').update({
-            'otp_hash': None, 'otp_expires_at': None,
-            'updated_at': datetime.utcnow().isoformat(),
-        }).eq('id', reg['id']).execute()
-        return jsonify({'error': 'Too many incorrect attempts — request a new code'}), 429
-
-    if not secrets.compare_digest(_hash_otp(code), str(reg['otp_hash'])):
-        # Count the failed guess; invalidate the code once the cap is reached.
-        new_attempts = attempts + 1
-        updates = {'otp_attempts': new_attempts, 'updated_at': datetime.utcnow().isoformat()}
-        if new_attempts >= MAX_OTP_ATTEMPTS:
-            updates.update({'otp_hash': None, 'otp_expires_at': None})
-        admin.table('registrations').update(updates).eq('id', reg['id']).execute()
-        return jsonify({'error': 'Incorrect code'}), 400
-
-    now = datetime.utcnow().isoformat()
-    try:
-        admin.auth.admin.update_user_by_id(reg['parent_user_id'], {'email_confirm': True})
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'registration verify: auth email-confirm failed for {reg["parent_user_id"][:8]}: {e}')
-    admin.table('registrations').update({
-        'email_verified_at': now, 'otp_hash': None, 'otp_expires_at': None,
-        'status': 'family', 'updated_at': now,
-    }).eq('id', reg['id']).execute()
-
-    return jsonify({'success': True, 'status': 'family', 'access_token': reg['access_token']}), 200
 
 
-@bp.route('/resend-code', methods=['POST'])
-@rate_limit(max_requests=5, window_seconds=300)
-def resend_code():
-    """Re-email a fresh confirmation code for a registration still in 'verify'."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(body.get('registration_id') or '')
-    if not reg or reg.get('status') != 'verify':
-        return jsonify({'error': 'Nothing to verify for this registration'}), 400
-    admin = _admin()
-    parent = _parent_row(admin, reg['parent_user_id'])
-    org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
-    code = _issue_otp(admin, reg['id'])
-    sent = _send_otp_email(parent.get('email'), parent.get('first_name'), (org or {}).get('name') or 'your school', code)
-    return jsonify({'success': True, 'sent': bool(sent)}), 200
 
 
-@bp.route('/login', methods=['POST'])
-@rate_limit(max_requests=10, window_seconds=300)
-def login():
-    """Existing Optio account, proven by PASSWORD, attached to the org as a
-    parent. No OTP needed — the password proves ownership.
-
-    The session-based twin is /attach; both share the guardrails and the attach
-    step so they can never enforce different rules.
-    """
-    body = request.get_json(silent=True) or {}
-    data, err = _load_registration_invite(body.get('code') or '')
-    if err:
-        return err
-    org = data['organization']
-    admin = _admin()
-
-    email = (body.get('email') or '').strip().lower()
-    password = body.get('password') or ''
-    if not _valid_email(email) or not password:
-        return jsonify({'error': 'Email and password are required'}), 400
-
-    row = (admin.table('users')
-           .select('id, role, org_role, org_roles, organization_id, first_name, last_name, '
-                   'is_dependent, managed_by_parent_id, date_of_birth, total_xp')
-           .eq('email', email).limit(1).execute()).data
-    if not row:
-        return jsonify({'error': 'No Optio account with this email — create one instead.'}), 404
-    user = row[0]
-
-    refusal = _parent_guardrails(admin, user, org)
-    if refusal:
-        return refusal
-
-    if not _password_ok(email, password):
-        return _password_failure(admin, user, org.get('name') or 'the school')
-
-    return _attach_and_resume(admin, user, org, via='login')
 
 
-@bp.route('/attach', methods=['POST'])
-@require_auth
-@rate_limit(max_requests=10, window_seconds=300, per_user=True)
-def attach(user_id):
-    """Existing Optio account, proven by SESSION, attached to the org as a
-    parent. The password-based twin is /login.
-
-    This is the door for accounts that have no password at all — Google/Apple
-    signups and org-imported parents, 13% of accounts when this shipped. The
-    OAuth round trip lands on /auth/callback, which establishes the session and
-    then calls this with the funnel's invitation code.
-
-    The session IS the identity proof, so there is no email to match: the
-    registration link is shareable by design and any authenticated user may
-    follow it. Who they are comes from the cookie; whether they may register a
-    family here is _parent_guardrails' call, exactly as on /login.
-    """
-    body = request.get_json(silent=True) or {}
-    data, err = _load_registration_invite(body.get('code') or '')
-    if err:
-        return err
-    org = data['organization']
-    admin = _admin()
-
-    row = (admin.table('users')
-           .select('id, role, org_role, org_roles, organization_id, first_name, last_name, '
-                   'is_dependent, managed_by_parent_id, date_of_birth, total_xp')
-           .eq('id', user_id).limit(1).execute()).data
-    if not row:
-        return jsonify({'error': 'Your account could not be loaded. Please sign in again.'}), 404
-    user = row[0]
-
-    refusal = _parent_guardrails(admin, user, org)
-    if refusal:
-        return refusal
-
-    return _attach_and_resume(admin, user, org, via='attach')
 
 
 @bp.route('/registrations/<reg_id>/family', methods=['POST'])
@@ -1343,332 +1117,16 @@ def submit_paperwork(reg_id):
         'fee_cents': int(reg.get('fee_cents') or 0),
         'payment_url': cfg.get('payment_url') or '',
     }), 200
-@bp.route('/registrations/<reg_id>/checkout', methods=['POST'])
-@rate_limit(max_requests=20, window_seconds=300)
-def create_checkout(reg_id):
-    """Create a Stripe Checkout Session for the registration fee on the SCHOOL'S
-    own Stripe account (organization_secrets.stripe_secret_key). Returns the hosted payment URL."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(reg_id)
-    if not _authz(reg, body.get('access_token')):
-        return jsonify({'error': 'Not authorized'}), 403
-    if reg.get('status') == 'completed':
-        return jsonify({'error': 'This registration is already completed'}), 400
-
-    admin = _admin()
-    _org_config(admin, reg['organization_id'])
-    secret = _org_stripe_key(reg['organization_id'])
-    # A stale tab could still show the card button after the school staged a
-    # prepaid credit — never charge a family that already paid.
-    reg = _apply_prepaid_directive(admin, reg)
-    fee_cents = int(reg.get('fee_cents') or 0)
-    if not secret:
-        return jsonify({'error': 'Card payment is not set up for this school'}), 400
-    if fee_cents <= 0:
-        return jsonify({'error': 'No registration fee is due'}), 400
-
-    return_url = (body.get('return_url') or '').strip()
-    if not return_url.startswith('http'):
-        return jsonify({'error': 'Invalid return URL'}), 400
-
-    org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
-    org_name = (org or {}).get('name') or 'your school'
-    parent = _parent_row(admin, reg['parent_user_id'])
-
-    try:
-        import stripe
-        sep = '&' if '?' in return_url else '?'
-        session = stripe.checkout.Session.create(
-            api_key=secret,  # the school's key — funds go to their account
-            mode='payment',
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {'name': f'{org_name} registration fee'},
-                    'unit_amount': fee_cents,
-                },
-                'quantity': 1,
-            }],
-            customer_email=parent.get('email') or None,
-            metadata={'registration_id': reg['id']},
-            success_url=f'{return_url}{sep}payment=return',
-            cancel_url=f'{return_url}{sep}payment=canceled',
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'registration checkout: session creation failed for {reg_id}: {e}')
-        return jsonify({'error': 'Could not start the payment. Please try again or contact the school.'}), 502
-
-    # Keep a HISTORY of every session, not just the latest: a parent who clicks
-    # Pay twice (double-tab, impatient re-click) can pay the FIRST session while
-    # the second overwrites stripe_session_id — verification then checks the
-    # unpaid one forever and a real payment looks missing (Keely Pogue,
-    # 2026-07-22). confirm_payment walks this list.
-    history = list(reg.get('stripe_session_ids') or [])
-    history.append(session.id)
-    updates = {
-        'stripe_session_id': session.id,
-        'stripe_session_ids': history[-10:],
-        'updated_at': datetime.utcnow().isoformat(),
-    }
-    # The family acknowledged the hold-your-place / fully-refundable terms for a
-    # fee that includes waitlisted kids (frontend gates the pay button on it).
-    if body.get('waitlist_ack') and not reg.get('waitlist_refund_ack_at'):
-        updates['waitlist_refund_ack_at'] = datetime.utcnow().isoformat()
-    admin.table('registrations').update(updates).eq('id', reg_id).execute()
-
-    return jsonify({'success': True, 'checkout_url': session.url}), 200
 
 
-@bp.route('/preview-checkout', methods=['POST'])
-@rate_limit(max_requests=10, window_seconds=300)
-def preview_checkout():
-    """Staff walkthrough (?preview=1) of the card-payment step: a real Stripe
-    Checkout session on the school's account so the preview shows exactly what
-    families see. Stripe doesn't allow $0 in payment mode, so it's created for
-    the 50-cent minimum and clearly labeled — nothing is charged unless someone
-    actually pays it. Gated by the public invitation code, same as /config;
-    no registration exists and nothing is recorded."""
-    body = request.get_json(silent=True) or {}
-    data, err = _load_registration_invite((body.get('code') or '').strip())
-    if err:
-        return err
-    org = data['organization']
-    secret = _org_stripe_key(org.get('id'))
-    if not secret:
-        return jsonify({'error': 'Card payment is not set up for this school'}), 400
-    return_url = (body.get('return_url') or '').strip()
-    if not return_url.startswith('http'):
-        return jsonify({'error': 'Invalid return URL'}), 400
-
-    try:
-        import stripe
-        sep = '&' if '?' in return_url else '?'
-        session = stripe.checkout.Session.create(
-            api_key=secret,
-            mode='payment',
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {'name': f'{org.get("name") or "your school"} registration fee (PREVIEW — do not pay)'},
-                    'unit_amount': 50,
-                },
-                'quantity': 1,
-            }],
-            metadata={'preview': 'true', 'organization_id': org['id']},
-            success_url=f'{return_url}{sep}payment=preview-return',
-            cancel_url=f'{return_url}{sep}payment=preview-canceled',
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'registration preview-checkout: session creation failed: {e}')
-        return jsonify({'error': 'Could not start the preview payment'}), 502
-    return jsonify({'success': True, 'checkout_url': session.url}), 200
 
 
-def _find_paid_session(reg, secret, parent_email=None):
-    """Find a PAID Stripe Checkout Session belonging to this registration.
-
-    A parent can create several sessions (Pay clicked twice, two tabs) and pay
-    any ONE of them, while stripe_session_id only remembers the LAST click — so
-    verification must consider every candidate, not just the latest:
-      1. every session id WE recorded for this registration (stripe_session_id +
-         the stripe_session_ids history) — ours by construction, so a paid one
-         counts even if it predates registration_id metadata;
-      2. fallback: list the school's recent Checkout Sessions and match either
-         metadata.registration_id, or — for pre-metadata sessions carrying no
-         registration_id — the family's email + the exact fee amount.
-
-    Both branches must tolerate sessions created BEFORE 2026-07-22, which carry
-    no registration_id metadata and were never added to stripe_session_ids: a
-    later checkout overwrote stripe_session_id, so the paid session is otherwise
-    unreachable and the family is stranded at the fee step even though Stripe has
-    their money (MaKenzie Candland, paid 2026-07-12).
-    Returns (paid_session_or_None, retrieve_errors_count).
-    """
-    import stripe
-
-    reg_id = reg['id']
-    fee_cents = int(reg.get('fee_cents') or 0)
-    parent_email = (parent_email.strip().lower()
-                    if isinstance(parent_email, str) and _valid_email(parent_email) else None)
-
-    def _email_amount_match(session):
-        """Pre-metadata rescue: a metadata-less paid session is this family's when
-        the Checkout customer email and the exact fee amount both match."""
-        if not (parent_email and fee_cents):
-            return False
-        sess_email = ((session.get('customer_details') or {}).get('email')
-                      or session.get('customer_email') or '')
-        return (str(sess_email).strip().lower() == parent_email
-                and int(session.get('amount_total') or 0) == fee_cents)
-
-    candidates = []
-    for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
-        if sid and sid not in candidates:
-            candidates.append(sid)
-
-    errors = 0
-    for sid in candidates:
-        try:
-            session = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception as e:  # noqa: BLE001
-            logger.error(f'registration confirm-payment: retrieve failed for {sid[:20]}: {e}')
-            errors += 1
-            continue
-        if session.get('payment_status') != 'paid':
-            continue
-        # A session id we stored for THIS registration is ours by construction —
-        # accept it when paid unless its metadata explicitly names a DIFFERENT
-        # registration (defensive; shouldn't happen for our own sessions).
-        meta_reg = (session.get('metadata') or {}).get('registration_id')
-        if not meta_reg or meta_reg == reg_id:
-            return session, errors
-
-    # Fallback sweep: any paid session for this registration among the school's
-    # recent sessions, capped pages. The lookback starts a little BEFORE this
-    # registration row so a payment made just before the row was (re-)created is
-    # still found.
-    try:
-        created_gte = int(datetime.fromisoformat(
-            str(reg.get('created_at')).replace('Z', '+00:00').replace(' ', 'T')).timestamp()) - 45 * 86400
-    except (ValueError, TypeError):
-        created_gte = None
-    try:
-        params = {'limit': 100, 'api_key': secret}
-        if created_gte:
-            params['created'] = {'gte': created_gte}
-        listing = stripe.checkout.Session.list(**params)
-        for _page in range(3):
-            for session in listing.get('data') or []:
-                if session.get('payment_status') != 'paid':
-                    continue
-                meta_reg = (session.get('metadata') or {}).get('registration_id')
-                if meta_reg == reg_id or (not meta_reg and _email_amount_match(session)):
-                    return session, errors
-            if not listing.get('has_more'):
-                break
-            last = (listing.get('data') or [])[-1]
-            params['starting_after'] = last['id']
-            listing = stripe.checkout.Session.list(**params)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'registration confirm-payment: session list fallback failed: {e}')
-        errors += 1
-    return None, errors
 
 
-@bp.route('/registrations/<reg_id>/confirm-payment', methods=['POST'])
-@rate_limit(max_requests=30, window_seconds=300)
-def confirm_payment(reg_id):
-    """Server-side payment verification (the passback): find a Checkout Session
-    for this registration that Stripe says is PAID for the right amount. Never
-    trusts the browser. Completes the funnel."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(reg_id)
-    if not _authz(reg, body.get('access_token')):
-        return jsonify({'error': 'Not authorized'}), 403
-
-    admin = _admin()
-    cfg = _org_config(admin, reg['organization_id'])
-    if reg.get('status') in ('schedule', 'appointment', 'completed'):
-        # Fee already settled — idempotent re-verify (e.g. a Stripe return-page reload).
-        return jsonify({'success': True, 'status': reg['status'], 'already': True, 'paid': True,
-                        'scheduling_url': _abs_url(cfg.get('scheduling_url')),
-                        'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
-    secret = _org_stripe_key(reg['organization_id'])
-    if not secret or not (reg.get('stripe_session_id') or reg.get('stripe_session_ids')):
-        return jsonify({'error': 'No payment to verify for this registration'}), 400
-
-    # Parent email lets the sweep rescue pre-metadata paid sessions by email +
-    # amount when no registration_id is on the session.
-    parent_email = (_parent_row(admin, reg['parent_user_id']) or {}).get('email')
-    session, errors = _find_paid_session(reg, secret, parent_email=parent_email)
-    if session is None:
-        if errors:
-            return jsonify({'error': 'Could not verify the payment. Please try again.'}), 502
-        return jsonify({'success': False, 'paid': False,
-                        'error': "We haven't received your payment yet. Complete the payment and try again."}), 402
-    if int(session.get('amount_total') or 0) != int(reg.get('fee_cents') or 0):
-        logger.warning(f'registration confirm-payment: amount mismatch for {reg_id}: '
-                       f'{session.get("amount_total")} != {reg.get("fee_cents")}')
-        return jsonify({'error': 'Payment amount mismatch — please contact the school.'}), 400
-
-    result = _finish_fee_step(admin, reg, cfg, extra_fields={
-        'fee_paid_at': datetime.utcnow().isoformat(),
-        'stripe_payment_ref': str(session.get('payment_intent') or session.get('id')),
-        # Paid = nothing deferred anymore, so a later waitlist release
-        # never reopens a settled registration.
-        'fee_deferred': False,
-    })
-    logger.info(f'registration: registration {reg_id} payment verified ({session.get("payment_intent")})')
-    return jsonify({**result, 'paid': True}), 200
 
 
-@bp.route('/registrations/<reg_id>/fee-status', methods=['POST'])
-@rate_limit(max_requests=60, window_seconds=300)
-def fee_status(reg_id):
-    """Authoritative fee state for the fee step. The client renders pay-vs-finish
-    from THIS, not from a feeCents it cached earlier in the funnel — otherwise a
-    fee recomputed mid-flight (a prepaid credit removed, a back-edited family step)
-    strands the parent on a stale "$0, finish" view that /fee then refuses forever
-    (erin4collins, 2026-07-28). Read-only apart from the same idempotent
-    prepaid-directive zeroing /fee and /checkout apply, so `requires_card` here is
-    exactly what those endpoints will enforce. POST keeps the access token out of
-    URLs/logs, matching the other reg-scoped routes."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(reg_id)
-    if not _authz(reg, body.get('access_token')):
-        return jsonify({'error': 'Not authorized'}), 403
-
-    admin = _admin()
-    _org_config(admin, reg['organization_id'])
-    completed = reg.get('status') in ('schedule', 'appointment', 'completed')
-    reg = _apply_prepaid_directive(admin, reg)
-    fee_cents = int(reg.get('fee_cents') or 0)
-    fee_deferred = bool(reg.get('fee_deferred'))
-    stripe_enabled = _org_stripe_enabled(reg['organization_id'])
-    # Mirrors the /fee 402 gate exactly.
-    requires_card = stripe_enabled and fee_cents > 0 and not fee_deferred and not completed
-    return jsonify({
-        'success': True,
-        'status': reg.get('status'),
-        'fee_cents': fee_cents,
-        'fee_deferred': fee_deferred,
-        'stripe_enabled': stripe_enabled,
-        'requires_card': requires_card,
-        'already_completed': completed,
-    }), 200
 
 
-@bp.route('/registrations/<reg_id>/fee', methods=['POST'])
-@rate_limit(max_requests=30, window_seconds=300)
-def record_fee(reg_id):
-    """Finish the fee step WITHOUT card verification — only allowed when the org
-    has no Stripe key configured (external/offline payment) or no fee is due.
-    With Stripe configured, /confirm-payment is the only way through."""
-    body = request.get_json(silent=True) or {}
-    reg = _load_registration(reg_id)
-    if not _authz(reg, body.get('access_token')):
-        return jsonify({'error': 'Not authorized'}), 403
-
-    admin = _admin()
-    cfg = _org_config(admin, reg['organization_id'])
-    if reg.get('status') in ('schedule', 'appointment', 'completed'):
-        return jsonify({'success': True, 'status': reg['status'], 'already': True,
-                        'scheduling_url': _abs_url(cfg.get('scheduling_url')),
-                        'scheduling_emailed': bool(reg.get('scheduling_emailed_at'))}), 200
-    reg = _apply_prepaid_directive(admin, reg)
-    fee_cents = int(reg.get('fee_cents') or 0)  # computed per-family at the family step
-    # Fee-deferred families (every kid on the enrollment waitlist) finish without
-    # paying — the fee comes due when the school releases their first student.
-    if _org_stripe_enabled(reg['organization_id']) and fee_cents > 0 and not reg.get('fee_deferred'):
-        # Return the authoritative fee so a client whose local feeCents went stale
-        # (e.g. the fee was recomputed after a prepaid directive was removed, or a
-        # tab loaded a $0 "finish" view before the fee was set) can self-correct
-        # to the pay-by-card UI instead of dead-ending on this toast.
-        return jsonify({'error': 'Please pay the registration fee by card to finish.',
-                        'requires_card': True, 'fee_cents': fee_cents}), 402
-
-    result = _finish_fee_step(admin, reg, cfg, extra_fields={'fee_cents': fee_cents})
-    return jsonify(result), 200
 
 
 @bp.route('/registrations/<reg_id>/schedule-done', methods=['POST'])
@@ -1788,3 +1246,13 @@ def upload_photo(reg_id):
         'user_id': target,
         'avatar_url': photo_display_url(avatar_url),
     }), 200
+
+
+# The money steps live in their own module (QB-04). They attach to THIS
+# blueprint, not one of their own: the funnel's CSRF exemption list is keyed on
+# endpoint names like `registration.create_checkout`, so a second blueprint
+# would rename them out of it and 403 every parent who reached the payment step
+# with a session -- the 2026-07-21 outage, again.
+from routes import registration_entry, registration_payments  # noqa: E402
+registration_entry.register_routes(bp)
+registration_payments.register_routes(bp)
