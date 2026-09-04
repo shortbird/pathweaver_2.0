@@ -2978,12 +2978,31 @@ Log:
 
   ruff clean, mypy clean, 4856 passed.
 
-### OPS-09 — 907 CRLF files, no `.gitattributes` `[NEEDS-USER]`
+### OPS-09 — 907 CRLF files, no `.gitattributes` `[NEEDS-USER(recipe ready; needs a quiet window)]`
 Normalization touches ~900 files and rewrites blame; must land at a quiet moment
 coordinated with all in-flight branches. Prepare the `.gitattributes` +
 `git add --renormalize` recipe; user schedules it.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: Recipe written: [docs/ops/CRLF_NORMALIZATION.md](../ops/CRLF_NORMALIZATION.md).
+  Prepared but deliberately NOT run — the user said yes to the item and did not
+  give a window, and the window is the whole difficulty.
+
+  Re-measured rather than trusting the audit's figure: 883 of 3,555 tracked
+  files are CRLF today, not 907. Close enough that the finding stands.
+
+  The recipe covers the two things a naive `git add --renormalize` gets wrong.
+  It puts the normalization in its own commit with nothing else in it, and it
+  writes that commit's SHA to `.git-blame-ignore-revs` — without which 883
+  files have their entire authorship reassigned to whoever runs it. It also
+  ends with `git diff --ignore-all-space` as the proof that nothing but
+  whitespace moved.
+
+  WHY IT MUST NOT RUN NOW: this repo has multiple agents in one working tree
+  and a 60-commit branch waiting to merge. A commit touching 883 files
+  conflicts with every uncommitted edit in any of them, on every line. It needs
+  an empty `git status`, no other session mid-task, and in-flight branches
+  merged first.
 
 ---
 
