@@ -1814,11 +1814,35 @@ mechanical swap); v2: 241 hex vs 208 token usages, off-palette `#af56e5`,
 Log:
 - 2026-08-31: Plan created.
 
-### QF-08 — A11y: tooling installed but unused; 36 div-onClick `[TODO]` (low)
+### QF-08 — A11y: tooling installed but unused; 36 div-onClick `[DONE(tooling wired; div-onClick ratcheted, not converted)]` (low)
 Wire vitest-axe smoke tests on the top pages or remove the dead deps; convert
 div onClick to buttons/keyboard handlers.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Wired the tooling rather than removing it, and ratcheted the
+  clickable divs rather than converting them.
+
+  `vitest-axe`, `jest-axe` and `axe-core` had been devDependencies with ZERO
+  imports. `frontend/src/components/ui/__tests__/a11y.test.jsx` now runs axe
+  over ten shared primitives (Alert, Button, Button disabled, Card, EmptyState,
+  Input, RolePill, Skeleton, Spinner, StatusBadge). All ten pass clean.
+
+  SCOPE CHOSEN DELIBERATELY: the primitives, not "the top pages" the item
+  suggests. A page here drags in AuthContext, the router and a dozen API calls,
+  so a page-level axe test is mostly a mocking exercise that goes red for
+  reasons unrelated to accessibility. These components render on nearly every
+  page, so a violation in one is a violation everywhere — the leverage is
+  better and it needs no mocking. The test says out loud that axe catches maybe
+  a third of real problems and nothing about whether a screen-reader user can
+  make sense of the thing; passing is not a claim that the app is accessible.
+
+  THE COUNT IS 142, NOT 36, and the difference is real rather than drift: a
+  single-line grep only sees `<div onClick=` when both sit on one line, and
+  most JSX spreads attributes over several. Ratcheted at 142 rather than
+  converted — each conversion is a behavioural change to a real screen, and
+  doing 142 of them blind is how a modal's close button stops working.
+
+  Web suite 283 files / 2490 tests, all passing.
 
 ### QF-09 — v2 TypeScript widening: 390 explicit `any` `[DONE(ratcheted at the real count, 580)]` (low)
 Ratchet down: count-based guard or eslint rule warn->error per directory.
