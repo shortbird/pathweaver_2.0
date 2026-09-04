@@ -146,7 +146,8 @@ def list_class_quests(user_id, class_id):
         return err
     rows = (admin.table('class_quests')
             .select('id, quest_id, sequence_order, publish_at, due_date, '
-                    'quests(id, title, description, quest_type, is_active, organization_id)')
+                    'quests(id, title, description, quest_type, is_active, '
+                    'organization_id, xp_threshold)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
@@ -163,6 +164,9 @@ def list_class_quests(user_id, class_id):
             'publish_at': r.get('publish_at'),
             'due_date': r.get('due_date'),
             'template_task_count': counts.get(r['quest_id'], 0),
+            # The XP a student has to earn before the quest counts as finished.
+            # On the quest, not the class link: it is a property of the work.
+            'xp_threshold': q.get('xp_threshold') or 0,
             # Only the org's own quests may have their preset tasks edited here.
             'editable_tasks': q.get('organization_id') == org_id,
         })
@@ -680,12 +684,23 @@ def update_preset_task(user_id, class_id, quest_id, task_id):
 @bp.route('/classes/<class_id>/quests/<quest_id>', methods=['PATCH'])
 @require_auth
 def update_class_quest(user_id, class_id, quest_id):
-    """Set or clear a quest's due date (and publish schedule) for THIS class.
+    """Set or clear a quest's due date (and publish schedule) for THIS class,
+    and the XP a student has to earn before it counts as finished.
 
     class_quests has carried due_date and publish_at all along and the list
     endpoint returns them, but nothing could write them from the SIS -- so a
     school with due dates switched on still had no way to set one (Gryffin,
     2026-08-27: "How do we add due dates to any tasks that we assign?").
+
+    xp_threshold is the same field the staff-training page writes and
+    POST /api/quests/<id>/end already enforces; it lives on the QUEST, not on
+    the class link, so it is written separately and only on the school's own
+    quests -- a library quest belongs to every school. Teachers asked for it
+    four times in a week and reached for the per-task XP box instead, which is
+    a different number and does not save a quest-level target (iCreate,
+    2026-09-01: "I would like to have an option to add an XP minimum for each
+    quest"; "Oops, the XP was to add my own preset task. I was hoping to have a
+    required amount of XP for the entire quest").
     """
     class_row, admin, err = _authorize(user_id, class_id)
     if err:
@@ -699,18 +714,57 @@ def update_class_quest(user_id, class_id, quest_id):
         if field in data:
             value = data.get(field)
             updates[field] = (str(value).strip() or None) if value else None
-    if not updates:
-        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
-    # No updated_at here: class_quests doesn't have that column (only added_at),
-    # and PostgREST rejects the whole PATCH over it (Sentry OPTIO-BACKEND-7B/7C).
 
-    row = (admin.table('class_quests').update(updates)
-           .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
-    if not row:
+    xp_threshold = None
+    if 'xp_threshold' in data:
+        raw = data.get('xp_threshold')
+        if raw is None or raw == '':
+            xp_threshold = 0
+        else:
+            try:
+                xp_threshold = int(raw)
+            except (TypeError, ValueError):
+                return jsonify({'success': False,
+                                'error': 'XP to finish must be a number.'}), 400
+            if xp_threshold < 0:
+                return jsonify({'success': False,
+                                'error': 'XP to finish cannot be negative.'}), 400
+
+    if not updates and xp_threshold is None:
+        return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    link = (admin.table('class_quests').select('id')
+            .eq('class_id', class_id).eq('quest_id', quest_id).limit(1).execute()).data
+    if not link:
         return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+
+    row = [{}]
+    if updates:
+        # No updated_at here: class_quests doesn't have that column (only added_at),
+        # and PostgREST rejects the whole PATCH over it (Sentry OPTIO-BACKEND-7B/7C).
+        row = (admin.table('class_quests').update(updates)
+               .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
+        if not row:
+            return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+
+    if xp_threshold is not None:
+        quest = (admin.table('quests').select('organization_id')
+                 .eq('id', quest_id).limit(1).execute()).data
+        if not quest or quest[0].get('organization_id') != class_row['organization_id']:
+            return jsonify({
+                'success': False,
+                'error': "XP to finish can only be set on your school's own quests.",
+            }), 403
+        # 0 and None both mean "no finish line"; store None so the completion
+        # route's `if xp_threshold and xp_threshold > 0` reads it the same way
+        # a quest that never had one does.
+        admin.table('quests').update({'xp_threshold': xp_threshold or None}) \
+            .eq('id', quest_id).execute()
+
     return jsonify({'success': True,
                     'due_date': row[0].get('due_date'),
-                    'publish_at': row[0].get('publish_at')})
+                    'publish_at': row[0].get('publish_at'),
+                    'xp_threshold': xp_threshold})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])

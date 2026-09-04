@@ -66,6 +66,25 @@ const CoordinatorDashboard = ({ userName }) => {
         </div>
       )}
 
+      {/* The school's pinned links — the same section the teacher dashboard
+          leads with. Only teachers had one, so a link the office pinned and
+          ticked "Coordinators" on was saved and then shown to nobody (iCreate,
+          2026-09-01). These are external URLs, not routes: an anchor, not a
+          Link. */}
+      {(data.pinned_links || []).length > 0 && (
+        <Card title="Links">
+          <div className="flex flex-wrap gap-2">
+            {data.pinned_links.map((l) => (
+              <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                title={l.description || undefined}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-optio-purple hover:border-optio-purple/50 hover:bg-optio-purple/5 transition-colors">
+                {l.title}
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <AttendanceAlerts alerts={att.open_alerts} resolutions={att.resolutions}
         orgId={orgId} onResolved={load} />
 

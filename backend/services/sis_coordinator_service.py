@@ -16,9 +16,10 @@ from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_attendance_service as attendance
 from services import sis_forms_service as forms
-from services.sis_staff_service import _org_now, list_assignments
+from services.sis_staff_service import (
+    _org_now, list_assignments, pinned_links_for, staff_resources_for,
+)
 from utils.logger import get_logger
-from utils.storage_urls import sign_in_place
 
 logger = get_logger(__name__)
 
@@ -158,19 +159,11 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
         .get('sis_settings') or {}
     held_roles = sis_service.caller_org_roles(user_id)
 
-    staff_resources = [
-        {'id': r['id'], 'title': r['title'], 'url': r.get('url'), 'category': r.get('category')}
-        for r in sis_service.filter_role_visible(user_id, (
-            _admin().table('org_resources')
-            .select('id, title, url, category, audience, visible_to_roles')
-            .eq('organization_id', org_id)
-            .in_('audience', ['staff', 'all'])
-            .order('title').limit(8).execute()
-        ).data or [])
-    ]
-    # Uploaded docs live in the private `org-documents` bucket — one batched
-    # signing call for the list; external links pass through.
-    sign_in_place(staff_resources, ['url'])
+    staff_resources = staff_resources_for(user_id, org_id)
+    # The same pinned links the teacher dashboard leads with. A coordinator had
+    # no Links section at all, so a link pinned and ticked "Coordinators" was
+    # saved and then shown to nobody (iCreate, 2026-09-01).
+    pinned_links = pinned_links_for(user_id, org_id)
 
     return {
         'organization': {'id': org_id,
@@ -186,4 +179,5 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
         'my_tasks': forms.list_assigned(org_id, user_id),
         'quick_links': filter_quick_links(settings.get('quick_links'), held_roles),
         'staff_resources': staff_resources,
+        'pinned_links': pinned_links,
     }

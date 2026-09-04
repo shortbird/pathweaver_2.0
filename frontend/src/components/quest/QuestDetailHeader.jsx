@@ -234,6 +234,16 @@ const QuestDetailHeader = ({
 
   const isEnrolled = quest?.user_enrollment;
   const totalXP = quest?.metadata?.total_xp || quest?.xp_value || 0;
+  // The finish line a school set for this quest (quests.xp_threshold), which
+  // POST /api/quests/:id/end enforces. A learner working towards it could only
+  // find out how far off they were by being refused at the end, so once they
+  // are on the quest the badge counts towards the target instead of naming a
+  // total (iCreate, 2026-09-03: "can we have 0/and the amount of XP that they
+  // need to complete").
+  const xpGoal = quest?.xp_threshold || 0;
+  const showXpGoal = xpGoal > 0 && Boolean(isEnrolled);
+  const xpEarned = Math.max(0, earnedXP || 0);
+  const xpGoalMet = xpEarned >= xpGoal;
 
   return (
     <div className="bg-white">
@@ -298,7 +308,17 @@ const QuestDetailHeader = ({
 
           {/* Title and XP badge - pt-14 clears the absolute positioned back button */}
           <div className={`max-w-xl sm:max-w-2xl pb-2 ${isFocusMode() ? 'pt-2' : 'pt-14'}`}>
-            {totalXP > 0 && (
+            {showXpGoal ? (
+              <div
+                title={xpGoalMet
+                  ? 'You have earned enough to finish this quest'
+                  : `${xpGoal - xpEarned} XP to go`}
+                className={`inline-flex items-center gap-1.5 mb-1 px-2 py-0.5 rounded-full text-xs font-semibold shadow-sm ${
+                  xpGoalMet ? 'bg-green-600 text-white' : 'bg-gradient-primary text-white'}`}
+              >
+                {xpEarned} / {xpGoal} XP
+              </div>
+            ) : totalXP > 0 && (
               <div className="inline-block mb-1 px-2 py-0.5 bg-gradient-primary text-white rounded-full text-xs font-semibold shadow-sm">
                 {totalXP} XP
               </div>

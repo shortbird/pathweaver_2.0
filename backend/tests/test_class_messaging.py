@@ -251,7 +251,7 @@ class TestClassGroupSync:
         assert fam and stu and fam != stu
         audiences = {p['audience']: p['name'] for t, p in admin.inserts
                      if t == 'group_conversations'}
-        assert audiences == {'family': 'Musical Theater Class Chat',
+        assert audiences == {'family': 'Musical Theater Parent Chat',
                              'student': 'Musical Theater Student Chat'}
 
         fam_members = _members_of(admin, fam)
@@ -303,6 +303,41 @@ class TestClassGroupSync:
         # chat on resync — and lands in the student chat instead.
         assert [r['user_id'] for t, r in admin.deletes if t == 'group_members'] == [STUDENT]
         assert _members_of(admin, res['student'])[STUDENT] == 'member'
+
+    # iCreate, 2026-09-03: a teacher wrote to her students in the parent chat
+    # for two days. Both chats were "<Class> ... Chat" and the adults' one was
+    # the one that read like the class's. Groups already created keep drifting
+    # under the old name unless a resync corrects it.
+    def test_an_existing_class_chat_is_renamed_to_say_it_is_the_parents(self):
+        from services import class_group_sync_service as sync
+
+        rows = _rows(
+            group_conversations=[{'id': 'g1', 'source_class_id': CLASS,
+                                  'audience': 'family', 'is_active': True,
+                                  'name': 'Musical Theater Class Chat'}],
+        )
+        admin = _FakeAdmin(rows)
+        with _membership(admin), patch.object(sync, '_admin', return_value=admin):
+            sync.sync_class_groups(CLASS, actor_id=TEACHER)
+
+        renames = [p for t, p in admin.updates
+                   if t == 'group_conversations' and 'name' in p]
+        assert renames == [{'name': 'Musical Theater Parent Chat'}]
+
+    def test_a_name_the_school_chose_is_left_alone(self):
+        from services import class_group_sync_service as sync
+
+        rows = _rows(
+            group_conversations=[{'id': 'g1', 'source_class_id': CLASS,
+                                  'audience': 'family', 'is_active': True,
+                                  'name': 'Theater Families 26-27'}],
+        )
+        admin = _FakeAdmin(rows)
+        with _membership(admin), patch.object(sync, '_admin', return_value=admin):
+            sync.sync_class_groups(CLASS, actor_id=TEACHER)
+
+        assert not [p for t, p in admin.updates
+                    if t == 'group_conversations' and 'name' in p]
 
     def test_a_guardian_who_teaches_the_class_is_admin_not_member(self):
         from services import class_group_sync_service as sync

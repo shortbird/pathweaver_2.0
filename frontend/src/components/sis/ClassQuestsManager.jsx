@@ -189,6 +189,27 @@ export default function ClassQuestsManager({ classId }) {
     }
   }
 
+  // The finish line for the whole quest (quests.xp_threshold), which
+  // POST /api/quests/<id>/end already enforces and the student's quest page now
+  // reads back as "X of N XP". Teachers asked four times in a week and kept
+  // reaching for a preset task's XP box, which is a per-task number (iCreate,
+  // 2026-09-01/03: "I can update the required XP for this quest, but I can't
+  // save it"; "there is no way to save the XP. It was originally 100, but I
+  // need to change it to 50"). Saved on blur, like the training page's.
+  const saveXp = async (q, raw) => {
+    const next = raw === '' ? 0 : Number(raw)
+    if (Number.isNaN(next) || next < 0) { toast.error('XP to finish must be a number'); return }
+    if (next === (q.xp_threshold || 0)) return
+    try {
+      await api.patch(`/api/sis/classes/${classId}/quests/${q.quest_id}`, { xp_threshold: next })
+      setQuests((prev) => prev.map((x) => (
+        x.quest_id === q.quest_id ? { ...x, xp_threshold: next } : x)))
+      toast.success(next ? `Students need ${next} XP to finish this quest` : 'No XP requirement')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the XP')
+    }
+  }
+
   // class and leaves it in the school's library; delete removes it entirely.
   const unassign = async (q) => {
     if (!(await confirm(
@@ -388,7 +409,24 @@ export default function ClassQuestsManager({ classId }) {
                         ? `${q.template_task_count} preset task${q.template_task_count === 1 ? '' : 's'}`
                         : 'No preset tasks'}
                       {!q.editable_tasks ? ' · Optio library' : ''}
+                      {q.xp_threshold ? ` · ${q.xp_threshold} XP to finish` : ''}
                     </p>
+                    {/* Deliberately here and not in the task rows: this is the
+                        whole quest's target, and a box sitting among the tasks
+                        is the one teachers kept typing into by mistake. A
+                        library quest belongs to every school, so its target is
+                        not ours to set. */}
+                    {q.editable_tasks && (
+                      <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
+                        XP to finish
+                        <input type="number" min={0} step={25} defaultValue={q.xp_threshold || ''}
+                          onBlur={(e) => saveXp(q, e.target.value)}
+                          placeholder="Any"
+                          aria-label={`XP to finish ${q.title}`}
+                          title="Leave blank and any amount of work finishes the quest"
+                          className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+                      </label>
+                    )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     {q.due_date && dueEditing !== q.quest_id && (

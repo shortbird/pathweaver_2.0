@@ -190,7 +190,7 @@ def class_messaging(user_id, class_id):
         group['source_class_id'] = class_id
         return group
 
-    group = _load_group(group_ids.get('family'), f"{cls.get('name')} Class Chat")
+    group = _load_group(group_ids.get('family'), f"{cls.get('name')} Parent Chat")
     student_group = _load_group(group_ids.get('student'), f"{cls.get('name')} Student Chat")
 
     student_ids = membership.class_student_ids(class_id)

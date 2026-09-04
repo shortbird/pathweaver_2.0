@@ -230,10 +230,26 @@ const ClassMessagesTab = ({ classId, orgId, className }) => {
         {/* Right pane — the real chat windows */}
         <div className={`flex-1 flex flex-col min-w-0 ${!selected ? 'hidden md:flex' : 'flex'}`}>
           {selectedGroup ? (
-            <GroupChatWindow
-              group={{ ...selectedGroup, name: selectedGroup.name || `${className} Class Chat` }}
-              onBack={() => setSelected(null)}
-            />
+            <>
+              {/* Who is about to read this, stated above the composer rather
+                  than inferred from the chat's name. The parent chat opens
+                  first, and a teacher who came to talk to her class typed into
+                  it for two days without noticing (iCreate, 2026-09-03: "the
+                  students saw each others messages, just not the teachers").
+                  The counts come from the roster this tab already loaded. */}
+              <p className={`px-4 py-2 text-xs border-b ${
+                selectedGroup.id === studentGroup?.id
+                  ? 'bg-optio-purple/5 border-optio-purple/20 text-optio-purple'
+                  : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                {selectedGroup.id === studentGroup?.id
+                  ? `Goes to the ${students.length} student${students.length === 1 ? '' : 's'} in this class, and its teachers. Parents do not see it.`
+                  : `Goes to the ${guardians.length} parent${guardians.length === 1 ? '' : 's'} of this class, and its teachers. Students do not see it.`}
+              </p>
+              <GroupChatWindow
+                group={{ ...selectedGroup, name: selectedGroup.name || `${className} Parent Chat` }}
+                onBack={() => setSelected(null)}
+              />
+            </>
           ) : conversation ? (
             <ChatWindow conversation={conversation} onBack={() => setSelected(null)} />
           ) : (
