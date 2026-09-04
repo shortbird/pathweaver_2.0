@@ -55,6 +55,13 @@ describe('campus coordinator chrome', () => {
     expect(canSeeFinance(legacy)).toBe(false)
   })
 
+  it('denies finance access to campus coordinator even if user.is_org_admin is true', () => {
+    const userWithFlag = { id: 'u1', role: 'org_managed', org_role: 'campus_coordinator', org_roles: ['campus_coordinator'], is_org_admin: true }
+    expect(isSisAdmin(userWithFlag)).toBe(true)
+    expect(isCampusCoordinator(userWithFlag)).toBe(true)
+    expect(canSeeFinance(userWithFlag)).toBe(false)
+  })
+
   it('treats a signed-out visitor as nothing at all', () => {
     expect(isSisAdmin(null)).toBe(false)
     expect(isCampusCoordinator(null)).toBe(false)

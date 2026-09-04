@@ -55,9 +55,9 @@ export const isSisAdmin = (user) => {
 export const isCampusCoordinator = (user) => {
   if (!user) return false
   if (user.role === 'superadmin' || user.role === 'org_admin') return false
-  if (user.is_org_admin) return false
   const roles = orgRolesOf(user)
-  return roles.includes('campus_coordinator') && !roles.includes('org_admin')
+  if (roles.includes('org_admin')) return false
+  return roles.includes('campus_coordinator')
 }
 
 /** False for a campus coordinator — the money pages and the pay fields. */
