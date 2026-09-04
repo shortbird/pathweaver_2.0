@@ -8,6 +8,9 @@ Part of the quests.py refactoring (P2-ARCH-1).
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
+from utils.guardian_scope import (
+    GuardianAccessError, guardian_capabilities, resolve_student_scope,
+)
 from utils.pillar_utils import normalize_pillar_name
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -52,8 +55,18 @@ def get_quest_detail(user_id: str, quest_id: str):
     Get detailed information about a specific quest.
     Includes user's progress if enrolled.
     Uses user-specific tasks if enrolled, otherwise shows quest template.
+
+    `?student_id=<uuid>` reads a CHILD's copy of this quest instead of the
+    caller's: same payload, same shape, their enrollment and their tasks. It is
+    how a parent sees the quest screen their kid sees rather than a thinner
+    parent-shaped version of it. Guardians only — see utils/guardian_scope.
     """
     try:
+        # Everything below reads `user_id`'s rows; resolving here is what makes
+        # the delegated response identical to the student's own.
+        caller_id = user_id
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+
         # Use admin client for all queries since we're accessing user-specific data
         # User authentication is already enforced by @require_auth decorator
         # admin client justified: quest detail view with org-aware visibility check + enrollment status read for current user
@@ -422,11 +435,19 @@ def get_quest_detail(user_id: str, quest_id: str):
             logger.warning(f"[QUEST DETAIL] Could not resolve training flag: {training_err}")
             quest_data['is_training'] = False
 
+        # Delegated read: say who is being viewed and which of this screen's
+        # controls the caller may actually use, so the app renders no button
+        # the write endpoints would refuse.
+        if user_id != caller_id:
+            quest_data['viewer_context'] = guardian_capabilities(caller_id, user_id)
+
         return jsonify({
             'success': True,
             'quest': quest_data
         })
 
+    except GuardianAccessError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting quest detail: {str(e)}")
         return jsonify({

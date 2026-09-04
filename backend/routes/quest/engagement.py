@@ -6,9 +6,10 @@ Replaces progress-focused metrics with process-focused metrics
 that celebrate sustainable learning rhythms.
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from utils.logger import get_logger
 from datetime import datetime, timedelta, date as date_type
 
@@ -152,8 +153,13 @@ def get_quest_engagement(user_id: str, quest_id: str):
     Returns:
     - calendar: Daily activity data for heat map (adaptive sizing)
     - rhythm: Current rhythm state with positive messaging
+
+    `?student_id=<uuid>` returns a child's rhythm on this quest instead of the
+    caller's, for the parent view of the quest screen (guardians only).
     """
     try:
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+
         # admin client justified: quest engagement metrics; reads quest_task_completions for the requesting user (self) under @require_auth, joining quest data
         supabase = get_supabase_admin_client()
         today = datetime.now().date()
@@ -230,6 +236,8 @@ def get_quest_engagement(user_id: str, quest_id: str):
             }
         })
 
+    except GuardianAccessError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting quest engagement: {str(e)}")
         return jsonify({

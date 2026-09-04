@@ -20,6 +20,10 @@ interface ClassDetailHeaderProps {
   /** Bump this whenever class-quest tasks change so the header refetches
    *  progress (e.g. on task completion or task add). */
   refreshKey?: number | string;
+  /** Parent mode: show the CHILD's progress toward the credit. Submitting the
+   *  class for final review stays the student's own milestone, so the CTA is
+   *  hidden when this is set. */
+  studentId?: string | null;
 }
 
 interface ClassProgress {
@@ -33,7 +37,7 @@ interface ClassProgress {
   transcript_subject_display: string;
 }
 
-export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: ClassDetailHeaderProps) {
+export function ClassDetailHeader({ questId, transcriptSubject, refreshKey, studentId = null }: ClassDetailHeaderProps) {
   const [progress, setProgress] = useState<ClassProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -41,14 +45,16 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
 
   const fetchProgress = useCallback(async () => {
     try {
-      const { data } = await api.get(`/api/quests/${questId}/class-progress`);
+      const { data } = await api.get(`/api/quests/${questId}/class-progress`, {
+        params: studentId ? { student_id: studentId } : undefined,
+      });
       setProgress(data.data || data);
     } catch {
       // Non-critical
     } finally {
       setLoading(false);
     }
-  }, [questId]);
+  }, [questId, studentId]);
 
   useEffect(() => { fetchProgress(); }, [fetchProgress, refreshKey]);
 
@@ -177,7 +183,7 @@ export function ClassDetailHeader({ questId, transcriptSubject, refreshKey }: Cl
           </View>
         )}
 
-        {progress?.can_submit_for_review && progress?.review_status !== 'submitted_for_review' && (
+        {!studentId && progress?.can_submit_for_review && progress?.review_status !== 'submitted_for_review' && (
           <Button
             size="lg"
             onPress={handleSubmit}
