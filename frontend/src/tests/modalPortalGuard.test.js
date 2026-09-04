@@ -141,7 +141,12 @@ const BASELINE = [
   'src/pages/admin/CourseGenerationQueue.jsx',
   'src/pages/admin/CourseGeneratorWizard.jsx',
   'src/pages/admin/OrganizationDashboard.jsx',
+  // Two entries, one original file: CourseHomepage.jsx had TWO raw backdrops,
+  // and the QF-02 split (2026-09-04) moved one of them into ProjectView.jsx.
+  // A baseline keyed on paths has to follow a move, or the split reads as a
+  // new offender while the code that actually needs fixing keeps its pass.
   'src/pages/courses/CourseHomepage.jsx',
+  'src/pages/courses/courseHomepage/ProjectView.jsx',
   'src/pages/curriculum/CurriculumPage.jsx',
 ]
 

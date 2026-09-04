@@ -22,13 +22,21 @@ import path from 'path'
  * twice), no cache (a back-navigation refetches everything), no shared
  * retry/backoff, and every page inventing its own loading and error state --
  * which is also how QF-05's silent-empty-section pattern spreads.
+ *
+ * COUNTED IN CALL SITES, NOT FILES, since 2026-09-04. The file count is not
+ * the quantity anyone cares about and it moves for reasons that have nothing
+ * to do with this item: splitting ClassesPage into seven components (QF-02)
+ * took the file tally from 108 to 118 without adding a single fetch. Call
+ * sites are invariant under a pure move -- 62 before those splits, 62 after,
+ * checked -- and they are what actually migrates when a page moves to a hook.
+ * The file tally is still reported, as information rather than as the gate.
  */
 
 const PAGES = path.resolve(__dirname, '../pages')
 
-/** Measured 2026-09-03. Ratchet DOWN as pages migrate. */
-const HAND_ROLLED_BASELINE = 108
-const SLACK = 15
+/** Measured 2026-09-04. Ratchet DOWN as pages migrate. */
+const CALL_SITE_BASELINE = 555
+const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/
 const CALLS_API = /\bapi\.(get|post|put|patch|delete)\s*\(/
@@ -46,15 +54,19 @@ function pageFiles(dir, acc = []) {
   return acc
 }
 
+const CALLS_API_ALL = /\bapi\.(get|post|put|patch|delete)\s*\(/g
+
 function census() {
   let hooked = 0
+  let callSites = 0
   const handRolled = []
   for (const file of pageFiles(PAGES)) {
     const body = fs.readFileSync(file, 'utf8')
     if (USES_HOOK.test(body)) hooked += 1
     else if (CALLS_API.test(body)) handRolled.push(path.relative(PAGES, file))
+    if (!USES_HOOK.test(body)) callSites += (body.match(CALLS_API_ALL) || []).length
   }
-  return { hooked, handRolled }
+  return { hooked, handRolled, callSites }
 }
 
 describe('data-fetching paradigm', () => {
@@ -62,24 +74,26 @@ describe('data-fetching paradigm', () => {
     expect(pageFiles(PAGES).length).toBeGreaterThan(100)
   })
 
-  it('hand-rolled pages do not multiply', () => {
-    const { handRolled } = census()
+  it('hand-rolled fetches do not multiply', () => {
+    const { callSites, handRolled } = census()
     expect(
-      handRolled.length,
-      `${handRolled.length} pages fetch by hand, baseline ${HAND_ROLLED_BASELINE}. `
-      + 'New and rewritten pages belong in hooks/api/ -- the hand-rolled style '
-      + 'has no request dedupe, no cache, no shared retry, and reinvents '
-      + 'loading and error state every time.',
-    ).toBeLessThanOrEqual(HAND_ROLLED_BASELINE)
+      callSites,
+      `${callSites} hand-rolled api.* call sites across ${handRolled.length} pages, `
+      + `baseline ${CALL_SITE_BASELINE}. New and rewritten pages belong in `
+      + 'hooks/api/ -- the hand-rolled style has no request dedupe, no cache, '
+      + 'no shared retry, and reinvents loading and error state every time.\n\n'
+      + 'Splitting a page does NOT move this number: the same calls in more '
+      + 'files count the same. If this went up, a fetch was added.',
+    ).toBeLessThanOrEqual(CALL_SITE_BASELINE)
   })
 
   it('has a baseline that still means something', () => {
-    const { handRolled } = census()
+    const { callSites } = census()
     expect(
-      handRolled.length,
-      `Only ${handRolled.length} hand-rolled pages against a baseline of `
-      + `${HAND_ROLLED_BASELINE}. Lower HAND_ROLLED_BASELINE to ${handRolled.length}.`,
-    ).toBeGreaterThan(HAND_ROLLED_BASELINE - SLACK)
+      callSites,
+      `Only ${callSites} hand-rolled call sites against a baseline of `
+      + `${CALL_SITE_BASELINE}. Lower CALL_SITE_BASELINE to ${callSites}.`,
+    ).toBeGreaterThan(CALL_SITE_BASELINE - SLACK)
   })
 
   it('the hooks/api directory it points people at still exists', () => {

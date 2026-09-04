@@ -41,12 +41,14 @@ const CAP = 1000
  * Files already over the cap, at their measured size plus a little headroom so
  * an incidental edit does not flip CI red. Measured 2026-09-03.
  * Remove an entry when the file is split -- do not raise one.
+ *
+ * SPLIT AND REMOVED (QF-02, 2026-09-04):
+ *   pages/courses/CourseHomepage.jsx  1654 -> 848
+ *   pages/sis/ClassesPage.jsx         1545 -> 706
+ *   pages/sis/BillingPage.jsx         1415 -> 719
  */
 const EXEMPT = {
-  'pages/courses/CourseHomepage.jsx': 1700,
   'pages/RegisterFunnelPage.jsx': 1670,
-  'pages/sis/ClassesPage.jsx': 1590,
-  'pages/sis/BillingPage.jsx': 1460,
   'pages/ScheduleBuilderPage.jsx': 1340,
   'pages/DiplomaPage.jsx': 1270,
   'components/quest/TaskWorkspace.jsx': 1260,
