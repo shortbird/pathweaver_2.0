@@ -30,6 +30,7 @@ from utils.org_student_credentials import (
 from utils.validation.password_validator import validate_password_strength
 from datetime import datetime
 import secrets
+from config.constants import GUARDIAN_RELATIONSHIPS
 
 logger = get_logger(__name__)
 
@@ -52,7 +53,7 @@ def _ensure_shared_household(client, org_id, guardian_id, guardian_last_name, st
                    .select('household_id, relationship')
                    .eq('user_id', guardian_id).execute().data) or []
     guardian_hh_ids = [m['household_id'] for m in memberships
-                       if m.get('relationship') in ('guardian', 'other') and m.get('household_id')]
+                       if m.get('relationship') in GUARDIAN_RELATIONSHIPS and m.get('household_id')]
     if guardian_hh_ids:
         rows = (client.table('households').select('id')
                 .in_('id', guardian_hh_ids).eq('organization_id', org_id)

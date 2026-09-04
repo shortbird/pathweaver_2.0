@@ -15,6 +15,7 @@ from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
 from utils import person_name
+from config.constants import GUARDIAN_RELATIONSHIPS
 
 logger = get_logger(__name__)
 
@@ -2235,7 +2236,7 @@ def message_household_guardians(org_id: str, household_id: str, sender_id: str,
         _admin().table('household_members').select('user_id, relationship')
         .eq('household_id', household_id).execute()
     ).data or []
-    guardian_ids = [m['user_id'] for m in members if m.get('relationship') in ('guardian', 'other')]
+    guardian_ids = [m['user_id'] for m in members if m.get('relationship') in GUARDIAN_RELATIONSHIPS]
     content = f"{subject}\n\n{body}" if subject else body
     sender = _org_messaging_sender(org_id) or sender_id
     svc = DirectMessageService()

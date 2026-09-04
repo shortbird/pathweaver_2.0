@@ -1927,6 +1927,30 @@ Log:
 
   ruff clean, mypy clean (1036 files), pyflakes clean. Tests: 4858 passed.
 
+- 2026-09-03: THE GUARDIAN TUPLE, FINISHED AND FENCED. The previous entry left
+  `('guardian', 'other')` inline in the moved code; going to fix that one copy
+  turned up FIVE, not one:
+  `routes/admin/organization_users.py`, `services/sis_service.py`,
+  `services/sis_attendance_sweep_service.py`, and
+  `services/sis_billing_service.py` twice. All now import
+  `config.constants.GUARDIAN_RELATIONSHIPS`. With the two named constants this
+  plan merged earlier, that is seven copies down to one.
+
+  This is worth more than the tidiness it looks like. `'other'` is the member
+  that drifts: the registration funnel writes it for a guardian who is not the
+  parent — a grandparent, an aunt — and a copy that omits it locks those
+  families out of their own children's records ON THAT SCREEN ONLY. Partial,
+  per-surface, and unreproducible from the ticket.
+
+  `tests/unit/test_one_definition_of_guardian.py` fences it: zero inline
+  copies, matched against whitespace-normalised source so quoting cannot
+  smuggle one past, plus the usual companions — the detector is shown to match
+  what a developer would actually type, the scan is shown to see real files,
+  and a separate test asserts the constant still contains `'other'`. Verified
+  by planting a copy in `utils/` and watching it go red, then removing it.
+
+  ruff clean, mypy clean (1037 files), pyflakes clean. Tests: 4862 passed.
+
   ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 
 ### QB-05 — Three migration directories with ambiguous authority `[DONE]`

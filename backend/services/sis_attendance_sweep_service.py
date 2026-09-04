@@ -23,6 +23,7 @@ from services import sis_attendance_sweep as rules
 from services import sis_notifications
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from config.constants import GUARDIAN_RELATIONSHIPS
 
 logger = get_logger(__name__)
 
@@ -146,7 +147,7 @@ def guardians_for_student(student_id: str) -> Set[str]:
                 .select('user_id, relationship').in_('household_id', hh_ids).execute()
             ).data or []
             for m in members:
-                if m['user_id'] != student_id and m.get('relationship') in ('guardian', 'other'):
+                if m['user_id'] != student_id and m.get('relationship') in GUARDIAN_RELATIONSHIPS:
                     ids.add(m['user_id'])
     except Exception as e:
         logger.warning(f"household guardian lookup failed: {e}")

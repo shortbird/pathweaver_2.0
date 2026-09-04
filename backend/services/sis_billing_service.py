@@ -43,6 +43,7 @@ def _admin():
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402
+from config.constants import GUARDIAN_RELATIONSHIPS
 
 
 # ── Processing fees ──────────────────────────────────────────────────────────
@@ -1113,7 +1114,7 @@ def _guardian_household_rows(user_id: str) -> List[Dict[str, Any]]:
         .eq('user_id', user_id).execute()
     ).data or []
     hh_ids = {m['household_id'] for m in memberships
-              if m.get('relationship') in ('guardian', 'other') and m.get('household_id')}
+              if m.get('relationship') in GUARDIAN_RELATIONSHIPS and m.get('household_id')}
     rows: Dict[str, Dict[str, Any]] = {}
     if hh_ids:
         for h in (_admin().table('households')
@@ -2440,7 +2441,7 @@ def _guardian_emails_for_household(household_id: str,
     ids = {m['user_id'] for m in (
         _admin().table('household_members').select('user_id, relationship')
         .eq('household_id', household_id).execute()
-    ).data or [] if m.get('relationship') in ('guardian', 'other')}
+    ).data or [] if m.get('relationship') in GUARDIAN_RELATIONSHIPS}
     if primary_contact_user_id:
         ids.add(primary_contact_user_id)
     if not ids:
