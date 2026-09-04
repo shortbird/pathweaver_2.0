@@ -208,6 +208,24 @@ def enroll_students(user_id, org_id, class_id):
                 'error': 'No valid students found. Students must be in the same organization as the class.'
             }), 400
 
+        if not data.get('force'):
+            from services.sis_waitlist_service import schedule_conflicts
+            conflicts = []
+            for sid in valid_student_ids:
+                try:
+                    st_conflicts = schedule_conflicts(sid, class_id)
+                    if st_conflicts:
+                        conflicts.extend(st_conflicts)
+                except Exception:
+                    pass
+            if conflicts:
+                cnames = ', '.join(c.get('class_name', 'another class') for c in conflicts)
+                return jsonify({
+                    'success': False,
+                    'conflicts': conflicts,
+                    'error': f'One or more students are already enrolled in {cnames} at the same time.',
+                }), 409
+
         enrollments = service.enroll_students_bulk(class_id, valid_student_ids, user_id)
 
         return jsonify({

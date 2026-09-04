@@ -507,8 +507,9 @@ const SchedulePanel = ({ student, orgId }) => {
       setChosen('')
       reload()
     } catch (e) {
-      if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
-        if (await confirm(`${e.response.data.error}\n\nEnroll them anyway?`)) {
+      if (e?.response?.status === 409 && (e.response.data?.enrollment_waitlisted || e.response.data?.conflicts)) {
+        const msg = e.response.data.error || 'This student is already enrolled in a class at the same time.'
+        if (await confirm(`${msg}\n\nEnroll them anyway?`)) {
           setBusy(false)
           return enroll(true)
         }
