@@ -57,12 +57,16 @@ def guardian_relationship(caller_id: str, student_id: str):
 
     student = supabase.table('users').select('first_name, managed_by_parent_id') \
         .eq('id', student_id).maybe_single().execute()
-    if not (student and student.data):
+    # A row, or nothing to reason about. `.data` is typed as arbitrary JSON, and
+    # an answer that is not a row cannot be evidence of a relationship — so a
+    # surprising shape has to fail closed here rather than at the first .get().
+    student_row = student.data if student else None
+    if not isinstance(student_row, dict):
         return None
 
     described = {
-        'first_name': student.data.get('first_name') or '',
-        'is_dependent': student.data.get('managed_by_parent_id') == caller_id,
+        'first_name': student_row.get('first_name') or '',
+        'is_dependent': student_row.get('managed_by_parent_id') == caller_id,
     }
     if described['is_dependent'] or caller_id == student_id:
         return described
@@ -75,7 +79,8 @@ def guardian_relationship(caller_id: str, student_id: str):
         return described
 
     caller = supabase.table('users').select('role').eq('id', caller_id).maybe_single().execute()
-    if caller and caller.data and caller.data.get('role') == 'superadmin':
+    caller_row = caller.data if caller else None
+    if isinstance(caller_row, dict) and caller_row.get('role') == 'superadmin':
         return described
 
     return None
@@ -125,7 +130,7 @@ def resolve_student_scope(caller_id: str, student_id) -> str:
     try:
         student_id = pgrst_uuid(student_id, 'student_id')
     except PostgrestFilterError as e:
-        raise GuardianAccessError(str(e))
+        raise GuardianAccessError(str(e)) from e
 
     if student_id == caller_id:
         return caller_id
