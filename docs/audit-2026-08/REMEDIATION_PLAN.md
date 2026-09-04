@@ -2146,6 +2146,40 @@ Log:
 
   Mobile suite 97 files / 718 passed; tsc clean.
 
+- 2026-09-03: THE BLOCKER IS GONE. `@legal` -> `shared/legal` is now
+  `@shared` -> `shared/`, so anything can be shared between the two apps, not
+  just the legal copy.
+
+  The alias is declared FOUR times, in four formats, and none of them can see
+  the other three:
+
+      frontend-v2/metro.config.js   resolveRequest hook   the mobile bundle
+      frontend-v2/tsconfig.json     paths entry           tsc only
+      frontend-v2/jest.config.js    moduleNameMapper      the mobile tests
+      frontend/vite.config.js       resolve.alias         the web app
+
+  Each covers a different surface, so a missing one does not fail everywhere —
+  it fails in exactly one place. Drop the Metro hook and tsc, jest and the web
+  build all stay green while the mobile bundle fails to resolve at runtime,
+  which in a release build is an OTA that crashes on launch. So
+  `frontend-v2/src/__tests__/sharedAlias.test.ts` asserts all four, plus one
+  test that actually imports THROUGH the alias rather than reading a config
+  string, plus one that no `@legal/` import survives.
+
+  VERIFIED THE WAY THE ENTRY ABOVE SAID IT HAD TO BE: "a Metro resolver change
+  breaks in ways only a device or simulator shows" — so the iOS bundle was
+  actually built. `expo export --platform ios` produced a 10 MB Hermes bundle
+  and both "Privacy Policy" and "Terms of Service" are inside it, which means
+  `app/privacy.tsx` and `app/terms.tsx` resolved `@shared/legal/*` through the
+  real Metro resolver and not through jest's mapper.
+
+  Also corrected a stale comment in `deepLinkRouter.ts` telling the next person
+  that sharing `SIS_SURFACE_PATHS` would cost a four-config alias change. That
+  bill is paid; the list can move whenever someone wants it to.
+
+  v1: 287 files / 2505 passed, production build clean. v2: 98 suites / 725
+  passed, tsc clean, iOS bundle builds.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).

@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import LegalDocument from '@/src/components/legal/LegalDocument';
-import { privacyPolicy } from '@legal/privacyPolicy';
+import { privacyPolicy } from '@shared/legal/privacyPolicy';
 
 export default function PrivacyPolicyScreen() {
   return <LegalDocument document={privacyPolicy} />;

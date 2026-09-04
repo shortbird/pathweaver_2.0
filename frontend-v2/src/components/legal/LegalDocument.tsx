@@ -11,7 +11,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { VStack, HStack, Heading, UIText, Card, Divider } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import type { LegalBlock, LegalDocument as LegalDocumentType, RichText, InlineNode } from '@legal/types';
+import type { LegalBlock, LegalDocument as LegalDocumentType, RichText, InlineNode } from '@shared/legal/types';
 
 function openHref(href: string) {
   if (href.startsWith('/')) {

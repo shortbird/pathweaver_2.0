@@ -11,15 +11,10 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getSentryExpoConfig(__dirname);
 
-// Shared legal content (Terms/Privacy single source of truth) lives in
-// ../shared, outside this project root. Metro must watch that folder so it can
-// serve those files, and resolve the @legal alias to it so both frontends
-// render identical text.
-//
-// We can't use resolver.extraNodeModules here: Metro parses "@legal/..." as a
-// scoped package name (@scope/pkg), so it looks up the key "@legal/privacyPolicy"
-// instead of "@legal" and the alias never matches. A resolveRequest hook maps
-// the prefix explicitly and is not subject to that scope-parsing quirk.
+// Shared cross-app code -- the Terms/Privacy single source of truth, the pillar
+// palette -- lives in ../shared, outside this project root. Metro must watch
+// that folder so it can serve those files, and resolve the @shared alias to it
+// so both frontends read the same definitions.
 const sharedRoot = path.resolve(__dirname, '..', 'shared');
 config.watchFolders = [...(config.watchFolders || []), sharedRoot];
 
@@ -29,21 +24,30 @@ config.resolver.unstable_enablePackageExports = false;
 
 const nativeWindConfig = withNativeWind(config, { input: './global.css' });
 
-// Map the @legal alias to ../shared/legal. Applied AFTER withNativeWind so it
+// Map the @shared alias to ../shared. Applied AFTER withNativeWind so it
 // composes with (and is not clobbered by) any resolver NativeWind installs;
 // we delegate to the previous resolveRequest for everything else.
 //
-// We can't use resolver.extraNodeModules here: Metro parses "@legal/..." as a
-// scoped package name (@scope/pkg), so it looks up the key "@legal/privacyPolicy"
-// instead of "@legal" and the alias never matches. A resolveRequest hook maps
+// This pointed at shared/legal only, under the name @legal, until 2026-09-03.
+// Widening it to the whole folder is what lets anything OTHER than the legal
+// copy be shared between the two apps (QF-01) -- the narrow alias was the
+// reason nothing else could be.
+//
+// We can't use resolver.extraNodeModules here: Metro parses "@shared/..." as a
+// scoped package name (@scope/pkg), so it looks up the key "@shared/pillars"
+// instead of "@shared" and the alias never matches. A resolveRequest hook maps
 // the prefix explicitly and is not subject to that scope-parsing quirk.
-const ALIAS_PREFIX = '@legal/';
+//
+// FOUR CONFIGS DEFINE THIS ALIAS -- here, tsconfig.json, jest.config.js and
+// v1's vite.config.js -- and none of them can see the other three.
+// src/__tests__/sharedAlias.test.ts fails if they stop agreeing.
+const ALIAS_PREFIX = '@shared/';
 const upstreamResolveRequest = nativeWindConfig.resolver.resolveRequest;
 nativeWindConfig.resolver.resolveRequest = (context, moduleName, platform) => {
   const delegate = upstreamResolveRequest || context.resolveRequest;
-  if (moduleName === '@legal' || moduleName.startsWith(ALIAS_PREFIX)) {
-    const sub = moduleName === '@legal' ? 'index' : moduleName.slice(ALIAS_PREFIX.length);
-    const target = path.join(sharedRoot, 'legal', sub);
+  if (moduleName === '@shared' || moduleName.startsWith(ALIAS_PREFIX)) {
+    const sub = moduleName === '@shared' ? 'index' : moduleName.slice(ALIAS_PREFIX.length);
+    const target = path.join(sharedRoot, sub);
     return delegate(context, target, platform);
   }
   return delegate(context, moduleName, platform);

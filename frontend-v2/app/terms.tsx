@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import LegalDocument from '@/src/components/legal/LegalDocument';
-import { termsOfService } from '@legal/termsOfService';
+import { termsOfService } from '@shared/legal/termsOfService';
 
 export default function TermsOfServiceScreen() {
   return <LegalDocument document={termsOfService} />;

@@ -64,8 +64,11 @@ const LEARNING_ONLY_PREFIXES = [
  *
  *  Mirrors SIS_SURFACE_PATHS in frontend/src/utils/appSurface.js, which is the
  *  source of truth — deepLinkRouter.test.ts reads that file and fails if this
- *  list stops covering it. Kept as a copy rather than a shared module because
- *  the @legal-style alias costs a metro + jest + tsconfig + vite change.
+ *  list stops covering it. It is a copy because sharing it used to mean paying
+ *  for a metro + jest + tsconfig + vite alias change. That price has been paid:
+ *  `@shared` now resolves the whole shared/ folder in all four (QF-01,
+ *  2026-09-03), so this list can move to shared/ whenever someone wants it to.
+ *  Left alone here only because the test already fences the drift.
  *
  *  /resources is staff-only despite www having a family page at the same path:
  *  the only notification linking there is the "Required reading" fan-out to

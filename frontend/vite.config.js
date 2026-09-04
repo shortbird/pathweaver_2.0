@@ -85,9 +85,11 @@ export default defineConfig(({ mode }) => {
   ],
   resolve: {
     alias: {
-      // Shared legal content (single source of truth for Terms/Privacy,
-      // also consumed by the v2 mobile app). Lives outside the frontend root.
-      '@legal': join(process.cwd(), '..', 'shared', 'legal'),
+      // Shared cross-app code: the Terms/Privacy single source of truth and
+      // the pillar palette, both also read by the v2 mobile app. Lives outside
+      // the frontend root. Was '@legal' -> shared/legal until 2026-09-03;
+      // widened to the whole folder so anything else can be shared at all.
+      '@shared': join(process.cwd(), '..', 'shared'),
     },
   },
   optimizeDeps: {
@@ -105,7 +107,7 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 3000,
     // Allow Vite's dev server to read the shared/ folder, which sits one level
-    // above the frontend root (needed for the @legal alias above).
+    // above the frontend root (needed for the @shared alias above).
     fs: { allow: ['..'] },
     // Tunnel hosts allowed during LTI testing. ngrok-free.dev is our stable
     // dev URL; trycloudflare.com is the legacy quick-tunnel fallback. Remove
