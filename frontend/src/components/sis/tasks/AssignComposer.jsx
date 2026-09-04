@@ -168,10 +168,11 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <label className="block">
             <span className="block text-xs font-medium text-neutral-500 mb-1">
-              Note for them <span className="font-normal text-neutral-400">(optional)</span>
+              {steps ? 'Directions / note for them' : 'Note for them'} <span className="font-normal text-neutral-400">(optional)</span>
             </span>
             <input value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="Anything they need to know" className={inputClass} aria-label="Note" />
+              placeholder={steps ? 'Directions for completing this checklist' : 'Anything they need to know'}
+              className={inputClass} aria-label={steps ? 'Directions' : 'Note'} />
           </label>
           <label className="block">
             <span className="block text-xs font-medium text-neutral-500 mb-1">

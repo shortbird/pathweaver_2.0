@@ -436,6 +436,20 @@ class TestChecklistDirections:
             svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
         assert table.insert.call_args[0][0]['description'] == 'Work top to bottom.'
 
+    def test_sync_updates_directions_when_changed(self):
+        from services import sis_onboarding_service as svc
+        template = {'id': 't1', 'organization_id': ORG, 'name': 'Employee',
+                    'description': 'Updated directions for everyone.', 'audience': 'staff',
+                    'items': [{'key': 'item_1', 'title': 'Sign contract'}]}
+        assignment = {'id': 'a1', 'organization_id': ORG, 'template_id': 't1', 'kind': 'checklist',
+                      'description': 'Old directions.', 'status': 'in_progress',
+                      'items': [{'key': 'item_1', 'title': 'Sign contract', 'status': 'pending'}]}
+        client, table = _admin_with([[template], [assignment], [{'id': 'a1'}]])
+        with patch.object(svc, '_admin', return_value=client):
+            res = svc.sync_assignments(ORG, 't1')
+        assert res['synced'] == 1
+        assert table.update.call_args[0][0]['description'] == 'Updated directions for everyone.'
+
 
 @pytest.mark.unit
 class TestItemDocuments:
@@ -493,7 +507,7 @@ class TestSyncAssignments:
         saved = {}
         with patch.object(svc, '_admin', return_value=client), \
              patch.object(svc, '_save_items',
-                          side_effect=lambda a, items: saved.update(items=items) or a):
+                          side_effect=lambda a, items, *args, **kwargs: saved.update(items=items) or a):
             result = svc.sync_assignments(ORG, 't1')
         return result, saved.get('items')
 

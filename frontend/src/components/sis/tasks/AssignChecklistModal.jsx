@@ -92,6 +92,12 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
               </option>
             ))}
           </select>
+          {selected?.description && (
+            <p className="text-xs text-neutral-600 bg-neutral-50 p-2.5 rounded-lg border border-gray-200 mt-2 whitespace-pre-line">
+              <span className="font-medium text-neutral-700 block mb-0.5">Directions:</span>
+              {selected.description}
+            </p>
+          )}
         </label>
 
         {assignTemplate && (
