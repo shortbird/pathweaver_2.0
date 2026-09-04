@@ -318,6 +318,20 @@ describe('the tabs', () => {
     renderPage('/tasks?tab=paperwork')
     expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
   })
+
+  it('opens manage forms directly when landing on tab=forms', async () => {
+    mockGets({ extra: { '/form-templates': { templates: [] } } })
+    renderPage('/tasks?tab=forms')
+    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
+  })
+
+  it('opens manage forms from the new form template action menu', async () => {
+    mockGets({ extra: { '/form-templates': { templates: [] } } })
+    renderPage('/tasks?tab=assigned')
+    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New form template/i }))
+    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
+  })
 })
 
 /**
