@@ -332,30 +332,50 @@ export const shapeClassReport = (data, selected, title = 'Class report') => {
 // display strings, so day and time columns must be parsed into something
 // comparable — alphabetical "Fri < Mon < Wed" is nonsense, and "1:00pm" would
 // sort before "9:00am".
-const DOW_SORT = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-const cellSortValue = (key, cell) => {
+const DOW_SORT = {
+  sun: 0, sunday: 0, su: 0,
+  mon: 1, monday: 1, m: 1,
+  tue: 2, tues: 2, tuesday: 2, tu: 2,
+  wed: 3, wednesday: 3, w: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4, th: 4,
+  fri: 5, friday: 5, f: 5,
+  sat: 6, saturday: 6, sa: 6,
+}
+
+export const cellSortValue = (key, cell) => {
   const s = String(cell ?? '').trim()
   if (!s) return null // empties sort last
-  if (key === 'days') {
-    const idxs = s.toLowerCase().split(/\s+/).map((d) => DOW_SORT[d]).filter((n) => n != null)
+  const k = String(key ?? '').toLowerCase().trim()
+
+  if (k === 'days' || k === 'day') {
+    const idxs = s.toLowerCase().split(/[\s,/-]+/).map((d) => DOW_SORT[d]).filter((n) => n != null)
     return idxs.length ? Math.min(...idxs) : null
   }
-  if (key === 'time') {
-    const m = s.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i)
-    return m ? ((+m[1] % 12) + (m[3].toLowerCase() === 'pm' ? 12 : 0)) * 60 + +m[2] : null
+  if (k === 'time' || k === 'times' || k === 'schedule') {
+    const m = s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i)
+    if (m) {
+      const hh = +m[1] % 12
+      const mm = +(m[2] || 0)
+      const pm = m[3].toLowerCase() === 'pm'
+      return (hh + (pm ? 12 : 0)) * 60 + mm
+    }
+    const m24 = s.match(/^(\d{1,2}):(\d{2})/)
+    if (m24) return +m24[1] * 60 + +m24[2]
+    return null
   }
-  if (/^\$/.test(s)) {
-    const n = parseFloat(s.replace(/[$,]/g, ''))
+  if (/^\$/.test(s) || k.includes('tuition') || k.includes('fee') || k.includes('amount') || k.includes('price')) {
+    const n = parseFloat(s.replace(/[^0-9.-]/g, ''))
     return Number.isNaN(n) ? null : n
   }
-  if (key === 'ages') {
+  if (k === 'ages' || k === 'age') {
     const m = s.match(/\d+/)
     return m ? +m[0] : null
   }
-  if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s)
+  if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s)
   return s.toLowerCase()
 }
-const compareCells = (key, a, b) => {
+
+export const compareCells = (key, a, b) => {
   const va = cellSortValue(key, a)
   const vb = cellSortValue(key, b)
   if (va == null && vb == null) return 0
@@ -492,7 +512,8 @@ const ReportsPage = () => {
     if (!sort.length) return report.rows
     return [...report.rows].sort((a, b) => {
       for (const { col, dir } of sort) {
-        const n = compareCells(report.selected?.[col], a[col], b[col])
+        const key = report.selected?.[col] || report.columns?.[col]
+        const n = compareCells(key, a[col], b[col])
         if (n) return dir === 'asc' ? n : -n
       }
       return 0
