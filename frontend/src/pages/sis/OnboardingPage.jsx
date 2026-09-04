@@ -280,9 +280,14 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           <option value="family">For families (their portal)</option>
         </select>
       </div>
-      <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
-        placeholder="Directions (optional) — shown at the top, above the items"
-        className={inputClass} aria-label="Directions" />
+      <label className="block">
+        <span className="block text-xs font-medium text-neutral-500 mb-1">
+          Directions (optional) — shown at the top of the checklist
+        </span>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+          placeholder="Directions for completing this checklist"
+          className={inputClass} aria-label="Directions" />
+      </label>
       {items.map((it, i) => (
         <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
           <div className="flex items-center gap-2">
@@ -491,6 +496,11 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
           {a.done_count}/{a.total_count}
         </span>
       </summary>
+      {a.description && (
+        <p className="px-3 py-2 text-sm text-neutral-600 border-t border-b border-gray-100 bg-neutral-50/50 whitespace-pre-line">
+          {a.description}
+        </p>
+      )}
       <ul className="px-3 divide-y divide-gray-100">
         {(a.items || []).map((item) => {
           const docs = itemDocuments(item)
@@ -639,12 +649,17 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
             {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
             {templates.map((t) => (
               <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
-                  {t.audience === 'family' ? 'Family' : 'Staff'}
-                </span>
-                {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
-                <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
+                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
+                    {t.audience === 'family' ? 'Family' : 'Staff'}
+                  </span>
+                  {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
+                  <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
+                  {t.description && (
+                    <p className="text-xs text-neutral-500 mt-0.5 w-full">{t.description}</p>
+                  )}
+                </div>
                 <div className="ml-auto flex items-center gap-3">
                   <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
                   <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
