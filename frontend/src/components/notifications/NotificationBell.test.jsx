@@ -180,4 +180,54 @@ describe('NotificationBell', () => {
       })
     })
   })
+
+  /**
+   * Gryffin, 2026-09-04: a teacher-sent reminder reached a parent as an alert
+   * that did nothing when clicked. The row was a link to the page the reader
+   * was already on, and the message under it was clipped to two lines — so the
+   * substance ("still to do: ...") was only readable after a detour through
+   * /notifications. Opening it here is what makes the alert worth clicking.
+   */
+  describe('opening a notification', () => {
+    const reminder = {
+      id: 'n3',
+      title: 'A reminder about unfinished work',
+      message: 'Still to do in Algebra — Bridge Building: Sketch designs, Measure the span',
+      is_read: false,
+      type: 'announcement',
+      created_at: '2025-01-01T00:00:00Z',
+      link: '/parent/dashboard/kid-1'
+    }
+
+    const openReminder = async () => {
+      api.get.mockResolvedValue({ data: { notifications: [reminder], unread_count: 1 } })
+      renderBell()
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /notifications/i })).toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
+      fireEvent.click(screen.getByText('A reminder about unfinished work'))
+    }
+
+    it('shows the full message in place, without a trip to /notifications', async () => {
+      await openReminder()
+      // 'Announcement' is the detail modal's type badge and appears nowhere in
+      // the dropdown -- it is what distinguishes "opened here" from "navigated".
+      expect(await screen.findByText('Announcement')).toBeInTheDocument()
+      expect(screen.getByText(/Measure the span/)).toBeInTheDocument()
+    })
+
+    it('still offers the link as an action', async () => {
+      await openReminder()
+      const cta = await screen.findByRole('link', { name: /view details/i })
+      expect(cta).toHaveAttribute('href', '/parent/dashboard/kid-1')
+    })
+
+    it('marks the notification read when opened', async () => {
+      await openReminder()
+      await waitFor(() => {
+        expect(api.put).toHaveBeenCalledWith('/api/notifications/n3/read', {})
+      })
+    })
+  })
 })

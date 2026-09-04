@@ -1057,16 +1057,26 @@ def remind_student(user_id, class_id, student_id):
 
     from services.notification_service import NotificationService
     notifier = NotificationService()
+
+    # Where the alert takes each recipient. A student's own work is on their
+    # dashboard, but a PARENT's /dashboard is the family home — so a guardian
+    # who opened the alert from the page they were already sitting on went
+    # nowhere at all (Gryffin, 2026-09-04: "when I click on it to see the alert
+    # nothing happens. I would like to see what assignments my child has").
+    # Send them to the child this reminder is actually about.
+    recipients = [(student_id, '/dashboard')] + [
+        (p['id'], f'/parent/dashboard/{student_id}')
+        for p in (notifier.get_parents_for_student(student_id) or []) if p.get('id')]
+
     sent = 0
-    for recipient in [student_id] + [
-            p['id'] for p in (notifier.get_parents_for_student(student_id) or []) if p.get('id')]:
+    for recipient, link in recipients:
         try:
             notifier.create_notification(
                 user_id=recipient,
                 notification_type='announcement',
                 title='A reminder about unfinished work',
                 message=body,
-                link='/dashboard',
+                link=link,
             )
             sent += 1
         except Exception as e:  # noqa: BLE001 — one failed send must not lose the rest

@@ -1,13 +1,26 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
+import { Link } from 'react-router-dom'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { formatDistanceToNow } from 'date-fns'
 import { safeHref } from '../../utils/safeHref'
+import ModalOverlay from '../ui/ModalOverlay'
+
+const CTA_CLASS = 'inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity'
+
+const ArrowRight = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+  </svg>
+)
 
 /**
  * NotificationDetailModal
  *
- * Displays full notification content in a modal dialog.
+ * Displays full notification content in a modal dialog. Opened from the
+ * notifications page AND from the bell dropdown, which is where most people
+ * meet a notification -- so this is the surface that has to carry the whole
+ * message, not a two-line clip of it.
  * For announcement-type notifications, renders markdown content.
  */
 const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
@@ -71,73 +84,81 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
     }
   }
 
+  // The notifications page is where this modal is usually opened from, so a
+  // link back to it is a no-op button. Drop it rather than offer a dead end.
+  const href = notification.link && notification.link !== '/notifications'
+    ? safeHref(notification.link)
+    : null
+  const isInternal = !!href && href.startsWith('/')
+
+  // Portalled, not a raw `fixed inset-0`. The bell that opens this sits inside
+  // a z-30 sticky nav, and a modal nested in that stacking context paints
+  // UNDER the rest of the page however high its own z-index goes.
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={onClose} />
-
-      <div className="flex min-h-full items-center justify-center p-4">
-        {/* Modal */}
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-          {/* Header */}
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between">
-            <div className="flex-1 pr-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-2xl">{getNotificationIcon(notification.type)}</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple">
-                  {getTypeLabel(notification.type)}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">{notification.title}</h2>
-              <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
-                {authorName && (
-                  <>
-                    <span>{authorName}</span>
-                    <span>•</span>
-                  </>
-                )}
-                <span>{formatDate(notification.created_at)}</span>
-                <span className="text-gray-400">
-                  ({formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })})
-                </span>
-              </div>
+    <ModalOverlay onClose={onClose}>
+      <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between">
+          <div className="flex-1 pr-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">{getNotificationIcon(notification.type)}</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple">
+                {getTypeLabel(notification.type)}
+              </span>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
-            </button>
+            <h2 className="text-xl font-bold text-gray-900">{notification.title}</h2>
+            <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+              {authorName && (
+                <>
+                  <span>{authorName}</span>
+                  <span>•</span>
+                </>
+              )}
+              <span>{formatDate(notification.created_at)}</span>
+              <span className="text-gray-400">
+                ({formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })})
+              </span>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <XMarkIcon className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
 
-          {/* Content */}
-          <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
-            {notification.type === 'announcement' && notification.metadata?.full_content ? (
-              <div className="prose prose-sm max-w-none text-gray-700">
-                <ReactMarkdown>{fullContent}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-gray-700">{fullContent}</p>
-            )}
+        {/* Content */}
+        <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
+          {notification.type === 'announcement' && notification.metadata?.full_content ? (
+            <div className="prose prose-sm max-w-none text-gray-700">
+              <ReactMarkdown>{fullContent}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-gray-700">{fullContent}</p>
+          )}
 
-            {/* Action link if available */}
-            {notification.link && (
-              <div className="mt-6 pt-4 border-t border-gray-100">
-                <a
-                  href={safeHref(notification.link)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity"
-                >
+          {/* Action link if available. An internal path routes in place --
+              a full page reload here threw away the app's loaded state and
+              made "View Details" feel broken on a slow connection. */}
+          {href && href !== '#' && (
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              {isInternal ? (
+                <Link to={href} onClick={onClose} className={CTA_CLASS}>
                   View Details
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
+                  <ArrowRight />
+                </Link>
+              ) : (
+                <a href={href} target="_blank" rel="noopener noreferrer" className={CTA_CLASS}>
+                  View Details
+                  <ArrowRight />
                 </a>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 

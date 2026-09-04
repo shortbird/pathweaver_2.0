@@ -91,6 +91,21 @@ class TestRemindStudent:
         assert 'Sketch designs' in message
         assert 'Build it' not in message   # finished work is not nagged about
 
+    def test_a_guardian_is_sent_to_the_child_not_to_their_own_home(self):
+        """Gryffin, 2026-09-04: "I got an alert about it but when I click on it
+        to see the alert nothing happens."
+
+        Every recipient used to get link='/dashboard'. For the student that is
+        their own work; for a parent it is the family home they were already
+        sitting on, so opening the alert navigated nowhere at all.
+        """
+        work = [_work(tasks=[{'id': 't1', 'title': 'Sketch designs', 'done': False}])]
+        _, notifier = _call_remind(work, parents=[MUM])
+        links = {c.kwargs['user_id']: c.kwargs['link']
+                 for c in notifier.create_notification.call_args_list}
+        assert links[STUDENT] == '/dashboard'
+        assert links[MUM] == f'/parent/dashboard/{STUDENT}'
+
     def test_a_quest_never_started_is_called_out_as_such(self):
         resp, notifier = _call_remind([_work(started=False)])
         assert 'not started' in notifier.create_notification.call_args.kwargs['message']

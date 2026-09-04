@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNotificationSubscription } from '../../hooks/api/useNotifications'
+import NotificationDetailModal from './NotificationDetailModal'
 
 /**
  * NotificationBell component
@@ -26,6 +27,7 @@ const NotificationBell = () => {
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
+  const [selectedNotification, setSelectedNotification] = useState(null)
   const dropdownRef = useRef(null)
 
   // Fetch on mount, then poll, and catch up whenever the tab is looked at
@@ -145,11 +147,24 @@ const NotificationBell = () => {
     }
   }
 
+  /**
+   * Open the notification here, in the same modal the notifications page uses.
+   *
+   * This row used to be a bare link to notification.link, which failed two ways
+   * at once (Gryffin, 2026-09-04). A link to the page you are already on does
+   * nothing when clicked — "I got an alert about it but when I click on it to
+   * see the alert nothing happens" — and even when it did navigate, the message
+   * itself was clipped to two lines here, so the one thing the reader wanted
+   * (which work is still open) was only ever legible after a detour through
+   * /notifications. The modal shows the whole message and still offers the link
+   * as a button, so nothing that used to navigate has lost the ability to.
+   */
   const handleNotificationClick = (notification) => {
     if (!notification.is_read) {
       markAsRead(notification.id)
     }
     setIsOpen(false)
+    setSelectedNotification(notification)
   }
 
   const getNotificationIcon = (type) => {
@@ -215,10 +230,10 @@ const NotificationBell = () => {
               <ul className="divide-y divide-gray-100">
                 {notifications.map((notification) => (
                   <li key={notification.id} className="relative group">
-                    <Link
-                      to={notification.link || '/notifications'}
+                    <button
+                      type="button"
                       onClick={() => handleNotificationClick(notification)}
-                      className={`block px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      className={`block w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
                         !notification.is_read ? 'bg-optio-purple/5' : ''
                       }`}
                     >
@@ -243,7 +258,7 @@ const NotificationBell = () => {
                           <span className="flex-shrink-0 w-2 h-2 bg-optio-purple rounded-full mt-2" />
                         )}
                       </div>
-                    </Link>
+                    </button>
                     <button
                       onClick={(e) => dismissNotification(e, notification.id)}
                       className="absolute top-2 right-2 p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -269,6 +284,12 @@ const NotificationBell = () => {
           </div>
         </div>
       )}
+
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={!!selectedNotification}
+        onClose={() => setSelectedNotification(null)}
+      />
     </div>
   )
 }
