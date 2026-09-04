@@ -70,13 +70,13 @@ module.exports = {
         },
 
         // Pillars
-        pillar: {
-          stem: '#2469D1',
-          art: '#AF56E5',
-          communication: '#3DA24A',
-          civics: '#FF9028',
-          wellness: '#E65C5C',
-        },
+        // Derived from shared/pillars.json so this file and the web app's
+        // tailwind config cannot drift apart -- which is how civics and
+        // wellness ended up swapped between the two. Not a plain object: a
+        // hardcoded copy here would be the fifth one.
+        pillar: Object.fromEntries(
+          require('../shared/pillars.json').pillars.map((p) => [p.key, p.color]),
+        ),
       },
       // Body text sizes, deliberately a step above Tailwind's web defaults.
       //

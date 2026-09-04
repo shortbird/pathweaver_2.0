@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "The five pillars: the one definition both apps and the backend should read.",
+    "JSON rather than TypeScript because the consumers include two tailwind.config",
+    "files, which are CommonJS and cannot require a .ts module. shared/pillars.ts",
+    "wraps this with types for app code.",
+    "",
+    "Colours follow docs/COLOR_REFERENCE.md, which is the brand reference.",
+    "NOTE: v1 (frontend/) and backend/config/pillars.py currently render civics",
+    "and wellness with these two colours SWAPPED. That is a real, user-visible",
+    "disagreement between the web and mobile apps and it predates this file --",
+    "see the Open Questions section of docs/audit-2026-08/REMEDIATION_PLAN.md.",
+    "Nothing was flipped to create this file; the divergence is pinned by",
+    "frontend-v2/src/__tests__/pillarPalette.test.ts until someone decides."
+  ],
+  "pillars": [
+    {
+      "key": "stem",
+      "label": "STEM",
+      "shortLabel": "STEM",
+      "color": "#2469D1",
+      "description": "Science, Technology, Engineering, and Mathematics"
+    },
+    {
+      "key": "art",
+      "label": "Art",
+      "shortLabel": "Art",
+      "color": "#AF56E5",
+      "description": "Creative expression through visual arts, music, and performance"
+    },
+    {
+      "key": "communication",
+      "label": "Communication",
+      "shortLabel": "Comm",
+      "color": "#3DA24A",
+      "description": "Writing, speaking, listening, and interpersonal skills"
+    },
+    {
+      "key": "civics",
+      "label": "Civics",
+      "shortLabel": "Civics",
+      "color": "#FF9028",
+      "description": "Community engagement, leadership, and civic responsibility"
+    },
+    {
+      "key": "wellness",
+      "label": "Wellness",
+      "shortLabel": "Wellness",
+      "color": "#E65C5C",
+      "description": "Physical and mental health, mindfulness, and self-care"
+    }
+  ]
+}

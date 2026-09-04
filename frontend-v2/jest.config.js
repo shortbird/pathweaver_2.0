@@ -7,6 +7,12 @@ module.exports = {
   ],
   moduleNameMapper: {
     '^@shared/(.*)$': '<rootDir>/../shared/$1',
+    // shared/ sits ABOVE this project and has no node_modules of its own, so a
+    // babel helper injected into a file there resolves by walking up from
+    // shared/ -- past the repo root, finding nothing. Only files needing a
+    // helper hit it, which is why shared/legal/* worked for months and the
+    // first shared module with a default import did not. Pin the lookup here.
+    '^@babel/runtime/(.*)$': '<rootDir>/node_modules/@babel/runtime/$1',
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFiles: [

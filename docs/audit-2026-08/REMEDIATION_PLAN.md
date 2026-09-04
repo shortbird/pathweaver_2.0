@@ -2180,6 +2180,34 @@ Log:
   v1: 287 files / 2505 passed, production build clean. v2: 98 suites / 725
   passed, tsc clean, iOS bundle builds.
 
+- 2026-09-03: FIRST REAL CROSS-APP MODULE — `shared/pillars.json` +
+  `shared/pillars.ts`. And extracting it immediately found a live bug: **v1 and
+  v2 render civics and wellness in each other's colours.** Written up in Open
+  Questions above; it needs one word from the user, and nothing was flipped.
+
+  JSON, not TypeScript, for the data. Two of the consumers are
+  `tailwind.config.js` files — CommonJS, which cannot `require` a `.ts` module
+  — so a TS source would have forced both of them to keep their own copy of the
+  palette, which is the duplication being removed. `shared/pillars.ts` is the
+  typed front door for app code.
+
+  v2 now derives keys, labels, short labels and colours from it, in both
+  `src/config/pillars.ts` and `tailwind.config.js`. No visual change: v2 was
+  already canonical. Icons and NativeWind classes stay local, because they are
+  properties of a platform rather than of a pillar.
+
+  ONE PIECE OF PLUMBING THIS TURNED UP: `shared/` has no `node_modules` of its
+  own, so a babel helper injected into a file there resolves by walking up from
+  `shared/` — past the repo root, finding nothing. `shared/legal/*` never hit
+  it because none of those files needed a helper; the first shared module with
+  a default import (`import data from './pillars.json'`) broke 40 of 98 jest
+  suites at once. `jest.config.js` now pins `@babel/runtime` to v2's copy.
+  Worth knowing before the next shared module.
+
+  v2: 99 suites / 738 passed, tsc clean, and the iOS bundle rebuilt with all
+  five hexes verified inside the Hermes output. v1 untouched: 287 files / 2505
+  passed, production build clean.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
@@ -3037,6 +3065,44 @@ ANSWERED 2026-09-03 (user: "run migrations and push to prod"):
   two was already applied before I looked; see the Migrations note below.
 
 Still open:
+
+- **QF-01 / BRAND: the web app and the mobile app disagree about two pillar
+  colours, and one of them is wrong.** Needs a one-word answer from you; the
+  fix is then about ten minutes.
+
+  Civics and Wellness are SWAPPED between the surfaces. On mobile, Civics is
+  orange `#FF9028` and Wellness is red `#E65C5C`. On the web app they are the
+  other way round. Same pillar, different colour, on every badge, chart and
+  filter chip. This predates the audit — nothing in this plan caused it.
+
+  The evidence is lopsided:
+
+  | Says civics=ORANGE (canonical) | Says civics=RED |
+  |---|---|
+  | `docs/COLOR_REFERENCE.md` (the brand reference) | `frontend/tailwind.config.js` |
+  | `backend/utils/pillar_utils.py` (`# Orange`) | `frontend/src/constants/brandStyles.js` |
+  | `frontend-v2/tailwind.config.js` | `frontend/src/utils/pillarMappings.js` |
+  | `frontend-v2/src/config/pillars.ts` | `backend/config/pillars.py` |
+  | `frontend/src/config/COLOR_MIGRATION_GUIDE.md` | |
+
+  The tell is inside v1's own designated source. `DESIGN_SYSTEM.md` names
+  `pillarMappings.js` as where v1's pillar colours come from, and in that file
+  the `civics` entry carries `color: '#E65C5C'` (red) next to
+  `bg: 'bg-orange-50', text: 'text-orange-700'`. The Tailwind classes and the
+  hex contradict each other in the same object, which is what a swapped field
+  looks like. The backend contradicts itself the same way, across two files.
+
+  **My read: the web app is wrong and should flip.** I did not do it, because
+  it changes what users see across the whole web app, and that is a brand call
+  rather than a refactor.
+
+  `shared/pillars.json` is now the single definition and carries the canonical
+  values. v2 derives from it (no visual change — it already matched).
+  `frontend-v2/src/__tests__/pillarPalette.test.ts` PINS the four disagreeing
+  files by name and exact value, so the split cannot widen or be forgotten, and
+  so whoever flips them gets a failing test listing the rest of the work.
+
+  Say "flip the web app" and the four files change to match.
 
 - SEC-14: DONE, verified, and `FLASK_SECRET_KEY_OLD` confirmed set by the user
   on 2026-09-03. One dated action remains: do NOT remove FLASK_SECRET_KEY_OLD
