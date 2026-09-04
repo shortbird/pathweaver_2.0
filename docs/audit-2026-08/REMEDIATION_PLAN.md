@@ -926,7 +926,28 @@ Log:
   org_staff would have handed the school write access to a form the family
   fills in.
 
-  SESSION TOTAL for (c): declared 37 -> 156 of 217, allowlist 166 -> 35.
+- 2026-09-03: (c) continues — seven admin/org-scoped routes across five modules
+  (user_management 3, organization_management, org_connections, audit_logs,
+  school_inbox). Declared 156 -> 163, allowlist 35 -> 28.
+
+  Six declare `('org_staff',)`. `get_user_quest_enrollments` declares
+  `('advisor', 'org_staff')` — it is `@require_advisor`, so an assigned advisor
+  reaches it without being org staff.
+
+  One more single-layer `__wrapped__` repaired, in
+  test_admin_update_user_profile_scoping. That is the fourth of that shape this
+  session; the pattern is now written down in three test files.
+
+  SESSION TOTAL for (c): declared 37 -> 163 of 217, allowlist 166 -> 28.
+
+  OF THE REMAINING 28, THIRTEEN SHOULD NEVER MIGRATE — eight row-selector
+  routes, three unauthenticated by design, masquerade's start endpoint, and
+  `admin_audit_logs.get_admin_activity`, which has a scope rather than a gate.
+  The genuinely migratable remainder is about fifteen: `direct_messages` (4),
+  `classes` (2), `xp_reconciliation` (2), `credits.get_transcript`,
+  `credit_dashboard.get_student_context`, `advisor_notes.get_subject_notes`,
+  `group_messages.remove_member`, `org_member_status.set_member_status`,
+  `parental_consent.check_consent_status`, `sis.remove_staff` and friends.
 
   OF THE REMAINING 35, roughly THIRTEEN SHOULD NEVER MIGRATE and the allowlist
   says so in each case: eight row-selector routes (removing an advisor from a

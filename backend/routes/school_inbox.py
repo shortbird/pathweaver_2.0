@@ -17,6 +17,7 @@ from flask import Blueprint, request
 from services import school_inbox_service, sis_service
 from services.direct_message_service import DirectMessageService
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from utils.sis_roles import ADMIN_ROLES
@@ -104,6 +105,7 @@ def get_thread(user_id: str, conversation_id: str):
 
 @bp.route('/conversations/<target_user_id>/send', methods=['POST'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('target_user_id', allow=('org_staff',))
 def send_as_school(user_id: str, target_user_id: str):
     """Reply to a member as the school. The member sees the school's name;
     sent_by_user_id records the actual author for the rest of the team."""

@@ -50,7 +50,13 @@ def _call(app, rows, body):
     supabase = _mock_supabase(rows)
     with app.test_request_context(json=body), \
          patch('routes.admin.user_management.get_supabase_admin_client', return_value=supabase):
-        result = update_user_profile.__wrapped__(ADMIN_ID, TARGET_ID)
+        # Unwrap the whole stack, not one layer: these tests exercise the
+        # view's org scoping, and @require_relationship_to (SEC-10) sits above
+        # it now, so a single __wrapped__ lands on the gate instead.
+        view = update_user_profile
+        while hasattr(view, '__wrapped__'):
+            view = view.__wrapped__
+        result = view(ADMIN_ID, TARGET_ID)
     return result, supabase
 
 

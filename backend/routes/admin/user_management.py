@@ -15,6 +15,7 @@ from repositories import (
     UserRepository
 )
 from utils.auth.decorators import require_admin, require_advisor, require_school_admin, get_advisor_assigned_students
+from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from datetime import datetime
 import uuid
@@ -156,6 +157,7 @@ def get_user_details(admin_id, target_user_id):
 
 @bp.route('/users/<target_user_id>', methods=['PUT'])
 @require_school_admin
+@require_relationship_to('target_user_id', allow=('org_staff',))
 def update_user_profile(admin_id, target_user_id):
     """
     Update user profile information.
@@ -677,6 +679,7 @@ def get_conversation_details(admin_user_id, conversation_id):
 
 @bp.route('/users/<target_user_id>/quest-enrollments', methods=['GET'])
 @require_advisor
+@require_relationship_to('target_user_id', allow=('advisor', 'org_staff'), discloses='quests')
 def get_user_quest_enrollments(user_id, target_user_id):
     """
     Get all quests for a student - both enrolled and available.
@@ -923,6 +926,7 @@ def update_user_org_role(admin_user_id, user_id):
 
 @bp.route('/org/users/<user_id>/role', methods=['PUT', 'OPTIONS'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def update_org_user_role(admin_user_id, user_id):
     """
     Org admin endpoint to update a user's role within their organization.

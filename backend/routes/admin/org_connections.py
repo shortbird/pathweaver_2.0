@@ -8,6 +8,7 @@ Accessible to org_admin users for their own organization.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
+from utils.auth.relationships import require_relationship_to
 from utils.roles import get_effective_role, has_any_role
 from datetime import datetime
 from utils.logger import get_logger
@@ -435,6 +436,7 @@ def get_org_students_with_advisors(current_user_id, current_org_id, is_superadmi
 
 @bp.route('/<org_id>/students/<student_id>/advisors', methods=['GET'])
 @require_org_admin
+@require_relationship_to('student_id', allow=('org_staff',))
 def get_student_advisors(current_user_id, current_org_id, is_superadmin, org_id, student_id):
     """Get all advisors assigned to a specific student"""
     guard = _guard_org(current_org_id, is_superadmin, org_id)

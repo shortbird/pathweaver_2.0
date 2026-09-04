@@ -8,6 +8,7 @@ For admins and superadmins to track changes and ensure compliance.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from utils.auth.decorators import require_admin, require_org_admin
+from utils.auth.relationships import require_relationship_to
 from utils.auth.org_scope import caller_can_access_user
 from database import get_supabase_admin_client
 from services.admin_audit_service import AdminAuditService
@@ -291,6 +292,7 @@ def get_recent_activity(admin_user_id):
 
 @bp.route('/audit-logs/statistics/<admin_id>', methods=['GET'])
 @require_org_admin
+@require_relationship_to('admin_id', allow=('org_staff',))
 def get_admin_statistics(current_user_id, current_org_id, is_superadmin, admin_id):
     """
     Get statistics about an admin's activity.

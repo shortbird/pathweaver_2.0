@@ -151,9 +151,6 @@ def _reviewed(reason, *endpoints):
 _reviewed(
     'caller_can_access_user(admin, caller, target) from utils.auth.org_scope',
     'credit_dashboard.get_student_context',
-    'admin_user_management.get_user_quest_enrollments',
-    'admin_user_management.update_org_user_role',
-    'admin_user_management.update_user_profile',
 )
 _reviewed(
     '_can_manage_student_tasks(supabase, caller, target) -- advisor assignment '
@@ -162,11 +159,9 @@ _reviewed(
 _reviewed(
     'org_admin gate plus an explicit "student is in this organization" check '
     'in the view',
-    'org_connections.get_student_advisors',
     'org_connections.unassign_advisor_from_student',
     'org_connections.unassign_org_student_from_advisor',
     'org_member_status.set_member_status',
-    'organization_management.reset_user_password',
 )
 _reviewed(
     'require_admin(auth_user_id) is re-checked inside the view body',
@@ -235,7 +230,6 @@ _reviewed(
 )
 _reviewed(
     'caller_can_access_user(admin, caller, target) -- the IDOR-H7 fix',
-    'admin_audit_logs.get_admin_statistics',
 )
 _reviewed(
     'not a gate but a scope: is_superadmin picks org_scope=None or the '
@@ -263,7 +257,6 @@ _reviewed(
 _reviewed(
     'ADMIN_ROLES/STAFF_ROLES gate + every query filtered by the caller\'s own '
     'organization_id, so a cross-org student id does not resolve',
-    'school_inbox.send_as_school',
 )
 _reviewed(
     '_student_in_org(org_id, student_id) in routes/sis/student_records.py; the '

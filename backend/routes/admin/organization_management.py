@@ -14,6 +14,7 @@ Phase 2: Backend Repository & Service Layer
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_superadmin, require_org_admin, require_org_front_office
+from utils.auth.relationships import require_relationship_to
 from services.organization_service import OrganizationService
 from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
@@ -1453,6 +1454,7 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
 
 @bp.route('/<org_id>/users/<user_id>/reset-password', methods=['POST'])
 @require_org_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def reset_user_password(current_user_id, current_org_id, is_superadmin, org_id, user_id):
     """
     Reset password for a user in the organization.
