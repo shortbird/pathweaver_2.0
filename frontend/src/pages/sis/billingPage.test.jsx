@@ -188,6 +188,21 @@ describe('BillingPage', () => {
       })))
   })
 
+  it('records a refund via the modal', async () => {
+    render(<BillingPage />)
+    await screen.findByText('Art supplies')
+    fireEvent.click(screen.getByText('Refund')) // row action for paid/partial row
+
+    expect(await screen.findByText('Record refund')).toBeInTheDocument()
+    const buttons = screen.getAllByText('Record refund')
+    fireEvent.click(buttons[buttons.length - 1])
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv2/refunds', expect.objectContaining({
+        amount_cents: 4000, method: 'zelle', organization_id: 'org-1',
+      })))
+  })
+
   it('shows the outstanding report on its tab', async () => {
     render(<BillingPage />)
     fireEvent.click(await screen.findByText('Outstanding'))

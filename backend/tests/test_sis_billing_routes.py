@@ -121,6 +121,33 @@ class TestPayments:
         assert captured['amount'] == 5000
         assert captured['by'] == 'test-user-123'
 
+    def test_refund_rejects_nonpositive(self, client, auth_headers, mock_verify_token):
+        with staff():
+            resp = client.post('/api/sis/invoices/inv1/refunds', headers=auth_headers,
+                               json={'amount_cents': 0})
+        assert resp.status_code == 400
+
+    def test_refund_success_stamps_recorder(self, client, auth_headers, mock_verify_token):
+        captured = {}
+
+        def fake_refund(org_id, invoice_id, amount_cents, **kw):
+            captured.update(amount=amount_cents, by=kw.get('recorded_by'))
+            return {'refund': {'id': 'rf1'}, 'invoice': {'id': invoice_id, 'status': 'partial'}}
+
+        with staff(), patch('routes.sis.billing.billing.record_refund', side_effect=fake_refund):
+            resp = client.post('/api/sis/invoices/inv1/refunds', headers=auth_headers,
+                               json={'amount_cents': 5000, 'method': 'zelle', 'note': 'class cancelled'})
+        assert resp.status_code == 201
+        assert captured['amount'] == 5000
+        assert captured['by'] == 'test-user-123'
+
+    def test_refund_exceeds_paid_returns_400(self, client, auth_headers, mock_verify_token):
+        with staff(), patch('routes.sis.billing.billing.record_refund',
+                            return_value={'error': 'Refund exceeds the $100.00 recorded as paid on this invoice'}):
+            resp = client.post('/api/sis/invoices/inv1/refunds', headers=auth_headers,
+                               json={'amount_cents': 15000})
+        assert resp.status_code == 400
+
     def test_late_fees_validation(self, client, auth_headers, mock_verify_token):
         with staff():
             resp = client.post('/api/sis/billing/apply-late-fees', headers=auth_headers,
