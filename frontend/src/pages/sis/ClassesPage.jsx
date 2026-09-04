@@ -1023,6 +1023,15 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
 // count moved but the "X / Y enrolled" column, the Full chip and spots_left kept
 // their stale values until the page was reopened (iCreate, 2026-08-26: "it
 // doesn't update the enrolled number ... on a bunch of classes").
+const fmtTime = (hhmm) => {
+  if (!hhmm) return ''
+  const [h, m] = String(hhmm).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
+}
+
 const ClassRoster = ({ classId, className, orgId, onChanged }) => {
   const confirm = useConfirm()
   const [roster, setRoster] = useState(null)
@@ -1158,6 +1167,13 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
               <span className="text-sm font-medium text-neutral-800">
                 {s.name}
                 {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
+                {s.next_class && (
+                  <span className="block text-xs font-normal text-neutral-500 truncate">
+                    Next: {s.next_class.name}
+                    {s.next_class.location ? ` · ${s.next_class.location}` : ''}
+                    {s.next_class.start_time ? ` · ${fmtTime(s.next_class.start_time)}` : ''}
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-3 shrink-0">
                 <span className="text-xs text-neutral-400 truncate max-w-[10rem]">{s.email || s.username || ''}</span>

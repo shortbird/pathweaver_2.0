@@ -517,6 +517,23 @@ def _age(dob: Optional[str], today: date) -> Optional[int]:
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
+def _norm_time(v: Any) -> str:
+    """Normalize HH:MM or H:MM or HH:MM:SS to HH:MM:SS for comparison."""
+    if not v:
+        return ''
+    s = str(v).strip()
+    parts = s.split(':')
+    if len(parts) >= 2:
+        try:
+            h = int(parts[0])
+            m = int(parts[1])
+            sec = int(parts[2]) if len(parts) >= 3 else 0
+            return f"{h:02d}:{m:02d}:{sec:02d}"
+        except ValueError:
+            pass
+    return s
+
+
 def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
                            when: datetime) -> Dict[str, Dict[str, Any]]:
     """Where each student on this roster goes after this class, today.
@@ -548,10 +565,21 @@ def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
                       or (not m.get('specific_date') and m.get('day_of_week') == dow)]
         if not mine_today:
             return {}
-        # Earliest end among this class's meetings today: what the students in
-        # front of the teacher are leaving.
-        leaves_at = min((m.get('end_time') or m.get('start_time') or '')
-                        for m in mine_today)
+
+        now_time = _norm_time(when.time().strftime('%H:%M:%S'))
+
+        # Pick the meeting of this class that is currently running or ends next today.
+        # If all meetings today ended, pick the last meeting.
+        upcoming_mine = [m for m in mine_today
+                         if _norm_time(m.get('end_time') or m.get('start_time')) >= now_time]
+        if upcoming_mine:
+            target_meeting = min(upcoming_mine,
+                                 key=lambda m: _norm_time(m.get('end_time') or m.get('start_time')))
+        else:
+            target_meeting = max(mine_today,
+                                 key=lambda m: _norm_time(m.get('end_time') or m.get('start_time')))
+
+        leaves_at = _norm_time(target_meeting.get('end_time') or target_meeting.get('start_time'))
         if not leaves_at:
             return {}
 
@@ -572,7 +600,8 @@ def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
             admin.table('org_classes').select('id, name, location, organization_id')
             .in_('id', other_ids).execute()).data or []}
 
-        # Earliest meeting today per class that starts at or after this one ends.
+        # Earliest meeting today per class that starts at or after this class ends
+        # and has not already finished in the past.
         soonest: Dict[str, Dict[str, Any]] = {}
         for m in meetings:
             cls = classes.get(m['class_id'])
@@ -580,15 +609,16 @@ def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
                 continue
             on_today = ((m.get('specific_date') or '')[:10] == today_iso
                         or (not m.get('specific_date') and m.get('day_of_week') == dow))
-            start = m.get('start_time') or ''
-            if not on_today or start < leaves_at:
+            start = _norm_time(m.get('start_time'))
+            end = _norm_time(m.get('end_time') or m.get('start_time'))
+            if not on_today or start < leaves_at or end <= now_time:
                 continue
             prev = soonest.get(m['class_id'])
             if prev is None or start < prev['start_time']:
                 soonest[m['class_id']] = {
                     'class_id': m['class_id'],
                     'name': cls.get('name'),
-                    'start_time': start,
+                    'start_time': m.get('start_time') or start,
                     # The meeting's own room wins: a class can move for one
                     # block, and the room is the whole point of this line.
                     'location': m.get('location') or cls.get('location'),
@@ -600,7 +630,7 @@ def _next_class_by_student(org_id: str, class_id: str, student_ids: List[str],
             if not nxt:
                 continue
             cur = by_student.get(e['student_id'])
-            if cur is None or nxt['start_time'] < cur['start_time']:
+            if cur is None or _norm_time(nxt['start_time']) < _norm_time(cur['start_time']):
                 by_student[e['student_id']] = nxt
         return by_student
     except Exception as exc:  # noqa: BLE001 — a schedule read must not cost the roster

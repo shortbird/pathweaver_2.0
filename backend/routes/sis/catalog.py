@@ -18,6 +18,7 @@ from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from utils.storage_urls import public_object_url, sign_stored_url
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
+from services.sis_staff_service import _next_class_by_student, _org_now
 
 logger = get_logger(__name__)
 
@@ -450,6 +451,7 @@ def class_roster(user_id, class_id):
                 .select('id, first_name, last_name, display_name, preferred_name, email, username, date_of_birth')
                 .in_('id', ids).execute()).data or []
         users = {u['id']: u for u in rows}
+    next_class = _next_class_by_student(org_id, class_id, ids, _org_now(org_id)) if ids else {}
     roster = []
     for e in enrollments:
         u = users.get(e['student_id']) or {}
@@ -470,7 +472,8 @@ def class_roster(user_id, class_id):
                        'last_name': u.get('last_name'),
                        'age': _age_from_dob(u.get('date_of_birth')),
                        'email': u.get('email'), 'username': u.get('username'),
-                       'enrolled_at': e.get('enrolled_at')})
+                       'enrolled_at': e.get('enrolled_at'),
+                       'next_class': next_class.get(e['student_id'])})
     roster.sort(key=lambda r: (r.get('last_name') or r['name']).lower())
     return jsonify({'success': True, 'roster': roster})
 

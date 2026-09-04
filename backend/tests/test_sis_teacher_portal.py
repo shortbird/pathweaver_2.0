@@ -301,3 +301,67 @@ class TestTeacherSchedule:
         m = out['meetings'][0]
         assert m['class_name'] is None
         assert m['min_age'] is None and m['max_age'] is None
+
+
+@pytest.mark.unit
+class TestNextClass:
+    """_next_class_by_student determines where students go after a class."""
+
+    def test_next_class_filters_past_and_finds_upcoming(self):
+        from datetime import datetime
+        from services.sis_staff_service import _next_class_by_student
+
+        admin = Mock()
+        tbl_meetings = Mock()
+        tbl_enrollments = Mock()
+        tbl_classes = Mock()
+
+        def table_side_effect(name):
+            if name == 'class_meetings':
+                return tbl_meetings
+            if name == 'class_enrollments':
+                return tbl_enrollments
+            if name == 'org_classes':
+                return tbl_classes
+            m = Mock()
+            m.select.return_value = m
+            m.eq.return_value = m
+            m.in_.return_value = m
+            m.execute.return_value = Mock(data=[])
+            return m
+
+        admin.table.side_effect = table_side_effect
+
+        tbl_meetings.select.return_value = tbl_meetings
+        tbl_meetings.eq.return_value = tbl_meetings
+        tbl_meetings.execute.side_effect = [
+            Mock(data=[
+                {'class_id': 'c1', 'day_of_week': 1, 'start_time': '09:00:00', 'end_time': '10:00:00', 'specific_date': None},
+                {'class_id': 'c1', 'day_of_week': 1, 'start_time': '13:00:00', 'end_time': '14:00:00', 'specific_date': None},
+            ]),
+        ]
+
+        with patch('services.sis_staff_service._admin', return_value=admin), \
+             patch('services.sis_staff_service.fetch_all_rows') as fetch_rows:
+            fetch_rows.side_effect = [
+                [{'student_id': 's1', 'class_id': 'c1'}, {'student_id': 's1', 'class_id': 'c2'}, {'student_id': 's1', 'class_id': 'c3'}],
+                [
+                    {'class_id': 'c2', 'day_of_week': 1, 'start_time': '10:15:00', 'end_time': '11:15:00', 'location': 'Room B', 'specific_date': None},
+                    {'class_id': 'c3', 'day_of_week': 1, 'start_time': '14:15:00', 'end_time': '15:15:00', 'location': 'Room C', 'specific_date': None},
+                ]
+            ]
+            tbl_classes.select.return_value = tbl_classes
+            tbl_classes.in_.return_value = tbl_classes
+            tbl_classes.execute.return_value = Mock(data=[
+                {'id': 'c2', 'name': 'Class B', 'location': 'Room B', 'organization_id': 'org-1'},
+                {'id': 'c3', 'name': 'Class C', 'location': 'Room C', 'organization_id': 'org-1'},
+            ])
+
+            # Mon 2026-09-07 13:15:00
+            when = datetime(2026, 9, 7, 13, 15, 0)
+            res = _next_class_by_student('org-1', 'c1', ['s1'], when)
+
+            assert 's1' in res
+            assert res['s1']['class_id'] == 'c3'
+            assert res['s1']['name'] == 'Class C'
+
