@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import html2pdf from 'html2pdf.js';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import TranscriptSignatureBlock from '../../components/transcript/TranscriptSignatureBlock';
@@ -15,6 +14,15 @@ import {
   COMMISSION_WEBSITE,
 } from '../../constants/accreditation';
 import { useConfirm } from '../../contexts/ConfirmContext'
+
+// html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
+// html2canvas and jsPDF -- a large chunk -- and this page renders long before
+// anyone clicks Download, if they ever do. A static import puts all of it in
+// the initial bundle for every visitor.
+async function loadHtml2Pdf() {
+  return (await import('html2pdf.js')).default;
+}
+
 
 // A copy of the requirement table used to sit here, with a comment saying it
 // "must match backend CreditMappingService.DIPLOMA_REQUIREMENTS". It didn't —
@@ -193,6 +201,7 @@ const TranscriptGeneratorPage = () => {
       const last = data?.student?.last_name || '';
       const initials = ((first[0] || '') + (last[0] || '')).toUpperCase() || 'XX';
       const dateStr = new Date().toISOString().split('T')[0];
+      const html2pdf = await loadHtml2Pdf();
       await html2pdf().set(pdfOptions(`Transcript_${initials}_${dateStr}.pdf`)).from(el).save();
     } catch (err) {
       toast.error('Failed to generate PDF');
@@ -206,6 +215,7 @@ const TranscriptGeneratorPage = () => {
   const generatePdfBase64 = async () => {
     const el = document.getElementById('printable-transcript');
     if (!el) throw new Error('Transcript not ready');
+    const html2pdf = await loadHtml2Pdf();
     return html2pdf().set(pdfOptions('transcript.pdf')).from(el).outputPdf('datauristring');
   };
 

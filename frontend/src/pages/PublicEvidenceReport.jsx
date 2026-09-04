@@ -8,12 +8,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import html2pdf from 'html2pdf.js';
 import api from '../services/api';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import { Spinner } from '../components/ui/Spinner';
 import { getPillarDisplayName } from '../config/pillars';
 import logger from '../utils/logger';
+
+// html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
+// html2canvas and jsPDF -- a large chunk -- and this page renders long before
+// anyone clicks Download, if they ever do. A static import puts all of it in
+// the initial bundle for every visitor.
+async function loadHtml2Pdf() {
+  return (await import('html2pdf.js')).default;
+}
+
 
 // Format pillar name with proper capitalization (STEM stays uppercase)
 const formatPillarName = (pillar) => {
@@ -256,6 +264,7 @@ const PublicEvidenceReport = () => {
       };
 
       // html2pdf can accept HTML string directly
+      const html2pdf = await loadHtml2Pdf();
       await html2pdf().set(options).from(pdfHtml, 'string').save();
     } catch (err) {
       logger.error('Error generating PDF:', err);

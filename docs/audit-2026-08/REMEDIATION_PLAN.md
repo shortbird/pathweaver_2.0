@@ -1888,12 +1888,39 @@ Log:
 
   Web suite 2505 passing.
 
-### QF-06 — Bundle weight `[TODO]` (low)
+### QF-06 — Bundle weight `[DONE(html2pdf deferred; two of the three claims were already false)]` (low)
 Three PDF libraries (html2pdf.js, pdf-lib, react-pdf) -> consolidate; lazy-load
 the 10MB OpenCV WASM behind the document-scanner route. Build currently needs a
 4GB heap.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Checked each claim before acting, and TWO OF THE THREE were
+  already false.
+
+  - **OpenCV is already lazy.** `workers/documentScanner.worker.js` does
+    `await import('@techstark/opencv-js')` inside `ensureLoaded()`, in a web
+    worker. Nothing to do.
+  - **pdf-lib is already lazy** — `await import('pdf-lib')` inside
+    `services/documentScanner.js`.
+  - **html2pdf was NOT.** Three pages imported it at module scope
+    (PublicTranscriptPage, PublicEvidenceReport, admin/TranscriptGeneratorPage)
+    and used it only in a Download handler. It pulls in html2canvas and jsPDF,
+    so every visitor to a public transcript downloaded the PDF machinery
+    whether or not they ever clicked Download. Now loaded on demand.
+
+  "CONSOLIDATE THE THREE PDF LIBRARIES" — declined, with a reason. They are not
+  three ways of doing one thing:
+    - `html2pdf.js` renders existing DOM to a PDF (transcript export),
+    - `pdf-lib` ASSEMBLES a PDF programmatically (the document scanner's output),
+    - `react-pdf` VIEWS a PDF in the page (evidence and journal previews).
+  Replacing all three with one would mean writing the missing capabilities by
+  hand. The weight problem was never the count; it was that one of them was
+  eager.
+
+  The 4GB build heap is unaddressed and is not obviously about these — worth a
+  measurement pass of its own rather than a guess.
+
+  Web suite 2505 passing.
 
 ### QF-07 — Styling drift `[DONE(ratcheted; the 293 not converted)]` (low)
 v1: ~40 genuinely off-palette hex values (plus ~160 brand colors written as hex —

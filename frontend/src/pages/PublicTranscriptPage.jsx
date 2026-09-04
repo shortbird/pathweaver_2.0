@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import html2pdf from 'html2pdf.js';
 import api from '../services/api';
 import TranscriptSignatureBlock from '../components/transcript/TranscriptSignatureBlock';
 import {
@@ -11,6 +10,15 @@ import {
   COMMISSION_ADDRESS,
   COMMISSION_WEBSITE,
 } from '../constants/accreditation';
+
+// html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
+// html2canvas and jsPDF -- a large chunk -- and this page renders long before
+// anyone clicks Download, if they ever do. A static import puts all of it in
+// the initial bundle for every visitor.
+async function loadHtml2Pdf() {
+  return (await import('html2pdf.js')).default;
+}
+
 
 // A copy of the requirement table used to sit here, keyed by display name. It
 // was never read by anything on this page, and it had gone stale — Social
@@ -45,6 +53,7 @@ const PublicTranscriptPage = () => {
       const last = data?.student?.last_name || '';
       const initials = ((first[0] || '') + (last[0] || '')).toUpperCase() || 'XX';
       const dateStr = new Date().toISOString().split('T')[0];
+      const html2pdf = await loadHtml2Pdf();
       await html2pdf().set({
         margin: [10, 10, 10, 10],
         filename: `Transcript_${initials}_${dateStr}.pdf`,
