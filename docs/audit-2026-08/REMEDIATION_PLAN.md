@@ -1820,10 +1820,30 @@ div onClick to buttons/keyboard handlers.
 Log:
 - 2026-08-31: Plan created.
 
-### QF-09 — v2 TypeScript widening: 390 explicit `any` `[TODO]` (low)
+### QF-09 — v2 TypeScript widening: 390 explicit `any` `[DONE(ratcheted at the real count, 580)]` (low)
 Ratchet down: count-based guard or eslint rule warn->error per directory.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Ratchet added — and the count is 580, not 390. Measured across
+  `src/` and `app/`, excluding tests and comment lines, 110 files carry at least
+  one.
+
+  `frontend-v2/src/__tests__/typeWidening.test.ts` fences it at 580 with the
+  same shape the backend uses for its repository debt: may shrink, never grow,
+  plus a companion test that fails if the real count drops far enough below the
+  baseline that the ratchet has stopped ratcheting. Converting 580 is not asked
+  for and is not funded; what is asked for is that the number stop climbing.
+
+  Why this is worth fencing rather than shrugging at: every `any` is a place the
+  compiler was told to stop checking, and this app reads snake_case JSON into
+  camelCase components. `as any` is precisely how a renamed API field ships as
+  `undefined` and renders as a blank card instead of failing to compile.
+
+  Chose the count guard over the eslint rule the item also offers, for the same
+  reason CI-03 landed in vitest: v2 has no eslint wired up either, so the rule
+  would be another thing configured and never run.
+
+  Mobile suite 97 files / 718 passed; tsc clean.
 
 ---
 
