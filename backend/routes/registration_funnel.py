@@ -80,18 +80,15 @@ Account model (see memory: project_icreate_program):
 - Fee is RECORD-ONLY (Optio never processes payments).
 """
 
-import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from dateutil.relativedelta import relativedelta
 from flask import Blueprint, request, jsonify
 
-from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
-from utils.validation import sanitize_input, validate_uuid
+from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
 # Identity proof and org attachment live in their own module — see its docstring
@@ -105,7 +102,37 @@ from services.registration_identity_service import (
     password_failure as _password_failure,
 )
 from utils.logger import get_logger
-from services.email_service import email_service
+# QB-04: the funnel's helpers moved to services/ so the route handlers could be
+# split across modules without an import cycle. Aliased to the private names
+# this file has always used, so every call site -- and every test that patches
+# `routes.registration_funnel._admin` -- reads exactly as before.
+from services.registration_funnel_support import (
+    _admin,
+    _valid_email,
+    _load_registration_invite,
+    _load_registration,
+    _authz,
+    _org_stripe_key,
+    _org_stripe_enabled,
+    _parent_row,
+    _family_directive,
+    _apply_prepaid_directive,
+)
+from services.registration_accounts_service import (
+    _email_exists,
+    _password_ok,
+    _insert_user_with_retry,  # noqa: F401 -- patched by tests, called via the service
+    _create_org_parent,
+    _create_org_student,
+    _existing_account_for_kid,
+    _match_existing_dependent,
+    _existing_org_student_by_name_dob,
+    _attach_existing_student,
+    _create_dependent,
+    _hash_otp,
+    _issue_otp,
+    _send_otp_email,
+)
 # One definition of "a phone number", shared with the SMS verification flow.
 from services.phone_verification_service import normalize_phone
 
@@ -113,58 +140,17 @@ logger = get_logger(__name__)
 
 bp = Blueprint('registration', __name__, url_prefix='/api/registration')
 
-EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
-LINK_PLACEHOLDER_SUFFIX = '@pending.optio.local'
-OTP_TTL_MINUTES = 10
 # Max wrong OTP guesses per registration before the code is invalidated and a
 # resend is required. Independent of the IP rate limit (which is spoofable), this
 # caps the 6-digit guessing space to a few tries per issued code.
 MAX_OTP_ATTEMPTS = 5
 
 
-def _admin():
-    # admin client justified: the registration funnel runs pre-session — the
-    #   family has no account yet, so there is no caller for RLS to scope to
-    return get_supabase_admin_client()
 
 
-def _valid_email(v):
-    return bool(v and EMAIL_RE.match(v.strip()))
 
 
-def _load_registration_invite(code):
-    """
-    Resolve an invitation code to (invitation, organization, config) if it is a
-    valid, pending, link-based parent invite for a registration-funnel org.
-
-    Returns (data_dict, None) on success or (None, (json, status)) on failure.
-    """
-    admin = _admin()
-    res = admin.table('org_invitations') \
-        .select('id, organization_id, email, role, status, expires_at, '
-                'organizations(id, name, slug, branding_config, feature_flags)') \
-        .eq('invitation_code', code) \
-        .single() \
-        .execute()
-    inv = res.data
-    if not inv:
-        return None, (jsonify({'error': 'Invalid registration link'}), 404)
-    if inv['status'] != 'pending':
-        return None, (jsonify({'error': f"This link has been {inv['status']}"}), 400)
-    if inv['role'] != 'parent':
-        return None, (jsonify({'error': 'This is not a parent registration link'}), 400)
-
-    org = inv.get('organizations') or {}
-    cfg = get_registration_config(org.get('feature_flags'))
-    if not cfg.get('enabled'):
-        return None, (jsonify({'error': 'This organization does not use the registration funnel'}), 400)
-
-    is_link_based = str(inv.get('email', '')).endswith(LINK_PLACEHOLDER_SUFFIX)
-    if not is_link_based:
-        return None, (jsonify({'error': 'This is not a shareable registration link'}), 400)
-
-    return {'invitation': inv, 'organization': org, 'config': cfg}, None
 
 
 def _compute_fee_cents(cfg, num_students):
@@ -291,324 +277,33 @@ def _public_config(org, cfg, paperwork_urls=None):
     }
 
 
-def _email_exists(admin, email):
-    r = admin.table('users').select('id').eq('email', email).execute()
-    return bool(r.data)
 
 
-def _password_ok(email, password):
-    """Verify an account password WITHOUT touching the shared clients.
-
-    sign_in_with_password mutates whichever client it's called on — its PostgREST
-    auth becomes the signed-in USER's JWT, which silently breaks the admin
-    client's service-role RLS bypass for the rest of the request. Use a
-    throwaway client instead.
-    """
-    from supabase import create_client
-    from app_config import Config
-    try:
-        c = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-        ok = bool(c.auth.sign_in_with_password({'email': email, 'password': password}).user)
-        try:
-            c.auth.sign_out()
-        except Exception as _exc:  # noqa: BLE001
-            logger.debug("sign-out of the temp session failed: %s", _exc, exc_info=True)
-        return ok
-    except Exception:  # noqa: BLE001
-        return False
 
 
-def _insert_user_with_retry(admin, profile):
-    """Upsert a users row, retrying transient auth-FK races (mirrors accept_invitation)."""
-    import time
-    delay = 0.5
-    for attempt in range(3):
-        try:
-            admin.table('users').upsert(profile, on_conflict='id').execute()
-            return True
-        except Exception as e:  # noqa: BLE001
-            msg = str(e).lower()
-            if ('foreign key' in msg or '23503' in msg) and attempt < 2:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            raise
-    return False
 
 
-def _create_org_parent(admin, org_id, email, password, first, last):
-    """Create the parent auth user + org_managed/parent profile. Email verification
-    happens through this funnel's own OTP (not Supabase's confirmation email)."""
-    auth = admin.auth.admin.create_user({
-        'email': email,
-        'password': password,
-        'email_confirm': False,
-        'user_metadata': {'first_name': first, 'last_name': last},
-    })
-    if not auth.user:
-        raise RuntimeError('Failed to create parent account')
-    uid = auth.user.id
-    profile = {
-        'id': uid,
-        'email': email,
-        'first_name': first,
-        'last_name': last,
-        'display_name': f'{first} {last}'.strip(),
-        'role': 'org_managed',
-        'org_role': 'parent',
-        'org_roles': ['parent'],
-        'organization_id': org_id,
-    }
-    _insert_user_with_retry(admin, profile)
-    return uid
 
 
-def _create_org_student(admin, org_id, email, first, last, dob):
-    """Create a 13+ kid's own org_managed/student account. Sends a set-password email."""
-    auth = admin.auth.admin.create_user({
-        'email': email,
-        'password': secrets.token_urlsafe(18),  # placeholder; kid sets their own via email
-        'email_confirm': False,
-        'user_metadata': {'first_name': first, 'last_name': last},
-    })
-    if not auth.user:
-        raise RuntimeError('Failed to create student account')
-    uid = auth.user.id
-    profile = {
-        'id': uid,
-        'email': email,
-        'first_name': first,
-        'last_name': last,
-        'display_name': f'{first} {last}'.strip(),
-        'role': 'org_managed',
-        'org_role': 'student',
-        'org_roles': ['student'],
-        'organization_id': org_id,
-    }
-    if dob:
-        profile['date_of_birth'] = str(dob)
-    _insert_user_with_retry(admin, profile)
-    try:
-        admin.auth.resend({'type': 'signup', 'email': email})
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'registration: student verification email failed for {email}: {e}')
-    return uid
 
 
-def _existing_account_for_kid(admin, org_id, parent_id, email):
-    """Look up an existing account behind a kid's email and decide whether this
-    funnel may ATTACH it to the family instead of creating a new one.
-
-    Attachable: a student account (platform `student`, or this org's
-    org_managed/student — e.g. school-imported before the funnel existed) that is
-    not a dependent and not parent-linked to a DIFFERENT parent. A parent must
-    never be able to claim an arbitrary account: anything in another org, any
-    non-student account, and any account already claimed by another parent
-    refuses.
-
-    Returns (user_row, None) when attachable, (None, None) when the email is
-    unused, and (None, reason) when an account exists but cannot be attached.
-    """
-    rows = (admin.table('users')
-            .select('id, role, org_role, organization_id, is_dependent, '
-                    'first_name, last_name, display_name, date_of_birth')
-            .eq('email', email).limit(1).execute()).data or []
-    if not rows:
-        return None, None
-    u = rows[0]
-    # The parent reused their OWN email for a 13+ teen (a common slip). That's
-    # not a child account to attach — surface a clear, self-serve fix upstream.
-    if u['id'] == parent_id:
-        return None, 'is_parent'
-    if u.get('role') == 'superadmin' or u.get('is_dependent'):
-        return None, 'not_attachable'
-    if u.get('organization_id') and u['organization_id'] != org_id:
-        return None, 'other_org'
-    effective = u.get('org_role') if u.get('organization_id') else u.get('role')
-    if effective != 'student':
-        return None, 'not_student'
-    links = (admin.table('parent_student_links').select('parent_user_id')
-             .eq('student_user_id', u['id']).execute()).data or []
-    if any(l['parent_user_id'] != parent_id for l in links):
-        return None, 'other_parent'
-    return u, None
 
 
-def _match_existing_dependent(dependents, first, last, dob):
-    """Find this parent's OWN pre-existing dependent matching a submitted kid.
-    Name match (case-insensitive) plus DOB when the dependent has one on file.
-    Safe on name alone because the pool is limited to the parent's dependents."""
-    for d in dependents:
-        if ((d.get('first_name') or '').strip().lower() == first.lower()
-                and (d.get('last_name') or '').strip().lower() == last.lower()):
-            ddob = str(d.get('date_of_birth') or '')[:10]
-            if not ddob or ddob == str(dob):
-                return d
-    return None
 
 
-def _existing_org_student_by_name_dob(admin, org_id, parent_id, first, last, dob):
-    """Find a pre-existing student account matching this kid by name + DOB,
-    attachable to the family. Guards against the re-registration duplicate: a kid
-    whose pre-existing Optio account the parent re-enters as a brand-new child
-    because the funnel matched only on email.
-
-    The candidate pool is kept SAFE — a self-service parent must never claim an
-    arbitrary account — so it is limited to:
-      - this org's OWN students at that DOB (school-imported roster), and
-      - the parent's OWN already-linked students (covers a platform account the
-        parent already has for their kid, e.g. an existing Optio family).
-    There is no platform-wide name search. Each candidate must additionally be:
-      - an actual student account, not a dependent (the parent's own dependents
-        are handled by _match_existing_dependent),
-      - not in a DIFFERENT org,
-      - an EXACT DOB + name match (so twins never collide — their names differ),
-      - not already parent-linked to a DIFFERENT parent.
-    Returns the user row to attach, or None.
-    """
-    if not dob:
-        return None
-    fields = ('id, role, org_role, organization_id, is_dependent, '
-              'first_name, last_name, display_name, date_of_birth')
-    pool = (admin.table('users').select(fields)
-            .eq('organization_id', org_id)
-            .eq('date_of_birth', str(dob)).execute()).data or []
-    own_links = (admin.table('parent_student_links').select('student_user_id')
-                 .eq('parent_user_id', parent_id).execute()).data or []
-    own_ids = [l.get('student_user_id') for l in own_links if l.get('student_user_id')]
-    if own_ids:
-        pool = pool + ((admin.table('users').select(fields)
-                        .in_('id', own_ids).execute()).data or [])
-    seen = set()
-    for u in pool:
-        if u['id'] in seen:
-            continue
-        seen.add(u['id'])
-        if u.get('is_dependent'):
-            continue
-        if str(u.get('date_of_birth') or '')[:10] != str(dob):
-            continue
-        if (u.get('first_name') or '').strip().lower() != first.lower():
-            continue
-        if (u.get('last_name') or '').strip().lower() != last.lower():
-            continue
-        if u.get('organization_id') and u['organization_id'] != org_id:
-            continue  # never pull a kid out of another school
-        effective = u.get('org_role') if u.get('organization_id') else u.get('role')
-        if effective != 'student':
-            continue
-        links = (admin.table('parent_student_links').select('parent_user_id')
-                 .eq('student_user_id', u['id']).execute()).data or []
-        if any(l['parent_user_id'] != parent_id for l in links):
-            continue
-        return u
-    return None
 
 
-def _attach_existing_student(admin, org_id, kid, kid_first, kid_last, dob):
-    """Normalize a pre-existing student account into this org so it ends up
-    exactly like a funnel-created one: org_managed/student in the org, parent's
-    spelling of the name, and the DOB the parent provided. Never touches auth."""
-    updates = {
-        'organization_id': org_id,
-        'role': 'org_managed',
-        'org_role': 'student',
-        'org_roles': ['student'],
-        'first_name': kid_first,
-        'last_name': kid_last,
-    }
-    if dob:
-        updates['date_of_birth'] = str(dob)
-    if not kid.get('display_name'):
-        updates['display_name'] = f'{kid_first} {kid_last}'.strip()
-    admin.table('users').update(updates).eq('id', kid['id']).execute()
-    return kid['id']
 
 
-def _create_dependent(admin, parent_id, org_id, first, last, dob):
-    """Create a COPPA dependent kid on the parent's account (no email)."""
-    placeholder = f'dependent_{secrets.token_hex(16)}@optio-internal-placeholder.local'
-    auth = admin.auth.admin.create_user({
-        'email': placeholder,
-        'email_confirm': False,
-        'user_metadata': {'is_dependent': True, 'managed_by_parent_id': parent_id},
-        'app_metadata': {'provider': 'dependent', 'providers': ['dependent']},
-    })
-    if not auth.user:
-        raise RuntimeError('Failed to create child profile')
-    uid = auth.user.id
-    profile = {
-        'id': uid,
-        'first_name': first,
-        'last_name': last,
-        'display_name': f'{first} {last}'.strip(),
-        'date_of_birth': str(dob) if dob else None,
-        'is_dependent': True,
-        'managed_by_parent_id': parent_id,
-        'promotion_eligible_at': str(dob + relativedelta(years=13)) if dob else None,
-        # Full org-student shape, matching _create_org_student and
-        # DependentRepository.create_dependent. role='student' with no org_role
-        # is the exact shape 20260826110000_normalize_org_student_roles.sql had
-        # to clean up — org_role-only queries skip such accounts and the
-        # school's student counts drift apart again with every registration.
-        'role': 'org_managed',
-        'org_role': 'student',
-        'org_roles': ['student'],
-        'email': None,
-        'organization_id': org_id,
-    }
-    _insert_user_with_retry(admin, profile)
-    return uid
 
 
-# ── OTP helpers ──────────────────────────────────────────────────────────────
-
-def _hash_otp(code: str) -> str:
-    return hashlib.sha256(code.encode()).hexdigest()
 
 
-def _issue_otp(admin, reg_id: str) -> str:
-    """Generate a fresh 6-digit code, store its hash + expiry, return the code."""
-    code = f'{secrets.randbelow(1000000):06d}'
-    admin.table('registrations').update({
-        'otp_hash': _hash_otp(code),
-        'otp_expires_at': (datetime.utcnow() + timedelta(minutes=OTP_TTL_MINUTES)).isoformat(),
-        'otp_attempts': 0,  # fresh code resets the failed-attempt counter
-        'updated_at': datetime.utcnow().isoformat(),
-    }).eq('id', reg_id).execute()
-    return code
 
 
-def _send_otp_email(email: str, first: str, org_name: str, code: str) -> bool:
-    html = (
-        f"<p>Hi {first or 'there'},</p>"
-        f"<p>Your {org_name} registration code is:</p>"
-        f"<p style=\"font-size:32px;font-weight:bold;letter-spacing:6px;\">{code}</p>"
-        f"<p>Enter it on the registration page to confirm your email. "
-        f"It expires in {OTP_TTL_MINUTES} minutes.</p>"
-        f"<p>If you didn't request this, you can ignore this email.</p>"
-    )
-    try:
-        return email_service.send_email(email, f'{org_name}: your registration code', html)
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'registration: OTP email failed for {email}: {e}')
-        return False
 
 
-def _load_registration(reg_id):
-    """Registration row or None. Tolerates unknown and malformed ids (probes hit
-    this route with junk UUIDs) — callers treat None as unauthorized, not a 500."""
-    is_valid, _err = validate_uuid(str(reg_id or ''))
-    if not is_valid:
-        return None
-    admin = _admin()
-    rows = (admin.table('registrations').select('*')
-            .eq('id', reg_id).limit(1).execute()).data
-    return rows[0] if rows else None
 
-
-def _authz(reg, token):
-    return reg and token and secrets.compare_digest(str(reg.get('access_token')), str(token))
 
 
 # Blocks P4: the shared funnel-completion half lives in
@@ -622,21 +317,10 @@ from services.registration_funnel_service import (  # noqa: E402
 )
 
 
-def _org_stripe_key(org_id):
-    """The org's Stripe secret key. Server-side use only -- never serialize it.
-    Use _org_stripe_enabled() when a client just needs to know if card payment is on."""
-    from utils.org_secrets import get_org_secret, STRIPE_SECRET_KEY
-    return get_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
-def _org_stripe_enabled(org_id):
-    from utils.org_secrets import has_org_secret, STRIPE_SECRET_KEY
-    return has_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
-def _parent_row(admin, parent_id):
-    r = admin.table('users').select('id, email, first_name, last_name, avatar_url, phone_number').eq('id', parent_id).maybe_single().execute()
-    return (r.data if r else None) or {}
 
 
 def _existing_household_for_parent(admin, org_id, parent_id):
@@ -664,50 +348,8 @@ def _existing_household_for_parent(admin, org_id, parent_id):
         return None
 
 
-def _family_directive(admin, org_id, email):
-    """Pre-staged settings for this parent email (sis_family_directives): fee
-    already paid on the school's legacy form, registration hold, priority tier.
-    Loaded from the legacy registration spreadsheet before families re-register."""
-    if not email:
-        return None
-    try:
-        rows = (admin.table('sis_family_directives').select('*')
-                .eq('organization_id', org_id)
-                .eq('email', email.strip().lower())
-                .limit(1).execute()).data or []
-        return rows[0] if rows else None
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'registration: family-directive lookup failed for org {org_id}: {e}')
-        return None
 
 
-def _apply_prepaid_directive(admin, reg):
-    """Honor a fee_prepaid directive staged AFTER the family step computed the fee.
-
-    The family step zeroes the fee for directives that already exist, but the
-    school often imports its legacy prepaid list late. Without this, a prepaid
-    family whose registration already stored fee_cents > 0 is stuck at the fee
-    step ("Please pay the registration fee by card to finish") with no way
-    through. Re-check on resume/fee/checkout and zero the stored fee.
-    Returns the (possibly updated) registration row.
-    """
-    try:
-        if reg.get('status') == 'completed' or int(reg.get('fee_cents') or 0) <= 0:
-            return reg
-        parent = _parent_row(admin, reg['parent_user_id'])
-        directive = _family_directive(admin, reg['organization_id'], parent.get('email'))
-        if directive and directive.get('fee_prepaid'):
-            admin.table('registrations').update({
-                'fee_cents': 0, 'updated_at': datetime.utcnow().isoformat(),
-            }).eq('id', reg['id']).execute()
-            reg = {**reg, 'fee_cents': 0}
-            logger.info(f"registration: prepaid directive zeroed fee for registration {reg['id']}")
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"registration: prepaid-directive check failed for registration {reg.get('id')}: {e}")
-    return reg
-
-
-# ── Endpoints ────────────────────────────────────────────────────────────────
 
 @bp.route('/config/<invitation_code>', methods=['GET'])
 @rate_limit(max_requests=60, window_seconds=60)

@@ -9,6 +9,13 @@ for anything that isn't a real registration so the route answers 403/404, not
 
 from unittest.mock import Mock, patch
 
+# _load_registration moved to services/registration_funnel_support.py on
+# 2026-09-03 (QB-04) and is re-exported from routes.registration_funnel under
+# the same name. The call below still goes through the route module, but the
+# function resolves _admin from the module it now LIVES in -- patching
+# routes.registration_funnel._admin here would bind a name nothing reads, and
+# the test would build a real Supabase client and fail on 'Invalid URL'.
+
 import pytest
 from flask import Flask
 
@@ -26,7 +33,7 @@ def _admin_with_rows(rows):
 def test_malformed_id_returns_none_without_db_call():
     from routes import registration_funnel
 
-    with patch('routes.registration_funnel._admin') as admin:
+    with patch('services.registration_funnel_support._admin') as admin:
         assert registration_funnel._load_registration('not-a-uuid') is None
         assert registration_funnel._load_registration('') is None
         assert registration_funnel._load_registration(None) is None
@@ -36,7 +43,7 @@ def test_malformed_id_returns_none_without_db_call():
 def test_unknown_valid_id_returns_none():
     from routes import registration_funnel
 
-    with patch('routes.registration_funnel._admin',
+    with patch('services.registration_funnel_support._admin',
                return_value=_admin_with_rows([])):
         assert registration_funnel._load_registration(VALID_UNKNOWN_ID) is None
 
@@ -45,7 +52,7 @@ def test_existing_id_returns_row():
     from routes import registration_funnel
 
     row = {'id': VALID_UNKNOWN_ID, 'status': 'fee'}
-    with patch('routes.registration_funnel._admin',
+    with patch('services.registration_funnel_support._admin',
                return_value=_admin_with_rows([row])):
         assert registration_funnel._load_registration(VALID_UNKNOWN_ID) == row
 
@@ -68,7 +75,7 @@ def test_confirm_payment_with_zero_uuid_is_403_not_500(client):
 
 
 def test_confirm_payment_with_unknown_registration_is_403(client):
-    with patch('routes.registration_funnel._admin',
+    with patch('services.registration_funnel_support._admin',
                return_value=_admin_with_rows([])):
         res = client.post(f'/api/registration/registrations/{VALID_UNKNOWN_ID}/confirm-payment',
                           json={'access_token': 'anything'})

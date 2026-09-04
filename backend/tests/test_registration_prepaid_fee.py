@@ -102,6 +102,11 @@ def _reg(**over):
 _KEY = _CFG['stripe_secret_key']
 
 
+# Each helper is patched at BOTH addresses on purpose. _apply_prepaid_directive
+# moved to services/registration_funnel_support.py (QB-04, 2026-09-03) and
+# resolves _family_directive/_parent_row from there, while the route module
+# re-exports the same names for its own call sites. Patch one and the other
+# still reaches the database.
 def _call(client, admin, path, reg, directive):
     # Stripe key now lives in organization_secrets, not feature_flags -- AUDIT.md C1.
     with patch('routes.registration_funnel._admin', return_value=admin), \
@@ -111,7 +116,10 @@ def _call(client, admin, path, reg, directive):
          patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
          patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
-         patch('routes.registration_funnel._family_directive', return_value=directive):
+         patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
+         patch('routes.registration_funnel._family_directive', return_value=directive), \
+         patch('services.registration_funnel_support._family_directive',
+               return_value=directive):
         return client.post(path, json={'access_token': 'tok'})
 
 
@@ -158,7 +166,10 @@ class TestPrepaidDirectiveFee:
              patch('routes.registration_funnel._org_stripe_enabled', return_value=True), \
              patch('routes.registration_funnel._parent_row', return_value=_PARENT), \
              patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
+             patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
              patch('routes.registration_funnel._family_directive',
+                   return_value={'fee_prepaid': True}), \
+             patch('services.registration_funnel_support._family_directive',
                    return_value={'fee_prepaid': True}):
             resp = client.post('/api/registration/registrations/reg1/checkout',
                                json={'access_token': 'tok', 'return_url': 'https://x/return'})

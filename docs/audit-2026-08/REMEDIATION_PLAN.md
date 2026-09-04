@@ -1951,6 +1951,54 @@ Log:
 
   ruff clean, mypy clean (1037 files), pyflakes clean. Tests: 4862 passed.
 
+- 2026-09-03: REGISTRATION FUNNEL, STAGE 1 OF 3 — helpers out to services/.
+  `routes/registration_funnel.py` 2,149 -> 1,790. Still over the cap; the
+  exemption stays until stage 3.
+
+  This is the last exempted file and the risky one: it is the live iCreate
+  payment funnel. What makes it *safe enough to attempt* is that the failure
+  mode which caused the 2026-07-21 outage is already fenced. Every funnel
+  endpoint is CSRF-exempt BY ENDPOINT NAME
+  (`middleware/csrf_protection.CSRF_EXEMPT_ENDPOINTS`), and two existing tests
+  check that set against the live URL map —
+  `test_all_icreate_funnel_endpoints_are_exempt` and
+  `test_every_exempt_name_matches_a_real_endpoint`. A split that renamed an
+  endpoint would fail both. So the later stages must keep the routes on the
+  SAME blueprint via `register_routes(bp)`, never a new one.
+
+  Stage 1 moves no routes at all, only helpers, into two service modules:
+  `services/registration_funnel_support.py` (session, invite/registration
+  lookup, access_token check, org Stripe key, prepaid directive) and
+  `services/registration_accounts_service.py` (parent/student/dependent
+  creation, existing-account matching, the email OTP). Both are imported back
+  under their original private names, the pattern
+  `services/registration_identity_service.py` already established here.
+
+  WHY services/ AND NOT A SIBLING ROUTE MODULE: stages 2 and 3 split the
+  handlers across several route modules, and every one of them needs these
+  helpers. A helper living in one route module and imported by another is an
+  import cycle the moment anything imports the child first — and it fails at
+  boot, on the deploy, not in the test that imported the parent.
+
+  Three test files needed the moved helpers patched at their NEW address
+  (`services.registration_funnel_support._admin` and friends). The old patch
+  target still exists as a re-export, so patching it binds a name nothing
+  reads; the tests failed loudly by building a real Supabase client rather
+  than passing on a stale mock, which is the good version of this bug.
+
+  THE RATCHET THIS BROKE, AND WHY THE FIX IS BETTER THAN A BUMP:
+  `test_direct_db_calls_do_not_grow` said "never raise routes/ or services/".
+  Moving a helper down a layer raises services/ while lowering routes/ by the
+  same amount — which is the direction the repository pattern wants, and the
+  old rule called it a violation. It now also asserts the COMBINED
+  routes/+services/ total never grows, so a lateral move passes and a genuinely
+  new `.table(...)` above repositories/ still fails. Verified the move lost
+  nothing: 59 calls in the original file, 59 across the three files after.
+
+  ruff clean, mypy clean (1039 files; `dateutil` needed an
+  `ignore_missing_imports` section, the same treatment supabase and flask_cors
+  already have), pyflakes clean. Tests: 4864 passed.
+
   ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 
 ### QB-05 — Three migration directories with ambiguous authority `[DONE]`

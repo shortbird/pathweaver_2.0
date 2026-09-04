@@ -23,8 +23,17 @@ things:
   utils/, middleware/, jobs/, modules/
                 small and mostly legitimate (auth lookups, cron jobs).
 
-Ratchet DOWN as code migrates. Never raise routes/ or services/ -- that is the
-line this exists to hold.
+Ratchet DOWN as code migrates. Never raise the COMBINED routes/ + services/
+total -- that is the line this exists to hold.
+
+That used to read "never raise routes/ or services/", which was almost right and
+blocked a change it should have welcomed. Extracting a helper from a route
+module into services/ moves existing calls DOWN a layer, which is the direction
+the repository pattern wants; it raises services/ while lowering routes/ by the
+same amount, and the old rule called that a violation. So the per-layer numbers
+are still recorded (they say where the debt sits), but the assertion that cannot
+be argued with is `test_the_upper_layers_do_not_grow_in_total`: a lateral move
+passes, a new `.table(...)` anywhere above repositories/ does not.
 """
 
 import ast
@@ -51,9 +60,16 @@ BACKEND = Path(__file__).resolve().parents[2]
 # be a repository with one caller, and utils/ may not import repositories/
 # anyway (test_import_layers). This is the "small and mostly legitimate"
 # category the docstring describes, not creeping debt.
+# routes/ 2336 -> 2316 and services/ 1779 -> 1794 on 2026-09-03: the
+# registration funnel's session/account helpers moved to
+# services/registration_funnel_support.py and
+# services/registration_accounts_service.py (QB-04). Fifteen calls changed
+# layer; the file they came from held 59 before and the three files hold 59
+# after, checked by counting. The remaining 5 of the routes/ drop is slack that
+# was already in the old number.
 BASELINES = {
-    'routes': 2336,
-    'services': 1779,
+    'routes': 2316,
+    'services': 1794,
     'repositories': 415,
     'utils': 131,
     'jobs': 7,
@@ -97,6 +113,34 @@ def test_direct_db_calls_do_not_grow(layer):
            "real migration landing, raise the baseline in the same commit.\n")
         + f"If the increase is deliberate, say so and update BASELINES[{layer!r}]."
     )
+
+
+#: routes/ + services/ combined. A call may move DOWN a layer; the total may not
+#: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
+UPPER_TOTAL_BASELINE = 2316 + 1794
+
+
+def test_the_upper_layers_do_not_grow_in_total():
+    """The rule the per-layer numbers are trying to express.
+
+    Per-layer baselines can be satisfied by moving a call sideways, and one of
+    them has to go UP for a legitimate route -> service extraction. This is the
+    assertion that holds either way: above repositories/, the number of direct
+    database calls only ever falls.
+    """
+    total = sum(_count(layer) for layer in UPPER_LAYERS)
+    assert total <= UPPER_TOTAL_BASELINE, (
+        f'routes/ + services/ together grew from {UPPER_TOTAL_BASELINE} to '
+        f'{total}. Moving a call from routes/ into services/ is fine and does '
+        'not change this number -- adding one does. New code above '
+        'repositories/ should go through a repository.')
+
+
+def test_the_upper_total_matches_the_per_layer_numbers():
+    """Two baselines that can disagree will, and then neither means anything."""
+    assert UPPER_TOTAL_BASELINE == BASELINES['routes'] + BASELINES['services'], (
+        'UPPER_TOTAL_BASELINE drifted from the per-layer baselines. Update both '
+        'in the same commit.')
 
 
 def test_the_counter_actually_finds_calls():
