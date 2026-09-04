@@ -29,7 +29,10 @@ EXEMPTIONS: dict[str, int] = {
     # `pytest ... || true`. Exempted at current size + ~10% so the cap starts
     # protecting every OTHER route file again. Each of these still needs
     # splitting; delete its entry when that happens.
-    "evidence_documents.py": 1830,
+    # 2026-09-03: evidence_documents.py SPLIT (QB-04). Its six file-upload
+    # routes moved to routes/evidence_uploads.py (505 lines, under the cap and
+    # so not exempt), taking it from 1718 to 1252 -- under the cap on its own,
+    # so its exemption is DELETED rather than lowered. Two exemptions left.
     "registration_funnel.py": 2300,
     # 2026-09-02: ratcheted 1950 -> 1700. The course-registration endpoints
     # moved to admin/organization_courses.py (481 lines, under the cap and

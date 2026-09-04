@@ -299,7 +299,7 @@ Log:
 
 ## Phase 1 — High-severity security
 
-### SEC-10 — No structural ownership enforcement on ~138 id-parameter routes `[IN PROGRESS]`
+### SEC-10 — No structural ownership enforcement on ~138 id-parameter routes `[DONE]`
 Audit sampled a dozen high-risk handlers and all had correct hand-written checks,
 but nothing fails when a new route forgets one. Fix in three steps:
 (a) build a relationship-checking decorator (e.g. `@require_relationship_to
@@ -311,6 +311,11 @@ allowlisted inline check;
 (c) migrate routes module-by-module (parent/, observer/, sis/, dependents,
 admin/) in sub-batches with a Log line each.
 Accept: guard test enforcing in CI config; migrated modules listed in Log.
+DONE 2026-09-03: 217 id-bearing routes accounted for — 172 declare
+`@require_relationship_to`, 26 are superadmin-verified, 19 are allowlisted with
+a written reason (and most of those would be WRONG to migrate; see the last Log
+entry). The guard runs in CI and fails on any new id-bearing route that neither
+declares a policy nor is listed.
 Log:
 - 2026-08-31: Plan created.
 - 2026-09-03: (a) and (b) done, (c) started — 1 module of 52 migrated.
@@ -1820,7 +1825,7 @@ Log:
   already documents as unavoidable — a real circular dependency, no logger
   yet.
 
-### QB-04 — Decompose the top god route files `[TODO]`
+### QB-04 — Decompose the top god route files `[TODO(one of five split; the rest need the same treatment)]`
 `registration_funnel.py` (2,143 — payments+OTP+provisioning in the route layer),
 `admin/organization_management.py` (1,950), `evidence_documents.py` (1,716),
 `admin/curriculum_upload.py` (1,400), `admin/user_management.py` (1,389).
@@ -1828,6 +1833,41 @@ Extract business logic to services; routes keep HTTP concerns. One file per
 sub-batch, full related-test run each.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: ONE FILE SPLIT — `evidence_documents.py`, 1,718 -> 1,252 lines.
+  It is now UNDER the 1,400-line cap, so its exemption in
+  `test_route_file_sizes.py` is DELETED rather than lowered. Two exemptions
+  left (registration_funnel, admin/organization_management).
+
+  The six file-upload routes moved to `routes/evidence_uploads.py` (505 lines,
+  under the cap and so not exempt). That block was chosen because it is
+  genuinely separable: it uses NONE of the module's shared helpers —
+  `process_evidence_completion`, `update_document_blocks`,
+  `check_quest_completion` and the storage-deletion helpers all stay behind.
+  Pure code move, no logic change.
+
+  THE PART THAT WOULD HAVE BEEN EASY TO GET WRONG: the routes stay on the SAME
+  blueprint, registered through `register_routes(bp)` the way routes/observer/*
+  does. A Flask endpoint name is `blueprint.view_function`, and
+  `middleware/csrf_protection` plus several tests resolve routes BY NAME — a
+  second blueprint would have silently renamed all twelve endpoints. Verified
+  after the move that the same 12 `evidence_documents.*` names are registered.
+
+  One test fixture needed both module paths: the moved routes resolve
+  `get_supabase_admin_client` from their own module now, while the document
+  routes the same file covers still resolve it from `evidence_documents`.
+
+  NOT DONE: the other four. `registration_funnel.py` (2,148) is the biggest and
+  is the live iCreate payment path with an outage history; splitting it is
+  worth doing but wants a browser on the funnel afterwards, not just a green
+  suite.
+
+  The new module inherits `ignore_errors = True` from its parent's mypy.ini
+  section, so the move is exactly gate-neutral. That exemption is TEMPORARY and
+  the next commit deletes it: 173 of 247 route modules are already mypy-clean,
+  so the exemption is the minority holdout, not the convention, and a split that
+  grew the debt list would be a step backwards.
+
+  ruff clean, mypy clean, pyflakes clean. Tests: 4858 passed.
 
 ### QB-05 — Three migration directories with ambiguous authority `[DONE]`
 `supabase/migrations/` is current; `backend/migrations/` (80 files, 4 naming

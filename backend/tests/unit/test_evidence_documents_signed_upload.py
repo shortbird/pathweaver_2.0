@@ -79,8 +79,16 @@ def mock_media_service():
 def mock_admin_supabase():
     """Mock the admin Supabase client to control ownership lookups."""
     admin = MagicMock()
+    # Both modules: the six upload routes moved to routes/evidence_uploads on
+    # 2026-09-03 (QB-04) and resolve the client from their own module, while the
+    # document routes this file also covers still resolve it from
+    # evidence_documents. Patching one leaves the other talking to a real
+    # client, which fails as a connection error a long way from the assertion.
     with patch(
         "routes.evidence_documents.get_supabase_admin_client",
+        return_value=admin,
+    ), patch(
+        "routes.evidence_uploads.get_supabase_admin_client",
         return_value=admin,
     ):
         yield admin
