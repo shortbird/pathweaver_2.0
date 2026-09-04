@@ -1966,11 +1966,38 @@ deleting.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### HYG-03 — pip-audit CVE suppressions re-review `[TODO]` (low)
+### HYG-03 — pip-audit CVE suppressions re-review `[DONE]` (low)
 Three carried ignores (flask-cors, pyjwt, pytest) — re-check whether fixed
 versions now exist; drop stale suppressions.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Re-ran the audit with the ignores REMOVED, which is the only way
+  to find out. None of the three survived. `pip-audit` now runs with no
+  suppressions at all.
+
+  - PYSEC-2024-271 (flask-cors) and PYSEC-2025-183 (pyjwt): **no longer
+    reported**. The ignores were silencing nothing, which is the worst state
+    for a suppression to be in — it reads as a known accepted risk while
+    actually being dead configuration, and the next person to review it spends
+    their time on a finding that no longer exists.
+  - PYSEC-2026-1845 (pytest 8.3.4): still real. FIXED rather than re-ignored,
+    by bumping to 9.0.3. The original reason for ignoring it — "a major bump,
+    and pytest is test-only" — had quietly stopped applying: the local venv has
+    been running the whole suite on 9.0.3 for a while, so the bump was already
+    observed rather than hoped for. Verified 9.0.3 installs cleanly beside
+    pytest-cov 7.1.0, pytest-flask and pytest-mock in a throwaway venv.
+
+  Dropped two unused test dependencies while there: `pytest-flask` (conftest
+  defines its own `client` fixture; nothing uses `live_server` or
+  `client_class`) and `pytest-mock` (zero tests reference `mocker`). The
+  evidence is that the local venv has never had either installed and runs the
+  full suite.
+
+  The workflow comment now says to add an ignore back only with a dated reason
+  AND a re-check date — an ignore nobody revisits is a vulnerability with a
+  comment on it.
+
+  `pip-audit --strict` clean with no ignores. Backend 4856 passed.
 
 ---
 

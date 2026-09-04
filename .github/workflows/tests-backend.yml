@@ -101,18 +101,22 @@ jobs:
         # requirements.txt). Previously this ran in backend/ and audited
         # backend/requirements.txt, so the enforcing gate was blind to prod.
         # Supply-chain gate (enforcing). Documented ignores re-reviewed per bump:
-        # - PYSEC-2024-271 (flask-cors): log-injection only at LOG_LEVEL=debug;
-        #   prod runs at WARNING. No upstream fix.
-        # - PYSEC-2025-183 (pyjwt): disputed (CVE-2025-45768); our keys are 64-hex.
-        # - PYSEC-2026-1845 (pytest): pytest is a TEST-only dependency (fix is a
-        #   major 9.x bump); it is not part of the deployed runtime attack surface.
+        # NO SUPPRESSIONS. All three were re-reviewed on 2026-09-03 (HYG-03)
+        # and none survived:
+        # - PYSEC-2024-271 (flask-cors) and PYSEC-2025-183 (pyjwt) are no longer
+        #   reported at all against the pinned versions -- the ignores had gone
+        #   stale and were silencing nothing.
+        # - PYSEC-2026-1845 (pytest) was real. It is fixed by the 9.0.3 bump in
+        #   requirements.txt rather than ignored; the reason it had been ignored
+        #   ("a major bump, and pytest is test-only") stopped applying once the
+        #   local venv had been running the whole suite on 9.0.3 anyway.
+        #
+        # Add one back only with a dated reason AND a re-check date. An ignore
+        # nobody revisits is a vulnerability with a comment on it.
         run: |
           pip-audit --requirement requirements.txt \
             --strict \
             --vulnerability-service osv \
-            --ignore-vuln PYSEC-2024-271 \
-            --ignore-vuln PYSEC-2025-183 \
-            --ignore-vuln PYSEC-2026-1845 \
             || { echo "::error::pip-audit found vulnerabilities"; exit 1; }
       - name: Secret-exposure guards (ENFORCING)
         working-directory: backend
