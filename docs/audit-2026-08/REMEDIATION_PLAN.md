@@ -1775,11 +1775,34 @@ Log:
 
   Web suite 2496 passing.
 
-### QF-03 — Finish one data-fetching paradigm in v1 `[TODO]`
+### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet in place; migration itself still open)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
 `hooks/api/`; migrate the highest-churn pages first. Not a big-bang rewrite.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: The ratchet the item asks for is in place. Migration is not, and
+  the item stays open for it.
+
+  Re-measured across 174 pages: **12 use `hooks/api/` or react-query, 108 call
+  `api.*` directly with no hook.** (The audit's "29 react-query files" counts
+  the hooks themselves plus components; at PAGE level it is 12.)
+
+  `frontend/src/__tests__/dataFetchingParadigm.test.js` fences the hand-rolled
+  count at 108. Nobody has to migrate anything to keep it green — but a page
+  REWRITTEN in the old style turns it red, which is exactly the "new/touched
+  pages use hooks/api" rule the item states, enforced instead of documented.
+
+  A fourth test asserts `hooks/api/` still exists and is non-trivial: the
+  ratchet's failure message names a destination, and if that directory were
+  ever removed the message would be telling people to migrate into nothing.
+
+  Recorded the cost in the test, so it reads as more than consistency: the
+  hand-rolled style has no request dedupe (two components mounting the same
+  page fetch twice), no cache (a back-navigation refetches everything), no
+  shared retry, and reinvents loading and error state every time — which is
+  also how QF-05's silent-empty-section pattern spreads.
+
+  Web suite green.
 
 ### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval
