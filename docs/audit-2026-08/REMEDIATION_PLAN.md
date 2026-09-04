@@ -2323,6 +2323,40 @@ Log:
 
   v1: 290 files / 2539 passed. v2: 101 suites / 768 passed, tsc clean.
 
+- 2026-09-04: FIFTH AND LAST CROSS-APP FINDING — and the useful half of it is
+  that the guard for it already existed.
+
+  Went looking for API-contract drift between the two clients, which is what
+  the item names next. THE TWO CLIENTS DO NOT DISAGREE: 213 endpoints are
+  called by both apps and every one matches. The one candidate the diff threw
+  up (`evidence/:id`) is two different resources.
+
+  The drift is between the CLIENTS and the SERVER. Diffing every `/api` literal
+  in both apps against Flask's `url_map` found the mobile observer-accept
+  screen POSTing the invitation code in the BODY, where the backend serves it
+  as a path segment — so accepting an observer invitation on a phone had been
+  404ing every time, reported to the user as "the code may be invalid or
+  expired". Fixed. Three dead exports in v2's `services/api.ts` went too
+  (`taskAPI.create`, `userAPI.xp`, `userAPI.badges`, none called, none served).
+
+  THEN THE BACKEND SUITE TOLD ME `tests/test_client_api_paths_exist.py` has
+  been doing this since 2026-08-18, and that all four paths were already in its
+  KNOWN_DEAD baseline. So the finding was not new — the guard had catalogued it
+  and was waiting for someone to fix it. My duplicate test is deleted; the four
+  entries are retired from the baseline, which is what its "only shrinks"
+  assertion exists to force. The lesson is cheap and worth keeping: check for
+  an existing guard before writing one.
+
+  WHAT IS LEFT of this item is the mass extraction the title asks for — moving
+  useQuests/useBounties/useNotifications logic into `shared/`. Deliberately not
+  done: v2's bounties hook is a read-only three-endpoint subset of v1's full
+  CRUD surface, so they are not two copies of one thing, and merging them means
+  designing a shared abstraction rather than moving code. Two lists that mostly
+  agree are not one list in two places — the same conclusion the SIS path lists
+  reached above.
+
+  Backend 4,897 passed. v1: 290 files / 2,539 passed. v2: 769 passed, tsc clean.
+
 - 2026-09-03: FOURTH FROM THE SWEEP, AND THE SMALL ONE — `CaptureModal.tsx`
   capped videos at 50MB while uploading through `uploadViaSignedUrl`, whose
   server limit is `MAX_VIDEO_SIZE_SIGNED` = 500MB. 50MB is `MAX_VIDEO_SIZE`,
@@ -2409,6 +2443,45 @@ Log:
   also how QF-05's silent-empty-section pattern spreads.
 
   Web suite green.
+
+- 2026-09-04: THE FOUR HIGHEST-CHURN PAGES MIGRATED. Chosen by churn, as the
+  item says, not by size: RosterPage (19 commits in six months),
+  HouseholdsPage (18), StaffPage (16), TeacherClassPage (15). New hooks
+  `useSisRoster`, `useSisStaff`, `useSisHouseholds`, `useSisTeacherClass`.
+  555 hand-rolled call sites -> 540; 12 hooked pages -> 16.
+
+  Every hook keys on orgId, not just the URL. A superadmin switches orgs inside
+  a single session, and a cache keyed only by path would hand them the previous
+  org's roster.
+
+  Two were more than a mechanical swap. `useSisHouseholds` keeps its three
+  requests in ONE query: the page is meaningless with a subset, and separate
+  queries would let a student render as both assigned and unassigned mid-flight.
+  It also improves a failure mode — a rejected `Promise.all` used to toast once
+  and blank all three lists, where the query keeps the last good data.
+  `useSisTeacherClass` keys on classId too; the page previously kept class,
+  budget and roster in three `useState`s that survived a classId change, so a
+  teacher moving between classes saw the previous roster until the new response
+  landed.
+
+  THE REAL COST, worth stating for whoever does the next batch: six test files
+  needed a QueryClientProvider. A page that reads through a hook needs that
+  context, and every test rendering it has to supply one — fresh client per
+  render so one test's cache cannot leak into the next, and `retry: false` so a
+  failed query fails the assertion instead of hanging through three backoff
+  rounds.
+
+  THE RATCHET NOW COUNTS CALL SITES, not files. Splitting ClassesPage for QF-02
+  took the file tally from 108 to 118 without adding a single fetch — the
+  ratchet moving for a reason with nothing to do with this item. Call sites are
+  invariant under a pure move (62 across the three split files before, 62
+  after, counted) and are what actually changes when a page adopts a hook.
+
+  The long tail — 115 pages, 540 call sites — stays open ON PURPOSE. The item
+  says this is not a big-bang rewrite, and it is right: each migration costs a
+  provider in every test that renders the page.
+
+  Web suite 2,539 passed.
 
 ### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval
