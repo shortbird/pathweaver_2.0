@@ -57,6 +57,19 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
     }
   }, [photoFile, photoPreview])
 
+  useEffect(() => {
+    if (initial) {
+      setFormData({
+        first_name: initial.first_name || '',
+        last_name: initial.last_name || '',
+        email: initial.email || '',
+        phone_number: initial.phone_number || '',
+        bio: initial.bio || '',
+      })
+      setPhotoPreview(initial.avatar_url || null)
+    }
+  }, [initial])
+
   // Load the org's staff onboarding checklists so the admin can assign one at
   // add-time (the whole point of wiring onboarding into the flow). Only when
   // adding — editing a teacher doesn't re-run onboarding.
@@ -113,6 +126,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         email: formData.email.trim(),
+        phone_number: formData.phone_number.trim(),
         bio: formData.bio,
         organization_id: orgId,
         onboarding_template_id: onboardingTemplateId || null,
@@ -398,19 +412,13 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
               )}
             </div>
 
-            {/* Manual entry, by request: "I will even put them in manually so
-                that we don't have to wait for the login request thing"
-                (iCreate, 2026-08-27). Editing only — a new invite has just an
-                email, and the teacher fills in the rest themselves. */}
-            {isEdit && (
-              <div>
-                <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone
-                </label>
-                <input type="tel" id="phone_number" name="phone_number" value={formData.phone_number}
-                  onChange={handleChange} placeholder="801-555-0100" className={inputClass} />
-              </div>
-            )}
+            <div>
+              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+                Phone {!isEdit && <span className="text-gray-400 font-normal">(optional)</span>}
+              </label>
+              <input type="tel" id="phone_number" name="phone_number" value={formData.phone_number}
+                onChange={handleChange} placeholder="801-555-0100" className={inputClass} />
+            </div>
 
             {/* Replaces the old name-match guard: with no name typed we can't
                 detect the duplicate, so the people it could be are offered

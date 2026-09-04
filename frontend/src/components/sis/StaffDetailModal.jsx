@@ -201,6 +201,7 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
         {/* Body */}
         <div className="p-4 space-y-2 overflow-y-auto">
           {!staff.is_placeholder && <Row label="Email" value={staff.email} />}
+          <Row label="Phone" value={profile?.phone_number || staff.phone_number} />
           <Row label="Employment" value={employment} />
           <Row label="Schedule" value={profile?.work_schedule} />
           {/* The API drops pay fields for a campus coordinator; an empty row
