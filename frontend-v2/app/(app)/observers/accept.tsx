@@ -37,9 +37,15 @@ export default function AcceptInvitationScreen() {
     if (!finalCode) return;
     setAccepting(true);
     try {
-      const { data } = await api.post('/api/observers/accept', {
-        invitation_code: finalCode,
-      });
+      // The code goes in the PATH. The backend serves
+      // /api/observers/accept/<invitation_code> and has no body-based variant,
+      // so posting it as { invitation_code } 404'd every time -- and the catch
+      // below reported it as "the code may be invalid or expired", which is why
+      // this looked like bad invite codes rather than a broken screen.
+      const { data } = await api.post(
+        `/api/observers/accept/${encodeURIComponent(finalCode)}`,
+        {},
+      );
       setSuccess(true);
       setStudentName(data.student?.display_name || 'the student');
     } catch (err: any) {

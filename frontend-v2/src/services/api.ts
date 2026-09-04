@@ -511,11 +511,13 @@ export const questAPI = {
   tasks: (questId: string) => api.get(`/api/quests/${questId}/tasks`),
 };
 
+// `create`, `xp` and `badges` were removed on 2026-09-04: they named endpoints
+// the backend has never served (/api/tasks, /api/users/xp, /api/users/badges),
+// so anyone reaching for them would have got a 404. Nothing called them --
+// checked before deleting. The rest of these are real.
 export const taskAPI = {
   complete: (id: string, data?: Record<string, unknown>) =>
     api.post(`/api/tasks/${id}/complete`, data || {}),
-  create: (data: Record<string, unknown>) =>
-    api.post('/api/tasks', data),
   delete: (id: string) => api.delete(`/api/tasks/${id}`),
 };
 
@@ -523,8 +525,6 @@ export const userAPI = {
   profile: () => api.get('/api/users/profile'),
   updateProfile: (data: Record<string, unknown>) =>
     api.put('/api/users/profile', data),
-  xp: () => api.get('/api/users/xp'),
-  badges: () => api.get('/api/users/badges'),
 };
 
 export const bountyAPI = {

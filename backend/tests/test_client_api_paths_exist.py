@@ -61,6 +61,15 @@ _INTERP = re.compile(r'\$\{[^}]*\}')
 #
 # Every line here is a button that fails for a user. Delete entries as they are
 # fixed; the stale-entry test below makes sure the list can only shrink.
+# FIXED AND REMOVED 2026-09-04 (QF-01):
+#   /api/observers/accept  was the live one. The mobile accept screen POSTed
+#     the code in the BODY while the backend serves it as a path segment, so
+#     accepting an observer invitation on a phone 404'd every time and the
+#     screen reported it as "the code may be invalid or expired". Now posts to
+#     /api/observers/accept/<code>.
+#   /api/tasks, /api/users/xp, /api/users/badges were dead exports in v2's
+#     services/api.ts (taskAPI.create, userAPI.xp, userAPI.badges). Nothing
+#     called them; they are deleted rather than pointed somewhere.
 KNOWN_DEAD = {
     '/api/admin/ai-quest-review/bulk-reject',
     '/api/admin/organizations/__param__/invitations__param__',
@@ -84,7 +93,6 @@ KNOWN_DEAD = {
     '/api/lms/platforms',
     '/api/lms/sync/assignments',
     '/api/lms/sync/roster',
-    '/api/observers/accept',
     '/api/observers/student/__param__/progress',
     '/api/observers/student/__param__/report',
     '/api/parent/child-overview',
@@ -106,7 +114,6 @@ KNOWN_DEAD = {
     '/api/quests/__param__/user-rating',
     '/api/sis/reports/__param__',
     '/api/sis/teacher/time/__param__',
-    '/api/tasks',
     '/api/tutor/chat',
     '/api/tutor/conversations',
     '/api/tutor/conversations/__param__',
@@ -119,8 +126,6 @@ KNOWN_DEAD = {
     '/api/users/__param__/profile',
     '/api/users/__param__/settings',
     '/api/users/__param__/transcript',
-    '/api/users/badges',
-    '/api/users/xp',
 }
 
 
