@@ -114,6 +114,13 @@ jobs:
           CRYPT_SALT: ${{ secrets.BACKUP_STORAGE_CRYPT_SALT }}
           PROJECT_REF: ${{ vars.BACKUP_SUPABASE_PROJECT_REF }}
           BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+          # Must equal the project's region (Project Settings -> General ->
+          # Project region). Supabase signs S3 requests SigV4, and SigV4 puts
+          # the region in the signing key -- a wrong one is not ignored, it is
+          # a 403 SignatureDoesNotMatch that reads like bad credentials.
+          # Overridable for a project that moves; defaulted so turning the
+          # backup on stays four secrets and one variable.
+          S3_REGION: ${{ vars.BACKUP_SUPABASE_REGION || 'us-west-1' }}
         run: |
           set -euo pipefail
           umask 077
@@ -126,7 +133,7 @@ jobs:
           access_key_id = ${S3_KEY}
           secret_access_key = ${S3_SECRET}
           endpoint = https://${PROJECT_REF}.storage.supabase.co/storage/v1/s3
-          region = us-east-1
+          region = ${S3_REGION}
           force_path_style = true
 
           [gcs]

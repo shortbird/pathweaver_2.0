@@ -201,10 +201,14 @@ the 90-day retention protects against.
 Four secrets and one variable, none of which exist yet. The workflow's first
 step fails by name if any is missing.
 
-1. **Supabase S3 access keys.** Dashboard → Project Settings → Storage → S3
-   Access Keys → "New access key". Store as repository secrets
-   `BACKUP_SUPABASE_S3_ACCESS_KEY_ID` and
+1. **Supabase S3 access keys.** Dashboard → **Storage** (the product in the left
+   nav, not Project Settings) → **S3 Configuration** → "New access key":
+   https://supabase.com/dashboard/project/vvfgxcykxjybtvpfzwyx/storage/s3
+   Store as repository secrets `BACKUP_SUPABASE_S3_ACCESS_KEY_ID` and
    `BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY`.
+
+   These keys bypass RLS and can read every bucket, which is why the workflow
+   is the only thing that holds them.
 2. **Encryption passphrases.** Two independent random strings:
    ```bash
    openssl rand -base64 32   # -> BACKUP_STORAGE_CRYPT_PASSWORD
@@ -217,6 +221,14 @@ step fails by name if any is missing.
 3. **Project ref.** Repository *variable* `BACKUP_SUPABASE_PROJECT_REF` =
    `vvfgxcykxjybtvpfzwyx`. A variable rather than a secret: it is not
    confidential and a wrong value is much easier to debug when you can read it.
+
+**Region.** The workflow defaults to `us-west-1`, which is this project's region
+(Project Settings → General → Project region). Nothing to set unless the project
+moves — then set the variable `BACKUP_SUPABASE_REGION`. It matters because
+Supabase signs S3 requests with SigV4, which mixes the region into the signing
+key: a wrong region is not ignored, it is a 403 `SignatureDoesNotMatch` that
+reads exactly like bad credentials. The workflow shipped hardcoded to
+`us-east-1` and would have failed its first run on this.
 
 GCS reuses what the DB job already has — `BACKUP_GCP_WIF_PROVIDER`,
 `BACKUP_GCP_SERVICE_ACCOUNT`, `BACKUP_GCS_BUCKET`. No new cloud setup.

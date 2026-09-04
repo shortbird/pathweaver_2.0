@@ -2814,6 +2814,25 @@ Log:
     4. Run it once by hand and watch it. The first sync moves all 7.8 GB.
   Full setup and restore instructions are in backend/docs/BACKUP_RESTORE.md,
   and backup-db.yml's "that gap is still open" note now points at it.
+- 2026-09-04: Two setup bugs found while walking the user through step 1, both
+  of which would have failed the first run.
+
+  REGION WAS HARDCODED `us-east-1`. The project is `us-west-1`. Supabase signs
+  S3 requests with SigV4, which folds the region into the signing key, so the
+  wrong one is not ignored — it is a 403 `SignatureDoesNotMatch`, which reads
+  as bad credentials and would have sent someone back to regenerate keys that
+  were fine. Now `${vars.BACKUP_SUPABASE_REGION || 'us-west-1'}`: defaulted so
+  turning the backup on is still four secrets and one variable, overridable if
+  the project ever moves.
+
+  DOCS SENT THE USER TO THE WRONG PAGE. "Project Settings → Storage → S3 Access
+  Keys" does not exist in the current dashboard; the keys are under the Storage
+  product itself (`/storage/s3`, "S3 Configuration"). The user hit exactly this
+  and could not find them. Docs now carry the direct URL.
+
+  Both are the same class of defect: this workflow has never run, so nothing in
+  it has been executed against reality — only reviewed. Worth remembering when
+  the first real run happens.
 
 ### OPS-05 — No branch protection / PR gate on `main` `[NEEDS-USER]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow
