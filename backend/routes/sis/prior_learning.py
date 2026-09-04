@@ -20,6 +20,7 @@ file into, or vice versa.
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.sis_roles import ADMIN_ROLES
 from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
@@ -289,6 +290,7 @@ def credit_record(user_id, record_id):
 
 @bp.route('/students/<student_id>/accepted', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='prior_learning')
 def student_accepted(user_id, student_id):
     """Everything accepted for one student — the transcript-side view of this
     queue, and what the credit-application step will read when it's built."""

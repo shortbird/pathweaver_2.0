@@ -207,11 +207,6 @@ _reviewed(
 _reviewed(
     'ADMIN_ROLES gate + org_id resolved from the CALLER, and the person lookup '
     'is filtered by it, so a target outside the caller\'s school 404s',
-    'sis.get_org_user',
-    'sis.person_removal_preview',
-    'sis.remove_person',
-    'sis.update_user_role',
-    'sis.remove_household_member',
 )
 _reviewed(
     'row selector, not the authorization subject: rights over the CLASS decide, '
@@ -268,8 +263,6 @@ _reviewed(
 _reviewed(
     'ADMIN_ROLES/STAFF_ROLES gate + every query filtered by the caller\'s own '
     'organization_id, so a cross-org student id does not resolve',
-    'sis_catalog.unenroll_student',
-    'sis_prior_learning.student_accepted',
     'school_inbox.send_as_school',
 )
 _reviewed(
@@ -296,7 +289,6 @@ _reviewed(
 _reviewed(
     '_authorize(caller, class_id) proves class moderator, then the student must '
     'hold an active class_enrollments row on that class',
-    'sis_goals.save_goals',
 )
 _reviewed(
     'service.can_access_class / can_manage_class(class_id, caller, roles, org)',

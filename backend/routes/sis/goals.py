@@ -21,6 +21,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth, require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.validation import sanitize_input
 from services import sis_service
@@ -224,6 +225,7 @@ def my_goals(user_id):
 
 @bp.route('/students/<student_id>', methods=['PUT'])
 @require_auth
+@require_relationship_to('student_id', allow=('parent',))
 def save_goals(user_id, student_id):
     """Upsert this student's goals for the current school year.
     Body: {direction, direction_notes, subjects: [{subject, year_goal, long_term}],

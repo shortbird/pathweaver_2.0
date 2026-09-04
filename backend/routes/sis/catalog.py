@@ -10,6 +10,7 @@ org_classes WITHOUT changing the existing LMS class CRUD (routes/classes/*).
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_catalog_service as catalog
@@ -542,6 +543,7 @@ def enroll_student(user_id, class_id):
 
 @bp.route('/classes/<class_id>/enrollments/<student_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def unenroll_student(user_id, class_id, student_id):
     """Staff drop a student from a class (marks the enrollment withdrawn and
     re-syncs the class group). Used by the CLP meeting view to make live changes.

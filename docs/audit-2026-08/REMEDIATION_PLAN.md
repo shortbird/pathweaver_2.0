@@ -917,7 +917,26 @@ Log:
   once the stack grew. Both now unwrap or grant completely, with the reason
   written down.
 
-  SESSION TOTAL for (c): declared 37 -> 148 of 217, allowlist 166 -> 43.
+- 2026-09-03: (c) continues — the rest of the SIS surface, 8 routes across
+  four modules (sis/__init__ people+users+household, catalog, goals,
+  prior_learning). Declared 148 -> 156, allowlist 43 -> 35.
+
+  Seven declare `('org_staff',)`. `sis_goals.save_goals` declares `('parent',)`
+  — it is the family-facing goal form, gated by `_is_my_student`, and giving it
+  org_staff would have handed the school write access to a form the family
+  fills in.
+
+  SESSION TOTAL for (c): declared 37 -> 156 of 217, allowlist 166 -> 35.
+
+  OF THE REMAINING 35, roughly THIRTEEN SHOULD NEVER MIGRATE and the allowlist
+  says so in each case: eight row-selector routes (removing an advisor from a
+  class or cohort, the two org_connections advisor pairs, removing a family
+  observer, toggling their access, unblocking), three unauthenticated-by-design
+  (`public.get_public_transcript`,
+  `portfolio.get_public_diploma_by_user_id`, `learning_events.get_public_learning_events`),
+  `masquerade.start_masquerade` with its own reason, and
+  `admin_audit_logs.get_admin_activity`, which has a SCOPE rather than a gate.
+  The genuinely migratable remainder is about twenty-two.
 
   WHAT IS LEFT, and a good part of it should STAY: of the 52, eight are the
   row-selector cases named above (removing an advisor from a class, a family

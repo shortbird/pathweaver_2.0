@@ -161,8 +161,11 @@ class TestRoutes:
         assert resp.status_code == 403
 
     def test_preview_route(self, client, auth_headers, mock_verify_token):
+        # caller_can_access_user grants the SEC-10 relationship gate, which runs
+        # before the view; the resolve_org_id stub below is the in-view scope.
         with patch('database.get_supabase_admin_client',
                    return_value=_admin_client_for_role('org_admin')), \
+             patch('utils.auth.org_scope.caller_can_access_user', return_value=True), \
              patch('services.sis_service.resolve_org_id', return_value='org-1'), \
              patch('services.sis_person_service.removal_preview',
                    return_value={'kind': 'student', 'name': 'Ryder', 'can_delete': True,
@@ -179,8 +182,11 @@ class TestRoutes:
             captured.update(mode=mode, target=target_id, actor=actor_id)
             return {'deleted': True, 'name': 'Ryder'}
 
+        # caller_can_access_user grants the SEC-10 relationship gate, which runs
+        # before the view; the resolve_org_id stub below is the in-view scope.
         with patch('database.get_supabase_admin_client',
                    return_value=_admin_client_for_role('org_admin')), \
+             patch('utils.auth.org_scope.caller_can_access_user', return_value=True), \
              patch('services.sis_service.resolve_org_id', return_value='org-1'), \
              patch('services.sis_person_service.remove_person', side_effect=fake_remove):
             resp = client.delete('/api/sis/people/s1?organization_id=org-1&mode=delete',
@@ -190,8 +196,11 @@ class TestRoutes:
         assert captured['target'] == 's1'
 
     def test_blocked_delete_is_409(self, client, auth_headers, mock_verify_token):
+        # caller_can_access_user grants the SEC-10 relationship gate, which runs
+        # before the view; the resolve_org_id stub below is the in-view scope.
         with patch('database.get_supabase_admin_client',
                    return_value=_admin_client_for_role('org_admin')), \
+             patch('utils.auth.org_scope.caller_can_access_user', return_value=True), \
              patch('services.sis_service.resolve_org_id', return_value='org-1'), \
              patch('services.sis_person_service.remove_person',
                    return_value={'error': 'Ryder has school records attached (attendance).',

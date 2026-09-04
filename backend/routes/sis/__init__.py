@@ -116,6 +116,7 @@ def roster_export_details(user_id):
 
 @bp.route('/people/<target_id>/removal-preview', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('target_id', allow=('org_staff',))
 def person_removal_preview(user_id, target_id):
     """What removing this person would affect — and whether their records rule
     out deleting the account outright. Works for students and guardians as well
@@ -132,6 +133,7 @@ def person_removal_preview(user_id, target_id):
 
 @bp.route('/people/<target_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('target_id', allow=('org_staff',))
 def remove_person(user_id, target_id):
     """Remove a person from the org: archive (default) or ?mode=delete.
 
@@ -668,6 +670,7 @@ def add_household_member(user_id, household_id):
 
 @bp.route('/households/<household_id>/members/<member_user_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('member_user_id', allow=('org_staff',))
 def remove_household_member(user_id, household_id, member_user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -714,6 +717,7 @@ def update_student(user_id, student_id):
 
 @bp.route('/users/<target_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('target_id', allow=('org_staff',), discloses='profile')
 def get_org_user(user_id, target_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -726,6 +730,7 @@ def get_org_user(user_id, target_id):
 
 @bp.route('/users/<target_id>/role', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('target_id', allow=('org_staff',))
 def update_user_role(user_id, target_id):
     org_id, err = _org_or_error(user_id)
     if err:
