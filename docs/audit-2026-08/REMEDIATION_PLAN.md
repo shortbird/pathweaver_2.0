@@ -2120,12 +2120,26 @@ Log:
 
   Tests: 4843 passed, 160 skipped, 0 failed.
 
-### QB-06 — Repository-pattern endgame decision `[NEEDS-USER]`
+### QB-06 — Repository-pattern endgame decision `[DONE(fenced; the full migration is declined, not deferred)]`
 Full migration is 1-2 engineers x 2-3 quarters; fencing (CI-02 + require repos
 for new code) is ~2 weeks. Recommend fencing. User to confirm before anyone
 funds the full migration.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: User chose fencing. Nothing to build — CI-02 shipped the fence
+  already (`test_direct_db_calls_do_not_grow.py`, a ratchet on direct DB calls
+  in `routes/` and `services/` that may fall and never rise).
+
+  What this decides, so nobody reopens it as an oversight: the ~9% adherence
+  recorded in DOC-01 is now the accepted steady state, not a migration stalled
+  partway. New code uses repositories; existing direct-DB code is left where it
+  is and shrinks only when something else brings a session into that file. The
+  full migration is DECLINED on cost, not postponed.
+
+  The honest case against finishing it: a repository layer pays for itself in
+  testability and in swapping the data source, and this codebase is not going
+  to swap Supabase. What it would buy here is consistency, and 2-3 quarters is
+  a great deal to pay for consistency in a codebase two people work on.
 
 ---
 
@@ -2853,11 +2867,26 @@ Log:
   it has been executed against reality — only reviewed. Worth remembering when
   the first real run happens.
 
-### OPS-05 — No branch protection / PR gate on `main` `[NEEDS-USER]`
+### OPS-05 — No branch protection / PR gate on `main` `[WONTFIX(direct-push stays; the deploy gate is the real control)]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow
 decision for the user, not a code fix.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: User chose to keep direct-push. Recorded as WONTFIX rather than
+  left open, so the next audit does not re-raise it as an unexamined gap.
+
+  The reasoning: branch protection protects a branch from people who can push
+  to it, and here that is one person plus his agents. What it would actually
+  add is a PR round-trip on every change, and the control it is usually wanted
+  for — "untested code cannot reach production" — is already enforced further
+  down the pipe. Render auto-deploy is OFF for both prod services, so the only
+  thing that deploys prod is release.yml's `deploy` job, which now needs
+  backend, web AND integration to be green (CI-05, today). Bad code can land on
+  `main`; it cannot reach users.
+
+  What is genuinely given up: nothing stops a force-push or a branch deletion,
+  and there is no second pair of eyes before code is on `main`. Both are
+  accepted. If the committer count ever rises above one, revisit this first.
 
 ### OPS-06 — `marketing/` site + `marketingUrl.js` exist only untracked `[DONE(resolved by the owning session)]`
 They sit uncommitted in the main working tree and belong to another in-flight
