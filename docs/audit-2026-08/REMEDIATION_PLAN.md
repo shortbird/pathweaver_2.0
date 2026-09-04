@@ -1807,12 +1807,40 @@ the 10MB OpenCV WASM behind the document-scanner route. Build currently needs a
 Log:
 - 2026-08-31: Plan created.
 
-### QF-07 — Styling drift `[TODO]` (low)
+### QF-07 — Styling drift `[DONE(ratcheted; the 293 not converted)]` (low)
 v1: ~40 genuinely off-palette hex values (plus ~160 brand colors written as hex —
 mechanical swap); v2: 241 hex vs 208 token usages, off-palette `#af56e5`,
 `#2469d1`, `#ff9028`. Use brand tokens (`optio-purple`/`optio-pink`).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Measured properly, corrected the finding, and ratcheted rather
+  than converted.
+
+  v1 has 493 hex literals in `src/`. Split against what
+  `tailwind.config.js` actually defines:
+    - **200 are brand colours written as hex** — a mechanical swap to the token.
+    - **293 are off-palette**, across 88 distinct values. Mostly Tailwind's own
+      greys spelled out (`#e5e7eb` ×27, `#6b7280` ×20, `#9ca3af` ×10) plus
+      one-off pinks, greens and blues that drifted in.
+
+  A CORRECTION: the item lists `#af56e5` and `#2469d1` as off-palette. They are
+  not — both are DEFINED in tailwind.config.js, as `pillar-art` and
+  `pillar-stem`. They belong in the 200 bucket, not the 293. Which matters,
+  because "off-palette" invites deleting a colour where the right fix is naming
+  it.
+
+  `frontend/src/__tests__/brandPalette.test.js` reads the sanctioned palette out
+  of the config (so it cannot drift from the design system) and ratchets the
+  off-palette count at 293, with the usual companion test against a baseline
+  that has stopped meaning anything, plus a guard that the config is being read
+  at all — an empty palette would make every hex look off-palette and turn the
+  ratchet into noise.
+
+  NOT CONVERTED, deliberately: every one of the 293 is a visual change to a real
+  screen, and the whole point of a brand palette is that somebody looks at the
+  result. A ratchet stops the drift; a person fixes it.
+
+  Web suite green.
 
 ### QF-08 — A11y: tooling installed but unused; 36 div-onClick `[DONE(tooling wired; div-onClick ratcheted, not converted)]` (low)
 Wire vitest-axe smoke tests on the top pages or remove the dead deps; convert
