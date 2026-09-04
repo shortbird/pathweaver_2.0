@@ -110,7 +110,7 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import ReportsPage, { BlockRosters, DayRosters } from './ReportsPage'
+import ReportsPage, { BlockRosters, DayRosters, cellSortValue, compareCells } from './ReportsPage'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -506,5 +506,36 @@ describe('Block rosters', () => {
   it('says so when nothing is scheduled', () => {
     render(<BlockRosters days={[]} day="" onDayChange={() => {}} />)
     expect(screen.getByText('No classes are scheduled yet.')).toBeInTheDocument()
+  })
+})
+
+describe('Tiered report sort helper functions', () => {
+  it('parses day strings into comparable values', () => {
+    expect(cellSortValue('days', 'Mon Wed')).toBe(1)
+    expect(cellSortValue('days', 'Tue Thu')).toBe(2)
+    expect(cellSortValue('days', 'Fri')).toBe(5)
+    expect(cellSortValue('days', '')).toBeNull()
+  })
+
+  it('parses time strings into minute offsets', () => {
+    expect(cellSortValue('time', '9:00am')).toBe(540)
+    expect(cellSortValue('time', '11:30am')).toBe(690)
+    expect(cellSortValue('time', '1:00pm')).toBe(780)
+    expect(cellSortValue('time', '12:00pm')).toBe(720)
+    expect(cellSortValue('time', '')).toBeNull()
+  })
+
+  it('parses amounts and age values', () => {
+    expect(cellSortValue('tuition', '$365.00')).toBe(365)
+    expect(cellSortValue('Amount', '$1,200.00')).toBe(1200)
+    expect(cellSortValue('age', '13 years')).toBe(13)
+    expect(cellSortValue('ages', '8–12')).toBe(8)
+  })
+
+  it('compares cells with proper type awareness', () => {
+    expect(compareCells('days', 'Mon', 'Wed')).toBeLessThan(0)
+    expect(compareCells('time', '9:00am', '1:00pm')).toBeLessThan(0)
+    expect(compareCells('age', '13', '6')).toBeGreaterThan(0)
+    expect(compareCells('tuition', '$365.00', '$1,200.00')).toBeLessThan(0)
   })
 })
