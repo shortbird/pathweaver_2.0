@@ -18,8 +18,19 @@ import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // File size limits (must match backend constants)
+// Mirrors SIGNED_EVIDENCE_SIZE_LIMITS in backend/config/constants.py, because
+// this component uploads through uploadViaSignedUrl -- payload goes direct to
+// Supabase, so the server allows a much bigger video than the legacy
+// multipart-through-backend path does.
+//
+// The video cap read 50MB until 2026-09-03, which is MAX_VIDEO_SIZE, the
+// MULTIPART limit. It rejected videos the server would have accepted, while the
+// same file went through CaptureSheet (the native path, same signed upload)
+// fine. Low blast radius -- this is the desktop-web branch of the journal tab
+// and v2's web target is dev-only -- but a client copy of a server constant
+// that names the wrong constant is worth fixing wherever it sits.
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB (signed-upload)
 const MAX_DOCUMENT_SIZE = 25 * 1024 * 1024; // 25MB
 
 interface FileItem {

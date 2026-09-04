@@ -2316,6 +2316,27 @@ Log:
 
   v1: 290 files / 2539 passed. v2: 101 suites / 768 passed, tsc clean.
 
+- 2026-09-03: FOURTH FROM THE SWEEP, AND THE SMALL ONE — `CaptureModal.tsx`
+  capped videos at 50MB while uploading through `uploadViaSignedUrl`, whose
+  server limit is `MAX_VIDEO_SIZE_SIGNED` = 500MB. 50MB is `MAX_VIDEO_SIZE`,
+  the legacy multipart limit: a client copy of a server constant naming the
+  wrong constant. The same file went through `CaptureSheet` — the native path,
+  same signed upload — without complaint.
+
+  Recorded honestly as minor: `CaptureModal` is the desktop-web branch of the
+  journal tab and v2's web target is dev-only, so no real user hits it. Fixed
+  because a wrong copy of a server limit is worth a line wherever it sits, not
+  because anyone was blocked.
+
+  THE PATTERN ACROSS ALL FOUR of today's cross-app findings is the same and
+  worth stating once: **a client-side copy of a server-side rule, that nothing
+  checks.** Pillar colours, entity decoding, XP roles, upload caps. None was
+  findable by reading one file; all four came from running the two sides
+  against the same input, or reading the server's constant next to the client's.
+  That is the cheap technique this item should keep using.
+
+  v2: 101 suites / 768 passed, tsc clean.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
