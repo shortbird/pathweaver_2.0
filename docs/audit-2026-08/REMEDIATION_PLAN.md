@@ -818,6 +818,28 @@ Log:
   so the refusal test still refuses, now at the door.
 
   ruff clean, mypy clean. Tests: 4811 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — `routes/admin/transfer_credits.py`, 5 routes,
+  migrated AND collapsed. Declared 113 -> 118, allowlist 78 -> 73.
+
+  Identical shape to transcript_generator: `@require_school_admin` plus an
+  inline `caller_can_access_user` in every handler, added as the IDOR-C2 fix.
+  `org_staff` calls that same function with the same admin client and the same
+  caller id, so collapsing is an identity rather than a widening — the same
+  argument, verified the same way.
+
+  `get_transfer_credits` also declares `discloses='transfer_credits'`, so a
+  staff member reading another student's external transcript record now writes
+  a FERPA disclosure row (SEC-15). The four write routes do not: a write is not
+  a disclosure of a record.
+
+  THE GUARD EARNED ITS KEEP HERE. I migrated the five routes and forgot to
+  remove their allowlist entries; `test_migrating_a_route_removes_its_allowlist_entry`
+  failed the build. Without it the entries would have sat there claiming an
+  inline check that no longer exists, which is the exact failure mode SEC-13
+  found in the admin-client comments — a justification that names the wrong
+  gate reads as reviewed.
+
+  ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

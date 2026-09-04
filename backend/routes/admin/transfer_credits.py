@@ -9,12 +9,19 @@ Endpoints:
 - POST /api/admin/transfer-credits/<user_id> - Save transfer credits (create/update)
 - POST /api/admin/transfer-credits/<user_id>/transcript - Upload transcript file
 - DELETE /api/admin/transfer-credits/<user_id> - Remove all transfer credits
+
+AUTHORIZATION. `@require_school_admin` says the caller administers SOME
+organization; `@require_relationship_to('user_id', allow=('org_staff',))` says
+they administer THIS student's. The second is the IDOR-C2 fix, which used to be
+an inline `caller_can_access_user` in each of the five handlers and moved to the
+decorator on 2026-09-03 (SEC-10) with no change in who passes -- `org_staff`
+calls that same function with the same admin client and the same caller id.
 """
 
 from flask import Blueprint, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_school_admin
-from utils.auth.org_scope import caller_can_access_user
+from utils.auth.relationships import require_relationship_to
 from utils.api_response import success_response, error_response
 from utils.logger import get_logger
 from utils.storage_urls import (
@@ -60,6 +67,7 @@ ALLOWED_TRANSCRIPT_TYPES = {
 
 @bp.route('/<user_id>', methods=['GET'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',), discloses='transfer_credits')
 def get_transfer_credits(admin_user_id, user_id):
     """
     Get all transfer credits for a student (supports multiple source institutions).
@@ -70,10 +78,6 @@ def get_transfer_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
-
-        # IDOR-C2 fix: the target student must be in the caller's org (superadmin exempt).
-        if not caller_can_access_user(supabase, admin_user_id, user_id):
-            return error_response('Access denied', status_code=403)
 
         # Verify the target user exists
         user_result = supabase.table('users').select('id, first_name, last_name, email').eq('id', user_id).execute()
@@ -130,6 +134,7 @@ def get_transfer_credits(admin_user_id, user_id):
 
 @bp.route('/<user_id>', methods=['POST'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def save_transfer_credits(admin_user_id, user_id):
     """
     Save transfer credits for a student (create or update).
@@ -145,8 +150,6 @@ def save_transfer_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
-        if not caller_can_access_user(supabase, admin_user_id, user_id):
-            return error_response('Access denied', status_code=403)
         data = request.json or {}
 
         # Validate required fields (handle None values from frontend)
@@ -280,6 +283,7 @@ def save_transfer_credits(admin_user_id, user_id):
 
 @bp.route('/<user_id>/transcript', methods=['POST'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def upload_transcript(admin_user_id, user_id):
     """
     Upload transcript file for a student's transfer credits.
@@ -294,8 +298,6 @@ def upload_transcript(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
-        if not caller_can_access_user(supabase, admin_user_id, user_id):
-            return error_response('Access denied', status_code=403)
 
         # Check if file was provided
         if 'file' not in request.files:
@@ -401,6 +403,7 @@ def upload_transcript(admin_user_id, user_id):
 
 @bp.route('/<user_id>/<transfer_credit_id>', methods=['DELETE'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def delete_single_transfer_credit(admin_user_id, user_id, transfer_credit_id):
     """
     Delete a specific transfer credit record by ID.
@@ -409,8 +412,6 @@ def delete_single_transfer_credit(admin_user_id, user_id, transfer_credit_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
-        if not caller_can_access_user(supabase, admin_user_id, user_id):
-            return error_response('Access denied', status_code=403)
 
         # Get the specific transfer credit record (id is unique, no need for user_id filter)
         existing = supabase.table('transfer_credits').select('*').eq('id', transfer_credit_id).execute()
@@ -431,6 +432,7 @@ def delete_single_transfer_credit(admin_user_id, user_id, transfer_credit_id):
 
 @bp.route('/<user_id>', methods=['DELETE'])
 @require_school_admin
+@require_relationship_to('user_id', allow=('org_staff',))
 def delete_all_transfer_credits(admin_user_id, user_id):
     """
     Delete ALL transfer credits for a student.
@@ -439,8 +441,6 @@ def delete_all_transfer_credits(admin_user_id, user_id):
     try:
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()
-        if not caller_can_access_user(supabase, admin_user_id, user_id):
-            return error_response('Access denied', status_code=403)
 
         # Get all transfer credits for this user
         existing = supabase.table('transfer_credits').select('*').eq('user_id', user_id).execute()

@@ -134,6 +134,10 @@ def _reviewed(reason, *endpoints):
 
 # --- org staff -> student in the same org -----------------------------------
 #
+# MIGRATED 2026-09-03: routes/admin/transfer_credits.py (5 routes) too, with the
+# same collapse and for the same reason -- its inline checks were the identical
+# caller_can_access_user call, added as the IDOR-C2 fix.
+#
 # MIGRATED 2026-09-03: routes/admin/transcript_generator.py (10 routes) declares
 # @require_relationship_to('user_id', allow=('org_staff',)) and its ten inline
 # checks are gone. Collapsing was safe here in a way it was NOT for dependents:
@@ -146,11 +150,6 @@ def _reviewed(reason, *endpoints):
 # require_school_admin refuses before the gate is reached.
 _reviewed(
     'caller_can_access_user(admin, caller, target) from utils.auth.org_scope',
-    'admin_transfer_credits.delete_all_transfer_credits',
-    'admin_transfer_credits.delete_single_transfer_credit',
-    'admin_transfer_credits.get_transfer_credits',
-    'admin_transfer_credits.save_transfer_credits',
-    'admin_transfer_credits.upload_transcript',
     'credit_dashboard.get_student_context',
     'admin_user_management.get_user_quest_enrollments',
     'admin_user_management.update_org_user_role',
