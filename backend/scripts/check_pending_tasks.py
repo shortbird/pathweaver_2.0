@@ -8,8 +8,8 @@ from supabase import create_client
 client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
 
 # Get tanner's user ID
-tanner = client.table('users').select('id').eq('email', 'tannerbowman@gmail.com').execute()
-user_id = tanner.data[0]['id']
+from scripts._target_user import resolve_target_user_id
+user_id = resolve_target_user_id(client, mutates=False)
 
 # Get recent tasks with approval status
 tasks = client.table('user_quest_tasks').select(

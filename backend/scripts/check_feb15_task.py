@@ -22,8 +22,8 @@ if task.data:
     print(f"XP Value: {t['xp_value']}")
 
     # Check if this XP is in user_skill_xp
-    tanner = client.table('users').select('id').eq('email', 'tannerbowman@gmail.com').execute()
-    user_id = tanner.data[0]['id']
+    from scripts._target_user import resolve_target_user_id
+    user_id = resolve_target_user_id(client, mutates=False)
 
     skill_xp = client.table('user_skill_xp').select('pillar, xp_amount').eq('user_id', user_id).eq('pillar', t['pillar']).execute()
     if skill_xp.data:

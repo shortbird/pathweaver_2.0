@@ -5,8 +5,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 from supabase import create_client
 c = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
-tanner = c.table('users').select('id').eq('email', 'tannerbowman@gmail.com').execute()
-user_id = tanner.data[0]['id']
+from scripts._target_user import resolve_target_user_id
+user_id = resolve_target_user_id(c, mutates=True)
 
 # Check wellness
 r = c.table('user_skill_xp').select('id, xp_amount, updated_at').eq('user_id', user_id).eq('pillar', 'wellness').execute()

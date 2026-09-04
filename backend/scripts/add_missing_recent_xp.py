@@ -11,8 +11,8 @@ from supabase import create_client
 dry_run = '--live' not in sys.argv
 client = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
 
-tanner = client.table('users').select('id').eq('email', 'tannerbowman@gmail.com').execute()
-user_id = tanner.data[0]['id']
+from scripts._target_user import resolve_target_user_id
+user_id = resolve_target_user_id(client, mutates=True)
 
 print("=" * 60)
 print("Add Missing XP from Recent Completions")

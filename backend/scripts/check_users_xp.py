@@ -16,10 +16,12 @@ else:
     print("  No users have total_xp set")
 
 # Check what tannerbowman sees
-tanner = client.table('users').select('id, email, total_xp').eq('email', 'tannerbowman@gmail.com').execute()
+from scripts._target_user import resolve_target_user_id
+_target_id = resolve_target_user_id(client, mutates=False)
+tanner = client.table('users').select('id, email, total_xp').eq('id', _target_id).execute()
 if tanner.data:
     user_id = tanner.data[0]['id']
-    print("\n=== tannerbowman@gmail.com ===")
+    print("\n=== <the --user-email account> ===")
     print(f"  users.total_xp: {tanner.data[0].get('total_xp', 'NULL')}")
 
     # Get from user_skill_xp
