@@ -105,8 +105,12 @@ def _admin_client_for_role(role):
 
 
 @contextmanager
-def staff(role='advisor', org='org-1'):
+def staff(role='advisor', org='org-1', same_org_as_student=True):
+    """Front-office caller. `same_org_as_student` grants the SEC-10 relationship
+    gate, which asks caller_can_access_user before the view runs -- the in-view
+    org scoping these tests already stub is the second gate, not the only one."""
     with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role(role)), \
+         patch('utils.auth.org_scope.caller_can_access_user', return_value=same_org_as_student), \
          patch('services.sis_service.resolve_org_id', return_value=org), \
          patch('services.sis_service.class_scope', return_value=None):
         yield

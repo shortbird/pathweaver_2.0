@@ -14,6 +14,7 @@ with this student's enrollment/waitlist state and live seat counts). Enroll / dr
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_clp_service as clp
@@ -49,6 +50,7 @@ def clp_directory(user_id):
 
 @bp.route('/clp/students/<student_id>', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='clp')
 def clp_student(user_id, student_id):
     """One student's CLP payload: profile, family/siblings, schedule, and the full
     catalog annotated with this student's enrollment/waitlist state + seat counts."""
@@ -63,6 +65,7 @@ def clp_student(user_id, student_id):
 
 @bp.route('/clp/students/<student_id>/record', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',))
 def update_clp_record(user_id, student_id):
     """Partial update of the student's CLP meeting record: mark the CLP
     finished/unfinished and/or save staff meeting notes."""

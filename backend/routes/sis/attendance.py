@@ -7,6 +7,7 @@ NEW, additive (/api/sis), staff-gated, org-scoped.
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
 from services import sis_attendance_service as attendance
@@ -79,6 +80,7 @@ def record_attendance(user_id, class_id):
 
 @bp.route('/students/<student_id>/attendance', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='attendance')
 def student_attendance(user_id, student_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -88,6 +90,7 @@ def student_attendance(user_id, student_id):
 
 @bp.route('/students/<student_id>/attendance/day', methods=['GET'])
 @require_role(*ADMIN_ROLES)
+@require_relationship_to('student_id', allow=('org_staff',), discloses='attendance')
 def student_attendance_day(user_id, student_id):
     """One student's whole day (?date=YYYY-MM-DD): every class they meet that
     day and the status the roll recorded for each.

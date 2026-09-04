@@ -272,11 +272,7 @@ _reviewed(
 _reviewed(
     'ADMIN_ROLES/STAFF_ROLES gate + every query filtered by the caller\'s own '
     'organization_id, so a cross-org student id does not resolve',
-    'sis_attendance.student_attendance',
-    'sis_attendance.student_attendance_day',
     'sis_catalog.unenroll_student',
-    'sis_clp.clp_student',
-    'sis_clp.update_clp_record',
     'sis_prior_learning.student_accepted',
     'sis_tuition.preview_tuition_invoice',
     'sis_tuition.send_tuition_invoice',

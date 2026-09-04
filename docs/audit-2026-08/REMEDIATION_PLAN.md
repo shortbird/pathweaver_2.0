@@ -889,7 +889,26 @@ Log:
 
   ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
 
-  SESSION TOTAL for (c): declared 37 -> 135 of 217, allowlist 166 -> 56.
+- 2026-09-03: (c) continues — SIS attendance (2) and CLP (2).
+  Declared 135 -> 139, allowlist 56 -> 52. Both declare `('org_staff',)`,
+  matching `_org_or_error`'s caller-resolved org; the two reads carry
+  `discloses='attendance'` / `'clp'`.
+
+  test_sis_attendance's `staff()` context manager now grants the relationship
+  too, with a `same_org_as_student` parameter so a future test can deny it —
+  the in-view org scoping it already stubbed is the SECOND gate now, not the
+  only one.
+
+  SESSION TOTAL for (c): declared 37 -> 139 of 217, allowlist 166 -> 52.
+
+  WHAT IS LEFT, and a good part of it should STAY: of the 52, eight are the
+  row-selector cases named above (removing an advisor from a class, a family
+  observer, an unblock), two are unauthenticated by design
+  (`public.get_public_transcript`, `portfolio.get_public_diploma_by_user_id`),
+  and one is masquerade's own start endpoint, which has its own written reason.
+  The genuinely migratable remainder is roughly 40, mostly in `org_connections`,
+  `admin_student_task_management`, `direct_messages`, `sis` and
+  `admin_user_management`.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`
