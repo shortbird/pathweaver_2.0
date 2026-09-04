@@ -840,6 +840,31 @@ Log:
   gate reads as reviewed.
 
   ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
+- 2026-09-03: (c) continues — `routes/oea.py`, 6 routes. Declared 118 -> 124,
+  allowlist 73 -> 67.
+
+  THREE allow sets, because the module has two gates that mean different things
+  and one of them has an explicit prohibition in it:
+    - `('self', 'parent')` on the four reads. `_verify_manages_student` takes
+      `allow_self=True` on exactly those, so an OEA student can see their own
+      diploma; the declaration preserves that split rather than flattening it.
+    - `('parent',)` on `add_student_credit`, which never passes `allow_self` —
+      a student may read their record and not write to it.
+    - `('org_staff',)` on `set_credit_caps`, and only there. Its helper's
+      docstring says outright that PARENTS CANNOT raise their own student's
+      limits, so declaring `parent` on that route would have inverted the rule
+      the endpoint exists to enforce. This is the case where copying the
+      module's dominant pattern would have been a security bug rather than a
+      style slip.
+
+  Not collapsed: both helpers also resolve the student's ORG, which no
+  relationship answers.
+
+  Test fallout, the familiar shape: 17 blocks in test_oea_routes.py stubbed
+  `_verify_manages_student` alone and were refused at the door. All now grant
+  `is_parent_of` alongside it, with a comment saying why.
+
+  ruff clean, mypy clean. Tests: 4858 passed, 160 skipped, 0 failed.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

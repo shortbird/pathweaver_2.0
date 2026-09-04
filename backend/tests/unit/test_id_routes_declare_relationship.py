@@ -361,15 +361,20 @@ _reviewed(
 )
 
 # --- everything else ---------------------------------------------------------
-_reviewed(
-    '_verify_manages_student / _verify_admin_for_student in routes/oea.py',
-    'oea.add_student_credit',
-    'oea.get_progress_report',
-    'oea.get_student_credits',
-    'oea.get_student_enrollment',
-    'oea.get_student_transcript',
-    'oea.set_credit_caps',
-)
+# MIGRATED 2026-09-03: the six routes/oea.py routes that name a student.
+# NOT one allow set -- the module has TWO gates and they mean different things:
+#   _verify_manages_student  -> ('self', 'parent') on the reads that pass
+#                               allow_self=True so an OEA student can see their
+#                               own diploma, and ('parent',) on the write, which
+#                               never passes it. That split is the module's own
+#                               and is preserved exactly.
+#   _verify_admin_for_student -> ('org_staff',) on set_credit_caps, and only
+#                               there. Its docstring is explicit that PARENTS
+#                               MUST NOT raise their own student's credit
+#                               limits, so declaring 'parent' on that route
+#                               would invert the rule it exists for.
+# Not collapsed: both helpers additionally resolve the student's ORG, which no
+# relationship answers.
 _reviewed(
     'direct_message_service.can_message_user -- peer connection plus block '
     'check; the child-conversation reads require guardianship',

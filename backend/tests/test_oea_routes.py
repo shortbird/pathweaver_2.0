@@ -75,7 +75,12 @@ class TestSelectPathway:
         mock_repo.upsert_enrollment.return_value = {
             'id': 'enr-1', 'student_id': 'stu-1', 'pathway_key': 'college_bound',
         }
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post('/api/oea/enrollments', headers=auth_headers,
                                json={'student_id': 'stu-1', 'pathway_key': 'college_bound'})
@@ -98,7 +103,12 @@ class TestSelectPathway:
     def test_invalid_pathway_is_400(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.upsert_enrollment.side_effect = RepoValidationError('Invalid pathway: bogus')
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post('/api/oea/enrollments', headers=auth_headers,
                                json={'student_id': 'stu-1', 'pathway_key': 'bogus'})
@@ -292,7 +302,12 @@ class TestCredits:
             {'id': 'c1', 'requirement_key': 'math', 'credits': 3, 'status': 'complete', 'letter_grade': 'A', 'is_weighted': False},
         ]
         mock_repo.get_evidence_counts.return_value = {}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea._is_oea_student', return_value=True), \
              patch('routes.oea._settings_for_student',
                    return_value=oea_rules.build_oea_settings({})), \
@@ -309,7 +324,12 @@ class TestCredits:
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
         mock_repo.add_credit.return_value = {'id': 'c1', 'student_id': 'stu', 'requirement_key': 'math', 'course_name': 'Algebra I'}
         mock_repo.create_course_quest.return_value = 'quest-1'
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea._settings_for_student',
                    return_value=oea_rules.build_oea_settings({})), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
@@ -328,14 +348,20 @@ class TestCredits:
     def test_add_credit_rejects_unknown_requirement(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
                                json={'requirement_key': 'world_language', 'course_name': 'Spanish'})
         assert resp.status_code == 400  # world_language isn't in open_balanced
 
     def test_add_credit_requires_course_name(self, client, auth_headers, mock_verify_token):
-        with patch('routes.oea._verify_manages_student', return_value=None):
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None):
             resp = client.post(f'/api/oea/students/{self.STU}/credits', headers=auth_headers,
                                json={'requirement_key': 'math'})
         assert resp.status_code == 400
@@ -344,7 +370,12 @@ class TestCredits:
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU, 'quest_id': 'q-1'}
         mock_repo.update_credit.return_value = {'id': self.CID, 'status': 'complete', 'letter_grade': 'A'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
                                 json={'status': 'complete', 'letter_grade': 'A', 'is_weighted': True})
@@ -362,7 +393,12 @@ class TestCredits:
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU, 'quest_id': 'q-1'}
         mock_repo.update_credit.return_value = {'id': self.CID, 'status': 'in_progress', 'letter_grade': None}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
                                 json={'status': 'in_progress'})
@@ -374,7 +410,12 @@ class TestCredits:
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU, 'quest_id': 'q-1'}
         mock_repo.update_credit.return_value = {'id': self.CID, 'course_name': 'Algebra II'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
                                 json={'course_name': 'Algebra II'})
@@ -384,7 +425,12 @@ class TestCredits:
     def test_patch_rejects_bad_grade(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
                                 json={'letter_grade': 'E'})
@@ -404,7 +450,12 @@ class TestCredits:
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU}
         mock_repo.delete_credit.return_value = True
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
         assert resp.status_code == 200
@@ -422,7 +473,12 @@ class TestCredits:
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
         mock_repo.get_credits.return_value = [{'id': 'c1', 'requirement_key': 'math', 'credits': 3, 'status': 'in_progress', 'letter_grade': None, 'is_weighted': False}]
         mock_repo.get_evidence_counts.return_value = {'c1': 2}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea._is_oea_student', return_value=True), \
              patch('routes.oea._settings_for_student',
                    return_value=oea_rules.build_oea_settings({})), \
@@ -442,7 +498,12 @@ class TestCreditEvidence:
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
         mock_repo.add_credit_evidence.return_value = {'id': self.EID, 'block_type': 'text'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
                                json={'block_type': 'text', 'content': {'text': 'Final essay'}})
@@ -454,7 +515,12 @@ class TestCreditEvidence:
     def test_add_link_requires_url(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
                                json={'block_type': 'link', 'content': {}})
@@ -463,7 +529,12 @@ class TestCreditEvidence:
     def test_add_rejects_bad_type(self, client, auth_headers, mock_verify_token):
         mock_repo = Mock()
         mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': 'stu'}
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/credits/{self.CID}/evidence', headers=auth_headers,
                                json={'block_type': 'video', 'content': {'url': 'x'}})
@@ -482,7 +553,12 @@ class TestCreditEvidence:
         mock_repo = Mock()
         mock_repo.get_evidence.return_value = {'id': self.EID, 'student_id': 'stu'}
         mock_repo.delete_credit_evidence.return_value = True
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.delete(f'/api/oea/evidence/{self.EID}', headers=auth_headers)
         assert resp.status_code == 200
@@ -509,7 +585,12 @@ class TestCourseQuest:
         }
         mock_repo.get_enrollment.return_value = {'id': 'e1', 'pathway_key': 'open_balanced'}
         mock_repo.create_course_quest.return_value = 'quest-9'
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
         assert resp.status_code == 200
@@ -523,7 +604,12 @@ class TestCourseQuest:
             'id': self.CID, 'student_id': 'stu', 'course_name': 'Algebra I',
             'requirement_key': 'math', 'quest_id': 'already-here',
         }
-        with patch('routes.oea._verify_manages_student', return_value=None), \
+        # Two gates since 2026-09-03 (SEC-10): @require_relationship_to asks
+        # utils.portfolio_access.is_parent_of BEFORE the view, and
+        # _verify_manages_student is the in-view check. Granting only the
+        # inner one leaves the request refused at the door.
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
              patch('routes.oea.OEARepository', return_value=mock_repo):
             resp = client.post(f'/api/oea/credits/{self.CID}/quest', headers=auth_headers)
         assert resp.status_code == 200

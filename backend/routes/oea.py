@@ -22,6 +22,7 @@ from database import get_supabase_admin_client
 from repositories.oea_repository import OEARepository
 from repositories.base_repository import NotFoundError, ValidationError as RepoValidationError
 from utils.auth.decorators import require_auth, require_role, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from utils.oea_pathways import list_pathways, get_pathway, PROGRAM_KEY
 from programs.registry import program_for_org_slug
 from utils.oea_grades import compute_gpa, compute_progress, GRADE_POINTS
@@ -224,6 +225,7 @@ def get_enrollments(user_id):
 @bp.route('/enrollments/<student_id>', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('self', 'parent'), discloses='enrollment')
 def get_student_enrollment(user_id, student_id):
     """Return one student's OEA enrollment (current pathway), or null if none."""
     try:
@@ -294,6 +296,7 @@ def select_pathway(user_id):
 @bp.route('/students/<student_id>/credits', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('self', 'parent'), discloses='credits')
 def get_student_credits(user_id, student_id):
     """
     Return a student's credits plus computed pathway progress and GPA.
@@ -378,6 +381,7 @@ def get_student_credits(user_id, student_id):
 @bp.route('/students/<student_id>/credits', methods=['POST'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
 def add_student_credit(user_id, student_id):
     """
     Add a course credit to one of the student's pathway requirement slots.
@@ -742,6 +746,7 @@ def delete_credit_evidence(user_id, evidence_id):
 @bp.route('/enrollments/<student_id>/caps', methods=['PATCH'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('org_staff',))
 def set_credit_caps(user_id, student_id):
     """
     Raise (or clear) a student's transfer / non-direct credit ceilings.
@@ -915,6 +920,7 @@ def _org_branding(org_id):
 @bp.route('/students/<student_id>/transcript', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('self', 'parent'), discloses='transcript')
 def get_student_transcript(user_id, student_id):
     """
     Assemble OEA-branded transcript data: student info, pathway, credits (with
@@ -991,6 +997,7 @@ def get_student_transcript(user_id, student_id):
 @bp.route('/students/<student_id>/progress-report', methods=['GET'])
 @require_auth
 @validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('self', 'parent'), discloses='progress')
 def get_progress_report(user_id, student_id):
     """
     Quarterly progress report (the coach report card): each in-progress course with
