@@ -2030,12 +2030,19 @@ Log:
   hint; it now globs `routes/registration_*.py`, so it follows /start instead of
   failing for the one reason it does not care about.
 
-  **STILL WANTS A BROWSER BEFORE IT SHIPS.** The suite covers this well — about
-  130 tests across 14 files, including checkout, prepaid directives,
-  multi-session confirm-payment, and the passwordless/existing-account doors —
-  and the URL map is proven unchanged. But nothing here exercises a real Stripe
-  redirect, and this is a live revenue path for three orgs. Run one registration
-  end to end on dev before this goes to `main`.
+  **BROWSER-VERIFIED 2026-09-04 — including the Stripe redirect.** The user ran
+  a registration end to end against the split modules on localhost, and
+  confirmed the redirect back from Stripe works. That was the one thing the
+  suite could not reach: about 130 tests across 14 files cover checkout, prepaid
+  directives, multi-session confirm-payment and both existing-account doors, and
+  the URL map was proven unchanged, but nothing automated exercises a real
+  Stripe round trip and this is a live revenue path for three orgs.
+
+  So the caveat that stood here is discharged, and QB-04 carries no outstanding
+  verification debt.
+
+  One live bug turned up during that hand-off, and it is worth recording that it
+  came from curling the running server rather than from the suite — see FU-06.
 
   ruff clean, mypy clean (1041 files), pyflakes clean. Tests: 4864 passed.
 
