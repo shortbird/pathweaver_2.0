@@ -42,25 +42,29 @@ const CAP = 1000
  * an incidental edit does not flip CI red. Measured 2026-09-03.
  * Remove an entry when the file is split -- do not raise one.
  *
- * SPLIT AND REMOVED (QF-02, 2026-09-04):
- *   pages/courses/CourseHomepage.jsx  1654 -> 848
- *   pages/sis/ClassesPage.jsx         1545 -> 706
- *   pages/sis/BillingPage.jsx         1415 -> 719
+ * SPLIT AND REMOVED (QF-02, 2026-09-04). Line counts measured, not estimated:
+ *   pages/courses/CourseHomepage.jsx        1653 -> 847
+ *   pages/sis/ClassesPage.jsx               1544 -> 706
+ *   pages/sis/BillingPage.jsx               1414 -> 726
+ *   pages/ScheduleBuilderPage.jsx           1299 -> 874
+ *   pages/sis/PriorLearningPage.jsx         1193 -> 385
+ *   pages/admin/CourseGeneratorWizard.jsx   1190 -> 401
+ *   components/admin/QuestForm.jsx          1151 -> 770
+ *   pages/sis/ReportsPage.jsx               1012 -> 936
+ *
+ * REMOVED AS STALE (2026-09-04): pages/sis/StaffPage.jsx (429) and
+ * pages/QuestDetail.jsx (800) were already under the cap. They had been shrunk
+ * since this list was written, and an exemption on a file that does not need
+ * one is a limit nobody is under -- the next file to take that path would
+ * inherit a cap granted to something else.
  */
 const EXEMPT = {
   'pages/RegisterFunnelPage.jsx': 1670,
-  'pages/ScheduleBuilderPage.jsx': 1340,
   'pages/DiplomaPage.jsx': 1270,
   'components/quest/TaskWorkspace.jsx': 1260,
   'components/quests/QuestPersonalizationWizard.jsx': 1230,
-  'pages/sis/PriorLearningPage.jsx': 1230,
-  'pages/admin/CourseGeneratorWizard.jsx': 1230,
   'components/sis/RegistrationSetupTab.jsx': 1210,
-  'components/admin/QuestForm.jsx': 1190,
-  'pages/sis/StaffPage.jsx': 1180,
-  'pages/QuestDetail.jsx': 1090,
   'pages/admin/TranscriptGeneratorPage.jsx': 1130,
-  'pages/sis/ReportsPage.jsx': 1070,
   'pages/sis/ClpPage.jsx': 1070,
 }
 

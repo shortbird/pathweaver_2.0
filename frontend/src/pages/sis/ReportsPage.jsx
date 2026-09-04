@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import SisOrgPicker from './SisOrgPicker'
 
+
+import shapeReport from './reportsPage/shapeReport'
 const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
 const pct = (rate) => (rate == null ? '—' : `${Math.round(rate * 100)}%`)
 
@@ -210,84 +212,6 @@ const downloadBlob = (blob, filename) => {
 }
 
 // Turn each report's JSON payload into a generic {title, columns, rows} table.
-const shapeReport = (type, data, questionLabel) => {
-  const report = data?.report || {}
-  if (type === 'medications') {
-    return {
-      title: 'Medications',
-      columns: ['Student', 'Medications', 'Schedule / Notes', 'Parent', 'Parent phone', 'Emergency contact 1'],
-      rows: (report.rows || []).map((r) => [
-        r.student, r.medications, r.notes, r.parent, r.parent_phone, r.emergency_contact,
-      ]),
-    }
-  }
-  if (type === 'payments') {
-    const totals = report.totals || []
-    return {
-      title: 'Payments',
-      // The split by method is the question; the rows are the working.
-      summary: totals.length
-        ? totals.map((t) => `${t.method}: ${t.amount} (${t.count})`).join(' · ')
-        : 'No payments recorded yet.',
-      columns: ['Date', 'Family', 'Student', 'Invoice', 'Method', 'Amount', 'Reference', 'Note', 'Recorded by'],
-      rows: (report.rows || []).map((r) => [
-        r.recorded_at, r.family, r.student, r.invoice, r.method, r.amount,
-        r.reference, r.note, r.recorded_by,
-      ]),
-    }
-  }
-  if (type === 'allergies') {
-    return {
-      title: 'Allergies',
-      columns: ['Student', 'Allergies', 'Notes', 'Parent', 'Parent phone', 'Emergency contact 1'],
-      rows: (report.rows || []).map((r) => [
-        r.student, r.allergies, r.notes, r.parent, r.parent_phone, r.emergency_contact,
-      ]),
-    }
-  }
-  if (type === 'daily-attendance') {
-    return {
-      title: `Daily attendance${report.date ? ` — ${report.date}` : ''}`,
-      columns: ['Student', 'Class', 'Status', 'Excused?', 'Reason'],
-      rows: (report.rows || []).map((r) => [r.student, r.class, r.status, r.excused, r.reason]),
-    }
-  }
-  if (type === 'student-schedule') {
-    const days = report.days || []
-    const unscheduled = report.has_unscheduled
-    return {
-      title: 'Student schedule',
-      columns: ['Student', 'Age', 'Family', 'Days', ...days.map((d) => d.label),
-        ...(unscheduled ? ['Unscheduled classes'] : [])],
-      rows: (report.rows || []).map((r) => [
-        r.student, r.age ?? '', r.family, r.days,
-        ...days.map((d) => r.by_day?.[d.key] ?? ''),
-        ...(unscheduled ? [r.unscheduled] : []),
-      ]),
-    }
-  }
-  if (type === 'media-release') {
-    const questions = report.questions || []
-    return {
-      title: 'Media release',
-      columns: ['Student', 'Family', ...questions.map((q) => q.label), 'Parent'],
-      rows: (report.rows || []).map((r) => [
-        r.student, r.family, ...questions.map((q) => r.answers?.[q.key] ?? ''), r.parent,
-      ]),
-    }
-  }
-  return {
-    title: report.question?.label || questionLabel || 'Question report',
-    columns: ['Student', 'Family', 'Parent', 'Parent email', 'Answer', 'Status'],
-    rows: (report.rows || []).map((r) => [
-      r.student, r.family, r.parent, r.parent_email, r.answer, r.status,
-    ]),
-  }
-}
-
-// The class report's column choice, remembered per browser like the Classes
-// page export chooser. Field definitions come from the API with the report, so
-// the picker can never list a column the CSV doesn't know how to write.
 const CLASS_COLS_KEY = 'sis_class_report_cols'
 const ROSTER_COLS_KEY = 'sis_roster_report_cols'
 

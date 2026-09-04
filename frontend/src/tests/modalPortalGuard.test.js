@@ -139,7 +139,10 @@ const BASELINE = [
   'src/pages/QuestDetail.jsx',
   'src/pages/TaskLibraryBrowser.jsx',
   'src/pages/admin/CourseGenerationQueue.jsx',
-  'src/pages/admin/CourseGeneratorWizard.jsx',
+  // Was CourseGeneratorWizard.jsx; the raw backdrop moved into the mode modal
+  // when that file was split (QF-02, 2026-09-04). The stale-entry test caught
+  // the old path, which is the half of this guard that keeps the list honest.
+  'src/pages/admin/courseGenerator/GenerationModeModal.jsx',
   'src/pages/admin/OrganizationDashboard.jsx',
   // Two entries, one original file: CourseHomepage.jsx had TWO raw backdrops,
   // and the QF-02 split (2026-09-04) moved one of them into ProjectView.jsx.
