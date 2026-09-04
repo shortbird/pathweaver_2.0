@@ -1604,11 +1604,30 @@ Log:
   one (the DEP-H1 lesson, where pip-audit was pointed at the wrong file), and a
   new backend dep has to be added to both.
 
-### CI-05 — Integration tests and E2E do not hold the deploy `[NEEDS-USER]`
+### CI-05 — Integration tests and E2E do not hold the deploy `[DONE]`
 `release.yml` deploy is `needs: [backend, web]` only — documented as intentional.
 Ask the user whether the 128 enforcing integration tests should now gate deploy.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: User answered yes. `deploy` is now
+  `needs: [backend, web, integration]`.
+
+  The reason this mattered more here than it would elsewhere: this repo's
+  documented prod flow is a direct push to `main`, with no PR. A suite that
+  gates the merge but not the deploy therefore gates nothing at all for the
+  path everything actually ships through — you would simply push past it. The
+  integration job is also the only one of the three that runs against real
+  Postgres with RLS enabled, so a policy or schema regression is invisible to
+  the backend and web suites by construction.
+
+  The comment claiming it was "deliberately not in needs: yet, pending one
+  green cycle" is gone; it had long since had them, and CLAUDE.md already
+  described the suite as enforcing and green.
+
+  Cost: the prod deploy now waits on the local-stack harness (a Supabase stack
+  boot plus 133 tests) instead of firing the moment the unit suites are green.
+  E2E is still NOT in the gate — it is the flakier of the two and nobody has
+  asked for it.
 
 ### CI-06 — Ban raw `print()` in app code (408 today) `[DONE]`
 Guard test (or ruff T201 with per-file ignores for scripts/) after QB-03 converts

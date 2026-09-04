@@ -44,9 +44,12 @@ jobs:
   mobile:
     uses: ./.github/workflows/tests-mobile.yml
 
-  # Enforcing. Deliberately NOT in the `deploy` job's needs: yet -- give the
-  # local-stack harness one green cycle on main first, then add `integration`
-  # there so a red integration run also holds the deploy.
+  # Enforcing, and since 2026-09-04 it also HOLDS THE DEPLOY (see `deploy`'s
+  # needs:). The note that used to sit here said to give the local-stack harness
+  # one green cycle on main first; it has had many, and CLAUDE.md now documents
+  # the suite as enforcing and green. A test that blocks the merge but not the
+  # deploy is a test whose failure you can ship past by pushing straight to main,
+  # which is exactly this repo's workflow.
   integration:
     uses: ./.github/workflows/tests-integration.yml
 
@@ -55,7 +58,12 @@ jobs:
   # so a racing push can't deploy something the tests didn't cover.
   deploy:
     name: Deploy prod (web + backend)
-    needs: [backend, web]
+    # `integration` added 2026-09-04 (CI-05). The deploy now waits for the
+    # local-stack suite too: it is the only gate that exercises real Postgres
+    # and RLS, so a schema or policy regression is invisible to the other two.
+    # It costs the deploy the integration job's runtime -- acceptable, since a
+    # bad schema reaching prod costs considerably more.
+    needs: [backend, web, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
