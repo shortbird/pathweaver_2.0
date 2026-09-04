@@ -26,6 +26,7 @@ from urllib.parse import urlencode
 from flask import Blueprint, redirect, request
 
 from app_config import Config
+from services import sis_billing_alerts as alerts
 from services import sis_billing_service as billing
 from services import sis_pay_links
 from services import sis_recurring_tuition_service as recurring
@@ -206,6 +207,10 @@ def return_from_card_setup(token):
     except Exception as e:  # noqa: BLE001 — a parent must never see a stack trace
         logger.error(f'[SIS pay] card setup confirm failed for {household_id[:8]}: {e}')
         return redirect(_result_url(autopay='pending'))
+    # Tell the office, before the branching below: they want to hear about the
+    # family whose card saved but had nothing to bill just as much as the one
+    # that paid. Best-effort — the alert never raises.
+    alerts.notify_recurring_card_saved(org_id, household_id, result)
     if result.get('error'):
         # The card IS saved; there was just nothing scheduled to start.
         return redirect(_result_url(autopay='card_saved'))

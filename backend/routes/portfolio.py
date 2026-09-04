@@ -266,6 +266,11 @@ def get_completion_by_task(user_id, task_id):
         if student_id != user_id and not _can_curate_for(user_id, student_id):
             return error_response(code='PERMISSION_DENIED',
                                   message='Not allowed for this student', status=403)
+        # Virtual moment-tasks (id "moment-<uuid>") aren't real completion rows —
+        # querying the uuid column with that value throws Postgres 22P02. They are
+        # curated as the moment they came from, so report no completion here.
+        if str(task_id).startswith('moment-'):
+            return success_response(data={'has_completion': False})
         from database import get_supabase_admin_client
         # admin client justified: read scoped to caller (or verified child) only
         admin = get_supabase_admin_client()
