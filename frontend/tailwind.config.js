@@ -47,7 +47,11 @@ export default {
         coral: '#EF597B',             // → optio-pink
         'coral-dark': '#E73862',      // → optio-pink-dark
 
-        // Design System: Pillar colors
+        // Design System: Pillar colors. Source of truth: shared/pillars.json
+        // (base hexes); the -light/-dark shades and gradients are web-only.
+        // Civics ORANGE / Wellness RED were swapped here until 2026-09-04 --
+        // the web app rendered them in each other's colours while mobile, the
+        // brand reference and backend/utils/pillar_utils.py all agreed.
         'pillar-stem': '#2469D1',
         'pillar-stem-light': '#DDF1FC',
         'pillar-stem-dark': '#1B4FA3',
@@ -60,21 +64,21 @@ export default {
         'pillar-communication-light': '#E3F6E5',
         'pillar-communication-dark': '#2E8A3A',
 
-        'pillar-wellness': '#FF9028',
-        'pillar-wellness-light': '#FFF0E1',
-        'pillar-wellness-dark': '#E67A1A',
+        'pillar-wellness': '#E65C5C',
+        'pillar-wellness-light': '#FBE5E5',
+        'pillar-wellness-dark': '#D43F3F',
 
-        'pillar-civics': '#E65C5C',
-        'pillar-civics-light': '#FBE5E5',
-        'pillar-civics-dark': '#D43F3F',
+        'pillar-civics': '#FF9028',
+        'pillar-civics-light': '#FFF0E1',
+        'pillar-civics-dark': '#E67A1A',
 
         // Legacy nested pillar object (backward compatibility)
         'pillar': {
           'stem': '#2469D1',
           'art': '#AF56E5',
           'communication': '#3DA24A',
-          'wellness': '#FF9028',
-          'civics': '#E65C5C',
+          'wellness': '#E65C5C',
+          'civics': '#FF9028',
         },
 
         // Design System: Neutral palette
@@ -110,8 +114,8 @@ export default {
         'gradient-pillar-stem': 'linear-gradient(135deg, #2469D1 0%, #1B4FA3 100%)',
         'gradient-pillar-art': 'linear-gradient(135deg, #AF56E5 0%, #9945D1 100%)',
         'gradient-pillar-communication': 'linear-gradient(135deg, #3DA24A 0%, #2E8A3A 100%)',
-        'gradient-pillar-wellness': 'linear-gradient(135deg, #FF9028 0%, #E67A1A 100%)',
-        'gradient-pillar-civics': 'linear-gradient(135deg, #E65C5C 0%, #D43F3F 100%)',
+        'gradient-pillar-wellness': 'linear-gradient(135deg, #E65C5C 0%, #D43F3F 100%)',
+        'gradient-pillar-civics': 'linear-gradient(135deg, #FF9028 0%, #E67A1A 100%)',
       },
       screens: {
         'xs': '475px',

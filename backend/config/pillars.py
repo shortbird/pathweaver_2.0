@@ -17,8 +17,8 @@ PILLARS = {
     'wellness': {
         'display_name': 'Wellness',
         'description': 'Physical and mental health, mindfulness, and self-care',
-        'color': '#FF9028',
-        'gradient': 'from-[#FF9028] to-[#E67A1A]',
+        'color': '#E65C5C',
+        'gradient': 'from-[#E65C5C] to-[#D43F3F]',
         'icon': 'HeartIcon',
         'subcategories': ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
     },
@@ -33,8 +33,8 @@ PILLARS = {
     'civics': {
         'display_name': 'Civics',
         'description': 'Community engagement, leadership, and civic responsibility',
-        'color': '#E65C5C',
-        'gradient': 'from-[#E65C5C] to-[#D43F3F]',
+        'color': '#FF9028',
+        'gradient': 'from-[#FF9028] to-[#E67A1A]',
         'icon': 'UserGroupIcon',
         'subcategories': ['Community', 'Leadership', 'Civic Action', 'Democracy'],
     },

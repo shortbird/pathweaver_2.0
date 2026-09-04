@@ -26,7 +26,7 @@ import { userHasRole } from '../utils/userRoles'
  * lists stop matching -- a client list that is WIDER shows a control the server
  * refuses, and one that is NARROWER hides a control a teacher is entitled to.
  */
-export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor']
+export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'campus_coordinator', 'advisor']
 
 export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.'
 
@@ -39,12 +39,12 @@ export default function useCanEditXp() {
 
   // Exactly the server's XP_GUIDE_ROLES, not "staff".
   //
-  // This used isStaffUser until 2026-09-03, which is WIDER: it also returns
-  // true for campus_coordinator and for anyone with has_advisor_assignments.
-  // The server rejects both, so a coordinator in a locked org was shown an XP
-  // control whose save the server refused -- the precise failure the comment
-  // above says this hook exists to prevent. Latent rather than reported: the
-  // one org with the flag on has no coordinators yet.
+  // This used isStaffUser until 2026-09-03, which is wider in two ways. One of
+  // them turned out to be right and the SERVER moved to match: coordinators are
+  // XP guides as of 2026-09-04. The other did not -- isStaffUser also passes
+  // anyone carrying has_advisor_assignments, which is a count of rows in
+  // advisor_student_assignments and puts no role into get_effective_roles, so
+  // the API still refuses them and this must not offer them the control.
   //
   // userHasRole checks every shape a role arrives in -- `role`, the `org_roles`
   // array, and legacy `org_role` -- so an org teacher who is also a parent keeps

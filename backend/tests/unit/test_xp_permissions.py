@@ -14,6 +14,7 @@ from utils.xp_permissions import (
     XP_LOCKED_MESSAGE,
     can_set_task_xp,
     is_xp_guide,
+    is_xp_guide_user,
     resolve_learner_task_xp,
 )
 
@@ -25,13 +26,34 @@ def test_locked_message_says_teacher_not_guide():
 
 
 class TestIsXpGuide:
-    @pytest.mark.parametrize('role', ['superadmin', 'org_admin', 'advisor'])
+    @pytest.mark.parametrize('role', ['superadmin', 'org_admin', 'campus_coordinator', 'advisor'])
     def test_guide_roles(self, role):
         assert is_xp_guide(role) is True
 
     @pytest.mark.parametrize('role', ['student', 'parent', 'observer', 'org_managed', None, ''])
     def test_non_guide_roles(self, role):
         assert is_xp_guide(role) is False
+
+    def test_campus_coordinator_is_a_guide(self):
+        """Added 2026-09-04, and worth its own name rather than one more entry
+        in the list above.
+
+        A coordinator has everything an org admin has except the money
+        (utils/sis_roles.py: ADMIN_ROLES includes them, FINANCE_ROLES does not),
+        and a task's XP is not money. They were left out of this set by
+        oversight, which showed up as the web client -- which had been letting
+        them through via isStaffUser -- offering an XP control the API refused.
+        """
+        assert is_xp_guide('campus_coordinator') is True
+
+    def test_a_coordinator_is_a_guide_through_org_roles_too(self):
+        """The shape a real coordinator actually arrives in: role='org_managed'
+        with the real role in org_roles. A primary-role check reads
+        'org_managed' and denies them."""
+        assert is_xp_guide_user({
+            'role': 'org_managed',
+            'org_roles': ['campus_coordinator'],
+        }) is True
 
 
 class TestIsXpGuideUser:

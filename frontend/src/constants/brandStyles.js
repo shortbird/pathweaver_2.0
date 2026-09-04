@@ -25,6 +25,6 @@ export const PILLAR_COLORS = {
   stem: '#2469D1',
   art: '#AF56E5',
   communication: '#3DA24A',
-  wellness: '#FF9028',
-  civics: '#E65C5C',
+  wellness: '#E65C5C',
+  civics: '#FF9028',
 }

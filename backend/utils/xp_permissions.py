@@ -39,7 +39,18 @@ XP_LOCK_FLAG = 'lock_xp_editing'
 # Roles that set XP regardless of the flag. Surfaced to users as "teachers"
 # (matching ROLE_DISPLAY_NAMES, where advisor displays as Teacher) -- keep any
 # user-facing copy on that word rather than the internal "guide".
-XP_GUIDE_ROLES = frozenset({'superadmin', 'org_admin', 'advisor'})
+#
+# campus_coordinator added 2026-09-04. A coordinator has everything an org admin
+# has minus the money (CLAUDE.md, utils/sis_roles.py), and XP is not money -- the
+# omission was an oversight rather than a decision. The web client had been
+# letting coordinators through for a month via isStaffUser while this set turned
+# them away, so the fix is the server widening rather than the client narrowing.
+#
+# THIS SET IS MIRRORED IN BOTH CLIENTS and each has a test that parses it out of
+# this file: frontend/src/hooks/__tests__/useCanEditXp.roles.test.jsx and
+# frontend-v2/src/hooks/__tests__/useCanEditXp.roles.test.ts. Changing it here
+# fails both until they are updated, which is the point.
+XP_GUIDE_ROLES = frozenset({'superadmin', 'org_admin', 'campus_coordinator', 'advisor'})
 
 # XP assigned to a learner-created task when the org has locked XP editing and
 # no server-generated value is available. Matches the platform default used by

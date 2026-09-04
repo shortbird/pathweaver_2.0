@@ -45,7 +45,7 @@ export const DIPLOMA_PILLARS = {
   civics: {
     name: 'Civics',
     description: 'Understanding context, community impact, global awareness',
-    color: '#E65C5C',
+    color: '#FF9028',
     gradient: 'from-[#F3EFF4] to-[#F5F2E7]',
     bgClass: 'bg-pillar-civics',
     textClass: 'text-pillar-civics',
@@ -58,7 +58,7 @@ export const DIPLOMA_PILLARS = {
   wellness: {
     name: 'Wellness',
     description: 'Physical activity, practical skills, personal development',
-    color: '#FF9028',
+    color: '#E65C5C',
     gradient: 'from-[#F3EFF4] to-[#FCD8D8]',
     bgClass: 'bg-pillar-wellness',
     textClass: 'text-pillar-wellness',

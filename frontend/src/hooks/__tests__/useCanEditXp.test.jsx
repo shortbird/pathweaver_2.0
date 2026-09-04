@@ -64,24 +64,27 @@ describe('useCanEditXp', () => {
     // covers guardians marked has_advisor_assignments" -- a bonus that was
     // never added to the server.
     //
-    // Whether such a guardian SHOULD be allowed to set XP is a real question
-    // and is in the plan's Open Questions. Until it is answered the client must
-    // not offer a control the server rejects.
+    // Still refused after the 2026-09-04 widening, which added
+    // campus_coordinator and nothing else: has_advisor_assignments is a count
+    // of rows, not a role, so get_effective_roles never yields 'advisor' for
+    // them and the save is rejected.
     expect(
       canEdit({ role: 'parent', has_advisor_assignments: true }, { lock_xp_editing: true })
     ).toBe(false)
   })
 
-  it('blocks a campus coordinator, because the server does', () => {
-    // Same drift, other half: isStaffUser includes campus_coordinator and
-    // XP_GUIDE_ROLES does not. No coordinator has hit it yet -- the one org
-    // with the lock on has none -- which is why it went unreported.
+  it('allows a campus coordinator', () => {
+    // Asserted false for one day. The drift was real -- the client was letting
+    // coordinators through while the server refused them -- but the resolution
+    // (2026-09-04) was to widen the SERVER, not narrow the client: a
+    // coordinator has everything an org admin has minus the money, and XP is
+    // not money. See XP_GUIDE_ROLES in backend/utils/xp_permissions.py.
     expect(
       canEdit(
         { role: 'org_managed', org_role: 'campus_coordinator', org_roles: ['campus_coordinator'] },
         { lock_xp_editing: true }
       )
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it('still blocks a parent who only parents', () => {

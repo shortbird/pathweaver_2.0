@@ -3195,72 +3195,27 @@ ANSWERED 2026-09-03 (user: "run migrations and push to prod"):
 
 Still open:
 
-- **XP lock: should a campus coordinator, or a guardian who advises students,
-  be allowed to set a task's XP?** One line either way; I have aligned the
-  clients to the server in the meantime so nothing offers a control that fails.
+- ~~**QF-01 / BRAND: civics and wellness are swapped between web and mobile**~~
+  — ANSWERED 2026-09-04 (user: "flip web app"). The web app and
+  `backend/config/pillars.py` now match the brand reference: **Civics orange
+  `#FF9028`, Wellness red `#E65C5C`**, everywhere. Four files changed, plus the
+  `-light`/`-dark` shades and gradients that only v1 has. The guard that PINNED
+  the disagreement is replaced by one asserting the agreement, including a check
+  that `pillarMappings.js`'s tailwind classes still match its own hex — the
+  contradiction that identified which side was wrong in the first place.
 
-  `backend/utils/xp_permissions.py` says the XP guides are
-  `{superadmin, org_admin, advisor}`. The web hook was checking `isStaffUser`,
-  which is wider — it also passes `campus_coordinator` and anyone carrying
-  `has_advisor_assignments`. So in an org with `lock_xp_editing` on, those
-  people saw an XP control the API refuses on save, which is the exact failure
-  the hook's own docstring says it exists to prevent.
+- ~~**XP lock: should a campus coordinator set a task's XP?**~~ — ANSWERED
+  2026-09-04 (user: "coord can set XP"). Resolved by widening the SERVER, not
+  narrowing the clients: `XP_GUIDE_ROLES` in `backend/utils/xp_permissions.py`
+  now includes `campus_coordinator`, and both clients follow. The guard tests
+  did exactly their job — the note in the web one said "add them to
+  xp_permissions.py FIRST and this test goes green on its own", and that is how
+  it went.
 
-  It went unreported because only one org has the flag on (Arete Academy) and
-  it has no campus coordinators. Verified against prod.
-
-  The drift was incidental, not a decision: commit 70adf776 reached for
-  `isStaffUser` because it "additionally covers guardians marked
-  has_advisor_assignments", and nobody added that to the server.
-
-  Two reasonable answers, and I am not picking:
-  - **Coordinators**: CLAUDE.md says a coordinator has everything an org admin
-    has *minus the money*, and XP is not money. That argues for adding
-    `campus_coordinator` to the SERVER's set.
-  - **Guardians with advisor assignments**: they are functionally teaching
-    those students. Also defensible, but it is a real privilege change and
-    `has_advisor_assignments` is a derived flag, not a role.
-
-  Change `XP_GUIDE_ROLES` in `xp_permissions.py` and the guard tests on both
-  clients go green on their own.
-
-- **QF-01 / BRAND: the web app and the mobile app disagree about two pillar
-  colours, and one of them is wrong.** Needs a one-word answer from you; the
-  fix is then about ten minutes.
-
-  Civics and Wellness are SWAPPED between the surfaces. On mobile, Civics is
-  orange `#FF9028` and Wellness is red `#E65C5C`. On the web app they are the
-  other way round. Same pillar, different colour, on every badge, chart and
-  filter chip. This predates the audit — nothing in this plan caused it.
-
-  The evidence is lopsided:
-
-  | Says civics=ORANGE (canonical) | Says civics=RED |
-  |---|---|
-  | `docs/COLOR_REFERENCE.md` (the brand reference) | `frontend/tailwind.config.js` |
-  | `backend/utils/pillar_utils.py` (`# Orange`) | `frontend/src/constants/brandStyles.js` |
-  | `frontend-v2/tailwind.config.js` | `frontend/src/utils/pillarMappings.js` |
-  | `frontend-v2/src/config/pillars.ts` | `backend/config/pillars.py` |
-  | `frontend/src/config/COLOR_MIGRATION_GUIDE.md` | |
-
-  The tell is inside v1's own designated source. `DESIGN_SYSTEM.md` names
-  `pillarMappings.js` as where v1's pillar colours come from, and in that file
-  the `civics` entry carries `color: '#E65C5C'` (red) next to
-  `bg: 'bg-orange-50', text: 'text-orange-700'`. The Tailwind classes and the
-  hex contradict each other in the same object, which is what a swapped field
-  looks like. The backend contradicts itself the same way, across two files.
-
-  **My read: the web app is wrong and should flip.** I did not do it, because
-  it changes what users see across the whole web app, and that is a brand call
-  rather than a refactor.
-
-  `shared/pillars.json` is now the single definition and carries the canonical
-  values. v2 derives from it (no visual change — it already matched).
-  `frontend-v2/src/__tests__/pillarPalette.test.ts` PINS the four disagreeing
-  files by name and exact value, so the split cannot widen or be forgotten, and
-  so whoever flips them gets a failing test listing the rest of the work.
-
-  Say "flip the web app" and the four files change to match.
+  A guardian carrying `has_advisor_assignments` is still NOT a guide. That was
+  the other half of the old client drift and it stays refused:
+  `has_advisor_assignments` is a count of rows in `advisor_student_assignments`,
+  not a role, so `get_effective_roles` never yields `advisor` for them.
 
 - SEC-14: DONE, verified, and `FLASK_SECRET_KEY_OLD` confirmed set by the user
   on 2026-09-03. One dated action remains: do NOT remove FLASK_SECRET_KEY_OLD

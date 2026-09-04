@@ -98,57 +98,61 @@ describe("v2 derives from it rather than copying it", () => {
 });
 
 /**
- * The known divergence. These assertions describe what the repo says TODAY,
- * on purpose. They are not endorsements: each one is a file that should end up
- * matching CANONICAL, and when someone flips them this test fails and names
- * the rest of the work.
+ * The divergence is over. Resolved 2026-09-04 on the user's call: the web app
+ * and backend/config/pillars.py were flipped to match the brand reference, so
+ * Civics is orange and Wellness is red on every surface.
+ *
+ * These assertions replace the ones that PINNED the old disagreement. They are
+ * the reason it cannot come back: every place that spells a pillar hex is
+ * checked against shared/pillars.json, including the -light/-dark shades and
+ * gradients that only the web app has, which are the parts most likely to be
+ * flipped back by someone matching them to a stale screenshot.
  */
-describe('v1 and backend/config still disagree about civics and wellness', () => {
-  const SWAPPED_FILES = [
+describe('every surface now agrees with shared/pillars.json', () => {
+  const SPELLS_PILLAR_HEXES = [
     'frontend/tailwind.config.js',
     'frontend/src/constants/brandStyles.js',
     'frontend/src/utils/pillarMappings.js',
     'backend/config/pillars.py',
+    'backend/utils/pillar_utils.py',
   ];
 
   /** The first civics/wellness hex after the pillar's key, whatever the syntax. */
   const colourFor = (src: string, key: string): string | null => {
-    const at = src.toLowerCase().indexOf(key);
-    if (at < 0) return null;
-    const m = /#(FF9028|E65C5C)/i.exec(src.slice(at, at + 400));
-    return m ? `#${m[1].toUpperCase()}` : null;
+    for (const m of src.matchAll(new RegExp(key, 'gi'))) {
+      const hit = /#(FF9028|E65C5C)/i.exec(src.slice(m.index! + key.length, m.index! + key.length + 300));
+      if (hit) return `#${hit[1].toUpperCase()}`;
+    }
+    return null;
   };
 
-  it.each(SWAPPED_FILES)('%s still has them the other way round', (rel) => {
+  it.each(SPELLS_PILLAR_HEXES)('%s has civics orange and wellness red', (rel) => {
     const src = read(rel);
-    const civics = colourFor(src, 'civics');
-    const wellness = colourFor(src, 'wellness');
-    if (civics !== '#E65C5C' || wellness !== '#FF9028') {
-      throw new Error(
-        `${rel} now has civics=${civics} wellness=${wellness}, so somebody has ` +
-        'started fixing the swap. Good -- finish it: every file in SWAPPED_FILES ' +
-        'must match shared/pillars.json (civics #FF9028 orange, wellness #E65C5C ' +
-        'red), then delete this block. Half done is worse than either end state, ' +
-        'because then two halves of one screen disagree.');
-    }
+    expect({ civics: colourFor(src, 'civics'), wellness: colourFor(src, 'wellness') })
+      .toEqual({ civics: CANONICAL.civics, wellness: CANONICAL.wellness });
   });
 
-  it('is contradicted by v1\'s own designated source, which is the tell', () => {
-    // DESIGN_SYSTEM.md points at pillarMappings.js as v1's pillar source. In
-    // that file civics carries color '#E65C5C' (red) alongside
-    // bg-orange-50/text-orange-700 -- the Tailwind classes say orange while the
-    // hex says red, in the same object. The hex is the field that drifted.
+  it("v1's light and dark shades sit on the right base", () => {
+    // The shades are web-only, so shared/pillars.json cannot carry them -- and
+    // they are the half that gets flipped back, because they are picked by eye.
+    // Wellness is the red family, civics the orange family.
+    const tw = read('frontend/tailwind.config.js');
+    expect(tw).toContain("'pillar-wellness-light': '#FBE5E5'");
+    expect(tw).toContain("'pillar-wellness-dark': '#D43F3F'");
+    expect(tw).toContain("'pillar-civics-light': '#FFF0E1'");
+    expect(tw).toContain("'pillar-civics-dark': '#E67A1A'");
+  });
+
+  it("v1's pillarMappings tailwind classes agree with its own hex", () => {
+    // This is the contradiction that identified which side was wrong: civics
+    // carried color '#E65C5C' (red) beside bg-orange-50/text-orange-700. If the
+    // two halves ever disagree again, the same bug is back.
     const src = read('frontend/src/utils/pillarMappings.js');
     const civics = src.slice(src.indexOf('civics: {'), src.indexOf('wellness: {'));
-    expect(civics).toContain('#E65C5C');
+    const wellness = src.slice(src.indexOf('wellness: {'));
+    expect(civics).toContain(CANONICAL.civics);
     expect(civics).toContain('orange');
-  });
-
-  it('is not shared by the backend consumer that computes pillar colours', () => {
-    // backend/utils/pillar_utils.py agrees with shared/pillars.json and with
-    // the brand doc, so the backend disagrees with ITSELF too.
-    const src = read('backend/utils/pillar_utils.py');
-    const civics = src.slice(src.indexOf("'civics': {"), src.indexOf("'wellness': {"));
-    expect(civics).toContain('#FF9028');
+    expect(wellness).toContain(CANONICAL.wellness);
+    expect(wellness).toContain('red');
   });
 });

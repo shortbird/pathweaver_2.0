@@ -48,13 +48,14 @@ describe('XP_GUIDE_ROLES matches the backend', () => {
     expect([...XP_GUIDE_ROLES].sort()).toEqual(serverGuideRoles())
   })
 
-  it('does not include campus_coordinator unless the server does', () => {
-    // Named because it is the likely next change: CLAUDE.md says a coordinator
-    // has everything an org admin has "minus the money", and XP is not money —
-    // so adding them is defensible. Add them to xp_permissions.py FIRST, and
-    // this test goes green on its own.
+  it('includes campus_coordinator, and only because the server does', () => {
+    // This is what the guard was built for and it worked: the note here said
+    // adding coordinators was the likely next change and to do it in
+    // xp_permissions.py first. That happened on 2026-09-04, this test went red
+    // pointing at the client list, and the client followed. Kept as a named
+    // case because it is the entry most likely to be "tidied" back out.
     const server = serverGuideRoles()
-    expect(XP_GUIDE_ROLES.includes('campus_coordinator')).toBe(
-      server.includes('campus_coordinator'))
+    expect(server).toContain('campus_coordinator')
+    expect(XP_GUIDE_ROLES).toContain('campus_coordinator')
   })
 })

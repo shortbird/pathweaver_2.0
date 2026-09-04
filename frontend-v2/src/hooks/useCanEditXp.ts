@@ -20,7 +20,7 @@ import { userHasRole } from '@/src/utils/effectiveRole';
  * the lists stop matching. The web app's copy drifted WIDER once and offered
  * the control to people the server turns away; exported so the test can see it.
  */
-export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'advisor'];
+export const XP_GUIDE_ROLES = ['superadmin', 'org_admin', 'campus_coordinator', 'advisor'];
 
 export const XP_LOCKED_HINT = 'Your school sets the XP for tasks.';
 

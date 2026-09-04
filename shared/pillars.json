@@ -6,12 +6,15 @@
     "wraps this with types for app code.",
     "",
     "Colours follow docs/COLOR_REFERENCE.md, which is the brand reference.",
-    "NOTE: v1 (frontend/) and backend/config/pillars.py currently render civics",
-    "and wellness with these two colours SWAPPED. That is a real, user-visible",
-    "disagreement between the web and mobile apps and it predates this file --",
-    "see the Open Questions section of docs/audit-2026-08/REMEDIATION_PLAN.md.",
-    "Nothing was flipped to create this file; the divergence is pinned by",
-    "frontend-v2/src/__tests__/pillarPalette.test.ts until someone decides."
+    "",
+    "History worth keeping: v1 and backend/config/pillars.py rendered civics and",
+    "wellness in each other's colours until 2026-09-04, so the same pillar was",
+    "orange on the web and red on mobile. Extracting this file is what surfaced it.",
+    "It is fixed everywhere now, and frontend-v2/src/__tests__/pillarPalette.test.ts",
+    "checks every file that still spells a pillar hex against this one -- including",
+    "v1's -light/-dark shades and gradients, which are web-only and so cannot live",
+    "here, and are the part most likely to be flipped back to match a stale",
+    "screenshot."
   ],
   "pillars": [
     {
