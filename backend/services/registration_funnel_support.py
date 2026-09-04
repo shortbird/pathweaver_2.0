@@ -54,15 +54,25 @@ def _load_registration_invite(code):
     valid, pending, link-based parent invite for a registration-funnel org.
 
     Returns (data_dict, None) on success or (None, (json, status)) on failure.
+
+    `.limit(1)` rather than `.single()`: PostgREST's single() raises PGRST116 on
+    zero rows, so an unknown or mistyped code came back as a 500 instead of the
+    404 written three lines below. This is the FIRST step of the funnel and the
+    route is unauthenticated, so the people who hit it are a parent who mistyped
+    their link, a parent whose link was revoked, and anyone probing.
+
+    Exactly the bug already fixed in `_load_registration` for the same reason
+    (Sentry OPTIO-BACKEND-4, tests/test_registration_load_registration.py); this
+    sibling was missed at the time. Found 2026-09-04 by curling the route.
     """
     admin = _admin()
-    res = admin.table('org_invitations') \
-        .select('id, organization_id, email, role, status, expires_at, '
-                'organizations(id, name, slug, branding_config, feature_flags)') \
-        .eq('invitation_code', code) \
-        .single() \
-        .execute()
-    inv = res.data
+    rows = (admin.table('org_invitations')
+            .select('id, organization_id, email, role, status, expires_at, '
+                    'organizations(id, name, slug, branding_config, feature_flags)')
+            .eq('invitation_code', code)
+            .limit(1)
+            .execute()).data
+    inv = rows[0] if rows else None
     if not inv:
         return None, (jsonify({'error': 'Invalid registration link'}), 404)
     if inv['status'] != 'pending':

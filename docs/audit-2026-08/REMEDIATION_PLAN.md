@@ -3154,6 +3154,32 @@ Log:
 
 ---
 
+### FU-06 — An unknown registration code 500s instead of 404ing `[DONE]`
+Found 2026-09-04 by curling the local server before handing the funnel over for
+testing, not by a test.
+
+`_load_registration_invite` used PostgREST's `.single()`, which raises PGRST116
+on zero rows — so an unknown, mistyped or revoked invitation code produced a 500
+instead of the `Invalid registration link` 404 the function defines three lines
+later. It is the FIRST step of the funnel and the route is unauthenticated, so
+the people hitting it are a parent who mistyped their link, a parent whose link
+was revoked, and anyone probing.
+
+Exactly the bug already fixed in `_load_registration` for the same reason
+(Sentry OPTIO-BACKEND-4, `tests/test_registration_load_registration.py`) — this
+sibling was missed at the time and has been live since. NOT caused by the QB-04
+split: verified the identical `.single()` on `origin/main`.
+
+Now `.limit(1)`. Three tests added to the file that covers its sibling: unknown
+code returns 404, a real code still resolves, and an AST check that the function
+does not call `.single()` again. The AST check is deliberate — a plain substring
+search matches the docstring explaining why `.single()` is avoided, and so fails
+on a correct file.
+
+Verified live: `/api/registration/config/nonexistent-code` now returns
+`{"error":"Invalid registration link"}` with 404, and all three real org links
+(Gryffin, Optio Academy, iCreate) load through the split modules.
+
 ## Migrations: what is actually applied to production
 
 Read this before claiming a migration in `supabase/migrations/` is or is not

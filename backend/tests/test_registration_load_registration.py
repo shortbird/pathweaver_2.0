@@ -80,3 +80,86 @@ def test_confirm_payment_with_unknown_registration_is_403(client):
         res = client.post(f'/api/registration/registrations/{VALID_UNKNOWN_ID}/confirm-payment',
                           json={'access_token': 'anything'})
     assert res.status_code == 403
+
+
+# ── the sibling loader, missed when _load_registration was fixed ──────────────
+
+class TestLoadRegistrationInvite:
+    """_load_registration_invite had the same PGRST116 bug for a year longer.
+
+    `.single()` raises when the code matches no row, so an unknown or mistyped
+    invitation code produced a 500 rather than the 404 the function goes on to
+    return three lines later. It is the FIRST step of the funnel and the route
+    is unauthenticated, so the people reaching it are a parent who mistyped
+    their link, a parent whose link was revoked, and anyone probing.
+
+    Found 2026-09-04 by curling /api/registration/config/nonexistent-code
+    against a local server.
+    """
+
+    def _app(self):
+        app = Flask(__name__)
+        from routes import registration_funnel
+        app.register_blueprint(registration_funnel.bp)
+        return app
+
+    def test_unknown_code_is_a_404_not_a_500(self):
+        from services import registration_funnel_support
+
+        admin = Mock()
+        (admin.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = Mock(data=[])
+
+        with self._app().test_request_context():
+            with patch('services.registration_funnel_support._admin', return_value=admin):
+                data, err = registration_funnel_support._load_registration_invite('nope')
+
+        assert data is None
+        assert err is not None
+        _body, status = err
+        assert status == 404
+
+    def test_a_real_code_still_resolves(self):
+        """The fix must not turn a hit into a miss."""
+        from services import registration_funnel_support
+
+        inv = {
+            'id': 'inv-1', 'organization_id': 'org-1', 'role': 'parent',
+            'status': 'pending', 'email': f'x{registration_funnel_support.LINK_PLACEHOLDER_SUFFIX}',
+            'organizations': {'id': 'org-1', 'name': 'Test Org', 'slug': 'test',
+                              'feature_flags': {'registration': {'enabled': True}}},
+        }
+        admin = Mock()
+        (admin.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = Mock(data=[inv])
+
+        with self._app().test_request_context():
+            with patch('services.registration_funnel_support._admin', return_value=admin):
+                data, err = registration_funnel_support._load_registration_invite('good-code')
+
+        assert err is None
+        assert data['invitation']['id'] == 'inv-1'
+
+    def test_it_does_not_use_single(self):
+        """The regression is one word, so name it. `.single()` is what raises.
+
+        Parsed rather than grepped: the function's own docstring explains why
+        it avoids single(), so a plain substring search over the source matches
+        its own warning and fails on a correct file.
+        """
+        import ast
+        from pathlib import Path
+        src = (Path(__file__).resolve().parents[2] / 'backend' / 'services'
+               / 'registration_funnel_support.py').read_text(encoding='utf-8')
+        fn = next(n for n in ast.parse(src).body
+                  if isinstance(n, ast.FunctionDef)
+                  and n.name == '_load_registration_invite')
+        calls = {n.func.attr for n in ast.walk(fn)
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        assert 'single' not in calls, (
+            '_load_registration_invite is back on .single(), which raises '
+            'PGRST116 on zero rows -- an unknown invitation code will 500 again '
+            'instead of returning the 404 the function defines.')
+        assert 'limit' in calls, (
+            'The query no longer bounds itself with .limit(1). Without it a '
+            'duplicate invitation code would load every match to use one.')
