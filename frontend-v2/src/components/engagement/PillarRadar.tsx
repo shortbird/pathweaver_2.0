@@ -10,13 +10,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { pillars as pillarConfig } from '@/src/config/pillars';
 
-const PILLARS = [
-  { key: 'stem', label: 'STEM', color: '#2469D1' },
-  { key: 'art', label: 'Art', color: '#AF56E5' },
-  { key: 'communication', label: 'Comm', color: '#3DA24A' },
-  { key: 'civics', label: 'Civics', color: '#FF9028' },
-  { key: 'wellness', label: 'Well', color: '#E65C5C' },
-];
+// Derived from src/config/pillars, not re-declared (QF-01). The five colours
+// were hardcoded here as hex and had already drifted into being reported as
+// "off-palette" -- they are the pillar colours, which is exactly what happens
+// when a shared list gets a second copy.
+//
+// Only the LABELS are local, and deliberately: this is a radar chart, so
+// "Comm" and "Well" have to fit under a spoke where the config's
+// "Communication" and "Wellness" would overlap their neighbours. An
+// abbreviation for a cramped axis is a property of this chart, not of the
+// pillar.
+const RADAR_LABELS: Record<string, string> = {
+  communication: 'Comm',
+  wellness: 'Well',
+};
+
+const PILLARS = ['stem', 'art', 'communication', 'civics', 'wellness'].map((key) => ({
+  key,
+  label: RADAR_LABELS[key] ?? pillarConfig[key].label,
+  color: pillarConfig[key].color,
+}));
 
 const LEVELS = 4; // number of concentric rings
 

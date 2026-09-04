@@ -1730,13 +1730,46 @@ Log:
 
 ## Phase 5 — Frontend quality
 
-### QF-01 — Extract shared logic between v1 and v2 `[TODO]`
+### QF-01 — Extract shared logic between v1 and v2 `[TODO(deduplicated within v2; the cross-app move needs metro-resolver work)]`
 70% endpoint overlap, ~12 reimplemented component/hook pairs, ~8-10k LOC doubled;
 `shared/` holds only legal copy. Extract platform-agnostic hooks, services, and
 API contracts into `shared/` (start: pillars, richText, API types, useQuests /
 useBounties / useNotifications logic).
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Started where the item says to start — pillars — and found the
+  duplication is worse WITHIN v2 than between the apps. Fixed that half; the
+  cross-app move is blocked on plumbing worth describing rather than guessing
+  at.
+
+  Four definitions of the same five pillars:
+    1. `frontend/src/config/pillars.js` (v1) — full config.
+    2. `frontend-v2/src/config/pillars.ts` — full config.
+    3. `frontend-v2/src/hooks/useQuestDetail.ts` — key/label array.
+    4. `frontend-v2/src/components/engagement/PillarRadar.tsx` — key/label/colour
+       array with the colours HARDCODED AS HEX.
+
+  3 and 4 now derive from 2. And that fixes something QF-07 tripped over:
+  PillarRadar's `#2469D1`, `#AF56E5` and `#FF9028` were the values the audit
+  called "off-palette". They are the pillar colours. A shared list with a second
+  copy is exactly how a brand colour ends up looking like drift.
+
+  One thing deliberately kept local: PillarRadar's "Comm" and "Well". It is a
+  radar chart, and the config's full labels overlap their neighbouring spokes.
+  An abbreviation for a cramped axis is a property of that chart, not of the
+  pillar — so it is a lookup beside the derivation rather than a fifth
+  definition.
+
+  WHY THE CROSS-APP MOVE IS NOT DONE: `shared/` is reachable today only through
+  the `@legal` alias, which is hardcoded to `shared/legal` in three places — v1's
+  vite alias, v2's tsconfig path, and a `resolveRequest` hook in
+  `frontend-v2/metro.config.js` that exists because Metro parses `@legal/...` as
+  a scoped package name and never matches an `extraNodeModules` key. Adding
+  `shared/pillars` means generalising that hook to an `@shared` alias, and a
+  Metro resolver change breaks in ways only a device or simulator shows. That is
+  the first task for whoever picks this up, and it is one task, not a mystery.
+
+  Mobile suite 97 files / 718 passed; tsc clean.
 
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28

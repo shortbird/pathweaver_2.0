@@ -6,6 +6,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
+import { pillars as pillarConfig } from '../config/pillars';
 
 export interface QuestTask {
   id: string;
@@ -203,13 +204,11 @@ export function useQuestDetail(questId: string | null) {
   };
 }
 
-export const PILLARS = [
-  { key: 'stem', label: 'STEM' },
-  { key: 'art', label: 'Art' },
-  { key: 'communication', label: 'Communication' },
-  { key: 'civics', label: 'Civics' },
-  { key: 'wellness', label: 'Wellness' },
-];
+// Derived from src/config/pillars rather than re-listed (QF-01). This was the
+// third copy of the five pillars in v2 alone; the other two had already drifted
+// apart on labels and colours.
+export const PILLARS = ['stem', 'art', 'communication', 'civics', 'wellness']
+  .map((key) => ({ key, label: pillarConfig[key].label }));
 
 // Display names must match the backend SUBJECT_NORMALIZATION map in
 // routes/tasks/xp_helpers.py — unrecognized names produce credit keys the
