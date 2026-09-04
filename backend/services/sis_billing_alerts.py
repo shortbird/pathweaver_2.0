@@ -51,6 +51,8 @@ def _money(cents: Optional[int]) -> str:
 
 def _ordinal(day: Optional[int]) -> str:
     """PURE. 1 -> '1st'. The billing day reads as a date, not a number."""
+    if day is None:
+        return ''
     try:
         n = int(day)
     except (TypeError, ValueError):
