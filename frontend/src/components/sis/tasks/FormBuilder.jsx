@@ -43,6 +43,7 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
   const [fields, setFields] = useState(
     template?.fields?.length ? template.fields : [emptyField()])
   const [busy, setBusy] = useState(false)
+  const [draggedIdx, setDraggedIdx] = useState(null)
 
   const setField = (i, patch) =>
     setFields((prev) => prev.map((f, j) => (j === i ? { ...f, ...patch } : f)))
@@ -62,6 +63,20 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
     const { key, ...rest } = prev[i]
     return [...prev.slice(0, i + 1), { ...rest, label: `${prev[i].label} (copy)` }, ...prev.slice(i + 1)]
   })
+
+  const duplicateThisForm = async () => {
+    if (!template?.id) return
+    setBusy(true)
+    try {
+      await api.post(`/api/sis/staff-admin/form-templates/${template.id}/duplicate`, {})
+      toast.success('Form duplicated')
+      onSaved()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not duplicate the form')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const save = async () => {
     if (!name.trim()) { toast.error('The form needs a name'); return }
@@ -123,8 +138,29 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
       </div>
 
       {fields.map((f, i) => (
-        <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
+        <div key={i} draggable
+          onDragStart={(e) => { setDraggedIdx(i); e.dataTransfer.effectAllowed = 'move' }}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (draggedIdx === null || draggedIdx === i) return
+            setFields((prev) => {
+              const next = [...prev]
+              const [moved] = next.splice(draggedIdx, 1)
+              next.splice(i, 0, moved)
+              return next
+            })
+            setDraggedIdx(null)
+          }}
+          onDragEnd={() => setDraggedIdx(null)}
+          className={`bg-white rounded-lg border p-3 space-y-2 transition-colors ${
+            draggedIdx === i ? 'border-optio-purple bg-optio-purple/5 opacity-60' : 'border-gray-200'
+          }`}>
           <div className="flex items-center gap-2">
+            <span className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-neutral-600 px-1 select-none text-base font-bold shrink-0"
+              title="Drag to reorder block">
+              ⋮⋮
+            </span>
             <input value={f.label} onChange={(e) => setField(i, { label: e.target.value })}
               placeholder={`Question ${i + 1}`} className={input} />
             <select value={f.type} onChange={(e) => setField(i, { type: e.target.value })}
@@ -169,6 +205,12 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
           className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-60">
           {busy ? 'Saving…' : 'Save form'}
         </button>
+        {template?.id && (
+          <button type="button" onClick={duplicateThisForm} disabled={busy}
+            className="px-3 py-2 rounded-lg border border-optio-purple text-optio-purple hover:bg-optio-purple/10 text-sm font-medium disabled:opacity-60">
+            Duplicate form
+          </button>
+        )}
         <button onClick={onCancel} className="text-sm text-neutral-500 hover:text-neutral-800">Cancel</button>
       </div>
     </div>

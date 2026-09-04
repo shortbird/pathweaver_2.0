@@ -158,4 +158,21 @@ describe('Onboarding templates management', () => {
       )
     })
   })
+
+  it('duplicates template from inside the editor modal', async () => {
+    render(<OnboardingPage />)
+    await openTemplates()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    const duplicateModalBtn = screen.getByRole('button', { name: 'Duplicate template' })
+    expect(duplicateModalBtn).toBeInTheDocument()
+    fireEvent.click(duplicateModalBtn)
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/sis/staff-admin/onboarding/templates/tmpl-1/duplicate',
+        {}
+      )
+    })
+  })
 })

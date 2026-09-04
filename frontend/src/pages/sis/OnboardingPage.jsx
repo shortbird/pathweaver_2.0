@@ -229,6 +229,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
   const [description, setDescription] = useState(template?.description || '')
   const [items, setItems] = useState(template?.items?.length ? template.items : [emptyItem()])
   const [busy, setBusy] = useState(false)
+  const [draggedIdx, setDraggedIdx] = useState(null)
 
   const setItem = (i, patch) => setItems((prev) => prev.map((it, j) => (j === i ? { ...it, ...patch } : it)))
 
@@ -251,6 +252,20 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
     const copy = { ...rest, title: `${prev[i].title} (copy)` }
     return [...prev.slice(0, i + 1), copy, ...prev.slice(i + 1)]
   })
+
+  const duplicateThisTemplate = async () => {
+    if (!template?.id) return
+    setBusy(true)
+    try {
+      await api.post(`/api/sis/staff-admin/onboarding/templates/${template.id}/duplicate`, {})
+      toast.success('Template duplicated')
+      onSaved()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not duplicate template')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const save = async () => {
     if (!name.trim()) { toast.error('Template name is required'); return }
@@ -284,8 +299,29 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
         placeholder="Directions (optional) — shown at the top, above the items"
         className={inputClass} aria-label="Directions" />
       {items.map((it, i) => (
-        <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
+        <div key={i} draggable
+          onDragStart={(e) => { setDraggedIdx(i); e.dataTransfer.effectAllowed = 'move' }}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (draggedIdx === null || draggedIdx === i) return
+            setItems((prev) => {
+              const updated = [...prev]
+              const [moved] = updated.splice(draggedIdx, 1)
+              updated.splice(i, 0, moved)
+              return updated
+            })
+            setDraggedIdx(null)
+          }}
+          onDragEnd={() => setDraggedIdx(null)}
+          className={`bg-white rounded-lg border p-3 space-y-2 transition-colors ${
+            draggedIdx === i ? 'border-optio-purple bg-optio-purple/5 opacity-60' : 'border-gray-200'
+          }`}>
           <div className="flex items-center gap-2">
+            <span className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-neutral-600 px-1 select-none text-base font-bold shrink-0"
+              title="Drag to reorder block">
+              ⋮⋮
+            </span>
             <input value={it.title} onChange={(e) => setItem(i, { title: e.target.value })}
               placeholder={`Item ${i + 1} title`} className={inputClass} />
             <div className="flex items-center gap-1 shrink-0">
@@ -351,7 +387,13 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
         <button onClick={() => setItems((prev) => [...prev, emptyItem()])} className="text-sm text-optio-purple hover:underline">
           + Add item
         </button>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          {template?.id && (
+            <button type="button" onClick={duplicateThisTemplate} disabled={busy}
+              className="px-3 py-1.5 rounded-lg border border-optio-purple text-optio-purple hover:bg-optio-purple/10 text-sm font-medium disabled:opacity-50">
+              Duplicate template
+            </button>
+          )}
           <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
           <button onClick={save} disabled={busy}
             className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
