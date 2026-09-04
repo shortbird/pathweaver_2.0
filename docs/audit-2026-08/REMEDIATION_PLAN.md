@@ -1738,12 +1738,42 @@ useBounties / useNotifications logic).
 Log:
 - 2026-08-31: Plan created.
 
-### QF-02 — Decompose top god components `[TODO]`
+### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
 Then the next 8 by size. Behavior-preserving; tests before refactor where thin.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: FENCED, not decomposed — and the fence had to know about far more
+  files than the item names.
+
+  Measured: 733 `.jsx` files, **fifteen over 1,000 lines**, thirty-one over 800.
+  The item names two. A cap that only knew about those two would have failed on
+  day one against thirteen files nobody was asked to touch, so
+  `frontend/src/__tests__/componentSize.test.js` caps new files at 1,000 lines
+  and carries eighteen exemptions at measured size plus headroom.
+
+  It mirrors the backend's `test_route_file_sizes.py`, which has been in place
+  since Q1 and demonstrably works — it caught `dependents.py` crossing 1,400
+  lines earlier today, on a comment. The frontend had no equivalent.
+
+  Two properties worth keeping: an exemption may be REMOVED when a file is split
+  but never raised, and a third test fails if an exemption names a file that no
+  longer exists — a stale entry is a cap nobody is under, and the next file to
+  take that path would inherit a limit granted to something else. That test
+  earned its place immediately: `pages/sis/FamiliesPage.jsx` was in my first
+  draft of the list and does not exist.
+
+  DECOMPOSITION IS STILL OPEN, and the item stays TODO for it. Splitting a
+  1,650-line page is behaviour-preserving work whose verification is "the page
+  still does what it did", which needs a browser. What the fence buys meanwhile
+  is that the sixteenth file cannot join them quietly. Why size is worth fencing
+  in a component at all: state count scales with it, and a page with 41
+  `useState` has more possible states than anyone can hold in their head — so
+  its bugs arrive as "sometimes the save button stays disabled", unreproducible
+  and untestable until the thing is split.
+
+  Web suite 2496 passing.
 
 ### QF-03 — Finish one data-fetching paradigm in v1 `[TODO]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
