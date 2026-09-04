@@ -39,11 +39,19 @@ BACKEND = Path(__file__).resolve().parents[2]
 # routes/ into repositories/crm_repository.py (the webhook, the admin console
 # and the unsubscribe link all needed to agree on it). routes/ fell by the
 # same migration.
+# utils/ raised 128 -> 131 for utils/guardian_scope.py, which answers "may this
+# adult read this kid's quest": three lookups (the student's row, the
+# parent_student_link, the caller's role) that ARE the authorization check.
+# Routing an auth gate through a repository would put the decision a layer away
+# from the code that enforces it; the neighbouring guards
+# (routes/family_quests.verify_parent_has_access_to_child,
+# routes/parent/dashboard_overview.verify_parent_access) read the same tables
+# the same way.
 BASELINES = {
     'routes': 2336,
     'services': 1779,
     'repositories': 415,
-    'utils': 128,
+    'utils': 131,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

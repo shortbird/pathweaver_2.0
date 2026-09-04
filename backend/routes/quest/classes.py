@@ -16,6 +16,7 @@ from flask import Blueprint, request
 from datetime import datetime, timezone
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from utils.api_response_v1 import success_response, error_response
 from utils.school_subjects import SCHOOL_SUBJECTS, get_display_name
 from utils.logger import get_logger
@@ -169,8 +170,16 @@ def list_my_classes(user_id: str):
 @bp.route('/<quest_id>/class-progress', methods=['GET'])
 @require_auth
 def get_class_progress(user_id: str, quest_id: str):
-    """Return subject-XP progress for a class quest."""
+    """Return subject-XP progress for a class quest.
+
+    `?student_id=<uuid>` reads the child's class instead of the caller's, so the
+    credit ring on a parent's copy of the quest screen shows the KID's progress
+    toward the credit and not the parent's (guardians only). Submitting the
+    class for final review stays the student's own milestone.
+    """
     try:
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+
         # admin client justified: quest fetch feeds the owner-or-superadmin authz check itself; superadmin path then reads the OWNER's completions/tasks (cross-user)
         supabase = get_supabase_admin_client()
         quest = supabase.table('quests') \
@@ -216,6 +225,8 @@ def get_class_progress(user_id: str, quest_id: str):
             'can_submit_for_review': approved_xp >= CLASS_TARGET_XP and q.get('class_review_status') in (None, 'rejected'),
         })
 
+    except GuardianAccessError as e:
+        return error_response(code='FORBIDDEN', message=str(e), status=403)
     except Exception as e:
         logger.error(f"class-progress failed for {quest_id}: {e}", exc_info=True)
         return error_response(code='FETCH_ERROR', message='Failed to load class progress', status=500)

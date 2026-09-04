@@ -318,3 +318,97 @@ describe('enroll', () => {
     });
   });
 });
+
+/**
+ * Parent mode. The same hook, pointed at a child: reads carry `student_id` and
+ * every write moves to the on-behalf-of endpoint. Getting one of these wrong
+ * writes a parent's task onto the PARENT's account, which is silent and wrong,
+ * so each path is pinned here.
+ */
+describe('useQuestDetail in parent mode', () => {
+  const withChild = { studentId: 'kid-1' };
+
+  beforeEach(() => {
+    (api.get as jest.Mock).mockResolvedValue({ data: { quest: mockQuest } });
+  });
+
+  async function mounted() {
+    const { result } = renderHook(() => useQuestDetail('quest-1', withChild));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    return result;
+  }
+
+  it("reads the child's copy of the quest", async () => {
+    await mounted();
+    expect(api.get).toHaveBeenCalledWith('/api/quests/quest-1', {
+      params: { student_id: 'kid-1' },
+    });
+  });
+
+  it('writes an accepted task to the child through the family endpoint', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { task: { id: 'task-9' } } });
+
+    await act(async () => {
+      await result.current.acceptTask({
+        title: 'Build a truss', description: 'Balsa and glue', pillar: 'stem',
+        xp_value: 100, success_criteria: ['Holds 2kg'], diploma_subjects: { Science: 100 },
+      });
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/family/quests/quest-1/tasks', {
+      child_id: 'kid-1',
+      title: 'Build a truss',
+      description: 'Balsa and glue',
+      pillar: 'stem',
+      xp_value: 100,
+      success_criteria: ['Holds 2kg'],
+      diploma_subjects: { Science: 100 },
+    });
+    // No personalization session is opened: that session belongs to a learner
+    // working through the wizard on their own quest.
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/api/quests/quest-1/start-personalization', expect.anything(),
+    );
+  });
+
+  it('removes a task through the family endpoint, never /api/tasks', async () => {
+    const result = await mounted();
+
+    await act(async () => {
+      await result.current.deleteTask('task-1');
+    });
+
+    expect(api.delete).toHaveBeenCalledWith('/api/family/quests/quest-1/tasks/task-1', {
+      params: { child_id: 'kid-1' },
+    });
+    expect(api.delete).not.toHaveBeenCalledWith('/api/tasks/task-1');
+  });
+
+  it('completes a task as the child, so the XP lands on their account', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
+
+    await act(async () => {
+      await result.current.completeTask('task-1', []);
+    });
+
+    const [url, body] = (api.post as jest.Mock).mock.calls.at(-1);
+    expect(url).toBe('/api/tasks/task-1/complete');
+    expect(body.get('acting_as_dependent_id')).toBe('kid-1');
+  });
+
+  it('starts the quest on the child, not on the parent', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
+
+    await act(async () => {
+      await result.current.enroll();
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/api/family/quests/quest-1/enroll-children', {
+      child_ids: ['kid-1'],
+    });
+    expect(api.post).not.toHaveBeenCalledWith('/api/quests/quest-1/enroll', expect.anything());
+  });
+});
