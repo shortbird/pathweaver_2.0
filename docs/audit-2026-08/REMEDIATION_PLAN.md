@@ -1838,12 +1838,49 @@ seed.sql extension, env plumbing, docs.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### OPS-02 — `render.yaml` is not in effect; live config is dashboard-only `[TODO]`
+### OPS-02 — `render.yaml` is not in effect; live config is dashboard-only `[DONE(reconciled; re-adopting Blueprint sync stays NEEDS-USER)]`
 First step is autonomous and read-only: pull live service config via the Render
 API/MCP and rewrite `render.yaml` to match reality (documented as such). Whether
 to re-adopt Blueprint sync is then NEEDS-USER.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Reconciled against the live Render API, and the reconciliation
+  turned up three things worth more than the file rewrite itself.
+
+  **1. www.optioeducation.com is not the service anyone thought.** It is served
+  by `optio-marketing` (static, rootDir `marketing`, created 2026-09-01) — a
+  service that was MISSING FROM render.yaml entirely while serving the apex.
+  Verified by response headers, not by assumption: www's `last-modified`
+  (18:23:30) matches optio-marketing exactly, and app.optioeducation.com's
+  (22:34:20) matches optio-prod-frontend. www redirects /login to app.
+
+  **2. Neither backend installs ffmpeg.** The live build command on both is
+  `pip install -r requirements.txt`; render.yaml claimed
+  `apt-get install -y ffmpeg && ...`. Nothing crashes —
+  `services/video_processing_service.py` probes for ffmpeg at startup and
+  degrades — so server-side video probing and thumbnail generation are simply
+  OFF in production, and have been, silently. Fixing it is a dashboard edit,
+  not a file edit.
+
+  **3. The security headers ARE live, on the host that matters.**
+  app.optioeducation.com returns HSTS, frame-ancestors, Permissions-Policy, the
+  full suite. So the 2026-08-15 header work was not wasted, which the audit's
+  "not in effect" framing left open. But www returns ONLY
+  `x-content-type-options` — the apex makes no HSTS claim at all, which is
+  precisely what an HSTS preload submission for optioeducation.com is judged
+  on. Lower severity (static marketing site, no auth, no user data), still a
+  real gap.
+
+  render.yaml now opens with a header naming which service serves which
+  hostname and listing those three divergences; the two missing services
+  (`optio-marketing`, `optio-dev-v2-frontend`) are added; and the v1 static
+  sites' `rootDir`/`staticPublishPath` are corrected to the live values (repo
+  root + `frontend/dist`, not `frontend` + `./dist` — a different thing that
+  looks similar). Valid YAML, 7 services.
+
+  STILL NEEDS-USER, unchanged: whether to re-adopt Blueprint sync. And two
+  dashboard edits nobody can make from here — adding ffmpeg to the backend
+  build commands, and adding the header suite to optio-marketing.
 
 ### OPS-03 — Nothing applies `supabase/migrations/` to production `[NEEDS-USER]`
 Migrations reach prod by hand (MCP/dashboard) — the exposure-audit workflow exists
@@ -1865,12 +1902,17 @@ decision for the user, not a code fix.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### OPS-06 — `marketing/` site + `marketingUrl.js` exist only untracked `[NEEDS-USER]`
+### OPS-06 — `marketing/` site + `marketingUrl.js` exist only untracked `[DONE(resolved by the owning session)]`
 They sit uncommitted in the main working tree and belong to another in-flight
 session. Do NOT commit someone else's work from here (CLAUDE.md rule 12). Ask the
 user to have the owning session commit them.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-03: RESOLVED — somebody committed them. `origin/main` carries 63
+  files under `marketing/` and `frontend/src/utils/marketingUrl.js`. Found
+  while reconciling OPS-02: Render's `optio-marketing` service builds
+  `rootDir: marketing` from `main`, which it could not do if the directory were
+  still untracked. Nothing to ask.
 
 ### OPS-07 — Superadmin identity hardcoded in ≥4 source files `[DONE]`
 `utils/platform_staff.py:18`, `utils/auth/decorators.py:561`, `swagger_config.py`,

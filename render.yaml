@@ -1,3 +1,45 @@
+# ⚠ THIS FILE IS NOT IN EFFECT. Every service below is DASHBOARD-MANAGED; no
+# Blueprint is synced from this repo. Editing here changes nothing. It is kept
+# as a truthful record so that IF a Blueprint is ever synced, it reproduces what
+# is running instead of reverting it.
+#
+# Reconciled against the live Render API on 2026-09-03 (OPS-02). What that
+# reconciliation turned up is at the bottom of this header — read it before
+# trusting anything you remember about this setup.
+#
+# WHICH SERVICE SERVES WHICH HOSTNAME (verified by response headers, not by
+# assumption — the last-modified timestamps match the services exactly):
+#
+#   www.optioeducation.com   -> optio-marketing      (static, rootDir marketing)
+#   app.optioeducation.com   -> optio-prod-frontend  (static, the v1 web app)
+#   api.optioeducation.com   -> optio-prod-backend   (web service)
+#
+# www redirects /login and friends to app.optioeducation.com. If you are looking
+# for "the web app" it is app., not www.
+#
+# THREE DIVERGENCES FOUND ON 2026-09-03, all still true as written here:
+#
+#   1. optio-marketing was missing from this file entirely, while serving the
+#      apex. It is added below.
+#
+#   2. Both backends' LIVE build command is `pip install -r requirements.txt`
+#      with NO ffmpeg install, though this file claimed
+#      `apt-get install -y ffmpeg && ...`. services/video_processing_service.py
+#      probes for ffmpeg at startup and degrades gracefully, so nothing crashes
+#      — server-side video probing and thumbnail generation are simply OFF in
+#      production and have been. Fixing it means editing the dashboard build
+#      command, not this file.
+#
+#   3. The security headers on optio-prod-frontend ARE live (checked
+#      app.optioeducation.com: HSTS, frame-ancestors, Permissions-Policy, the
+#      lot). optio-marketing has NONE of them — www.optioeducation.com returns
+#      only x-content-type-options. That is lower severity (a static marketing
+#      site with no auth and no user data) but it does mean the apex makes no
+#      HSTS claim, which is what a preload submission is judged on.
+#
+# Whether to re-adopt Blueprint sync is a decision for the owner (OPS-02's
+# second half) and is deliberately not made here.
+
 services:
   # Optio Cron — single consolidated cron service. Runs every 10 min and dispatches
   # the time-appropriate jobs (see backend/jobs/cron_dispatch.py):
@@ -37,8 +79,11 @@ services:
     # server-side video probe + thumbnail generation (installed via apt at build).
     # IMPORTANT: keep this in sync with the LIVE dashboard build command — this
     # service is dashboard-managed, so editing here alone does NOT change the build.
-    buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
+    # LIVE VALUE (2026-09-03): no ffmpeg. See divergence 2 in the header --
+    # video probing/thumbnails are off in production as a result.
+    buildCommand: pip install -r requirements.txt
     startCommand: cd backend && gunicorn app:app -c gunicorn.conf.py
+    # plan: pro, numInstances: 2 (live, 2026-09-03).
     # Real DB-backed check (app.py:124, 200 healthy / 503 unhealthy) → enables
     # readiness-gated zero-downtime deploys, removing the deploy-cutover 502/504s.
     healthCheckPath: /api/health
@@ -77,8 +122,10 @@ services:
     env: python
     branch: develop
     rootDir: ""
-    buildCommand: apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt
+    # LIVE VALUE (2026-09-03): no ffmpeg, same as prod.
+    buildCommand: pip install -r requirements.txt
     startCommand: cd backend && gunicorn app:app -c gunicorn.conf.py
+    # plan: starter, numInstances: 1, no health check (live).
     envVars:
       - key: FLASK_ENV
         value: development
@@ -134,9 +181,12 @@ services:
   - type: static
     name: optio-prod-frontend
     branch: main
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    # LIVE VALUES (2026-09-03): the service builds from the repo ROOT and
+    # publishes frontend/dist. This file used to say rootDir: frontend with
+    # ./dist, which is a different thing that happens to look similar.
+    rootDir: ""
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
     headers:
       - path: /*
         name: Cache-Control
@@ -198,9 +248,10 @@ services:
   - type: static
     name: optio-dev-frontend
     branch: develop
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    # LIVE VALUES (2026-09-03), same shape as prod.
+    rootDir: ""
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
     headers:
       - path: /*
         name: Cache-Control
@@ -242,3 +293,47 @@ services:
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
+
+  # Marketing site — THE APEX. www.optioeducation.com is this service, not
+  # optio-prod-frontend. Added to this file 2026-09-03; it had been serving the
+  # apex since 2026-09-01 with no record here at all.
+  #
+  # NO SECURITY HEADERS ARE CONFIGURED on the live service: www returns only
+  # x-content-type-options, where app.optioeducation.com returns the full suite.
+  # Lower severity -- a static Astro site, no auth, no user data -- but the apex
+  # therefore makes no HSTS claim, which is what an HSTS preload submission for
+  # optioeducation.com is judged on. The headers below are what it SHOULD send;
+  # like everything in this file they are not in effect until somebody enters
+  # them in the dashboard or a Blueprint is synced.
+  - type: static
+    name: optio-marketing
+    branch: main
+    rootDir: marketing
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: Strict-Transport-Security
+        value: "max-age=31536000; includeSubDomains; preload"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Content-Security-Policy
+        value: "frame-ancestors 'none'"
+
+  # Dev v2 (mobile) web target. Dev-only: the v2 web build exists so a browser
+  # can exercise the mobile app; users are never sent here. Also absent from
+  # this file until 2026-09-03.
+  - type: static
+    name: optio-dev-v2-frontend
+    branch: develop
+    rootDir: frontend-v2
+    buildCommand: npm install --legacy-peer-deps && npx expo export --platform web
+    staticPublishPath: dist
