@@ -133,11 +133,12 @@ describe('ReportsPage', () => {
    * coordinators can see that page, then that should not be showing up."
    * The backend refuses them the route; this makes sure the page never asks.
    */
-  it('shows a campus coordinator no revenue, and does not even ask for it', async () => {
-    authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+  it('shows a campus coordinator no revenue or payments, and does not even ask for it', async () => {
+    authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'], is_org_admin: true } }
     render(<ReportsPage />)
     expect(await screen.findByText('Attendance')).toBeInTheDocument()
     expect(screen.queryByText('Revenue (recorded)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Payments')).not.toBeInTheDocument()
     expect(screen.queryByText('$230.00')).not.toBeInTheDocument()
     expect(api.get.mock.calls.map(([u]) => u))
       .not.toContainEqual(expect.stringContaining('/reports/revenue'))
