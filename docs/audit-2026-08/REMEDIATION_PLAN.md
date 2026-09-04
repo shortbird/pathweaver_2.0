@@ -2987,11 +2987,23 @@ Log:
 
   Backend 4856 passed; web 2479 passed.
 
-### HYG-02 — `verify/` — 20 tracked hash-named .mjs scripts `[NEEDS-USER]`
+### HYG-02 — `verify/` — 20 tracked hash-named .mjs scripts `[DONE]`
 Per-ticket client-verification scripts; unclear if still wanted. Ask before
 deleting.
 Log:
 - 2026-08-31: Plan created. Question queued for user.
+- 2026-09-04: User said delete. All 20 removed with `git rm`, so they remain in
+  history and `git log -- verify/` brings any of them back.
+
+  Checked for references first: nothing in any workflow, package.json, doc or
+  source file names the directory. The one "verify/" match elsewhere in the
+  repo is prose in ADR-001 ("token issue/verify/refresh"), not a path.
+
+  Why they were worth removing rather than leaving alone: each is named for a
+  ticket hash (`097ff1cb.mjs`), so the directory listing tells you nothing
+  about what any of them checks or whether it still passes. Twenty scripts
+  nobody can identify are not an asset -- they are twenty things a future
+  reader has to open before concluding they do not matter.
 
 ### HYG-03 — pip-audit CVE suppressions re-review `[DONE]` (low)
 Three carried ignores (flask-cors, pyjwt, pytest) — re-check whether fixed
