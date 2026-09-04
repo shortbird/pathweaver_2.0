@@ -318,7 +318,7 @@ def get_student_quest_view(user_id, student_id, quest_id):
 
         # Get quest details
         quest_response = supabase.table('quests').select('''
-            id, title, description, image_url, header_image_url, quest_type
+            id, title, description, image_url, header_image_url, quest_type, allow_custom_tasks
         ''').eq('id', quest_id).single().execute()
 
         if not quest_response.data:
@@ -508,13 +508,8 @@ def get_student_quest_view(user_id, student_id, quest_id):
             },
             'is_dependent': is_dependent,
             # Whether this parent may author tasks onto the student's quest via
-            # the personalization wizard. True for every child the parent is
-            # verified against — managed dependents AND approved
-            # parent_student_links — which is exactly what the route's
-            # @require_relationship_to gate already enforced. Kept as its own flag rather than reusing
-            # is_dependent because that one still gates the destructive controls
-            # (delete task, mark complete), which stay dependent-only.
-            'can_add_tasks': True,
+            # the personalization wizard. Checked against allow_custom_tasks flag.
+            'can_add_tasks': quest.get('allow_custom_tasks') is not False,
             'user_quest_id': user_quest_response.data[0]['id'] if user_quest_response.data else None,
         }), 200
 
