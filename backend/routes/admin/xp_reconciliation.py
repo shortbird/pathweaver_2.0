@@ -16,6 +16,7 @@ Endpoints:
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils.auth.org_scope import caller_can_access_user
 from utils.roles import get_effective_role
 from utils.pillar_utils import normalize_pillar_name, PILLAR_KEYS
@@ -122,6 +123,7 @@ def get_actual_xp(supabase, user_id: str) -> dict:
 
 @bp.route('/user/<user_id>/audit', methods=['GET'])
 @require_auth
+@require_relationship_to('user_id', allow=('org_staff',))
 def audit_user_xp(auth_user_id: str, user_id: str):
     """
     Audit a user's XP to find discrepancies.
@@ -188,6 +190,7 @@ def audit_user_xp(auth_user_id: str, user_id: str):
 
 @bp.route('/user/<user_id>/reconcile', methods=['POST'])
 @require_auth
+@require_relationship_to('user_id', allow=('org_staff',))
 def reconcile_user_xp(auth_user_id: str, user_id: str):
     """
     Reconcile a user's XP by updating user_skill_xp to match expected values.

@@ -150,7 +150,6 @@ def _reviewed(reason, *endpoints):
 # require_school_admin refuses before the gate is reached.
 _reviewed(
     'caller_can_access_user(admin, caller, target) from utils.auth.org_scope',
-    'credit_dashboard.get_student_context',
 )
 _reviewed(
     '_can_manage_student_tasks(supabase, caller, target) -- advisor assignment '
@@ -161,12 +160,9 @@ _reviewed(
     'in the view',
     'org_connections.unassign_advisor_from_student',
     'org_connections.unassign_org_student_from_advisor',
-    'org_member_status.set_member_status',
 )
 _reviewed(
     'require_admin(auth_user_id) is re-checked inside the view body',
-    'xp_reconciliation.audit_user_xp',
-    'xp_reconciliation.reconcile_user_xp',
 )
 _reviewed(
     'the masquerade target must be a non-admin member of the caller\'s own '
@@ -285,8 +281,6 @@ _reviewed(
 )
 _reviewed(
     'service.can_access_class / can_manage_class(class_id, caller, roles, org)',
-    'classes.get_student_progress',
-    'classes.withdraw_student',
 )
 _reviewed(
     'facilitator of the student\'s Treehouse cohort, checked in the view',
@@ -340,12 +334,21 @@ _reviewed(
 #                               would invert the rule it exists for.
 # Not collapsed: both helpers additionally resolve the student's ORG, which no
 # relationship answers.
+# WILL NOT MIGRATE, and this is the clearest example of why the vocabulary has
+# limits. `can_message_user` is DIRECTIONAL and role-shaped in ways a
+# relationship is not: it grants "anyone may message a superadmin", "anyone may
+# message their own org admin", and advisor<->student in BOTH directions. The
+# predicates here are all "caller is X to target" -- `is_advisor_of(student,
+# advisor)` is False, so declaring ('advisor',) would refuse a student
+# messaging the advisor assigned to them, and org_staff would not save a
+# PLATFORM advisor and student who share no organization. A messaging
+# permission is not a relationship, and forcing it into one would deny real
+# people.
 _reviewed(
-    'direct_message_service.can_message_user -- peer connection plus block '
-    'check; the child-conversation reads require guardianship',
+    'direct_message_service.can_message_user -- directional: peer connection, '
+    'block check, org membership, advisor<->student both ways, and anyone may '
+    'message a superadmin or their own org admin',
     'direct_messages.check_can_message',
-    'direct_messages.get_child_conversation_messages',
-    'direct_messages.get_child_conversations',
     'direct_messages.send_message',
 )
 _reviewed(
@@ -360,7 +363,6 @@ _reviewed(
 # each other's work", and a personal weekly XP target is not work.
 _reviewed(
     'the transcript is the caller\'s own unless they can_view_portfolio',
-    'credits.get_transcript',
 )
 
 

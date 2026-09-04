@@ -16,6 +16,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
 from utils import class_membership
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
@@ -941,6 +942,7 @@ def get_messageable_children(user_id: str):
 
 @bp.route('/children/<child_id>/conversations', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def get_child_conversations(user_id: str, child_id: str):
     """
     Read-only: list a child's conversations for an authorized parent/guardian
@@ -976,6 +978,7 @@ def get_child_conversations(user_id: str, child_id: str):
 
 @bp.route('/children/<child_id>/conversations/<conversation_id>', methods=['GET'])
 @require_auth
+@require_relationship_to('child_id', allow=('parent',))
 def get_child_conversation_messages(user_id: str, child_id: str, conversation_id: str):
     """
     Read-only: return the messages in one of a child's conversations for an

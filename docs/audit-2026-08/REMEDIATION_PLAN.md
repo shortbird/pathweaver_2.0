@@ -938,35 +938,49 @@ Log:
   test_admin_update_user_profile_scoping. That is the fourth of that shape this
   session; the pattern is now written down in three test files.
 
-  SESSION TOTAL for (c): declared 37 -> 163 of 217, allowlist 166 -> 28.
+  SESSION TOTAL for (c): declared 37 -> 172 of 217, allowlist 166 -> 19.
 
-  OF THE REMAINING 28, THIRTEEN SHOULD NEVER MIGRATE — eight row-selector
-  routes, three unauthenticated by design, masquerade's start endpoint, and
-  `admin_audit_logs.get_admin_activity`, which has a scope rather than a gate.
-  The genuinely migratable remainder is about fifteen: `direct_messages` (4),
-  `classes` (2), `xp_reconciliation` (2), `credits.get_transcript`,
-  `credit_dashboard.get_student_context`, `advisor_notes.get_subject_notes`,
-  `group_messages.remove_member`, `org_member_status.set_member_status`,
-  `parental_consent.check_consent_status`, `sis.remove_staff` and friends.
+- 2026-09-03: (c) FINISHED, in the sense that matters: every route that SHOULD
+  declare a relationship now does. The last batch was 9 routes —
+  classes/students (2), xp_reconciliation (2), credit_dashboard,
+  org_member_status, credits.get_transcript, and direct_messages' two
+  child-conversation reads.
 
-  OF THE REMAINING 35, roughly THIRTEEN SHOULD NEVER MIGRATE and the allowlist
-  says so in each case: eight row-selector routes (removing an advisor from a
-  class or cohort, the two org_connections advisor pairs, removing a family
-  observer, toggling their access, unblocking), three unauthenticated-by-design
-  (`public.get_public_transcript`,
-  `portfolio.get_public_diploma_by_user_id`, `learning_events.get_public_learning_events`),
-  `masquerade.start_masquerade` with its own reason, and
-  `admin_audit_logs.get_admin_activity`, which has a SCOPE rather than a gate.
-  The genuinely migratable remainder is about twenty-two.
+  `credits.get_transcript` declares all seven relationships, matching
+  `can_view_portfolio` exactly, plus `discloses='transcript'`.
+  `classes/students` declares `('teacher','org_staff')`.
 
-  WHAT IS LEFT, and a good part of it should STAY: of the 52, eight are the
-  row-selector cases named above (removing an advisor from a class, a family
-  observer, an unblock), two are unauthenticated by design
-  (`public.get_public_transcript`, `portfolio.get_public_diploma_by_user_id`),
-  and one is masquerade's own start endpoint, which has its own written reason.
-  The genuinely migratable remainder is roughly 40, mostly in `org_connections`,
-  `admin_student_task_management`, `direct_messages`, `sis` and
-  `admin_user_management`.
+  THE 19 THAT REMAIN ARE NOT A BACKLOG. Each has a written reason and most
+  would be WRONG to migrate:
+    - **9 row-selector routes** — removing an advisor from a class or cohort,
+      the four org_connections advisor pairs, removing a family observer,
+      toggling their access, unblocking. The person in the URL is which ROW to
+      change; authorization is over the class, the org, or the caller's own
+      children. Declaring a relationship to that person would either refuse
+      legitimate admins or invent a permission.
+    - **3 unauthenticated by design** — the public transcript, the public
+      diploma, public learning events. They answer anonymous callers from the
+      portfolio's own privacy setting. A route with no caller is not a route
+      with an unchecked caller.
+    - **2 that are a SCOPE, not a gate** — `admin_audit_logs.get_admin_activity`
+      filters results by the caller's org, and `advisor_notes.get_subject_notes`
+      returns only the caller's own notes. Another org's admin gets an empty
+      list rather than a refusal, which is a different (and fine) design.
+    - **2 direct-message routes.** The clearest case of the vocabulary having
+      limits: `can_message_user` is DIRECTIONAL and role-shaped — anyone may
+      message a superadmin or their own org admin, and advisor<->student works
+      both ways. Every predicate here is "caller is X to target", so
+      `is_advisor_of(student, advisor)` is False and declaring `('advisor',)`
+      would refuse a student messaging their own advisor. A messaging
+      permission is not a relationship.
+    - **masquerade.start_masquerade**, which has its own reason, and
+      `group_messages.remove_member` / `parental_consent.check_consent_status`,
+      both gated on something other than the caller's relationship to the id.
+
+  So the honest end state is: 172 declared, 26 superadmin-verified, 19
+  deliberately allowlisted with reasons, 217 accounted for. The audit's finding
+  — "nothing fails when a new route forgets a check" — is closed: a new
+  id-bearing route now fails the build unless somebody decides its policy.
 
 ### SEC-11 — 123 handlers return raw exception text in 500 bodies `[DONE]`
 Pattern: `except Exception as e: return jsonify({'error': f'...{str(e)}'}), 500`

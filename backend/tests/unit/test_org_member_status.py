@@ -42,7 +42,12 @@ def _call(app, target_row, *, body=None, caller_org=ORG, is_superadmin=False,
     with app.test_request_context(json=body or {'status': 'disabled'}), \
          patch('routes.admin.org_member_status.get_supabase_admin_client', return_value=supabase), \
          patch('routes.admin.org_member_status.AdminAuditService') as audit:
-        result = set_member_status.__wrapped__(ADMIN_ID, caller_org, is_superadmin, org_id, target_id)
+        # Unwrap the whole stack: @require_relationship_to (SEC-10) sits above
+        # the view now, so a single __wrapped__ lands on the gate.
+        view = set_member_status
+        while hasattr(view, '__wrapped__'):
+            view = view.__wrapped__
+        result = view(ADMIN_ID, caller_org, is_superadmin, org_id, target_id)
     return result, supabase, audit
 
 

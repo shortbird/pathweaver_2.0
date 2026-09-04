@@ -17,6 +17,7 @@ from datetime import datetime
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_org_admin
+from utils.auth.relationships import require_relationship_to
 from services.admin_audit_service import AdminAuditService
 from utils.logger import get_logger
 
@@ -29,6 +30,7 @@ VALID_STATUSES = ('active', 'disabled')
 
 @bp.route('/<org_id>/users/<target_user_id>/status', methods=['POST'])
 @require_org_admin
+@require_relationship_to('target_user_id', allow=('org_staff',))
 def set_member_status(current_user_id, current_org_id, is_superadmin, org_id, target_user_id):
     """Enable or disable a member's account, scoped to the caller's org.
 

@@ -17,6 +17,7 @@ from flask import request
 # is reserved for background tasks per its docstring.)
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.auth.org_scope import caller_can_access_user
 from utils.api_response_v1 import success_response, error_response
 from utils.roles import get_effective_roles
@@ -460,6 +461,7 @@ def get_dashboard_stats(user_id: str):
 
 @bp.route('/student-context/<student_id>', methods=['GET'])
 @require_role('superadmin', 'org_admin')
+@require_relationship_to('student_id', allow=('org_staff',), discloses='credits')
 def get_student_context(user_id: str, student_id: str):
     """Get student's diploma progress and pending items for context panel."""
     try:

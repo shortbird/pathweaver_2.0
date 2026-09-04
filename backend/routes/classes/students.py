@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.auth.relationships import require_relationship_to
 from utils.sis_roles import STAFF_ROLES
 from utils.roles import get_effective_roles
 from ._caller import get_caller, is_superadmin
@@ -226,6 +227,7 @@ def enroll_students(user_id, org_id, class_id):
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students/<student_id>', methods=['DELETE'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('teacher', 'org_staff'))
 def withdraw_student(user_id, org_id, class_id, student_id):
     """
     Withdraw a student from a class.
@@ -268,6 +270,7 @@ def withdraw_student(user_id, org_id, class_id, student_id):
 
 @bp.route('/organizations/<org_id>/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
 @require_role(*STAFF_ROLES)
+@require_relationship_to('student_id', allow=('teacher', 'org_staff'), discloses='progress')
 def get_student_progress(user_id, org_id, class_id, student_id):
     """
     Get a specific student's progress in a class.

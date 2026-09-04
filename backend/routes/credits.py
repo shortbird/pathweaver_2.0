@@ -10,6 +10,7 @@ REPOSITORY MIGRATION: NO MIGRATION NEEDED
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import require_relationship_to
 from services.credit_mapping_service import CreditMappingService
 
 from utils.logger import get_logger
@@ -60,6 +61,7 @@ def get_my_transcript(user_id):
 @bp.route('/transcript/<target_user_id>', methods=['GET'])
 @require_auth
 @validate_uuid_param('target_user_id')
+@require_relationship_to('target_user_id', allow=('self', 'parent', 'advisor', 'teacher', 'observer', 'peer', 'org_staff'), discloses='transcript')
 def get_transcript(user_id, target_user_id):
     """
     Get academic transcript for a specific user.
