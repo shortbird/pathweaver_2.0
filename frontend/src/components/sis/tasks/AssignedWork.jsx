@@ -3,8 +3,9 @@ import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import {
-  ReviewStrip, AssignmentCard, ChecklistTemplatesManager, awaitingReviewOf,
+  ReviewStrip, AssignmentCard, awaitingReviewOf,
 } from '../../../pages/sis/OnboardingPage'
+import PaperworkTemplatesManager from './PaperworkTemplatesManager'
 import { SignatureBatchCard } from './SignatureBatches'
 
 /**
@@ -117,7 +118,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
         </div>
       </div>
 
-      <ChecklistTemplatesManager orgId={orgId} onChanged={load} />
+      <PaperworkTemplatesManager orgId={orgId} onChanged={load} defaultTab="checklists" />
     </div>
   )
 }

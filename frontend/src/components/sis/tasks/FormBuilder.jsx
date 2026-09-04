@@ -175,7 +175,7 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
   )
 }
 
-const FormBuilder = ({ orgId, staff = [], onCount }) => {
+const FormBuilder = ({ orgId, staff = [], onCount, embedded = false, open: externalOpen }) => {
   const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
   // The shared built-in forms, with whether this school hides each one. They
@@ -184,7 +184,9 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
   // reimbursement request, etc.").
   const [builtins, setBuiltins] = useState([])
   const [editing, setEditing] = useState(null)
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = externalOpen !== undefined ? externalOpen : internalOpen
+  const toggleOpen = () => setInternalOpen((v) => !v)
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -252,19 +254,29 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
     }
   }
 
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
-          className="flex items-center gap-2 font-semibold text-neutral-900">
-          <span className={`text-neutral-400 text-xs transition-transform ${open ? 'rotate-90' : ''}`}
-            aria-hidden="true">▶</span>
-          Forms
-          <span className="text-xs font-normal text-neutral-400">({templates.length})</span>
-        </button>
-        <button onClick={() => { setOpen(true); setEditing('new') }}
-          className="text-sm text-optio-purple font-medium hover:underline">+ New form</button>
-      </div>
+  const content = (
+    <>
+      {!embedded && (
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" onClick={toggleOpen} aria-expanded={open}
+            className="flex items-center gap-2 font-semibold text-neutral-900">
+            <span className={`text-neutral-400 text-xs transition-transform ${open ? 'rotate-90' : ''}`}
+              aria-hidden="true">▶</span>
+            Forms
+            <span className="text-xs font-normal text-neutral-400">({templates.length})</span>
+          </button>
+          <button onClick={() => { setInternalOpen(true); setEditing('new') }}
+            className="text-sm text-optio-purple font-medium hover:underline">+ New form</button>
+        </div>
+      )}
+
+      {embedded && open && (
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="text-sm font-semibold text-neutral-800">Request Form Templates</span>
+          <button onClick={() => setEditing('new')}
+            className="text-sm text-optio-purple font-medium hover:underline">+ New form</button>
+        </div>
+      )}
 
       {editing && (
         <div className="mt-3">
@@ -336,8 +348,11 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
           </ul>
         </div>
       )}
-    </div>
+    </>
   )
+
+  if (embedded) return <div>{content}</div>
+  return <div className="bg-white rounded-xl border border-gray-200 p-4">{content}</div>
 }
 
 export default FormBuilder
