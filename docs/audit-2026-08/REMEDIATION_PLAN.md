@@ -2208,6 +2208,42 @@ Log:
   five hexes verified inside the Hermes output. v1 untouched: 287 files / 2505
   passed, production build clean.
 
+- 2026-09-03: WENT TO SHARE THE SIS PATH LIST AND FOUND TEN MISSING ENTRIES —
+  the same bug that already caused an outage, grown back.
+
+  `SIS_SURFACE_PATHS` in `frontend/src/utils/appSurface.js` names the paths the
+  SIS console serves and the learning app does not. `NotFoundRedirect` consults
+  it when a signed-in staff member hits a path www has no route for, and hands
+  them to `sis.optioeducation.com`. A path missing from the list means they get
+  their dashboard instead of the page their notification was about. That
+  shipped for iCreate on 2026-08-26, was fixed by writing the list out by hand,
+  and then drifted again as SIS grew:
+
+      /calendar  /community  /directory  /households  /my-profile
+      /onboarding  /roster  /settings  /time  /users
+
+  All ten are real routes in `sis/SisRoutes.jsx` and none is a learning route.
+  Now listed. A hand-maintained mirror of a router drifts by construction, so
+  `appSurface.sisRoutes.test.js` DERIVES the answer instead: it reads both
+  `<Routes>` tables, computes "SIS-only", and fails on anything missing — and,
+  in the other direction, on a stale entry that would hand staff to a console
+  404.
+
+  WHAT I DID **NOT** DO: merge the two lists into `shared/`. The v2 copy in
+  `deepLinkRouter.ts` looks like the same list and is not. The web list means
+  "www does not serve this, use the SIS host"; the mobile one means "the app
+  cannot render this, open a browser". `/settings` splits them: no www route
+  serves it, but `app/(app)/settings.tsx` does, so sharing one list would send
+  a mobile user to a website instead of their own settings screen. v2 gained
+  the five paths it genuinely lacked and carries `/settings` as a NAMED
+  exception whose test asserts the screen justifying it still exists.
+
+  This is worth reading as a warning about QF-01 generally: two lists that
+  mostly agree are not always one list in two places, and `@shared` makes it
+  easy to merge things that should not be merged.
+
+  v1: 288 files / 2509 passed. v2: 99 suites / 739 passed, tsc clean.
+
 ### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).

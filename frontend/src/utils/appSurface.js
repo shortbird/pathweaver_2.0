@@ -170,31 +170,57 @@ export const LEARNING_SURFACE_PATHS = [
 ]
 
 /** SIS console paths the learning app hands over to sis. — staff only. */
+/**
+ * Every top-level path served by the SIS console and NOT by the learning app.
+ *
+ * Only consulted for a path that matched no learning route (NotFoundRedirect),
+ * so listing a path both surfaces serve is harmless — it is never reached.
+ * Missing one is not harmless: staff following a notification link land on
+ * their dashboard instead of the page they were told about. That shipped once
+ * (iCreate, 2026-08-26) and then happened again, quietly, to ten more paths as
+ * SIS grew — calendar, community, directory, households, my-profile,
+ * onboarding, roster, settings, time and users were all real SIS routes that
+ * were never added here.
+ *
+ * So it is no longer maintained by hand alone: appSurface.sisRoutes.test.js
+ * reads the route tables out of sis/SisRoutes.jsx and App.jsx and fails if any
+ * SIS-only route is missing from this list.
+ */
 export const SIS_SURFACE_PATHS = [
   '/attendance',
-  '/inbox',
-  '/messaging',
+  '/billing',
+  '/calendar',
   '/classes',
   '/clp',
+  '/community',
+  '/curriculum',
+  '/directory',
   '/forms',
+  '/goals',
+  '/households',
+  '/inbox',
+  '/messaging',
   '/my-classes',
+  '/my-documents',
+  '/my-profile',
   '/my-schedule',
   '/my-tasks',
-  '/my-documents',
-  '/tasks',
+  '/onboarding',
   '/people',
-  '/registration',
-  '/billing',
-  '/tuition',
-  '/timesheets',
-  '/submissions',
-  '/curriculum',
-  '/training',
-  '/secure-documents',
   '/prior-learning',
-  '/goals',
+  '/registration',
   '/reports',
   '/resources',
+  '/roster',
+  '/secure-documents',
+  '/settings',
+  '/submissions',
+  '/tasks',
+  '/time',
+  '/timesheets',
+  '/training',
+  '/tuition',
+  '/users',
 ]
 
 /** True when `path` belongs to the SIS console and not the learning app. */

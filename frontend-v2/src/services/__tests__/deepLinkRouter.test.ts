@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { resolveDeepLink, isSisSurfacePath } from '../deepLinkRouter';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 describe('resolveDeepLink', () => {
@@ -205,8 +205,33 @@ describe('which web host a handoff points at', () => {
   });
 
   // The web app owns the definitive split (it hands paths across in both
-  // directions). This list is a copy, so prove the copy still covers it —
-  // a path added there and forgotten here would silently point at www again.
+  // directions), so prove this list still covers it — a path added there and
+  // forgotten here would silently point at www again.
+  //
+  // Except where the MOBILE APP owns the path. The two lists answer different
+  // questions: the web one means "www does not serve this, use the SIS host",
+  // this one means "the app cannot render this, open a browser". A path with a
+  // screen in app/ must stay out of this list however web-only it is on the
+  // web, or a deep link that should open in-app bounces the user to a website.
+  // Each exception names the screen that owns it; if that screen is deleted,
+  // the entry belongs back in the list.
+  const OWNED_BY_THE_APP: Record<string, string> = {
+    '/settings': 'app/(app)/settings.tsx',
+  };
+
+  it('every app-owned exception still has the screen that justifies it', () => {
+    for (const [path, screen] of Object.entries(OWNED_BY_THE_APP)) {
+      const full = join(__dirname, '..', '..', '..', screen);
+      if (!existsSync(full)) {
+        throw new Error(
+          `${path} is excluded from SIS_ONLY_PREFIXES because ${screen} renders ` +
+          `it, but that file is gone. Either restore it or add ${path} to ` +
+          'SIS_ONLY_PREFIXES so the link opens on the SIS host instead of ' +
+          'resolving to nothing.');
+      }
+    }
+  });
+
   it('covers every SIS path the web app hands over', () => {
     const appSurface = readFileSync(
       join(__dirname, '..', '..', '..', '..', 'frontend', 'src', 'utils', 'appSurface.js'),
@@ -216,7 +241,7 @@ describe('which web host a handoff points at', () => {
     expect(block).toBeTruthy();
     const webPaths = Array.from(block![1].matchAll(/'([^']+)'/g)).map((m) => m[1]);
     expect(webPaths.length).toBeGreaterThan(10);
-    const missed = webPaths.filter((p) => !isSisSurfacePath(p));
+    const missed = webPaths.filter((p) => !isSisSurfacePath(p) && !(p in OWNED_BY_THE_APP));
     expect(missed).toEqual([]);
   });
 });

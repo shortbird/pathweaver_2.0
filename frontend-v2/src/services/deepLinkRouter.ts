@@ -64,11 +64,19 @@ const LEARNING_ONLY_PREFIXES = [
  *
  *  Mirrors SIS_SURFACE_PATHS in frontend/src/utils/appSurface.js, which is the
  *  source of truth — deepLinkRouter.test.ts reads that file and fails if this
- *  list stops covering it. It is a copy because sharing it used to mean paying
- *  for a metro + jest + tsconfig + vite alias change. That price has been paid:
- *  `@shared` now resolves the whole shared/ folder in all four (QF-01,
- *  2026-09-03), so this list can move to shared/ whenever someone wants it to.
- *  Left alone here only because the test already fences the drift.
+ *  list stops covering it.
+ *
+ *  NOT a pure copy, and it cannot become one. The two lists answer different
+ *  questions. The web list means "www does not serve this path, hand it to the
+ *  SIS host". This one means "the mobile app cannot render this, open it in a
+ *  browser" — so a path the APP owns must stay out of it however web-only the
+ *  path is on the web. `/settings` is exactly that case: no www route serves
+ *  it, but app/(app)/settings.tsx does, so it is excluded here and the test
+ *  carries the exception by name.
+ *
+ *  Sharing the list through `@shared` is now possible (QF-01, 2026-09-03) but
+ *  would be wrong for that reason: it is two lists that mostly agree, not one
+ *  list in two places.
  *
  *  /resources is staff-only despite www having a family page at the same path:
  *  the only notification linking there is the "Required reading" fan-out to
@@ -77,6 +85,7 @@ const LEARNING_ONLY_PREFIXES = [
 const SIS_ONLY_PREFIXES = [
   '/attendance',
   '/billing',
+  '/calendar',
   '/classes',
   '/clp',
   '/community',
@@ -84,10 +93,12 @@ const SIS_ONLY_PREFIXES = [
   '/directory',
   '/forms',
   '/goals',
+  '/households',
   '/inbox',
   '/messaging',
   '/my-classes',
   '/my-documents',
+  '/my-profile',
   '/my-schedule',
   '/my-tasks',
   '/my-time',
@@ -97,6 +108,7 @@ const SIS_ONLY_PREFIXES = [
   '/registration',
   '/reports',
   '/resources',
+  '/roster',
   '/secure-documents',
   '/sis',
   '/submissions',
@@ -105,6 +117,7 @@ const SIS_ONLY_PREFIXES = [
   '/timesheets',
   '/training',
   '/tuition',
+  '/users',
 ];
 
 /** Every prefix that has to leave the app, with the host that owns it. Longest
