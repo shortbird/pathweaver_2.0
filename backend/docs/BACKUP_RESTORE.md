@@ -162,6 +162,97 @@ a dead-man's-switch ping if this ever carries more weight.
 
 ---
 
+## Storage objects (the files)
+
+The nightly dump backs up the DATABASE. A `storage.objects` row is metadata: it
+records that a student uploaded a video and points at a key. The bytes live in
+Supabase Storage and were, until 2026-09-03, backed up nowhere.
+
+**What is at stake** (measured 2026-09-03): 3,463 objects, ~7.8 GB across 20
+buckets. `quest-evidence` alone is 5.7 GB over 2,167 objects. That is student
+work submitted as proof of learning — the one class of data here that cannot be
+regenerated, re-derived, or asked for again.
+
+`.github/workflows/backup-storage.yml` closes it. Weekly (Sundays 09:00 UTC, an
+hour after the DB dump), incremental via `rclone sync`, client-side encrypted
+with rclone's `crypt` backend into the same GCS bucket the DB dumps use, under
+a `storage/` prefix.
+
+### Why it is shaped differently from the DB job
+
+| | DB dump | Storage sync |
+|---|---|---|
+| Frequency | nightly | weekly |
+| Method | whole `pg_dump` each time | `rclone sync`, only what changed |
+| Encryption | `gpg --symmetric` on one file | `rclone crypt`, per object + filename |
+| RPO | ~24h | up to 7 days |
+
+7.8 GB is too much to re-upload nightly, and files do not change the way rows
+do — evidence is append-mostly, so a normal week moves megabytes. Tarring 3,463
+files to GPG them would throw incrementality away and re-upload everything every
+run, which is why `crypt` rather than the DB job's `gpg`.
+
+The worse RPO is a deliberate trade: a file that existed a week ago still exists
+in Supabase unless something deleted it, and unintended deletion is exactly what
+the 90-day retention protects against.
+
+### Setup (has NOT been done — the job has never run)
+
+Four secrets and one variable, none of which exist yet. The workflow's first
+step fails by name if any is missing.
+
+1. **Supabase S3 access keys.** Dashboard → Project Settings → Storage → S3
+   Access Keys → "New access key". Store as repository secrets
+   `BACKUP_SUPABASE_S3_ACCESS_KEY_ID` and
+   `BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY`.
+2. **Encryption passphrases.** Two independent random strings:
+   ```bash
+   openssl rand -base64 32   # -> BACKUP_STORAGE_CRYPT_PASSWORD
+   openssl rand -base64 32   # -> BACKUP_STORAGE_CRYPT_SALT
+   ```
+   **Store these outside GitHub as well** — in the same place as
+   `BACKUP_GPG_PASSPHRASE`. Losing them makes every byte in the backup
+   permanently unreadable, and unlike the database there is no second copy to
+   fall back on.
+3. **Project ref.** Repository *variable* `BACKUP_SUPABASE_PROJECT_REF` =
+   `vvfgxcykxjybtvpfzwyx`. A variable rather than a secret: it is not
+   confidential and a wrong value is much easier to debug when you can read it.
+
+GCS reuses what the DB job already has — `BACKUP_GCP_WIF_PROVIDER`,
+`BACKUP_GCP_SERVICE_ACCOUNT`, `BACKUP_GCS_BUCKET`. No new cloud setup.
+
+Then run it once by hand (Actions → Weekly Storage Backup → Run workflow) and
+watch it. The first sync copies all 7.8 GB and will take a while; later runs
+move only what changed.
+
+### Restoring a file
+
+```bash
+# Same config the workflow writes, with your passphrases:
+rclone lsf secure: --files-only | grep <bucket>/<path>
+rclone copyto "secure:<bucket>/<path>" ./recovered-file
+```
+
+Then re-upload it to Supabase Storage under the same key. The `storage.objects`
+row will already be there if you restored the database.
+
+### What protects the backup from the backup job
+
+Three things, because "the sync deleted everything" is the failure mode that
+turns a backup into a liability:
+
+- A **floor check** refuses to sync at all if the source lists fewer than 1,000
+  objects. Credentials that authenticate but see nothing would otherwise mirror
+  emptiness over the only off-site copy.
+- **`--max-delete 100`** aborts the run, with nothing deleted, if it would
+  remove more than that.
+- **Retention is a bucket lifecycle rule**, not a step in the workflow — the
+  same reasoning as the DB job. Deletion does not belong on an unattended path.
+
+Every run also pulls one object back THROUGH the decryption layer. Client-side
+encryption fails silently: nobody discovers a wrong key until they need the
+data.
+
 ## Restoring
 
 ### Case 1: "I just deleted rows I shouldn't have" (within 7 days)

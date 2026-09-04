@@ -1889,12 +1889,65 @@ because of exactly this. Proposal: a gated `supabase db push` step in release.ym
 Log:
 - 2026-08-31: Plan created. Question queued for user.
 
-### OPS-04 — Storage objects (student evidence) have no backups `[TODO]`
+### OPS-04 — Storage objects (student evidence) have no backups `[NEEDS-USER(create 4 secrets + 1 var, then run it once by hand)]`
 `backup-db.yml` covers Postgres only and says so. Write a storage-backup workflow
 (rclone/supabase storage API to encrypted archive); wiring its secret into CI is
 NEEDS-USER, the workflow + docs are autonomous.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Workflow and docs written. It has NEVER RUN and cannot until the
+  credentials exist — that half is the user's, as the item anticipated.
+
+  Measured what is actually at stake first: 3,463 objects, ~7.8 GB across 20
+  buckets, of which `quest-evidence` is 5.7 GB over 2,167 objects. That is
+  student work submitted as proof of learning — the one class of data on this
+  platform that cannot be regenerated, re-derived, or asked for again. Losing it
+  is not a restore problem, it is a "the evidence for a transcript no longer
+  exists" problem.
+
+  `.github/workflows/backup-storage.yml`: weekly (Sundays 09:00 UTC, an hour
+  after the DB dump so they never contend), `rclone sync` (incremental),
+  client-side encrypted with rclone's `crypt` backend, into the same GCS bucket
+  the DB dumps use under a `storage/` prefix. Reuses the existing WIF setup, so
+  no new cloud configuration.
+
+  TWO SHAPE DECISIONS, both departures from backup-db.yml and both deliberate:
+    - Weekly, not nightly. 7.8 GB re-uploaded every night is waste; evidence is
+      append-mostly, so a normal week moves megabytes. The cost is a 7-day RPO
+      for files against 24h for rows, which is acceptable because a file that
+      existed a week ago still exists in Supabase unless something DELETED it —
+      and deletion is what the retention rule protects against.
+    - `rclone crypt`, not `gpg --symmetric`. The DB dump is one file. 3,463
+      files are not: tarring them to encrypt would discard incrementality and
+      re-upload everything every run. `crypt` encrypts each object and its name
+      client-side while keeping the sync incremental, preserving the property
+      the DB job cares about (the bucket only ever holds ciphertext).
+
+  THREE GUARDS AGAINST THE BACKUP JOB ITSELF, because "the sync deleted
+  everything" turns a backup into a liability:
+    - A floor check refuses to sync if the source lists under 1,000 objects.
+      Credentials that authenticate but see nothing would otherwise faithfully
+      mirror emptiness over the only off-site copy.
+    - `--max-delete 100` aborts with nothing deleted.
+    - Retention stays a bucket lifecycle rule, not a workflow step — same
+      reasoning backup-db.yml gives for the same choice.
+
+  And every run pulls one object back THROUGH the decryption layer. Client-side
+  encryption fails silently; nobody finds a wrong key until they need the data.
+
+  TO TURN IT ON (user):
+    1. Supabase dashboard -> Project Settings -> Storage -> S3 Access Keys ->
+       new key. Store as `BACKUP_SUPABASE_S3_ACCESS_KEY_ID` /
+       `BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY`.
+    2. `openssl rand -base64 32` twice ->
+       `BACKUP_STORAGE_CRYPT_PASSWORD` / `BACKUP_STORAGE_CRYPT_SALT`. **Store
+       these outside GitHub too**, with BACKUP_GPG_PASSPHRASE — losing them
+       makes every backed-up byte permanently unreadable, and there is no second
+       copy.
+    3. Repository variable `BACKUP_SUPABASE_PROJECT_REF` = `vvfgxcykxjybtvpfzwyx`.
+    4. Run it once by hand and watch it. The first sync moves all 7.8 GB.
+  Full setup and restore instructions are in backend/docs/BACKUP_RESTORE.md,
+  and backup-db.yml's "that gap is still open" note now points at it.
 
 ### OPS-05 — No branch protection / PR gate on `main` `[NEEDS-USER]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow

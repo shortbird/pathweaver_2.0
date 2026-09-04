@@ -1,0 +1,248 @@
+name: Weekly Storage Backup
+
+# Off-site copy of Supabase STORAGE OBJECTS — the files themselves.
+#
+# The gap this closes was written into backup-db.yml's own header: a database
+# dump contains the `storage.objects` METADATA rows and not one byte of the
+# files they point at. Restoring that dump gives you a system that knows a
+# student uploaded a video and cannot produce it.
+#
+# What is at stake, measured 2026-09-03: 3,463 objects, ~7.8 GB across 20
+# buckets. `quest-evidence` alone is 5.7 GB over 2,167 objects — student work
+# submitted as proof of learning, which is the one class of data here that
+# cannot be regenerated, re-derived, or asked for again.
+#
+# ── Why this is weekly and incremental, where the DB dump is nightly and whole
+#
+# 7.8 GB is too much to re-upload nightly, and it does not change like a
+# database does: evidence is append-mostly. `rclone sync` copies only what
+# changed, so a normal week moves megabytes. The trade is a worse RPO for files
+# (up to 7 days) than for rows (24h) — acceptable, because a file that existed
+# a week ago still exists in Supabase unless something deleted it, and deletion
+# is exactly what the DB dump's 90-day retention protects against.
+#
+# ── Why rclone crypt and not a GPG tarball
+#
+# The DB dump is one file, so `gpg --symmetric` works. 3,463 files are not one
+# file: tarring them to encrypt would throw away incrementality and re-upload
+# 7.8 GB every run. rclone's `crypt` backend encrypts each object (and its
+# name) client-side while keeping the sync incremental. Same property the DB
+# job cares about — the bucket only ever holds ciphertext — without the cost.
+#
+# ── FIRST RUN IS MANUAL, ON PURPOSE
+#
+# This job has never run. It needs credentials nobody has created yet (see the
+# "Check configuration" step, which fails by name), and the first sync copies
+# all 7.8 GB. Run it with workflow_dispatch, watch it, then let the schedule
+# take over. Setup is documented in backend/docs/BACKUP_RESTORE.md.
+
+on:
+  schedule:
+    # 09:00 UTC Sundays. An hour after the nightly DB dump (08:00) so the two
+    # never contend for the same runner minutes or the same egress, and on the
+    # quietest day.
+    - cron: "0 9 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  # A second sync racing the first would fight over the same destination keys.
+  group: backup-storage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Workload Identity Federation, same as backup-db.yml: the runner mints an
+  # OIDC token that GCP trades for a short-lived credential. Nothing long-lived
+  # is stored in the repo.
+  id-token: write
+
+jobs:
+  backup:
+    name: Sync, encrypt, verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check configuration
+        # Fail loudly and BY NAME, the way backup-db.yml does. A backup job that
+        # exits 0 having copied nothing is the worst outcome available to it.
+        env:
+          S3_KEY: ${{ secrets.BACKUP_SUPABASE_S3_ACCESS_KEY_ID }}
+          S3_SECRET: ${{ secrets.BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY }}
+          CRYPT_PASSWORD: ${{ secrets.BACKUP_STORAGE_CRYPT_PASSWORD }}
+          CRYPT_SALT: ${{ secrets.BACKUP_STORAGE_CRYPT_SALT }}
+          PROJECT_REF: ${{ vars.BACKUP_SUPABASE_PROJECT_REF }}
+          WIF_PROVIDER: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1 is not set — see backend/docs/BACKUP_RESTORE.md"; exit 1; }
+          [ -n "${S3_KEY:-}" ]          || fail "secret BACKUP_SUPABASE_S3_ACCESS_KEY_ID"
+          [ -n "${S3_SECRET:-}" ]       || fail "secret BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY"
+          [ -n "${CRYPT_PASSWORD:-}" ]  || fail "secret BACKUP_STORAGE_CRYPT_PASSWORD"
+          [ -n "${CRYPT_SALT:-}" ]      || fail "secret BACKUP_STORAGE_CRYPT_SALT"
+          [ -n "${PROJECT_REF:-}" ]     || fail "variable BACKUP_SUPABASE_PROJECT_REF"
+          [ -n "${WIF_PROVIDER:-}" ]    || fail "variable BACKUP_GCP_WIF_PROVIDER"
+          [ -n "${SERVICE_ACCOUNT:-}" ] || fail "variable BACKUP_GCP_SERVICE_ACCOUNT"
+          [ -n "${BUCKET:-}" ]          || fail "variable BACKUP_GCS_BUCKET"
+          echo "Source: ${PROJECT_REF}.storage.supabase.co -> gs://${BUCKET}/storage (encrypted)"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.BACKUP_GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.BACKUP_GCP_SERVICE_ACCOUNT }}
+
+      - name: Install rclone
+        run: |
+          set -euo pipefail
+          sudo -v
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version
+
+      - name: Write rclone config
+        # Written to a file rather than passed as flags so the secrets never
+        # appear in a command line (and so `ps` on the runner cannot read them).
+        # Passwords must be obscured -- rclone rejects plaintext in a config
+        # file -- which is encoding, NOT encryption: the file is still a secret
+        # and lives only for this job.
+        env:
+          S3_KEY: ${{ secrets.BACKUP_SUPABASE_S3_ACCESS_KEY_ID }}
+          S3_SECRET: ${{ secrets.BACKUP_SUPABASE_S3_SECRET_ACCESS_KEY }}
+          CRYPT_PASSWORD: ${{ secrets.BACKUP_STORAGE_CRYPT_PASSWORD }}
+          CRYPT_SALT: ${{ secrets.BACKUP_STORAGE_CRYPT_SALT }}
+          PROJECT_REF: ${{ vars.BACKUP_SUPABASE_PROJECT_REF }}
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          umask 077
+          OBS_PASS="$(rclone obscure "$CRYPT_PASSWORD")"
+          OBS_SALT="$(rclone obscure "$CRYPT_SALT")"
+          cat > "$HOME/rclone.conf" <<EOF
+          [supabase]
+          type = s3
+          provider = Other
+          access_key_id = ${S3_KEY}
+          secret_access_key = ${S3_SECRET}
+          endpoint = https://${PROJECT_REF}.storage.supabase.co/storage/v1/s3
+          region = us-east-1
+          force_path_style = true
+
+          [gcs]
+          type = google cloud storage
+          env_auth = true
+          bucket_policy_only = true
+
+          [secure]
+          type = crypt
+          remote = gcs:${BUCKET}/storage
+          filename_encryption = standard
+          directory_name_encryption = true
+          password = ${OBS_PASS}
+          password2 = ${OBS_SALT}
+          EOF
+          echo "Config written (${HOME}/rclone.conf)"
+
+      - name: Count what is there before
+        # Recorded so the summary can show movement, and so the floor check
+        # below has something to compare against.
+        env:
+          RCLONE_CONFIG: /home/runner/rclone.conf
+        run: |
+          set -euo pipefail
+          SRC_OBJECTS="$(rclone size supabase: --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+          SRC_BYTES="$(rclone size supabase: --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["bytes"])')"
+          echo "SRC_OBJECTS=$SRC_OBJECTS" >> "$GITHUB_ENV"
+          echo "SRC_BYTES=$SRC_BYTES" >> "$GITHUB_ENV"
+          echo "Source: $SRC_OBJECTS objects, $SRC_BYTES bytes"
+
+      - name: Refuse to sync an implausibly empty source
+        # The failure that matters: credentials that authenticate but see
+        # nothing, so `sync` faithfully mirrors emptiness over the only off-site
+        # copy. --max-delete below is the second line of defence; this is the
+        # first. 1,000 is a deliberately loose floor against 3,463 (2026-09-03).
+        run: |
+          set -euo pipefail
+          MIN=1000
+          if [ "$SRC_OBJECTS" -lt "$MIN" ]; then
+            echo "::error::Source lists only $SRC_OBJECTS objects (floor $MIN). Refusing to sync — this looks like a credential or endpoint problem, not a real deletion."
+            exit 1
+          fi
+
+      - name: Sync to encrypted off-site storage
+        env:
+          RCLONE_CONFIG: /home/runner/rclone.conf
+        run: |
+          set -euo pipefail
+          # --max-delete: a bug, a revoked bucket, or a bad prefix must not be
+          # able to erase the backup. 100 is above normal churn (evidence is
+          # append-mostly) and far below "something is wrong". Exceeding it
+          # fails the job with nothing deleted.
+          #
+          # --track-renames would be wrong here: names are content-addressed
+          # UUIDs, so a "rename" is always actually a new object.
+          rclone sync supabase: secure: \
+            --transfers 8 \
+            --checkers 16 \
+            --max-delete 100 \
+            --fast-list \
+            --stats 30s \
+            --stats-one-line \
+            --log-level INFO
+
+      - name: Verify the destination
+        # `sync` exiting 0 is not proof the objects are readable back. Counting
+        # them through the crypt remote proves the encryption keys round-trip,
+        # which is the part that silently rots.
+        env:
+          RCLONE_CONFIG: /home/runner/rclone.conf
+        run: |
+          set -euo pipefail
+          DST_OBJECTS="$(rclone size secure: --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["count"])')"
+          echo "DST_OBJECTS=$DST_OBJECTS" >> "$GITHUB_ENV"
+          echo "Destination: $DST_OBJECTS objects (source $SRC_OBJECTS)"
+          if [ "$DST_OBJECTS" -lt "$SRC_OBJECTS" ]; then
+            echo "::error::Destination has $DST_OBJECTS objects, source has $SRC_OBJECTS"
+            exit 1
+          fi
+
+      - name: Prove one file actually decrypts
+        # The whole point of client-side encryption is that the bucket holds
+        # ciphertext. The whole risk of client-side encryption is that nobody
+        # notices the key is wrong until they need the data. Pull one object
+        # back through the crypt remote every run.
+        env:
+          RCLONE_CONFIG: /home/runner/rclone.conf
+        run: |
+          set -euo pipefail
+          SAMPLE="$(rclone lsf secure: --files-only --max-depth 3 | head -1)"
+          if [ -z "$SAMPLE" ]; then
+            echo "::error::Could not list a single file back through the crypt remote"
+            exit 1
+          fi
+          rclone copyto "secure:$SAMPLE" /tmp/sample.bin
+          BYTES="$(stat -c%s /tmp/sample.bin)"
+          echo "Round-tripped '$SAMPLE' ($BYTES bytes) through decryption"
+          [ "$BYTES" -gt 0 ] || { echo "::error::Decrypted sample is empty"; exit 1; }
+          rm -f /tmp/sample.bin
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Weekly storage backup"
+            echo ""
+            echo "- Source objects: \`${SRC_OBJECTS:-n/a}\` (\`${SRC_BYTES:-n/a}\` bytes)"
+            echo "- Destination objects: \`${DST_OBJECTS:-n/a}\`"
+            echo "- Result: **${{ job.status }}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the rclone config
+        if: always()
+        run: rm -f "$HOME/rclone.conf"
+
+# Retention is a bucket lifecycle rule, not a step in this file — the same
+# reasoning as backup-db.yml. Putting deletion on an unattended weekly path
+# against the only off-site copy of student evidence is not a trade worth
+# making; a lifecycle rule is enforced by the provider and fails safe.

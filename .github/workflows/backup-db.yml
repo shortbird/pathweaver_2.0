@@ -13,9 +13,11 @@ name: Nightly DB Backup
 # It does NOT replace Supabase's backups and it does NOT give point-in-time
 # recovery: worst-case data loss here is ~24h. See backend/docs/BACKUP_RESTORE.md.
 #
-# NOT COVERED: Supabase Storage objects (student evidence uploads, photos, video).
-# Database backups only contain the storage.objects METADATA rows, not the files
-# themselves. That gap is still open.
+# NOT COVERED HERE: Supabase Storage objects (student evidence uploads, photos,
+# video). This dump contains the storage.objects METADATA rows, not the files
+# themselves. That gap is now closed by .github/workflows/backup-storage.yml
+# (weekly, incremental, client-side encrypted) -- which still needs its
+# credentials created before its first run. See backend/docs/BACKUP_RESTORE.md.
 
 on:
   schedule:
