@@ -297,7 +297,6 @@ class TestAutopayConfirmFires:
         notify.assert_not_called()
 
     def test_a_plan_that_failed_to_build_notifies_nobody(self):
-        from services import sis_billing_service as billing
         with self._confirm() as (billing, notify):
             with patch.object(billing, '_create_autopay_plan',
                               return_value={'error': 'This invoice is already paid'}):

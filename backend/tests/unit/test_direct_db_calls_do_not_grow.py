@@ -49,7 +49,12 @@ BACKEND = Path(__file__).resolve().parents[2]
 # the same way.
 BASELINES = {
     'routes': 2336,
-    'services': 1779,
+    # 1779 -> 1785 on 2026-09-04: sis_billing_alerts, six single-row lookups
+    # (organizations, households, sis_saved_payment_methods, users x2,
+    # sis_recurring_tuition) that exist only to compose the text of one office
+    # notification. Deliberate: routing name lookups for a notification body
+    # through five repositories buys nothing the layer boundary is for.
+    'services': 1785,
     'repositories': 415,
     'utils': 131,
     'jobs': 7,

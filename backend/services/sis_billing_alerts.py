@@ -38,6 +38,10 @@ SIS_URL = 'https://sis.optioeducation.com'
 
 
 def _admin():
+    # admin client justified: composes an office notification from rows owned by
+    #   a family (their household, saved payment method and recurring plan); runs
+    #   from a Stripe webhook and a billing write path, neither of which has a
+    #   caller whose RLS could see them
     return get_supabase_admin_client()
 
 
