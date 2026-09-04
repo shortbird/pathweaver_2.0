@@ -142,22 +142,43 @@ def module_guard(bp, key: str) -> None:
 
 
 def _report(org_id: str, denied, mode: str) -> None:
-    line = (f'[ModuleGate] {"blocked" if mode == "enforce" else "would block"} '
+    verb = 'blocked' if mode == 'enforce' else 'would block'
+    line = (f'[ModuleGate] {verb} '
             f'{request.method} {request.path} for org {org_id}: '
             f'{", ".join(denied)} disabled')
     logger.warning(line)
+
+    # Sentry gets a route-shaped version of the same fact. The log line above
+    # names one concrete request, which is what you want in a log and exactly
+    # wrong as an issue title: the paths carry ids (a quest, a student), and the
+    # org differs per hit. Left to group itself, one issue ends up titled after
+    # whichever org and id happened to arrive first while holding hits from
+    # several orgs -- and the enforcement rollout turns on reading these
+    # (MODULE_ENFORCEMENT flips per tier only once every logged hit is
+    # explained), so a title that misattributes them costs real time.
+    #
+    # Group on the view + the modules instead, and put the org on a tag so a
+    # single issue can be sliced by org rather than fragmented across ids.
+    view = request.endpoint or request.path
+    modules = ', '.join(sorted(denied)) or 'unknown'
     try:
         import sentry_sdk
         with sentry_sdk.push_scope() as scope:
             scope.set_tag('source', 'module_gate')
             scope.set_tag('module', denied[0] if denied else 'unknown')
             scope.set_tag('gate_mode', mode)
+            scope.set_tag('module_gate_org', org_id)
+            scope.set_tag('module_gate_view', view)
+            scope.fingerprint = ['module_gate', mode, view, modules]
             scope.set_context('module_gate', {
                 'path': request.path,
                 'method': request.method,
                 'organization_id': org_id,
                 'denied_modules': list(denied),
             })
-            sentry_sdk.capture_message(line, level='warning')
+            sentry_sdk.capture_message(
+                f'[ModuleGate] {verb} {request.method} {view}: {modules} disabled',
+                level='warning',
+            )
     except Exception as e:  # noqa: BLE001 -- best-effort, no-op in local dev
         logger.debug(f'[ModuleGate] sentry report skipped: {e}')

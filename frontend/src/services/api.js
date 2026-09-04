@@ -448,6 +448,11 @@ api.interceptors.response.use(
 // Deliberately NOT reported: 400/404/409/422 (user/validation flows), 401
 // (session expiry is normal; the refresh interceptor handles it), 429 (rate
 // limits working as intended), and network errors (offline users are noise).
+// A caller that PROBES an endpoint — one where "you may not read this" is a
+// legitimate answer it already handles, not a regression — opts its own request
+// out with `expect403: true` in the axios config. Keep that on the request, not
+// on the endpoint: the same URL read by the person it belongs to still deserves
+// a report when it 403s.
 // One report per method+endpoint+status per page load, 20 max, ids collapsed
 // so Sentry groups by endpoint shape.
 const reportedApiFailures = new Set()
@@ -458,7 +463,9 @@ const REPORTABLE = (error) => {
   if (s === 403 && !error.response?.data?.consent_required
       // The phone-verification hold is an expected product state (handled
       // above): every held adult's open tab 403s until they verify.
-      && error.response?.data?.code !== 'phone_verification_required') return true
+      && error.response?.data?.code !== 'phone_verification_required'
+      // A probe that treats the refusal as its answer (see above).
+      && !error.config?.expect403) return true
   return s === 405
 }
 
@@ -949,7 +956,9 @@ export const oeaAPI = {
     api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
 
   // Credits + computed pathway progress + GPA for a student. Self-readable.
-  credits: (studentId) => api.get(`/api/oea/students/${studentId}/credits`),
+  // `config` carries per-call axios options — the diploma probe passes
+  // expect403 so its expected refusal is not reported as a failure.
+  credits: (studentId, config) => api.get(`/api/oea/students/${studentId}/credits`, config),
 
   // Add a course credit to a pathway requirement slot (parent only).
   addCredit: (studentId, body) => api.post(`/api/oea/students/${studentId}/credits`, body),

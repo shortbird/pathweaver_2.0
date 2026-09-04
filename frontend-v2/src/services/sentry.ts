@@ -173,12 +173,57 @@ export function wrapWithSentry<T>(Component: T): T {
   return Component;
 }
 
+// Sentry reads the second argument of captureException/captureMessage as a
+// CaptureContext ONLY when it carries one of these keys; anything else it takes
+// for an event Hint and drops from the event entirely
+// (@sentry/core parseEventHintOrCaptureContext). Our own call sites have always
+// used shorthand -- `{ stage: 'capture-picker-launch' }`, `{ where: 'useFeed' }`
+// -- so none of it ever arrived, and the mixed form `{ stage, extra }` lost the
+// stage while the extra went through, which is worse: it looks like it works.
+//
+// What that cost: an iOS Photos failure landed as
+// "PHPhotosErrorDomain error 3164" under the culprit `construct(native)`, which
+// is where every wrapped native error surfaces, with no way to tell which of the
+// twelve reporting call sites produced it (OPTIO-MOBILE-Q, 2026-09-04).
+//
+// So normalize here rather than editing twelve call sites into a shape the SDK
+// happens to want: known keys pass through as the scope context they already
+// are, everything else folds into `extra`. `stage` and `where` additionally
+// become tags, because "which flow was this" is the question you filter on.
+const CAPTURE_CONTEXT_KEYS = [
+  'user', 'level', 'extra', 'contexts', 'tags', 'fingerprint', 'propagationContext',
+];
+const FLOW_KEYS = ['stage', 'where'];
+
+export function toCaptureContext(extras?: Extras): Extras | undefined {
+  if (!extras) return undefined;
+  const scope: Extras = {};
+  const loose: Extras = {};
+  for (const [key, value] of Object.entries(extras)) {
+    if (CAPTURE_CONTEXT_KEYS.includes(key)) scope[key] = value;
+    else loose[key] = value;
+  }
+  const looseKeys = Object.keys(loose);
+  if (looseKeys.length === 0) {
+    return Object.keys(scope).length > 0 ? scope : undefined;
+  }
+  scope.extra = { ...(scope.extra as Extras | undefined), ...loose };
+  const flowTags: Record<string, string> = {};
+  for (const key of FLOW_KEYS) {
+    if (typeof loose[key] === 'string') flowTags[key] = loose[key] as string;
+  }
+  if (Object.keys(flowTags).length > 0) {
+    scope.tags = { ...(scope.tags as Record<string, string> | undefined), ...flowTags };
+  }
+  return scope;
+}
+
 export function captureException(err: unknown, extras?: Extras): void {
-  (impl ?? makeNoopShim()).captureException(err, extras);
+  (impl ?? makeNoopShim()).captureException(err, toCaptureContext(extras));
 }
 
 export function captureMessage(msg: string, extras?: Extras): string | undefined {
-  return (impl ?? makeNoopShim()).captureMessage(msg, extras);
+  return (impl ?? makeNoopShim()).captureMessage(msg, toCaptureContext(extras));
 }
 
 export function setSentryUser(user: { id: string; email?: string } | null): void {
