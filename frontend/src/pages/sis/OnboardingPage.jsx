@@ -11,6 +11,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
+import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { itemDocuments } from './checklistDocuments'
 
@@ -544,17 +545,23 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
 
 /** The checklist template library: a single collapsed row until opened.
  * Authoring is the rare act; it must not sit on top of the daily list. */
-export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
+export const ChecklistTemplatesManager = ({ orgId, onChanged, embedded = false, onCount, open: externalOpen }) => {
   const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
-  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const templatesOpen = externalOpen !== undefined ? externalOpen : internalOpen
+  const toggleTemplatesOpen = () => setInternalOpen((v) => !v)
 
   const load = useCallback(() => {
     api.get(withOrg('/api/sis/staff-admin/onboarding/templates', orgId))
-      .then((t) => setTemplates(t.data?.templates || []))
+      .then((t) => {
+        const list = t.data?.templates || []
+        setTemplates(list)
+        onCount?.(list.length)
+      })
       .catch(() => toast.error('Failed to load checklist templates'))
-  }, [orgId])
+  }, [orgId, onCount])
 
   useEffect(() => { if (orgId) load() }, [load, orgId])
 
@@ -616,13 +623,11 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
     }
   }
 
-  return (
+  const content = (
     <>
-      {/* Collapsed until asked for, so sitting above the progress list costs it
-          a single row rather than a screenful. */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      {!embedded && (
         <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={() => setTemplatesOpen((v) => !v)}
+          <button type="button" onClick={toggleTemplatesOpen}
             aria-expanded={templatesOpen}
             className="flex items-center gap-2 font-semibold text-neutral-900">
             <span className={`text-neutral-400 text-xs transition-transform ${templatesOpen ? 'rotate-90' : ''}`}
@@ -634,30 +639,46 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
             + New template
           </button>
         </div>
-        {templatesOpen && (
-          <ul className="divide-y divide-gray-100 mt-3">
-            {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
-            {templates.map((t) => (
-              <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
-                  {t.audience === 'family' ? 'Family' : 'Staff'}
-                </span>
-                {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
-                <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
-                <div className="ml-auto flex items-center gap-3">
-                  <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
-                  <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
-                  {/* Deliberately a button, not automatic on save: a half-finished
-                      edit must not go out to everyone holding the checklist. */}
-                  <button onClick={() => syncTemplate(t)} className="text-sm text-optio-purple hover:underline">Sync assigned</button>
-                  <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      )}
+
+      {embedded && templatesOpen && (
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="text-sm font-semibold text-neutral-800">Onboarding Checklist Templates</span>
+          <button onClick={() => setEditing('new')} className="text-sm text-optio-purple font-medium hover:underline">
+            + New template
+          </button>
+        </div>
+      )}
+
+      {templatesOpen && (
+        <ul className="divide-y divide-gray-100 mt-3">
+          {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
+          {templates.map((t) => (
+            <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
+                {t.audience === 'family' ? 'Family' : 'Staff'}
+              </span>
+              {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
+              <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
+              <div className="ml-auto flex items-center gap-3">
+                <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
+                <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
+                {/* Deliberately a button, not automatic on save: a half-finished
+                    edit must not go out to everyone holding the checklist. */}
+                <button onClick={() => syncTemplate(t)} className="text-sm text-optio-purple hover:underline">Sync assigned</button>
+                <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+
+  return (
+    <>
+      {embedded ? <div>{content}</div> : <div className="bg-white rounded-xl border border-gray-200 p-4">{content}</div>}
 
       {editing && (
         <ModalOverlay onClose={() => setEditing(null)}>
@@ -697,7 +718,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
   return (
     <div className="space-y-6">
       <ReviewStrip orgId={orgId} assignments={assignments} onChanged={load} />
-      <ChecklistTemplatesManager orgId={orgId} onChanged={load} />
+      <PaperworkTemplatesManager orgId={orgId} onChanged={load} defaultTab="checklists" />
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
