@@ -1118,11 +1118,11 @@ def _guardian_household_rows(user_id: str) -> List[Dict[str, Any]]:
     rows: Dict[str, Dict[str, Any]] = {}
     if hh_ids:
         for h in (_admin().table('households')
-                  .select('id, name, organization_id, primary_contact_user_id')
+                  .select('id, name, organization_id, primary_contact_user_id, payment_plan_preference')
                   .in_('id', list(hh_ids)).execute()).data or []:
             rows[h['id']] = h
     for h in (_admin().table('households')
-              .select('id, name, organization_id, primary_contact_user_id')
+              .select('id, name, organization_id, primary_contact_user_id, payment_plan_preference')
               .eq('primary_contact_user_id', user_id).execute()).data or []:
         rows[h['id']] = h
     return list(rows.values())
@@ -1272,12 +1272,28 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
             'funding_source': funding,
             'funding_label': _FUNDING_LABELS.get(funding) if funding else None,
             'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
+            'payment_plan_preference': hh.get('payment_plan_preference'),
             'invoices': invoices,
             'payments': payments,
             'totals': {'invoiced_cents': invoiced, 'paid_cents': paid,
                        'balance_cents': balance},
         })
     return {'households': out}
+
+
+def set_payment_plan_preference(user_id: str, household_id: str, preference: Optional[str]) -> Dict[str, Any]:
+    """Allows a guardian to state whether they plan to pay tuition in full or monthly.
+    Updates households.payment_plan_preference if the user guards the household."""
+    if preference not in (None, 'in_full', 'monthly'):
+        raise ValueError('Invalid payment plan preference')
+    guarding = [h['id'] for h in _guardian_household_rows(user_id)]
+    if household_id not in guarding:
+        raise PermissionError('Not authorized to update this household')
+
+    _admin().table('households').update({
+        'payment_plan_preference': preference
+    }).eq('id', household_id).execute()
+    return {'household_id': household_id, 'payment_plan_preference': preference}
 
 
 def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:
