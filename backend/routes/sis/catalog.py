@@ -515,6 +515,19 @@ def enroll_student(user_id, class_id):
                          'school, so they do not have a place yet.',
             }), 409
 
+        from services.sis_waitlist_service import schedule_conflicts
+        try:
+            conflicts = schedule_conflicts(student_id, class_id)
+        except Exception:  # noqa: BLE001 — never block staff over the check itself
+            conflicts = []
+        if conflicts:
+            cnames = ', '.join(c.get('class_name', 'another class') for c in conflicts)
+            return jsonify({
+                'success': False,
+                'conflicts': conflicts,
+                'error': f'This student is already enrolled in {cnames} at the same time.',
+            }), 409
+
     existing = (
         supabase.table('class_enrollments').select('id, status')
         .eq('class_id', class_id).eq('student_id', student_id).limit(1).execute()

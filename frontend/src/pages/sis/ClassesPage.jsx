@@ -1077,9 +1077,10 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
       reload()
       onChanged?.()
     } catch (e) {
-      if (e?.response?.status === 409 && e.response.data?.enrollment_waitlisted) {
+      if (e?.response?.status === 409 && (e.response.data?.enrollment_waitlisted || e.response.data?.conflicts)) {
         setBusy(false)
-        if (await confirm(`${e.response.data.error}\n\nAdd them anyway?`)) return add(true)
+        const msg = e.response.data.error || 'This student is already enrolled in a class at the same time.'
+        if (await confirm(`${msg}\n\nAdd them anyway?`)) return add(true)
         return
       }
       toast.error(e?.response?.data?.error || 'Could not add the student')
