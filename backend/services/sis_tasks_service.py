@@ -140,6 +140,7 @@ def _checklist_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str,
                 # onboarding service (and withheld until the office uploads one).
                 'sign_docs': item.get('sign_docs'),
                 'required': bool(item.get('required', True)),
+                'documents': onboarding.item_documents(item),
                 'link': ('/family/portal' if audience == 'family'
                          else f"/onboarding?assignment={a['id']}&item={item.get('key')}"),
                 'is_signature_request': is_send,

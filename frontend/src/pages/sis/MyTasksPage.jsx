@@ -8,6 +8,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import { getPreviewTeacher } from './teacherPreview'
 import { MyDocumentsPanel } from './MyDocumentsPage'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * My Tasks — everything the school is currently asking this person to do,
@@ -77,6 +78,7 @@ const StatusPill = ({ status }) => (
 )
 
 const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
+  const confirm = useConfirm()
   const onb = parseOnboardingId(task.id)
 
   const patchItem = async (fields) => {
@@ -102,7 +104,9 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
       form.append('file', file)
       const r = await api.post(withOrg('/api/sis/teacher/onboarding/upload', orgId), form)
       await api.patch(`/api/sis/teacher/onboarding/${onb.assignmentId}/items/${onb.itemKey}`, {
-        organization_id: orgId, document_url: r.data?.path, status: 'complete',
+        organization_id: orgId,
+        add_document: { path: r.data?.path, filename: file.name },
+        status: 'complete',
       })
       toast.success('Document sent')
       onChanged()
@@ -110,6 +114,32 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
       toast.error(err?.response?.data?.error || 'Upload failed')
     } finally {
       setBusy(null)
+    }
+  }
+
+  const removeDoc = async (doc) => {
+    if (!onb) return
+    if (!(await confirm(`Remove ${doc.filename || 'this document'}?`))) return
+    setBusy(task.id)
+    try {
+      await api.patch(`/api/sis/teacher/onboarding/${onb.assignmentId}/items/${onb.itemKey}`, {
+        organization_id: orgId, remove_document: doc.path,
+      })
+      toast.success('Document removed')
+      onChanged()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove document')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const openDoc = async (path) => {
+    try {
+      const r = await api.get(withOrg(`/api/sis/teacher/onboarding/doc-url?path=${encodeURIComponent(path)}`, orgId))
+      if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
+    } catch {
+      toast.error('Could not open the document')
     }
   }
 
@@ -182,11 +212,22 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
           )}
 
           {task.type === 'document_upload' && (
-            <label className="mt-1.5 inline-block text-sm text-optio-purple hover:underline cursor-pointer">
-              Upload document
-              <input type="file" className="hidden" disabled={busy}
-                onChange={(e) => e.target.files?.[0] && uploadDoc(e.target.files[0])} />
-            </label>
+            <div className="mt-1.5 space-y-1">
+              {(task.documents || []).map((doc) => (
+                <div key={doc.path} className="flex items-center gap-3">
+                  <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
+                    {doc.filename || 'View document'}
+                  </button>
+                  <button onClick={() => removeDoc(doc)}
+                    className="text-xs text-red-600 hover:underline">Remove</button>
+                </div>
+              ))}
+              <label className="inline-block text-sm text-optio-purple hover:underline cursor-pointer">
+                {(task.documents || []).length ? 'Add another document' : 'Upload document'}
+                <input type="file" className="hidden" disabled={busy}
+                  onChange={(e) => e.target.files?.[0] && uploadDoc(e.target.files[0])} />
+              </label>
+            </div>
           )}
 
           {task.type === 'ack' && (
