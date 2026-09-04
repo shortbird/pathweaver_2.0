@@ -14,6 +14,7 @@ from routes.tasks.xp_helpers import (
 from utils.api_response_v1 import error_response, success_response
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
+from utils.org_features import org_has_feature
 
 logger = get_logger(__name__)
 
@@ -169,10 +170,21 @@ def request_diploma_credit(user_id: str, task_id: str):
             .single()\
             .execute()
         student_org_id = student_user.data.get('organization_id') if student_user.data else None
-        is_org_student = student_org_id is not None
 
-        # Org students go to org_admin first; platform students go to superadmin
-        new_diploma_status = 'pending_org_approval' if is_org_student else 'pending_review'
+        # Who reviews first? Carrying an organization_id is NOT the same as
+        # having an org admin who reviews credit -- the same wrong proxy that
+        # once dropped the WASC statement off partner transcripts (see
+        # services/academy_enrollment_service.py). Optio Academy's students are
+        # Optio's own students: their org has no partner admin to approve
+        # anything, so routing them to the org stage parked every request in a
+        # queue nobody owned (67 of them by 2026-09-04). Orgs whose credit Optio
+        # reviews directly set feature_flags.credit_review_by_optio.
+        org_reviews_first = (
+            student_org_id is not None
+            and not org_has_feature(student_org_id, 'credit_review_by_optio')
+        )
+
+        new_diploma_status = 'pending_org_approval' if org_reviews_first else 'pending_review'
 
         # Update completion status
         new_revision = round_number
@@ -209,7 +221,7 @@ def request_diploma_credit(user_id: str, task_id: str):
 
             notification_service = NotificationService()
 
-            if is_org_student:
+            if org_reviews_first:
                 org_admins = admin_supabase.table('users')\
                     .select('id')\
                     .eq('organization_id', student_org_id)\
@@ -262,7 +274,7 @@ def request_diploma_credit(user_id: str, task_id: str):
 
         review_message = (
             'Diploma credit requested. Your organization admin will review your work.'
-            if is_org_student else
+            if org_reviews_first else
             'Diploma credit requested. Your advisor will review your work.'
         )
         logger.info(f"User {user_id[:8]} requested diploma credit for task {task_id[:8]} (round {round_number}, status={new_diploma_status})")
