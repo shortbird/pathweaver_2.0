@@ -1846,12 +1846,47 @@ Log:
 
   Mobile suite 96 files / 715 passed; tsc clean.
 
-### QF-05 — Silent partial-failure pattern `[TODO]`
+### QF-05 — Silent partial-failure pattern `[DONE]`
 `DiplomaPage.jsx:366-411` and elsewhere: parallel fetches whose failures go to
 console.error, leaving silently empty sections. Add a section-level error state +
 retry affordance; sweep for the pattern.
 Log:
 - 2026-08-31: Plan created.
+- 2026-09-03: Swept first, and "and elsewhere" turned out to be nowhere — ALL
+  13 swallow-to-console handlers are in DiplomaPage.jsx. That is what made a
+  real fix tractable instead of a codebase-wide sweep.
+
+  The bug, precisely: five sections are fetched independently so one failure
+  cannot blank the others, which is right. What was wrong is the next line —
+  each rejection went to `console.error` and the section rendered EMPTY,
+  indistinguishable from "this student has none of these yet". A parent looking
+  at a diploma with no transfer credits could not tell whether the credits were
+  missing or the request was.
+
+  A second defect underneath it, easy to miss: the per-call
+  `.catch(err => console.error(...))` also CONVERTED every rejection into a
+  fulfilled promise, so the surrounding `Promise.allSettled` saw five successes.
+  Nothing downstream could have discovered which section failed even if it had
+  wanted to. Those catches are gone — `allSettled` already isolates the calls,
+  which is the whole reason it is there.
+
+  `reportSectionFailures(results, labels)` now names the failed sections in one
+  toast: "Could not load: transfer credits. Everything else is up to date."
+
+  A TOAST, NOT AN INLINE BANNER, deliberately. This page is a masonry gallery
+  plus a sidebar; there is no honest place to put five per-section error states
+  without redesigning the layout, and redesigning a layout is not something to
+  do without looking at it. The toast is an existing app-wide primitive, needs
+  no layout work, and delivers the thing that was actually missing: the user
+  finding out. The phrasing matters too — without "everything else is up to
+  date" the message reads as "the diploma is broken", and a parent has no way
+  to know the credits they CAN see are current.
+
+  Five tests, including two that read the page source: that no
+  `.catch(err => console.error` shape survives, and that every `allSettled`
+  block has a matching report call.
+
+  Web suite 2505 passing.
 
 ### QF-06 — Bundle weight `[TODO]` (low)
 Three PDF libraries (html2pdf.js, pdf-lib, react-pdf) -> consolidate; lazy-load

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
+import toast from 'react-hot-toast';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import EvidenceMasonryGallery from '../components/diploma/EvidenceMasonryGallery';
@@ -338,6 +339,29 @@ const DiplomaPage = () => {
     setIsLoading(false);
   };
 
+  // QF-05. Every section of this page is fetched independently so that one
+  // failure cannot blank the others -- which is right. What was wrong is what
+  // happened next: the rejection went to console.error and the section rendered
+  // EMPTY, indistinguishable from "this student has none of these yet". A
+  // parent looking at a diploma with no transfer credits could not tell whether
+  // the credits were missing or the request was.
+  //
+  // A toast, not an inline banner: this page's layout is a masonry gallery and
+  // a sidebar, and there is no honest place to put five per-section error
+  // states without redesigning it. The toast names what failed and offers the
+  // retry, which is the part that was missing.
+  const reportSectionFailures = useCallback((results, labels) => {
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? labels[i] : null))
+      .filter(Boolean);
+    if (!failed.length) return;
+    console.error('[Diploma] sections failed to load:', failed);
+    toast.error(
+      `Could not load: ${failed.join(', ')}. Everything else is up to date.`,
+      { id: 'diploma-section-failure', duration: 6000 }
+    );
+  }, []);
+
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
@@ -364,14 +388,19 @@ const DiplomaPage = () => {
       if (hasAccess) {
         // Fetch all data independently with error handling
         // Each fetch has its own try-catch to prevent one failure from affecting others
+        // No per-call .catch: allSettled already isolates them, and catching
+        // here converted every rejection into a fulfilled promise, so the
+        // handler below could never tell which section had failed.
         Promise.allSettled([
-          fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
-          fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+          fetchAchievements(),
+          fetchSubjectXP(),
           // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-          fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
-          fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err)),
-          fetchCurated().catch(err => console.error('Failed to fetch portfolio picks:', err))
-        ]).finally(() => {
+          fetchLearningEvents(),
+          fetchTransferCredits(),
+          fetchCurated()
+        ]).then((results) => {
+          reportSectionFailures(results, ['achievements', 'subject credits', 'learning moments', 'transfer credits', 'portfolio picks']);
+        }).finally(() => {
           // Ensure loading state is cleared even if some fetches fail
           setIsLoading(false);
         });
@@ -391,12 +420,12 @@ const DiplomaPage = () => {
     if (document.visibilityState === 'visible' && effectiveUser && !slug && !userId && hasAccess) {
       // Refresh all data independently with error handling
       Promise.allSettled([
-        fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
-        fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+        fetchAchievements(),
+        fetchSubjectXP(),
         // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
-        fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
-      ]);
+        fetchLearningEvents(),
+        fetchTransferCredits()
+      ]).then((results) => reportSectionFailures(results, ['achievements', 'subject credits', 'learning moments', 'transfer credits']));
     }
   };
 
@@ -404,12 +433,12 @@ const DiplomaPage = () => {
     if (effectiveUser && !slug && !userId && hasAccess) {
       // Refresh all data independently with error handling
       Promise.allSettled([
-        fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
-        fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+        fetchAchievements(),
+        fetchSubjectXP(),
         // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err)),
-        fetchTransferCredits().catch(err => console.error('Failed to fetch transfer credits:', err))
-      ]);
+        fetchLearningEvents(),
+        fetchTransferCredits()
+      ]).then((results) => reportSectionFailures(results, ['achievements', 'subject credits', 'learning moments', 'transfer credits']));
     }
   };
 
