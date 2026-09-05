@@ -141,9 +141,32 @@ def module_guard(bp, key: str) -> None:
         return check_module(key)
 
 
+# Gaps this worker has already reported, keyed by (org, method, rule, modules).
+# Shadow mode exists to produce a list of gaps to explain before enforcement is
+# switched on (see the module docstring), and a gap is one fact however many
+# times it is hit: a single Hearthwood quest page reported the same disabled
+# `classes` module 31 times in two days (Sentry OPTIO-BACKEND-7W). Per worker
+# process, so a deploy or a restart re-arms it.
+_reported_gaps = set()
+
+
+def reset_reported_gaps() -> None:
+    """Test seam: forget what this process has already reported."""
+    _reported_gaps.clear()
+
+
 def _report(org_id: str, denied, mode: str) -> None:
+    # Group by the ROUTE, not the URL. request.path carries record ids, so an
+    # org with fifty quests would open fifty issues for one missing module and
+    # dedupe would never hit. The concrete path stays in the context below.
+    rule = request.url_rule.rule if request.url_rule else request.path
+    key = (org_id, request.method, rule, tuple(sorted(denied)), mode)
+    if key in _reported_gaps:
+        return
+    _reported_gaps.add(key)
+
     line = (f'[ModuleGate] {"blocked" if mode == "enforce" else "would block"} '
-            f'{request.method} {request.path} for org {org_id}: '
+            f'{request.method} {rule} for org {org_id}: '
             f'{", ".join(denied)} disabled')
     logger.warning(line)
     try:
@@ -153,6 +176,7 @@ def _report(org_id: str, denied, mode: str) -> None:
             scope.set_tag('module', denied[0] if denied else 'unknown')
             scope.set_tag('gate_mode', mode)
             scope.set_context('module_gate', {
+                'rule': rule,
                 'path': request.path,
                 'method': request.method,
                 'organization_id': org_id,

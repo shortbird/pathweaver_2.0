@@ -1,4 +1,4 @@
-import api, { tokenStore } from './api'
+import api, { tokenStore, beginSessionSwitch } from './api'
 import logger from '../utils/logger'
 
 /**
@@ -68,6 +68,10 @@ export function restoreActingAs() {
       const freshToken = response.data?.acting_as_token
       if (!freshToken) throw new Error('No acting_as_token returned on restore')
 
+      // Ordering (above) keeps /me and the page's own queries on the right
+      // side of this swap, but anything already dispatched by an earlier
+      // render is still parent-scoped and will 403 as the child.
+      beginSessionSwitch()
       await tokenStore.setTokens(freshToken, tokenStore.getRefreshToken() || '')
       logger.debug('[actingAsRestore] Re-minted acting-as token on reload')
       return { dependent, token: freshToken }

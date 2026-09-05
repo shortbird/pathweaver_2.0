@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, startTransition } from 'react';
 import { useAuth } from './AuthContext';
-import api, { tokenStore } from '../services/api';
+import api, { tokenStore, beginSessionSwitch } from '../services/api';
 import { restoreActingAs, clearStoredActingAs } from '../services/actingAsRestore';
 import logger from '../utils/logger';
 
@@ -57,6 +57,9 @@ export const ActingAsProvider = ({ children }) => {
 
   // Memoized clearActingAs function to prevent re-renders
   const clearActingAs = useCallback(async () => {
+    // Same switch in reverse: child-scoped queries in flight outlive the swap
+    // back to the parent session and 403 on the way out.
+    beginSessionSwitch();
     try {
       // CROSS-ORIGIN FIX: Call backend to get fresh parent tokens
       // This bypasses sessionStorage issues in production where frontend (optioeducation.com)
@@ -151,6 +154,13 @@ export const ActingAsProvider = ({ children }) => {
         // held in memory and re-minted from the backend on reload, never written
         // to sessionStorage where XSS could steal it.
         sessionStorage.setItem('acting_as_dependent', JSON.stringify(dependent));
+
+        // From here the tab is authenticated as the CHILD, but the redirect
+        // below is asynchronous — parent-scoped queries still in flight will
+        // re-fire against the child session and be refused. Those 403s are
+        // correct; don't report them as authz regressions (see
+        // beginSessionSwitch in services/api).
+        beginSessionSwitch();
 
         // Store token in tokenStore so it gets included in Authorization header
         await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);

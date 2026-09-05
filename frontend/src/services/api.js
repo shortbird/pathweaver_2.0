@@ -451,6 +451,23 @@ api.interceptors.response.use(
 // One report per method+endpoint+status per page load, 20 max, ids collapsed
 // so Sentry groups by endpoint shape.
 const reportedApiFailures = new Set()
+
+// Switching which account the tab is authenticated as (parent -> child act-as,
+// and back) installs the new token and THEN navigates. `window.location.href`
+// is asynchronous: the page keeps running for a few hundred ms while the next
+// document loads, so every parent-scoped query still in flight re-fires with
+// the CHILD's token and is correctly refused. Those 403s are the authz layer
+// working, not an over-tightened check, but they were being reported as
+// regressions — one act-as tap produced three (Sentry OPTIO-WEB-C / -Q / -P:
+// my-dependents, parent/completions, sis/parent/forms, all within 57ms of the
+// act-as call). Callers mark the switch so the window is exempt; it lapses on
+// its own, so a switch that never navigates re-arms reporting instead of
+// silencing the tab for good.
+const SESSION_SWITCH_QUIET_MS = 10_000
+let sessionSwitchAt = 0
+export const beginSessionSwitch = () => { sessionSwitchAt = Date.now() }
+const inSessionSwitch = () => Date.now() - sessionSwitchAt < SESSION_SWITCH_QUIET_MS
+
 const REPORTABLE = (error) => {
   const s = error.response?.status
   if (!s) return false
@@ -458,7 +475,8 @@ const REPORTABLE = (error) => {
   if (s === 403 && !error.response?.data?.consent_required
       // The phone-verification hold is an expected product state (handled
       // above): every held adult's open tab 403s until they verify.
-      && error.response?.data?.code !== 'phone_verification_required') return true
+      && error.response?.data?.code !== 'phone_verification_required'
+      && !inSessionSwitch()) return true
   return s === 405
 }
 

@@ -138,3 +138,60 @@ def test_enforcement_mode_defaults_to_log(monkeypatch):
 def test_require_module_refuses_zero_keys():
     with pytest.raises(ValueError):
         require_module()
+
+
+# ── shadow-mode reporting: one gap, one report ────────────────────────────────
+#
+# Log mode exists to produce a list of gaps to explain before enforcement goes
+# on (module docstring). That list is about routes and orgs, not traffic: one
+# Hearthwood quest page reported the same disabled `classes` module 31 times in
+# two days (Sentry OPTIO-BACKEND-7W), which is one line of review work told 31
+# times. These pin the deduping and the route-shaped key it depends on.
+
+@pytest.fixture
+def reported(app):
+    """The (org, denied, mode) tuples the real _report sends to Sentry."""
+    from modules.gate import reset_reported_gaps
+    reset_reported_gaps()
+    with patch('modules.gate.logger'), \
+         patch('sentry_sdk.capture_message') as capture:
+        yield capture
+    reset_reported_gaps()
+
+
+def test_a_repeated_gap_is_reported_once(client, monkeypatch, reported):
+    for _ in range(3):
+        _run(client, monkeypatch, '/guarded/invoices', mode='log')
+    assert reported.call_count == 1
+
+
+def test_the_same_gap_in_a_different_org_is_its_own_report(client, monkeypatch, reported):
+    _run(client, monkeypatch, '/guarded/invoices', mode='log', org='org-1')
+    _run(client, monkeypatch, '/guarded/invoices', mode='log', org='org-2')
+    assert reported.call_count == 2
+
+
+def test_a_different_route_in_the_same_org_is_its_own_report(client, monkeypatch, reported):
+    _run(client, monkeypatch, '/guarded/invoices', mode='log')
+    _run(client, monkeypatch, '/shared/billing-thing', mode='log')
+    assert reported.call_count == 2
+
+
+def test_the_report_names_the_route_not_the_url(app, monkeypatch, reported):
+    # request.path carries record ids; keying on it would open one issue per
+    # record and dedupe would never hit.
+    ids = Blueprint('ids', __name__, url_prefix='/ids')
+    module_guard(ids, 'classes')
+
+    @ids.route('/quest/<quest_id>/materials')
+    def materials(quest_id):
+        return {'success': True}
+
+    app.register_blueprint(ids)
+    client = app.test_client()
+
+    _run(client, monkeypatch, '/ids/quest/quest-aaa/materials', mode='log')
+    _run(client, monkeypatch, '/ids/quest/quest-bbb/materials', mode='log')
+
+    assert reported.call_count == 1
+    assert '/ids/quest/<quest_id>/materials' in reported.call_args[0][0]

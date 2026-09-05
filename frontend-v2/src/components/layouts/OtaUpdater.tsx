@@ -35,6 +35,16 @@ import { captureMessage } from '@/src/services/sentry';
 // a description of what went wrong — see the note in reportOtaIssue below.
 const ANDROID_OPAQUE_FETCH_FAILURE = /failed to download remote update/i;
 
+// Failures already reported by this process, keyed by message — see the dedupe
+// note in reportOtaIssue. Deliberately per-launch rather than persisted: a
+// failure that survives a restart is worth hearing about again.
+const reportedThisLaunch = new Set<string>();
+
+/** Test seam: forget what this process has already reported. */
+export function resetOtaReportDedupe(): void {
+  reportedThisLaunch.clear();
+}
+
 // Report an OTA check/download failure as a deduped warning rather than an
 // exception. expo-updates hands these back as plain `{ message }` objects, and
 // the same failed fetch re-fires on every foreground re-check — passing that
@@ -76,6 +86,21 @@ function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
   // ota_embedded=false, i.e. all successfully running OTA updates the whole time
   // they were "failing".
   if (ANDROID_OPAQUE_FETCH_FAILURE.test(message) && !Updates.isEmbeddedLaunch) return;
+  // One report per distinct failure per launch. The re-check runs on every
+  // foreground, so a device that cannot finish a download re-reports the same
+  // failure all day: "Failed to load all assets" reached 58 events from three
+  // devices (OPTIO-MOBILE-N), which is a single fact about three devices told
+  // nineteen times each. Deduping per process keeps the shape of the signal
+  // that matters -- a genuinely broken release fails for MANY users, and that
+  // still shows up as many users -- while a flapping connection contributes
+  // one event instead of a stream. The Sentry-side fingerprint above groups
+  // these into one issue; it does not stop the event count from climbing.
+  // Keyed by kind too: check and download can fail with the same string, and
+  // "the manifest is unreachable" and "the bundle behind it is" are different
+  // facts about the release.
+  const seen = `${kind}:${message}`;
+  if (reportedThisLaunch.has(seen)) return;
+  reportedThisLaunch.add(seen);
   captureMessage(`[OTA] ${kind} failed: ${message}`, {
     level: 'warning',
     fingerprint: [`ota-${kind}-error`],

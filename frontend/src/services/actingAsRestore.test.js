@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('./api', () => ({
   default: { post: vi.fn() },
+  beginSessionSwitch: vi.fn(),
   tokenStore: {
     getAccessToken: vi.fn().mockReturnValue(null),
     getRefreshToken: vi.fn().mockReturnValue('parent-refresh'),
@@ -13,7 +14,7 @@ vi.mock('../utils/logger', () => ({
   default: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }))
 
-import api, { tokenStore } from './api'
+import api, { tokenStore, beginSessionSwitch } from './api'
 import {
   restoreActingAs,
   hasStoredActingAs,
@@ -60,6 +61,27 @@ describe('actingAsRestore', () => {
     // token store already answers as the child, so /api/auth/me does too.
     expect(tokenStore.setTokens).toHaveBeenCalledWith('child-token', 'parent-refresh')
     expect(restored).toEqual({ dependent: CHILD, token: 'child-token' })
+  })
+
+  it('marks the session switch before installing the child token', async () => {
+    // Ordering keeps the page's OWN queries on the right side of the swap, but
+    // anything an earlier render already dispatched is still parent-scoped and
+    // will be refused as the child. Those 403s are the authz layer working, so
+    // they must not be reported as regressions — which requires the mark to be
+    // set before the token that causes them (Sentry OPTIO-WEB-C / -Q / -P).
+    sessionStorage.setItem('acting_as_dependent', JSON.stringify(CHILD))
+    api.post.mockResolvedValue({ data: { acting_as_token: 'child-token' } })
+
+    await restoreActingAs()
+
+    expect(beginSessionSwitch).toHaveBeenCalled()
+    expect(beginSessionSwitch.mock.invocationCallOrder[0])
+      .toBeLessThan(tokenStore.setTokens.mock.invocationCallOrder[0])
+  })
+
+  it('does not mark a session switch when there is nothing to restore', async () => {
+    await expect(restoreActingAs()).resolves.toBeNull()
+    expect(beginSessionSwitch).not.toHaveBeenCalled()
   })
 
   it('mints once no matter how many callers await it', async () => {

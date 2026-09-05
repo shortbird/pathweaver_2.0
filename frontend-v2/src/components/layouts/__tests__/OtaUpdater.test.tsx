@@ -20,7 +20,7 @@ import React from 'react';
 import { render } from '@testing-library/react-native';
 import * as Updates from 'expo-updates';
 import { captureMessage } from '@/src/services/sentry';
-import { OtaUpdater } from '../OtaUpdater';
+import { OtaUpdater, resetOtaReportDedupe } from '../OtaUpdater';
 
 jest.mock('@/src/services/sentry', () => ({
   captureMessage: jest.fn(),
@@ -46,11 +46,20 @@ function renderWith(checkError: Error | undefined, isEmbeddedLaunch = false) {
   return render(<OtaUpdater />);
 }
 
+/** Same, for the download half of the pair (OPTIO-MOBILE-N was a download). */
+function renderWithDownload(downloadError: Error | undefined, isEmbeddedLaunch = false) {
+  mockUpdates.isEmbeddedLaunch = isEmbeddedLaunch;
+  mockUpdates.useUpdates.mockReturnValue({ checkError: undefined, downloadError });
+  return render(<OtaUpdater />);
+}
+
 const reported = () => (captureMessage as jest.Mock).mock.calls.map((c) => c[0] as string);
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockUpdates.isEmbeddedLaunch = false;
+  // The dedupe below is process-wide, so each case starts from a clean slate.
+  resetOtaReportDedupe();
 });
 
 describe('OtaUpdater — transient failures stay quiet', () => {
@@ -97,6 +106,41 @@ describe('OtaUpdater — genuine failures stay loud', () => {
     expect(opts.fingerprint).toEqual(['ota-check-error']);
     expect(opts.level).toBe('warning');
     expect(opts.tags).toEqual({ feature: 'ota_diagnostics' });
+  });
+});
+
+describe('OtaUpdater — a stuck device reports once, not all day', () => {
+  // The re-check runs on every foreground, so without this the same failure is
+  // re-reported for as long as the condition lasts: OPTIO-MOBILE-N was 58
+  // events from three devices. Grouping is not enough — the fingerprint above
+  // makes them one issue, but the event count still climbs.
+  it('reports a repeated failure only once per launch', () => {
+    const err = new Error('Failed to load all assets');
+    renderWithDownload(err);
+    renderWithDownload(err);
+    renderWithDownload(err);
+    expect(reported()).toEqual(['[OTA] download failed: Failed to load all assets']);
+  });
+
+  it('still reports a DIFFERENT failure after one has been reported', () => {
+    renderWithDownload(new Error('Failed to load all assets'));
+    renderWithDownload(new Error('Failed to validate manifest signature'));
+    expect(reported()).toEqual([
+      '[OTA] download failed: Failed to load all assets',
+      '[OTA] download failed: Failed to validate manifest signature',
+    ]);
+  });
+
+  it('does not let a check failure silence the same string on download', () => {
+    // "the manifest is unreachable" and "the bundle behind it is" are separate
+    // facts about the release even when expo-updates words them identically.
+    const msg = 'Failed to validate manifest signature';
+    renderWith(new Error(msg));
+    renderWithDownload(new Error(msg));
+    expect(reported()).toEqual([
+      `[OTA] check failed: ${msg}`,
+      `[OTA] download failed: ${msg}`,
+    ]);
   });
 });
 
