@@ -72,7 +72,7 @@ jobs:
           [ -n "${ACCESS_TOKEN:-}" ] || fail "secret SUPABASE_ACCESS_TOKEN"
           [ -n "${DB_PASSWORD:-}" ]  || fail "secret SUPABASE_DB_PASSWORD"
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: latest
 
@@ -154,7 +154,7 @@ jobs:
           fi
           echo "Applying $PENDING migration(s) to production."
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: latest
 
