@@ -199,6 +199,16 @@ anything deleted upstream.
 Read the current one first, and never add a rule whose condition omits
 `matchesPrefix`.
 
+You do not have to remember any of that, though, because the backup job checks
+it. `scripts/check_backup_lifecycle.py` runs as the last step of
+`backup-storage.yml` every week: it reads the live policy and fails the job if
+versioning is off, or if any Delete rule could reach a **live** object under
+`storage/`. It runs AFTER the sync on purpose — a broken retention rule is a
+reason to go red, never a reason to skip a backup. Its logic is unit-tested
+against the real 2026-09-05 policy in
+`backend/tests/unit/test_backup_lifecycle_guard.py`, so a regression fails in
+CI rather than in December.
+
 ### Failure alerting
 
 GitHub emails the repo owner when a *scheduled* workflow fails. That covers a red

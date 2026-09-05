@@ -69,6 +69,11 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Check out the repo
+        # Only needed for scripts/check_backup_lifecycle.py at the end. The
+        # sync itself touches nothing in the working tree.
+        uses: actions/checkout@v4
+
       - name: Check configuration
         # Fail loudly and BY NAME, the way backup-db.yml does. A backup job that
         # exits 0 having copied nothing is the worst outcome available to it.
@@ -247,6 +252,27 @@ jobs:
           echo "Round-tripped '$SAMPLE' ($BYTES bytes) through decryption"
           [ "$BYTES" -gt 0 ] || { echo "::error::Decrypted sample is empty"; exit 1; }
           rm -f /tmp/sample.bin
+
+      - name: Retention policy cannot delete a live backup
+        # AFTER the sync, deliberately. A broken retention rule is a reason to
+        # go red; it is never a reason to skip a backup. Ordering this earlier
+        # would let a policy mistake cost us the very copy it protects.
+        #
+        # This step exists because of 2026-09-05. The bucket carried a single
+        # unscoped `{"age": 90, "Delete"}` rule, which was CORRECT for the
+        # nightly database dumps it was written for, and silently became a
+        # 90-day deletion timer on 3,548 student-evidence objects the moment
+        # this mirror started sharing the bucket. The rule never changed; its
+        # world did. Nothing re-read it, so now something does, every week.
+        #
+        # gcloud is preinstalled on ubuntu-latest -- backup-db.yml has depended
+        # on that in production since 2026-09-01.
+        env:
+          BUCKET: ${{ vars.BACKUP_GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          gcloud storage buckets describe "gs://${BUCKET}" --format=json > /tmp/bucket.json
+          python3 scripts/check_backup_lifecycle.py /tmp/bucket.json
 
       - name: Summary
         if: always()
