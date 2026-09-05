@@ -4,7 +4,7 @@
  * Used by both the quest detail page and course detail page.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView, Pressable, TextInput, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PILLARS } from '@/src/hooks/useQuestDetail';
@@ -64,6 +64,11 @@ interface TaskCreationWizardProps {
   /** The class's transcript_subject key (e.g. "fine_arts"). Required for the
    *  AI-review step to render the subject badge in place of the pillar badge. */
   classSubject?: string | null;
+  /** Which step to land on when the wizard opens. Defaults to the method
+   *  chooser; callers that already know the answer — "generate ideas for this
+   *  brand-new quest" — skip straight to 'ai-personalize'. Closing the wizard
+   *  resets back to this step, not to 'choose'. */
+  initialStep?: 'choose' | 'ai-personalize';
 }
 
 // Mirrors INTEREST_OPTIONS in frontend/src/components/quests/QuestPersonalizationWizard.jsx
@@ -92,11 +97,12 @@ export function TaskCreationWizard({
   suggestedTasks,
   isClassQuest = false,
   classSubject = null,
+  initialStep = 'choose',
 }: TaskCreationWizardProps) {
   const c = useThemeColors();
   const canEditXp = useCanEditXp();
   const classSubjectMeta = isClassQuest ? getSubject(classSubject) : null;
-  const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>('choose');
+  const [step, setStep] = useState<'choose' | 'manual' | 'ai-personalize' | 'ai-review' | 'browse'>(initialStep);
   const [error, setError] = useState<string | null>(null);
 
   // Track added suggestions within the wizard
@@ -136,7 +142,7 @@ export function TaskCreationWizard({
   const [taskVariants, setTaskVariants] = useState<Record<number, Record<number, any>>>({});
 
   const reset = () => {
-    setStep('choose');
+    setStep(initialStep);
     setError(null);
     setAddedIds(new Set());
     setJustAddedId(null);
@@ -161,6 +167,17 @@ export function TaskCreationWizard({
     reset();
     onClose();
   };
+
+  // Land on `initialStep` every time the wizard opens, not just on the first
+  // mount. The component stays mounted (and closed) for the life of the screen,
+  // so a useState initializer captured whichever step was current when the
+  // screen first rendered -- 'choose' -- and a caller asking for the AI step
+  // got the method chooser anyway.
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (open && !wasOpen.current) setStep(initialStep);
+    wasOpen.current = open;
+  }, [open, initialStep]);
 
   const handleManualSubmit = async () => {
     if (!manualTitle.trim()) { setError('Task title is required'); return; }

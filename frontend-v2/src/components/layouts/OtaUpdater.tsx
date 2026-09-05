@@ -30,6 +30,11 @@ import { AppState } from 'react-native';
 import * as Updates from 'expo-updates';
 import { captureMessage } from '@/src/services/sentry';
 
+// Android's catch-all wrapper for any failure fetching the update manifest. It
+// is a fixed literal in expo-updates' FileDownloader.downloadRemoteUpdate, not
+// a description of what went wrong — see the note in reportOtaIssue below.
+const ANDROID_OPAQUE_FETCH_FAILURE = /failed to download remote update/i;
+
 // Report an OTA check/download failure as a deduped warning rather than an
 // exception. expo-updates hands these back as plain `{ message }` objects, and
 // the same failed fetch re-fires on every foreground re-check — passing that
@@ -50,6 +55,27 @@ function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
   // update. Keep reporting genuine check/download failures (bad bundle, server
   // errors) below.
   if (/offline|network\s*error|internet connection|timed?\s*out/i.test(message)) return;
+  // Everything above is an iOS string, and that is not a coincidence: iOS
+  // propagates the underlying NSURLError, so a weak connection arrives already
+  // named. Android never does. FileDownloader.downloadRemoteUpdate wraps EVERY
+  // exception it can hit — socket timeout, DNS failure, connection reset, TLS
+  // handshake — in a fixed `IOException("Failed to download remote update", e)`,
+  // and only that outer message crosses the bridge. The cause stays on the
+  // native side. So the filter above cannot match on Android however many
+  // strings we add to it, and every foreground re-check on a bad connection was
+  // being reported as a genuine OTA failure.
+  //
+  // Dropping it outright would be the wrong trade — a silently undelivered OTA
+  // is the failure that cost six releases (see the isEmergencyLaunch reporter in
+  // sentry.ts). But one failed manifest fetch is not that failure. The signal
+  // that means "this device cannot get updates" is the device still running the
+  // bundle it shipped with; a device already on an OTA bundle demonstrably
+  // reached the server before and will re-check on the next foreground.
+  //
+  // OPTIO-MOBILE-5 was exactly this: 3 Android devices, all reporting
+  // ota_embedded=false, i.e. all successfully running OTA updates the whole time
+  // they were "failing".
+  if (ANDROID_OPAQUE_FETCH_FAILURE.test(message) && !Updates.isEmbeddedLaunch) return;
   captureMessage(`[OTA] ${kind} failed: ${message}`, {
     level: 'warning',
     fingerprint: [`ota-${kind}-error`],

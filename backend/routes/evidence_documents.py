@@ -13,6 +13,7 @@ Handles creating, updating, and retrieving evidence documents with multiple cont
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
+from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
@@ -52,8 +53,14 @@ def get_evidence_document(user_id: str, task_id: str):
     """
     Get the evidence document for a specific task by a user.
     Returns the document with all content blocks.
+
+    `?student_id=<uuid>` reads a child's evidence for the task instead of the
+    caller's, so a parent opening the child's quest screen sees the same
+    attachments the child does. Guardians only — see utils/guardian_scope.
     """
     try:
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+
         # Virtual moment-tasks (id "moment-<uuid>") have no evidence document of
         # their own (their evidence is served inline with the quest); querying the
         # uuid column with that value throws Postgres 22P02. Return an empty doc.
@@ -113,6 +120,8 @@ def get_evidence_document(user_id: str, task_id: str):
             'blocks': blocks
         })
 
+    except GuardianAccessError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting evidence document: {str(e)}")
         return jsonify({

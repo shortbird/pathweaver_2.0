@@ -104,7 +104,9 @@ export function useGlobalEngagement() {
   return { data, loading };
 }
 
-export function useQuestEngagement(questId: string | null) {
+/** @param studentId Parent mode: read this child's rhythm on the quest, not the
+ *  caller's. The endpoint takes `?student_id=` for verified guardians. */
+export function useQuestEngagement(questId: string | null, studentId?: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [data, setData] = useState<EngagementData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +120,10 @@ export function useQuestEngagement(questId: string | null) {
         // Render backend, which can take >15s to wake (the "timeout of 15000ms
         // exceeded" reports). 30s lets it load after a cold start instead of
         // erroring; the catch below keeps any failure silent regardless.
-        const { data: result } = await api.get(`/api/quests/${questId}/engagement`, { timeout: 30000 });
+        const { data: result } = await api.get(`/api/quests/${questId}/engagement`, {
+          timeout: 30000,
+          params: studentId ? { student_id: studentId } : undefined,
+        });
         setData(result.engagement || result);
       } catch {
         // Non-critical
@@ -126,7 +131,7 @@ export function useQuestEngagement(questId: string | null) {
         setLoading(false);
       }
     })();
-  }, [isAuthenticated, questId]);
+  }, [isAuthenticated, questId, studentId]);
 
   return { data, loading };
 }

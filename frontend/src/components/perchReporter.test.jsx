@@ -32,6 +32,15 @@ describe('PerchReporter', () => {
     expect(window.PerchConfig.email).toBe('teach@school.org')
   })
 
+  it('injects the widget for campus coordinators', () => {
+    authState = { user: { role: 'org_managed', org_role: 'campus_coordinator', email: 'coord@school.org' } }
+    orgState = { organization: { slug: 'icreate' } }
+    render(<PerchReporter />)
+    expect(perchScript()).toBeTruthy()
+    expect(window.PerchConfig.tenant).toBe('icreate')
+    expect(window.PerchConfig.email).toBe('coord@school.org')
+  })
+
   it('injects for staff with no org, with an empty tenant', () => {
     authState = { user: { role: 'superadmin' } }
     render(<PerchReporter />)

@@ -289,6 +289,9 @@ jest.mock('react-native-reanimated', () => {
       withTiming: (v: any) => v,
       withSpring: (v: any) => v,
       withDelay: (_: any, v: any) => v,
+      withRepeat: (v: any) => v,
+      withSequence: (...v: any[]) => v[0],
+      cancelAnimation: jest.fn(),
       FadeIn: { duration: () => ({ delay: () => ({}) }) },
       FadeOut: { duration: () => ({}) },
       SlideInDown: { duration: () => ({}) },
@@ -300,6 +303,14 @@ jest.mock('react-native-reanimated', () => {
     withTiming: (v: any) => v,
     withSpring: (v: any) => v,
     withDelay: (_: any, v: any) => v,
+    // Skeleton's pulse. Missing here, `withRepeat` was undefined and every
+    // Skeleton threw from its mount effect -- which React 19 rethrows out of
+    // render() as an AggregateError. Any screen with a loading skeleton
+    // therefore could not be rendered in a test at all, and the suites that
+    // tried had swallowed the throw and passed on an empty render.
+    withRepeat: (v: any) => v,
+    withSequence: (...v: any[]) => v[0],
+    cancelAnimation: jest.fn(),
     Easing: { bezier: jest.fn() },
     FadeIn: { duration: () => ({ delay: () => ({}) }) },
     FadeOut: { duration: () => ({}) },

@@ -175,7 +175,7 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
   )
 }
 
-const FormBuilder = ({ orgId, staff = [], onCount }) => {
+const FormBuilder = ({ orgId, staff = [], onCount, defaultOpen = false, embedded = false, initialEditing = null }) => {
   const confirm = useConfirm()
   const [templates, setTemplates] = useState([])
   // The shared built-in forms, with whether this school hides each one. They
@@ -183,8 +183,8 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
   // here (iCreate, 2026-09-02: "remove the purchase requests, class prep,
   // reimbursement request, etc.").
   const [builtins, setBuiltins] = useState([])
-  const [editing, setEditing] = useState(null)
-  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(initialEditing)
+  const [open, setOpen] = useState(defaultOpen || !!initialEditing)
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -253,7 +253,7 @@ const FormBuilder = ({ orgId, staff = [], onCount }) => {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className={embedded ? 'space-y-3' : 'bg-white rounded-xl border border-gray-200 p-4'}>
       <div className="flex items-center justify-between gap-3">
         <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
           className="flex items-center gap-2 font-semibold text-neutral-900">

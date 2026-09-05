@@ -17,10 +17,10 @@ import {
   ChevronUpIcon,
   PencilIcon
 } from '@heroicons/react/24/outline';
-import DocumentPreview from './DocumentPreview';
+import DocumentPreview from '../evidence/preview/DocumentPreview';
 import MediaCarousel from './MediaCarousel';
-import LinkPreviewCard from './LinkPreviewCard';
-import VideoLinkPreview from './VideoLinkPreview';
+import LinkPreviewCard from '../evidence/preview/LinkPreviewCard';
+import VideoLinkPreview from '../evidence/preview/VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 import useHidePillars from '../../hooks/useHidePillars';

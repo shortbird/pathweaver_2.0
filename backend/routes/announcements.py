@@ -567,10 +567,12 @@ def announcements_archive(user_id):
     """
     Paginated, searchable communications archive for the caller's org.
 
-    Any member of the org can read it: students and parents see announcements
-    targeted at their role (or org-wide); org_admin, campus_coordinator,
-    advisor and superadmin see all (no audience token), so staff always see a
-    superset of what any family member sees.
+    Any member of the org can read it: students, parents AND teachers see
+    announcements targeted at their role (or org-wide) plus anything addressed
+    to them by name; the front office (org_admin, campus_coordinator,
+    superadmin) sees all. This said "advisor" was in the sees-all set long after
+    it was taken out of _ARCHIVE_SEES_ALL for sending a students-only notice to
+    a teacher, and a stale docstring is how that comes back.
     Platform parents of org students count as members (resolved via their kids).
     """
     try:

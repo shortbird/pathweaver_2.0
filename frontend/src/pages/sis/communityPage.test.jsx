@@ -18,7 +18,8 @@ const { api, apiData } = vi.hoisted(() => {
   const apiData = (url) => {
     if (url.includes('/api/sis/community/highlights')) {
       return { data: { highlights: {
-        announcements: [{ id: 'a1', title: 'Early dismissal', pinned: true, priority: 'urgent' }],
+        announcements: [{ id: 'a1', title: 'Early dismissal', pinned: true, priority: 'urgent',
+          body: '<p><strong>Calendar</strong></p><p>Specific info will be added.</p>' }],
         events: [{ id: 'e1', title: 'Field trip', start_at: '2026-08-01T15:00:00Z', all_day: false, location: 'Zoo' }],
         lost_found: [{ id: 'l1', description: 'Blue bottle', location_found: 'Gym' }],
         recognition: [{ id: 'r1', type: 'shout_out', recipient_name: 'Ana', message: 'Great work' }],
@@ -79,6 +80,16 @@ describe('CommunityPage', () => {
     expect(screen.getByText('Blue bottle')).toBeInTheDocument()
     expect(screen.getByText(/Great work/)).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/community/highlights'))
+  })
+
+  // iCreate, 2026-08-29: "do you see the gobbledygook under announcements?" —
+  // the teaser printed the stored body, and announcements are written in the
+  // editor, so the Highlights feed showed "<p><strong>Calendar</strong></p>".
+  it('teases an announcement as text, not as its markup', async () => {
+    render(<CommunityPage />)
+    await screen.findByText('Early dismissal')
+    expect(screen.getByText(/Calendar\s+Specific info will be added\./)).toBeInTheDocument()
+    expect(screen.queryByText(/<p>|<strong>/)).not.toBeInTheDocument()
   })
 
   it('switches to the Announcements tab and shows the post button for admins', async () => {

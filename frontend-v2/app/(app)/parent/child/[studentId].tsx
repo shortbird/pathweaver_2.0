@@ -6,12 +6,24 @@
  * Reuses the existing profile building blocks (EngagementCalendar, PillarRadar,
  * PortfolioSection) fed by the parent-scoped /api/parent/child-overview endpoint
  * via useChildOverview.
+ *
+ * Read-only with ONE exception: the profile picture. A parent said she could
+ * not change her son's photo and that the screen "looks like I'm the student" —
+ * both of which start here. The photo was the affordance she reached for, and
+ * it did nothing; the only way to set it was a "Change photo" item behind the
+ * ⋮ menu on the Family tab, which nobody finds. So the avatar takes the tap it
+ * already looked like it would take, and the header says whose profile this is
+ * and who is looking at it.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadChildAvatar } from '@/src/services/api';
+import { useAddKidStore } from '@/src/stores/addKidStore';
+import { showAlert } from '@/src/utils/alerts';
 import {
   VStack, HStack, Heading, UIText, Card, Divider,
   Avatar, AvatarFallbackText, AvatarImage,
@@ -52,8 +64,41 @@ function initialsFromStudent(s: any): string {
 export default function ChildProfileScreen() {
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   const c = useThemeColors();
-  const { overview, loading } = useChildOverview(studentId || null);
+  const { overview, loading, refetch } = useChildOverview(studentId || null);
   const { topics: childTopics } = useChildJournal(studentId || null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  /** Set the child's profile picture. POST /api/parent/child/<id>/avatar takes
+   *  both a managed dependent and a linked student, so every child a parent can
+   *  see here is one they can set a photo for. */
+  const handleChangePhoto = async () => {
+    if (!studentId || uploadingAvatar) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setUploadingAvatar(true);
+    try {
+      await uploadChildAvatar(studentId, {
+        uri: asset.uri,
+        name: asset.fileName || 'avatar.jpg',
+        type: asset.mimeType || 'image/jpeg',
+      });
+      refetch?.();
+      // The Family tab reads children from its own store — refresh it too, or
+      // the new photo shows here and nowhere else.
+      useAddKidStore.getState().refreshChildren();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.response?.data?.message || 'Could not update the picture.';
+      showAlert('Error', typeof msg === 'string' ? msg : 'Could not update the picture.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const student = overview?.student;
   const dashboard = overview?.dashboard;
@@ -86,12 +131,18 @@ export default function ChildProfileScreen() {
     .filter((s) => s.xp_amount > 0 || s.pending_xp > 0);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
-      {/* Header */}
+      {/* Header. The name alone read as "my profile" to a parent who had just
+          arrived from the Family tab, so it says whose profile this is. */}
       <HStack className="items-center px-4 py-3" space="sm">
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={26} color={c.icon} />
         </Pressable>
-        <Heading size="md">{student ? nameFromStudent(student) : 'Profile'}</Heading>
+        <VStack className="flex-1 min-w-0">
+          <Heading size="md" numberOfLines={1}>{student ? nameFromStudent(student) : 'Profile'}</Heading>
+          <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+            {student ? `${student.first_name || 'Your child'}'s profile — your parent view` : 'Your parent view'}
+          </UIText>
+        </VStack>
       </HStack>
 
       {loading && !overview ? (
@@ -111,13 +162,37 @@ export default function ChildProfileScreen() {
             {/* Identity + stats */}
             <Card variant="elevated" size="lg">
               <VStack className="items-center" space="sm">
-                <Avatar size="xl">
-                  {student?.avatar_url ? (
-                    <AvatarImage source={{ uri: student.avatar_url }} />
-                  ) : (
-                    <AvatarFallbackText>{initialsFromStudent(student)}</AvatarFallbackText>
-                  )}
-                </Avatar>
+                <Pressable
+                  onPress={handleChangePhoto}
+                  disabled={uploadingAvatar}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Change ${student?.first_name || 'your child'}'s profile picture`}
+                >
+                  <View>
+                    <Avatar size="xl">
+                      {student?.avatar_url ? (
+                        <AvatarImage source={{ uri: student.avatar_url }} />
+                      ) : (
+                        <AvatarFallbackText>{initialsFromStudent(student)}</AvatarFallbackText>
+                      )}
+                    </Avatar>
+                    {/* The camera badge is the whole point: without it the photo
+                        looks like decoration and the parent never tries. */}
+                    <View
+                      className="absolute bottom-0 right-0 w-8 h-8 rounded-full items-center justify-center border-2"
+                      style={{ backgroundColor: c.brand, borderColor: c.card }}
+                    >
+                      {uploadingAvatar ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Ionicons name="camera" size={16} color="#FFFFFF" />
+                      )}
+                    </View>
+                  </View>
+                </Pressable>
+                <UIText size="xs" className="text-optio-purple font-poppins-medium">
+                  {uploadingAvatar ? 'Uploading…' : 'Tap the photo to change it'}
+                </UIText>
                 <Heading size="xl" numberOfLines={1}>{nameFromStudent(student)}</Heading>
                 {memberSince && (
                   <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400">Member since {memberSince}</UIText>

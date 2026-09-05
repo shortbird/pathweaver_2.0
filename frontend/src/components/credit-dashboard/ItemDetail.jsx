@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { safeHref } from '../../utils/safeHref'
 import { isImageUrl, itemLabel } from '../../utils/evidenceItems'
+import {
+  getVideoEmbedUrl,
+  getVideoAspectClass,
+  isVideoSharingLink,
+  isUploadedVideoUrl,
+} from '../../utils/videoUtils'
+import DocumentPreview, { isPreviewableDocument } from '../evidence/preview/DocumentPreview'
+import VideoLinkPreview from '../evidence/preview/VideoLinkPreview'
 import StatusTimeline from './StatusTimeline'
 import CreditFeedbackThread from '../credit/CreditFeedbackThread'
 import { toast } from 'react-hot-toast'
@@ -28,6 +36,59 @@ const getBlockItems = (content, type) => {
   // Legacy single-item format
   if (content.url) return [content]
   return []
+}
+
+// Play the video in the pane rather than sending the reviewer to a new tab.
+// Three kinds arrive here: a file the student uploaded (Supabase storage, served
+// as a signed URL), a link to a service that allows embedding (YouTube, Vimeo,
+// Drive, Loom), and a share link that refuses to embed (Google Photos, iCloud) —
+// only the last still has to be opened elsewhere.
+const renderVideoItem = (item) => {
+  if (!item?.url) return null
+
+  if (isUploadedVideoUrl(item.url)) {
+    return (
+      <video
+        src={item.url}
+        controls
+        preload="metadata"
+        className="w-full max-h-[480px] rounded border bg-black"
+      />
+    )
+  }
+
+  if (isVideoSharingLink(item.url)) {
+    return <VideoLinkPreview url={item.url} title={item.title} />
+  }
+
+  const embedUrl = getVideoEmbedUrl(item.url)
+  if (embedUrl) {
+    return (
+      <div className={`${getVideoAspectClass(item.url)} bg-black rounded border overflow-hidden`}>
+        <iframe
+          src={embedUrl}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={item.title || 'Video evidence'}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <a
+      href={safeHref(item.url)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-sm text-optio-purple hover:underline flex items-center gap-1 break-all"
+    >
+      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+      </svg>
+      {itemLabel(item, 'Watch video')}
+    </a>
+  )
 }
 
 // Renders just the inner content of a block (text, image, link, etc).
@@ -79,6 +140,11 @@ const renderBlockBody = (block) => {
                 </a>
                 {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
               </div>
+            ) : getVideoEmbedUrl(item.url) || isVideoSharingLink(item.url) ? (
+              <div key={j}>
+                {renderVideoItem(item)}
+                {item.title && <p className="text-xs text-gray-500 mt-1">{item.title}</p>}
+              </div>
             ) : (
               <a
                 key={j}
@@ -98,26 +164,33 @@ const renderBlockBody = (block) => {
       )
     case 'video':
       return (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {getBlockItems(block.content, 'video').map((item, j) => (
-            <a key={j} href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
-              Video: {item.title || item.url}
-            </a>
+            <div key={j}>
+              {renderVideoItem(item)}
+              {item.title && <p className="text-xs text-gray-500 mt-1">{item.title}</p>}
+            </div>
           ))}
         </div>
       )
     case 'file':
     case 'document':
       return (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {getBlockItems(block.content, block.block_type).map((item, j) => (
-            <div key={j} className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="text-sm text-optio-purple hover:underline">
-                {item.title || item.filename || 'Download file'}
-              </a>
+            <div key={j}>
+              {/* PDFs page through in place and images render as images; only a
+                  format nothing can display (docx, xlsx) falls back to a
+                  download link -- which names the file itself, so captioning it
+                  here would say the same thing twice. */}
+              <DocumentPreview
+                url={item.url}
+                title={itemLabel(item, 'Document')}
+                variant="inline"
+              />
+              {isPreviewableDocument(item.url, itemLabel(item, 'Document')) && (
+                <p className="text-xs text-gray-500 mt-1">{itemLabel(item, 'Document')}</p>
+              )}
             </div>
           ))}
         </div>

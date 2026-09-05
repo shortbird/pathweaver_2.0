@@ -6,6 +6,7 @@ import { AcademicCapIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import BackToSchool from '../components/navigation/BackToSchool'
 import ChecklistSignature from '../components/sis/ChecklistSignature'
 import { itemDocuments } from './sis/checklistDocuments'
+import { useConfirm } from '../contexts/ConfirmContext'
 
 /**
  * Family portal (Learning app) — the checklists a school assigns to a guardian.
@@ -40,6 +41,7 @@ const questProgressStyle = (p) => {
 }
 
 const FamilyPortalPage = () => {
+  const confirm = useConfirm()
   const [loading, setLoading] = useState(true)
   const [orgs, setOrgs] = useState([])
   const [orgId, setOrgId] = useState('')
@@ -102,6 +104,11 @@ const FamilyPortalPage = () => {
       toast.error(err?.response?.data?.error || 'Upload failed')
       setBusyKey(null)
     }
+  }
+
+  const removeDoc = async (assignmentId, itemKey, doc) => {
+    if (!(await confirm(`Remove ${doc.filename || 'this document'}?`))) return
+    await patchItem(assignmentId, itemKey, { remove_document: doc.path })
   }
 
   const openDoc = async (path) => {
@@ -231,19 +238,22 @@ const FamilyPortalPage = () => {
                             </a>
                           )}
                           {item.needs_document && (
-                            <>
+                            <div className="mt-1.5 space-y-1">
                               {itemDocuments(item).map((doc) => (
-                                <button key={doc.path} onClick={() => openDoc(doc.path)}
-                                  className="text-sm text-optio-purple hover:underline">
-                                  {doc.filename || 'View document'}
-                                </button>
+                                <div key={doc.path} className="flex items-center gap-3">
+                                  <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
+                                    {doc.filename || 'View document'}
+                                  </button>
+                                  <button onClick={() => removeDoc(a.id, item.key, doc)}
+                                    className="text-xs text-red-600 hover:underline">Remove</button>
+                                </div>
                               ))}
-                              <label className="text-sm text-optio-purple hover:underline cursor-pointer">
+                              <label className="inline-block text-sm text-optio-purple hover:underline cursor-pointer">
                                 {itemDocuments(item).length ? 'Add another document' : 'Upload document'}
                                 <input type="file" className="hidden" disabled={busy}
                                   onChange={(e) => e.target.files?.[0] && uploadDoc(a.id, item.key, e.target.files[0])} />
                               </label>
-                            </>
+                            </div>
                           )}
                         </div>
                       </div>

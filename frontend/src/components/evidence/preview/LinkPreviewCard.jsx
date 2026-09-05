@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { LinkIcon } from '@heroicons/react/24/outline';
-import api from '../../services/api';
+import api from '../../../services/api';
 
 // Client-side cache to avoid re-fetching on re-renders
 const previewCache = {};

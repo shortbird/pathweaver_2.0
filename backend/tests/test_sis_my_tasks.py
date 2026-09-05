@@ -84,6 +84,13 @@ class TestWhatLandsInTheInbox:
         out = _run(assignments=[_assignment()])
         assert out['tasks'][0]['id'] == 'onb:a1:contract'
 
+    def test_a_checklist_item_includes_attached_documents(self):
+        out = _run(assignments=[_assignment(items=[
+            _item(key='upload', needs_signature=False, needs_document=True,
+                  documents=[{'path': 'doc1.pdf', 'filename': 'ID.pdf'}]),
+        ])])
+        assert out['tasks'][0]['documents'] == [{'path': 'doc1.pdf', 'filename': 'ID.pdf'}]
+
     def test_item_kinds_are_told_apart(self):
         out = _run(assignments=[_assignment(items=[
             _item(key='sign'),

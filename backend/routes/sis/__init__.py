@@ -20,6 +20,7 @@ from flask import Blueprint, request, jsonify, Response
 from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
+from utils import person_name
 from services import sis_service
 from services import sis_staff_service
 from services import sis_payment_profile
@@ -514,7 +515,15 @@ def update_household(user_id, household_id):
 @require_role(*ADMIN_ROLES)
 def delete_household(user_id, household_id):
     """Delete a family. Removes the household + its member links; the students,
-    guardians, and their own records keep their accounts."""
+    guardians, and their own records keep their accounts.
+
+    Returns the people it just left without a family, because that is the next
+    question every time: an admin deleted a test family and then could not work
+    out why its children were still on the allergy report (iCreate, 2026-09-01:
+    "once I delete a family...how can I delete the children?"). The dialog
+    already said the accounts survive; it said so before the deletion, which is
+    not when it is needed. Naming them afterwards is.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
@@ -524,9 +533,23 @@ def delete_household(user_id, household_id):
     existing = repo.find_by_id(household_id)
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
+
+    links = (supabase.table('household_members').select('user_id, role')
+             .eq('household_id', household_id).execute()).data or []
+    orphaned = []
+    member_ids = [link['user_id'] for link in links if link.get('user_id')]
+    if member_ids:
+        rows = (supabase.table('users')
+                .select('id, display_name, first_name, last_name')
+                .in_('id', member_ids).execute()).data or []
+        roles = {link['user_id']: link.get('role') for link in links}
+        orphaned = [{'id': r['id'], 'name': person_name.full_name(r),
+                     'role': roles.get(r['id'])} for r in rows]
+        orphaned.sort(key=lambda m: m['name'])
+
     supabase.table('household_members').delete().eq('household_id', household_id).execute()
     supabase.table('households').delete().eq('id', household_id).execute()
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'orphaned_members': orphaned})
 
 
 @bp.route('/households/<household_id>/image', methods=['POST'])

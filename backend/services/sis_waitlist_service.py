@@ -323,6 +323,9 @@ def _enroll_in_other_section(org_id: str, entry: Dict[str, Any], class_id: str,
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=enrolled_by)
     _enroll_in_class_quests(_admin(), class_id, entry['student_user_id'])
+    from services import class_roster_alerts
+    class_roster_alerts.notify_teachers_of_new_student(
+        class_id, entry['student_user_id'], actor_id=enrolled_by)
     clear_entry_for_enrollment(org_id, class_id, entry['student_user_id'])
 
     resp = (
@@ -610,6 +613,9 @@ def respond_to_offer(org_id: str, entry_id: str, accept: bool,
     from services.class_group_sync_service import sync_class_group
     sync_class_group(entry['class_id'], actor_id=enrolled_by)
     _enroll_in_class_quests(_admin(), entry['class_id'], entry['student_user_id'])
+    from services import class_roster_alerts
+    class_roster_alerts.notify_teachers_of_new_student(
+        entry['class_id'], entry['student_user_id'], actor_id=enrolled_by)
     # Siblings first, then this entry explicitly: clear_entry_for_enrollment
     # swallows its own errors by design, so the accepted entry's own status is
     # never left to it.

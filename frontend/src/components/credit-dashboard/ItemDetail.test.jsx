@@ -188,3 +188,93 @@ describe('ItemDetail — evidence diff for resubmissions', () => {
     expect(screen.getByText('old text')).toBeInTheDocument()
   })
 })
+
+describe('ItemDetail — evidence previews inline', () => {
+  // Reviewers judge the work, so the work has to be on screen. These blocks
+  // used to render as a bare "Video: ..." link and a "Download file" link,
+  // which meant leaving the queue to see what was being credited.
+  const block = (block_type, content, id = 'b1') => ({
+    id, block_type, content, order_index: 0,
+  })
+
+  it('plays an uploaded video in the pane instead of linking out', () => {
+    const { container } = renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('video', {
+        items: [{ url: 'https://x.supabase.co/storage/v1/object/sign/e/clip.mp4?token=t' }],
+      })],
+    })
+    const video = container.querySelector('video')
+    expect(video).toBeTruthy()
+    expect(video.getAttribute('controls')).not.toBeNull()
+    expect(video.getAttribute('src')).toContain('clip.mp4')
+  })
+
+  it('embeds a YouTube video rather than showing its URL', () => {
+    const { container } = renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('video', {
+        items: [{ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }],
+      })],
+    })
+    const iframe = container.querySelector('iframe')
+    expect(iframe).toBeTruthy()
+    expect(iframe.getAttribute('src')).toContain('/embed/dQw4w9WgXcQ')
+  })
+
+  it('embeds a video pasted into the Link picker', () => {
+    // Same lesson as the image-in-a-link-block fix: the block type is whichever
+    // picker the student opened, not a fact about the URL.
+    const { container } = renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('link', {
+        items: [{ url: 'https://vimeo.com/76979871', title: 'My demo' }],
+      })],
+    })
+    const iframe = container.querySelector('iframe')
+    expect(iframe).toBeTruthy()
+    expect(iframe.getAttribute('src')).toContain('player.vimeo.com/video/76979871')
+  })
+
+  it('renders a PDF document through the inline previewer', () => {
+    const { container } = renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('document', {
+        items: [{ url: 'https://x.supabase.co/storage/v1/object/sign/e/essay.pdf?token=t',
+                  filename: 'essay.pdf' }],
+      })],
+    })
+    // react-pdf renders asynchronously; the "Open" affordance and the absence of
+    // the old bare download link are what this pane guarantees synchronously.
+    expect(screen.getByLabelText('Open in new tab')).toBeTruthy()
+    expect(container.textContent).not.toContain('Download file')
+  })
+
+  it('still offers a download for a format nothing can preview', () => {
+    renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('document', {
+        items: [{ url: 'https://x.supabase.co/storage/v1/object/sign/e/sheet.xlsx?token=t',
+                  filename: 'sheet.xlsx' }],
+      })],
+    })
+    expect(screen.getByText('sheet.xlsx')).toBeTruthy()
+    expect(screen.getByText('Click to download')).toBeTruthy()
+  })
+
+  it('keeps a plain link a labelled link, never a raw URL', () => {
+    renderDetail({
+      role: 'superadmin',
+      status: 'pending_review',
+      evidence_blocks: [block('link', {
+        items: [{ url: 'https://example.com/article', title: 'The article' }],
+      })],
+    })
+    expect(screen.getByText('The article')).toBeTruthy()
+  })
+})

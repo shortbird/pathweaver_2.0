@@ -120,6 +120,40 @@ describe('the assigned list carries all three kinds of work', () => {
     expect(screen.getByText('Signature')).toBeInTheDocument()
   })
 
+  // iCreate, 2026-09-01: "what happened to the checklists?" — asked from the
+  // Documents tab. One list is still right, but the nouns have to be visible
+  // in it, and picking one is also the sort the same admin asked for on the
+  // same day ("this is listing some by the form ... and then the onboarding
+  // template is listed by person. Maybe we can have a way to sort this too").
+  it('narrows the one list to one kind of work', async () => {
+    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK] })
+    renderPage()
+    await screen.findByText('New teacher onboarding')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Checklists (1)' }))
+
+    expect(screen.getByText('New teacher onboarding')).toBeInTheDocument()
+    expect(screen.queryByText('Turn in your roster')).not.toBeInTheDocument()
+    expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Signatures (1)' }))
+    expect(screen.getByText('Employee handbook')).toBeInTheDocument()
+    expect(screen.queryByText('New teacher onboarding')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Every kind' }))
+    expect(screen.getByText('Turn in your roster')).toBeInTheDocument()
+  })
+
+  it('says which kind is empty rather than that everything is done', async () => {
+    mockGets({ assignments: [ADHOC_TASK], batches: [] })
+    renderPage()
+    await screen.findByText('Turn in your roster')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Checklists (0)' }))
+
+    expect(screen.getByText('No checklists here.')).toBeInTheDocument()
+  })
+
   it('defaults to outstanding and can show everything', async () => {
     const done = { ...BATCH, batch_id: 'b2', title: 'Fire drill policy', signed_count: 2, total_count: 2,
       recipients: BATCH.recipients.map((p) => ({ ...p, signed: true })) }
@@ -317,6 +351,20 @@ describe('the tabs', () => {
     // and bookmarks; all of that work lives on Assigned now.
     renderPage('/tasks?tab=paperwork')
     expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
+  })
+
+  it('opens manage forms directly when landing on tab=forms', async () => {
+    mockGets({ extra: { '/form-templates': { templates: [] } } })
+    renderPage('/tasks?tab=forms')
+    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
+  })
+
+  it('opens manage forms from the new form template action menu', async () => {
+    mockGets({ extra: { '/form-templates': { templates: [] } } })
+    renderPage('/tasks?tab=assigned')
+    fireEvent.click(await screen.findByRole('button', { name: /Other things to assign or send/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New form template/i }))
+    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
   })
 })
 

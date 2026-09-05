@@ -321,9 +321,17 @@ def sync_assignments(org_id: str, template_id: str) -> Dict[str, Any]:
             else:
                 merged.append(item)
 
-        if not (a_added or a_updated or a_removed):
+        tmpl_desc = template.get('description')
+        desc_changed = tmpl_desc != a.get('description')
+        if desc_changed and not (a_added or a_updated or a_removed):
+            a_updated += 1
+
+        if not (a_added or a_updated or a_removed or desc_changed):
             continue
-        _save_items(a, merged)
+        if desc_changed:
+            _save_items(a, merged, description=tmpl_desc, update_description=True)
+        else:
+            _save_items(a, merged)
         synced += 1
         added += a_added
         updated += a_updated
@@ -1120,7 +1128,9 @@ def _load_assignment(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]
     return rows[0]
 
 
-def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]],
+                description: Optional[str] = None,
+                update_description: bool = False) -> Dict[str, Any]:
     if assignment.get('blocks_access'):
         # Signing needs no invalidation (a held user is never cached), but an
         # admin clearing a signature re-imposes a hold on someone the cache may
@@ -1129,10 +1139,14 @@ def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict
     required = [i for i in items if i.get('required')]
     all_done = all(i.get('status') in ('complete', 'approved') for i in required) if required else True
     status = 'complete' if all_done else 'in_progress'
+    payload = {'items': items, 'status': status, 'updated_at': _now()}
+    if update_description:
+        payload['description'] = description
     row = (_admin().table('sis_onboarding_assignments')
-           .update({'items': items, 'status': status, 'updated_at': _now()})
+           .update(payload)
            .eq('id', assignment['id']).execute()).data
-    return row[0] if row else {**assignment, 'items': items, 'status': status}
+    return row[0] if row else {**assignment, 'items': items, 'status': status,
+                              **({'description': description} if update_description else {})}
 
 
 # ── Typed signatures ─────────────────────────────────────────────────────────

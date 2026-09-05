@@ -60,6 +60,14 @@ BACKEND = Path(__file__).resolve().parents[2]
 # be a repository with one caller, and utils/ may not import repositories/
 # anyway (test_import_layers). This is the "small and mostly legitimate"
 # category the docstring describes, not creeping debt.
+# utils/ raised 131 -> 134 for utils/guardian_scope.py, which answers "may this
+# adult read this kid's quest": three lookups (the student's row, the
+# parent_student_link, the caller's role) that ARE the authorization check.
+# Routing an auth gate through a repository would put the decision a layer away
+# from the code that enforces it; the neighbouring guards
+# (routes/family_quests.verify_parent_has_access_to_child,
+# routes/parent/dashboard_overview.verify_parent_access) read the same tables
+# the same way.
 # routes/ 2336 -> 2316 and services/ 1779 -> 1794 on 2026-09-03: the
 # registration funnel's session/account helpers moved to
 # services/registration_funnel_support.py and
@@ -67,11 +75,22 @@ BACKEND = Path(__file__).resolve().parents[2]
 # layer; the file they came from held 59 before and the three files hold 59
 # after, checked by counting. The remaining 5 of the routes/ drop is slack that
 # was already in the old number.
+# RE-MEASURED 2026-09-05, merging origin/main into audit/remediation-2026-08.
+# Every number below is the counted value in the merged tree, not arithmetic on
+# the two sides -- the branches raised 'utils' to 131 INDEPENDENTLY, for
+# different modules (org_secrets + portfolio_access here, guardian_scope on
+# main), so the identical figure auto-merged clean while the truth was 134.
+# routes/ 2316 -> 2321 and services/ 1794 -> 1800 are main's additions landing
+# on top of QB-04's extraction: sis_billing_alerts accounts for six of the
+# services/ rise (six single-row lookups -- organizations, households,
+# sis_saved_payment_methods, users x2, sis_recurring_tuition -- that exist only
+# to compose the text of one office notification, which routing through five
+# repositories buys nothing).
 BASELINES = {
-    'routes': 2316,
-    'services': 1794,
+    'routes': 2321,
+    'services': 1800,
     'repositories': 415,
-    'utils': 131,
+    'utils': 134,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,
@@ -117,7 +136,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2316 + 1794
+UPPER_TOTAL_BASELINE = 2321 + 1800
 
 
 def test_the_upper_layers_do_not_grow_in_total():

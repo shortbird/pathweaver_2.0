@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { ChevronLeftIcon, ChevronRightIcon, LinkIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
-import DocumentPreview from './DocumentPreview';
-import LinkPreviewCard from './LinkPreviewCard';
-import VideoLinkPreview from './VideoLinkPreview';
+import DocumentPreview from '../evidence/preview/DocumentPreview';
+import LinkPreviewCard from '../evidence/preview/LinkPreviewCard';
+import VideoLinkPreview from '../evidence/preview/VideoLinkPreview';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 
 /**

@@ -1070,6 +1070,19 @@ def org_admin_ids(org_id: str) -> List[str]:
     return [s['id'] for s in list_org_staff(org_id) if 'org_admin' in s['roles']]
 
 
+def org_admin_emails(org_id: str) -> List[str]:
+    """Reachable email addresses for this org's admins, for staff-facing alerts.
+
+    Placeholder staff rows have no inbox behind them, so they are skipped: a
+    caller can read an empty list as "this school has nobody to email" and act
+    on it, which is what Optio Academy (no org admins at all — a superadmin runs
+    it) depends on.
+    """
+    return [s['email'] for s in list_org_staff(org_id)
+            if 'org_admin' in s['roles'] and s.get('email')
+            and not is_placeholder_staff_email(s['email'])]
+
+
 def _user_org_roles(u: Dict[str, Any]) -> List[str]:
     """All org roles held by a user (org_role + org_roles array), de-duped."""
     roles = []
@@ -1376,14 +1389,15 @@ def create_org_teacher(org_id: str, fields: Dict[str, Any],
         return {'error': 'Could not create the account (is the email already in use?)'}
     if not auth.user:
         return {'error': 'Could not create the account'}
+    from services.phone_verification_service import normalize_phone
+    phone_raw = (fields.get('phone_number') or '').strip()
+    phone_norm = normalize_phone(phone_raw) if phone_raw else None
     profile = {
         'id': auth.user.id,
         'email': email,
         'first_name': first or None,
         'last_name': last or None,
-        # Something readable in the staff list before they've registered. The
-        # email local part beats a blank row or the word "Unnamed", and it is
-        # replaced by their real name the moment they set their password.
+        'phone_number': phone_norm or phone_raw or None,
         'display_name': (f'{first} {last}'.strip() or email.split('@')[0]),
         'role': 'org_managed',
         'org_role': 'advisor',
@@ -1798,7 +1812,12 @@ def update_staff_member(org_id: str, staff_id: str, fields: Dict[str, Any]) -> O
     for k in _STAFF_EDIT_FIELDS:
         if k in fields:
             v = fields[k]
-            payload[k] = (v.strip() if isinstance(v, str) else v) or None
+            val = (v.strip() if isinstance(v, str) else v) or None
+            if k == 'phone_number' and val:
+                from services.phone_verification_service import normalize_phone
+                norm = normalize_phone(val)
+                val = norm or val
+            payload[k] = val
     first = payload.get('first_name', cur.get('first_name')) or ''
     last = payload.get('last_name', cur.get('last_name')) or ''
     combined = f"{first} {last}".strip()

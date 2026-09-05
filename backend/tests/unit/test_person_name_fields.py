@@ -34,7 +34,7 @@ SERVICES = BACKEND_ROOT / 'services'
 # `legal_name` is for. Adding one of these here would put a nickname on a
 # document that leaves the building.
 EVERYDAY_SERVICES = [
-    'sis_billing_service', 'sis_community_service', 'sis_coordinator_service',
+    'sis_billing_alerts', 'sis_billing_service', 'sis_community_service', 'sis_coordinator_service',
     'sis_engagement_service', 'sis_enrollment_waitlist_service', 'sis_exception_service',
     'sis_parent_service', 'sis_planned_absence_service', 'sis_registration_service',
     'sis_service', 'sis_staff_service', 'sis_tuition_service', 'sis_waitlist_service',

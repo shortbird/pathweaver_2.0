@@ -75,16 +75,10 @@ afterEach(() => {
   clearAuthState();
 });
 
-// Suppress AggregateError from React 19 act()
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args: any[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('AggregateError')) return;
-    if (args[0] instanceof Error && args[0].constructor.name === 'AggregateError') return;
-    originalError(...args);
-  };
-});
-afterAll(() => { console.error = originalError; });
+// The AggregateError these files used to swallow was a real failure, not a
+// React 19 quirk: `withRepeat` was missing from the reanimated mock, so any
+// loading Skeleton threw from its mount effect and render() rethrew it. Fixed
+// in src/__tests__/setup.tsx; a throw from render() here is a bug now.
 
 function mockApiForEnrolled() {
   (api.get as jest.Mock).mockImplementation((url: string) => {
@@ -119,55 +113,49 @@ function mockApiForUnenrolled() {
 describe('CourseDetailScreen', () => {
   it('renders course title and enrollment CTA when not enrolled', async () => {
     mockApiForUnenrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Storytelling Foundations')).toBeTruthy();
     });
 
     expect(result.getByText('Ready to start?')).toBeTruthy();
-    expect(result.getByText(/Enroll/)).toBeTruthy();
+    // Exact, not /Enroll/: the card's blurb says "Enroll to access…" too, so
+    // the loose match now finds two nodes and throws.
+    expect(result.getByText('Enroll in Course')).toBeTruthy();
   });
 
   it('renders course progress when enrolled', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Storytelling Foundations')).toBeTruthy();
     });
 
     expect(result.getByText('Course Progress')).toBeTruthy();
-    expect(result.getByText(/0 \/ 500 XP/)).toBeTruthy();
+    // "0 / 500 XP" is rendered twice — once on the course progress card, once
+    // on the project card below it — so this counts rather than assuming one.
+    expect(result.getAllByText(/0 \/ 500 XP/).length).toBeGreaterThan(0);
+    expect(result.getByText('0/1 projects')).toBeTruthy();
   });
 
   it('renders collapsible project card with title and XP', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Explore Storytelling Basics')).toBeTruthy();
     });
 
-    // XP should be visible in collapsed header
-    expect(result.getByText(/0 \/ 500 XP/)).toBeTruthy();
+    // XP should be visible in collapsed header. Two nodes carry this text
+    // (course progress + project card); the project card is one of them.
+    expect(result.getAllByText(/0 \/ 500 XP/).length).toBeGreaterThan(0);
   });
 
   it('shows suggested tasks carousel when project is expanded', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Explore Storytelling Basics')).toBeTruthy();
@@ -184,10 +172,7 @@ describe('CourseDetailScreen', () => {
 
   it('shows lesson cards when project is expanded', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Explore Storytelling Basics')).toBeTruthy();
@@ -202,10 +187,7 @@ describe('CourseDetailScreen', () => {
 
   it('shows empty task state with messaging', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Explore Storytelling Basics')).toBeTruthy();
@@ -221,10 +203,7 @@ describe('CourseDetailScreen', () => {
 
   it('shows Create Tasks button for task wizard', async () => {
     mockApiForEnrolled();
-    let result: any;
-    try {
-      result = render(<CourseDetailScreen />);
-    } catch { return; }
+    const result = render(<CourseDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Explore Storytelling Basics')).toBeTruthy();

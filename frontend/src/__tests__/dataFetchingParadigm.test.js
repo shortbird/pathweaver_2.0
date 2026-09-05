@@ -41,8 +41,20 @@ import path from 'path'
 
 const PAGES = path.resolve(__dirname, '../pages')
 
-/** Measured 2026-09-04. Ratchet DOWN as pages migrate. */
-const CALL_SITE_BASELINE = 540
+/**
+ * Measured 2026-09-04. Ratchet DOWN as pages migrate.
+ *
+ * 540 -> 542 on 2026-09-05, merging origin/main into audit/remediation-2026-08.
+ * Both calls are in sis/MyTasksPage.jsx (6 -> 8), added by ticket b9583855
+ * (multiple document attachments on onboarding items): a PATCH to save an
+ * onboarding item and a GET for a signed document URL. They were written on
+ * main while this ratchet existed only on this branch, so no rule was in place
+ * to route them through hooks/api -- raised rather than treated as a
+ * regression, because a gate cannot be broken by code that predates it
+ * reaching that branch. MyTasksPage is now the obvious next migration
+ * candidate at 8 call sites.
+ */
+const CALL_SITE_BASELINE = 542
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

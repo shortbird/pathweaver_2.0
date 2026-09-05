@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisRoster } from '../../hooks/api/useSisRoster'
@@ -46,7 +46,12 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const [showExport, setShowExport] = useState(false)     // Export CSV modal
   const [menuFor, setMenuFor] = useState(null)      // open actions menu (student_id)
   const [removing, setRemoving] = useState(null)    // person being removed from the org
-  const [search, setSearch] = useState('')
+  // ?q= seeds the box so another page can hand this one a name to look for.
+  // Deleting a family sends the admin here with its surname already typed:
+  // the children keep their accounts and the next question is always where
+  // they went (iCreate, 2026-09-01).
+  const [urlParams] = useSearchParams()
+  const [search, setSearch] = useState(() => urlParams.get('q') || '')
   const [hideInactive, setHideInactive] = useState(true)
   const [studentsOnly, setStudentsOnly] = useState(false)
   // iCreate, 2026-08-19: "3 or 4 families ... said they joined today and I ...

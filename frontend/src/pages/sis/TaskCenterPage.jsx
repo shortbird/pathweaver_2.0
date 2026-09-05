@@ -50,11 +50,12 @@ const tabsFor = (hr) => [
 
 // Every tab name this page has ever had, mapped to where that work lives now —
 // old notification links and bookmarks must keep landing on the right list.
-const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned' }
+const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned', forms: 'requests' }
 
 const CREATE_ACTIONS = [
   ['assign', 'Assign a task'],
   ['request', 'New request'],
+  ['form_template', 'New form template'],
 ]
 
 const PRIMARY_ACTION = {
@@ -82,9 +83,17 @@ const TaskCenterPage = () => {
   const [creating, setCreating] = useState(null) // null | 'assign' | 'request' | 'checklist'
   const [menuOpen, setMenuOpen] = useState(false)
   const [routing, setRouting] = useState(false)   // "Where requests go" editor
-  const [manageFormsOpen, setManageFormsOpen] = useState(false)
+  const [manageFormsOpen, setManageFormsOpen] = useState(
+    rawTab === 'forms' || searchParams.get('manage_forms') === '1'
+  )
   const [refreshKey, setRefreshKey] = useState(0)
   const [counts, setCounts] = useState({})
+
+  useEffect(() => {
+    if (rawTab === 'forms' || searchParams.get('manage_forms') === '1') {
+      setManageFormsOpen(true)
+    }
+  }, [rawTab, searchParams])
 
   useEffect(() => {
     if (!orgId) return
@@ -132,6 +141,12 @@ const TaskCenterPage = () => {
 
   const startCreating = (action) => {
     setMenuOpen(false)
+    if (action === 'form_template') {
+      setTab('requests')
+      setManageFormsOpen(true)
+      setCreating('form_template')
+      return
+    }
     setCreating(action)
   }
 
@@ -179,7 +194,11 @@ const TaskCenterPage = () => {
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">
-          What people send the office, and what the office asks of people.
+          {/* Naming the nouns: checklists lost their own tab in the reorg and
+              the admin who used them went looking on Documents for them
+              (iCreate, 2026-09-01: "what happened to the checklists?"). */}
+          What people send the office, and what the office asks of people —
+          tasks, checklists and documents for signature are all under Assigned.
         </p>
       </div>
 
@@ -227,7 +246,8 @@ const TaskCenterPage = () => {
             </div>
             {manageFormsOpen && (
               <div className="mt-3">
-                <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} />
+                <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} embedded defaultOpen
+                  initialEditing={creating === 'form_template' ? 'new' : null} />
               </div>
             )}
           </div>

@@ -256,6 +256,43 @@ def check_organizations_columns(ref, token):
     ]
 
 
+def check_organizations_writes(ref, token):
+    """The other half of C1, which the column check above cannot see.
+
+    Narrowing SELECT to a reviewed column list says, in the plainest possible
+    terms, that this table holds columns anon must not touch. The 2026-08-01 fix
+    said it and then left every WRITE privilege in place across ALL columns --
+    feature_flags included, the column the whole migration existed to protect.
+
+    It hid because `information_schema.role_table_grants` lists table-level
+    grants only. A column-level SELECT does not appear there at all, so the table
+    read as "writes but no SELECT" and looked like a table nobody had touched.
+
+    Most of the surplus is held shut by RLS. TRUNCATE is not: there is no such
+    thing as a row-level policy on TRUNCATE, so a grant of it is the real thing.
+    """
+    rows = q(ref, token, """
+        select grantee, privilege_type as priv, 'table' as level
+        from information_schema.role_table_grants
+        where table_schema = 'public' and table_name = 'organizations'
+          and grantee in ('anon','authenticated')
+          and privilege_type <> 'SELECT'
+        union
+        select distinct grantee, privilege_type, 'column'
+        from information_schema.column_privileges
+        where table_schema = 'public' and table_name = 'organizations'
+          and grantee in ('anon','authenticated')
+          and privilege_type <> 'SELECT'
+        order by 1, 2;
+    """)
+    return [
+        f"`organizations` grants {r['priv']} to `{r['grantee']}` at {r['level']} level "
+        f"-- SELECT here is deliberately column-scoped, so writes must not be wider"
+        + (" (RLS CANNOT gate TRUNCATE)" if r['priv'] == 'TRUNCATE' else "")
+        for r in rows
+    ]
+
+
 def check_no_secrets_in_jsonb(ref, token):
     """Credential-shaped keys inside jsonb config columns.
 
@@ -335,6 +372,7 @@ CHECKS = [
     ('RLS enabled on every public table', check_rls_enabled),
     ('No unconditional (always-true) anon policies', check_no_always_true_policies),
     ('organizations exposes only reviewed columns', check_organizations_columns),
+    ('organizations grants no writes to the API roles', check_organizations_writes),
     ('No credentials in jsonb config columns', check_no_secrets_in_jsonb),
     ('anon key cannot read non-public tables', check_anon_cannot_read_rows),
 ]

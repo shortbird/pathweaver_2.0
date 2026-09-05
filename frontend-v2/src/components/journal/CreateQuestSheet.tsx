@@ -61,7 +61,11 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild }: Crea
         onClose();
         if (questId) {
           onCreated?.(questId);
-          router.push(`/parent/quest/${forChild.id}/${questId}` as any);
+          // `new=1` tells the quest screen this quest was just authored, so it
+          // opens the task wizard on its AI step. A brand-new quest has no
+          // tasks and no template to copy from; landing on an empty list read
+          // as "the AI didn't generate anything".
+          router.push(`/parent/quest/${forChild.id}/${questId}?new=1` as any);
         }
         return;
       }
@@ -73,7 +77,7 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild }: Crea
       onClose();
       if (questId) {
         onCreated?.(questId);
-        router.push(`/(app)/quests/${questId}`);
+        router.push(`/(app)/quests/${questId}?new=1` as any);
       }
     } catch (err: any) {
       const msg = err.response?.data?.error?.message

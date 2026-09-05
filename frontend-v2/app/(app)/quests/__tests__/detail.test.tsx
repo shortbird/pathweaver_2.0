@@ -56,26 +56,14 @@ afterEach(() => {
   clearAuthState();
 });
 
-// Suppress AggregateError from React 19 act() for components with many async effects
-const originalError = console.error;
-beforeAll(() => {
-  console.error = (...args: any[]) => {
-    if (typeof args[0] === 'string' && args[0].includes('AggregateError')) return;
-    if (args[0] instanceof Error && args[0].constructor.name === 'AggregateError') return;
-    originalError(...args);
-  };
-});
-afterAll(() => { console.error = originalError; });
+// The AggregateError these files used to swallow was a real failure, not a
+// React 19 quirk: `withRepeat` was missing from the reanimated mock, so any
+// loading Skeleton threw from its mount effect and render() rethrew it. Fixed
+// in src/__tests__/setup.tsx; a throw from render() here is a bug now.
 
 describe('QuestDetailScreen', () => {
   it('renders quest title and description', async () => {
-    let result: any;
-    try {
-      result = render(<QuestDetailScreen />);
-    } catch {
-      // AggregateError from act() with multiple async effects -- expected
-      return;
-    }
+    const result = render(<QuestDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Math Mastery')).toBeTruthy();
@@ -85,12 +73,7 @@ describe('QuestDetailScreen', () => {
   it('shows quest not found on error', async () => {
     (api.get as jest.Mock).mockRejectedValue({ response: { data: { error: 'Not found' } } });
 
-    let result: any;
-    try {
-      result = render(<QuestDetailScreen />);
-    } catch {
-      return;
-    }
+    const result = render(<QuestDetailScreen />);
 
     await waitFor(() => {
       expect(result.getByText('Quest not found')).toBeTruthy();
@@ -104,6 +87,10 @@ describe('long task titles', () => {
   // it…", 131 chars). The title was clamped to one line whether or not the
   // task was open, so on a phone families saw about a quarter of it and the
   // edit dialog was the only screen in the app showing the whole thing.
+  //
+  // 2026-09-04: the collapsed clamp went from one line to two. One line still
+  // showed too little of a title like this to know whether it was worth
+  // opening, which is half of why a parent reported she could not read a task.
   const longTitle =
     'What should you do before leaving a classroom? Find the classroom that '
     + 'has a bright yellow pocket folder in it to learn the answer.';
@@ -124,25 +111,15 @@ describe('long task titles', () => {
     });
   });
 
-  it('clamps the title to one line while the task is collapsed', async () => {
-    let result: any;
-    try {
-      result = render(<QuestDetailScreen />);
-    } catch {
-      return;
-    }
+  it('clamps the title to two lines while the task is collapsed', async () => {
+    const result = render(<QuestDetailScreen />);
 
     await waitFor(() => expect(result.getByText(longTitle)).toBeTruthy());
-    expect(result.getByText(longTitle).props.numberOfLines).toBe(1);
+    expect(result.getByText(longTitle).props.numberOfLines).toBe(2);
   });
 
   it('shows the whole title once the task is opened', async () => {
-    let result: any;
-    try {
-      result = render(<QuestDetailScreen />);
-    } catch {
-      return;
-    }
+    const result = render(<QuestDetailScreen />);
 
     await waitFor(() => expect(result.getByText(longTitle)).toBeTruthy());
     fireEvent.press(result.getByText(longTitle));

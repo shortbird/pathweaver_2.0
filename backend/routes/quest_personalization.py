@@ -32,6 +32,7 @@ from routes.personalization_validators import (
     validate_adjust_task_request,
     VALID_CHALLENGE_LEVELS
 )
+from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from utils.personalization_helpers import (
     get_effective_user_id,
     check_and_complete_personalization,
@@ -46,6 +47,25 @@ logger = get_logger(__name__)
 bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
 # CORS headers are set globally in app.py - do not duplicate here
+
+
+def _personalization_subject(caller_id: str, data: dict) -> str:
+    """Whose learning is being personalized: the caller, or a child of theirs.
+
+    A parent generating tasks on a kid's quest sends `student_id`, the same way
+    the delegated quest READ does, and everything downstream has to follow it —
+    the AI consent toggle, the vision statement the prompt is built from, the
+    remembered challenge level, the age band. Reading those off the caller
+    tailored a 16-year-old's tasks to his mother's profile and wrote her
+    challenge preference over his.
+
+    `resolve_student_scope` is deliberately the same gate: it admits a managed
+    dependent AND an approved parent_student_link, which is exactly the set the
+    write endpoints under /api/family accept. `get_effective_user_id`'s
+    `acting_as_dependent_id` is NOT — it is managed-dependents only, so it 403s
+    for a linked student who keeps their own login.
+    """
+    return resolve_student_scope(caller_id, (data or {}).get('student_id'))
 
 
 def _first_subject(diploma_subjects):
@@ -293,8 +313,14 @@ def start_personalization(user_id: str, quest_id: str):
         data = request.get_json() or {}
         acting_as_dependent_id = data.get('acting_as_dependent_id')
 
-        # Determine effective user ID (handles parent -> dependent delegation)
-        effective_user_id = get_effective_user_id(user_id, acting_as_dependent_id)
+        # Determine effective user ID (handles parent -> dependent delegation).
+        # `student_id` is the newer, wider form used by the mobile parent quest
+        # view: it also covers a student with their own login whom the caller is
+        # linked to, whereas acting_as_dependent_id is managed-dependents only.
+        if data.get('student_id'):
+            effective_user_id = _personalization_subject(user_id, data)
+        else:
+            effective_user_id = get_effective_user_id(user_id, acting_as_dependent_id)
 
         result = personalization_service.start_personalization_session(
             user_id=effective_user_id,
@@ -313,6 +339,9 @@ def start_personalization(user_id: str, quest_id: str):
             'message': 'Personalization session started' if not result.get('resumed') else 'Resuming personalization session'
         })
 
+    except GuardianAccessError as e:
+        logger.warning(f"Guardian access denied in start_personalization: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
     except PermissionError as e:
         logger.warning(f"Permission denied in start_personalization: {str(e)}")
         return jsonify({
@@ -339,7 +368,11 @@ def generate_tasks(user_id: str, quest_id: str):
         "session_id": "uuid",
         "approach": "real_world_project|traditional_class|hybrid" (optional, defaults to 'hybrid'),
         "interests": ["basketball", "piano", "..."],
-        "cross_curricular_subjects": ["math", "science", "..."]
+        "cross_curricular_subjects": ["math", "science", "..."],
+        "student_id": "uuid" (optional) - a child of the caller's, when a parent
+            is generating tasks on that child's quest. Everything personal to
+            the learner is then read off the CHILD: the AI consent toggle, the
+            vision statement, the challenge level, the age band.
     }
     """
     try:
@@ -349,17 +382,24 @@ def generate_tasks(user_id: str, quest_id: str):
         if blocked:
             return blocked
 
-        # Check AI access before proceeding
-        ai_access_error = require_ai_access(user_id)
-        if ai_access_error:
-            return ai_access_error
-
         data = request.get_json()
 
         # Validate request
         is_valid, error = validate_generate_tasks_request(data)
         if not is_valid:
             return jsonify({'success': False, 'error': error}), 400
+
+        # Whose learning this is. A parent generating on a kid's quest sends
+        # student_id; everyone else is personalizing for themselves.
+        subject_id = _personalization_subject(user_id, data)
+
+        # Check AI access before proceeding. Against the STUDENT, not the
+        # caller: the toggle being honored is the parent's answer to "may my
+        # child's work be sent to an AI vendor" (see utils/ai_access), and it is
+        # the child's content that goes into the prompt.
+        ai_access_error = require_ai_access(subject_id)
+        if ai_access_error:
+            return ai_access_error
 
         session_id = data.get('session_id')
         approach = data.get('approach', 'hybrid')
@@ -377,9 +417,9 @@ def generate_tasks(user_id: str, quest_id: str):
                 from utils.treehouse import is_treehouse_member
                 # admin client justified: derives the student's Treehouse age band from org tables (organizations / class_enrollments / org_classes) that have no student RLS read path
                 _admin = get_supabase_admin_client()
-                if is_treehouse_member(_admin, user_id):
+                if is_treehouse_member(_admin, subject_id):
                     enr = _admin.table('class_enrollments').select('class_id') \
-                        .eq('student_id', user_id).eq('status', 'active').limit(1).execute()
+                        .eq('student_id', subject_id).eq('status', 'active').limit(1).execute()
                     if enr.data:
                         cls = _admin.table('org_classes').select('name') \
                             .eq('id', enr.data[0]['class_id']).limit(1).execute()
@@ -401,7 +441,7 @@ def generate_tasks(user_id: str, quest_id: str):
         try:
             # admin client justified: AI-personalized quest creation writes user_quests + user_quest_tasks scoped to caller (self) under @require_auth
             supabase = get_supabase_admin_client()
-            user_result = supabase.table('users').select('bio, preferred_challenge_level').eq('id', user_id).single().execute()
+            user_result = supabase.table('users').select('bio, preferred_challenge_level').eq('id', subject_id).single().execute()
             if user_result.data:
                 if user_result.data.get('bio'):
                     vision_statement = user_result.data['bio']
@@ -413,7 +453,7 @@ def generate_tasks(user_id: str, quest_id: str):
                     try:
                         supabase.table('users')\
                             .update({'preferred_challenge_level': data['challenge_level']})\
-                            .eq('id', user_id).execute()
+                            .eq('id', subject_id).execute()
                     except Exception as e:
                         logger.warning(f"Could not persist preferred_challenge_level: {e}")
         except Exception as e:
@@ -460,6 +500,9 @@ def generate_tasks(user_id: str, quest_id: str):
             'message': 'Tasks generated successfully' + (' (from cache)' if result.get('cached') else '')
         })
 
+    except GuardianAccessError as e:
+        logger.warning(f"Guardian access denied in generate_tasks: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error generating tasks: {str(e)}")
         error_str = str(e).lower()
