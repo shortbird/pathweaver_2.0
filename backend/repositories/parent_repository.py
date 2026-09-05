@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from repositories.base_repository import BaseRepository, NotFoundError, PermissionError
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from utils.pagination import fetch_page
 
 logger = get_logger(__name__)
 
@@ -554,45 +555,48 @@ class ParentRepository(BaseRepository):
             Dict with requests list, total_count, page, and limit
         """
         try:
-            query = self.client.table('parent_connection_requests')\
-                .select('''
-                    id,
-                    parent_user_id,
-                    child_first_name,
-                    child_last_name,
-                    child_email,
-                    matched_student_id,
-                    status,
-                    admin_notes,
-                    reviewed_by_admin_id,
-                    reviewed_at,
-                    created_at,
-                    parent_user:users!parent_connection_requests_parent_user_id_fkey(
-                        id, first_name, last_name, email
-                    ),
-                    matched_student:users!parent_connection_requests_matched_student_id_fkey(
-                        id, first_name, last_name, email
-                    ),
-                    reviewed_by:users!parent_connection_requests_reviewed_by_admin_id_fkey(
-                        id, first_name, last_name
-                    )
-                ''', count='exact')
+            # A factory, not a single builder: fetch_page needs a fresh one to
+            # read the real total back when the requested page starts past the
+            # last row -- PostgREST answers that range with 416, not an empty
+            # page.
+            def build_query():
+                query = self.client.table('parent_connection_requests')\
+                    .select('''
+                        id,
+                        parent_user_id,
+                        child_first_name,
+                        child_last_name,
+                        child_email,
+                        matched_student_id,
+                        status,
+                        admin_notes,
+                        reviewed_by_admin_id,
+                        reviewed_at,
+                        created_at,
+                        parent_user:users!parent_connection_requests_parent_user_id_fkey(
+                            id, first_name, last_name, email
+                        ),
+                        matched_student:users!parent_connection_requests_matched_student_id_fkey(
+                            id, first_name, last_name, email
+                        ),
+                        reviewed_by:users!parent_connection_requests_reviewed_by_admin_id_fkey(
+                            id, first_name, last_name
+                        )
+                    ''', count='exact')
 
-            if filters:
-                if 'status' in filters and filters['status']:
-                    query = query.eq('status', filters['status'])
-                if 'parent_id' in filters and filters['parent_id']:
-                    query = query.eq('parent_user_id', filters['parent_id'])
-                if 'start_date' in filters and filters['start_date']:
-                    query = query.gte('created_at', filters['start_date'])
-                if 'end_date' in filters and filters['end_date']:
-                    query = query.lte('created_at', filters['end_date'])
+                if filters:
+                    if 'status' in filters and filters['status']:
+                        query = query.eq('status', filters['status'])
+                    if 'parent_id' in filters and filters['parent_id']:
+                        query = query.eq('parent_user_id', filters['parent_id'])
+                    if 'start_date' in filters and filters['start_date']:
+                        query = query.gte('created_at', filters['start_date'])
+                    if 'end_date' in filters and filters['end_date']:
+                        query = query.lte('created_at', filters['end_date'])
 
-            # Apply pagination
-            offset = (page - 1) * limit
-            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
+                return query.order('created_at', desc=True)
 
-            result = query.execute()
+            result = fetch_page(build_query, page, limit)
 
             return {
                 'requests': result.data or [],
@@ -622,40 +626,40 @@ class ParentRepository(BaseRepository):
             Dict with links list, total_count, page, and limit
         """
         try:
-            query = self.client.table(self.table_name)\
-                .select('''
-                    id,
-                    parent_user_id,
-                    student_user_id,
-                    admin_verified,
-                    verified_by_admin_id,
-                    verified_at,
-                    admin_notes,
-                    created_at,
-                    parent:users!parent_student_links_parent_user_id_fkey(
-                        id, first_name, last_name, email
-                    ),
-                    student:users!parent_student_links_student_user_id_fkey(
-                        id, first_name, last_name, email
-                    ),
-                    verified_by:users!parent_student_links_verified_by_admin_id_fkey(
-                        id, first_name, last_name
-                    )
-                ''', count='exact')
+            # A factory, not a single builder -- see get_all_connection_requests.
+            def build_query():
+                query = self.client.table(self.table_name)\
+                    .select('''
+                        id,
+                        parent_user_id,
+                        student_user_id,
+                        admin_verified,
+                        verified_by_admin_id,
+                        verified_at,
+                        admin_notes,
+                        created_at,
+                        parent:users!parent_student_links_parent_user_id_fkey(
+                            id, first_name, last_name, email
+                        ),
+                        student:users!parent_student_links_student_user_id_fkey(
+                            id, first_name, last_name, email
+                        ),
+                        verified_by:users!parent_student_links_verified_by_admin_id_fkey(
+                            id, first_name, last_name
+                        )
+                    ''', count='exact')
 
-            if filters:
-                if 'parent_id' in filters and filters['parent_id']:
-                    query = query.eq('parent_user_id', filters['parent_id'])
-                if 'student_id' in filters and filters['student_id']:
-                    query = query.eq('student_user_id', filters['student_id'])
-                if 'admin_verified' in filters and filters['admin_verified'] is not None:
-                    query = query.eq('admin_verified', filters['admin_verified'])
+                if filters:
+                    if 'parent_id' in filters and filters['parent_id']:
+                        query = query.eq('parent_user_id', filters['parent_id'])
+                    if 'student_id' in filters and filters['student_id']:
+                        query = query.eq('student_user_id', filters['student_id'])
+                    if 'admin_verified' in filters and filters['admin_verified'] is not None:
+                        query = query.eq('admin_verified', filters['admin_verified'])
 
-            # Apply pagination
-            offset = (page - 1) * limit
-            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
+                return query.order('created_at', desc=True)
 
-            result = query.execute()
+            result = fetch_page(build_query, page, limit)
 
             return {
                 'links': result.data or [],

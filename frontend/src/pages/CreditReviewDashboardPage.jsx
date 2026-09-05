@@ -80,6 +80,18 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
 
   const perPage = 50
 
+  // Filter changes reset to page 1. Without this, narrowing the filter while
+  // holding page 2 asks the API for an offset past the end of the smaller
+  // result set -- PostgREST answers 416, the endpoint 500s, and the dashboard
+  // renders empty with no way back (Sentry OPTIO-WEB-T). The backend now
+  // returns an empty page instead of failing; this keeps us from asking.
+  // Takes the same argument FilterBar passes (an updater function), so it
+  // forwards it untouched.
+  const handleFiltersChange = useCallback((update) => {
+    setFilters(update)
+    setPage(1)
+  }, [])
+
   // Fetch items. Bails until the role-based filter default has been applied
   // (filtersInitialized = true) so we don't fire a no-filter request on
   // initial render and overwrite the filtered results with everything.
@@ -396,7 +408,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
             onSelect={selectItem}
             onToggleSelection={toggleItemSelection}
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={handleFiltersChange}
             loading={loading}
             total={total}
             page={page}
@@ -431,7 +443,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
           onSelectAll={(ids) => setSelectedItems(ids)}
           onRowClick={(item) => { setViewMode('split'); selectItem(item) }}
           filters={filters}
-          onFiltersChange={setFilters}
+          onFiltersChange={handleFiltersChange}
           loading={loading}
           total={total}
           page={page}

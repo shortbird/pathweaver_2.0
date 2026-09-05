@@ -20,6 +20,7 @@ from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.auth.org_scope import caller_can_access_user
 from utils.api_response_v1 import success_response, error_response
+from utils.pagination import fetch_page, get_pagination_params
 from utils.roles import get_effective_roles
 
 from utils.logger import get_logger
@@ -114,8 +115,10 @@ def get_dashboard_items(user_id: str):
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         org_id_filter = request.args.get('org_id')
-        page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 50)), 100)
+        # Parsed rather than int()'d straight off the query string: a
+        # non-numeric ?page= used to raise ValueError into the handler's
+        # except and answer 500.
+        page, per_page = get_pagination_params(default_per_page=50, max_per_page=100)
 
         # Determine which student IDs to scope to
         scope = _scoped_student_ids(admin_supabase, user_id, user_data, org_id_filter)
@@ -123,34 +126,38 @@ def get_dashboard_items(user_id: str):
         if student_ids is not None and not student_ids:
             return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
 
-        # Build query
-        query = admin_supabase.table('quest_task_completions') \
-            .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id, org_reviewer_id', count='exact')
+        # Built by a factory, not once: fetch_page needs a fresh builder if the
+        # requested page turns out to start past the last row.
+        def build_query():
+            query = admin_supabase.table('quest_task_completions') \
+                .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at, merged_into, finalized_at, credit_reviewer_id, org_reviewer_id', count='exact')
 
-        # Apply filters
-        if status_filter:
-            query = query.eq('diploma_status', status_filter)
-        else:
-            # Default: show actionable items (not none/draft/merged)
-            query = query.in_('diploma_status', ['pending_review', 'pending_org_approval', 'grow_this', 'finalized'])
+            # Apply filters
+            if status_filter:
+                query = query.eq('diploma_status', status_filter)
+            else:
+                # Default: show actionable items (not none/draft/merged)
+                query = query.in_('diploma_status', ['pending_review', 'pending_org_approval', 'grow_this', 'finalized'])
 
-        if student_ids is not None:
-            query = query.in_('user_id', student_ids)
+            if student_ids is not None:
+                query = query.in_('user_id', student_ids)
 
-        if student_id_filter:
-            query = query.eq('user_id', student_id_filter)
+            if student_id_filter:
+                query = query.eq('user_id', student_id_filter)
 
-        if date_from:
-            query = query.gte('credit_requested_at', date_from)
-        if date_to:
-            query = query.lte('credit_requested_at', date_to)
+            if date_from:
+                query = query.gte('credit_requested_at', date_from)
+            if date_to:
+                query = query.lte('credit_requested_at', date_to)
 
-        # Pagination
-        offset = (page - 1) * per_page
-        query = query.order('credit_requested_at', desc=True) \
-            .range(offset, offset + per_page - 1)
+            return query.order('credit_requested_at', desc=True)
 
-        completions = query.execute()
+        # Narrowing a filter while holding page 2 asks for an offset past the
+        # end of the new result set, and PostgREST answers that with 416
+        # PGRST103 rather than an empty page -- a 500 and a blank dashboard
+        # (Sentry OPTIO-BACKEND-83 / OPTIO-WEB-T). fetch_page turns it back
+        # into the empty page it is, total intact so the client can go back.
+        completions = fetch_page(build_query, page, per_page)
 
         if not completions.data:
             return success_response(data={'items': [], 'total': completions.count or 0, 'page': page, 'per_page': per_page})

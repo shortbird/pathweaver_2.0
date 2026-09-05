@@ -18,6 +18,7 @@ from postgrest.exceptions import APIError
 
 from utils.auth.decorators import require_superadmin
 from utils.db_fetch import fetch_all_rows
+from utils.pagination import fetch_page
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -459,29 +460,36 @@ def list_leads(user_id):
     db = _db()
     page = max(1, int(request.args.get('page', 1)))
     limit = min(100, max(1, int(request.args.get('limit', 25))))
-    offset = (page - 1) * limit
 
     funnel_id = request.args.get('funnel_id')
     embed = ('crm_funnel_memberships!inner(funnel_id, status, last_step_sent, '
              'entered_at, last_sent_at, crm_funnels(name, key))') if funnel_id else \
             ('crm_funnel_memberships(funnel_id, status, last_step_sent, '
              'entered_at, last_sent_at, crm_funnels(name, key))')
-    query = db.table('crm_leads').select(f'*, {embed}', count='exact')
-    if funnel_id:
-        query = query.eq('crm_funnel_memberships.funnel_id', funnel_id)
-    if request.args.get('status'):
-        query = query.eq('status', request.args['status'])
-    if request.args.get('source'):
-        query = query.eq('lead_type', request.args['source'])
-    search = (request.args.get('search') or '').strip()
-    if search:
-        from utils.validation.sanitizers import pgrst_pattern
-        if pgrst_pattern(search):
-            query = query.or_(
-                f'email.ilike.%{pgrst_pattern(search)}%,'
-                f'first_name.ilike.%{pgrst_pattern(search)}%,'
-                f'last_name.ilike.%{pgrst_pattern(search)}%')
-    result = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
+
+    # A factory, not a single builder: narrowing the search while holding a
+    # later page asks for an offset past the end, which PostgREST answers with
+    # 416 rather than an empty page, and fetch_page needs a fresh builder to
+    # read the real count back.
+    def build_query():
+        query = db.table('crm_leads').select(f'*, {embed}', count='exact')
+        if funnel_id:
+            query = query.eq('crm_funnel_memberships.funnel_id', funnel_id)
+        if request.args.get('status'):
+            query = query.eq('status', request.args['status'])
+        if request.args.get('source'):
+            query = query.eq('lead_type', request.args['source'])
+        search = (request.args.get('search') or '').strip()
+        if search:
+            from utils.validation.sanitizers import pgrst_pattern
+            if pgrst_pattern(search):
+                query = query.or_(
+                    f'email.ilike.%{pgrst_pattern(search)}%,'
+                    f'first_name.ilike.%{pgrst_pattern(search)}%,'
+                    f'last_name.ilike.%{pgrst_pattern(search)}%')
+        return query.order('created_at', desc=True)
+
+    result = fetch_page(build_query, page, limit)
 
     step_counts = {}
     for s in (db.table('crm_funnel_steps').select('funnel_id, id')
@@ -726,12 +734,15 @@ def list_suppressions(user_id):
     db = _db()
     page = max(1, int(request.args.get('page', 1)))
     limit = min(100, max(1, int(request.args.get('limit', 25))))
-    offset = (page - 1) * limit
-    query = db.table('crm_suppressions').select('*', count='exact')
-    search = (request.args.get('search') or '').strip()
-    if search:
-        query = query.ilike('email', f'%{search}%')
-    result = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
+
+    def build_query():
+        query = db.table('crm_suppressions').select('*', count='exact')
+        search = (request.args.get('search') or '').strip()
+        if search:
+            query = query.ilike('email', f'%{search}%')
+        return query.order('created_at', desc=True)
+
+    result = fetch_page(build_query, page, limit)
     return jsonify({'entries': result.data or [], 'total': result.count or 0})
 
 

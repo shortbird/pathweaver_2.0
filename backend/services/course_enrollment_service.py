@@ -25,6 +25,7 @@ from services.base_service import BaseService
 from services.course_progress_service import CourseProgressService
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_pattern
+from utils.pagination import fetch_page
 
 logger = get_logger(__name__)
 
@@ -521,7 +522,6 @@ class CourseEnrollmentService(BaseService):
         """
         try:
             per_page = min(per_page, 50)
-            offset = (page - 1) * per_page
 
             # Build base query for enrollments. The org filter needs an inner
             # join so non-matching rows are excluded (a plain embed only nulls
@@ -529,19 +529,24 @@ class CourseEnrollmentService(BaseService):
             users_embed = ('users!inner(id, email, display_name, first_name, last_name)'
                            if organization_id else
                            'users(id, email, display_name, first_name, last_name)')
-            query = self.client.table('course_enrollments')\
-                .select(f'*, {users_embed}', count='exact')\
-                .eq('course_id', course_id)
-            if organization_id:
-                query = query.eq('users.organization_id', organization_id)
 
-            if status:
-                query = query.eq('status', status)
+            # A factory, not a single builder: fetch_page needs a fresh one to
+            # read the count back when the requested page starts past the last
+            # row (PostgREST answers that range with 416, not an empty page).
+            def build_query():
+                query = self.client.table('course_enrollments')\
+                    .select(f'*, {users_embed}', count='exact')\
+                    .eq('course_id', course_id)
+                if organization_id:
+                    query = query.eq('users.organization_id', organization_id)
+
+                if status:
+                    query = query.eq('status', status)
+
+                return query.order('enrolled_at', desc=True)
 
             # Get enrollments with user data
-            result = query.order('enrolled_at', desc=True)\
-                .range(offset, offset + per_page - 1)\
-                .execute()
+            result = fetch_page(build_query, page, per_page)
 
             enrollments = result.data or []
             total = result.count or 0
@@ -640,40 +645,41 @@ class CourseEnrollmentService(BaseService):
         """
         try:
             per_page = min(per_page, 50)
-            offset = (page - 1) * per_page
 
-            # Build base query
-            query = self.client.table('users')\
-                .select('id, email, display_name, first_name, last_name, role, org_role, total_xp', count='exact')
+            # Build base query. A factory, not a single builder -- see the
+            # note in get_course_enrollments above.
+            def build_query():
+                query = self.client.table('users')\
+                    .select('id, email, display_name, first_name, last_name, role, org_role, total_xp', count='exact')
 
-            if is_superadmin:
-                # Superadmin: get all non-superadmin users
-                query = query.neq('role', 'superadmin')
-            else:
-                # Org admin: get their organization's users
-                query = query.eq('organization_id', organization_id)
-
-            if role:
-                # Filter by role (handles both role and org_role)
                 if is_superadmin:
-                    query = query.eq('role', role)
+                    # Superadmin: get all non-superadmin users
+                    query = query.neq('role', 'superadmin')
                 else:
-                    query = query.eq('org_role', role)
+                    # Org admin: get their organization's users
+                    query = query.eq('organization_id', organization_id)
 
-            # Apply search filter
-            if search:
-                # Use ilike for case-insensitive search on email
-                query = query.or_(
-                    f'email.ilike.%{pgrst_pattern(search)}%,'
-                    f'display_name.ilike.%{pgrst_pattern(search)}%,'
-                    f'first_name.ilike.%{pgrst_pattern(search)}%,'
-                    f'last_name.ilike.%{pgrst_pattern(search)}%'
-                )
+                if role:
+                    # Filter by role (handles both role and org_role)
+                    if is_superadmin:
+                        query = query.eq('role', role)
+                    else:
+                        query = query.eq('org_role', role)
+
+                # Apply search filter
+                if search:
+                    # Use ilike for case-insensitive search on email
+                    query = query.or_(
+                        f'email.ilike.%{pgrst_pattern(search)}%,'
+                        f'display_name.ilike.%{pgrst_pattern(search)}%,'
+                        f'first_name.ilike.%{pgrst_pattern(search)}%,'
+                        f'last_name.ilike.%{pgrst_pattern(search)}%'
+                    )
+
+                return query.order('email')
 
             # Get paginated results
-            result = query.order('email')\
-                .range(offset, offset + per_page - 1)\
-                .execute()
+            result = fetch_page(build_query, page, per_page)
 
             users = result.data or []
             total = result.count or 0

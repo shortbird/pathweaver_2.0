@@ -18,6 +18,7 @@ Handles admin review and approval of student-created manual tasks.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
+from utils.pagination import fetch_page, get_pagination_params
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -38,18 +39,19 @@ def list_pending_tasks(user_id: str):
         supabase = get_supabase_admin_client()
 
         # Get pagination params
-        page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 20)), 100)
-        offset = (page - 1) * per_page
+        page, per_page = get_pagination_params(default_per_page=20, max_per_page=100)
 
-        # Get pending manual tasks with user and quest info
-        tasks = supabase.table('user_quest_tasks')\
-            .select('*, users(first_name, last_name), quests(title)', count='exact')\
-            .eq('is_manual', True)\
-            .eq('approval_status', 'pending')\
-            .order('created_at', desc=True)\
-            .range(offset, offset + per_page - 1)\
-            .execute()
+        # Get pending manual tasks with user and quest info. Built by a factory
+        # so fetch_page can retry for the count when the requested page starts
+        # past the last row -- PostgREST answers that range with 416.
+        def build_query():
+            return supabase.table('user_quest_tasks')\
+                .select('*, users(first_name, last_name), quests(title)', count='exact')\
+                .eq('is_manual', True)\
+                .eq('approval_status', 'pending')\
+                .order('created_at', desc=True)
+
+        tasks = fetch_page(build_query, page, per_page)
 
         return jsonify({
             'success': True,

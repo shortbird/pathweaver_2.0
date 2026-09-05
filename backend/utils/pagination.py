@@ -15,8 +15,9 @@ Cursor-based pagination format (recommended for high-traffic endpoints):
 - Response includes 'links' with: self, next
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
 from flask import request
+from postgrest.exceptions import APIError
 import base64
 import json
 
@@ -447,3 +448,59 @@ def build_cursor_meta(
         }
 
     return data, meta, links
+
+
+# ── Paging past the end of the result set ─────────────────────────────────────
+# PostgREST answers a range whose offset is beyond the last row with 416
+# PGRST103 ("Requested range not satisfiable"), NOT with an empty page. It only
+# does this when the query also asks for `count='exact'` -- it has to know the
+# total to decide the range is unsatisfiable -- so every counted, client-paged
+# list endpoint has this trap in it.
+#
+# That is a 500 in prod: the credit review dashboard held page 2, an admin
+# narrowed the status filter to 44 rows, and the next fetch asked for offset 50
+# and blew up (Sentry OPTIO-BACKEND-83 / OPTIO-WEB-T, 2026-09-05). A page past
+# the end is not an error -- it is an empty page -- and the client still needs
+# the real total to know which page to fall back to.
+
+PAGE_OUT_OF_RANGE = 'PGRST103'
+
+
+class Page(NamedTuple):
+    """Stands in for a postgrest APIResponse: the two fields callers read."""
+    data: list
+    count: int
+
+
+def fetch_range(build_query: Callable[[], Any], offset: int, limit: int) -> Any:
+    """One window of a counted query, tolerating a window past the last row.
+
+    Args:
+        build_query: Called to produce a FRESH query builder -- filters, select
+            (with `count='exact'`) and ordering applied, but no `.range()`.
+            A builder is single-use: `range()` APPENDS its offset/limit params
+            rather than replacing them, so the same object cannot be ranged
+            twice. Same contract as `utils.db_fetch.fetch_all_rows`.
+        offset: Rows to skip. Clamped at 0 -- a hand-edited negative offset
+            would otherwise reach PostgREST as a malformed range.
+        limit: Rows to read.
+
+    Returns:
+        The executed response, or an empty `Page` carrying the true total when
+        the window starts past the last row.
+    """
+    offset = max(offset, 0)
+    try:
+        return build_query().range(offset, offset + limit - 1).execute()
+    except APIError as e:
+        if getattr(e, 'code', None) != PAGE_OUT_OF_RANGE:
+            raise
+        # Past the end. Ask for one row from the top purely to read the count
+        # back, so the caller can still report how many rows there really are.
+        total = (build_query().range(0, 0).execute()).count or 0
+        return Page([], total)
+
+
+def fetch_page(build_query: Callable[[], Any], page: int, per_page: int) -> Any:
+    """`fetch_range` for callers that think in 1-indexed pages."""
+    return fetch_range(build_query, (max(page, 1) - 1) * per_page, per_page)

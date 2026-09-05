@@ -14,6 +14,7 @@ Allows admins to review and approve/reject AI-generated quests
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_admin
+from utils.pagination import fetch_page, get_pagination_params
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
@@ -45,29 +46,26 @@ def get_review_queue(user_id):
         # Get query parameters
         status = request.args.get('status', 'pending_review')
         generation_source = request.args.get('generation_source', None)
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        page, per_page = get_pagination_params(default_per_page=20, max_per_page=100)
 
-        # Build query
-        query = supabase.table('ai_quest_review_queue').select('*', count='exact')
+        # Build query. A factory, not a single builder: fetch_page needs a
+        # fresh one to read the real count back when the requested page starts
+        # past the last row -- PostgREST answers that range with 416, not an
+        # empty page.
+        def build_query():
+            query = supabase.table('ai_quest_review_queue').select('*', count='exact')
 
-        # Apply filters
-        if status and status != 'all':
-            query = query.eq('status', status)
+            # Apply filters
+            if status and status != 'all':
+                query = query.eq('status', status)
 
-        if generation_source:
-            query = query.eq('generation_source', generation_source)
+            if generation_source:
+                query = query.eq('generation_source', generation_source)
 
-        # Order by most recent first
-        query = query.order('submitted_at', desc=True)
+            # Order by most recent first
+            return query.order('submitted_at', desc=True)
 
-        # Pagination
-        start = (page - 1) * per_page
-        end = start + per_page - 1
-        query = query.range(start, end)
-
-        # Execute query
-        response = query.execute()
+        response = fetch_page(build_query, page, per_page)
 
         total_count = response.count if hasattr(response, 'count') else len(response.data)
         total_pages = (total_count + per_page - 1) // per_page

@@ -12,6 +12,7 @@ Provides REST API for reviewing, editing, and AI-generating subject classificati
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
+from utils.pagination import fetch_range
 from services.subject_classification_service import SubjectClassificationService
 from utils.logger import get_logger
 
@@ -214,21 +215,23 @@ def list_tasks_for_review(user_id: str):
         limit = min(int(request.args.get('limit', 20)), 100)
         offset = int(request.args.get('offset', 0))
 
-        # Build query
-        query = admin_supabase.table('user_quest_tasks')\
-            .select('id, title, description, pillar, xp_value, subject_xp_distribution, created_at', count='exact')
+        # Built by a factory so fetch_range can read the real count back when
+        # ?offset= points past the last row -- PostgREST answers that with 416,
+        # not an empty page.
+        def build_query():
+            query = admin_supabase.table('user_quest_tasks')\
+                .select('id, title, description, pillar, xp_value, subject_xp_distribution, created_at', count='exact')
 
-        if status == 'unclassified':
-            # Unclassified: null OR empty object
-            query = query.or_('subject_xp_distribution.is.null,subject_xp_distribution.eq.{}')
-        elif status == 'classified':
-            # Classified: not null AND not empty object
-            query = query.not_.is_('subject_xp_distribution', 'null').neq('subject_xp_distribution', {})
+            if status == 'unclassified':
+                # Unclassified: null OR empty object
+                query = query.or_('subject_xp_distribution.is.null,subject_xp_distribution.eq.{}')
+            elif status == 'classified':
+                # Classified: not null AND not empty object
+                query = query.not_.is_('subject_xp_distribution', 'null').neq('subject_xp_distribution', {})
 
-        # Execute with pagination
-        result = query.order('created_at', desc=True)\
-            .range(offset, offset + limit - 1)\
-            .execute()
+            return query.order('created_at', desc=True)
+
+        result = fetch_range(build_query, offset, limit)
 
         return jsonify({
             'success': True,

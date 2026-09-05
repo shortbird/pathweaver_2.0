@@ -21,6 +21,7 @@ from utils.auth.decorators import require_admin, require_advisor
 
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
+from utils.pagination import fetch_page
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,6 @@ def get_admin_quests(user_id):
         # Get pagination parameters
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 1000)), 2000)  # Default to 1000, max 2000
-        offset = (page - 1) * per_page
 
         # Get filter parameters
         quest_type = request.args.get('quest_type')  # 'optio', 'course', or None for all
@@ -66,48 +66,50 @@ def get_admin_quests(user_id):
         user_org_id = user_record.get('organization_id')
         effective_role = org_role if user_role == 'org_managed' else user_role
 
-        # Build query based on role
+        # Build query based on role. A factory, not a single builder:
+        # fetch_page needs a fresh one if the requested page starts past the
+        # last row (PostgREST answers that range with 416, not an empty page).
         # Select only needed columns to avoid PostgREST payload limits
-        query = supabase.table('quests').select(
-            'id, title, description, big_idea, image_url, header_image_url, '
-            'is_active, is_public, quest_type, created_by, created_at, '
-            'organization_id, topic_primary, topics',
-            count='exact'
-        )
-
-        # Advisors see only their own quests
-        if effective_role == 'advisor':
-            query = query.eq('created_by', user_id)
-        # Org admins see their org's quests + quests they created + the public
-        # Optio library (so visibility-curation still works), but NOT other orgs'
-        # private quests. Previously org_managed users fell through to the
-        # superadmin branch and saw every org's quests.
-        elif effective_role == 'org_admin' and user_org_id:
-            query = query.or_(
-                f'organization_id.eq.{pgrst_uuid(user_org_id, "organization_id")},'
-                f'created_by.eq.{pgrst_uuid(user_id, "user_id")},'
-                f'is_public.eq.true'
+        def build_query():
+            query = supabase.table('quests').select(
+                'id, title, description, big_idea, image_url, header_image_url, '
+                'is_active, is_public, quest_type, created_by, created_at, '
+                'organization_id, topic_primary, topics',
+                count='exact'
             )
 
-        # Apply filters
-        if quest_type:
-            query = query.eq('quest_type', quest_type)
+            # Advisors see only their own quests
+            if effective_role == 'advisor':
+                query = query.eq('created_by', user_id)
+            # Org admins see their org's quests + quests they created + the public
+            # Optio library (so visibility-curation still works), but NOT other orgs'
+            # private quests. Previously org_managed users fell through to the
+            # superadmin branch and saw every org's quests.
+            elif effective_role == 'org_admin' and user_org_id:
+                query = query.or_(
+                    f'organization_id.eq.{pgrst_uuid(user_org_id, "organization_id")},'
+                    f'created_by.eq.{pgrst_uuid(user_id, "user_id")},'
+                    f'is_public.eq.true'
+                )
 
-        if is_active is not None:
-            active_bool = is_active.lower() == 'true'
-            query = query.eq('is_active', active_bool)
+            # Apply filters
+            if quest_type:
+                query = query.eq('quest_type', quest_type)
 
-        if is_public is not None:
-            public_bool = is_public.lower() == 'true'
-            query = query.eq('is_public', public_bool)
+            if is_active is not None:
+                active_bool = is_active.lower() == 'true'
+                query = query.eq('is_active', active_bool)
+
+            if is_public is not None:
+                public_bool = is_public.lower() == 'true'
+                query = query.eq('is_public', public_bool)
+
+            return query.order('created_at', desc=True)
 
         # Get quests with pagination
         # Note: In V3 personalized system, quests don't have quest_tasks (that table is archived)
         # Task counts would need to be calculated from user_quest_tasks if needed
-        quests = query\
-            .order('created_at', desc=True)\
-            .range(offset, offset + per_page - 1)\
-            .execute()
+        quests = fetch_page(build_query, page, per_page)
 
         # Get course connections for all quests
         quest_ids = [q['id'] for q in quests.data]

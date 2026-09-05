@@ -8,6 +8,7 @@ from datetime import datetime
 from flask import request, has_request_context
 from database import get_supabase_admin_singleton
 from utils.logger import get_logger
+from utils.retry_handler import with_connection_retry
 
 logger = get_logger(__name__)
 
@@ -127,17 +128,36 @@ class AccessLogger:
                 # what the accessor looked like when the row was written.
                 data_accessed['accessor_role_raw'] = accessor_role
 
-            # Insert log entry
+            # Insert log entry.
+            #
+            # Retried, because the failure below is silent: the handler returns
+            # False and the request carries on, so a dropped write costs a
+            # disclosure row and nothing else notices. The singleton client
+            # keeps Supabase connections alive between requests, and when the
+            # far end closes one it has already handed out, the next call
+            # through the pool dies with RemoteProtocolError("Server
+            # disconnected") before the request is even sent -- Sentry
+            # OPTIO-BACKEND-84, a parent reading a student's schedule. A second
+            # attempt takes a fresh connection and succeeds.
+            #
+            # A retry can duplicate a row if the disconnect happened after
+            # Postgres accepted the insert. In an append-only audit log that is
+            # the cheap direction to be wrong: a duplicated disclosure is
+            # visible and explainable, a missing one is neither.
             admin_client = get_supabase_admin_singleton()
-            admin_client.table('student_access_logs').insert({
-                'student_id': student_id,
-                'accessor_id': accessor_id,
-                'accessor_role': stored_role,
-                'data_accessed': data_accessed,
-                'purpose': purpose,
-                'ip_address': ip_address,
-                'user_agent': user_agent
-            }).execute()
+            with_connection_retry(
+                lambda: admin_client.table('student_access_logs').insert({
+                    'student_id': student_id,
+                    'accessor_id': accessor_id,
+                    'accessor_role': stored_role,
+                    'data_accessed': data_accessed,
+                    'purpose': purpose,
+                    'ip_address': ip_address,
+                    'user_agent': user_agent
+                }).execute(),
+                max_retries=2,
+                operation_name='access_log_insert',
+            )
 
             logger.info(
                 f"[AccessLogger] Logged access to student {student_id} data",

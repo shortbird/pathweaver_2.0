@@ -12,6 +12,7 @@ from postgrest.exceptions import APIError
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_pattern, pgrst_timestamp
 from utils.storage_urls import sign_in_place
+from utils.pagination import fetch_page
 
 logger = get_logger(__name__)
 
@@ -402,67 +403,68 @@ class UserRepository(BaseRepository):
 
         try:
             per_page = min(per_page, 100)
-            offset = (page - 1) * per_page
-
-            query = self.client.table(self.table_name).select('*', count='exact')
-
             # Advisor filtering - only see assigned students
-            if assigned_student_ids is not None:
-                if len(assigned_student_ids) == 0:
-                    return {
-                        'users': [],
-                        'total': 0,
-                        'page': page,
-                        'per_page': per_page,
-                        'total_pages': 0
-                    }
-                query = query.in_('id', assigned_student_ids)
-                query = query.eq('role', 'student')
+            if assigned_student_ids is not None and len(assigned_student_ids) == 0:
+                return {
+                    'users': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0
+                }
 
-            if filters:
-                # Role filter
-                if filters.get('role') and filters['role'] != 'all' and assigned_student_ids is None:
-                    if filters['role'] == 'org_admin':
-                        query = query.eq('is_org_admin', True)
-                    else:
-                        query = query.eq('role', filters['role'])
+            # A factory, not a single builder: narrowing a filter while holding
+            # a later page asks for an offset past the end, and PostgREST
+            # answers that with 416 rather than an empty page. fetch_page needs
+            # a fresh builder to read the real total back.
+            def build_query():
+                query = self.client.table(self.table_name).select('*', count='exact')
 
-                # Organization filter
-                if filters.get('organization') and filters['organization'] != 'all':
-                    if filters['organization'] == 'none':
-                        query = query.is_('organization_id', 'null')
-                    else:
-                        query = query.eq('organization_id', filters['organization'])
+                if assigned_student_ids is not None:
+                    query = query.in_('id', assigned_student_ids)
+                    query = query.eq('role', 'student')
 
-                # Activity filter
-                if filters.get('activity'):
-                    cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-                    if filters['activity'] == 'active':
-                        query = query.gte('last_login_at', cutoff_date)
-                    elif filters['activity'] == 'inactive':
-                        query = query.or_(
-                            f'last_login_at.lt.{pgrst_timestamp(cutoff_date, "last_login_at")},'
-                            f'last_login_at.is.null'
-                        )
+                if filters:
+                    # Role filter
+                    if filters.get('role') and filters['role'] != 'all' and assigned_student_ids is None:
+                        if filters['role'] == 'org_admin':
+                            query = query.eq('is_org_admin', True)
+                        else:
+                            query = query.eq('role', filters['role'])
 
-                # Search filter
-                if filters.get('search'):
-                    search_term = pgrst_pattern(filters['search'])
-                    if search_term:
-                        query = query.or_(
-                            f'first_name.ilike.%{pgrst_pattern(search_term)}%,'
-                            f'last_name.ilike.%{pgrst_pattern(search_term)}%,'
-                            f'email.ilike.%{pgrst_pattern(search_term)}%'
-                        )
+                    # Organization filter
+                    if filters.get('organization') and filters['organization'] != 'all':
+                        if filters['organization'] == 'none':
+                            query = query.is_('organization_id', 'null')
+                        else:
+                            query = query.eq('organization_id', filters['organization'])
 
-            # Sorting
-            ascending = sort_order == 'asc'
-            query = query.order(sort_by, desc=not ascending)
+                    # Activity filter
+                    if filters.get('activity'):
+                        cutoff_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
+                        if filters['activity'] == 'active':
+                            query = query.gte('last_login_at', cutoff_date)
+                        elif filters['activity'] == 'inactive':
+                            query = query.or_(
+                                f'last_login_at.lt.{pgrst_timestamp(cutoff_date, "last_login_at")},'
+                                f'last_login_at.is.null'
+                            )
 
-            # Pagination
-            query = query.range(offset, offset + per_page - 1)
+                    # Search filter
+                    if filters.get('search'):
+                        search_term = pgrst_pattern(filters['search'])
+                        if search_term:
+                            query = query.or_(
+                                f'first_name.ilike.%{pgrst_pattern(search_term)}%,'
+                                f'last_name.ilike.%{pgrst_pattern(search_term)}%,'
+                                f'email.ilike.%{pgrst_pattern(search_term)}%'
+                            )
 
-            result = query.execute()
+                # Sorting
+                ascending = sort_order == 'asc'
+                return query.order(sort_by, desc=not ascending)
+
+            result = fetch_page(build_query, page, per_page)
             users = result.data or []
 
             # Enrich with organization names

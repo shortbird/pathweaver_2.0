@@ -10,6 +10,7 @@ from database import get_supabase_admin_client
 import json
 
 from utils.logger import get_logger
+from utils.pagination import fetch_range
 
 logger = get_logger(__name__)
 
@@ -116,29 +117,31 @@ class AIQuestReviewService(BaseService):
             # admin client justified: service layer — called from multiple routes; access control is enforced by each calling route's decorators (@require_auth/@require_admin/etc.)
             supabase = get_supabase_admin_client()
 
-            # Build query
-            query = supabase.table('ai_quest_review_queue')\
-                .select('*', count='exact')\
-                .order('submitted_at', desc=True)
+            # Build query. A factory, not a single builder -- fetch_range needs
+            # a fresh one when `offset` starts past the last row, which
+            # PostgREST answers with 416 rather than an empty page.
+            def build_query():
+                query = supabase.table('ai_quest_review_queue')\
+                    .select('*', count='exact')\
+                    .order('submitted_at', desc=True)
 
-            # Apply filters
-            if filters:
-                if 'status' in filters:
-                    query = query.eq('status', filters['status'])
+                # Apply filters
+                if filters:
+                    if 'status' in filters:
+                        query = query.eq('status', filters['status'])
+                    else:
+                        # Default to pending if no status specified
+                        query = query.eq('status', 'pending_review')
+
+                    if 'generation_source' in filters:
+                        query = query.eq('generation_source', filters['generation_source'])
                 else:
-                    # Default to pending if no status specified
+                    # Default to pending reviews
                     query = query.eq('status', 'pending_review')
 
-                if 'generation_source' in filters:
-                    query = query.eq('generation_source', filters['generation_source'])
-            else:
-                # Default to pending reviews
-                query = query.eq('status', 'pending_review')
+                return query
 
-            # Apply pagination
-            query = query.range(offset, offset + limit - 1)
-
-            result = query.execute()
+            result = fetch_range(build_query, offset, limit)
 
             # Parse JSONB fields
             items = []

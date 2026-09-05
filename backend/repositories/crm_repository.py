@@ -29,6 +29,7 @@ from postgrest.exceptions import APIError
 
 from repositories.base_repository import BaseRepository
 from utils.logger import get_logger
+from utils.pagination import fetch_range
 
 logger = get_logger(__name__)
 
@@ -96,11 +97,16 @@ class CrmRepository(BaseRepository):
     def list_suppressions(self, *, search: Optional[str] = None,
                           offset: int = 0, limit: int = 25):
         """(rows, total) for the admin console, newest first."""
-        query = self.client.table(self.table_name).select('*', count='exact')
-        if search:
-            query = query.ilike('email', f'%{search}%')
-        result = (query.order('created_at', desc=True)
-                  .range(offset, offset + limit - 1).execute())
+        # A factory, not a single builder: fetch_range needs a fresh one to
+        # read the real total back when `offset` starts past the last row --
+        # PostgREST answers that range with 416, not an empty page.
+        def build_query():
+            query = self.client.table(self.table_name).select('*', count='exact')
+            if search:
+                query = query.ilike('email', f'%{search}%')
+            return query.order('created_at', desc=True)
+
+        result = fetch_range(build_query, offset, limit)
         return (result.data or []), (result.count or 0)
 
     def find_suppression(self, suppression_id: str) -> Optional[Dict[str, Any]]:

@@ -10,6 +10,7 @@ from repositories.base_repository import BaseRepository, DatabaseError, NotFound
 from postgrest.exceptions import APIError
 
 from utils.logger import get_logger
+from utils.pagination import fetch_page
 from utils.validation.sanitizers import (
     sanitize_search_input,
     pgrst_pattern,
@@ -597,12 +598,11 @@ class QuestRepository(BaseRepository):
 
             # Default ordering: newest first. The explicit order also makes
             # infinite-scroll pagination deterministic (an unordered .range()
-            # can repeat or skip quests between pages).
-            offset = (page - 1) * limit
-            response = build_query()\
-                .order('created_at', desc=True)\
-                .range(offset, offset + limit - 1)\
-                .execute()
+            # can repeat or skip quests between pages). fetch_page turns a page
+            # past the last row into an empty page with the real total, which
+            # is what PostgREST's 416 actually means.
+            response = fetch_page(
+                lambda: build_query().order('created_at', desc=True), page, limit)
 
             return {
                 'quests': response.data if response.data else [],
@@ -986,29 +986,30 @@ class QuestRepository(BaseRepository):
         admin = get_supabase_admin_client()
 
         try:
-            offset = (page - 1) * per_page
             filters = filters or {}
 
-            query = admin.table('quests').select(
-                '*, creator:created_by(id, display_name, first_name, last_name, email)',
-                count='exact'
-            )
+            # A factory, not a single builder -- see get_quests_for_user above.
+            def build_query():
+                query = admin.table('quests').select(
+                    '*, creator:created_by(id, display_name, first_name, last_name, email)',
+                    count='exact'
+                )
 
-            # Advisors see only their own quests
-            if user_role == 'advisor':
-                query = query.eq('created_by', user_id)
+                # Advisors see only their own quests
+                if user_role == 'advisor':
+                    query = query.eq('created_by', user_id)
 
-            # Apply filters
-            if filters.get('quest_type'):
-                query = query.eq('quest_type', filters['quest_type'])
-            if filters.get('is_active') is not None:
-                query = query.eq('is_active', filters['is_active'])
-            if filters.get('is_public') is not None:
-                query = query.eq('is_public', filters['is_public'])
+                # Apply filters
+                if filters.get('quest_type'):
+                    query = query.eq('quest_type', filters['quest_type'])
+                if filters.get('is_active') is not None:
+                    query = query.eq('is_active', filters['is_active'])
+                if filters.get('is_public') is not None:
+                    query = query.eq('is_public', filters['is_public'])
 
-            query = query.order('created_at', desc=True).range(offset, offset + per_page - 1)
+                return query.order('created_at', desc=True)
 
-            result = query.execute()
+            result = fetch_page(build_query, page, per_page)
             quests = result.data or []
 
             # Get course connections

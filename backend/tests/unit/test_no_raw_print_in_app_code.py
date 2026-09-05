@@ -32,7 +32,13 @@ from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2]
 
-EXEMPT_DIRS = {'scripts', 'migrations', 'tests', 'database_migration', '__pycache__'}
+# '.venv' is not app code: a virtualenv checked out under backend/ (this repo
+# has had one since 2026-05-15) put ~886 third-party files -- PIL, werkzeug,
+# pdfminer -- in front of this guard, so the whole suite failed locally for
+# anyone who has one while passing in CI's fresh checkout. A guard that only
+# fails on the developer's machine trains people to ignore it.
+EXEMPT_DIRS = {'scripts', 'migrations', 'tests', 'database_migration',
+               '__pycache__', '.venv', 'venv', 'site-packages', 'node_modules'}
 EXEMPT_FILES = {
     'generate_spec.py',
     'api_spec_generator.py',

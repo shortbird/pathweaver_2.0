@@ -17,7 +17,7 @@ from utils.validation.sanitizers import (
 )
 from utils.logger import get_logger
 from utils.api_response_v1 import paginated_response, error_response, success_response
-from utils.pagination import get_cursor_params, paginate_cursor, build_cursor_meta
+from utils.pagination import get_cursor_params, paginate_cursor, build_cursor_meta, fetch_page
 from utils.student_created import annotate_student_created
 
 logger = get_logger(__name__)
@@ -86,10 +86,6 @@ def list_quests():
         # Log search parameter for debugging
         if search:
             logger.info(f"[SEARCH DEBUG] Search term received: '{search}'")
-
-        # Calculate offset for legacy pagination
-        if not use_cursor_pagination:
-            offset = (page - 1) * per_page
 
         # Build base query with joins for filtering
         # First, we need to filter quests based on their tasks
@@ -237,27 +233,22 @@ def list_quests():
                 build_public_query, page, per_page
             )
         else:
-            # Legacy page/per_page pagination, newest first
-            try:
-                result = build_public_query()\
-                    .order('created_at', desc=True)\
-                    .range(offset, offset + per_page - 1)\
-                    .execute()
-                result_rows, result_count = result.data or [], result.count
-            except Exception as e:
-                # Handle 416 "Requested Range Not Satisfiable" errors
-                if "416" in str(e) or "Requested Range Not Satisfiable" in str(e):
-                    # Return empty results when offset exceeds total count
-                    return paginated_response(
-                        data=[],
-                        page=page,
-                        per_page=per_page,
-                        total=0,
-                        base_url='/api/quests'
-                    )
-                else:
-                    # Re-raise other exceptions
-                    raise e from e
+            # Legacy page/per_page pagination, newest first.
+            #
+            # fetch_page replaces a hand-rolled `except` that could never fire:
+            # it tested `"416" in str(e)` and for the title-cased phrase
+            # "Requested Range Not Satisfiable", but a postgrest APIError
+            # stringifies to its error DICT -- no status code anywhere in it,
+            # and the message is lower-case "Requested range not satisfiable".
+            # So neither branch matched, the error re-raised, and ?page= past
+            # the end 500'd exactly as if the handler were not there. It also
+            # reported total=0, throwing away the count the client needs to get
+            # back to a page that exists.
+            result = fetch_page(
+                lambda: build_public_query().order('created_at', desc=True),
+                page, per_page,
+            )
+            result_rows, result_count = result.data or [], result.count
 
         # Process quest data
         quests = []

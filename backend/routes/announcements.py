@@ -23,6 +23,7 @@ from utils.validation.sanitizers import pgrst_pattern
 from database import get_supabase_admin_client
 from services import announcement_service, sis_service
 from utils.db_fetch import fetch_all_rows
+from utils.pagination import fetch_range
 from utils import rich_text
 from utils.logger import get_logger
 
@@ -636,13 +637,6 @@ def announcements_archive(user_id):
         except (TypeError, ValueError):
             offset = 0
 
-        query = admin.table('announcements')\
-            .select('id, title, message, target_audience, author_id, created_at, '
-                    'source_announcement_id, attachments',
-                    count='exact')\
-            .eq('organization_id', org_id)\
-            .eq('in_app', True)
-
         # Audience visibility: students/parents only see announcements that
         # target their role or the whole org. target_audience is 'everyone' or
         # a comma-joined role list (e.g. 'parents,students').
@@ -652,6 +646,7 @@ def announcements_archive(user_id):
         # own parent/student role even when their staff role would see all.
         if request.args.get('family_view') in ('1', 'true', 'yes'):
             audience_token = _family_audience_token(user_row) or audience_token
+        audience_or = None
         if audience_token:
             # The role token matches only UNTARGETED sends: "parents (1 class;
             # ages 15+)" contains 'parents', and without the is_targeted guard
@@ -668,21 +663,36 @@ def announcements_archive(user_id):
             received = _received_announcement_ids(admin, user_id)
             if received:
                 clauses.append(f'id.in.({",".join(received)})')
-            query = query.or_(','.join(clauses))
+            audience_or = ','.join(clauses)
 
         q = (request.args.get('q') or '').strip()
+        search_or = None
         if q:
             # pgrst_pattern strips the PostgREST filter metacharacters, so the
             # value cannot end the ilike clause and start another one.
             safe = pgrst_pattern(q)
             if safe:
-                query = query.or_(
-                    f'title.ilike.%{pgrst_pattern(safe)}%,'
-                    f'message.ilike.%{pgrst_pattern(safe)}%'
-                )
+                search_or = (f'title.ilike.%{pgrst_pattern(safe)}%,'
+                             f'message.ilike.%{pgrst_pattern(safe)}%')
 
-        result = query.order('created_at', desc=True)\
-            .range(offset, offset + limit - 1).execute()
+        # Built by a factory, not once: fetch_range needs a fresh builder if
+        # ?offset= turns out to start past the last row.
+        def build_query():
+            query = admin.table('announcements')\
+                .select('id, title, message, target_audience, author_id, created_at, '
+                        'source_announcement_id, attachments',
+                        count='exact')\
+                .eq('organization_id', org_id)\
+                .eq('in_app', True)
+            if audience_or:
+                query = query.or_(audience_or)
+            if search_or:
+                query = query.or_(search_or)
+            return query.order('created_at', desc=True)
+
+        # ?offset= is the client's, so it can point past the end of a filtered
+        # archive. PostgREST answers that with 416, not an empty page.
+        result = fetch_range(build_query, offset, limit)
 
         org_name = None
         try:
