@@ -602,7 +602,13 @@ class ClassRepository(BaseRepository):
             if quest is None:
                 quest = {
                     'quest_id': quest_id,
-                    'title': quest_titles.get(quest_id) or 'Self-directed work',
+                    # `quest_id` is Optional off a dict .get, while
+                    # _quest_titles returns Dict[str, str]. Runtime was
+                    # always fine -- a None key just misses and falls to
+                    # the default -- but mypy is right that the lookup
+                    # is untyped. Same result, stated explicitly.
+                    'title': (quest_titles.get(quest_id) if quest_id
+                              else None) or 'Self-directed work',
                     'xp': 0,
                     'tasks': [],
                 }
