@@ -12,7 +12,7 @@ coordinator, every admin (a school may have no coordinator on shift, and a call
 that reaches nobody is worse than no button), and never the caller themselves.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 

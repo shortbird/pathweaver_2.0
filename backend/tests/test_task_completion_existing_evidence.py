@@ -15,7 +15,7 @@ The rule this restores is the one that was always meant: a finished task has
 something behind it. Where that something was attached does not matter.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 

@@ -48,8 +48,13 @@ def _admin_client():
     return admin
 
 
-def _send(board_result={'announcement': {'id': 'board-1'}}, board_raises=False, **over):
+def _send(board_result=None, board_raises=False, **over):
     """POST the composer's body; return (json body, publish mock, board mock)."""
+    # None sentinel rather than a dict literal default (ruff B006): the
+    # default is only ever read here, but a shared mutable default is one
+    # edit away from leaking state between tests.
+    if board_result is None:
+        board_result = {'announcement': {'id': 'board-1'}}
     body = {**BODY, **over}
     board = Mock(side_effect=RuntimeError('board is down')) if board_raises \
         else Mock(return_value=board_result)
