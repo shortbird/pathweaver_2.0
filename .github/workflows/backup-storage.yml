@@ -29,12 +29,18 @@ name: Weekly Storage Backup
 # name) client-side while keeping the sync incremental. Same property the DB
 # job cares about — the bucket only ever holds ciphertext — without the cost.
 #
-# ── FIRST RUN IS MANUAL, ON PURPOSE
+# ── FIRST RUN
 #
-# This job has never run. It needs credentials nobody has created yet (see the
-# "Check configuration" step, which fails by name), and the first sync copies
-# all 7.8 GB. Run it with workflow_dispatch, watch it, then let the schedule
-# take over. Setup is documented in backend/docs/BACKUP_RESTORE.md.
+# Ran for the first time 2026-09-05 and copied 3,545 objects / 8.36 GB, source
+# and destination counts matching exactly. Setup is documented in
+# backend/docs/BACKUP_RESTORE.md.
+#
+# The decryption proof at the end FAILED on that run, and not for any reason to
+# do with the backup: `rclone lsf | head -1` left rclone writing into a closed
+# pipe, and `set -o pipefail` turned the resulting SIGPIPE into exit 141. The
+# archive was complete and correct; the step that checks it was not. Fixed
+# below. Worth remembering as the general hazard of a workflow whose every line
+# has been reviewed and none of it executed.
 
 on:
   schedule:
@@ -223,7 +229,15 @@ jobs:
           RCLONE_CONFIG: /home/runner/rclone.conf
         run: |
           set -euo pipefail
-          SAMPLE="$(rclone lsf secure: --files-only --max-depth 3 | head -1)"
+          # Read the listing into a variable and slice the first line in the
+          # shell, rather than piping to `head`. rclone keeps writing after
+          # `head -1` exits, takes SIGPIPE, and `set -o pipefail` turns that
+          # into exit 141 -- which is exactly how this step failed on its first
+          # real run (2026-09-05) with a complete and correct 3,545-object
+          # backup already sitting in the bucket. The listing is filenames
+          # only, so holding all of it costs nothing.
+          LISTING="$(rclone lsf secure: --files-only --max-depth 3)"
+          SAMPLE="${LISTING%%$'\n'*}"
           if [ -z "$SAMPLE" ]; then
             echo "::error::Could not list a single file back through the crypt remote"
             exit 1

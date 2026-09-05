@@ -1355,7 +1355,7 @@ Log:
 
   ruff clean, mypy clean. Tests: 4825 passed, 160 skipped, 0 failed.
 
-### SEC-16 — Org Stripe keys stored application-readable in plaintext `[NEEDS-USER(set ORG_SECRETS_ENCRYPTION_KEY in prod to switch it on)]`
+### SEC-16 — Org Stripe keys stored application-readable in plaintext `[DONE(key set in prod 2026-09-05; rows encrypt lazily, so verify in a week)]`
 `utils/org_secrets.py:104-128`. Add envelope encryption (Fernet via a Config key)
 with a lazy re-encrypt migration path. Key provisioning itself is NEEDS-USER
 (prod env var); code + tests are autonomous with a dev key.
@@ -1411,6 +1411,24 @@ Log:
   way FLASK_SECRET_KEY_OLD is treated in SEC-14.
 
   ruff clean, mypy clean. Tests: 4834 passed, 160 skipped, 0 failed.
+
+- 2026-09-05: User set ORG_SECRETS_ENCRYPTION_KEY on the prod backend. Checked
+  the table rather than taking the switch-on at face value: all 7 rows are
+  STILL PLAINTEXT (2 stripe_secret_key, 3 calendar_feed_token, 2
+  calendar_feed_token_family). That is the design working, not a failure --
+  re-encryption is lazy, so a row stays in the clear until something next reads
+  it, and a school's Stripe key is only read when that school takes a payment.
+
+  It does mean the table cannot confirm the key is live, and there is a real
+  way for this to be half-done: a Render env var does nothing until the service
+  redeploys, which is exactly how CRON_SECRET took the crons down for two days
+  in July. The prod deploy triggered by today's merge picks it up either way.
+
+  THE CHECK: re-run the state query in a week. Rows still plaintext then means
+  the key is not reaching the app.
+    select name, case when value like 'enc:v1:%' then 'encrypted'
+                      else 'PLAINTEXT' end as state, count(*)
+    from organization_secrets group by 1,2;
 
 ### SEC-17 — 27 unbounded backend deps, no lockfile `[DONE(bounds + guard; a real lock is still open)]`
 `backend/requirements.txt`. Fix: introduce a compiled lock/constraints file
@@ -2822,7 +2840,7 @@ Log:
        file. Until then, run `plan` only. The recipe is in
        supabase/migrations/README.md.
 
-### OPS-04 — Storage objects (student evidence) have no backups `[NEEDS-USER(create 4 secrets + 1 var, then run it once by hand)]`
+### OPS-04 — Storage objects (student evidence) have no backups `[IN PROGRESS(first sync done and count-verified; the decryption proof had a SIGPIPE bug, fixed, awaiting a green re-run)]`
 `backup-db.yml` covers Postgres only and says so. Write a storage-backup workflow
 (rclone/supabase storage API to encrypted archive); wiring its secret into CI is
 NEEDS-USER, the workflow + docs are autonomous.
@@ -2900,6 +2918,33 @@ Log:
   Both are the same class of defect: this workflow has never run, so nothing in
   it has been executed against reality — only reviewed. Worth remembering when
   the first real run happens.
+
+- 2026-09-05: RAN FOR THE FIRST TIME, and the backup itself worked: 3,545
+  objects / 8.36 GB copied, destination count matching source exactly. Every
+  credential-dependent step passed first time -- config, GCP auth, rclone
+  config, and the floor check, which by passing proves the S3 keys authenticate
+  and see real data. The us-west-1 fix from yesterday did its job.
+
+  THE LAST STEP FAILED, AND NOT FOR ANY REASON TO DO WITH THE BACKUP. "Prove
+  one file actually decrypts" exited 141 = 128 + SIGPIPE. `rclone lsf secure:
+  | head -1` leaves rclone writing into a pipe `head` has already closed;
+  `set -o pipefail` promotes that to a step failure. It died on the LISTING,
+  before it ever fetched a byte, so the round-trip was never tested either way.
+
+  Fixed by reading the listing into a variable and slicing the first line with
+  shell parameter expansion -- no pipe, no signal. The filenames alone cost
+  nothing to hold.
+
+  This is the second defect in this file of exactly one kind, after yesterday's
+  region and docs-link bugs: a workflow every line of which had been reviewed
+  and no line of which had been executed. The lesson is not "review harder", it
+  is that an unrun workflow is unverified no matter how carefully it reads.
+
+  STILL OPEN: the decryption round-trip has not passed once. Until it does,
+  8.36 GB of student evidence is sitting in GCS with no proof it can be read
+  back -- which is the specific failure mode client-side encryption has, and
+  the reason the step exists. Re-run and confirm before calling this DONE.
+  A GCS lifecycle rule for the storage/ prefix is also still to be set.
 
 ### OPS-05 — No branch protection / PR gate on `main` `[WONTFIX(direct-push stays; the deploy gate is the real control)]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow
