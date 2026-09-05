@@ -2840,7 +2840,7 @@ Log:
        file. Until then, run `plan` only. The recipe is in
        supabase/migrations/README.md.
 
-### OPS-04 — Storage objects (student evidence) have no backups `[DONE(running, green, and proven to decrypt; the storage/ lifecycle rule is still to be set)]`
+### OPS-04 — Storage objects (student evidence) have no backups `[DONE]`
 `backup-db.yml` covers Postgres only and says so. Write a storage-backup workflow
 (rclone/supabase storage API to encrypted archive); wiring its secret into CI is
 NEEDS-USER, the workflow + docs are autonomous.
@@ -2964,6 +2964,44 @@ Log:
   `storage/` prefix. The workflow never deletes, by design, so retention has to
   be enforced provider-side. Until it exists the prefix grows without bound --
   a cost problem, not a data-safety one, which is the right way round.
+
+- 2026-09-05, retention: set, and it turned up a dated data-loss bug rather
+  than the missing rule I expected.
+
+  The bucket was NOT missing a lifecycle policy. It had one, from 2026-09-01,
+  and it was a single unscoped rule: `{"age": 90, "action": "Delete"}`, with no
+  `matchesPrefix` at all. Written when the bucket held nothing but nightly DB
+  dumps, where age-based expiry is correct.
+
+  Pointing the storage backup at that same bucket put all 3,548 evidence
+  objects under it. Every one would have been DELETED on 2026-12-04 -- 90 days
+  after today's first sync -- with the 7-day soft-delete window as the only
+  recovery, and the weekly job reporting success the whole way. We would have
+  found out by needing a file.
+
+  Why the two prefixes need opposite rules, which is the part worth keeping:
+  `daily/` is dated snapshots, so age means obsolescence. `storage/` is an
+  rclone MIRROR, so an object's age is the age of the BACKUP, not of anything
+  expiring -- the backup of a still-live 2025 video is simply an old object.
+  Age-based expiry there deletes live evidence's only off-site copy. Retention
+  for a mirror has to act on NONCURRENT versions instead.
+
+  Applied: object versioning ON, then three prefix-scoped rules -- daily/ live
+  at 90 days, daily/ noncurrent at 1 day, storage/ noncurrent at 90 days. No
+  rule deletes a live object under storage/, which is the property that
+  matters. The daily/ noncurrent rule is not redundant: under versioning a
+  lifecycle Delete only makes an object noncurrent, so without it the dumps
+  would stop reclaiming space. Read back from the API after applying rather
+  than trusted from the exit code.
+
+  Docs rewritten (backend/docs/BACKUP_RESTORE.md): the old Retention section
+  described only the daily/ rule and the storage section said retention worked
+  by "the same reasoning as the DB job", which reads as the same RULE and is
+  how this trap gets re-set by the next person.
+
+  Third time in three days that this area shipped a defect reviewable on paper
+  and only visible against reality -- region, docs URL, SIGPIPE, now a
+  lifecycle rule nobody re-read after the bucket's contents changed.
 
 ### OPS-05 — No branch protection / PR gate on `main` `[WONTFIX(direct-push stays; the deploy gate is the real control)]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow
