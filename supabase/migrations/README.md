@@ -15,37 +15,62 @@ directory.** Check the object the migration changes.
 
 ## The filenames do not match the applied versions
 
-Measured 2026-09-03 against `supabase_migrations.schema_migrations`:
+Re-measured **2026-09-05** against `supabase_migrations.schema_migrations`:
 
-- 64 files here, and **56 carry a version stamp that differs from the version
-  actually recorded**. Example: `20260903200000_qualify_tables_in_empty_search_path_functions.sql`
-  is recorded as `20260903202528`. The stamps drift because hand-application
-  timestamps the row at apply time, while the filename was written by hand
-  earlier.
-- 3 files appear in no history row at all: the baseline
-  (`20260812000000_baseline_prod_schema`, which restates a schema that predates
-  the current history), plus `20260825120000_hearthwood_hide_pillars` and
-  `20260827150000_announcement_board_link`.
-
-Those last two were checked against production and their effects ARE present —
-the `announcements.source_announcement_id` column exists and both Hearthwood
-orgs carry `hide_pillars: true`. They were applied by hand and never recorded.
-So nothing is missing from production; the HISTORY is incomplete.
+- **67 files.** 66 are well-named; of those, only **5** have a history row whose
+  version equals the filename stamp. **58 carry a drifted stamp** — e.g.
+  `20260903200000_qualify_tables_in_empty_search_path_functions.sql` is recorded
+  as `20260903202528`. Hand-application timestamps the row at apply time; the
+  filename was written by hand earlier.
+- **3 files have no history row at all**: the baseline
+  (`20260812000000_baseline_prod_schema`, which restates a schema predating the
+  current history), `20260825120000_hearthwood_hide_pillars`, and
+  `20260827150000_announcement_board_link`. The last two were checked against
+  production and their effects ARE present. Nothing is missing from production;
+  the HISTORY is incomplete.
+- **`20260824_admin_platform_metrics_daily.sql` has an 8-digit stamp**, not 14.
+  The CLI recognises a migration by a 14-digit version, so this file is not part
+  of the sequence at all — it is skipped rather than applied or tracked. The
+  migration itself IS live, recorded as `20260824233745`. Renaming the file to
+  that version would make the repo honest; read the Perch warning below first.
+- **`security_audit_revoke_trigger_fn_from_public` (`20260814183451`) is applied
+  in production with no file here.** The reverse drift, and the one case where
+  the repo is missing something the database has.
+- 28 history rows have no file. All but the two above are pre-baseline
+  (≤ `20260811`) and live in `../migrations-archive/` — expected after the squash.
 
 ### What that means in practice
 
-`supabase db push` would try to re-run roughly 59 migrations that are already
-applied. Many are `IF NOT EXISTS`-guarded and would be harmless; not all are.
+`supabase db push` decides what is pending by comparing the FILE version against
+`schema_migrations.version`, so today it would attempt **61 migrations that are
+already applied**. Many are `IF NOT EXISTS`-guarded. Not all are.
 **Do not run `db push` against production** until the history is reconciled.
 
-Reconcile by telling the history what is already true, one line per file:
+[`scripts/reconcile_migration_history.sh`](../../scripts/reconcile_migration_history.sh)
+holds the exact list and runs `supabase migration repair --status applied <V>`
+for each. It dry-runs by default and needs `--apply` to write. Nothing is
+executed against the schema — this is bookkeeping only, and it is the safe half
+of OPS-03. It needs the CLI, a `supabase link`, and `SUPABASE_DB_PASSWORD`.
 
-```bash
-supabase migration repair --status applied <version>
-```
+**That list is a measurement, not a constant.** Every migration applied by hand
+since 2026-09-05 adds another drifted row. Re-derive with
+`supabase migration list --linked` before trusting it.
 
-`<version>` is the recorded version, not always the filename stamp — 56 of
-these differ. `supabase migration list --linked` prints both columns.
+### Do not "fix" this by renaming the files
+
+Renaming each file to its recorded version is tidier and is the obvious move.
+It is also how you would apply 58 migrations to production by accident.
+
+Perch stages a ticket by applying the migration files its PR **introduces** —
+`git diff --name-only origin/main...HEAD -- '*supabase/migrations/*.sql'` — to a
+database cloned from production, then the same list to production on merge. A
+rename reads as a new file. Fifty-eight renames inside a PR read as fifty-eight
+new migrations, against a schema that already has them.
+
+A direct push to `main` is invisible to that scan, so renaming is only ever safe
+pushed straight to main — which is a landmine to leave for whoever opens the next
+PR touching this directory. Repairing the history touches no files, so Perch
+never sees it. Prefer the repair.
 
 ### The workflow that applies them
 

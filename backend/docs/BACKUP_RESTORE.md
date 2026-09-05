@@ -147,11 +147,67 @@ the `aws s3` calls this workflow used before 2026-09-01.
 
 ### Retention
 
-Set a **lifecycle rule on the bucket** to expire objects under `daily/` after
-**90 days**. The workflow deliberately does not prune: putting an unattended
-nightly delete on the only off-site copy we have is a bad trade. A provider-side
-lifecycle rule can't be broken by a bug in the workflow, and it fails safe — it
-keeps too much rather than too little.
+Neither workflow prunes: putting an unattended delete on the only off-site copy
+we have is a bad trade. Retention is a provider-side lifecycle rule, which can't
+be broken by a bug in a workflow and fails safe.
+
+**The two prefixes need OPPOSITE rules, and this is the whole subtlety.**
+
+`daily/` is a series of dated snapshots — a new file every night, never
+rewritten. Age-based expiry is exactly right: at 90 days a dump is genuinely
+obsolete.
+
+`storage/` is an **rclone mirror**. Every object there is the backup of a
+file that is *currently live* in Supabase, written to GCS on the sync that first
+saw it and never touched again. Its age is the age of the backup, not of
+anything expiring. **An age-based rule on `storage/` deletes the backup of every
+evidence file older than the threshold, while the file is still live and the
+backup job still reports success.** Retention there has to act on NONCURRENT
+versions, which is what object versioning is for: if something deletes a file in
+Supabase and the next sync propagates that deletion, the superseded version
+survives 90 days and can be restored.
+
+This is not hypothetical. The bucket carried a single unscoped
+`{"age": 90, "action": "Delete"}` rule from 2026-09-01, written when it held only
+DB dumps. Pointing the storage backup at the same bucket silently put all 3,548
+evidence objects on a 90-day timer — they would have been deleted on 2026-12-04,
+recoverable only through the 7-day soft-delete window. Found and fixed
+2026-09-05.
+
+The live policy (`gcloud storage buckets describe gs://optio-prod-db-backups
+--format=json`, key `lifecycle_config`) is:
+
+```json
+{"rule": [
+  {"action": {"type": "Delete"},
+   "condition": {"age": 90, "matchesPrefix": ["daily/"], "isLive": true}},
+  {"action": {"type": "Delete"},
+   "condition": {"daysSinceNoncurrentTime": 1, "matchesPrefix": ["daily/"]}},
+  {"action": {"type": "Delete"},
+   "condition": {"daysSinceNoncurrentTime": 90, "matchesPrefix": ["storage/"]}}
+]}
+```
+
+Object versioning is ON, and the rules depend on it. The middle rule is not
+redundant: with versioning enabled a lifecycle "Delete" makes an object
+noncurrent rather than removing it, so without that rule the `daily/` dumps would
+stop reclaiming space at 90 days. Net effect is ~91-day retention for dumps, and
+for evidence a mirror that is never expired plus a 90-day recovery window on
+anything deleted upstream.
+
+**If you ever rewrite this policy, `--lifecycle-file` REPLACES it wholesale.**
+Read the current one first, and never add a rule whose condition omits
+`matchesPrefix`.
+
+You do not have to remember any of that, though, because the backup job checks
+it. `scripts/check_backup_lifecycle.py` runs as the last step of
+`backup-storage.yml` every week: it reads the live policy and fails the job if
+versioning is off, or if any Delete rule could reach a **live** object under
+`storage/`. It runs AFTER the sync on purpose — a broken retention rule is a
+reason to go red, never a reason to skip a backup. Its logic is unit-tested
+against the real 2026-09-05 policy in
+`backend/tests/unit/test_backup_lifecycle_guard.py`, so a regression fails in
+CI rather than in December.
 
 ### Failure alerting
 
