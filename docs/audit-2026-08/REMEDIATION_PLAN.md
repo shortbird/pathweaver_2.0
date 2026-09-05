@@ -2840,7 +2840,7 @@ Log:
        file. Until then, run `plan` only. The recipe is in
        supabase/migrations/README.md.
 
-### OPS-04 — Storage objects (student evidence) have no backups `[IN PROGRESS(first sync done and count-verified; the decryption proof had a SIGPIPE bug, fixed, awaiting a green re-run)]`
+### OPS-04 — Storage objects (student evidence) have no backups `[DONE(running, green, and proven to decrypt; the storage/ lifecycle rule is still to be set)]`
 `backup-db.yml` covers Postgres only and says so. Write a storage-backup workflow
 (rclone/supabase storage API to encrypted archive); wiring its secret into CI is
 NEEDS-USER, the workflow + docs are autonomous.
@@ -2945,6 +2945,25 @@ Log:
   back -- which is the specific failure mode client-side encryption has, and
   the reason the step exists. Re-run and confirm before calling this DONE.
   A GCS lifecycle rule for the storage/ prefix is also still to be set.
+
+- 2026-09-05, later: GREEN END TO END. Run 33976366181: 3,548 objects /
+  8,355,943,234 bytes at source, 3,548 at destination, and
+  `site-assets/Purple.svg` (656 bytes) pulled back THROUGH the crypt remote and
+  decrypted. That last clause is the one that matters -- it is the first actual
+  evidence that what is in the bucket can be read back, rather than an
+  assumption that it can.
+
+  The SIGPIPE fix was the only thing wrong. Nothing about the credentials, the
+  region, the WIF binding, the crypt keys or the sync needed changing; all of
+  that was right on the very first attempt.
+
+  Weekly schedule (Sundays 09:00 UTC) now takes over unattended, and a failure
+  emails the repo owner because it is a scheduled workflow.
+
+  STILL TO DO, and deliberately not done here: a GCS lifecycle rule on the
+  `storage/` prefix. The workflow never deletes, by design, so retention has to
+  be enforced provider-side. Until it exists the prefix grows without bound --
+  a cost problem, not a data-safety one, which is the right way round.
 
 ### OPS-05 — No branch protection / PR gate on `main` `[WONTFIX(direct-push stays; the deploy gate is the real control)]`
 Direct-push-to-main is the documented workflow. Changing it is a workflow
