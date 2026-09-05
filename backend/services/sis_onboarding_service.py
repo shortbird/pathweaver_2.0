@@ -1139,7 +1139,10 @@ def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]],
     required = [i for i in items if i.get('required')]
     all_done = all(i.get('status') in ('complete', 'approved') for i in required) if required else True
     status = 'complete' if all_done else 'in_progress'
-    payload = {'items': items, 'status': status, 'updated_at': _now()}
+    # Annotated because the initializer alone infers a value type of
+    # Sequence[Collection[str]] (the join of str and List[Dict]), which
+    # then rejects the Optional[str] description below.
+    payload: Dict[str, Any] = {'items': items, 'status': status, 'updated_at': _now()}
     if update_description:
         payload['description'] = description
     row = (_admin().table('sis_onboarding_assignments')
