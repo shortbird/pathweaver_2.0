@@ -956,7 +956,25 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         class_id, student_user_id, actor_id=user_id)
     from services import sis_waitlist_service
     sis_waitlist_service.clear_entry_for_enrollment(org_id, class_id, student_user_id)
+    _reprice_after_change(org_id, student_user_id, user_id)
     return {'enrolled': True}
+
+
+def _reprice_after_change(org_id: str, student_user_id: str,
+                          actor_user_id: Optional[str]) -> None:
+    """Keep an unpaid invoice in step with the classes a student is in.
+
+    Best-effort and deliberately after the enrollment write: the schedule change
+    the family just made must not fail because their bill could not be redrawn.
+    See sis_billing_service.reprice_for_class_change for what it will and will
+    not do with money (98445c62, ad37b8c2).
+    """
+    try:
+        from services import sis_billing_service
+        sis_billing_service.reprice_for_class_change(org_id, student_user_id, actor_user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            f'Could not reprice {student_user_id} after a class change: {e}')
 
 
 def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -> Dict[str, Any]:
@@ -992,6 +1010,8 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         _admin().table('sis_waitlist_entries').delete().eq('id', w['id']).execute()
         dropped = True
 
+    if dropped:
+        _reprice_after_change(org_id, student_user_id, user_id)
     return {'ok': True, 'dropped': dropped}
 
 

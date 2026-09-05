@@ -11,7 +11,7 @@ import ClassRoster from './ClassRoster'
 import ClassWaitlist from './ClassWaitlist'
 import CLASS_TABS from './CLASS_TABS'
 
-const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
+const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
   const [tab, setTab] = useState(initialTab)
   const [previewing, setPreviewing] = useState(false)
   const isOpen = cls.registration_status === 'open'
@@ -70,7 +70,8 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], orgId, init
                 </button>
               </div>
 
-              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms} onClose={onClose} onSubmit={onSubmit} />
+              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms}
+                roomOccupancy={roomOccupancy} onClose={onClose} onSubmit={onSubmit} />
 
               <div className="pt-1">
                 {isArchived ? (

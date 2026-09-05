@@ -133,6 +133,14 @@ export default function SchoolScreen() {
               )}
               {feed !== null && (
                 <ActionChip
+                  icon="calendar-number-outline"
+                  label="Calendar"
+                  onPress={() => push('/(app)/school/calendar')}
+                  testID="school-chip-calendar"
+                />
+              )}
+              {feed !== null && (
+                <ActionChip
                   icon="car-outline"
                   label="Carpool"
                   onPress={() => push('/(app)/school/carpool')}
@@ -166,7 +174,11 @@ export default function SchoolScreen() {
             onSeeAll={() => push('/(app)/school/archive')}
           />
 
-          <ComingUp events={feed?.events || []} />
+          {/* The strip is the glance; the calendar behind it is the month
+              (e223b6db, 2026-09-04: "can we get the calendar to show up on the
+              app?"). */}
+          <ComingUp events={feed?.events || []}
+            onSeeAll={() => push('/(app)/school/calendar')} />
 
           <ClassSchedule organizationId={org?.organization_id} />
 

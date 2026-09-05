@@ -11,7 +11,7 @@
  * quietly omit a field.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 
 import ClassFieldsEditor from './ClassFieldsEditor'
 import { toDraft, draftToPayload } from './classFields'
@@ -239,5 +239,93 @@ describe('the grid earns its space', () => {
     )
     expect(screen.getByRole('option', { name: '2pm' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '3pm' })).toBeInTheDocument()
+  })
+})
+
+/**
+ * iCreate, 2026-09-04 (f9d50612): "on the drop down menu for the rooms, maybe
+ * it can show which ones are already occupied that hour."
+ *
+ * The office assigns rooms one class at a time and had no way to see, at the
+ * moment of choosing, that the room was already spoken for — only afterwards,
+ * on the day.
+ */
+describe('the room picker says what is already in each room', () => {
+  const ROOMS = [{ name: 'Art Room' }, { name: 'Gym' }]
+  // Pottery meets Tuesdays 2–3pm (from CLASS above). Choir is in the Gym at
+  // that hour; Movement is in the Art Room, but on Mondays.
+  const OCCUPANCY = {
+    Gym: [{ class_id: 'other', class_name: 'Choir', day_of_week: 2, start_time: '14:00', end_time: '15:00' }],
+    'Art Room': [{ class_id: 'other2', class_name: 'Movement', day_of_week: 1, start_time: '09:00', end_time: '10:00' }],
+  }
+
+  const withRooms = (over = {}) => setup({ rooms: ROOMS, roomOccupancy: OCCUPANCY, ...over })
+
+  // The primary room select. A second one ("also uses") offers the same rooms,
+  // so every option assertion says which picker it means.
+  const classroom = () => within(screen.getByLabelText('Classroom'))
+
+  it('marks a room busy at the hour this class meets', () => {
+    withRooms()
+    expect(classroom().getByRole('option', { name: /Gym — in use \(Choir\)/ })).toBeInTheDocument()
+  })
+
+  it('leaves a room alone when its booking is on another day', () => {
+    withRooms()
+    expect(classroom().getByRole('option', { name: 'Art Room' })).toBeInTheDocument()
+  })
+
+  it('warns under the select once a busy room is the chosen one', () => {
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Gym' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS} roomOccupancy={OCCUPANCY} />)
+    expect(screen.getByText(/Gym is already booked at this time by Choir\./)).toBeInTheDocument()
+  })
+
+  it('does not count a class against its own room', () => {
+    // Editing Pottery must not report Pottery as the thing in Pottery's way.
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Gym' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS}
+        roomOccupancy={{
+          Gym: [{ class_id: 'c1', class_name: 'Pottery', day_of_week: 2, start_time: '14:00', end_time: '15:00' }],
+        }} />)
+    expect(screen.queryByText(/already booked at this time/)).not.toBeInTheDocument()
+  })
+
+  it('says nothing at all before the class has a time', () => {
+    // With no day or start time there is no "that hour" to answer about, and a
+    // room marked busy against nothing is noise.
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), days_of_week: [], start_time: '' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS} roomOccupancy={OCCUPANCY} />)
+    expect(within(screen.getByLabelText('Classroom')).getByRole('option', { name: 'Gym' }))
+      .toBeInTheDocument()
+  })
+
+  it('offers the other rooms as extra space the class also uses', () => {
+    // iCreate, 2026-09-04 (43625a45): "can we have a way to add more than one
+    // room to a class?" The pottery class is in the art room AND the kiln shed.
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Art Room' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS} roomOccupancy={OCCUPANCY} />)
+    const also = within(screen.getByLabelText('Also uses room'))
+    expect(also.getByRole('option', { name: /Gym/ })).toBeInTheDocument()
+    // Never the room it is already in — a class does not share with itself.
+    expect(also.queryByRole('option', { name: /^Art Room/ })).not.toBeInTheDocument()
+  })
+
+  it('drops a room the class no longer uses', () => {
+    const onChange = vi.fn()
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Art Room', additional_locations: ['Gym'] }}
+        onChange={onChange} staff={STAFF} rooms={ROOMS} roomOccupancy={OCCUPANCY} />)
+    fireEvent.click(screen.getByLabelText('Remove Gym'))
+    expect(onChange).toHaveBeenCalledWith({ additional_locations: [] })
   })
 })

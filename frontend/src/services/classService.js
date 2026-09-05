@@ -168,6 +168,28 @@ const classService = {
   },
 
   /**
+   * Work every student in a class completed inside a date window.
+   *
+   * Counts work from any quest, not only quests assigned to the class — see
+   * the endpoint's docstring. Defaults server-side to the Saturday-to-Friday
+   * week containing today.
+   *
+   * @param {string} orgId - Organization ID
+   * @param {string} classId - Class ID
+   * @param {object} range - { startDate, endDate } as YYYY-MM-DD
+   */
+  getClassActivity: async (orgId, classId, range = {}) => {
+    const params = new URLSearchParams()
+    if (range.startDate) params.append('start_date', range.startDate)
+    if (range.endDate) params.append('end_date', range.endDate)
+    const queryString = params.toString()
+    const response = await api.get(
+      `/api/organizations/${orgId}/classes/${classId}/activity${queryString ? '?' + queryString : ''}`
+    )
+    return response.data
+  },
+
+  /**
    * Enroll one or more students in a class
    * @param {string} orgId - Organization ID
    * @param {string} classId - Class ID

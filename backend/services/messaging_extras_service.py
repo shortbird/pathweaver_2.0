@@ -189,20 +189,52 @@ def toggle_reaction(user_id: str, message_type: str, message_id: str, emoji: str
     return {'added': added, 'reactions': reactions}
 
 
+# How many reactors a pill names before it stops listing them. A thumbs-up from
+# a whole class is a number, not a roll call, and the payload carries one of
+# these per emoji per message.
+MAX_REACTOR_NAMES = 12
+
+
+def _reactor_names(user_ids: set) -> Dict[str, str]:
+    """Display names for the people behind a page of reactions. One query for
+    the whole page — never one per pill."""
+    if not user_ids:
+        return {}
+    try:
+        rows = (_admin().table('users')
+                .select('id, display_name, first_name, last_name')
+                .in_('id', list(user_ids)).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — a name is a nicety; a pill is not
+        logger.warning(f'Could not resolve reactor names: {e}')
+        return {}
+    return {u['id']: (u.get('display_name')
+                      or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip()
+                      or 'Someone') for u in rows}
+
+
 def reactions_for_messages(message_type: str, message_ids: List[str],
                            viewer_id: str) -> Dict[str, List[Dict[str, Any]]]:
-    """message_id -> [{emoji, count, reacted}] aggregated for the viewer."""
+    """message_id -> [{emoji, count, reacted, names}] aggregated for the viewer.
+
+    `names` is who reacted, which a count alone cannot answer — "is there a way
+    to see who reacts with an emoji?" (Nicole Connole, 2026-09-05). The viewer
+    is named as "You" and leads the list, the way every other messenger does it.
+    """
     if not message_ids:
         return {}
     rows = (_admin().table('message_reactions').select('message_id, user_id, emoji')
             .eq('message_type', message_type).in_('message_id', message_ids).execute()).data or []
+    names = _reactor_names({r['user_id'] for r in rows if r.get('user_id')})
     agg: Dict[str, Dict[str, Dict[str, Any]]] = {}
     for r in rows:
         slot = agg.setdefault(r['message_id'], {}).setdefault(
-            r['emoji'], {'emoji': r['emoji'], 'count': 0, 'reacted': False})
+            r['emoji'], {'emoji': r['emoji'], 'count': 0, 'reacted': False, 'names': []})
         slot['count'] += 1
         if r['user_id'] == viewer_id:
             slot['reacted'] = True
+            slot['names'].insert(0, 'You')
+        elif len(slot['names']) < MAX_REACTOR_NAMES:
+            slot['names'].append(names.get(r['user_id'], 'Someone'))
     return {mid: list(per.values()) for mid, per in agg.items()}
 
 

@@ -196,7 +196,7 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />)
-    await screen.findByRole('button', { name: /^Messages/ })
+    await screen.findByRole('button', { name: /^Conversations/ })
     expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
   })
 
@@ -205,7 +205,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />, { route: '/inbox?tab=announcements' })
     expect(await screen.findByText('composer-stub')).toBeInTheDocument()
     // And the tabs switch back to threads.
-    fireEvent.click(screen.getByRole('button', { name: /^Messages/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Conversations/ }))
     expect(screen.queryByText('composer-stub')).not.toBeInTheDocument()
   })
 })

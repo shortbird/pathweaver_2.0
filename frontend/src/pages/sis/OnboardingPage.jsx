@@ -189,13 +189,26 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
                     {item.needs_document && (
                       <div className="mt-1.5 space-y-1">
                         {itemDocuments(item).map((doc) => (
-                          <div key={doc.path} className="flex items-center gap-3">
-                            <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
-                              {doc.filename || 'View document'}
-                            </button>
-                            {!preview && (
-                              <button onClick={() => removeDoc(a.id, item.key, doc)}
-                                className="text-xs text-red-600 hover:underline">Remove</button>
+                          <div key={doc.secure_document_id || doc.path} className="flex items-center gap-3">
+                            {doc.secure_document_id ? (
+                              // The office filed this out of their own store; it
+                              // is not in this person's portal and is not theirs
+                              // to open or take back. Saying so beats a link that
+                              // 403s and a Remove button that does nothing.
+                              <span className="text-sm text-neutral-600">
+                                {doc.title || doc.filename || 'Document'}
+                                <span className="text-xs text-neutral-400"> — on file with the office</span>
+                              </span>
+                            ) : (
+                              <>
+                                <button onClick={() => openDoc(doc.path)} className="text-sm text-optio-purple hover:underline">
+                                  {doc.filename || 'View document'}
+                                </button>
+                                {!preview && (
+                                  <button onClick={() => removeDoc(a.id, item.key, doc)}
+                                    className="text-xs text-red-600 hover:underline">Remove</button>
+                                )}
+                              </>
                             )}
                           </div>
                         ))}
@@ -434,6 +447,52 @@ export const ReviewStrip = ({ orgId, assignments, onChanged }) => {
  * the onboarding roll-up or the Task Center's Assigned tab — can render it. */
 export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }) => {
   const confirm = useConfirm()
+  // The store's documents for this person, fetched once the office first opens
+  // the picker. Null = not asked yet, [] = asked and they hold nothing.
+  const [filed, setFiled] = useState(null)
+  const [attachingKey, setAttachingKey] = useState(null)
+
+  const openAttach = async (itemKey) => {
+    setAttachingKey(itemKey)
+    if (filed !== null) return
+    try {
+      const r = await api.get(withOrg(
+        `/api/sis/staff-admin/onboarding/assignments/${a.id}/attachable-documents`, orgId))
+      setFiled(r.data?.documents || [])
+    } catch {
+      setFiled([])
+      toast.error('Could not load this person\'s documents')
+    }
+  }
+
+  // Filing a document the office already holds against the item it satisfies.
+  // It completes the item in the same breath: an admin who picks the background
+  // check for the "Background check" item has answered the item, and making
+  // them tick it separately is how 14 people stayed "pending" with the document
+  // already on file (c23105fa).
+  const attachFiled = async (itemKey, doc) => {
+    try {
+      await patchAssignmentItem(orgId, a.id, itemKey, {
+        attach_document_id: doc.id, status: 'complete',
+      })
+      toast.success(`Attached ${doc.title}`)
+      setAttachingKey(null)
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not attach the document')
+    }
+  }
+
+  const detach = async (itemKey, doc) => {
+    try {
+      await patchAssignmentItem(orgId, a.id, itemKey, {
+        remove_document: doc.secure_document_id || doc.path,
+      })
+      onChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove the document')
+    }
+  }
 
   const review = async (itemKey, status) => {
     try {
@@ -474,9 +533,14 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
   // that one only signs the staff bucket, and this list also holds family
   // checklists (audience picks the bucket server-side).
   const openItemDoc = async (doc) => {
+    // Two kinds of attachment, two stores. An upload is a blob in the checklist
+    // bucket, addressed by path; a filed document belongs to the secure store
+    // and is signed by its own id — the checklist never holds a copy of it.
+    const url = doc.secure_document_id
+      ? withOrg(`/api/sis/secure-documents/${doc.secure_document_id}/url`, orgId)
+      : withOrg(`/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.path)}&audience=${a.audience || 'staff'}`, orgId)
     try {
-      const r = await api.get(withOrg(
-        `/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.path)}&audience=${a.audience || 'staff'}`, orgId))
+      const r = await api.get(url)
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
     } catch {
       toast.error('Could not open the document')
@@ -515,12 +579,57 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
               </span>
             )}
             {docs.map((doc, i) => (
-              <button key={doc.path} onClick={() => openItemDoc(doc)}
-                className="text-xs text-optio-purple hover:underline"
-                title="Open the document they attached">
-                {doc.filename || (docs.length > 1 ? `Document ${i + 1}` : 'View document')}
-              </button>
+              <span key={doc.secure_document_id || doc.path} className="inline-flex items-center gap-1">
+                <button onClick={() => openItemDoc(doc)}
+                  className="text-xs text-optio-purple hover:underline"
+                  title={doc.secure_document_id
+                    ? 'Open the document the office filed against this item'
+                    : 'Open the document they attached'}>
+                  {doc.title || doc.filename || (docs.length > 1 ? `Document ${i + 1}` : 'View document')}
+                </button>
+                {doc.secure_document_id && (
+                  <button onClick={() => detach(item.key, doc)}
+                    className="text-xs text-neutral-400 hover:text-red-600"
+                    title="Unlink this document — the file stays in Documents">×</button>
+                )}
+              </span>
             ))}
+            {/* The office files a background check in Documents and then finds
+                the person's onboarding still saying "pending" — this is the way
+                back (c23105fa). Only where an attachment is what the item is
+                waiting for, and never on one that is already answered. */}
+            {item.needs_document && item.status === 'pending' && (
+              attachingKey === item.key ? (
+                <span className="inline-flex items-center gap-1">
+                  <select className="text-xs border border-gray-300 rounded px-1.5 py-0.5"
+                    aria-label={`Attach a filed document to ${item.title}`}
+                    defaultValue=""
+                    onChange={(e) => {
+                      const doc = (filed || []).find((d) => d.id === e.target.value)
+                      if (doc) attachFiled(item.key, doc)
+                    }}>
+                    <option value="" disabled>
+                      {filed === null ? 'Loading…'
+                        : filed.length ? 'Choose a document…'
+                          : 'Nothing on file for them'}
+                    </option>
+                    {(filed || []).map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title}{d.category ? ` — ${d.category}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => setAttachingKey(null)}
+                    className="text-xs text-neutral-400 hover:text-neutral-700">Cancel</button>
+                </span>
+              ) : (
+                <button onClick={() => openAttach(item.key)}
+                  className="text-xs text-neutral-500 hover:text-optio-purple hover:underline"
+                  title="Attach a document already filed under this person">
+                  Attach filed document
+                </button>
+              )
+            )}
             <span className="ml-auto flex items-center gap-2">
               {item.signature && (
                 <button onClick={() => clearSignature(item.key, item.signature.name)}

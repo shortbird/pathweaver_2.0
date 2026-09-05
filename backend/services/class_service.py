@@ -308,6 +308,41 @@ class ClassService(BaseService):
         self.validate_required(class_id=class_id)
         return self.class_repo.get_class_progress_bulk(class_id)
 
+    def get_class_activity(
+        self,
+        class_id: str,
+        start_date: str,
+        end_date: str
+    ) -> Dict[str, Any]:
+        """Roster-wide view of the work finished between two dates.
+
+        Answers "what did my students do this week" for the whole class at once,
+        so an advisor running check-ins does not have to open 31 accounts.
+        """
+        self.validate_required(
+            class_id=class_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        if start_date > end_date:
+            raise ValidationError("start_date must not be after end_date")
+
+        students = self.class_repo.get_class_activity(class_id, start_date, end_date)
+
+        return {
+            'start_date': start_date,
+            'end_date': end_date,
+            'students': students,
+            'summary': {
+                'total_students': len(students),
+                'active_students': sum(1 for s in students if s['tasks_completed'] > 0),
+                'total_xp': sum(s['xp'] for s in students),
+                'total_tasks': sum(s['tasks_completed'] for s in students),
+                'total_quests': sum(len(s['quests']) for s in students),
+            }
+        }
+
     # ===== Quest Management =====
 
     def add_quest(

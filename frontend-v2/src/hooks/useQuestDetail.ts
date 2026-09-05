@@ -15,6 +15,18 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { pillars as pillarConfig } from '../config/pillars';
 
+/** A block as the evidence editors hand it over: `type` on the way in,
+ *  `block_type` on the way back out of the database. */
+interface EvidenceBlockInput {
+  type?: string;
+  block_type?: string;
+  content?: unknown;
+}
+
+/** The HTTP status behind an axios-shaped error, if there is one. */
+const statusOf = (err: unknown): number | undefined =>
+  (err as { response?: { status?: number } } | null)?.response?.status;
+
 export interface QuestTask {
   id: string;
   title: string;
@@ -126,12 +138,45 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     // only ever writes the caller's own document, so the on-behalf-of path goes
     // through the task completion endpoint, which takes acting_as_dependent_id
     // and awards the XP to the child.
+    //
+    // The evidence goes on FIRST, through the helper endpoints, which stamp each
+    // block with who attached it. This used to throw the parent's blocks away and
+    // post the literal string "Marked complete by parent" as the evidence — the
+    // completion endpoint demanded something in the form and that was the
+    // cheapest thing to put there. Fifteen of iCreate's completions still carry
+    // that sentence and nothing else, which is what their teacher was reading
+    // when she asked for "evidence required before they can submit" (dc7ccacc).
     let data: any;
     if (studentId) {
+      if (!normalized.length) {
+        throw new Error('Add a photo, a note or a link before marking this done.');
+      }
+      const payload = normalized.map((b: EvidenceBlockInput) => ({
+        block_type: b.type || b.block_type,
+        content: b.content,
+      }));
+      try {
+        await api.post('/api/evidence/helper/upload-for-student/batch', {
+          student_id: studentId,
+          task_id: taskId,
+          blocks: payload,
+        });
+      } catch (err: unknown) {
+        // Same fallback QuestDetailView uses: a backend that predates /batch.
+        if (statusOf(err) !== 404) throw err;
+        for (const block of payload) {
+          await api.post('/api/evidence/helper/upload-for-student', {
+            student_id: studentId,
+            task_id: taskId,
+            block_type: block.block_type,
+            content: block.content,
+          });
+        }
+      }
+      // No evidence_type: the blocks above ARE the evidence, and the completion
+      // endpoint now looks for them rather than insisting the form carry a copy.
       const form = new FormData();
       form.append('acting_as_dependent_id', studentId);
-      form.append('evidence_type', 'text');
-      form.append('text_content', 'Marked complete by parent');
       form.append('is_confidential', 'false');
       ({ data } = await api.post(`/api/tasks/${taskId}/complete`, form));
     } else {

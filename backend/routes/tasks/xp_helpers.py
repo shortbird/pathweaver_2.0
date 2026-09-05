@@ -49,9 +49,25 @@ def get_subject_xp_distribution(task_data: Dict[str, Any], xp_value: int) -> Dic
         diploma_subjects = task_data.get('diploma_subjects')
         if diploma_subjects:
             if isinstance(diploma_subjects, dict):
-                for subject, percentage in diploma_subjects.items():
-                    if isinstance(percentage, (int, float)) and percentage > 0:
-                        subject_xp = int(xp_value * percentage / 100)
+                # Values are treated as relative WEIGHTS, not percentages.
+                # Producers disagree on the unit: normalize_diploma_subjects and
+                # the class override both write raw XP amounts ({'Social Studies':
+                # 150} on a 200 XP task), while older rows carried percentages
+                # summing to 100. Reading amounts as percentages inflated every
+                # multi-subject task, and the sum-to-xp_value correction below
+                # then clawed the overflow out of the LARGEST subject only --
+                # a 200 XP task tagged {'Social Studies': 150, 'Financial
+                # Literacy': 50} credited 100/100 instead of 150/50. Scaling by
+                # share of total is correct under either unit.
+                weights = {
+                    subject: weight
+                    for subject, weight in diploma_subjects.items()
+                    if isinstance(weight, (int, float)) and weight > 0
+                }
+                total_weight = sum(weights.values())
+                if total_weight > 0:
+                    for subject, weight in weights.items():
+                        subject_xp = int(round(xp_value * weight / total_weight))
                         if subject_xp > 0:
                             subject_xp_distribution[subject] = subject_xp
             elif isinstance(diploma_subjects, list) and diploma_subjects:

@@ -100,6 +100,12 @@ const SchoolInboxPage = () => {
   // /api/messages/* answers only for the caller.
   const admin = isSisAdmin(user)
   const [searchParams, setSearchParams] = useSearchParams()
+  // Which threads to show. The office's inbox is a work queue: what it needs to
+  // know first is who is still waiting on a reply, not what arrived most
+  // recently. "A spot for messages to go once they are completed, so that only
+  // new messages that haven't been replied to show" (2ca63bde) and "I don't
+  // have an outbox really" (7fb34ed4) are the two halves of this one control.
+  const [threadView, setThreadView] = useState('open')
   const tab = searchParams.get('tab') === 'announcements' ? 'announcements' : 'messages'
   const setTab = (t) => setSearchParams(t === 'messages' ? {} : { tab: t }, { replace: true })
   const [conversations, setConversations] = useState([])
@@ -122,6 +128,20 @@ const SchoolInboxPage = () => {
   const [pickedPerson, setPickedPerson] = useState('')
   const fileRef = useRef(null)
   const endRef = useRef(null)
+  const draftRef = useRef(null)
+
+  // The reply box grows with what is being written. It was a single fixed line
+  // with resize turned off, so a long reply — which is most of what the office
+  // writes back to a parent — was composed through a one-line window (iCreate,
+  // 2026-09-04: "it would be nice to be able to make the 'reply as' field
+  // expandable!"). Capped, so a very long reply never pushes the conversation
+  // it is answering off the screen; past the cap the box scrolls.
+  useEffect(() => {
+    const el = draftRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+  }, [draft])
 
   // "Me" in a thread: the school for the front office, the teacher themself
   // otherwise.
@@ -270,6 +290,23 @@ const SchoolInboxPage = () => {
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
 
+  // A thread whose last message came from the other person is still owed a
+  // reply. A thread we have not annotated (an older payload, or the lookup
+  // failing) counts as needing one — better to show it than to hide it.
+  // `selfId` is the school for the front office, the teacher themself otherwise.
+  const needsReply = (c) => !c.last_message_sender_id || c.last_message_sender_id !== selfId
+  const openCount = conversations.filter(needsReply).length
+  const shownConversations = conversations.filter((c) => (
+    threadView === 'all' ? true
+      : threadView === 'open' ? needsReply(c)
+        : !needsReply(c)
+  ))
+  const THREAD_VIEWS = [
+    ['open', `Needs a reply${openCount ? ` (${openCount})` : ''}`],
+    ['answered', 'Answered'],
+    ['all', 'All'],
+  ]
+
   const tabClass = (t) => `px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
     tab === t
       ? 'bg-optio-purple text-white border-optio-purple'
@@ -279,7 +316,7 @@ const SchoolInboxPage = () => {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Inbox</h1>
+          <h1 className="text-2xl font-bold text-neutral-900">Messaging</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
             {admin ? (
               <>Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
@@ -295,7 +332,7 @@ const SchoolInboxPage = () => {
 
       <div className="flex gap-2 mb-4">
         <button type="button" onClick={() => setTab('messages')} className={tabClass('messages')}>
-          Messages{totalUnread > 0 ? ` (${totalUnread})` : ''}
+          Conversations{totalUnread > 0 ? ` (${totalUnread})` : ''}
         </button>
         <button type="button" onClick={() => setTab('announcements')} className={tabClass('announcements')}>
           Announcements
@@ -340,6 +377,18 @@ const SchoolInboxPage = () => {
               )}
             </div>
           )}
+          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-100" role="group"
+            aria-label="Filter threads">
+            {THREAD_VIEWS.map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setThreadView(value)}
+                aria-pressed={threadView === value}
+                className={`px-2 py-1 rounded-lg text-xs ${threadView === value
+                  ? 'bg-optio-purple/10 text-optio-purple font-semibold'
+                  : 'text-neutral-500 hover:bg-gray-100'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-40">
@@ -355,8 +404,20 @@ const SchoolInboxPage = () => {
                     : 'When someone messages you, the thread shows up here.'}
                 </p>
               </div>
+            ) : shownConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
+                <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
+                <p className="text-sm font-medium text-neutral-700 mb-1">
+                  {threadView === 'open' ? 'Everything has been answered' : 'Nothing here'}
+                </p>
+                <p className="text-xs text-neutral-500">
+                  {threadView === 'open'
+                    ? 'No thread is waiting on a reply from the school.'
+                    : 'Switch to All to see every thread.'}
+                </p>
+              </div>
             ) : (
-              conversations.map((convo) => {
+              shownConversations.map((convo) => {
                 const isSelected = selected?.id === convo.id
                 const unread = convo.unread_count || 0
                 const name = memberName(convo)
@@ -502,6 +563,7 @@ const SchoolInboxPage = () => {
                     <PaperClipIcon className="w-5 h-5" />
                   </button>
                   <textarea
+                    ref={draftRef}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -512,7 +574,10 @@ const SchoolInboxPage = () => {
                     }}
                     rows={1}
                     placeholder={admin ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
-                    className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple max-h-32"
+                    // resize-y, not resize-none: the auto-grow handles the
+                    // common case, and the drag handle is there for the reply
+                    // somebody wants a bigger window on regardless.
+                    className="flex-1 resize-y overflow-y-auto rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
                   />
                   <button
                     type="submit"

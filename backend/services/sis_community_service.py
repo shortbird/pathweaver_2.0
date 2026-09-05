@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from database import get_supabase_admin_client
 from utils import rich_text
 from utils.logger import get_logger
+from utils import person_name
 from utils.storage_urls import (
     parse_object_ref,
     public_object_url,
@@ -362,6 +363,107 @@ def create_recognition(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[
     }
     row = (_admin().table('sis_recognition').insert(fields).execute()).data
     return {'recognition': row[0] if row else None}
+
+
+def _names_for(user_ids: List[Optional[str]]) -> Dict[str, str]:
+    """Display names for a page of comment authors. One query for the page."""
+    ids = [u for u in set(user_ids) if u]
+    if not ids:
+        return {}
+    try:
+        rows = (_admin().table('users')
+                .select('id, display_name, first_name, last_name, preferred_name')
+                .in_('id', ids).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — a name is a nicety, a comment is not
+        logger.warning(f'Recognition comment author names unavailable: {e}')
+        return {}
+    # One rule for a person's name across the whole SIS — see utils.person_name.
+    return {r['id']: person_name.full_name(r, 'Someone') for r in rows}
+
+
+def _owned_recognition(org_id: str, recognition_id: str) -> bool:
+    rows = (_admin().table('sis_recognition').select('id')
+            .eq('id', recognition_id).eq('organization_id', org_id)
+            .limit(1).execute()).data
+    return bool(rows)
+
+
+def list_recognition_comments(org_id: str, recognition_id: str) -> List[Dict[str, Any]]:
+    """One shout-out's replies, oldest first — a thread is read in the order it
+    was written, unlike the board above it.
+
+    iCreate, 2026-08-31 (d0c7ac4e): "it would be nice to be able to add comments
+    to the shout-outs on Community page for the post recognition." Until now the
+    only way to agree with a shout-out was to write a second one, which buries
+    the first.
+    """
+    if not _owned_recognition(org_id, recognition_id):
+        return []
+    rows = (_admin().table('sis_recognition_comments').select('*')
+            .eq('recognition_id', recognition_id)
+            .eq('organization_id', org_id)
+            .order('created_at').execute()).data or []
+    names = _names_for([r.get('author_id') for r in rows])
+    for r in rows:
+        r['author_name'] = names.get(r.get('author_id'))
+    return rows
+
+
+def comment_counts(org_id: str, recognition_ids: List[str]) -> Dict[str, int]:
+    """{recognition_id: how many replies} for a page of the board. One query —
+    never one per card."""
+    if not recognition_ids:
+        return {}
+    try:
+        rows = (_admin().table('sis_recognition_comments').select('recognition_id')
+                .eq('organization_id', org_id)
+                .in_('recognition_id', recognition_ids).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — a count is decoration; the board is not
+        logger.warning(f'Recognition comment counts unavailable: {e}')
+        return {}
+    out: Dict[str, int] = {}
+    for r in rows:
+        rid = r.get('recognition_id')
+        if rid:
+            out[rid] = out.get(rid, 0) + 1
+    return out
+
+
+def add_recognition_comment(org_id: str, user_id: str, recognition_id: str,
+                            body: Any) -> Dict[str, Any]:
+    text = _text(body)
+    if not text:
+        return {'error': 'Write something first'}
+    if not _owned_recognition(org_id, recognition_id):
+        return {'error': 'Shout-out not found'}
+    row = (_admin().table('sis_recognition_comments').insert({
+        'recognition_id': recognition_id,
+        'organization_id': org_id,
+        'author_id': user_id,
+        'body': text,
+    }).execute()).data
+    comment = row[0] if row else None
+    if comment:
+        comment['author_name'] = _names_for([user_id]).get(user_id)
+    return {'comment': comment}
+
+
+def delete_recognition_comment(org_id: str, user_id: str, comment_id: str,
+                               is_admin: bool) -> Dict[str, Any]:
+    """Take back a comment. Its author always may; an admin may remove anyone's,
+    because the board is the school's noticeboard and somebody has to be able to
+    take a remark down."""
+    rows = (_admin().table('sis_recognition_comments').select('id, author_id')
+            .eq('id', comment_id).eq('organization_id', org_id)
+            .limit(1).execute()).data
+    row = rows[0] if rows else None
+    if not row:
+        return {'error': 'Comment not found'}
+    if not is_admin and row.get('author_id') != user_id:
+        return {'error': 'That is not your comment'}
+    _admin().table('sis_recognition_comments').delete() \
+        .eq('id', comment_id).eq('organization_id', org_id).execute()
+    return {'deleted': True}
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────

@@ -154,7 +154,14 @@ export const SubmitForm = ({ orgId, formTypes, forms = [], onSubmitted, disabled
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [location, setLocation] = useState('')
-  const [assignTo, setAssignTo] = useState('')
+  // Who owns the work. Several people can, and when they do each gets their own
+  // copy to finish and resolve rather than three people sharing one checkbox
+  // ("Can we assign the tasks to multiple people?" — 6944194c, 2026-08-26).
+  const [assignTo, setAssignTo] = useState([])
+  // Money and the class it comes out of, on the two request types that spend a
+  // supply budget (805cb3a3). Everything else never sees these fields.
+  const [amount, setAmount] = useState('')
+  const [budgetClassId, setBudgetClassId] = useState('')
   const [priority, setPriority] = useState('normal')
   const [dueDate, setDueDate] = useState('')
   const [busy, setBusy] = useState(false)
@@ -171,22 +178,33 @@ export const SubmitForm = ({ orgId, formTypes, forms = [], onSubmitted, disabled
         : { organization_id: orgId, form_type: formType,
             title: title.trim() || undefined, body: body.trim(),
             location: location.trim() || undefined }
+      if (SPEND_TYPES.includes(formType)) {
+        if (amount) payload.amount = Number(amount)
+        if (budgetClassId) payload.class_id = budgetClassId
+      }
       if (admin) {
         // The staff-admin create door may assign; a teacher's cannot.
-        await api.post('/api/sis/staff-admin/forms', {
-          ...payload,
-          assigned_to: assignTo || undefined,
-          priority: priority !== 'normal' ? priority : undefined,
-          due_date: dueDate || undefined,
-        })
+        // One row per assignee: each person's copy carries its own status, due
+        // date and resolution, so "did Marika do it?" has an answer that does
+        // not depend on what Molly did. Assigned to nobody, it is still one row.
+        const owners = assignTo.length ? assignTo : [undefined]
+        for (const owner of owners) {
+          await api.post('/api/sis/staff-admin/forms', {
+            ...payload,
+            assigned_to: owner,
+            priority: priority !== 'normal' ? priority : undefined,
+            due_date: dueDate || undefined,
+          })
+        }
       } else {
         await api.post('/api/sis/teacher/forms', payload)
       }
-      toast.success(admin && assignTo
-        ? 'Task created and assigned'
+      toast.success(admin && assignTo.length
+        ? `Task created and assigned to ${assignTo.length} ${assignTo.length === 1 ? 'person' : 'people'}`
         : 'Submitted — your administrator has been notified')
       setTitle(''); setBody(''); setLocation(''); setAnswers({})
-      setAssignTo(''); setPriority('normal'); setDueDate('')
+      setAmount(''); setBudgetClassId('')
+      setAssignTo([]); setPriority('normal'); setDueDate('')
       onSubmitted()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not submit the form')
@@ -240,14 +258,55 @@ export const SubmitForm = ({ orgId, formTypes, forms = [], onSubmitted, disabled
       )}
       {admin && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="text-xs text-neutral-500">
+          <div className="text-xs text-neutral-500">
             Assign to
-            <select aria-label="Assign to" value={assignTo} onChange={(e) => setAssignTo(e.target.value)}
+            {assignTo.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1 mb-1">
+                {assignTo.map((id) => (
+                  <span key={id}
+                    className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-optio-purple">
+                    {staff.find((x) => x.id === id)?.name || 'Someone'}
+                    <button type="button" aria-label={`Remove ${staff.find((x) => x.id === id)?.name || 'person'}`}
+                      onClick={() => setAssignTo((prev) => prev.filter((x) => x !== id))}
+                      className="text-optio-purple/60 hover:text-red-600">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <select aria-label="Assign to" value=""
+              onChange={(e) => {
+                const id = e.target.value
+                if (id) setAssignTo((prev) => (prev.includes(id) ? prev : [...prev, id]))
+              }}
               className={`${inputClass} mt-1`}>
-              <option value="">Nobody yet</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <option value="">{assignTo.length ? 'Add another…' : 'Nobody yet'}</option>
+              {staff.filter((s) => !assignTo.includes(s.id))
+                .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-          </label>
+          </div>
+          {SPEND_TYPES.includes(formType) && (
+            <>
+              {/* What it costs and whose budget it comes out of. Without these
+                  a class's supply budget could only ever say what it started
+                  as, never what is left (805cb3a3). */}
+              <label className="text-xs text-neutral-500">
+                Amount
+                <input type="number" min="0" step="0.01" value={amount}
+                  aria-label="Amount" placeholder="e.g. 42.50"
+                  onChange={(e) => setAmount(e.target.value)}
+                  className={`${inputClass} mt-1`} />
+              </label>
+              <label className="text-xs text-neutral-500">
+                Comes out of
+                <select value={budgetClassId} aria-label="Which class's budget"
+                  onChange={(e) => setBudgetClassId(e.target.value)}
+                  className={`${inputClass} mt-1`}>
+                  <option value="">No particular class</option>
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            </>
+          )}
           <label className="text-xs text-neutral-500">
             Priority
             <select value={priority} onChange={(e) => setPriority(e.target.value)} className={`${inputClass} mt-1 capitalize`}>
@@ -357,6 +416,9 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   // (iCreate, 2026-08-21: "can we reassign tasks from teachers or parents once
   // they come in?").
   const [assignee, setAssignee] = useState('')   // '' any | 'me' | 'none' | user id
+  // Which of the three nouns to show. One queue holds forms, requests and tasks
+  // by design; the type label names the template, not the kind (1b6a63c9).
+  const [kind, setKind] = useState('')
   // A request opened from the task inbox arrives with its id in the URL: expand
   // that row, so the person lands on the row they clicked rather than at the
   // top of a queue and a hunt.
@@ -452,11 +514,13 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   }
 
   const visibleRows = rows.filter((r) => {
+    if (kind && (r.kind || 'form') !== kind) return false
     if (!assignee) return true
     if (assignee === 'none') return !r.assigned_to
     if (assignee === 'me') return r.assigned_to === user?.id
     return r.assigned_to === assignee
   })
+  const kindCount = (k) => rows.filter((r) => (r.kind || 'form') === k).length
 
   const controlClass = 'px-2 py-1.5 border border-gray-300 rounded-lg text-sm'
   const viewCount = (value) => (
@@ -480,6 +544,17 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
             <option value="me">Me</option>
             <option value="none">Nobody yet</option>
             {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-neutral-500 flex items-center gap-1">
+          Kind
+          <select aria-label="Filter by kind" value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm">
+            <option value="">All three</option>
+            {KIND_LABELS.map(([value, label]) => (
+              <option key={value} value={value}>{label} ({kindCount(value)})</option>
+            ))}
           </select>
         </label>
         <div className="flex items-center gap-1" role="group" aria-label="Filter requests">
@@ -517,6 +592,11 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                 className="w-full text-left py-3 flex items-center gap-2 flex-wrap hover:bg-gray-50 rounded-lg px-2 -mx-2">
                 <span className={`text-neutral-400 text-xs shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
                   aria-hidden="true">▶</span>
+                {/* Kind first, then the template. "Request · Add/drop request"
+                    answers "what is this" before "which one". */}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${KIND_STYLES[f.kind] || KIND_STYLES.form}`}>
+                  {KIND_NAME[f.kind] || 'Form'}
+                </span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{f.form_type_label}</span>
                 {f.submitter_role === 'parent' && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple font-medium">Parent</span>
@@ -607,6 +687,19 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
       </ul>
     </div>
   )
+}
+
+// The three nouns, as the office names them (1b6a63c9).
+// The request types that spend a class's supply budget — mirrors
+// sis_forms_service.SPEND_TYPES.
+const SPEND_TYPES = ['supply_request', 'reimbursement']
+
+const KIND_LABELS = [['task', 'Tasks'], ['request', 'Requests'], ['form', 'Forms']]
+const KIND_NAME = { task: 'Task', request: 'Request', form: 'Form' }
+const KIND_STYLES = {
+  task: 'bg-optio-purple/10 text-optio-purple',
+  request: 'bg-amber-100 text-amber-800',
+  form: 'bg-gray-100 text-neutral-600',
 }
 
 const StaffFormsPage = () => {

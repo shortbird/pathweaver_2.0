@@ -157,6 +157,7 @@ const REMAP: [RegExp, string][] = [
   [/^\/school\/?$/, '/(app)/school'],
   [/^\/announcements\/?$/, '/(app)/school'],
   [/^\/absences\/?$/, '/(app)/school/absences'],
+  [/^\/calendar\/?$/, '/(app)/school/calendar'],
 ];
 
 /**

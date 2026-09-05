@@ -4,9 +4,12 @@ Class Student Enrollment Routes
 Endpoints for managing student enrollments in classes.
 """
 
+from datetime import date, timedelta
+
 from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
+from services.base_service import ValidationError
 from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.sis_roles import STAFF_ROLES
@@ -309,4 +312,88 @@ def get_student_progress(user_id, org_id, class_id, student_id):
         return jsonify({
             'success': False,
             'error': 'Failed to get progress'
+        }), 500
+
+
+def _week_containing(day):
+    """The Saturday-to-Friday week `day` falls in.
+
+    Arete Academy runs student check-ins on Fridays, so their week ends on one:
+    a Monday-start week splits the very conversation this view exists to
+    support. Saturday is weekday 5, and (weekday - 5) % 7 is the number of days
+    back to it — 0 on a Saturday, 6 on a Friday.
+    """
+    start = day - timedelta(days=(day.weekday() - 5) % 7)
+    return start, start + timedelta(days=6)
+
+
+@bp.route('/organizations/<org_id>/classes/<class_id>/activity', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def get_class_activity(user_id, org_id, class_id):
+    """
+    What every student in a class completed inside a date window.
+
+    Built so an advisor can run check-ins from one screen instead of opening
+    each student's account. Unlike the progress bar on the Students tab, this
+    counts work from any quest, not only quests assigned to the class — most
+    classes are a roster, not a syllabus.
+
+    Query Parameters:
+    - start_date / end_date: YYYY-MM-DD. Defaults to the Saturday-to-Friday
+      week containing today.
+
+    Returns:
+    {
+        "success": true,
+        "start_date": "2026-08-29",
+        "end_date": "2026-09-04",
+        "students": [
+            {
+                "student_id": "...",
+                "student": { "first_name": "...", ... },
+                "xp": 450,
+                "tasks_completed": 4,
+                "last_activity": "...",
+                "quests": [
+                    { "quest_id": "...", "title": "Marine Biology", "xp": 300,
+                      "tasks": [{ "title": "...", "xp": 100, "pillar": "...",
+                                  "completed_at": "..." }] }
+                ]
+            }
+        ],
+        "summary": { "total_students": 31, "active_students": 6, ... }
+    }
+    """
+    try:
+        effective_roles, user_org_id, _ = get_caller(user_id)
+
+        service = ClassService()
+
+        if not service.can_access_class(class_id, user_id, effective_roles, user_org_id):
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        default_start, default_end = _week_containing(date.today())
+        start_date = request.args.get('start_date') or default_start.isoformat()
+        end_date = request.args.get('end_date') or default_end.isoformat()
+
+        for label, value in (('start_date', start_date), ('end_date', end_date)):
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': f'{label} must be a date in YYYY-MM-DD format'
+                }), 400
+
+        activity = service.get_class_activity(class_id, start_date, end_date)
+
+        return jsonify({'success': True, **activity})
+
+    except ValidationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error getting class activity: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get class activity'
         }), 500

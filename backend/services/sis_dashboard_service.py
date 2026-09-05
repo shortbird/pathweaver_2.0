@@ -61,7 +61,7 @@ from services import sis_attendance_service as attendance
 from services import sis_coordinator_service as coordinator
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
-from services.sis_staff_service import _org_now
+from services.sis_staff_service import _org_now, pinned_links_for
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -240,8 +240,8 @@ def _invoice_totals(org_id: str) -> Dict[str, Any]:
 
 # ── The fan-out ──────────────────────────────────────────────────────────────
 
-def _build_jobs(org_id: str, *, hidden: set, settings: Dict[str, Any], now,
-                sees_hr: bool, sees_all_audiences: bool,
+def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str, Any],
+                now, sees_hr: bool, sees_all_audiences: bool,
                 sees_finance: bool) -> Dict[str, Tuple[Callable[[], Any], Any]]:
     """Every source this caller's dashboard needs, as {name: (build, default)}.
 
@@ -258,6 +258,14 @@ def _build_jobs(org_id: str, *, hidden: set, settings: Dict[str, Any], now,
     jobs: Dict[str, Tuple[Callable[[], Any], Any]] = {
         # The census the old dashboard was, kept whole and demoted to one row.
         'snapshot': (lambda: sis_service.get_dashboard(org_id), None),
+        # The school's permanent links — the noticeboard the office asked for:
+        # "what we need is like a 'bulletin Board' or a widget that allows
+        # admins to post links that can stay up there for a year (or we can
+        # change them out). Announcements is more of a scrolling thing, where
+        # we can't keep things there for them to always see" (2bb829a6,
+        # 2026-08-31). Teachers and coordinators already had this card; the
+        # admins who PIN the links had nowhere that showed them.
+        'pinned_links': (lambda: pinned_links_for(caller_id, org_id), []),
         # Students in no family: a data-quality queue whose usual cause is a
         # duplicate registration. sis_service annotates each with its likely match.
         'students_no_family': (lambda: len(sis_service.unassigned_students(org_id)), None),
@@ -324,7 +332,8 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
                          lambda: sis_service.caller_sees_pay(caller_id), False)
     now = _safe('clock', lambda: _org_now(org_id))
 
-    r = _gather(_build_jobs(org_id, hidden=hidden, settings=settings, now=now,
+    r = _gather(_build_jobs(org_id, caller_id=caller_id, hidden=hidden,
+                            settings=settings, now=now,
                             sees_hr=sees_hr, sees_all_audiences=is_full_admin,
                             sees_finance=sees_finance))
 
@@ -345,6 +354,7 @@ def get_admin_dashboard(org_id: str, caller_id: str) -> Dict[str, Any]:
                   **({'schedule': r['schedule']} if 'schedule' in r else {}),
                   **({'attendance': r['board']} if 'board' in r else {})},
         'events': r.get('events') or [],
+        'pinned_links': r.get('pinned_links') or [],
         # Echoed so the frontend filters tiles with the same sisModules.js that
         # filters the nav, instead of a second copy of the module map here.
         'settings': {

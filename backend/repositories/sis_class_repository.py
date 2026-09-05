@@ -25,6 +25,10 @@ SIS_CLASS_FIELDS = (
     # Whether families see the assistant's name. Staff views ignore it.
     'show_assistants', 'is_visible_to_parents', 'price_cents',
     'billing_type', 'billing_cadence', 'min_age', 'max_age', 'location',
+    # The rest of the space a class takes up, beyond its primary room. Both are
+    # booked for its hour, so the double-booking check reads all of them
+    # (43625a45). `location` stays what every existing reader shows.
+    'additional_locations',
     'waitlist_enabled', 'registration_status', 'requires_full_day',
     # iCreate catalog extras (display-only): a class image + an optional supply fee.
     'image_url', 'supply_fee',

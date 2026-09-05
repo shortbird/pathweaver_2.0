@@ -202,6 +202,9 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
   const [work, setWork] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reminding, setReminding] = useState(false)
+  // One task's description open at a time — the panel is a scan of what a
+  // student still owes, and every description expanded would bury it.
+  const [openTaskId, setOpenTaskId] = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -258,7 +261,8 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
               )}
               <ul className="mt-1 space-y-0.5">
                 {q.tasks.map((t) => (
-                  <li key={t.id} className="text-sm flex items-start gap-2">
+                  <li key={t.id} className="text-sm">
+                    <div className="flex items-start gap-2">
                     <span className={t.done ? 'text-green-600' : 'text-neutral-300'}>
                       {t.done ? '✓' : '○'}
                     </span>
@@ -277,6 +281,27 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
                       <span className={t.done ? 'text-neutral-500 line-through' : 'text-neutral-700'}>
                         {t.title}
                       </span>
+                    )}
+                    {/* What the task actually asks for, one click away. A
+                        finished task's title already goes to the submission, so
+                        the description gets its own control rather than
+                        competing for the same tap (Nicole Connole, 2026-09-04:
+                        "I would like to be able to click on the tasks and be
+                        able to see the description of the task"). */}
+                    {t.description && (
+                      <button type="button"
+                        onClick={() => setOpenTaskId(openTaskId === t.id ? null : t.id)}
+                        aria-expanded={openTaskId === t.id}
+                        aria-label={`What ${t.title} asks for`}
+                        className="ml-auto shrink-0 text-xs text-neutral-400 hover:text-optio-purple">
+                        {openTaskId === t.id ? 'Hide' : 'Details'}
+                      </button>
+                    )}
+                    </div>
+                    {openTaskId === t.id && t.description && (
+                      <p className="ml-6 mt-0.5 mb-1 text-xs text-neutral-600 whitespace-pre-wrap">
+                        {t.description}
+                      </p>
                     )}
                   </li>
                 ))}

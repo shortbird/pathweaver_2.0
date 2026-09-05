@@ -1008,19 +1008,36 @@ def caller_org_roles(user_id: str) -> List[str]:
 
 
 def filter_role_visible(user_id: str, rows: List[Dict[str, Any]],
-                        field: str = 'visible_to_roles') -> List[Dict[str, Any]]:
-    """Drop rows narrowed to roles the caller does not hold.
+                        field: str = 'visible_to_roles',
+                        people_field: str = 'visible_to_user_ids') -> List[Dict[str, Any]]:
+    """Drop rows narrowed away from the caller.
 
-    NULL/empty targets everyone. The admin tier (org_admin, campus coordinator,
-    superadmin) always sees every row — they curate this content, and an admin
-    list that hides what it manages just lies. The filter bites for advisors,
-    which is the point: a teacher does not see the coordinator's opening
-    checklist, and vice versa when a teacher-only row exists.
+    Two independent narrowings, ORed:
+
+      `visible_to_roles`     which KIND of staff this is for
+      `visible_to_user_ids`  which PEOPLE it is for, by name (cf671ff2)
+
+    A row naming Katrine and ticking "Coordinators" reaches Katrine and every
+    coordinator — either control on its own would lead somebody to expect that,
+    and ANDing them would make ticking a second box quietly narrow the first.
+
+    NULL/empty on both targets everyone. The admin tier (org_admin, campus
+    coordinator, superadmin) always sees every row — they curate this content,
+    and an admin list that hides what it manages just lies. The filter bites for
+    advisors, which is the point: a teacher does not see the coordinator's
+    opening checklist, and vice versa when a teacher-only row exists.
     """
     if caller_is_admin(user_id):
         return rows
     held = set(caller_org_roles(user_id))
-    return [r for r in rows if not r.get(field) or held & set(r[field] or [])]
+
+    def _visible(r):
+        roles, people = r.get(field), r.get(people_field)
+        if not roles and not people:
+            return True
+        return bool((roles and held & set(roles)) or (people and user_id in people))
+
+    return [r for r in rows if _visible(r)]
 
 
 def advisor_class_ids(user_id: str, org_id: str) -> List[str]:
@@ -1068,6 +1085,20 @@ def class_scope(user_id: str, org_id: str) -> Optional[List[str]]:
 def org_admin_ids(org_id: str) -> List[str]:
     """User ids of this org's admins (notification recipients for staff events)."""
     return [s['id'] for s in list_org_staff(org_id) if 'org_admin' in s['roles']]
+
+
+def front_office_ids(org_id: str) -> List[str]:
+    """Everyone who runs the campus day to day — admins AND campus coordinators.
+
+    The people a teacher is calling for when they need someone in the room:
+    "we were thinking it would be super helpful to have a Campus Coordinator
+    'call button'? ... this button would send a notification to any campus
+    coordinator role when a teacher needed help in the class" (9d0618f8,
+    2026-08-25). Admins are included because a school may have no coordinator
+    on shift, and a call for help that reaches nobody is worse than no button.
+    """
+    return [s['id'] for s in list_org_staff(org_id)
+            if {'org_admin', 'campus_coordinator'} & set(s['roles'])]
 
 
 def org_admin_emails(org_id: str) -> List[str]:

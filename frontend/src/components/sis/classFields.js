@@ -99,6 +99,11 @@ export const numOrUndef = (v) => (v === '' || v == null ? undefined : Number(v))
 export const toDraft = (c = {}) => {
   const seed = meetingsToForm(c.meetings || [])
   return {
+    // Which class is being edited, where there is one. Not a field — nothing
+    // writes it and draftToPayload names its keys explicitly so it cannot leak
+    // into a save. The editor needs it to tell this class's own bookings apart
+    // from everybody else's when it warns about a room (f9d50612).
+    id: c.id || null,
     name: c.name || '',
     description: c.description || '',
     primary_instructor_id: c.primary_instructor_id || '',
@@ -106,6 +111,7 @@ export const toDraft = (c = {}) => {
     show_assistants: c.show_assistants !== false,
     is_visible_to_parents: c.is_visible_to_parents !== false,
     location: c.location || '',
+    additional_locations: c.additional_locations || [],
     days_of_week: seed.days_of_week,
     start_time: seed.start_time || '',
     duration_minutes: String(seed.duration_minutes || ''),
@@ -132,6 +138,10 @@ export const draftToPayload = (d) => ({
   name: (d.name || '').trim(),
   description: d.description,
   location: (d.location || '').trim() || null,
+  // Rooms beyond the primary one. Empty means "one room", which is every class
+  // that predates the field (43625a45).
+  additional_locations: (d.additional_locations || [])
+    .map((r) => (r || '').trim()).filter(Boolean),
   primary_instructor_id: d.primary_instructor_id || null,
   assistant_instructor_ids: (d.assistant_instructor_ids || []).filter(Boolean),
   show_assistants: !!d.show_assistants,

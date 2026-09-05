@@ -417,7 +417,25 @@ export default function QuestVisibilityManager({ orgId, orgData, onUpdate, siteS
                     )}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-gray-900 text-sm">{quest.title}</span>
+                        {/* The title opens the quest itself, in a new tab. An
+                            org admin curating this list has no other way to see
+                            what an Optio quest actually contains — the row was
+                            clickable only for the org's own quests, and only to
+                            edit them. New tab so a pass through 171 rows does
+                            not lose the page, search and filter you were on. */}
+                        <a
+                          href={`/quests/${quest.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium text-gray-900 text-sm hover:text-optio-purple hover:underline inline-flex items-center gap-1"
+                          title={`View "${quest.title}"`}
+                        >
+                          {quest.title}
+                          <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
                         {isOrgQuest && (
                           <span className="text-xs font-medium text-optio-purple underline">
                             Edit tasks

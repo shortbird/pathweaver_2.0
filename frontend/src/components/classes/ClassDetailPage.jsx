@@ -6,12 +6,14 @@ import {
   UsersIcon,
   BookOpenIcon,
   UserGroupIcon,
+  ChartBarIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import { useAuth } from '../../contexts/AuthContext'
 import ClassSettingsTab from './ClassSettingsTab'
 import ClassStudentsTab from './ClassStudentsTab'
+import ClassActivityTab from './ClassActivityTab'
 import ClassQuestsTab from './ClassQuestsTab'
 import ClassAdvisorsTab from './ClassAdvisorsTab'
 
@@ -20,6 +22,7 @@ import ClassAdvisorsTab from './ClassAdvisorsTab'
  *
  * Tabs:
  * - Students: View enrolled students with progress
+ * - This Week: What the whole roster completed in a Sat-Fri week
  * - Quests: Manage quests assigned to the class
  * - Advisors: Manage advisors (org admin only)
  * - Settings: Edit class details
@@ -109,6 +112,7 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
 
   const tabs = [
     { id: 'students', label: 'Students', icon: UsersIcon, count: classData.student_count },
+    { id: 'activity', label: 'This Week', icon: ChartBarIcon },
     { id: 'quests', label: 'Quests', icon: BookOpenIcon, count: classData.quest_count },
     ...(isOrgAdmin
       ? [{ id: 'advisors', label: 'Teachers', icon: UserGroupIcon, count: classData.advisor_count }]
@@ -133,9 +137,14 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="px-3 py-1 bg-optio-purple/10 text-optio-purple rounded-full text-sm font-medium">
-            {classData.xp_threshold} XP to complete
-          </span>
+          {/* Only when a target is actually set. A class used as a roster
+              rather than a syllabus has no threshold, and "0 XP to complete"
+              reads as a broken number rather than an absent one. */}
+          {classData.xp_threshold > 0 && (
+            <span className="px-3 py-1 bg-optio-purple/10 text-optio-purple rounded-full text-sm font-medium">
+              {classData.xp_threshold} XP to complete
+            </span>
+          )}
           {classData.status === 'archived' && (
             <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">
               Archived
@@ -185,6 +194,13 @@ export default function ClassDetailPage({ classId: propClassId, orgId: propOrgId
             classId={classId}
             classData={classData}
             onUpdate={fetchClassData}
+          />
+        )}
+        {activeTab === 'activity' && (
+          <ClassActivityTab
+            orgId={orgId}
+            classId={classId}
+            className={classData.name}
           />
         )}
         {activeTab === 'quests' && (

@@ -805,6 +805,48 @@ def org_events(user_id):
     return jsonify({'success': True, 'events': events})
 
 
+@bp.route('/events/<event_id>/rsvp', methods=['GET'])
+@require_auth
+@require_module('calendar')
+def my_event_rsvp(user_id, event_id):
+    """This family's own reply to an event, if they have made one."""
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    from services import sis_event_rsvp_service as rsvps
+    household_id = rsvps.household_of(user_id, org_id)
+    return jsonify({'success': True,
+                    'rsvp': rsvps.my_rsvp(org_id, event_id, household_id)})
+
+
+@bp.route('/events/<event_id>/rsvp', methods=['POST'])
+@require_auth
+@require_module('calendar')
+def respond_to_event(user_id, event_id):
+    """A family says whether they are coming, and how many of them.
+
+    iCreate, 2026-08-28 (9cf78e9a): "the ability to add a form for collecting
+    RSVPs and payments to the calendar events would be good." A fee, where the
+    event carries one, is raised as an ordinary family charge — see
+    sis_event_rsvp_service.
+    """
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    data = request.get_json() or {}
+    from services import sis_event_rsvp_service as rsvps
+    household_id = rsvps.household_of(user_id, org_id)
+    result = rsvps.respond(
+        org_id, event_id, user_id, household_id,
+        attending=bool(data.get('attending', True)),
+        party_size=data.get('party_size', 1),
+        note=data.get('note'))
+    if result.get('error'):
+        status = 404 if result['error'] == 'Event not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/events/feed', methods=['GET'])
 @require_auth
 @require_module('calendar')

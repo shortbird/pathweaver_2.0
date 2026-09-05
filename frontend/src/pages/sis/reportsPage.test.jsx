@@ -539,3 +539,50 @@ describe('Tiered report sort helper functions', () => {
     expect(compareCells('tuition', '$365.00', '$1,200.00')).toBeLessThan(0)
   })
 })
+
+/**
+ * iCreate, 2026-08-26 (1fc5012b): "Can we get a way to know who is leaving
+ * halfdays, etc." — and 2026-09-01 (48da8820): "Can we have an option to print
+ * an entire day instead of just a block?"
+ */
+describe('a day, read the way the office reads it', () => {
+  const DAY = {
+    key: '2', label: 'Tuesday', student_count: 2,
+    slots: [{ slot: 'Block 1', classes: [] }],
+    departures: [
+      { name: 'Ada Lovelace', family: 'Lovelace', leaves_at: '12:30pm', early: true },
+      { name: 'Bo Diddley', family: 'Diddley', leaves_at: '3:00pm', early: false },
+    ],
+  }
+
+  it('names who goes home before the end of the day', () => {
+    render(<DayRosters days={[DAY]} />)
+    fireEvent.click(screen.getByText(/Going home/))
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    expect(screen.getByText('12:30pm')).toBeInTheDocument()
+  })
+
+  it('counts only the early leavers, not everyone with an end time', () => {
+    render(<DayRosters days={[DAY]} />)
+    expect(screen.getByText(/1 before the end of the day/)).toBeInTheDocument()
+  })
+
+  it('says nothing at all on a day nobody is enrolled for', () => {
+    render(<DayRosters days={[{ ...DAY, departures: [] }]} />)
+    expect(screen.queryByText(/Going home/)).not.toBeInTheDocument()
+  })
+
+  it('prints a whole day of blocks, not one block at a time', () => {
+    const printed = []
+    const original = document.getElementById.bind(document)
+    vi.spyOn(document, 'getElementById').mockImplementation((id) => {
+      printed.push(id)
+      return original(id)
+    })
+    render(<BlockRosters days={[{ key: '2', label: 'Tuesday', blocks: [] }]}
+      day="2" onDayChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Print all of Tuesday' }))
+    expect(printed).toContain('sis-blocks-2')
+    document.getElementById.mockRestore()
+  })
+})

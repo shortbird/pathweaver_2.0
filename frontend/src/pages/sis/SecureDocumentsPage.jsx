@@ -37,6 +37,14 @@ export const SecureDocumentsPanel = ({ orgId }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('')
+  // Which column the table is ordered by, and which way. Newest-first is the
+  // store's own order and stays the default; the office reads it the other ways
+  // when it is working THROUGH something rather than looking at what just
+  // arrived — "I need to go check each person's i9 and w4 forms and transfer
+  // info into the new payroll system ... if submissions were organized by type
+  // or person, that would help a lot" (iCreate, 2026-09-05).
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   // Upload form state
   const [file, setFile] = useState(null)
@@ -96,12 +104,44 @@ export const SecureDocumentsPanel = ({ orgId }) => {
 
   const filteredDocs = useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return docs
-    return docs.filter((d) => (
-      `${d.title || ''} ${d.filename || ''} ${d.category || ''} ${d.owner_name || ''} ${d.student_name || ''} ${d.uploaded_by_name || ''}`
-        .toLowerCase().includes(q)
-    ))
-  }, [docs, filter])
+    const matched = q
+      ? docs.filter((d) => (
+        `${d.title || ''} ${d.filename || ''} ${d.category || ''} ${d.owner_name || ''} ${d.student_name || ''} ${d.uploaded_by_name || ''}`
+          .toLowerCase().includes(q)
+      ))
+      : docs
+    // Blanks sort last whichever way the column runs: a document with no
+    // category is not the first thing you want when you asked for categories.
+    const text = (v) => (v || '').toString()
+    const value = {
+      name: (d) => text(d.title || d.filename),
+      person: (d) => text(d.student_name || d.owner_name),
+      type: (d) => text(d.category),
+      date: (d) => text(d.created_at),
+    }[sortKey] || (() => '')
+    const flip = sortDir === 'desc' ? -1 : 1
+    return [...matched].sort((a, b) => {
+      const [x, y] = [value(a), value(b)]
+      if (!x !== !y) return x ? -1 : 1
+      const cmp = sortKey === 'date'
+        ? x.localeCompare(y)
+        : x.localeCompare(y, undefined, { sensitivity: 'base' })
+      // Same person, same category — newest of theirs first, so the secondary
+      // order is never arbitrary.
+      return (cmp * flip) || text(b.created_at).localeCompare(text(a.created_at))
+    })
+  }, [docs, filter, sortKey, sortDir])
+
+  // Clicking a header sorts by it; clicking the one already sorted reverses it.
+  const sortBy = useCallback((key) => {
+    setSortKey((prev) => {
+      setSortDir((dir) => (prev === key ? (dir === 'asc' ? 'desc' : 'asc')
+        // A fresh column opens the way that column is usually read: dates
+        // newest-first, names and people from A.
+        : key === 'date' ? 'desc' : 'asc'))
+      return key
+    })
+  }, [])
 
   const handleUpload = useCallback(async (e) => {
     e.preventDefault()
@@ -181,6 +221,27 @@ export const SecureDocumentsPanel = ({ orgId }) => {
   }, [orgId, docName])
 
   const aboutLabel = (d) => d.student_name || d.owner_name || '—'
+
+  // A sortable column header. Category has no column of its own (it rides under
+  // the document name and 2026-08-31 took that width away for the Actions
+  // column), so it is offered on the toolbar's Sort select instead — the two
+  // controls write the same state, so they cannot disagree.
+  const SortHeader = ({ label, sortKey: key, hint }) => {
+    const active = sortKey === key
+    return (
+      <th className="py-3 px-4 font-semibold text-neutral-700">
+        <button type="button" onClick={() => sortBy(key)}
+          aria-label={`Sort by ${hint}`}
+          aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+          className={`inline-flex items-center gap-1 hover:text-optio-purple ${active ? 'text-optio-purple' : ''}`}>
+          {label}
+          <span aria-hidden="true" className="text-xs">
+            {active ? (sortDir === 'asc' ? '\u2191' : '\u2193') : '\u2195'}
+          </span>
+        </button>
+      </th>
+    )
+  }
 
   // Sharing is per document and off by default — this store holds background
   // checks, so visibility to the person a file is about is always a decision
@@ -441,13 +502,29 @@ export const SecureDocumentsPanel = ({ orgId }) => {
           <section>
             <div className="flex items-center justify-between mb-3 gap-4">
               <h2 className="font-semibold text-neutral-900">Documents</h2>
-              <input
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter documents…"
-                className="w-64 max-w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter documents…"
+                  className="w-64 max-w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                />
+                <label className="text-sm text-neutral-600 flex items-center gap-1.5 whitespace-nowrap">
+                  Sort
+                  <select
+                    value={sortKey}
+                    aria-label="Sort documents"
+                    onChange={(e) => sortBy(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+                  >
+                    <option value="date">Date</option>
+                    <option value="person">Person</option>
+                    <option value="type">Type</option>
+                    <option value="name">Name</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             {loading && <p className="text-neutral-500">Loading…</p>}
@@ -520,11 +597,14 @@ export const SecureDocumentsPanel = ({ orgId }) => {
                       {/* Six columns, down from nine (iCreate, 2026-08-31: the
                           actions were pushed off-screen). Category rides under
                           the document name, sharing and signature share one
-                          cell, and who uploaded it is the date's tooltip. */}
-                      <th className="py-3 px-4 font-semibold text-neutral-700">Document</th>
-                      <th className="py-3 px-4 font-semibold text-neutral-700">About</th>
+                          cell, and who uploaded it is the date's tooltip.
+                          Document, About and Date sort; Sharing and Actions are
+                          not orders anybody reads the store in, and Type sorts
+                          from the toolbar because it has no column. */}
+                      <SortHeader label="Document" sortKey="name" hint="name" />
+                      <SortHeader label="About" sortKey="person" hint="person" />
                       <th className="py-3 px-4 font-semibold text-neutral-700">Sharing</th>
-                      <th className="py-3 px-4 font-semibold text-neutral-700">Date</th>
+                      <SortHeader label="Date" sortKey="date" hint="date" />
                       <th className="py-3 px-4 font-semibold text-neutral-700 text-right">Actions</th>
                     </tr>
                   </thead>

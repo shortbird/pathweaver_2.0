@@ -137,6 +137,34 @@ def create_announcement(user_id):
             return jsonify({'success': False,
                             'error': 'Pick at least one way to deliver it'}), 400
 
+        # The third place a notice can land: the Community board, which until now
+        # could only be posted to from the Community page — a separate composer
+        # for the same act.
+        #
+        #   "Messaging would really just mean any time we want to communicate —
+        #    whether it be to make a school wide announcement, a class message
+        #    but only for half the class 14+, or a message to an individual ...
+        #    I think we may be getting confused with messaging and
+        #    announcements?" (ce12a041, 2026-09-02)
+        #
+        # The board row is created FIRST so its id can anchor the send, which is
+        # what makes a later edit or delete on the board reach both halves of
+        # what a family sees as one notice (announcement_service.revise_for_source).
+        # Best-effort: a board that refuses must not swallow the send.
+        board_id = None
+        if data.get('post_to_board'):
+            try:
+                from services import sis_community_service
+                posted = sis_community_service.create_announcement(
+                    org_id, user_id,
+                    # No notify_audiences: the fan-out is the publish below.
+                    # Passing both would send the same notice twice.
+                    {'title': title, 'body': content,
+                     'pinned': bool(data.get('pin_on_board'))})
+                board_id = ((posted or {}).get('announcement') or {}).get('id')
+            except Exception as e:  # noqa: BLE001
+                logger.error(f'Announcement board post failed: {e}', exc_info=True)
+
         result = announcement_service.publish(
             org_id, user_id, title, content, audiences,
             student_ids=student_ids, send_email=send_email, send_app=send_app,
@@ -144,9 +172,10 @@ def create_announcement(user_id):
             # Pre-uploaded via POST /api/messages/attachments; the service
             # cleans the list down to known fields.
             attachments=data.get('attachments'),
+            source_announcement_id=board_id,
             target_label=announcement_service.target_label(
                 audiences, class_ids, teacher_ids, min_age, max_age))
-        return jsonify({'success': True, **result})
+        return jsonify({'success': True, 'posted_to_board': bool(board_id), **result})
 
     except Exception as e:
         logger.error(f"Error creating announcement: {e}")

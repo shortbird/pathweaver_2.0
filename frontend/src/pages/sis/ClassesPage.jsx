@@ -59,6 +59,15 @@ const conflictText = (c) => {
   return `${c.teacher_name} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
 }
 
+// The same sentence about a room. iCreate, 2026-09-04: "can we have a way to add
+// more than one room to a class? And a room conflict notice would be good."
+const roomConflictText = (c) => {
+  const when = c.start_time && c.end_time
+    ? `both meet ${c.day_of_week != null ? `${DOW_FULL[c.day_of_week]}s ` : ''}${fmt12ap(c.start_time)}–${fmt12ap(c.end_time)}`
+    : 'meet at the same time'
+  return `${c.room} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
+}
+
 const ClassesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
@@ -73,6 +82,10 @@ const ClassesPage = () => {
   const [courseTuition, setCourseTuition] = useState(null)  // org-wide tuition (cents) for all Optio courses
   const [loading, setLoading] = useState(true)
   const [teacherConflicts, setTeacherConflicts] = useState([]) // advisory double-booking rows
+  const [roomConflicts, setRoomConflicts] = useState([])       // ...and the same for rooms
+  // {room name: [{class_name, day_of_week, start_time, end_time}]} — what the
+  // room picker consults to say which rooms are already taken at an hour.
+  const [roomOccupancy, setRoomOccupancy] = useState({})
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)     // class being edited
   const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
@@ -131,10 +144,13 @@ const ClassesPage = () => {
       // is authorized as themselves.
       api.get(withOrg('/api/sis/schedule-settings', orgId)).catch(() => ({ data: {} })),
       api.get(withOrg('/api/sis/teacher-conflicts', orgId)).catch(() => ({ data: {} })),
+      api.get(withOrg('/api/sis/room-schedule', orgId)).catch(() => ({ data: {} })),
     ])
-      .then(([cls, crs, stf, ct, sched, tc]) => {
+      .then(([cls, crs, stf, ct, sched, tc, rs]) => {
         setClasses(cls.data?.classes || [])
         setTeacherConflicts(tc.data?.conflicts || [])
+        setRoomConflicts(rs.data?.conflicts || [])
+        setRoomOccupancy(rs.data?.occupancy || {})
         const all = crs.data?.courses || []
         setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
         setStaff(stf.data?.staff || [])
@@ -179,10 +195,24 @@ const ClassesPage = () => {
     } catch { /* advisory only */ }
   }
 
+  // The room half of the same cross-check. Refreshes the picker's occupancy at
+  // the same time, so the next class edited sees the room it just took.
+  const warnIfRoomDoubleBooked = async (classId) => {
+    try {
+      const r = await api.get(withOrg('/api/sis/room-schedule', orgId))
+      const conflicts = r.data?.conflicts || []
+      setRoomConflicts(conflicts)
+      setRoomOccupancy(r.data?.occupancy || {})
+      const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      if (hit) toast(roomConflictText(hit), { icon: '⚠️', duration: 10000 })
+    } catch { /* advisory only */ }
+  }
+
   const classBody = (payload) => ({
     name: payload.name,
     description: payload.description,
     location: payload.location ?? null,
+    additional_locations: payload.additional_locations ?? null,
     primary_instructor_id: payload.primary_instructor_id ?? null,
     capacity: payload.capacity ?? null,
     price_cents: payload.price_cents ?? null,
@@ -223,7 +253,7 @@ const ClassesPage = () => {
       toast.success('Class created')
       setCreating(false)
       load()
-      if (id) warnIfTeacherDoubleBooked(id)
+      if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not create class')
     }
@@ -238,6 +268,7 @@ const ClassesPage = () => {
       toast.success('Class updated')
       load(true)  // silent — keep the table mounted so scroll position is preserved
       warnIfTeacherDoubleBooked(cls.id)
+      warnIfRoomDoubleBooked(cls.id)
       return true
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not update class')
@@ -287,7 +318,7 @@ const ClassesPage = () => {
       load(true)
       // A copy shares the original's teacher and times, so it usually IS a
       // double-booking until the schedule is edited — say so up front.
-      if (id) warnIfTeacherDoubleBooked(id)
+      if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not duplicate class')
     }
@@ -585,6 +616,22 @@ const ClassesPage = () => {
         </div>
       )}
 
+      {/* Room double-booking — the same advisory as the teacher check above.
+          Separate banner rather than one merged list: they are fixed by
+          different edits, and by different people. */}
+      {tab === 'classes' && roomConflicts.length > 0 && (
+        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-semibold mb-1">
+            Room double-booked
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {roomConflicts.map((c) => (
+              <li key={`${c.room}-${c.class_a_id}-${c.class_b_id}`}>{roomConflictText(c)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Optio-course billing notice — Optio invoices the school per enrollment */}
       {tab === 'courses' && (
         <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
@@ -624,7 +671,7 @@ const ClassesPage = () => {
           classes={tableClasses}
           staff={staff}
           timeBlocks={timeBlocks}
-          rooms={rooms}
+          rooms={rooms} roomOccupancy={roomOccupancy}
           onSave={saveClass}
           onToggleRegistration={toggleRegistration}
           onOpen={openEditor}
@@ -659,14 +706,15 @@ const ClassesPage = () => {
       )}
 
       {creating && (
-        <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms} onClose={() => setCreating(false)} onSubmit={handleCreate} />
+        <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms}
+          roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate} />
       )}
       {editing && (
         <ClassDetailModal
           cls={classes.find((c) => c.id === editing.id) || editing}
           staff={staff}
           timeBlocks={timeBlocks}
-          rooms={rooms}
+          rooms={rooms} roomOccupancy={roomOccupancy}
           orgId={orgId}
           initialTab={editTab}
           onClose={() => setEditing(null)}

@@ -99,6 +99,25 @@ export const AttachmentList = ({ attachments, light = false }) => {
   )
 }
 
+/**
+ * "Sam Lee, Kate Myers and 3 others" — who is behind a reaction pill.
+ *
+ * A count says how many; the question asked was who (iCreate, 2026-09-05: "is
+ * there a way to see who reacts with an emoji?"). The server sends up to a
+ * dozen names, so a pill on a class-wide thumbs-up still reads as a sentence
+ * rather than a roster.
+ */
+export const reactorSummary = (r) => {
+  const names = r?.names || []
+  // No names is not "nobody": a message loaded before the server sent them, or
+  // a cached payload. The pill says what it always said rather than inventing.
+  if (!names.length) return ''
+  const extra = (r.count || names.length) - names.length
+  const listed = names.length === 1 ? names[0]
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return extra > 0 ? `${listed} and ${extra} other${extra === 1 ? '' : 's'}` : listed
+}
+
 /** Row of reaction pills under a bubble. Own reactions get an optio-purple ring. */
 export const ReactionsRow = ({ reactions, onToggle, align = 'start' }) => {
   const visible = (reactions || []).filter((r) => r.count > 0)
@@ -111,7 +130,12 @@ export const ReactionsRow = ({ reactions, onToggle, align = 'start' }) => {
           type="button"
           onClick={() => onToggle?.(r.emoji)}
           aria-pressed={!!r.reacted}
-          aria-label={`${r.emoji} ${r.count}`}
+          // Hover on a mouse, and read out by a screen reader — the two ways
+          // the names are reachable without a tap target of their own.
+          title={reactorSummary(r) ? `${reactorSummary(r)} reacted with ${r.emoji}` : undefined}
+          aria-label={reactorSummary(r)
+            ? `${r.emoji} ${r.count} — ${reactorSummary(r)}`
+            : `${r.emoji} ${r.count}`}
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border bg-white text-xs transition-colors ${
             r.reacted
               ? 'border-optio-purple ring-1 ring-optio-purple text-optio-purple'

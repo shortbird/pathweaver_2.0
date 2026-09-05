@@ -12,6 +12,7 @@ import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
+import SubstituteSheet from '../../components/sis/SubstituteSheet'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -72,6 +73,27 @@ const TeacherClassPage = () => {
   const [marks, setMarks] = useState({})
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)  // Print / export roster modal
+  // One page to hand somebody covering the class — students, room, and what
+  // they are working on (7effb6a2). Not an account: a sub is often not in the
+  // system, and one who will be around a while goes on as an assistant teacher.
+  const [subSheet, setSubSheet] = useState(false)
+  const [calling, setCalling] = useState(false)
+
+  // Deliberately no confirm dialog: somebody who needs a person in the room
+  // should not have to answer a question first. The toast names how many were
+  // reached, so an accidental tap is visible and can be waved off in person.
+  const callForHelp = async () => {
+    setCalling(true)
+    try {
+      const { data } = await api.post(`/api/sis/classes/${classId}/call-for-help`, {})
+      const n = data?.notified || 0
+      toast.success(n
+        ? `Called ${n} ${n === 1 ? 'person' : 'people'} in the front office`
+        : 'Nobody in the front office to call — tell the office directly')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not send that')
+    } finally { setCalling(false) }
+  }
   // Which student's health alert is expanded. Hover-only tooltips were
   // unreadable on touch and unreliable on desktop, so the badge is a button.
   const [alertFor, setAlertFor] = useState(null)
@@ -133,15 +155,35 @@ const TeacherClassPage = () => {
           <Link to="/my-classes" className="text-sm text-optio-purple hover:underline">← My Classes</Link>
           <h1 className="text-2xl font-bold text-neutral-900">{cls?.name || 'Class'}</h1>
         </div>
-        <button onClick={() => setExporting(true)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
-          <PrinterIcon className="w-4 h-4" /> Print / export roster
-        </button>
+        <div className="flex items-center gap-2">
+          {/* A hand raised from the room. iCreate, 2026-08-25 (9d0618f8): "it
+              would be super helpful to have a Campus Coordinator 'call
+              button'... when a teacher needed help in the class." It rings the
+              front office's bell and pushes to their phone — the surface they
+              already watch — rather than adding one they would have to learn. */}
+          <button onClick={callForHelp} disabled={calling}
+            className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+            {calling ? 'Calling…' : 'Call for help'}
+          </button>
+          <button onClick={() => setSubSheet(true)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+            Substitute sheet
+          </button>
+          <button onClick={() => setExporting(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+            <PrinterIcon className="w-4 h-4" /> Print / export roster
+          </button>
+        </div>
       </div>
 
       {exporting && (
         <ClassRosterExportModal classId={classId} className={cls?.name} orgId={orgId}
           onClose={() => setExporting(false)} />
+      )}
+
+      {subSheet && (
+        <SubstituteSheet classId={classId} cls={cls} students={students} orgId={orgId}
+          onClose={() => setSubSheet(false)} />
       )}
 
       {/* Tabs */}
@@ -190,6 +232,22 @@ const TeacherClassPage = () => {
             Supply budget: spend <span className="font-semibold text-neutral-900">up to ${budget.total.toLocaleString()}</span> on
             materials for this class this year.
           </p>
+          {/* What is left, and what it went on. The ceiling on its own could
+              not answer "can I buy this?" — every supply request and
+              reimbursement filed against this class now counts against it
+              (805cb3a3, 2026-09-01). Committed, not spent: a request filed on
+              Tuesday is money already intended. */}
+          {budget.committed > 0 && (
+            <p className="text-sm mt-1">
+              <span className={budget.remaining < 0 ? 'font-semibold text-red-600' : 'font-semibold text-neutral-900'}>
+                ${budget.remaining.toLocaleString()}
+              </span>
+              <span className="text-neutral-600">
+                {budget.remaining < 0 ? ' over' : ' left'} — ${budget.committed.toLocaleString()} requested
+                {budget.spent < budget.committed && `, $${budget.spent.toLocaleString()} of it settled`}
+              </span>
+            </p>
+          )}
           <p className="text-xs text-neutral-400 mt-1">
             {budget.students} student{budget.students === 1 ? '' : 's'}
             {budget.supply_fee_per_student > 0 && ` · $${budget.supply_fee_per_student} supply fee each`}
@@ -198,6 +256,26 @@ const TeacherClassPage = () => {
               ? ` · fixed at the roster on ${budget.as_of}`
               : ' · updates as students enroll until the first day of school'}
           </p>
+          {(budget.transactions || []).length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-neutral-500 hover:text-optio-purple">
+                {budget.transactions.length} request{budget.transactions.length === 1 ? '' : 's'} against this budget
+              </summary>
+              <ul className="mt-1.5 space-y-1">
+                {budget.transactions.map((t) => (
+                  <li key={t.id} className="text-xs flex items-baseline gap-2">
+                    <span className="text-neutral-700">{t.title}</span>
+                    <span className="text-neutral-500">
+                      {t.amount != null ? `$${t.amount.toLocaleString()}` : 'no amount'}
+                    </span>
+                    <span className="text-neutral-400">
+                      {t.status === 'resolved' ? 'settled' : 'pending'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       )}
 

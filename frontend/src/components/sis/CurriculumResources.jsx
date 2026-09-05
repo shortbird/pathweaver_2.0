@@ -56,6 +56,90 @@ const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm foc
  * the curriculum and also have full CRUD" — the row was title-only, so checking
  * a quest meant finding a class it was assigned to.
  */
+/**
+ * Which curricula carry this quest, and a way to add it to another.
+ *
+ * iCreate, 2026-09-01 (24d47467): "I'm creating quests for Academic Learning
+ * day, but they can be used in Elementary microschool too."
+ *
+ * The link table has allowed one quest on many curricula since it was created;
+ * nothing said so, and the only route to it was to leave this quest, open the
+ * other curriculum, and find the title again in a picker of everything.
+ */
+function QuestCurricula({ base, orgId, curriculumId }) {
+  const [state, setState] = useState(null) // {on, available}
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(() => {
+    api.get(withOrg(`${base}/curricula`, orgId))
+      .then((r) => setState({ on: r.data?.on || [], available: r.data?.available || [] }))
+      .catch(() => setState({ on: [], available: [] }))
+  }, [base, orgId])
+
+  useEffect(() => { load() }, [load])
+
+  const addTo = async (targetId) => {
+    setBusy(true)
+    try {
+      const { data } = await api.post(withOrg(`${base}/curricula`, orgId),
+        { target_curriculum_id: targetId })
+      const n = data?.pushed_to_classes || 0
+      toast.success(n ? `Added, and pushed to ${n} class${n === 1 ? '' : 'es'}` : 'Added')
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not add it there')
+    } finally { setBusy(false) }
+  }
+
+  const removeFrom = async (targetId) => {
+    setBusy(true)
+    try {
+      await api.delete(withOrg(`${base}/curricula/${targetId}`, orgId))
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove it')
+    } finally { setBusy(false) }
+  }
+
+  if (!state) return null
+  // The curriculum being viewed is always in `on`; the interesting number is
+  // the others, so a quest used in exactly one place stays quiet.
+  const others = state.on.filter((c) => c.id !== curriculumId)
+  if (!others.length && !state.available.length) return null
+
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-100">
+      <p className="text-xs font-medium text-neutral-500 mb-1">Also used by</p>
+      {others.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5 mb-1.5">
+          {others.map((c) => (
+            <li key={c.id}
+              className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple">
+              {c.title}
+              <button onClick={() => removeFrom(c.id)} disabled={busy}
+                title={`Take it off ${c.title}`}
+                className="text-optio-purple/60 hover:text-red-600 disabled:opacity-50">×</button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-neutral-400 mb-1.5">No other curriculum.</p>
+      )}
+      {state.available.length > 0 && (
+        <select className="text-xs border border-gray-300 rounded px-1.5 py-1"
+          aria-label="Add this quest to another curriculum"
+          value="" disabled={busy}
+          onChange={(e) => e.target.value && addTo(e.target.value)}>
+          <option value="">Add to another curriculum…</option>
+          {state.available.map((c) => (
+            <option key={c.id} value={c.id}>{c.title}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  )
+}
+
 function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
   const confirm = useConfirm()
   const [detail, setDetail] = useState(null)   // { title, description, editable }
@@ -152,6 +236,8 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
       )}
 
       <PresetTaskManager base={`${base}/tasks`} orgId={orgId} />
+
+      <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId} />
 
       {detail.editable && (
         <div className="mt-2 pt-2 border-t border-gray-100 text-right">

@@ -20,6 +20,7 @@ import {
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import GroupSettingsModal from './GroupSettingsModal'
 import MessageInput from './MessageInput'
+import MessageText from './MessageText'
 import {
   ReplyQuote,
   AttachmentList,
@@ -355,9 +356,7 @@ const GroupChatWindow = ({ group, onBack }) => {
                               </span>
                             )}
                             <ReplyQuote replyTo={msg.reply_to} light={isOwn} />
-                            {msg.message_content && (
-                              <p className="whitespace-pre-wrap break-words">{msg.message_content}</p>
-                            )}
+                            <MessageText text={msg.message_content} />
                             <AttachmentList attachments={msg.attachments} light={isOwn} />
                           </>
                         )}

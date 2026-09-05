@@ -64,6 +64,56 @@ PARENT_FORM_TYPES = {
 }
 
 
+# Which of the three nouns a row IS.
+#
+# "Can we have a way to select 'form' 'request' or 'task' so we know for sure
+# the classification?" (iCreate, 2026-08-26 — 1b6a63c9). One queue holds all
+# three by design, and `form_type_label` names the specific template ("Incident
+# report") without saying which KIND of thing it is.
+#
+# The line is what the row asks of the reader:
+#   task     somebody was asked to do something, and owns it
+#   request  somebody is asking the office for something they need
+#   form     a record filed on a template; nobody is waiting on a decision
+#
+# Anything not listed is a form, which is the safe default: a record nobody is
+# waiting on gets worked from the queue like everything else, whereas mislabeling
+# a real request as paperwork is how it sits for a week.
+REQUEST_TYPES = frozenset({
+    'supply_request', 'maintenance', 'technology', 'teacher_support',
+    'substitute_request', 'reimbursement', 'training_idea', 'student_concern',
+    # Everything a family can file is, by definition, a family asking for
+    # something — see PARENT_FORM_TYPES.
+    'at_home_learning_day', 'general_request', 'records_request',
+    'meeting_request', 'schedule_change',
+})
+KINDS = ('task', 'request', 'form')
+
+# The request types that spend a class's supply budget. Both ask the office for
+# money — one before buying, one after — and both count against the same
+# ceiling, so a teacher's "how much is left" has to include either.
+SPEND_TYPES = frozenset({'supply_request', 'reimbursement'})
+
+
+def _clean_amount(value: Any) -> Optional[float]:
+    """Money off a form, or None. Never negative: a request cannot ADD to a
+    budget, and a minus sign typed by accident would silently inflate one."""
+    if value in (None, ''):
+        return None
+    try:
+        amount = round(float(value), 2)
+    except (TypeError, ValueError):
+        return None
+    return amount if amount > 0 else None
+
+
+def kind_of(form_type: Any) -> str:
+    """Which of Task / Request / Form this row is."""
+    if form_type == 'task':
+        return 'task'
+    return 'request' if form_type in REQUEST_TYPES else 'form'
+
+
 def _admin():
     # admin client justified: the SIS console acts for the whole school — this
     #   reads/writes rows belonging to every family in the org, which no single
@@ -164,6 +214,14 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
             'location': (data.get('location') or '').strip() or None,
             'occurred_at': (data.get('occurred_at') or '').strip() or None,
         }
+        # Money, on the two request types that are about money. Recorded so a
+        # class's supply budget can say what is LEFT rather than only what it
+        # started as: "with the supply & reimbursement requests, it'd be super
+        # awesome if we could connect those to the classes. Then show the
+        # teacher how much they have left in the supply budget (and a
+        # transaction history would be good too.)" (805cb3a3, 2026-09-01).
+        if form_type in SPEND_TYPES:
+            payload['amount'] = _clean_amount(data.get('amount'))
     row_fields = {
         'organization_id': org_id,
         'submitted_by': user_id,
@@ -243,6 +301,7 @@ def _decorate(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # before it was recorded.
         r['form_type_label'] = (r.get('form_type_label')
                                 or ALL_FORM_TYPES.get(r.get('form_type'), r.get('form_type')))
+        r['kind'] = kind_of(r.get('form_type'))
     return rows
 
 

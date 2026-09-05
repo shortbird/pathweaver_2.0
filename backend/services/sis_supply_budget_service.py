@@ -85,6 +85,72 @@ def _enrolled_counts(class_ids: List[str]) -> Dict[str, int]:
     return counts
 
 
+def _spend_by_class(org_id: str, class_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    """{class_id: {spent, committed, items}} from the requests filed against it.
+
+    iCreate, 2026-09-01 (805cb3a3): "with the supply & reimbursement requests,
+    it'd be super awesome if we could connect those to the classes. Then show
+    the teacher how much they have left in the supply budget (and a transaction
+    history would be good too.)"
+
+    Two numbers, because they answer different questions:
+
+      committed  everything asked for and not refused — what the teacher should
+                 plan against, since a pending request is money they intend to
+                 spend
+      spent      only what the office has actually resolved
+
+    A request with no amount on it counts as neither: guessing a figure for it
+    would make both numbers wrong in a way nobody could see.
+    """
+    if not class_ids:
+        return {}
+    from services.sis_forms_service import SPEND_TYPES
+    try:
+        rows = fetch_all_rows(lambda: (
+            _admin().table('sis_form_submissions')
+            .select('id, class_id, form_type, form_type_label, title, status, '
+                    'payload, created_at, submitted_by')
+            .eq('organization_id', org_id)
+            .in_('class_id', class_ids)
+            .in_('form_type', sorted(SPEND_TYPES))
+        ))
+    except Exception as e:  # noqa: BLE001 — the ceiling must survive a failed
+        # spend read; a budget with no history is still a budget.
+        logger.warning(f'Supply spend unavailable for {org_id}: {e}')
+        return {}
+
+    out: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        amount = (r.get('payload') or {}).get('amount')
+        try:
+            amount = round(float(amount), 2) if amount is not None else None
+        except (TypeError, ValueError):
+            amount = None
+        slot = out.setdefault(r['class_id'],
+                              {'spent': 0.0, 'committed': 0.0, 'items': []})
+        status = r.get('status') or 'submitted'
+        # 'rejected' is not a status this queue has; a refused request is
+        # resolved with a note. So "not refused" is every row there is, and the
+        # distinction that matters is resolved vs still open.
+        if amount:
+            slot['committed'] = round(slot['committed'] + amount, 2)
+            if status == 'resolved':
+                slot['spent'] = round(slot['spent'] + amount, 2)
+        slot['items'].append({
+            'id': r['id'],
+            'title': r.get('title') or r.get('form_type_label'),
+            'kind': r.get('form_type'),
+            'amount': amount,
+            'status': status,
+            'created_at': r.get('created_at'),
+        })
+    for slot in out.values():
+        # Newest first: the history is read to answer "what have I just put in".
+        slot['items'].sort(key=lambda i: i.get('created_at') or '', reverse=True)
+    return out
+
+
 def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """{class_id: budget breakdown} for the given org_classes rows."""
     settings = _org_settings(org_id)
@@ -93,6 +159,7 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
     frozen = bool(first_day and date.today() >= first_day)
 
     counts = _enrolled_counts([c['id'] for c in classes])
+    spend = _spend_by_class(org_id, [c['id'] for c in classes])
     out = {}
     for c in classes:
         students = counts.get(c['id'], 0)
@@ -109,6 +176,19 @@ def budget_for_classes(org_id: str, classes: List[Dict[str, Any]]) -> Dict[str, 
             'frozen': frozen,
             'as_of': first_day.isoformat() if frozen and first_day else date.today().isoformat(),
         }
+        # What is left, and what it went on.
+        s = spend.get(c['id']) or {'spent': 0.0, 'committed': 0.0, 'items': []}
+        out[c['id']].update({
+            'spent': s['spent'],
+            'committed': s['committed'],
+            # Against COMMITTED, not spent: a teacher planning the next purchase
+            # needs the request they filed on Tuesday to already be gone from
+            # what they have left. Can go negative, and says so rather than
+            # clamping — an over-committed class is a thing the office wants to
+            # see, not a zero.
+            'remaining': round(out[c['id']]['total'] - s['committed'], 2),
+            'transactions': s['items'],
+        })
     return out
 
 

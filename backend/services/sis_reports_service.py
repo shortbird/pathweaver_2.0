@@ -677,6 +677,12 @@ def _age_years(dob: Optional[str], today) -> str:
 _SCHOOL_WEEK = [1, 2, 3, 4, 5, 6, 0]
 
 
+def _from_minutes(total: int) -> str:
+    """480 -> '08:00'. The inverse of _minutes, for a time computed rather than
+    read off a row."""
+    return f'{total // 60:02d}:{total % 60:02d}'
+
+
 def _minutes(t: Optional[str]) -> Optional[int]:
     hm = _hhmm(t)
     if not hm:
@@ -858,6 +864,23 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
                 'time': f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}",
             })
 
+    # When each student's day ends. "Can we get a way to know who is leaving
+    # halfdays, etc." (iCreate, 2026-08-26 — 1fc5012b): the office had no way to
+    # see, for a given day, which children go home at midday. Nothing records a
+    # half day, but every student's schedule already says when their last class
+    # finishes, which is the same answer and needs nothing typed in.
+    last_end_by_class: Dict[str, Dict[int, int]] = {}
+    for c in classes:
+        for m in (c.get('meetings') or []):
+            d = m.get('day_of_week')
+            if d is None or (day is not None and d != day):
+                continue
+            end = _minutes(m.get('end_time'))
+            if end is None:
+                continue
+            per_day = last_end_by_class.setdefault(c['id'], {})
+            per_day[d] = max(per_day.get(d, 0), end)
+
     class_ids = list({e['class_id'] for entries in slots.values() for e in entries})
     enrollments = fetch_all_rows(lambda: (
         _admin().table('class_enrollments').select('class_id, student_id')
@@ -876,6 +899,18 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
     for entries in students_by_class.values():
         entries.sort(key=lambda r: (r['name'] or '').lower())
 
+    # (day, student) -> the latest minute any of their classes ends that day.
+    leaves: Dict[int, Dict[str, Dict[str, Any]]] = {}
+    for e in enrollments:
+        s = roster.get(e.get('student_id'))
+        if not s or not s.get('is_student'):
+            continue
+        for d, end in (last_end_by_class.get(e['class_id']) or {}).items():
+            slot = leaves.setdefault(d, {}).setdefault(
+                e['student_id'],
+                {'name': s['name'], 'family': s.get('household_name') or '', 'end': 0})
+            slot['end'] = max(slot['end'], end)
+
     days = []
     present = sorted({d for d, _, _ in slots},
                      key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
@@ -887,12 +922,25 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
                 c['students'] = students_by_class.get(c['class_id'], [])
                 c['student_count'] = len(c['students'])
             day_slots.append({'slot': label, 'classes': entries})
+        # Everybody on site that day, in the order they go home. "Early" is
+        # relative to the day itself, not to a fixed clock time: a Friday that
+        # finishes at 1pm has nobody leaving early, and on a full day the
+        # midday leavers are exactly the ones this list is for.
+        day_leavers = sorted((leaves.get(d) or {}).values(),
+                             key=lambda r: (r['end'], (r['name'] or '').lower()))
+        latest = day_leavers[-1]['end'] if day_leavers else 0
         days.append({
             'key': str(d),
             'label': DOW_LONG.get(d, ''),
             'slots': day_slots,
             'student_count': len({st['name'] for sl in day_slots
                                   for c in sl['classes'] for st in c['students']}),
+            'departures': [{
+                'name': r['name'],
+                'family': r['family'],
+                'leaves_at': _t12(_from_minutes(r['end'])),
+                'early': r['end'] < latest,
+            } for r in day_leavers],
         })
     return {'days': days}
 

@@ -262,12 +262,17 @@ export default function SchoolFeed({ schoolName, feed, messages, onSeeAll }: {
 
 /**
  * The next few dates, as a slim strip — not a section a parent has to open.
- * The full calendar lives on the web; this is the "don't get surprised
- * Tuesday" glance.
+ * This is the "don't get surprised Tuesday" glance; `onSeeAll` opens the month
+ * behind it (e223b6db — the full calendar used to be web-only).
  */
-export function ComingUp({ events }: { events: SchoolFeedData['events'] }) {
+export function ComingUp({ events, onSeeAll }: {
+  events: SchoolFeedData['events'];
+  onSeeAll?: () => void;
+}) {
   const c = useThemeColors();
   const upcoming = (events || []).slice(0, 3);
+  // The strip hides itself when the next few weeks are empty, but the month
+  // behind it may not be — so the way through survives an empty strip.
   if (upcoming.length === 0) return null;
   return (
     <Card className="mb-3 bg-white dark:bg-dark-surface-100" testID="coming-up">
@@ -276,6 +281,13 @@ export function ComingUp({ events }: { events: SchoolFeedData['events'] }) {
           <Ionicons name="calendar-outline" size={17} color={c.brand} />
         </View>
         <Heading size="sm" className="flex-1">Coming up</Heading>
+        {onSeeAll ? (
+          <Pressable onPress={onSeeAll} accessibilityRole="button"
+            accessibilityLabel="See the whole calendar" testID="coming-up-see-all"
+            className="active:opacity-60">
+            <UIText size="xs" className="text-optio-purple font-poppins-medium">Calendar</UIText>
+          </Pressable>
+        ) : null}
       </HStack>
       <VStack>
         {upcoming.map((e, i) => (

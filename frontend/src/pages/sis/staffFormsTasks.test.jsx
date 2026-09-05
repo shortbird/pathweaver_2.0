@@ -300,3 +300,59 @@ describe('the admin submit form', () => {
     expect(body.assigned_to).toBe('cc-1')
   })
 })
+
+/**
+ * iCreate, 2026-08-26 (6944194c): "Can we assign the tasks to multiple people?"
+ *
+ * The picker took one person, so a job for three was either three tasks typed
+ * three times or one task with two of the three not on it. Each assignee now
+ * gets their OWN row: their own status, due date and resolution, so "did Marika
+ * do it?" has an answer that does not depend on what Molly did.
+ */
+describe('assigning one task to several people', () => {
+  const adminPosts = () =>
+    api.post.mock.calls.filter(([u]) => u.includes('/staff-admin/forms') && !u.includes('/comments'))
+
+  it('creates a copy per person, so each can finish their own', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 't-1' } })
+    fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Count the laptops' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
+
+    await waitFor(() => expect(adminPosts()).toHaveLength(2))
+    expect(adminPosts().map(([, b]) => b.assigned_to).sort()).toEqual(['cc-1', 't-1'])
+  })
+
+  it('still files one row when nobody is named', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Someone look at this' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
+
+    await waitFor(() => expect(adminPosts()).toHaveLength(1))
+    expect(adminPosts()[0][1].assigned_to).toBeUndefined()
+  })
+
+  it('lets a name be taken back off before sending', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
+    fireEvent.click(await screen.findByLabelText('Remove Kate Coordinator'))
+    fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Never mind' } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
+
+    await waitFor(() => expect(adminPosts()).toHaveLength(1))
+    expect(adminPosts()[0][1].assigned_to).toBeUndefined()
+  })
+
+  it('does not offer somebody already on the task', async () => {
+    renderPage()
+    await screen.findByText('Printer in Room 3')
+    fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
+    await screen.findByLabelText('Remove Kate Coordinator')
+    const options = within(screen.getByLabelText(/assign to/i)).getAllByRole('option')
+    expect(options.map((o) => o.textContent)).not.toContain('Kate Coordinator')
+  })
+})

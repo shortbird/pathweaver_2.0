@@ -8,6 +8,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import ModalOverlay from '../../components/ui/ModalOverlay'
+import SearchSelect from '../../components/ui/SearchSelect'
+import DocumentPreview, { isPreviewableDocument } from '../../components/evidence/preview/DocumentPreview'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -23,10 +26,21 @@ const ResourcesPage = () => {
   const admin = isSisAdmin(user)
   const [resources, setResources] = useState([])
   const [paperwork, setPaperwork] = useState([]) // registration-form documents (linkable)
+  // Who a resource can be pinned to by name (cf671ff2). Admin-only, and only
+  // worth fetching for one: the picker is inside the admin form.
+  const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(null) // resource being edited
   const [ackReport, setAckReport] = useState(null) // resource whose ack report is open
+  // The document being read, if any. Staff open a resource to CHECK something
+  // in it far more often than to keep a copy, and a link straight at the file
+  // meant the browser saved it and left them hunting through Downloads for a
+  // paper they only wanted to glance at (iCreate, 2026-08-29: "can we have the
+  // files just open a window with the option to download instead of
+  // automatically asking for a download? I just need to reference the
+  // document"). PDFs and images open here; anything else still opens out.
+  const [reading, setReading] = useState(null)
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }
@@ -41,6 +55,15 @@ const ResourcesPage = () => {
   }, [orgId])
 
   useEffect(() => { load() }, [load])
+
+  // The staff a resource can be pinned to by name. Admin-only — the picker
+  // lives inside the admin form, and a teacher fetching this would 403.
+  useEffect(() => {
+    if (!orgId || !admin) return
+    api.get(withOrg('/api/sis/staff', orgId))
+      .then((r) => setStaff(r.data?.staff || []))
+      .catch(() => setStaff([]))
+  }, [orgId, admin])
 
   const remove = async (r) => {
     if (!(await confirm(`Remove "${r.title}"? Families will no longer see it.`))) return
@@ -112,6 +135,7 @@ const ResourcesPage = () => {
           orgId={orgId}
           resource={editing}
           paperwork={paperwork}
+          staff={staff}
           onDone={() => { setAdding(false); setEditing(null); load() }}
           onCancel={() => { setAdding(false); setEditing(null) }}
         />
@@ -144,6 +168,30 @@ const ResourcesPage = () => {
         <AckReportModal orgId={orgId} resource={ackReport} onClose={() => setAckReport(null)} />
       )}
 
+      {reading && (
+        <ModalOverlay onClose={() => setReading(null)}>
+          <div className="w-full max-w-4xl max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-white shadow-xl"
+            role="dialog" aria-modal="true" aria-label={reading.title}>
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-200 shrink-0">
+              <h2 className="font-semibold text-neutral-900 truncate">{reading.title}</h2>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Downloading is still one click — it just stopped being the
+                    only thing the title could do. */}
+                <a href={reading.url} target="_blank" rel="noreferrer"
+                  className="text-sm font-medium text-optio-purple hover:underline">
+                  Open / download
+                </a>
+                <button onClick={() => setReading(null)} aria-label="Close"
+                  className="text-neutral-400 hover:text-neutral-600 text-lg px-1">×</button>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <DocumentPreview url={reading.url} title={reading.title} />
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
       {Object.entries(grouped).map(([category, items]) => (
         <div key={category} className="mb-6">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
@@ -152,7 +200,14 @@ const ResourcesPage = () => {
               <div key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
                   <span className="flex items-center gap-2 flex-wrap">
-                    <a href={r.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-optio-purple hover:underline">{r.title}</a>
+                    {isPreviewableDocument(r.url, r.title) ? (
+                      <button type="button" onClick={() => setReading(r)}
+                        className="text-sm font-medium text-optio-purple hover:underline text-left">
+                        {r.title}
+                      </button>
+                    ) : (
+                      <a href={r.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-optio-purple hover:underline">{r.title}</a>
+                    )}
                     {r.paperwork_key && (
                       <span
                         className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple"
@@ -248,13 +303,14 @@ const AckReportModal = ({ orgId, resource, onClose }) => {
   )
 }
 
-const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => {
+const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onCancel }) => {
   const [f, setF] = useState({
     title: resource?.title || '', description: resource?.description || '',
     url: resource?.url || '', category: resource?.category || '',
     paperwork_key: resource?.paperwork_key || '',
     audience: resource?.audience || 'families',
     visible_to_roles: resource?.visible_to_roles || [],
+    visible_to_user_ids: resource?.visible_to_user_ids || [],
     requires_ack: Boolean(resource?.requires_ack),
     pinned: Boolean(resource?.pinned),
     reack: false,
@@ -338,6 +394,43 @@ const ResourceForm = ({ orgId, resource, paperwork = [], onDone, onCancel }) => 
                 </label>
               ))}
             </div>
+          </div>
+        )}
+        {f.audience !== 'families' && (
+          <div className="text-xs text-neutral-500 pt-4">
+            {/* Roles answer "which KIND of staff"; this answers "which person".
+                "Can we share a resource with just a specific person so they can
+                have that link they have pinned in their portal?" (iCreate,
+                2026-09-01 — cf671ff2). The two are ORed, so ticking a role does
+                not narrow away somebody named here. */}
+            <span className="block mb-1">
+              And these people <span className="text-neutral-400">(as well as the roles above)</span>
+            </span>
+            {(f.visible_to_user_ids || []).length > 0 && (
+              <div className="flex flex-wrap gap-1 mb-1">
+                {f.visible_to_user_ids.map((id) => (
+                  <span key={id}
+                    className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-optio-purple">
+                    {staff.find((p) => p.id === id)?.name || 'Someone'}
+                    <button type="button" aria-label={`Remove ${staff.find((p) => p.id === id)?.name || 'person'}`}
+                      onClick={() => set('visible_to_user_ids',
+                        f.visible_to_user_ids.filter((x) => x !== id))}
+                      className="text-optio-purple/60 hover:text-red-600">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <SearchSelect
+              value=""
+              onChange={(id) => {
+                if (id && !(f.visible_to_user_ids || []).includes(id)) {
+                  set('visible_to_user_ids', [...(f.visible_to_user_ids || []), id])
+                }
+              }}
+              options={staff.filter((p) => !(f.visible_to_user_ids || []).includes(p.id))}
+              getId={(p) => p.id} getLabel={(p) => p.name}
+              placeholder="Search staff…"
+            />
           </div>
         )}
         {f.audience !== 'families' && (

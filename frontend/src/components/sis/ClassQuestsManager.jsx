@@ -24,6 +24,13 @@ const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm foc
 // Preset-task editing moved to PresetTaskManager (shared with the admin
 // curriculum page, 2026-08-31); this file passes it the class-scoped base URL.
 
+// The three tiers assignable-quests returns, in the order it returns them.
+const SCOPE_HEADING = {
+  curriculum: 'On this class’s curriculum',
+  mine: 'Quests you wrote',
+  other: 'Elsewhere in your school and the Optio library',
+}
+
 export default function ClassQuestsManager({ classId }) {
   const confirm = useConfirm()
   const [quests, setQuests] = useState([])
@@ -34,6 +41,10 @@ export default function ClassQuestsManager({ classId }) {
   const [mode, setMode] = useState(null) // null | 'existing' | 'new'
   const [search, setSearch] = useState('')
   const [available, setAvailable] = useState([])
+  // How many quests exist that this list is deliberately not showing — the rest
+  // of the school and the Optio library. Named, so a short list reads as
+  // "narrowed" and not as "there is nothing else" (49ba6e08).
+  const [hiddenCount, setHiddenCount] = useState(0)
   const [searching, setSearching] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -68,8 +79,10 @@ export default function ClassQuestsManager({ classId }) {
     try {
       const { data } = await api.get(`/api/sis/classes/${classId}/assignable-quests`, { params: { search: q } })
       setAvailable(data?.quests || [])
+      setHiddenCount(data?.hidden_count || 0)
     } catch {
       setAvailable([])
+      setHiddenCount(0)
     } finally {
       setSearching(false)
     }
@@ -320,11 +333,26 @@ export default function ClassQuestsManager({ classId }) {
                 placeholder="Search quests to assign…" className={`${inputCls} mb-3`} />
               {searching && <p className="text-sm text-neutral-400">Searching…</p>}
               {!searching && available.length === 0 && (
-                <p className="text-sm text-neutral-500">No quests found. Try “Create new” instead.</p>
+                <p className="text-sm text-neutral-500">
+                  {search
+                    ? 'No quests match that. Try “Create new” instead.'
+                    : 'Nothing on this class’s curriculum yet, and you haven’t written any. '
+                      + 'Search to pull one from your school or the Optio library, or use “Create new”.'}
+                </p>
               )}
               <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-                {available.map((q) => (
-                  <li key={q.quest_id} className="py-2.5 flex items-center gap-3">
+                {available.map((q, i) => (
+                  <React.Fragment key={q.quest_id}>
+                  {/* A heading each time the tier changes. The server returns
+                      them in order (curriculum, then yours, then the rest), so
+                      "which of these am I supposed to be teaching" is answered
+                      by where a quest sits rather than by reading 183 titles. */}
+                  {q.scope !== available[i - 1]?.scope && (
+                    <li className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                      {SCOPE_HEADING[q.scope] || 'Other quests'}
+                    </li>
+                  )}
+                  <li className="py-2.5 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-neutral-800 truncate">{q.title}</p>
                       <p className="text-xs text-neutral-400">
@@ -348,8 +376,15 @@ export default function ClassQuestsManager({ classId }) {
                       Assign
                     </button>
                   </li>
+                  </React.Fragment>
                 ))}
               </ul>
+              {hiddenCount > 0 && (
+                <p className="mt-2 text-xs text-neutral-400">
+                  {hiddenCount} more quest{hiddenCount === 1 ? '' : 's'} in your school and the
+                  Optio library — search above to find {hiddenCount === 1 ? 'it' : 'them'}.
+                </p>
+              )}
             </div>
           )}
 
@@ -438,6 +473,11 @@ export default function ClassQuestsManager({ classId }) {
                       <div className="flex items-center gap-1.5">
                         <input type="date" value={dueValue} autoFocus
                           onChange={(e) => setDueValue(e.target.value)}
+                          // "What happens after the due date? Does it lock?"
+                          // (625d1958, 2026-09-01). It does not, on purpose —
+                          // the answer belongs next to the field, not in a
+                          // support reply a year from now.
+                          title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders; students can still finish it."
                           className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
                         <button onClick={() => saveDue(q.quest_id, dueValue)}
                           className="px-2 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs">
@@ -453,6 +493,9 @@ export default function ClassQuestsManager({ classId }) {
                           className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">
                           Cancel
                         </button>
+                        <span className="text-xs text-neutral-400">
+                          Marks it overdue — doesn’t lock it.
+                        </span>
                       </div>
                     ) : (
                       <button

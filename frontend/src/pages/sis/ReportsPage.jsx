@@ -85,6 +85,31 @@ export const DayRosters = ({ days }) => {
               Print {d.label}
             </button>
           </div>
+          {/* Who goes home when, and who goes early. "Can we get a way to know
+              who is leaving halfdays, etc." (iCreate, 2026-08-26 — 1fc5012b).
+              Derived from each child's last class of the day: nothing records a
+              half day, and a second thing to type in would only go stale. */}
+          {(d.departures || []).length > 0 && (
+            <details className="mb-4 border border-gray-200 rounded-lg">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-neutral-800">
+                Going home{' '}
+                <span className="font-normal text-neutral-500">
+                  · {d.departures.filter((x) => x.early).length} before the end of the day
+                </span>
+              </summary>
+              <ul className="px-3 pb-3 text-sm columns-1 sm:columns-2 gap-4">
+                {d.departures.map((x) => (
+                  <li key={x.name} className="break-inside-avoid flex items-baseline gap-2">
+                    <span className={x.early ? 'font-medium text-amber-700' : 'text-neutral-800'}>
+                      {x.name}
+                    </span>
+                    <span className="text-xs text-neutral-500">{x.leaves_at}</span>
+                    {x.family && <span className="text-xs text-neutral-400">{x.family}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {d.slots.map((sl) => (
             <div key={sl.slot} className="mb-4">
               <div className="text-sm font-semibold text-optio-purple mb-1">{sl.slot}</div>
@@ -145,8 +170,15 @@ export const BlockRosters = ({ days, day, onDayChange }) => {
             {d.label}
           </button>
         ))}
+        {/* "Can we have an option to print an entire day instead of just a
+            block?" (iCreate, 2026-09-01 — 48da8820). Every block was its own
+            button, so a Tuesday meant five trips to the printer dialog. */}
+        <button type="button" onClick={() => printSection(`sis-blocks-${current.key}`)}
+          className="ml-auto px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50">
+          Print all of {current.label}
+        </button>
       </div>
-      <div className="space-y-8">
+      <div id={`sis-blocks-${current.key}`} className="space-y-8">
         {current.blocks.map((b) => (
           <section key={b.key} id={`sis-block-${current.key}-${b.key}`} className="sis-block">
             <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1 mb-3">

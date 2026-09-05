@@ -9,6 +9,7 @@ import {
   MessageEditForm
 } from './MessageParts'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import MessageText from './MessageText'
 
 const scrollThreadToBottom = (endEl, smooth = true) => {
   const container = endEl?.closest('.overflow-y-auto')
@@ -157,11 +158,7 @@ const MessageThread = ({
                       </span>
                     )}
                     <ReplyQuote replyTo={message.reply_to} light={isSender} />
-                    {message.message_content && (
-                      <p className="whitespace-pre-wrap break-words">
-                        {message.message_content}
-                      </p>
-                    )}
+                    <MessageText text={message.message_content} />
                     <AttachmentList attachments={message.attachments} light={isSender} />
                   </>
                 )}

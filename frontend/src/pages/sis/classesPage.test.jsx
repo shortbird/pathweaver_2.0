@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
@@ -286,7 +286,9 @@ describe('ClassesPage', () => {
 
     const classroom = await screen.findByLabelText('Classroom')
     expect(classroom.tagName).toBe('SELECT')
-    expect(screen.getByRole('option', { name: /Art Studio/ })).toBeInTheDocument()
+    // Scoped to the primary picker: a second select ("also uses room", added
+    // for 43625a45) offers the same rooms as extra space the class occupies.
+    expect(within(classroom).getByRole('option', { name: /Art Studio/ })).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/schedule-settings'))
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('/api/admin/organizations'))
   })

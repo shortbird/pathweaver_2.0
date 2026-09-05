@@ -214,3 +214,80 @@ describe('SubmissionsPage', () => {
     expect(await screen.findByText("You're all caught up.")).toBeInTheDocument()
   })
 })
+
+/**
+ * Nicole Connole, 2026-09-04 (59a26361): "When I accept tasks, there isn't any
+ * change until I refresh my page then it shows as reviewed. Having it go
+ * directly to reviewed after accepting it, would be nice!"
+ *
+ * She arrives on ONE submission from a student's progress row, not on a queue.
+ * Accepting emptied the list, the detail pane went blank, and the only thing
+ * that ever said "reviewed" was a toast that had already gone.
+ */
+describe('accepting the last submission in the queue', () => {
+  const ONE = {
+    completion_id: 'c9',
+    completed_at: '2026-09-04T10:00:00Z',
+    student: { id: 's9', name: 'Ada Lovelace', avatar_url: null },
+    class_id: 'cl1', class_name: 'Biology',
+    quest_id: 'q1', quest_title: 'Cells Quest',
+    task: { id: 't9', title: 'Only task left', description: null, xp_value: 25, pillar: 'stem_logic' },
+    evidence_blocks: [{ id: 'b9', block_type: 'text', content: 'The only evidence' }],
+    review: null,
+  }
+
+  const onlyOne = () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/api/sis/submissions')) {
+        return Promise.resolve({
+          data: { success: true, submissions: [ONE], counts: { new: 1, reviewed: 0 }, total: 1 },
+        })
+      }
+      return Promise.resolve(apiData(url))
+    })
+    api.post.mockImplementation(() => Promise.resolve({
+      data: {
+        success: true,
+        review: { action: 'accepted', reviewed_at: '2026-09-04T11:00:00Z', reviewed_by_name: 'Nicole' },
+      },
+    }))
+  }
+
+  it('keeps it on screen instead of leaving a blank pane', async () => {
+    onlyOne()
+    render(<SubmissionsPage />)
+    await screen.findByText('The only evidence')
+    fireEvent.click(screen.getByText('Accept'))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(screen.getAllByText('Only task left').length).toBeGreaterThan(0)
+  })
+
+  it('shows it as reviewed without a page refresh', async () => {
+    onlyOne()
+    render(<SubmissionsPage />)
+    await screen.findByText('The only evidence')
+    fireEvent.click(screen.getByText('Accept'))
+    expect(await screen.findByText(/Reviewed by Nicole/)).toBeInTheDocument()
+  })
+
+  it('stops offering Accept on something already accepted', async () => {
+    onlyOne()
+    render(<SubmissionsPage />)
+    await screen.findByText('The only evidence')
+    fireEvent.click(screen.getByText('Accept'))
+    await waitFor(() => expect(screen.queryByText('Accept')).not.toBeInTheDocument())
+    expect(screen.getByText('Move back to New')).toBeInTheDocument()
+  })
+
+  it('undoes an accidental accept in place', async () => {
+    onlyOne()
+    render(<SubmissionsPage />)
+    await screen.findByText('The only evidence')
+    fireEvent.click(screen.getByText('Accept'))
+    fireEvent.click(await screen.findByText('Move back to New'))
+    await waitFor(() => expect(api.delete).toHaveBeenCalled())
+    // Still the same submission, back to being un-reviewed.
+    expect(await screen.findByText('Accept')).toBeInTheDocument()
+    expect(screen.getAllByText('Only task left').length).toBeGreaterThan(0)
+  })
+})

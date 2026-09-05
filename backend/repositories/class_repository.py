@@ -14,6 +14,7 @@ from repositories.base_repository import BaseRepository
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
+from utils.db_fetch import fetch_all_rows
 
 logger = get_logger(__name__)
 
@@ -465,7 +466,10 @@ class ClassRepository(BaseRepository):
         if not cls:
             return []
 
-        xp_threshold = cls.get('xp_threshold', 100)
+        # `or 0` not a .get() default: the column is nullable, so an absent
+        # threshold arrives as None, not as a missing key, and None fails the
+        # `> 0` comparison below with a TypeError.
+        xp_threshold = cls.get('xp_threshold') or 0
 
         # Get all students
         students = self.get_class_students(class_id)
@@ -491,8 +495,14 @@ class ClassRepository(BaseRepository):
                 if response.data:
                     earned_xp = sum((c.get('user_quest_tasks', {}) or {}).get('xp_value', 0) or 0 for c in response.data)
 
+            # A class with no threshold never auto-completes. `earned_xp >= 0`
+            # is vacuously true, which put all 31 of Arete's Chesapeake students
+            # under a green "Completed" header the day they were enrolled.
+            # calculate_student_class_progress was fixed for this on 2026-08-28
+            # (test_class_zero_threshold_completion.py); this bulk path, the one
+            # the Students tab actually reads, was missed.
             percentage = min(100, int((earned_xp / xp_threshold) * 100)) if xp_threshold > 0 else 0
-            is_complete = earned_xp >= xp_threshold
+            is_complete = xp_threshold > 0 and earned_xp >= xp_threshold
 
             results.append({
                 'student_id': student_id,
@@ -511,6 +521,130 @@ class ClassRepository(BaseRepository):
             })
 
         return results
+
+    def get_class_activity(
+        self,
+        class_id: str,
+        start_date: str,
+        end_date: str
+    ) -> List[Dict[str, Any]]:
+        """
+        What every student on the roster finished inside a date window.
+
+        Deliberately NOT scoped to the class's assigned quests, unlike
+        get_class_progress_bulk. A class here is as often a group of students as
+        it is a syllabus — Arete's Chesapeake carries 31 students and no assigned
+        quests at all — so scoping to class_quests reports a flat zero for a
+        roster that has been working all week. An advisor running Friday
+        check-ins wants what each student actually did, wherever the quest came
+        from.
+
+        Returns one entry per enrolled student, including students with nothing
+        in the window: "who did nothing this week" is the question a check-in
+        list has to answer, so an empty row is a result, not an omission.
+        """
+        roster = self.get_class_students(class_id)
+        if not roster:
+            return []
+
+        students = {}
+        order = []
+        for enrollment in roster:
+            user = enrollment.get('users') or {}
+            student_id = user.get('id') or enrollment.get('student_id')
+            if not student_id or student_id in students:
+                continue
+            students[student_id] = {
+                'student_id': student_id,
+                'student': user,
+                'xp': 0,
+                'tasks_completed': 0,
+                'quests': {},
+                'last_activity': None,
+            }
+            order.append(student_id)
+
+        start = pgrst_timestamp(f"{start_date}T00:00:00", 'start_date')
+        end = pgrst_timestamp(f"{end_date}T23:59:59", 'end_date')
+
+        # Paged: a week of completions across a full roster is unbounded — it
+        # grows with class size and with how much the students did — and a
+        # silent truncation here would under-report a student's week as
+        # confidently as it would report it right.
+        completions = fetch_all_rows(lambda: (
+            self.admin_client.table('quest_task_completions')
+            .select('id, user_id, quest_id, completed_at, '
+                    'user_quest_tasks(title, xp_value, pillar)')
+            .in_('user_id', list(students.keys()))
+            .gte('completed_at', start)
+            .lte('completed_at', end)
+        ))
+
+        quest_titles = self._quest_titles({c.get('quest_id') for c in completions})
+
+        for completion in completions:
+            entry = students.get(completion.get('user_id'))
+            if entry is None:
+                continue
+
+            task = completion.get('user_quest_tasks') or {}
+            xp = task.get('xp_value') or 0
+            completed_at = completion.get('completed_at')
+
+            entry['xp'] += xp
+            entry['tasks_completed'] += 1
+            if completed_at and (entry['last_activity'] is None
+                                 or completed_at > entry['last_activity']):
+                entry['last_activity'] = completed_at
+
+            quest_id = completion.get('quest_id')
+            quest = entry['quests'].get(quest_id)
+            if quest is None:
+                quest = {
+                    'quest_id': quest_id,
+                    'title': quest_titles.get(quest_id) or 'Self-directed work',
+                    'xp': 0,
+                    'tasks': [],
+                }
+                entry['quests'][quest_id] = quest
+            quest['xp'] += xp
+            quest['tasks'].append({
+                'title': task.get('title') or 'Untitled task',
+                'xp': xp,
+                'pillar': task.get('pillar'),
+                'completed_at': completed_at,
+            })
+
+        results = []
+        for student_id in order:
+            entry = students[student_id]
+            quests = sorted(entry['quests'].values(),
+                            key=lambda q: q['xp'], reverse=True)
+            for quest in quests:
+                quest['tasks'].sort(key=lambda t: t['completed_at'] or '')
+            entry['quests'] = quests
+            results.append(entry)
+
+        results.sort(key=lambda s: s['xp'], reverse=True)
+        return results
+
+    def _quest_titles(self, quest_ids) -> Dict[str, str]:
+        """Titles for a set of quest ids.
+
+        A separate read rather than a PostgREST embed: quest_task_completions
+        has no foreign key on quest_id (only user_quest_task_id and the reviewer
+        columns are constrained), so `quests(title)` will not resolve as a
+        nested select. Bounded by the distinct quests one class touched in one
+        window.
+        """
+        ids = [qid for qid in quest_ids if qid]
+        if not ids:
+            return {}
+        response = self.admin_client.table('quests')\
+            .select('id, title')\
+            .in_('id', ids)\
+            .execute()
+        return {q['id']: q.get('title') for q in (response.data or [])}
 
     # ===== Helper Methods =====
 

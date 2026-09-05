@@ -21,7 +21,7 @@ name they typed, that they affirmed it, when, and from which address. See
 """
 
 import uuid as _uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from database import get_supabase_admin_client
 from services import sis_notifications
@@ -65,7 +65,7 @@ def _remove_document_blob(assignment: Dict[str, Any], path: str) -> None:
 
 
 def item_documents(item: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Every document attached to a checklist item, in either shape.
+    """Every document attached to a checklist item, in any of its three shapes.
 
     An item used to hold exactly one file in `document_url`, so uploading a
     second offered to REPLACE the first — which is what iCreate hit when they
@@ -73,10 +73,16 @@ def item_documents(item: Dict[str, Any]) -> List[Dict[str, Any]]:
     nowhere to put the second file (b9583855). Items carry a `documents` list
     now; `document_url` is still written with the first of them so anything
     reading the old field keeps working.
+
+    An entry is EITHER an upload (`path`, a blob in the checklist bucket) or a
+    link to a document already in the secure store (`secure_document_id`, whose
+    blob belongs to that store and outlives this attachment). Both count as
+    attached; only the first is ours to delete.
     """
     docs = item.get('documents')
     if isinstance(docs, list):
-        out = [d for d in docs if isinstance(d, dict) and d.get('path')]
+        out = [d for d in docs if isinstance(d, dict)
+               and (d.get('path') or d.get('secure_document_id'))]
         if out:
             return out
     path = item.get('document_url')
@@ -86,9 +92,13 @@ def item_documents(item: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _set_item_documents(item: Dict[str, Any], docs: List[Dict[str, Any]]) -> None:
-    """Write both shapes: the list, and the legacy single-path field."""
+    """Write both shapes: the list, and the legacy single-path field.
+
+    The legacy field names a bucket path, so a linked store document leaves it
+    empty rather than putting an id where every reader expects a path.
+    """
     item['documents'] = docs
-    item['document_url'] = docs[0]['path'] if docs else None
+    item['document_url'] = next((d['path'] for d in docs if d.get('path')), None)
 
 
 def _clean_items(items: Any) -> Optional[List[Dict[str, Any]]]:
@@ -757,6 +767,47 @@ def office_documents(org_id: str, user_id: str,
             for r in rows]
 
 
+def attachable_documents(org_id: str, user_id: str) -> List[Dict[str, Any]]:
+    """Everything in the secure store filed under this person, for the office to
+    attach to one of their checklist items.
+
+    Deliberately NOT office_documents: that is the narrowed pool a signature
+    item signs against (shared with the person, flagged for signature, not
+    already somebody's task). Attaching is the opposite question — "which of the
+    papers I hold for this teacher is the background check this item is waiting
+    on" — and the answer includes documents the office never shared back, which
+    is most of them.
+    """
+    rows = (_admin().table('sis_secure_documents')
+            .select('id, title, filename, category, created_at')
+            .eq('organization_id', org_id).eq('owner_user_id', user_id)
+            .order('created_at', desc=True).limit(200).execute()).data or []
+    return [{'id': r['id'],
+             'title': r.get('title') or r.get('filename') or 'Document',
+             'filename': r.get('filename'),
+             'category': r.get('category'),
+             'created_at': r.get('created_at')} for r in rows]
+
+
+def _load_attachable_document(org_id: str, user_id: Optional[str],
+                              doc_id: str) -> Tuple[Dict[str, Any], Optional[str]]:
+    """The store row behind an attach request, or why it may not be attached.
+
+    A checklist item belongs to one person, so the only documents it may point
+    at are that person's. Without the owner check an admin could file anyone's
+    background check against anyone's onboarding.
+    """
+    if not doc_id or not user_id:
+        return {}, 'Choose a document to attach'
+    # The store's own reader: it already refuses a document belonging to
+    # another org, which is half the check, and keeps the table's shape in one
+    # place rather than a second query for the same row.
+    doc = sis_secure_docs_service.get_document(org_id, doc_id)
+    if not doc or doc.get('owner_user_id') != user_id:
+        return {}, 'That document is not on file for this person'
+    return doc, None
+
+
 def _claimed_document_ids(org_id: str, user_id: str) -> set:
     """Documents this person already has a signature task for, by name.
 
@@ -1128,6 +1179,12 @@ def _load_assignment(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]
     return rows[0]
 
 
+def load_assignment_for_admin(org_id: str, assignment_id: str) -> Optional[Dict[str, Any]]:
+    """One assignment, for a caller the route has already gated to ADMIN_ROLES
+    in this org. The org check is inside; there is no other scoping to do."""
+    return _load_assignment(org_id, assignment_id)
+
+
 def _save_items(assignment: Dict[str, Any], items: List[Dict[str, Any]],
                 description: Optional[str] = None,
                 update_description: bool = False) -> Dict[str, Any]:
@@ -1250,14 +1307,50 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
                          'uploaded_at': _now()})
         _set_item_documents(target, docs)
 
+    if 'attach_document_id' in fields:
+        # Filing a document that is ALREADY in the store against the item it
+        # satisfies. The office uploads background checks and contracts to the
+        # store first and only then goes looking for the checklist — and until
+        # now there was no way back: 14 of iCreate's staff sat at "Background
+        # check — pending" with the background check already on file
+        # (c23105fa, 2026-09-05). A link, not a copy: one blob, one owner.
+        # Office-only: the secure store is HR's filing cabinet, and picking a
+        # document out of it by id is not something a teacher's own checklist
+        # needs to do (they upload, which is the branch above).
+        if not is_admin:
+            return {'error': 'Only an administrator can attach a filed document'}
+        doc_id = (str(fields.get('attach_document_id') or '')).strip()
+        linked, problem = _load_attachable_document(
+            org_id, assignment.get('user_id'), doc_id)
+        if problem:
+            return {'error': problem}
+        docs = item_documents(target)
+        if not any(d.get('secure_document_id') == doc_id for d in docs):
+            docs.append({'secure_document_id': doc_id,
+                         'filename': linked.get('filename'),
+                         'title': linked.get('title') or linked.get('filename'),
+                         'uploaded_at': _now()})
+        _set_item_documents(target, docs)
+
     if 'remove_document' in fields:
-        path = (str(fields.get('remove_document') or '')).strip()
-        remaining = [d for d in item_documents(target) if d.get('path') != path]
+        # A reference is a bucket path (an upload) or a store document id (a
+        # link). Which one it was decides whether the blob goes with it.
+        ref = (str(fields.get('remove_document') or '')).strip()
+        current = item_documents(target)
+        was_upload = any(d.get('path') == ref for d in current)
+        # A filed document is the office's answer to the item. Letting the
+        # person it is about detach it would un-complete their own onboarding.
+        if not is_admin and any(d.get('secure_document_id') == ref for d in current):
+            return {'error': 'Only an administrator can remove a filed document'}
+        remaining = [d for d in current
+                     if d.get('path') != ref and d.get('secure_document_id') != ref]
         _set_item_documents(target, remaining)
-        # The blob goes with it: a file nobody can reach from the checklist is a
-        # copy of somebody's ID sitting in a bucket with no owner.
-        if path:
-            _remove_document_blob(assignment, path)
+        # The blob goes with an upload: a file nobody can reach from the
+        # checklist is a copy of somebody's ID sitting in a bucket with no
+        # owner. A LINKED document is the store's, not ours — detaching it
+        # leaves the file where the office filed it.
+        if ref and was_upload:
+            _remove_document_blob(assignment, ref)
 
     if 'document_url' in fields:
         # Legacy single-document write, still used by the family portal upload.

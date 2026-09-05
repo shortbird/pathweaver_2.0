@@ -273,8 +273,18 @@ const AnnouncementsTab = ({ orgId, admin }) => {
   return (
     <div>
       {admin && (
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-3 flex-wrap">
           <Button size="sm" onClick={() => setEditing('new')}>Post announcement</Button>
+          {/* The board and the send were two composers for one act, and the
+              office kept having to decide which one they wanted before they
+              had written anything ("I think we may be getting confused with
+              messaging and announcements?" — ce12a041, 2026-09-02). Posting
+              here still only posts; Messaging is where a notice can post AND
+              be delivered in the same breath, so the door to it is here. */}
+          <Link to="/inbox?tab=announcements"
+            className="text-sm text-optio-purple hover:underline">
+            Post and send it to families →
+          </Link>
         </div>
       )}
       {editing && (
@@ -682,9 +692,100 @@ const RecognitionTab = ({ orgId }) => {
             {r.recipient_name && <div className="text-sm font-semibold text-neutral-900">{r.recipient_name}</div>}
             <p className="text-sm text-neutral-600 mt-1 whitespace-pre-wrap flex-1">{r.message}</p>
             <div className="text-xs text-neutral-400 mt-2">{fmtDate(r.created_at)}</div>
+            <ShoutOutComments orgId={orgId} recognition={r} />
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The replies under a shout-out.
+ *
+ * iCreate, 2026-08-31 (d0c7ac4e): "it would be nice to be able to add comments
+ * to the shout-outs on Community page for the post recognition."
+ *
+ * A shout-out is the one thing on this board people want to pile onto —
+ * somebody names a colleague and the rest of the staffroom wants to say "her
+ * too". Agreeing used to mean writing a SECOND shout-out, which pushes the
+ * first one down the board.
+ *
+ * Folded shut by default and opened per card: the board is read at a glance,
+ * and four open threads is a wall.
+ */
+const ShoutOutComments = ({ orgId, recognition }) => {
+  const [open, setOpen] = useState(false)
+  const [comments, setComments] = useState(null)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const base = `/api/sis/community/recognition/${recognition.id}/comments`
+
+  const load = useCallback(() => {
+    api.get(withOrg(base, orgId))
+      .then((r) => setComments(r.data?.comments || []))
+      .catch(() => setComments([]))
+  }, [base, orgId])
+
+  useEffect(() => { if (open && comments === null) load() }, [open, comments, load])
+
+  const post = async () => {
+    if (!draft.trim()) return
+    setBusy(true)
+    try {
+      const { data } = await api.post(withOrg(base, orgId), { body: draft.trim() })
+      setComments((prev) => [...(prev || []), data.comment])
+      setDraft('')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not post that')
+    } finally { setBusy(false) }
+  }
+
+  const remove = async (c) => {
+    try {
+      await api.delete(withOrg(`/api/sis/community/recognition/comments/${c.id}`, orgId))
+      setComments((prev) => (prev || []).filter((x) => x.id !== c.id))
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove that')
+    }
+  }
+
+  // The stored count until the thread is opened; the live list after, so a
+  // comment just posted is counted without a refetch.
+  const count = comments === null ? (recognition.comment_count || 0) : comments.length
+
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-100">
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="text-xs text-neutral-500 hover:text-optio-purple">
+        {count ? `${count} ${count === 1 ? 'reply' : 'replies'}` : 'Add a reply'}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {comments === null && <p className="text-xs text-neutral-400">Loading…</p>}
+          {(comments || []).map((c) => (
+            <div key={c.id} className="text-xs">
+              <span className="font-medium text-neutral-700">{c.author_name || 'Someone'}</span>
+              <span className="text-neutral-400"> · {fmtDate(c.created_at)}</span>
+              <button onClick={() => remove(c)}
+                className="ml-1 text-neutral-300 hover:text-red-500"
+                aria-label="Remove this reply">×</button>
+              <p className="text-neutral-600 whitespace-pre-wrap">{c.body}</p>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5">
+            <input value={draft} onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') post() }}
+              placeholder="Say something…" aria-label={`Reply to ${recognition.recipient_name || 'this shout-out'}`}
+              className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+            <button onClick={post} disabled={busy || !draft.trim()}
+              className="px-2 py-1 rounded-lg text-xs font-semibold text-optio-purple disabled:opacity-40">
+              Post
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

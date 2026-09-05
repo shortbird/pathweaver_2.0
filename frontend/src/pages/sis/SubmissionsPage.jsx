@@ -278,16 +278,32 @@ const SubmissionsPage = () => {
   }, [move])
 
   // Accept: mark reviewed, drop it from the New queue, advance to the next item.
+  //
+  // Unless it was the last one. Working a queue, the next submission is the
+  // answer; arriving on ONE submission from a student's progress row, it is not
+  // — the queue empties, the pane goes blank, and the only thing that ever said
+  // "reviewed" was a toast that had already gone. Reloading the page found it
+  // again under Reviewed, which is the whole of the report: "when I accept
+  // tasks, there isn't any change until I refresh my page then it shows as
+  // reviewed" (Nicole Connole, 2026-09-04). So the last one stays on screen,
+  // wearing the state it just earned.
   const accept = async (sub) => {
     try {
-      await api.post(`/api/sis/submissions/${sub.completion_id}/review`, {
+      const r = await api.post(`/api/sis/submissions/${sub.completion_id}/review`, {
         action: 'accepted',
         organization_id: orgId,
       })
       const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
-      const next = submissions.filter((s) => s.completion_id !== sub.completion_id)
-      setSubmissions(next)
-      setSelectedId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
+      const rest = submissions.filter((s) => s.completion_id !== sub.completion_id)
+      if (rest.length) {
+        setSubmissions(rest)
+        setSelectedId(rest[Math.min(idx, rest.length - 1)]?.completion_id || null)
+      } else {
+        // The review row the server just wrote, so the panel reads back exactly
+        // what a reload would have shown it.
+        setSubmissions([{ ...sub, review: r.data?.review || { action: 'accepted' } }])
+        setSelectedId(sub.completion_id)
+      }
       setCounts((c) => ({ new: Math.max(0, c.new - 1), reviewed: c.reviewed + 1 }))
       toast.success('Accepted')
     } catch (e) {
@@ -295,14 +311,22 @@ const SubmissionsPage = () => {
     }
   }
 
-  // Un-review an accidental accept (Reviewed scope only).
+  // Un-review an accidental accept. Usually from the Reviewed list, where the
+  // submission then belongs elsewhere and leaves; but also from an accept that
+  // was just made and is still on screen, where "back to New" means the
+  // submission stays exactly where it is and loses its review.
   const unreview = async (sub) => {
     try {
       await api.delete(withOrg(`/api/sis/submissions/${sub.completion_id}/review`, orgId))
-      const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
-      const next = submissions.filter((s) => s.completion_id !== sub.completion_id)
-      setSubmissions(next)
-      setSelectedId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
+      if (scope === 'new') {
+        setSubmissions((subs) => subs.map((s) => (
+          s.completion_id === sub.completion_id ? { ...s, review: null } : s)))
+      } else {
+        const idx = submissions.findIndex((s) => s.completion_id === sub.completion_id)
+        const next = submissions.filter((s) => s.completion_id !== sub.completion_id)
+        setSubmissions(next)
+        setSelectedId(next[Math.min(idx, next.length - 1)]?.completion_id || null)
+      }
       setCounts((c) => ({ new: c.new + 1, reviewed: Math.max(0, c.reviewed - 1) }))
       toast.success('Moved back to New')
     } catch (e) {
@@ -449,7 +473,11 @@ const SubmissionsPage = () => {
                     >
                       Next
                     </button>
-                    {scope === 'new' ? (
+                    {/* What this submission IS, not which list it was fetched
+                        from. The last accept in a queue leaves its submission on
+                        screen (see accept), and an Accept button on something
+                        already accepted is the state not changing. */}
+                    {scope === 'new' && !selected.review ? (
                       <button
                         type="button"
                         onClick={() => accept(selected)}

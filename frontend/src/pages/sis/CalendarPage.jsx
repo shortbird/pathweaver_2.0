@@ -285,6 +285,10 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
     end_date: end.date && end.date !== start.date ? end.date : '',
     start_time: seed && !seed.all_day ? start.time : '',
     end_time: seed && !seed.all_day && end.time ? end.time : '',
+    // Ask families to reply, and optionally charge for it (9cf78e9a).
+    rsvp_enabled: seed ? !!seed.rsvp_enabled : false,
+    rsvp_fee: seed?.rsvp_fee_cents ? String(seed.rsvp_fee_cents / 100) : '',
+    rsvp_closes_at: seed?.rsvp_closes_at ? String(seed.rsvp_closes_at).slice(0, 10) : '',
   })
   const [busy, setBusy] = useState(false)
 
@@ -321,6 +325,13 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
       all_day: form.all_day,
       start_at: joinStamp(form.date, form.all_day ? '00:00' : (form.start_time || '00:00')),
       end_at,
+      rsvp_enabled: form.rsvp_enabled,
+      // Dollars on the form, cents on the wire. Empty means free, which is not
+      // zero — a zero would render a payment line for nothing.
+      rsvp_fee_cents: form.rsvp_enabled && form.rsvp_fee
+        ? Math.round(Number(form.rsvp_fee) * 100) : null,
+      rsvp_closes_at: form.rsvp_enabled && form.rsvp_closes_at
+        ? joinStamp(form.rsvp_closes_at, '23:59') : null,
     }
     setBusy(true)
     try {
@@ -396,6 +407,43 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
               <option value="admins">Admins only</option>
             </select>
           </div>
+          {/* Ask families to say whether they are coming, and charge for it
+              where there is a charge. "The ability to add a form for collecting
+              RSVPs and payments to the calendar events would be good" (iCreate,
+              2026-08-28 — 9cf78e9a). Only meaningful on an event families can
+              see, so it hides on a staff-only one. */}
+          {form.audience === 'school' && (
+            <div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.rsvp_enabled}
+                  onChange={(e) => set({ rsvp_enabled: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                <span>
+                  <span className="block text-sm font-medium text-neutral-700">Ask families to RSVP</span>
+                  <span className="block text-xs text-neutral-500">
+                    They say whether they are coming and how many of them.
+                  </span>
+                </span>
+              </label>
+              {form.rsvp_enabled && (
+                <div className="grid grid-cols-2 gap-3 mt-2 ml-6">
+                  <label className="block text-xs font-medium text-neutral-500">
+                    Cost per family (optional)
+                    <input type="number" min="0" step="0.01" value={form.rsvp_fee}
+                      onChange={(e) => set({ rsvp_fee: e.target.value })}
+                      aria-label="Cost per family" placeholder="Free"
+                      className={`${field} mt-1`} />
+                  </label>
+                  <label className="block text-xs font-medium text-neutral-500">
+                    Replies close (optional)
+                    <input type="date" value={form.rsvp_closes_at}
+                      onChange={(e) => set({ rsvp_closes_at: e.target.value })}
+                      aria-label="Replies close" className={`${field} mt-1`} />
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
           {categories.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-neutral-500 mb-1">

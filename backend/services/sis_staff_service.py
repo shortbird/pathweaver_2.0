@@ -354,7 +354,7 @@ def staff_resources_for(user_id: str, org_id: str,
     """
     rows = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
-        .select('id, title, url, category, audience, visible_to_roles')
+        .select('id, title, url, category, audience, visible_to_roles, visible_to_user_ids')
         .eq('organization_id', org_id)
         .in_('audience', ['staff', 'all'])
         .order('title').execute()
@@ -382,7 +382,7 @@ def pinned_links_for(user_id: str, org_id: str) -> List[Dict[str, Any]]:
          'description': r.get('description')}
         for r in sis_service.filter_role_visible(user_id, (
             _admin().table('org_resources')
-            .select('id, title, url, description, audience, visible_to_roles')
+            .select('id, title, url, description, audience, visible_to_roles, visible_to_user_ids')
             .eq('organization_id', org_id).eq('pinned', True)
             .in_('audience', ['staff', 'all'])
             .order('sort_order').order('title').execute()
@@ -456,7 +456,7 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     # Role-narrowed resources only nag the roles they target.
     resources = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
-        .select('id, title, url, version_date, updated_at, visible_to_roles')
+        .select('id, title, url, version_date, updated_at, visible_to_roles, visible_to_user_ids')
         .eq('organization_id', org_id).eq('requires_ack', True)
         .in_('audience', ['staff', 'all']).execute()
     ).data or [])

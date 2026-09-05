@@ -21,7 +21,10 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_events', __name__, url_prefix='/api/sis')
 
 EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_day',
-                'category', 'categories', 'audience')
+                'category', 'categories', 'audience',
+                # RSVP: whether families are asked to reply, what it costs, and
+                # when replies close (9cf78e9a).
+                'rsvp_enabled', 'rsvp_fee_cents', 'rsvp_closes_at')
 AUDIENCES = ('school', 'teachers', 'admins')
 MAX_CATEGORIES = 8
 
@@ -33,8 +36,16 @@ def _clean(data):
         if k not in data:
             continue
         v = data[k]
-        if k == 'all_day':
+        if k in ('all_day', 'rsvp_enabled'):
             fields[k] = bool(v)
+        elif k == 'rsvp_fee_cents':
+            # NULL is "free", which is not zero: a zero would render a payment
+            # line for nothing. A negative fee is not a refund, it is a typo.
+            try:
+                cents = int(v) if v not in (None, '') else None
+            except (TypeError, ValueError):
+                cents = None
+            fields[k] = cents if cents and cents > 0 else None
         elif k == 'audience':
             fields[k] = v if v in AUDIENCES else 'school'
         elif k == 'categories':
@@ -66,6 +77,26 @@ def _clean(data):
     if 'category' in fields and 'categories' not in fields:
         fields['categories'] = [fields['category']] if fields['category'] else []
     return fields
+
+
+@bp.route('/events/<event_id>/rsvps', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_event_rsvps(user_id, event_id):
+    """Who has said they are coming — the office's headcount (9cf78e9a)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_event_rsvp_service as rsvps
+    if not rsvps.get_event(org_id, event_id):
+        return jsonify({'success': False, 'error': 'Event not found'}), 404
+    rows = rsvps.rsvps_for(org_id, event_id)
+    coming = [r for r in rows if r.get('attending')]
+    return jsonify({
+        'success': True,
+        'rsvps': rows,
+        'families': len(coming),
+        'people': sum(r.get('party_size') or 1 for r in coming),
+    })
 
 
 def _org_calendar_settings(org_id):

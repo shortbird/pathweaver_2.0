@@ -57,6 +57,9 @@ def list_threads(user_id: str):
         if err:
             return err
         conversations = message_service.get_user_conversations(ctx['inbox_user_id'])
+        # Who spoke last, so the office can separate "waiting on us" from
+        # "answered" without opening every thread (2ca63bde, 7fb34ed4).
+        school_inbox_service.annotate_last_sender(conversations)
         return success_response({
             'organization': {'id': ctx['org']['id'], 'name': ctx['org']['name']},
             'inbox_user_id': ctx['inbox_user_id'],

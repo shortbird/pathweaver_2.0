@@ -460,6 +460,27 @@ def unassign_onboarding(user_id, assignment_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/onboarding/assignments/<assignment_id>/attachable-documents', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+@require_module('onboarding')
+def onboarding_attachable_documents(user_id, assignment_id):
+    """What the office already holds for this person, to file against an item.
+
+    The office uploads a background check to the store, then finds the person's
+    onboarding still reading "pending" and has no way to connect the two
+    (c23105fa, 2026-09-05: "I have like 18 or so people in that same boat").
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    assignment = onboarding.load_assignment_for_admin(org_id, assignment_id)
+    if not assignment:
+        return jsonify({'success': False, 'error': 'Checklist not found'}), 404
+    return jsonify({'success': True,
+                    'documents': onboarding.attachable_documents(
+                        org_id, assignment.get('user_id'))})
+
+
 @bp.route('/onboarding/doc-url', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def onboarding_admin_doc_url(user_id):

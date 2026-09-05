@@ -44,6 +44,12 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 
 # Measured 2026-09-03.
+# repositories/ raised 415 -> 417 for get_class_activity in
+# class_repository.py: the roster-wide week read for class check-ins, plus
+# _quest_titles beside it. The second call is not avoidable by embedding --
+# quest_task_completions has no foreign key on quest_id, so PostgREST cannot
+# resolve `quests(title)` as a nested select. Both sit in the layer that owns
+# the table; nothing was added above repositories/.
 # repositories/ raised 406 -> 415 when the CRM suppression cascade moved out of
 # routes/ into repositories/crm_repository.py (the webhook, the admin console
 # and the unsubscribe link all needed to agree on it). routes/ fell by the
@@ -86,10 +92,55 @@ BACKEND = Path(__file__).resolve().parents[2]
 # sis_saved_payment_methods, users x2, sis_recurring_tuition -- that exist only
 # to compose the text of one office notification, which routing through five
 # repositories buys nothing).
+# services/ 1800 -> 1803 on 2026-09-05, three iCreate Perch tickets:
+#   * sis_onboarding_service.attachable_documents lists one person's rows in
+#     sis_secure_documents so the office can file an already-uploaded background
+#     check against the checklist item it answers (c23105fa). The single-row
+#     read next to it goes through sis_secure_docs_service.get_document; there
+#     is no list reader there to borrow, and office_documents two functions
+#     above already reads this table the same way.
+#   * messaging_extras_service._reactor_names resolves display names for a page
+#     of reactions, so a pill can say WHO reacted and not just how many
+#     (d4233d4e). One users read per page, never per pill.
+#   * sis_registration_service._live_classes_with_rooms reads org_classes for
+#     the room double-booking check (43625a45) -- the same query, on the same
+#     table, as list_teacher_conflicts immediately above it, which is the
+#     teacher-keyed twin of the same feature.
+# routes/ 2321 -> 2332 and services/ 1803 -> 1826 on 2026-09-05, the second
+# iCreate Perch sweep (24 tickets). No repository exists for any of the tables
+# below, and every neighbouring SIS service owns its own table the same way —
+# adding four repositories for four new SIS tables, to be called from one
+# service each, would be a layer with nothing in it.
+#
+#   routes/ (+11)
+#     curriculum.py            +6  a quest on several curricula: read which
+#                                  carry it, add it to another, take it off one
+#                                  (24d47467)
+#     class_quests.py          +2  the class's curriculum quest ids for the
+#                                  scoped picker (49ba6e08/71e7f320), and the
+#                                  caller's name for "call for help" (9d0618f8)
+#     resources.py             +1  checking the people a resource is pinned to
+#                                  are in this school (cf671ff2)
+#     the rest                 +2  incidental reads beside the above
+#
+#   services/ (+23)
+#     sis_event_rsvp_service   +10 a NEW table (sis_event_rsvps) and its event:
+#                                  reply, edit, count, and the household a
+#                                  guardian answers for (9cf78e9a)
+#     sis_community_service    +7  a NEW table (sis_recognition_comments):
+#                                  list, count, add, delete, ownership, names
+#                                  (d0c7ac4e)
+#     sis_billing_service      +3  repricing an invoice when a student switches
+#                                  classes (98445c62/ad37b8c2)
+#     one each                 +3  onboarding's attachable documents (c23105fa),
+#                                  reaction author names (d4233d4e), the room
+#                                  double-booking read (43625a45), the school
+#                                  inbox's last sender (2ca63bde), class supply
+#                                  spend (805cb3a3)
 BASELINES = {
-    'routes': 2321,
-    'services': 1800,
-    'repositories': 415,
+    'routes': 2332,
+    'services': 1826,
+    'repositories': 417,
     'utils': 134,
     'jobs': 7,
     'middleware': 3,
@@ -136,7 +187,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2321 + 1800
+UPPER_TOTAL_BASELINE = 2332 + 1826
 
 
 def test_the_upper_layers_do_not_grow_in_total():

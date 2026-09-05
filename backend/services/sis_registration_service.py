@@ -365,6 +365,102 @@ def list_teacher_conflicts(org_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def _rooms_of(c: Dict[str, Any]) -> List[str]:
+    """Every room a class occupies: its primary one plus any extras.
+
+    A class can take up more than one space — the pottery class is in the art
+    room AND the kiln shed (43625a45) — and all of them are booked for its hour,
+    so all of them have to be checked.
+    """
+    rooms = [(c.get('location') or '').strip()]
+    rooms += [str(r).strip() for r in (c.get('additional_locations') or [])]
+    # De-duped, order kept: the primary room leads, which is what a conflict
+    # message should name first.
+    seen, out = set(), []
+    for r in rooms:
+        if r and r not in seen:
+            seen.add(r)
+            out.append(r)
+    return out
+
+
+def _live_classes_with_rooms(org_id: str) -> List[Dict[str, Any]]:
+    """Classes that still run and have been given at least one room. A room is
+    named, not referenced: the picker writes the name chosen from the school's
+    room list, so two classes in the same room agree on the string."""
+    classes = fetch_all_rows(lambda: (
+        _admin().table('org_classes')
+        .select('id, name, status, location, additional_locations')
+        .eq('organization_id', org_id)
+    ))
+    return [c for c in classes
+            if c.get('status') != 'archived' and _rooms_of(c)]
+
+
+def room_schedule(org_id: str) -> Dict[str, Any]:
+    """What is in each room, and where two classes have been put in one.
+
+    Two reports, one read, because they are the same question asked at two
+    moments. iCreate, 2026-09-04: "on the drop down menu for the rooms, maybe it
+    can show which ones are already occupied that hour" (f9d50612) — that is
+    `occupancy`, consulted while choosing — and "a room conflict notice would be
+    good" (43625a45) — that is `conflicts`, reported after saving.
+
+    Advisory only, exactly like the teacher check next to it: a school may
+    genuinely want two things in the gym, and the office is the judge of that.
+    """
+    live = _live_classes_with_rooms(org_id)
+    class_name = {c['id']: c.get('name') for c in live}
+    classes_by_room: Dict[str, List[str]] = {}
+    for c in live:
+        for room in _rooms_of(c):
+            classes_by_room.setdefault(room, []).append(c['id'])
+
+    class_ids = sorted(class_name)
+    meetings_by_class: Dict[str, List[Dict[str, Any]]] = {}
+    if class_ids:
+        for m in _classes_repo().meetings_for_classes(class_ids):
+            meetings_by_class.setdefault(m['class_id'], []).append(m)
+
+    # Every booked slot, by room. A class with no meetings holds no time, so it
+    # is in the room's list nowhere — the dropdown would otherwise call a room
+    # busy all week on the strength of a class that never meets.
+    occupancy: Dict[str, List[Dict[str, Any]]] = {}
+    for room, ids in classes_by_room.items():
+        slots = [{
+            'class_id': cid,
+            'class_name': class_name.get(cid),
+            'day_of_week': m.get('day_of_week'),
+            'start_time': m.get('start_time'),
+            'end_time': m.get('end_time'),
+        } for cid in ids for m in meetings_by_class.get(cid, [])
+            if m.get('day_of_week') is not None]
+        if slots:
+            occupancy[room] = sorted(
+                slots, key=lambda s: (s['day_of_week'], s['start_time'] or ''))
+
+    # Only a room holding two or more classes can be double-booked.
+    pairs = elig.find_double_bookings(
+        {r: ids for r, ids in classes_by_room.items() if len(ids) > 1},
+        meetings_by_class)
+    conflicts = []
+    for p in pairs:
+        slot = _first_overlap_slot(meetings_by_class.get(p['class_a'], []),
+                                   meetings_by_class.get(p['class_b'], [])) or {}
+        conflicts.append({
+            'room': p['key'],
+            'class_a_id': p['class_a'],
+            'class_a': class_name.get(p['class_a'], 'Unknown'),
+            'class_b_id': p['class_b'],
+            'class_b': class_name.get(p['class_b'], 'Unknown'),
+            'day_of_week': slot.get('day_of_week'),
+            'start_time': slot.get('start_time'),
+            'end_time': slot.get('end_time'),
+        })
+    conflicts.sort(key=lambda r: (r['room'].lower(), r['class_a'] or ''))
+    return {'occupancy': occupancy, 'conflicts': conflicts}
+
+
 def add_item(org_id: str, reg_id: str, class_id: str) -> Dict[str, Any]:
     """Add a class to a registration. Returns the item + soft-eligibility eval."""
     reg = get_registration(org_id, reg_id)

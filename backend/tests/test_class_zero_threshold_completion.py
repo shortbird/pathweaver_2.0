@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 
 import app  # noqa: F401 — import graph ordering
+from repositories.class_repository import ClassRepository
 from services.class_service import ClassService
 
 
@@ -70,3 +71,52 @@ def test_enrollment_does_not_mark_complete_at_zero_threshold():
     service.class_repo.enroll_student.return_value = {'id': 'e1'}
     service.enroll_student('c1', 's1', enrolled_by='admin1')
     service.class_repo.update_enrollment_status.assert_not_called()
+
+
+# --- The bulk path -----------------------------------------------------------
+#
+# calculate_student_class_progress (above) is the single-student read. The
+# Students tab renders from get_class_progress_bulk, a second copy of the same
+# arithmetic that the 2026-08-28 fix did not touch — so Arete's roster went on
+# showing all 31 students under a green "Completed (31)" header long after the
+# bug was called fixed. These pin the two together.
+
+
+def _repo_with(cls_row, quest_ids=(), roster=(('s1', 0),)):
+    with patch.object(ClassRepository, '__init__', lambda self: None):
+        repo = ClassRepository()
+    repo._admin_client = MagicMock()
+    repo.find_by_id = MagicMock(return_value=cls_row)
+    repo.get_class_quest_ids = MagicMock(return_value=list(quest_ids))
+    repo.get_class_students = MagicMock(return_value=[
+        {'status': 'active', 'users': {'id': sid}} for sid, _ in roster
+    ])
+    xp_by_student = dict(roster)
+    repo._admin_client.table.return_value.select.return_value.eq.return_value\
+        .in_.return_value.execute.side_effect = lambda: MagicMock(
+            data=[{'user_quest_tasks': {'xp_value': xp_by_student['s1']}}]
+        )
+    return repo
+
+
+def test_bulk_zero_threshold_never_completes():
+    repo = _repo_with({'id': 'c1', 'xp_threshold': 0})
+    progress = repo.get_class_progress_bulk('c1')[0]['progress']
+    assert progress['is_complete'] is False
+    assert progress['percentage'] == 0
+
+
+def test_bulk_null_threshold_does_not_raise():
+    """None fails `>= ` and `> 0` alike; the column is nullable, so a class
+    created without a threshold crashed this endpoint outright."""
+    repo = _repo_with({'id': 'c1', 'xp_threshold': None})
+    progress = repo.get_class_progress_bulk('c1')[0]['progress']
+    assert progress['is_complete'] is False
+
+
+def test_bulk_real_threshold_still_completes():
+    repo = _repo_with({'id': 'c1', 'xp_threshold': 100},
+                      quest_ids=('q1',), roster=(('s1', 150),))
+    progress = repo.get_class_progress_bulk('c1')[0]['progress']
+    assert progress['is_complete'] is True
+    assert progress['percentage'] == 100

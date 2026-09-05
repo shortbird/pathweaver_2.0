@@ -77,13 +77,19 @@ const ATTENTION_TILES = [
   { key: 'students_no_family', label: 'Students not in a family', to: '/people?tab=families' },
 ]
 
-/** Quick actions — the handful of things an admin starts from a cold open. */
+/** Quick actions — the handful of things an admin starts from a cold open,
+ * in the order the front office reaches for them.
+ *
+ * Classes moved up past messaging: "Classes need to be above the messages,
+ * otherwise they are too hard to find" (iCreate, 2026-08-31 — 9f9e4360). The
+ * office opens a class many times a day and writes to families a few times a
+ * week, and the list had it the other way round. */
 const QUICK_ACTIONS = [
   { label: 'Take attendance', to: '/attendance', module: '/attendance' },
+  { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Add a family', to: '/people?tab=families' },
   { label: 'Message families', to: '/inbox?tab=announcements' },
   { label: 'Send for signature', to: '/tasks?tab=paperwork', module: '/tasks' },
-  { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Reports', to: '/reports', module: '/reports' },
 ]
 
@@ -169,6 +175,10 @@ const SisDashboard = () => {
   const board = today.attendance
   const recorded = board?.recorded || {}
   const events = data?.events || []
+  // The school's permanent links — the noticeboard the office asked for
+  // (2bb829a6). Teachers and coordinators already had this card; the admins who
+  // pin the links had nowhere that showed them back.
+  const pinnedLinks = data?.pinned_links || []
   // Finance is present only for callers the BACKEND put it there for — a
   // campus coordinator reaching this endpoint gets no `finance` key at all.
   const finance = data?.finance
@@ -217,6 +227,28 @@ const SisDashboard = () => {
               </div>
             )}
           </section>
+
+          {pinnedLinks.length > 0 && (
+            <section className="mb-6">
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                  Noticeboard
+                </h2>
+                <Link to="/resources" className="text-sm text-optio-purple hover:underline">
+                  Manage links
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {pinnedLinks.map((l) => (
+                  <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
+                    title={l.description || undefined}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-optio-purple hover:border-optio-purple/50 hover:bg-optio-purple/5 transition-colors">
+                    {l.title}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Masonry, via CSS multi-column rather than grid.
               A grid row stretches every card to the tallest one and pins each to

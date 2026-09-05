@@ -10,7 +10,7 @@ from flask import request
 from database import get_supabase_admin_client
 from repositories.base_repository import NotFoundError
 from routes.tasks import bp
-from routes.tasks.xp_helpers import SUBJECT_NORMALIZATION
+from routes.tasks.xp_helpers import SUBJECT_NORMALIZATION, get_subject_xp_distribution
 from services.atomic_quest_service import atomic_quest_service  # noqa: F401 (historical import kept for parity)
 from services.evidence_service import EvidenceService
 from services.webhook_service import WebhookService
@@ -24,6 +24,29 @@ logger = get_logger(__name__)
 
 evidence_service = EvidenceService()
 xp_service = XPService()
+
+
+def _task_has_evidence(admin, user_id, task_id):
+    """Does this task already carry at least one evidence block?
+
+    Asked when a completion request brings no evidence of its own, so that
+    evidence attached earlier — by the learner in a draft, or by a parent
+    through /api/evidence/helper/* — is not thrown away and replaced with a
+    placeholder sentence. Best-effort: if the lookup fails the caller falls back
+    to demanding evidence in the request, which is the stricter answer.
+    """
+    try:
+        doc = (admin.table('user_task_evidence_documents').select('id')
+               .eq('user_id', user_id).eq('task_id', task_id)
+               .limit(1).execute()).data
+        if not doc:
+            return False
+        blocks = (admin.table('evidence_document_blocks').select('id')
+                  .eq('document_id', doc[0]['id']).limit(1).execute()).data
+        return bool(blocks)
+    except Exception as e:  # noqa: BLE001 — a failed check must not block a save
+        logger.warning(f'Could not check existing evidence for task {task_id}: {e}')
+        return False
 
 
 @bp.route('/<task_id>/complete', methods=['POST'])
@@ -120,6 +143,20 @@ def complete_task(user_id: str, task_id: str):
             not request.form.get('evidence_type')
             and is_treehouse_member(admin_supabase, effective_user_id)
         )
+
+        # Evidence already attached to the task counts as evidence.
+        #
+        # The rule is "a finished task has something behind it", not "the request
+        # that finished it carried the something". A parent attaching photos for
+        # their child does it through /api/evidence/helper/*, which writes real
+        # blocks and leaves the task a draft; the completion that follows had
+        # nothing left to put in the form, so the mobile app sent the literal
+        # string "Marked complete by parent" to get past this check. Fifteen of
+        # iCreate's completions carry that sentence as their only evidence, which
+        # is what their teacher was looking at when she asked for "evidence
+        # required before they can submit" (dc7ccacc, 2026-09-04).
+        if not skip_evidence and not request.form.get('evidence_type'):
+            skip_evidence = _task_has_evidence(admin_supabase, effective_user_id, task_id)
 
         # Get evidence from request
         evidence_type = request.form.get('evidence_type')
@@ -429,27 +466,16 @@ def finalize_task(user_id: str, task_id: str):
                 status=400
             )
 
-        # Get subject XP distribution
+        # Get subject XP distribution. This used to inline its own copy of the
+        # subject_xp_distribution -> diploma_subjects fallback, which drifted
+        # from the shared helper and read diploma_subjects XP amounts as
+        # percentages. Finalizing is the step that moves pending XP onto the
+        # transcript, so a split that disagrees with the credit-request step
+        # strands XP in pending forever.
         task_data = completion_data.get('user_quest_tasks') or {}
-        subject_xp_distribution = task_data.get('subject_xp_distribution', {})
-
-        if not subject_xp_distribution:
-            # Convert diploma_subjects to XP distribution
-            diploma_subjects = task_data.get('diploma_subjects')
-            task_xp = task_data.get('xp_value') or 0
-
-            if diploma_subjects:
-                if isinstance(diploma_subjects, dict):
-                    for subject, percentage in diploma_subjects.items():
-                        if isinstance(percentage, (int, float)) and percentage > 0:
-                            subject_xp = int(task_xp * percentage / 100)
-                            if subject_xp > 0:
-                                subject_xp_distribution[subject] = subject_xp
-                elif isinstance(diploma_subjects, list) and diploma_subjects:
-                    per_subject_xp = task_xp // len(diploma_subjects)
-                    for subject in diploma_subjects:
-                        if per_subject_xp > 0:
-                            subject_xp_distribution[subject] = per_subject_xp
+        subject_xp_distribution = get_subject_xp_distribution(
+            task_data, task_data.get('xp_value') or 0
+        )
 
         now = datetime.utcnow().isoformat()
         total_xp_finalized = 0

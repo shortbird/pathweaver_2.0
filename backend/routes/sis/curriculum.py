@@ -598,6 +598,96 @@ def _serialize_template_task(t):
     }
 
 
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/curricula', methods=['GET'])
+@require_role(*ADMIN_ROLES)
+def quest_curricula(user_id, curriculum_id, quest_id):
+    """Which of the school's curricula carry this quest, and which could.
+
+    sis_curriculum_quests has been UNIQUE(curriculum_id, quest_id) since it was
+    created, so one quest on several curricula has always been legal — there was
+    just nothing on screen that said so, and no way to do it from the quest you
+    were looking at:
+
+      "I mentioned that I wanted the quests assigned to a particular curriculum.
+      But I would also like the option to assign the quests to OTHER curriculum
+      too. Like I'm creating quests for Academic Learning day, but they can be
+      used in Elementary microschool too." (24d47467, 2026-09-01)
+    """
+    org_id, _quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    on_ids = {r['curriculum_id'] for r in (
+        _admin().table('sis_curriculum_quests').select('curriculum_id')
+        .eq('quest_id', quest_id).execute()).data or []}
+    rows = (_admin().table('sis_curriculum').select('id, title')
+            .eq('organization_id', org_id).eq('is_active', True)
+            .order('title').execute()).data or []
+    return jsonify({
+        'success': True,
+        'on': [r for r in rows if r['id'] in on_ids],
+        'available': [r for r in rows if r['id'] not in on_ids],
+    })
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/curricula', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_quest_to_curriculum(user_id, curriculum_id, quest_id):
+    """Also put this quest on another of the school's curricula.
+
+    Additive: the quest stays where it is. The target's classes get it pushed
+    the same way adding it there directly would, so the two routes cannot
+    disagree about what "on a curriculum" means.
+    """
+    org_id, _quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    target = (request.get_json() or {}).get('target_curriculum_id')
+    if _bad_uuid(target) or not _owned(org_id, target):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    if target == curriculum_id:
+        return jsonify({'success': False, 'error': 'It is already on this curriculum'}), 400
+
+    existing = (_admin().table('sis_curriculum_quests').select('id, sequence_order')
+                .eq('curriculum_id', target)
+                .order('sequence_order', desc=True).limit(1).execute()).data
+    already = (_admin().table('sis_curriculum_quests').select('id')
+               .eq('curriculum_id', target).eq('quest_id', quest_id)
+               .limit(1).execute()).data
+    if already:
+        return jsonify({'success': True, 'added': False, 'pushed_to_classes': 0})
+    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
+    _admin().table('sis_curriculum_quests').insert({
+        'curriculum_id': target, 'quest_id': quest_id,
+        'sequence_order': next_order, 'added_by': user_id,
+    }).execute()
+    pushed = push_curriculum_quests_safe(_admin(), target, org_id, user_id,
+                                         quest_ids=[quest_id])
+    return jsonify({'success': True, 'added': True,
+                    'pushed_to_classes': pushed['classes']})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/curricula/<other_curriculum_id>',
+          methods=['DELETE'])
+@require_role(*ADMIN_ROLES)
+def remove_quest_from_other_curriculum(user_id, curriculum_id, quest_id, other_curriculum_id):
+    """Take the quest off one of the OTHER curricula carrying it.
+
+    Never off the one being viewed — that is the existing unlink route, which
+    also tidies up the classes. This is the undo for the button above it.
+    """
+    org_id, _quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if _bad_uuid(other_curriculum_id) or not _owned(org_id, other_curriculum_id):
+        return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    if other_curriculum_id == curriculum_id:
+        return jsonify({'success': False,
+                        'error': 'Remove it from this curriculum from the quest itself'}), 400
+    _admin().table('sis_curriculum_quests').delete() \
+        .eq('curriculum_id', other_curriculum_id).eq('quest_id', quest_id).execute()
+    return jsonify({'success': True})
+
+
 def _curriculum_quest(user_id, curriculum_id, quest_id):
     """(org_id, quest, err). The caller's org must own the curriculum and the
     quest must be linked to it."""

@@ -565,7 +565,114 @@ def update_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
         'line_count': len(clean) if clean is not None else None,
     })
     enqueue_qbo(org_id, 'invoice', invoice_id)
+    notify_family_of_invoice_change(
+        org_id, invoice, inv.get('total_cents') or 0,
+        'The school changed what is on it.')
     return {'invoice': get_invoice(org_id, invoice_id)}
+
+
+def reprice_for_class_change(org_id: str, student_user_id: str,
+                             actor_user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Bring a student's open invoice back in line with the classes they are
+    actually in.
+
+    iCreate, 2026-09-04 (98445c62): "If a student switches classes, if their
+    current invoice has not been paid, could that auto update the invoice with
+    whatever new fees apply? If the invoice has been paid and they switch
+    classes, can we have it auto send them a new payment for extra fees incurred
+    or a message that they now have a credit?"
+
+    ...and, the same day (ad37b8c2): "nix the part about issuing credits. We
+    have a no refund no credit policy on class supply fees due to the fact that
+    we likely have already purchased supplies for any given class. But an auto
+    payment if more is due would still be good."
+
+    So money only ever moves one way here:
+
+      nothing paid yet   the invoice is rewritten to the current classes, up or
+                         down — nobody has parted with anything, so there is no
+                         refund to argue about
+      part/fully paid    a class ADDED bills the difference as its own charge; a
+                         class dropped changes nothing, by policy
+
+    Returns what it did, so the caller can tell the office rather than moving
+    somebody's bill silently.
+    """
+    enrolled = (_admin().table('class_enrollments').select('class_id')
+                .eq('student_id', student_user_id).eq('status', 'active')
+                .execute()).data or []
+    class_ids = {e['class_id'] for e in enrolled if e.get('class_id')}
+
+    # The one invoice this is about: their most recent that still owes money.
+    # A paid-off invoice from last term is not repriced by this term's move.
+    open_invoices = (_admin().table('sis_invoices')
+                     .select('*').eq('organization_id', org_id)
+                     .eq('student_user_id', student_user_id)
+                     .in_('status', ['sent', 'partial', 'overdue'])
+                     .order('created_at', desc=True).limit(1).execute()).data or []
+    if not open_invoices:
+        return {'changed': False, 'reason': 'no open invoice'}
+    inv = open_invoices[0]
+
+    lines = (_admin().table('sis_invoice_line_items').select('*')
+             .eq('invoice_id', inv['id']).execute()).data or []
+    billed = {li['class_id'] for li in lines if li.get('class_id')}
+    added, removed = class_ids - billed, billed - class_ids
+    if not added and not removed:
+        return {'changed': False, 'reason': 'already matches'}
+
+    priced = {}
+    if added:
+        priced = {c['id']: c for c in (
+            _admin().table('org_classes').select('id, name, price_cents, supply_fee')
+            .in_('id', sorted(added)).execute()).data or []}
+
+    def _class_cost(c):
+        # What the class costs a family: tuition plus its supply fee, which is
+        # the part the no-refund policy is about.
+        return int(c.get('price_cents') or 0) + int(round(float(c.get('supply_fee') or 0) * 100))
+
+    paid = inv.get('amount_paid_cents') or 0
+    if paid > 0:
+        # Money has landed. Additions are billed separately; removals are not
+        # refunded, by policy (ad37b8c2).
+        extra = sum(_class_cost(priced[cid]) for cid in added if cid in priced)
+        if not extra:
+            return {'changed': False, 'reason': 'nothing further to bill'}
+        names = ', '.join(priced[cid].get('name') or 'Class' for cid in added if cid in priced)
+        charge = create_charge(org_id, {
+            'household_id': inv.get('household_id'),
+            'student_user_id': student_user_id,
+            'description': f'Class change: {names}',
+            'amount_cents': extra,
+            'kind': 'tuition',
+        })
+        _audit(org_id, inv['id'], actor_user_id, 'class_change_charged', {
+            'added': sorted(added), 'amount_cents': extra,
+            'charge_invoice_id': (charge.get('invoice') or {}).get('id'),
+        })
+        return {'changed': True, 'billed_separately': True, 'amount_cents': extra,
+                'invoice': charge.get('invoice')}
+
+    # Nothing paid: rewrite the invoice itself.
+    keep = [li for li in lines if not li.get('class_id') or li['class_id'] in class_ids]
+    new_lines = [{'description': li.get('description'), 'class_id': li.get('class_id'),
+                  'amount_cents': li.get('amount_cents') or 0,
+                  'quantity': li.get('quantity') or 1, 'kind': li.get('kind')}
+                 for li in keep]
+    for cid in sorted(added):
+        c = priced.get(cid)
+        if not c:
+            continue
+        new_lines.append({'description': c.get('name') or 'Class', 'class_id': cid,
+                          'amount_cents': _class_cost(c), 'quantity': 1, 'kind': 'tuition'})
+    result = update_invoice(org_id, inv['id'], actor_user_id, line_items=new_lines)
+    if result.get('error'):
+        return {'changed': False, 'reason': result['error']}
+    _audit(org_id, inv['id'], actor_user_id, 'class_change_repriced', {
+        'added': sorted(added), 'removed': sorted(removed),
+    })
+    return {'changed': True, 'repriced': True, 'invoice': result.get('invoice')}
 
 
 def void_invoice(org_id: str, invoice_id: str, actor_user_id: Optional[str],
@@ -600,6 +707,43 @@ def _household_primary_contact(household_id: Optional[str]) -> Optional[str]:
     row = (_admin().table('households').select('primary_contact_user_id')
            .eq('id', household_id).limit(1).execute()).data
     return (row[0].get('primary_contact_user_id') if row else None)
+
+
+def notify_family_of_invoice_change(org_id: str, invoice: Dict[str, Any],
+                                    from_total_cents: int, what: str) -> None:
+    """Tell the family their bill moved.
+
+    iCreate, 2026-09-01 (5d744c39): "Could there be some sort of notification
+    given if there are updates on an invoice? One family thought they would get
+    an email telling them when an update occurred, but nothing at all happens
+    apparently."
+
+    An in-app notification, not an email: an invoice is edited more than once
+    while the office gets it right, and three emails about the same bill in an
+    afternoon is worse than none. The office still sends the invoice email
+    deliberately (email_invoice_to_family) when it wants one.
+
+    Silent when the total did not move — a correction to a description or a due
+    date is not news to the family, and crying wolf is how a notification stops
+    being read.
+    """
+    to_total = invoice.get('total_cents') or 0
+    if to_total == from_total_cents:
+        return
+    contact = _household_primary_contact(invoice.get('household_id'))
+    if not contact:
+        return
+    direction = 'went up' if to_total > from_total_cents else 'went down'
+    number = invoice.get('invoice_number') or 'your invoice'
+    try:
+        from services import sis_notifications
+        sis_notifications.notify(
+            contact,
+            f'{number} {direction}',
+            f'{what} It is now ${to_total / 100:,.2f}.',
+            link='/billing', organization_id=org_id)
+    except Exception as e:  # noqa: BLE001 — the edit already committed
+        logger.warning(f"Could not notify family about invoice {invoice.get('id')}: {e}")
 
 
 def email_invoice_to_family(org_id: str, invoice_id: str,

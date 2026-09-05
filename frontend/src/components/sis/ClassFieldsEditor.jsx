@@ -77,6 +77,9 @@ export default function ClassFieldsEditor({
   staff = [],
   timeBlocks = [],
   rooms = [],
+  // {room name: [{class_id, class_name, day_of_week, start_time, end_time}]} —
+  // every slot already booked in each room, from GET /api/sis/room-schedule.
+  roomOccupancy = {},
   // Image editing needs a file and a class id to upload against, so the host
   // owns it; passing null leaves the tile out entirely.
   imagePreview = null,
@@ -98,6 +101,35 @@ export default function ClassFieldsEditor({
 
   const matchedRoom = normalizedRooms.find((r) => r.name === d.location)
   const [customRoom, setCustomRoom] = React.useState(() => Boolean(d.location && !matchedRoom))
+
+  // Which rooms are already taken at the hours THIS class meets. iCreate,
+  // 2026-09-04: "on the drop down menu for the rooms, maybe it can show which
+  // ones are already occupied that hour." Computed from the draft, so it
+  // follows the days and times as they are edited, and it ignores this class's
+  // own booking — a class is not competing with itself for its room.
+  const draftEnd = addMin(d.start_time, d.duration_minutes)
+  const busyRooms = React.useMemo(() => {
+    if (!d.start_time || !draftEnd || !d.days_of_week?.length) return {}
+    const out = {}
+    for (const [room, slots] of Object.entries(roomOccupancy || {})) {
+      const clash = slots.filter((s) => (
+        s.class_id !== d.id
+        && d.days_of_week.includes(s.day_of_week)
+        && s.start_time < draftEnd && d.start_time < s.end_time
+      ))
+      if (clash.length) out[room] = clash
+    }
+    return out
+  }, [roomOccupancy, d.id, d.days_of_week, d.start_time, draftEnd])
+
+  // "Gym — in use (Choir)". The names are what makes it actionable: "in use"
+  // alone sends the office looking through the schedule for what is in there.
+  const busyLabel = (room) => {
+    const clash = busyRooms[room]
+    if (!clash) return ''
+    const names = [...new Set(clash.map((c) => c.class_name).filter(Boolean))]
+    return names.length ? ` — in use (${names.slice(0, 2).join(', ')}${names.length > 2 ? `, +${names.length - 2}` : ''})` : ' — in use'
+  }
 
   return (
     <div className="space-y-4">
@@ -282,11 +314,63 @@ export default function ClassFieldsEditor({
                 <option value="">No room assigned</option>
                 {normalizedRooms.map((r) => (
                   <option key={r.name} value={r.name}>
-                    {r.name}{r.description ? ` (${r.description})` : ''}
+                    {r.name}{r.description ? ` (${r.description})` : ''}{busyLabel(r.name)}
                   </option>
                 ))}
                 <option value="__custom__">Custom / Other room...</option>
               </select>
+
+              {/* Rooms beyond the primary one. A pottery class is in the art
+                  room AND the kiln shed; both are booked for its hour, and the
+                  double-booking check now reads all of them (43625a45). */}
+              {normalizedRooms.length > 1 && (
+                <div className="pt-1">
+                  {(d.additional_locations || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {d.additional_locations.map((r) => (
+                        <span key={r}
+                          className="inline-flex items-center gap-1 rounded-full bg-optio-purple/10 px-2 py-0.5 text-xs text-optio-purple">
+                          {r}{busyRooms[r] ? ' — in use' : ''}
+                          <button type="button" aria-label={`Remove ${r}`}
+                            onClick={() => set({
+                              additional_locations: d.additional_locations.filter((x) => x !== r),
+                            })}
+                            className="text-optio-purple/60 hover:text-red-600">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <select className={`${cell} px-1 text-xs`} value=""
+                    aria-label="Also uses room"
+                    onChange={(e) => {
+                      const room = e.target.value
+                      if (room && !(d.additional_locations || []).includes(room)) {
+                        set({ additional_locations: [...(d.additional_locations || []), room] })
+                      }
+                    }}>
+                    <option value="">
+                      {(d.additional_locations || []).length ? 'Also uses…' : 'Uses another room too…'}
+                    </option>
+                    {normalizedRooms
+                      .filter((r) => r.name !== d.location
+                        && !(d.additional_locations || []).includes(r.name))
+                      .map((r) => (
+                        <option key={r.name} value={r.name}>
+                          {r.name}{busyLabel(r.name)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {!customRoom && busyRooms[d.location] && (
+                // Advisory, never a block: a school may genuinely want two
+                // things in the gym, and the office is the judge of that.
+                <p className="text-xs text-amber-700">
+                  {d.location} is already booked at this time by{' '}
+                  {[...new Set(busyRooms[d.location].map((c) => c.class_name).filter(Boolean))].join(', ')}.
+                </p>
+              )}
 
               {customRoom && (
                 <input

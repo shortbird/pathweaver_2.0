@@ -97,6 +97,10 @@ const Picker = ({ label, options, chosen, setChosen, getLabel, getChipLabel, pla
   )
 }
 
+// Weekdays only: a school's classes do not meet at the weekend, and two dead
+// chips on every composer is noise.
+const DAY_CHIPS = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri']]
+
 const AnnouncementComposer = () => {
   const { orgId, orgs } = useSisOrg()
   const { user } = useAuth()
@@ -110,6 +114,12 @@ const AnnouncementComposer = () => {
   const [message, setMessage] = useState('')
   const [audiences, setAudiences] = useState(['parents'])
   const [classIds, setClassIds] = useState([])
+  // The third place a notice can land. Posting to the board used to mean going
+  // to the Community page and writing it a second time, which is the confusion
+  // behind "I think we may be getting confused with messaging and
+  // announcements?" (ce12a041, 2026-09-02).
+  const [postToBoard, setPostToBoard] = useState(false)
+  const [pinOnBoard, setPinOnBoard] = useState(false)
   const [teacherIds, setTeacherIds] = useState([])
   const [minAge, setMinAge] = useState('')
   const [maxAge, setMaxAge] = useState('')
@@ -270,17 +280,22 @@ const AnnouncementComposer = () => {
         max_age: maxAge === '' ? null : Number(maxAge),
         send_email: delivery !== 'app',
         send_app: delivery !== 'email',
+        post_to_board: postToBoard,
+        pin_on_board: postToBoard && pinOnBoard,
         // Durable pointers only — never the signed display twins.
         attachments: attachments.map(({ url, type, name, size }) => ({ url, type, name, size })),
       })
       const n = r.data?.recipients
+      const board = r.data?.posted_to_board ? ' and posted to the board' : ''
       toast.success(n == null
-        ? 'Announcement sent'
+        ? `Announcement sent${board}`
         : `Sent to ${n} ${n === 1 ? 'person' : 'people'}${
-          delivery === 'email' ? ' by email' : r.data?.emailed ? ', email included' : ''}`)
+          delivery === 'email' ? ' by email' : r.data?.emailed ? ', email included' : ''}${board}`)
       setTitle('')
       setMessage('')
       setAttachments([])
+      setPostToBoard(false)
+      setPinOnBoard(false)
       loadHistory()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Failed to send')
@@ -344,6 +359,37 @@ const AnnouncementComposer = () => {
               across sections; chips stay short (name only). */}
           <Picker label="Classes" options={classes} chosen={classIds} setChosen={setClassIds}
             getLabel={classLabel} getChipLabel={(c) => c.name} placeholder="Add a class…" />
+
+          {/* A whole teaching day in one click. "I need to just send to T/Th
+              teachers, but there's no way to do that unless i add in alllll the
+              classes" (iCreate, 2026-09-04 — ee853235). Deliberately an ADD, not
+              a filter mode: the chips above stay the single record of who is
+              selected, so nothing is targeted that is not visible up there. */}
+          {classes.some((c) => (c.meetings || []).length) && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-medium text-neutral-500 w-16 shrink-0">Meets</span>
+              {DAY_CHIPS.map(([dow, label]) => {
+                const onDay = classes.filter((c) => (c.meetings || [])
+                  .some((m) => m.day_of_week === dow))
+                if (!onDay.length) return null
+                const missing = onDay.filter((c) => !classIds.includes(c.id))
+                return (
+                  <button key={dow} type="button"
+                    onClick={() => setClassIds((prev) => [
+                      ...prev, ...missing.map((c) => c.id)])}
+                    disabled={!missing.length}
+                    title={missing.length
+                      ? `Add the ${missing.length} ${label} class${missing.length === 1 ? '' : 'es'} not already picked`
+                      : `Every ${label} class is already picked`}
+                    className={`px-2 py-1 rounded-lg text-xs border transition-colors ${missing.length
+                      ? 'border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple'
+                      : 'border-transparent text-neutral-300 cursor-default'}`}>
+                    {label}{missing.length ? ` +${missing.length}` : ' ✓'}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {admin && (
             <Picker label="Teachers" options={teachers} chosen={teacherIds} setChosen={setTeacherIds}
               getLabel={(t) => t.name || t.display_name || t.email} placeholder="Add a teacher…" />
@@ -384,9 +430,39 @@ const AnnouncementComposer = () => {
             </button>
           ))}
         </div>
-        <p className="text-xs text-neutral-500 mb-4">
+        <p className="text-xs text-neutral-500 mb-3">
           {DELIVERY.find((d) => d.key === delivery)?.hint}
         </p>
+
+        {/* Independent of the three above: the board is a PLACE a notice sits,
+            not a channel it travels down, so it stacks with app and email
+            rather than replacing them (ce12a041). Admin-only — the board is
+            the school's, and a teacher's send is scoped to their classes. */}
+        {admin && (
+          <div className="mb-4">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={postToBoard}
+                onChange={(e) => setPostToBoard(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              <span>
+                <span className="block text-sm font-medium text-neutral-700">
+                  Also post it on the Community board
+                </span>
+                <span className="block text-xs text-neutral-500">
+                  Stays there to be read later, instead of only arriving once.
+                </span>
+              </span>
+            </label>
+            {postToBoard && (
+              <label className="flex items-center gap-2 cursor-pointer mt-1.5 ml-6">
+                <input type="checkbox" checked={pinOnBoard}
+                  onChange={(e) => setPinOnBoard(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                <span className="text-xs text-neutral-600">Pin it to the top of the board</span>
+              </label>
+            )}
+          </div>
+        )}
 
         <label className="block text-xs font-medium text-neutral-500 mb-1">Title</label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} className={`${field} mb-4`} placeholder="Subject line" />

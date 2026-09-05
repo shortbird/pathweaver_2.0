@@ -968,3 +968,95 @@ class TestBlockRostersReport:
         rows = svc.block_rosters_csv_rows(report)
         assert ['C0', '', '', 'C1', '', '', 'C2', '', ''] in rows
         assert ['C3', '', ''] in rows
+
+
+@pytest.mark.unit
+class TestDayDepartures:
+    """iCreate, 2026-08-26 (1fc5012b): "Can we get a way to know who is leaving
+    halfdays, etc."
+
+    Nothing in the platform records a half day, and asking the office to type
+    one in per child per week would be a second source of truth to keep right.
+    Every student's schedule already says when their last class finishes, which
+    is the same answer, derived.
+    """
+
+    CLASSES = [
+        # A full Tuesday: morning + afternoon.
+        {'id': 'am', 'name': 'Morning Maths',
+         'meetings': [{'day_of_week': 2, 'start_time': '09:00', 'end_time': '12:30'}]},
+        {'id': 'pm', 'name': 'Afternoon Art',
+         'meetings': [{'day_of_week': 2, 'start_time': '13:00', 'end_time': '15:00'}]},
+        # Thursday finishes early for everybody.
+        {'id': 'thu', 'name': 'Thursday Club',
+         'meetings': [{'day_of_week': 4, 'start_time': '09:00', 'end_time': '12:30'}]},
+    ]
+    ROSTER = [
+        {'student_id': 's1', 'name': 'Ada Lovelace', 'is_student': True, 'household_name': 'Lovelace'},
+        {'student_id': 's2', 'name': 'Bo Diddley', 'is_student': True, 'household_name': 'Diddley'},
+        {'student_id': 'staff1', 'name': 'A Teacher', 'is_student': False},
+    ]
+    # Ada goes home at lunch; Bo stays all day. The teacher is not a departure.
+    ENROLLMENTS = [
+        {'class_id': 'am', 'student_id': 's1'},
+        {'class_id': 'am', 'student_id': 's2'},
+        {'class_id': 'pm', 'student_id': 's2'},
+        {'class_id': 'thu', 'student_id': 's1'},
+        {'class_id': 'am', 'student_id': 'staff1'},
+    ]
+
+    def _report(self, day=None, classes=None, enrollments=None):
+        from services import sis_reports_service as svc
+        with patch('services.sis_catalog_service.list_classes',
+                   return_value=classes or self.CLASSES), \
+             patch('services.sis_catalog_service.schedule_settings',
+                   return_value={'time_blocks': []}), \
+             patch.object(svc, 'fetch_all_rows',
+                          return_value=enrollments or self.ENROLLMENTS), \
+             patch('services.sis_service.get_roster', return_value=self.ROSTER):
+            return svc.day_rosters_report('org-1', day=day)
+
+    def _tuesday(self, **kw):
+        return next(d for d in self._report(**kw)['days'] if d['label'] == 'Tuesday')
+
+    def test_it_says_when_each_student_goes_home(self):
+        by_name = {d['name']: d for d in self._tuesday()['departures']}
+        assert by_name['Ada Lovelace']['leaves_at'] == '12:30pm'
+        assert by_name['Bo Diddley']['leaves_at'] == '3:00pm'
+
+    def test_the_half_day_child_is_flagged_and_the_all_day_one_is_not(self):
+        by_name = {d['name']: d for d in self._tuesday()['departures']}
+        assert by_name['Ada Lovelace']['early'] is True
+        assert by_name['Bo Diddley']['early'] is False
+
+    def test_the_earliest_leaver_is_first(self):
+        """Read in the order the office will be handing children over."""
+        assert [d['name'] for d in self._tuesday()['departures']] == [
+            'Ada Lovelace', 'Bo Diddley']
+
+    def test_a_students_latest_class_decides_it_not_their_first(self):
+        """Bo is in the morning class too; being enrolled in something that ends
+        at midday does not make him a midday leaver."""
+        bo = next(d for d in self._tuesday()['departures'] if d['name'] == 'Bo Diddley')
+        assert bo['leaves_at'] == '3:00pm'
+
+    def test_staff_are_not_departures(self):
+        names = [d['name'] for d in self._tuesday()['departures']]
+        assert 'A Teacher' not in names
+
+    def test_a_day_that_ends_early_for_everyone_flags_nobody(self):
+        """"Early" is relative to the day, not to a fixed clock time — a Friday
+        that finishes at one o'clock has nobody leaving early."""
+        thursday = next(d for d in self._report()['days'] if d['label'] == 'Thursday')
+        assert [d['early'] for d in thursday['departures']] == [False]
+
+    def test_the_family_name_rides_along_for_the_pickup_list(self):
+        ada = next(d for d in self._tuesday()['departures'] if d['name'] == 'Ada Lovelace')
+        assert ada['family'] == 'Lovelace'
+
+    def test_a_class_with_no_end_time_does_not_break_the_day(self):
+        classes = [{'id': 'x', 'name': 'Open Studio',
+                    'meetings': [{'day_of_week': 2, 'start_time': '09:00', 'end_time': None}]}]
+        day = self._report(classes=classes,
+                           enrollments=[{'class_id': 'x', 'student_id': 's1'}])
+        assert day['days'][0]['departures'] == []

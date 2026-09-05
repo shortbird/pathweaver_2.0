@@ -18,11 +18,17 @@ export default function StudentProgressCard({ enrollment, xpThreshold, onWithdra
   const percentage = progress.percentage || 0
   const isComplete = progress.is_complete || false
 
+  // A class with no XP target has nothing to be a fraction of. Rendering the
+  // bar anyway gave every student on Arete's roster an identical "0 / 0 XP,
+  // 0% complete" — a real-looking number for a measurement nobody asked for.
+  // The week's actual work lives on the This Week tab instead.
+  const hasTarget = xpThreshold > 0
+
   return (
     <div
       className={`
         bg-white rounded-lg border p-4
-        ${isComplete ? 'border-green-200 bg-green-50/50' : 'border-gray-200'}
+        ${hasTarget && isComplete ? 'border-green-200 bg-green-50/50' : 'border-gray-200'}
       `}
     >
       {/* Header */}
@@ -38,45 +44,60 @@ export default function StudentProgressCard({ enrollment, xpThreshold, onWithdra
             )}
           </div>
         </div>
-        {isComplete && (
+        {hasTarget && isComplete && (
           <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
         )}
       </div>
 
       {/* Progress Bar */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between text-sm mb-1">
-          <span className="text-gray-600">Progress</span>
-          <span className={`font-medium ${isComplete ? 'text-green-600' : 'text-optio-purple'}`}>
-            {earnedXp} / {xpThreshold} XP
+      {hasTarget ? (
+        <div className="mb-3">
+          <div className="flex items-center justify-between text-sm mb-1">
+            <span className="text-gray-600">Progress</span>
+            <span className={`font-medium ${isComplete ? 'text-green-600' : 'text-optio-purple'}`}>
+              {earnedXp} / {xpThreshold} XP
+            </span>
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                isComplete
+                  ? 'bg-green-500'
+                  : 'bg-gradient-to-r from-optio-purple to-optio-pink'
+              }`}
+              style={{ width: `${Math.min(100, percentage)}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {percentage}% complete
+          </p>
+        </div>
+      ) : (
+        <div className="mb-3 flex items-center justify-between text-sm">
+          <span className="text-gray-600">Total XP</span>
+          <span className="font-medium text-optio-purple">
+            {(student.total_xp || 0).toLocaleString()} XP
           </span>
         </div>
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              isComplete
-                ? 'bg-green-500'
-                : 'bg-gradient-to-r from-optio-purple to-optio-pink'
-            }`}
-            style={{ width: `${Math.min(100, percentage)}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-500 mt-1">
-          {percentage}% complete
-        </p>
-      </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center justify-between">
-        <span
-          className={`text-xs px-2 py-0.5 rounded ${
-            isComplete
-              ? 'bg-green-100 text-green-700'
-              : 'bg-gray-100 text-gray-600'
-          }`}
-        >
-          {isComplete ? 'Completed' : 'In Progress'}
-        </span>
+        {hasTarget ? (
+          <span
+            className={`text-xs px-2 py-0.5 rounded ${
+              isComplete
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {isComplete ? 'Completed' : 'In Progress'}
+          </span>
+        ) : (
+          <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+            Enrolled
+          </span>
+        )}
         {onWithdraw && (
           <button
             onClick={onWithdraw}

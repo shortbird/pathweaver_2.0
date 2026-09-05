@@ -430,15 +430,56 @@ describe('useQuestDetail in parent mode', () => {
 
   it('completes a task as the child, so the XP lands on their account', async () => {
     const result = await mounted();
-    (api.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
 
     await act(async () => {
-      await result.current.completeTask('task-1', []);
+      await result.current.completeTask('task-1', [
+        { type: 'text', content: 'She built the whole bridge herself.' },
+      ]);
     });
 
     const [url, body] = (api.post as jest.Mock).mock.calls.at(-1);
     expect(url).toBe('/api/tasks/task-1/complete');
     expect(body.get('acting_as_dependent_id')).toBe('kid-1');
+  });
+
+  it("attaches the parent's evidence instead of a placeholder", async () => {
+    // iCreate, 2026-09-04 (dc7ccacc). This used to drop the blocks and post the
+    // literal string "Marked complete by parent" as the evidence, which is what
+    // their teacher was reading in the submissions reviewer.
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    await act(async () => {
+      await result.current.completeTask('task-1', [
+        { type: 'image', content: { url: 'photo.jpg' } },
+      ]);
+    });
+
+    const calls = (api.post as jest.Mock).mock.calls;
+    const upload = calls.find(([u]) => u === '/api/evidence/helper/upload-for-student/batch');
+    expect(upload[1]).toMatchObject({
+      student_id: 'kid-1',
+      task_id: 'task-1',
+      blocks: [{ block_type: 'image', content: { url: 'photo.jpg' } }],
+    });
+    // Nothing in the completion pretends to be evidence any more.
+    const [, body] = calls.at(-1);
+    expect(body.get('evidence_type')).toBeNull();
+    expect(body.get('text_content')).toBeNull();
+  });
+
+  it('refuses to finish a child\'s task with nothing behind it', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    await expect(
+      act(async () => {
+        await result.current.completeTask('task-1', []);
+      }),
+    ).rejects.toThrow(/photo, a note or a link/);
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/api/tasks/task-1/complete', expect.anything());
   });
 
   it('starts the quest on the child, not on the parent', async () => {

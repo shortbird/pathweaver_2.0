@@ -195,6 +195,7 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
     from utils.pillar_utils import normalize_pillar_name
     from utils.school_subjects import pillar_for_subject
     from utils.xp_permissions import resolve_learner_task_xp
+    from routes.tasks.xp_helpers import get_subject_xp_distribution
 
     # Resolve the (client-controlled) xp_value before it's persisted and copied
     # into the shared task library: clamped to 1..200 for non-guides always, and
@@ -214,8 +215,9 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
 
     user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
 
+    raw_diploma_subjects = task.get('diploma_subjects')
     diploma_subjects = normalize_diploma_subjects(
-        task.get('diploma_subjects', {}),
+        raw_diploma_subjects or {},
         task.get('xp_value', 100)
     )
 
@@ -235,16 +237,31 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
         pillar_key = pillar_for_subject(_first_subject(diploma_subjects))
     next_order = get_next_order_index(target_user_id, quest_id)
 
+    # The credit shown to the learner is the credit they get. The
+    # personalization wizard renders diploma_subjects ("Diploma Credits: Social
+    # Studies (200 XP)") on the card they accept, so that split is a promise.
+    # Re-classifying here with a SECOND, independent Gemini call answered the
+    # same question from scratch and silently won at credit time, because
+    # get_subject_xp_distribution reads subject_xp_distribution first: a task
+    # accepted as 200 Social Studies paid out 140 Social Studies + 60 Language
+    # Arts. Only classify when the task arrived with no subject of its own.
+    # (The manual-task path below has always worked this way.)
     subject_xp_distribution = {}
-    try:
-        subject_xp_distribution = subject_service.classify_task_subjects(
-            title=task['title'],
-            description=task.get('description', ''),
-            pillar=pillar_key,
-            xp_value=task.get('xp_value', 100)
+    if raw_diploma_subjects:
+        subject_xp_distribution = get_subject_xp_distribution(
+            {'diploma_subjects': diploma_subjects},
+            task.get('xp_value', 100)
         )
-    except Exception as e:
-        logger.error(f"Failed to generate subject distribution for task '{task.get('title')}': {e}")
+    else:
+        try:
+            subject_xp_distribution = subject_service.classify_task_subjects(
+                title=task['title'],
+                description=task.get('description', ''),
+                pillar=pillar_key,
+                xp_value=task.get('xp_value', 100)
+            )
+        except Exception as e:
+            logger.error(f"Failed to generate subject distribution for task '{task.get('title')}': {e}")
 
     # Class override: dump 100% of XP into the class's transcript_subject.
     class_ds, class_sxd = _class_subject_override(supabase, quest_id, task.get('xp_value', 100))

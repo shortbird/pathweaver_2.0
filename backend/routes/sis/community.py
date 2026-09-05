@@ -17,6 +17,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from database import get_supabase_admin_client
 from services import sis_community_service as community
+from services import sis_service
 from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
 from utils.storage_urls import public_object_url, sign_stored_url
 
@@ -211,7 +212,13 @@ def list_recognition(user_id):
     if err:
         return err
     rec_type = request.args.get('type')
-    return jsonify({'success': True, 'recognition': community.list_recognition(org_id, rec_type=rec_type)})
+    rows = community.list_recognition(org_id, rec_type=rec_type)
+    # How many replies each has, so a card can say so without the board making
+    # one request per shout-out (d0c7ac4e).
+    counts = community.comment_counts(org_id, [r['id'] for r in rows])
+    for r in rows:
+        r['comment_count'] = counts.get(r['id'], 0)
+    return jsonify({'success': True, 'recognition': rows})
 
 
 @bp.route('/recognition', methods=['POST'])
@@ -238,6 +245,52 @@ def delete_recognition(user_id, recognition_id):
     return jsonify({'success': True})
 
 
+@bp.route('/recognition/<recognition_id>/comments', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def list_recognition_comments(user_id, recognition_id):
+    """A shout-out's replies. Any staff member may read them — the board is the
+    staffroom noticeboard, and a reply nobody can read is not a reply."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    return jsonify({'success': True,
+                    'comments': community.list_recognition_comments(org_id, recognition_id)})
+
+
+@bp.route('/recognition/<recognition_id>/comments', methods=['POST'])
+@require_role(*STAFF_ROLES)
+def add_recognition_comment(user_id, recognition_id):
+    """Reply to a shout-out. Same tier as posting one: any staff member.
+
+    iCreate, 2026-08-31 (d0c7ac4e). Before this, agreeing with a shout-out meant
+    writing a second shout-out, which pushed the first down the board.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    body = (request.get_json() or {}).get('body')
+    result = community.add_recognition_comment(org_id, user_id, recognition_id, body)
+    if result.get('error'):
+        status = 404 if result['error'] == 'Shout-out not found' else 400
+        return jsonify({'success': False, 'error': result['error']}), status
+    return jsonify({'success': True, **result}), 201
+
+
+@bp.route('/recognition/comments/<comment_id>', methods=['DELETE'])
+@require_role(*STAFF_ROLES)
+def delete_recognition_comment(user_id, comment_id):
+    """Its author may take it back; an admin may take anyone's down."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    result = community.delete_recognition_comment(
+        org_id, user_id, comment_id, is_admin=sis_service.caller_is_admin(user_id))
+    if result.get('error'):
+        status = 404 if result['error'] == 'Comment not found' else 403
+        return jsonify({'success': False, 'error': result['error']}), status
+    return jsonify({'success': True})
+
+
 # ── Members (recipient picker for Recognition) ────────────────────────────────
 # ── The family-facing feed ────────────────────────────────────────────────────
 def _caller_effective_role(user_id):
@@ -260,7 +313,6 @@ def _feed_org_for(user_id, requested_org):
     archive's contract. Returns (org_id, error, preview): error is 'forbidden'
     or None; preview is True only on the superadmin path.
     """
-    from services import sis_service
     member_org = sis_service.member_org_id(user_id)
     if not requested_org or requested_org == member_org:
         return member_org, None, False

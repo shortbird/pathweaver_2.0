@@ -23,7 +23,7 @@ export {
   blockEndOptions, meetingsToForm,
 } from './classFields'
 
-export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], embedded = false, timeBlocks = [], rooms = [] }) {
+export default function CreateClassModal({ onClose, onSubmit, initial = null, staff = [], embedded = false, timeBlocks = [], rooms = [], roomOccupancy = {} }) {
   const isEdit = Boolean(initial)
 
   const [draft, setDraft] = useState(() => toDraft(initial || {}))
@@ -101,6 +101,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
           staff={staff}
           timeBlocks={timeBlocks}
           rooms={rooms}
+          roomOccupancy={roomOccupancy}
           imagePreview={imagePreview}
           onImageChange={pickImage}
           onImageRemove={removeImage}

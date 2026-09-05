@@ -391,3 +391,60 @@ describe('the documents tab', () => {
     expect(api.get.mock.calls.some(([u]) => u.includes('/api/sis/secure-documents?'))).toBe(false)
   })
 })
+
+/**
+ * iCreate, 2026-09-05: "Can you make the task center pages sortable so it is
+ * easier to find what one is looking for?"
+ *
+ * The list only ever came back newest-first. That is the right order for what
+ * was just sent and the wrong one for chasing one teacher's paperwork through
+ * two hundred assignments.
+ */
+describe('finding one thing in the assigned list', () => {
+  it('defaults to newest first', async () => {
+    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+    renderPage()
+    await screen.findByText('Turn in your roster')
+    const shown = screen.getByText('Turn in your roster').compareDocumentPosition(
+      screen.getByText('New teacher onboarding'))
+    // Kate's task (Aug 25) precedes Sam's checklist (Aug 20).
+    expect(shown & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('orders by person when the office is working down a name list', async () => {
+    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+    renderPage()
+    await screen.findByText('Turn in your roster')
+    fireEvent.change(screen.getByLabelText('Sort assigned work'), { target: { value: 'person' } })
+    // Kate Myers before Sam Teacher, regardless of when either was sent.
+    const pos = screen.getByText('Kate Myers').compareDocumentPosition(
+      screen.getByText('Sam Teacher'))
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('narrows to one person by name', async () => {
+    mockGets({ assignments: [CHECKLIST_ASSIGNMENT, ADHOC_TASK], batches: [] })
+    renderPage()
+    await screen.findByText('Turn in your roster')
+    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'kate' } })
+    expect(screen.getByText('Turn in your roster')).toBeInTheDocument()
+    expect(screen.queryByText('New teacher onboarding')).not.toBeInTheDocument()
+  })
+
+  it('finds a signature send by the document it went out under', async () => {
+    mockGets({ assignments: [ADHOC_TASK] })
+    renderPage()
+    await screen.findByText('Employee handbook')
+    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'handbook' } })
+    expect(screen.getByText('Employee handbook')).toBeInTheDocument()
+    expect(screen.queryByText('Turn in your roster')).not.toBeInTheDocument()
+  })
+
+  it('says the search came up empty rather than looking finished', async () => {
+    mockGets({ assignments: [ADHOC_TASK], batches: [] })
+    renderPage()
+    await screen.findByText('Turn in your roster')
+    fireEvent.change(screen.getByLabelText('Search assigned work'), { target: { value: 'zzz' } })
+    expect(screen.getByText('Nothing here matches "zzz".')).toBeInTheDocument()
+  })
+})

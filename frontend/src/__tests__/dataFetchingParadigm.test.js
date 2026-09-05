@@ -53,8 +53,31 @@ const PAGES = path.resolve(__dirname, '../pages')
  * regression, because a gate cannot be broken by code that predates it
  * reaching that branch. MyTasksPage is now the obvious next migration
  * candidate at 8 call sites.
+ *
+ * 542 -> 545 on 2026-09-05, three iCreate Perch tickets. Each new call sits
+ * directly beside an identical hand-rolled twin in the same function, and
+ * hooking only the new half would leave one feature fetching two ways:
+ *   * sis/ClassesPage.jsx (+2) — GET /api/sis/room-schedule in `load` and in
+ *     `warnIfRoomDoubleBooked`, the room double-booking check (43625a45,
+ *     f9d50612). Both are line-for-line the teacher-conflicts calls above
+ *     them, which this page has fetched by hand since that check shipped.
+ *   * sis/OnboardingPage.jsx (+1) — GET .../attachable-documents, so the
+ *     office can file an already-uploaded document against the checklist item
+ *     it answers (c23105fa). Its neighbour, the doc-url GET, is hand-rolled.
+ * ClassesPage and OnboardingPage are both migration candidates; migrating
+ * either takes its whole set of calls, not these three.
+ *
+ * 545 -> 549 later the same day, the rest of that sweep. Each is a new control
+ * on a page that already fetches by hand, and hooking one call on a page whose
+ * other eight are hand-rolled would leave the page fetching two ways:
+ *   * sis/CommunityPage.jsx (+3) — replies under a shout-out: read the thread,
+ *     post one, take one back (d0c7ac4e).
+ *   * sis/ResourcesPage.jsx (+1) — the staff a resource can be pinned to by
+ *     name (cf671ff2).
+ * The RSVP and substitute-sheet work went into components/ rather than pages/,
+ * which this census does not walk, so neither shows up here.
  */
-const CALL_SITE_BASELINE = 542
+const CALL_SITE_BASELINE = 549
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

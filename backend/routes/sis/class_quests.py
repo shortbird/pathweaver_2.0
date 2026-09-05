@@ -34,6 +34,7 @@ from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
+from services import sis_notifications
 from services.sis_quest_authoring import (
     QuestAuthoringError,
     clean_task as _clean_task,
@@ -134,6 +135,53 @@ def _serialize_task(t):
     }
 
 
+@bp.route('/classes/<class_id>/call-for-help', methods=['POST'])
+@require_auth
+def call_for_help(user_id, class_id):
+    """A teacher asks for somebody to come to the room.
+
+    iCreate, 2026-08-25 (9d0618f8): "it would be super helpful to have a Campus
+    Coordinator 'call button' ... maybe a button on each class that they opened
+    up for attendance. This button would send a notification to any campus
+    coordinator role when a teacher needed help in the class. Just not sure how
+    this could show up for the campus coordinator that they would notice it?"
+
+    It shows up as a notification, which is what already rings their bell and
+    pushes to their phone — no new surface to remember to look at. Every admin
+    is called too: a school may have no coordinator on shift, and a call for
+    help that reaches nobody would be worse than no button.
+
+    Deliberately fire-and-forget with no record of its own. This is somebody
+    raising a hand, not a ticket; the answer to it arrives in person.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    org_id = class_row['organization_id']
+    note = (request.get_json() or {}).get('note') or ''
+    note = str(note).strip()[:200]
+
+    caller = (admin.table('users').select('display_name, first_name, last_name')
+              .eq('id', user_id).limit(1).execute()).data
+    from utils import person_name
+    who = person_name.full_name(caller[0], 'A teacher') if caller else 'A teacher'
+
+    recipients = sis_service.front_office_ids(org_id)
+    # One NotificationService for the whole fan-out — see sis_notifications.notify.
+    from services.notification_service import NotificationService
+    service = NotificationService()
+    for rid in recipients:
+        if rid == user_id:
+            continue
+        sis_notifications.notify(
+            rid,
+            f'Help needed in {class_row.get("name") or "a class"}',
+            f'{who} asked for someone to come{f": {note}" if note else "."}',
+            link=f'/classes?class_id={class_id}', organization_id=org_id,
+            service=service)
+    return jsonify({'success': True, 'notified': len([r for r in recipients if r != user_id])})
+
+
 # ── Assigned quests ───────────────────────────────────────────────────────────
 
 @bp.route('/classes/<class_id>/quests', methods=['GET'])
@@ -171,10 +219,42 @@ def list_class_quests(user_id, class_id):
     return jsonify({'success': True, 'quests': out})
 
 
+def _curriculum_quest_ids(admin, class_id):
+    """Quest ids the office saved onto this class's curricula — the set a
+    teacher is meant to be teaching from."""
+    curricula = _linked_curricula(admin, class_id)
+    if not curricula:
+        return set()
+    rows = (admin.table('sis_curriculum_quests').select('quest_id')
+            .in_('curriculum_id', [c['id'] for c in curricula]).execute()).data or []
+    return {r['quest_id'] for r in rows if r.get('quest_id')}
+
+
 @bp.route('/classes/<class_id>/assignable-quests', methods=['GET'])
 @require_auth
 def assignable_quests(user_id, class_id):
-    """Quests a teacher can assign: the school's own quests + the Optio library."""
+    """Quests a teacher can assign, nearest first.
+
+    Everything active in the school plus the whole public Optio library used to
+    come back as one flat list — 183 rows for iCreate on the day this was
+    reported, in no order, most of them nothing to do with the class:
+
+      "I'm thinking this would be a lot more manageable for teachers to add
+      quests if they ONLY saw the quests assigned to their class by us on the
+      Curriculum page OR the ones they created. Otherwise I could see this list
+      getting soooo long, and with different people's naming conventions what
+      does something like 'History week 1' even mean?" (49ba6e08)
+
+      "'Assign saved quests' for this class should be more like the drop down
+      with existing quests that belong to the class + create new. It'll be too
+      confusing to have all the 'assign existing' quests in the dropdown."
+      (71e7f320)
+
+    So each quest is tagged with how it relates to THIS class, and with no
+    search term only the two near tiers come back. The rest of the school and
+    the library are still reachable — by typing, which is an explicit act of
+    looking further afield rather than a wall to scroll past.
+    """
     class_row, admin, err = _authorize(user_id, class_id)
     if err:
         return err
@@ -184,6 +264,7 @@ def assignable_quests(user_id, class_id):
 
     already = {r['quest_id'] for r in (admin.table('class_quests').select('quest_id')
                .eq('class_id', class_row['id']).execute()).data or []}
+    from_curriculum = _curriculum_quest_ids(admin, class_id)
 
     def _q(base):
         if search:
@@ -191,10 +272,10 @@ def assignable_quests(user_id, class_id):
         return base.limit(limit).execute().data or []
 
     org_quests = _q(admin.table('quests')
-                    .select('id, title, description, quest_type, organization_id')
+                    .select('id, title, description, quest_type, organization_id, created_by')
                     .eq('organization_id', org_id).eq('is_active', True))
     lib_quests = _q(admin.table('quests')
-                    .select('id, title, description, quest_type, organization_id')
+                    .select('id, title, description, quest_type, organization_id, created_by')
                     .is_('organization_id', 'null').eq('is_active', True).eq('is_public', True))
 
     merged = []
@@ -204,18 +285,38 @@ def assignable_quests(user_id, class_id):
             if q['id'] in seen or q['id'] in already:
                 continue
             seen.add(q['id'])
+            # Curriculum wins over authorship: a quest the office put on this
+            # class's curriculum AND the teacher wrote is, to them, the one they
+            # are supposed to be teaching.
+            scope = ('curriculum' if q['id'] in from_curriculum
+                     else 'mine' if q.get('created_by') == user_id
+                     else 'other')
             merged.append({
                 'quest_id': q['id'],
                 'title': q.get('title'),
                 'description': q.get('description'),
                 'quest_type': q.get('quest_type'),
                 'source': source,
+                'scope': scope,
                 'editable_tasks': q.get('organization_id') == org_id,
             })
-    counts = _template_task_count(admin, [q['quest_id'] for q in merged])
-    for q in merged:
+
+    near = [q for q in merged if q['scope'] != 'other']
+    # Without a search this answers "what should I be teaching?"; with one it
+    # answers "where is the quest called X?", and the far tier has to be in it.
+    shown = merged if search else near
+    counts = _template_task_count(admin, [q['quest_id'] for q in shown])
+    for q in shown:
         q['template_task_count'] = counts.get(q['quest_id'], 0)
-    return jsonify({'success': True, 'quests': merged})
+    order = {'curriculum': 0, 'mine': 1, 'other': 2}
+    shown.sort(key=lambda q: (order[q['scope']], (q['title'] or '').lower()))
+    return jsonify({
+        'success': True,
+        'quests': shown,
+        # How many the teacher is NOT being shown, so the UI can say so rather
+        # than letting the short list read as "there is nothing else".
+        'hidden_count': 0 if search else len(merged) - len(near),
+    })
 
 
 @bp.route('/classes/<class_id>/quests', methods=['POST'])
@@ -943,7 +1044,7 @@ def _student_work(admin, class_row, student_id):
     tasks, done_ids, completion_by_task = [], set(), {}
     if uq_ids:
         tasks = (admin.table('user_quest_tasks')
-                 .select('id, user_quest_id, title, xp_value, order_index')
+                 .select('id, user_quest_id, title, description, xp_value, order_index')
                  .in_('user_quest_id', uq_ids).order('order_index').execute()).data or []
         task_ids = [t['id'] for t in tasks]
         for start in range(0, len(task_ids), 200):
@@ -970,6 +1071,10 @@ def _student_work(admin, class_row, student_id):
             'tasks': [{
                 'id': t['id'],
                 'title': t.get('title'),
+                # What the task actually asks for. A title alone is a label:
+                # "I would like to be able to click on the tasks and be able to
+                # see the description of the task" (Nicole Connole, 2026-09-04).
+                'description': t.get('description'),
                 'xp_value': t.get('xp_value'),
                 'done': t['id'] in done_ids,
                 # Lets the task row link straight to the submission review

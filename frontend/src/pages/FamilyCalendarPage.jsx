@@ -5,6 +5,7 @@ import ModalOverlay from '../components/ui/ModalOverlay'
 import useSchoolContext from '../hooks/useSchoolContext'
 import BackToSchool from '../components/navigation/BackToSchool'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
+import EventRsvp from '../components/school/EventRsvp'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
@@ -282,6 +283,11 @@ const FamilyCalendarPage = () => {
                     {e.description && (
                       <AnnouncementBody text={e.description} className="text-sm text-gray-600 mt-1" />
                     )}
+                    {/* "The ability to add a form for collecting RSVPs and
+                        payments to the calendar events would be good"
+                        (iCreate, 2026-08-28 — 9cf78e9a). Renders nothing on an
+                        event the office did not open for replies. */}
+                    <EventRsvp event={e} orgId={orgId} />
                   </div>
                 )
               })}

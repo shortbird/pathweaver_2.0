@@ -177,6 +177,45 @@ def mark_school_conversations(conversations: List[Dict[str, Any]]) -> None:
             other['display_name'] = by_inbox[other['id']].get('name') or other.get('display_name')
 
 
+def annotate_last_sender(conversations: List[Dict[str, Any]]) -> None:
+    """Set `last_message_sender_id` on each thread. Mutates in place.
+
+    Who spoke last is what separates "somebody is waiting on us" from "we
+    answered and it is done", and the office reads its inbox that way:
+
+      "It might be helpful if we had a spot for messages to go once they are
+      completed, so that only new messages that haven't been replied to show"
+      (2ca63bde, 2026-08-27)
+      "How do I send messages? I see the inbox, but I don't have an outbox
+      really." (7fb34ed4, 2026-09-01)
+
+    Unread is not the same question — a thread read this morning and not yet
+    answered is exactly the one that gets forgotten.
+
+    Bounded: the conversation row already stores `last_message_at`, so this asks
+    for the messages AT those instants rather than for every message in every
+    thread. One query, roughly one row per thread.
+    """
+    stamps = [c['last_message_at'] for c in conversations if c.get('last_message_at')]
+    ids = [c['id'] for c in conversations if c.get('id')]
+    if not stamps or not ids:
+        return
+    try:
+        rows = (_admin().table('direct_messages')
+                .select('conversation_id, sender_id, created_at')
+                .in_('conversation_id', ids)
+                .in_('created_at', stamps).execute()).data or []
+    except Exception as e:  # noqa: BLE001 — a missing annotation must not
+        # cost the office its inbox; the client falls back to showing everything
+        logger.warning(f"school inbox: last-sender annotation failed: {e}")
+        return
+    # Two messages can share an instant across different threads, so the row is
+    # matched on the pair, not on the timestamp alone.
+    by_pair = {(r['conversation_id'], r['created_at']): r.get('sender_id') for r in rows}
+    for c in conversations:
+        c['last_message_sender_id'] = by_pair.get((c.get('id'), c.get('last_message_at')))
+
+
 def can_message_school(user_id: str, target_id: str) -> bool:
     """The school-inbox permission rule for can_message_user: a member may DM
     their own org's inbox account, and the inbox account (driven by staff via

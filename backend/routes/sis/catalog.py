@@ -119,6 +119,12 @@ def _validate_class_fields(data):
         return 'Invalid billing_cadence'
     if data.get('registration_status') and data['registration_status'] not in catalog.REGISTRATION_STATUSES:
         return 'Invalid registration_status'
+    extra_rooms = data.get('additional_locations')
+    if extra_rooms is not None:
+        if not isinstance(extra_rooms, list):
+            return 'additional_locations must be a list of room names'
+        if any(not isinstance(r, str) for r in extra_rooms):
+            return 'additional_locations must be a list of room names'
     for k in ('capacity', 'price_cents', 'min_age', 'max_age'):
         v = data.get(k)
         if v is not None and (not isinstance(v, int) or v < 0):
@@ -315,6 +321,24 @@ def teacher_conflicts(user_id):
         return err
     from services import sis_registration_service as regs
     return jsonify({'success': True, 'conflicts': regs.list_teacher_conflicts(org_id)})
+
+
+@bp.route('/room-schedule', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def room_schedule(user_id):
+    """What is booked into each room, and where two classes share one.
+
+    The teacher check's twin, for the other half of a class's schedule. Feeds
+    the room picker (which rooms are already taken at the hour being chosen —
+    iCreate f9d50612) and the Classes page banner (a room double-booked after a
+    save — 43625a45). Advisory only, and never blocks: a school may genuinely
+    want two things in the gym.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_registration_service as regs
+    return jsonify({'success': True, **regs.room_schedule(org_id)})
 
 
 # ── Class meetings (schedule) ────────────────────────────────────────────────

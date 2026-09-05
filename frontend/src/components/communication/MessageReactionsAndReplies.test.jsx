@@ -179,3 +179,77 @@ describe('reply flow', () => {
     expect(screen.queryByText('Message deleted')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * Nicole Connole, 2026-09-05 (d4233d4e): "Is there a way to see who reacts with
+ * an emoji?"
+ *
+ * A pill said "👍 5" and nothing else. The names travel with the reaction now,
+ * and the pill carries them on hover and to a screen reader.
+ */
+describe('who reacted', () => {
+  it('names the people behind a pill', () => {
+    render(<ReactionsRow reactions={[
+      { emoji: '👍', count: 2, reacted: false, names: ['Sam Lee', 'Kate Myers'] },
+    ]} onToggle={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '👍 2 — Sam Lee and Kate Myers' }))
+      .toHaveAttribute('title', 'Sam Lee and Kate Myers reacted with 👍')
+  })
+
+  it('puts you first and calls you You', () => {
+    render(<ReactionsRow reactions={[
+      { emoji: '❤️', count: 2, reacted: true, names: ['You', 'Sam Lee'] },
+    ]} onToggle={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '❤️ 2 — You and Sam Lee' })).toBeInTheDocument()
+  })
+
+  it('stops listing once a whole class has reacted', () => {
+    const names = ['A', 'B', 'C']
+    render(<ReactionsRow reactions={[{ emoji: '👍', count: 20, reacted: false, names }]}
+      onToggle={vi.fn()} />)
+    expect(screen.getByRole('button', { name: '👍 20 — A, B and C and 17 others' }))
+      .toBeInTheDocument()
+  })
+
+  it('says only the count when no names came with the message', () => {
+    // A payload cached before the server sent names is not "nobody reacted".
+    render(<ReactionsRow reactions={[{ emoji: '👍', count: 2, reacted: false }]}
+      onToggle={vi.fn()} />)
+    const pill = screen.getByRole('button', { name: '👍 2' })
+    expect(pill).not.toHaveAttribute('title')
+  })
+})
+
+/**
+ * iCreate, 2026-09-04 (a2da7b48): "Hyperlinks in class chat groups would be
+ * very helpful."
+ *
+ * Teachers paste sign-up forms and Google Docs into a class chat, and the
+ * bubble rendered them as 90 characters of text to select by hand on a phone.
+ */
+describe('links in a message', () => {
+  it('makes a pasted URL clickable without touching the rest of the sentence', () => {
+    render(<MessageThread
+      messages={[{ ...baseMessage, message_content: 'Sign up at https://forms.example.com/x today' }]}
+      currentUserId="u1" onToggleReaction={vi.fn()} onReply={vi.fn()} />)
+    const link = screen.getByRole('link', { name: 'https://forms.example.com/x' })
+    expect(link).toHaveAttribute('href', 'https://forms.example.com/x')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getByText(/today/)).toBeInTheDocument()
+  })
+
+  it('leaves a message with no link exactly as it was', () => {
+    render(<MessageThread messages={[baseMessage]} currentUserId="u1"
+      onToggleReaction={vi.fn()} onReply={vi.fn()} />)
+    expect(screen.getByText('Hello there')).toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('does not treat typed markup as markup', () => {
+    render(<MessageThread
+      messages={[{ ...baseMessage, message_content: '<b>not bold</b>' }]}
+      currentUserId="u1" onToggleReaction={vi.fn()} onReply={vi.fn()} />)
+    expect(screen.getByText('<b>not bold</b>')).toBeInTheDocument()
+  })
+})

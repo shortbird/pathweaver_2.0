@@ -284,6 +284,11 @@ def create_resource(user_id):
     visible_to_roles, roles_err = clean_visible_roles(data.get('visible_to_roles'))
     if roles_err:
         return jsonify({'success': False, 'error': roles_err}), 400
+    # Named people, alongside (not instead of) roles — see filter_role_visible.
+    visible_to_user_ids, people_err = _clean_visible_people(
+        data.get('visible_to_user_ids'), org_id, supabase)
+    if people_err:
+        return jsonify({'success': False, 'error': people_err}), 400
     requires_ack = bool(data.get('requires_ack'))
     row = (supabase.table('org_resources').insert({
         'organization_id': org_id,
@@ -295,6 +300,7 @@ def create_resource(user_id):
         'paperwork_key': paperwork_key,
         'audience': audience,
         'visible_to_roles': visible_to_roles,
+        'visible_to_user_ids': visible_to_user_ids,
         'pinned': bool(data.get('pinned')),
         'requires_ack': requires_ack,
         'version_date': datetime.utcnow().isoformat() if requires_ack else None,
@@ -304,6 +310,29 @@ def create_resource(user_id):
     if requires_ack and audience in ('staff', 'all') and resource:
         _notify_staff_required_read(org_id, title, visible_to_roles=visible_to_roles)
     return jsonify({'success': True, 'resource': resource}), 201
+
+
+def _clean_visible_people(value, org_id, supabase):
+    """Normalise a visible_to_user_ids payload.
+
+    Returns (ids, error): None for "nobody in particular" (null/empty), else a
+    de-duped list of people who are actually in this school — a resource pinned
+    to a stranger's id would be invisible to everyone and look like a bug.
+    """
+    if not value:
+        return None, None
+    if not isinstance(value, (list, tuple)):
+        return None, 'visible_to_user_ids must be a list of people'
+    wanted = [str(v) for v in value if v]
+    if not wanted:
+        return None, None
+    rows = (supabase.table('users').select('id')
+            .eq('organization_id', org_id).in_('id', wanted).execute()).data or []
+    known = {r['id'] for r in rows}
+    missing = [w for w in wanted if w not in known]
+    if missing:
+        return None, 'Those people are not in this school'
+    return sorted(known), None
 
 
 def _targeted_staff(org_id, visible_to_roles=None):
@@ -354,6 +383,12 @@ def update_resource(user_id, resource_id):
         if roles_err:
             return jsonify({'success': False, 'error': roles_err}), 400
         fields['visible_to_roles'] = visible_to_roles
+    if 'visible_to_user_ids' in data:
+        people, people_err = _clean_visible_people(
+            data.get('visible_to_user_ids'), org_id, supabase)
+        if people_err:
+            return jsonify({'success': False, 'error': people_err}), 400
+        fields['visible_to_user_ids'] = people
     if 'requires_ack' in data:
         fields['requires_ack'] = bool(data.get('requires_ack'))
     if 'pinned' in data:

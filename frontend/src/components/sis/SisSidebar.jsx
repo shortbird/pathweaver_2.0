@@ -107,7 +107,12 @@ const NAV_SECTIONS = [
       // page; an advisor's send stays scoped to their own classes by the
       // backend, and it's their email path to a class's families — the class
       // chat is in-app only (2026-08-23).
-      { name: 'Inbox', path: '/inbox', d: ICONS.inbox },
+      // "Call it messaging instead of inbox ... Messaging would really just
+      // mean any time we want to communicate — whether it be to make a school
+      // wide announcement, a class message but only for half the class 14+, or
+      // a message to an individual" (ce12a041, 2026-09-02). The path stays
+      // /inbox so existing links and notifications keep working.
+      { name: 'Messaging', path: '/inbox', d: ICONS.inbox },
     ],
   },
   {
