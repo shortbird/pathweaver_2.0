@@ -169,12 +169,32 @@ def _report(org_id: str, denied, mode: str) -> None:
             f'{request.method} {rule} for org {org_id}: '
             f'{", ".join(denied)} disabled')
     logger.warning(line)
+
+    # Sentry gets a route-shaped version of the same fact. The log line above
+    # names one concrete request, which is what you want in a log and exactly
+    # wrong as an issue title: the paths carry ids (a quest, a student), and the
+    # org differs per hit. Left to group itself, one issue ends up titled after
+    # whichever org and id happened to arrive first while holding hits from
+    # several orgs -- and the enforcement rollout turns on reading these
+    # (MODULE_ENFORCEMENT flips per tier only once every logged hit is
+    # explained), so a title that misattributes them costs real time.
+    #
+    # Group on the view + the modules instead, and put the org on a tag so a
+    # single issue can be sliced by org rather than fragmented across ids.
+    # From sentry-noise-fixes: a stable fingerprint and sliceable tags, kept
+    # alongside main's route-shaped key and dedupe above rather than instead of
+    # them -- the two changes solve different halves of the same noise.
+    view = request.endpoint or request.path
+    modules = ', '.join(sorted(denied)) or 'unknown'
     try:
         import sentry_sdk
         with sentry_sdk.push_scope() as scope:
             scope.set_tag('source', 'module_gate')
             scope.set_tag('module', denied[0] if denied else 'unknown')
             scope.set_tag('gate_mode', mode)
+            scope.set_tag('module_gate_org', org_id)
+            scope.set_tag('module_gate_view', view)
+            scope.fingerprint = ['module_gate', mode, view, modules]
             scope.set_context('module_gate', {
                 'rule': rule,
                 'path': request.path,

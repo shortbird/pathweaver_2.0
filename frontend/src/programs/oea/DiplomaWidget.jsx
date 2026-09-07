@@ -116,7 +116,13 @@ export function renderOeaDiploma(context) {
 /**
  * Fetch OEA diploma data for a student. Resolves to the OEA diploma context, or
  * rejects for non-OEA / no-access viewers (callers treat rejection as "no OEA").
+ *
+ * Every student overview runs this probe, so for the vast majority of students —
+ * everyone outside Hearthwood — the 403 IS the answer, and both callers already
+ * fall back to Optio credits on it. expect403 keeps that expected refusal out of
+ * Sentry, where it was arriving as an error per (viewer, student) pair
+ * (OPTIO-WEB-R, 2026-09-03). A 500 or a 403 on any other OEA read still reports.
  */
 export function fetchOeaDiploma(studentId) {
-  return oeaAPI.credits(studentId).then((r) => r.data || null);
+  return oeaAPI.credits(studentId, { expect403: true }).then((r) => r.data || null);
 }

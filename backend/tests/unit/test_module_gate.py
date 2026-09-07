@@ -7,7 +7,9 @@ The module gate's contract (modules/gate.py):
     logs in log mode (the P1 rollout default);
   - MODULE_ENFORCEMENT=off disarms it entirely;
   - module_guard gates every route on a blueprint; require_module composes
-    per-route, with any_of semantics for shared surfaces.
+    per-route, with any_of semantics for shared surfaces;
+  - a would-be block reports to Sentry keyed on the view and the modules, with
+    the org on a tag -- the enforcement rollout is driven by reading these.
 """
 
 from unittest.mock import patch
@@ -44,6 +46,13 @@ def app():
     @shared.route('/either')
     @require_module('clp', 'goals', any_of=True)
     def either():
+        return {'success': True}
+
+    # A path carrying an id, so the reporting test can prove the Sentry issue
+    # keys on the view rather than on whichever quest happened to arrive.
+    @shared.route('/materials/<quest_id>')
+    @require_module('classes')
+    def materials(quest_id):
         return {'success': True}
 
     app.register_blueprint(guarded)
