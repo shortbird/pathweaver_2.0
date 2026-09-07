@@ -188,6 +188,26 @@ describe('BillingPage', () => {
       })))
   })
 
+  it('records a refund via the modal', async () => {
+    render(<BillingPage />)
+    await screen.findByText('Art supplies')
+    fireEvent.click(screen.getByText('Refund')) // row action for paid/partial row
+
+    // findAllByText, not findByText: the modal's TITLE and its submit button
+    // both read "Record refund", so the singular query matches two elements,
+    // throws, and retries until the test times out -- which is what it did
+    // when this landed on a main that had since split BillingPage. The next
+    // line already knew there were several.
+    const buttons = await screen.findAllByText('Record refund')
+    expect(buttons.length).toBeGreaterThan(0)
+    fireEvent.click(buttons[buttons.length - 1])
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/invoices/inv2/refunds', expect.objectContaining({
+        amount_cents: 4000, method: 'zelle', organization_id: 'org-1',
+      })))
+  })
+
   it('shows the outstanding report on its tab', async () => {
     render(<BillingPage />)
     fireEvent.click(await screen.findByText('Outstanding'))
