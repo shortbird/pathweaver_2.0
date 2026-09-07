@@ -6,7 +6,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import useHidePillars from '../../hooks/useHidePillars';
 
-const EvidenceHeader = ({ context, blockCount }) => {
+const EvidenceHeader = ({ context, blockCount = 0 }) => {
   const { taskTitle, questTitle, pillar, completedAt, xpAwarded } = context;
   const hidePillars = useHidePillars();
 
@@ -78,10 +78,6 @@ EvidenceHeader.propTypes = {
     xpAwarded: PropTypes.number
   }).isRequired,
   blockCount: PropTypes.number
-};
-
-EvidenceHeader.defaultProps = {
-  blockCount: 0
 };
 
 export default EvidenceHeader;

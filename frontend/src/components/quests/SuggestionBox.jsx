@@ -9,11 +9,11 @@ import SuggestionChip from './SuggestionChip';
  * Includes undo functionality when students apply suggestions.
  */
 const SuggestionBox = ({
-  suggestions,
+  suggestions = [],
   onApplySuggestion,
-  lastAppliedSuggestion,
+  lastAppliedSuggestion = null,
   onUndo,
-  isLoading
+  isLoading = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -102,12 +102,6 @@ SuggestionBox.propTypes = {
   lastAppliedSuggestion: PropTypes.string,
   onUndo: PropTypes.func.isRequired,
   isLoading: PropTypes.bool
-};
-
-SuggestionBox.defaultProps = {
-  suggestions: [],
-  lastAppliedSuggestion: null,
-  isLoading: false
 };
 
 export default SuggestionBox;

@@ -8,7 +8,7 @@ import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const ImageBlock = ({ block, displayMode }) => {
+const ImageBlock = ({ block, displayMode = 'full' }) => {
   const { content } = block;
   const [showLightbox, setShowLightbox] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -276,10 +276,6 @@ ImageBlock.propTypes = {
     ])
   }).isRequired,
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview'])
-};
-
-ImageBlock.defaultProps = {
-  displayMode: 'full'
 };
 
 export default ImageBlock;

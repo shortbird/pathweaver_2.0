@@ -9,7 +9,7 @@ import PropTypes from 'prop-types';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 
-const ShareReportModal = ({ isOpen, onClose, shareUrl, reportTitle }) => {
+const ShareReportModal = ({ isOpen, onClose, shareUrl, reportTitle = 'Evidence Report' }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -124,10 +124,6 @@ ShareReportModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   shareUrl: PropTypes.string.isRequired,
   reportTitle: PropTypes.string
-};
-
-ShareReportModal.defaultProps = {
-  reportTitle: 'Evidence Report'
 };
 
 export default ShareReportModal;

@@ -7,7 +7,7 @@ import PropTypes from 'prop-types';
  * A clickable pill-style chip that displays a suggestion text.
  * When clicked, appends the suggestion to the task description.
  */
-const SuggestionChip = ({ suggestion, onClick, disabled }) => {
+const SuggestionChip = ({ suggestion, onClick, disabled = false }) => {
   return (
     <button
       onClick={() => onClick(suggestion)}
@@ -33,10 +33,6 @@ SuggestionChip.propTypes = {
   suggestion: PropTypes.string.isRequired,
   onClick: PropTypes.func.isRequired,
   disabled: PropTypes.bool
-};
-
-SuggestionChip.defaultProps = {
-  disabled: false
 };
 
 export default SuggestionChip;

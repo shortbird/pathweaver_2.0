@@ -5,7 +5,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
+const TextBlock = ({ block, isExpanded = false, onToggle = () => {}, displayMode = 'full' }) => {
   const { content } = block;
   const text = content.text || '';
 
@@ -58,12 +58,6 @@ TextBlock.propTypes = {
   isExpanded: PropTypes.bool,
   onToggle: PropTypes.func,
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview'])
-};
-
-TextBlock.defaultProps = {
-  isExpanded: false,
-  onToggle: () => {},
-  displayMode: 'full'
 };
 
 export default TextBlock;
