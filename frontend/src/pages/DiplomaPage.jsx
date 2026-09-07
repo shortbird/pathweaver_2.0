@@ -28,6 +28,7 @@ import { getPillarGradient, getPillarDisplayName } from '../config/pillars';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 import PublicConsentModal from '../components/diploma/PublicConsentModal';
 import PublicNoticeBanner from '../components/diploma/PublicNoticeBanner';
+import { canonicalUrl as buildCanonicalUrl } from '../utils/canonicalUrl';
 
 // Subject display names for transfer credits
 const SUBJECT_DISPLAY_NAMES = {
@@ -454,21 +455,52 @@ const DiplomaPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveUser, slug, userId, hasAccess]);
 
+  // /portfolio/:slug and /public/diploma/:userId are the same page fed by the
+  // same backend payload (both routes return get_diploma_data()), so they
+  // unpack identically. They used not to: the slug route had its own thinner
+  // shape and its handler below only called setDiploma/setCurated, which is why
+  // it rendered with no pillars, no credits and no evidence. One extractor now,
+  // so the two cannot drift again.
+  const applyDiplomaPayload = (data) => {
+    setDiploma(data);
+    setCurated(data.curated || []);
+
+    if (data.achievements) {
+      setAchievements(data.achievements);
+    }
+    if (data.skill_xp) {
+      setTotalXP(data.skill_xp);
+    }
+    if (data.total_xp) {
+      setTotalXPCount(data.total_xp);
+    }
+    if (data.subject_xp) {
+      // Array of rows -> { school_subject: xp_amount } for the credit tracker.
+      const subjectXPMap = {};
+      data.subject_xp.forEach(item => {
+        subjectXPMap[item.school_subject] = item.xp_amount;
+      });
+      setSubjectXP(subjectXPMap);
+    }
+    if (data.transfer_credits) {
+      setTransferCredits(data.transfer_credits);
+    }
+  };
+
   const fetchPublicDiploma = async () => {
     try {
       const response = await api.get(`/api/portfolio/public/${slug}`);
-      const diplomaData = response.data;
-      setDiploma(diplomaData);
-      setCurated(diplomaData?.curated || []);
+      const data = response.data;
 
-      // Fetch learning events for public diploma if user_id is available
+      applyDiplomaPayload(data);
+
+      // The payload identifies the student as student.id. The old code looked
+      // for a top-level user_id, which this endpoint has never returned, so
+      // learning events silently never loaded on the slug route.
       // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
-      if (diplomaData?.user_id) {
-        await fetchLearningEvents(diplomaData.user_id);
+      if (data.student?.id) {
+        await fetchLearningEvents(data.student.id);
       }
-
-      // Transform the data to match achievements format if needed
-      // For now, we'll display the diploma data differently
     } catch (error) {
       const errorInfo = formatErrorMessage(
         error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
@@ -494,40 +526,7 @@ const DiplomaPage = () => {
 
       logger.debug('Public diploma data received:', data);
 
-      // Set diploma state with the full response
-      setDiploma(data);
-
-      // Extract and set achievements (completed and in-progress quests)
-      if (data.achievements) {
-        setAchievements(data.achievements);
-      }
-
-      // Student-curated "Portfolio picks"
-      setCurated(data.curated || []);
-
-      // Extract and set XP data
-      if (data.skill_xp) {
-        setTotalXP(data.skill_xp);
-      }
-
-      if (data.total_xp) {
-        setTotalXPCount(data.total_xp);
-      }
-
-      // Extract and set subject XP data for diploma credits
-      if (data.subject_xp) {
-        // Transform array to object with subject as key
-        const subjectXPMap = {};
-        data.subject_xp.forEach(item => {
-          subjectXPMap[item.school_subject] = item.xp_amount;
-        });
-        setSubjectXP(subjectXPMap);
-      }
-
-      // Extract and set transfer credits
-      if (data.transfer_credits) {
-        setTransferCredits(data.transfer_credits);
-      }
+      applyDiplomaPayload(data);
 
       // Fetch learning events for public diploma
       // fetchEarnedBadges removed (January 2026 - Microschool client feedback)
@@ -899,10 +898,10 @@ const DiplomaPage = () => {
   // Generate canonical URL (prefer /portfolio/:slug format)
   const studentName = getStudentName();
   const canonicalUrl = slug
-    ? `https://www.optioeducation.com/portfolio/${slug}`
+    ? buildCanonicalUrl(`/portfolio/${slug}`)
     : diploma?.student?.portfolio_slug
-      ? `https://www.optioeducation.com/portfolio/${diploma.student.portfolio_slug}`
-      : `https://www.optioeducation.com/public/diploma/${userId || user?.id}`;
+      ? buildCanonicalUrl(`/portfolio/${diploma.student.portfolio_slug}`)
+      : buildCanonicalUrl(`/public/diploma/${userId || user?.id}`);
 
   const pageTitle = `${studentName} - Portfolio Diploma | Optio`;
   const pageDescription = `${studentName} has accepted the responsibility to self-validate their education. This portfolio diploma showcases their learning journey with evidence-based achievements.`;

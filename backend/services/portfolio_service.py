@@ -1064,6 +1064,20 @@ class PortfolioService:
 
     def get_public_portfolio_data(self, portfolio_slug: str) -> Dict[str, Any]:
         """
+        DEAD CODE -- do not call. Kept only so this note has somewhere to live.
+
+        This was the slug-lookup path behind GET /api/portfolio/public/<slug>.
+        It is a second, thinner implementation of get_diploma_data() below, and
+        the two disagreed: this one returns `completed_quests` where the other
+        returns `achievements`, `skill_xp` as a list where the other returns a
+        per-pillar dict, and a different quest/XP tally entirely (62 quests /
+        13,847 XP vs 24 / 103,175 for the same student). DiplomaPage.jsx only
+        ever learned to read the get_diploma_data() shape, so this one rendered
+        an empty portfolio. The route now delegates to get_diploma_data().
+
+        If you need portfolio data by slug: resolve the slug with
+        get_diploma_by_slug(), then call get_diploma_data() with the user_id.
+
         Get public portfolio data by slug.
 
         Args:
