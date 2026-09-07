@@ -2429,7 +2429,7 @@ Log:
 
   v2: 101 suites / 768 passed, tsc clean.
 
-### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
+### QF-02 — Decompose top god components `[DONE(thirteen of fifteen split; two belong to another session's tree)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
 Then the next 8 by size. Behavior-preserving; tests before refactor where thin.
@@ -2465,6 +2465,84 @@ Log:
   and untestable until the thing is split.
 
   Web suite 2496 passing.
+
+- 2026-09-07: DECOMPOSED. The five files still over the cap were split into
+  thirty-one components; the exemption list is down from seven to two.
+
+      pages/RegisterFunnelPage.jsx            1617 -> 932   8 step components
+      components/quest/TaskWorkspace.jsx      1223 -> 722   5 components
+      components/sis/RegistrationSetupTab.jsx 1176 -> 531   7 step previews
+      pages/admin/TranscriptGeneratorPage.jsx 1081 -> 505   6 components
+      pages/sis/ClpPage.jsx                   1011 -> 413   5 components
+
+  THE TWO REMAINING EXEMPTIONS ARE DELIBERATE. `pages/DiplomaPage.jsx` (1254)
+  and `components/quests/QuestPersonalizationWizard.jsx` (1195) have
+  uncommitted changes in the shared tree at ~/pathweaver_2.0 right now. A split
+  rewrites every line of a file; landing one under somebody's in-flight work
+  hands them a conflict on all of it, for a refactor they did not ask for. They
+  are the next two, after that work lands.
+
+  WHERE THE SEAMS WERE, since the answer differed per file and the wrong seam
+  is what makes this kind of refactor risky:
+    * The two wizards (funnel, setup editor) split by STEP. Each step's markup
+      is independent; only the state crosses them, and it stays on the page.
+    * TaskWorkspace split by REGION -- sidebar, phone picker, task detail,
+      evidence -- because its state is one task, not one step.
+    * The transcript page split along the PRINT BOUNDARY: everything with a
+      `no-print` class is chrome, and what is left is the document a registrar
+      receives. That line was already in the CSS; it just wasn't in the files.
+    * ClpPage's four render helpers became four components.
+
+  ClpPage's docstring said the sub-views were "plain render helpers (not nested
+  components) so the DOM tree stays stable across re-renders". That reasoning is
+  about components declared INSIDE a render function, which get a new identity
+  every render and remount their subtree. A component declared at module scope
+  has a stable identity, so moving them to their own files keeps the property
+  the comment was protecting. The comment now says which of the two it meant --
+  left as it was, it would have talked the next person out of the same split.
+
+  THE PROPS ARE THE HONEST COST. `StudentDetail` takes 37 of them and
+  `PrintableTranscript` 17. Grouping them into objects would have made the
+  signatures shorter without making the coupling smaller, so they are flat.
+  Where a value was needed by two siblings (the funnel's records editor, the fee
+  editor shared by the paperwork and fee steps) the pair went in one file rather
+  than duplicating the editor.
+
+  METHOD, because transcription error is the real hazard in a refactor this
+  size: every component body was moved VERBATIM by script -- sliced from the
+  original by line range and re-indented, never retyped. Then a babel scope pass
+  over all thirty-one new files plus the five parents, checking for identifiers
+  with no binding and for imports nothing uses. It caught six real mistakes:
+  three components missing a prop the moved code read, `SortableTaskItem`
+  missing `getPillarData`/`useHidePillars`, a fee-step prop I invented that
+  nothing referenced, and a pre-existing dead import (`POST_FEE_STEPS`) that had
+  been in RegisterFunnelPage since before this work.
+
+  VERIFIED IN A BROWSER, which is what this item was waiting for. Not the dev
+  server -- the PRODUCTION BUNDLE, served statically on port 3177, driven by
+  headless Chromium with every `/api/**` call answered from the test itself, so
+  nothing reached a server and nothing reached prod:
+    * The funnel, all seven steps via its own `?preview=1` free navigation.
+      Each step asserted on content only that step renders. No page errors, no
+      console errors.
+    * The transcript page at `/admin/user/:id/transcript` with a stubbed
+      superadmin session: toolbar, printable header, the name field, an earned
+      row, a transfer row, a planned row, and the signature block.
+  The other three are covered by existing suites that render them through their
+  parents (clpPage, taskWorkspaceFeedback, QuestDetail).
+
+  NEW GUARDS. Three render tests -- one per split file that had none:
+  `registerFunnel/__tests__/funnelStepsRender` (7 steps),
+  `registrationSetup/__tests__/stepPreviewsRender` (7 steps),
+  `transcriptGenerator/__tests__/sectionsRender` (3). They assert on content
+  each CHILD owns, not on the page shell, so a prop dropped in a future edit
+  fails here rather than in front of a parent mid-registration.
+
+  And the size ratchet now tightens itself: a fourth test fails when EXEMPT
+  carries a file that has come back under the cap. The list was already meant to
+  only shrink; twice now that has depended on somebody remembering.
+
+  Web suite 302 files / 2656 passed. Production build clean.
 
 ### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet in place; migration itself still open)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use

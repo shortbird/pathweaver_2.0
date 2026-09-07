@@ -1,17 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { ArrowPathIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { CheckIcon, ClipboardIcon } from '@heroicons/react/24/solid'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from '../../pages/sis/sisRole'
 import { getLearningOrigin } from '../../utils/appSurface'
-import FirstDayOfSchoolCard from './FirstDayOfSchoolCard'
-import EnrollmentAgeGatesCard from './EnrollmentAgeGatesCard'
-import {
-  STEPS, STEP_LABELS, field, money, absUrl, gateBandText,
-  QuestionField, VerticalStepper, Section, PasswordInput, PrimaryButton,
-} from '../registration/funnelUi'
+import { STEPS, STEP_LABELS, absUrl, VerticalStepper } from '../registration/funnelUi'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
@@ -32,44 +27,14 @@ const slugKey = (label) => (label || '').toLowerCase().trim().replace(/[^a-z0-9]
 
 // Stripe secret keys are sk_… (or restricted rk_…) and much longer than 20
 // chars; anything else breaks the funnel at "Pay securely".
-const STRIPE_KEY_RE = /^(sk|rk)_[A-Za-z0-9_]{20,}$/
-
-// ── Editor chrome ────────────────────────────────────────────────────────────
-
-// Wraps a family-visible region the org can configure. The region renders
-// exactly as families see it; the pill toggles an inline editor beneath it.
-const Editable = ({ label = 'Edit', open, onToggle, editor, children }) => (
-  // A null editor means the region is shown but is not this user's to change —
-  // the fees for a campus coordinator. No pill, no dashed drawer.
-  !editor ? <div className="rounded-xl">{children}</div> : (
-  <div className={`relative rounded-xl transition-shadow ${open ? 'ring-2 ring-optio-purple/50' : 'ring-1 ring-transparent hover:ring-optio-purple/30'}`}>
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`absolute -top-2.5 right-3 z-10 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border shadow-sm ${
-        open ? 'bg-optio-purple text-white border-optio-purple' : 'bg-white text-optio-purple border-optio-purple/40 hover:border-optio-purple'
-      }`}
-    >
-      <PencilSquareIcon className="w-3 h-3" />
-      {open ? 'Done' : label}
-    </button>
-    {children}
-    {open && (
-      <div className="mt-1 rounded-lg border border-dashed border-optio-purple/40 bg-optio-purple/[0.04] p-4">
-        {editor}
-      </div>
-    )}
-  </div>
-  )
-)
-
-// A step region families see but orgs cannot change.
-const FixedNote = ({ children }) => (
-  <p className="text-xs text-neutral-400 italic mt-2">{children}</p>
-)
-
-// Mocked family inputs: rendered exactly like the funnel's, but inert.
-const mockInput = `${field} bg-neutral-50 pointer-events-none`
+// QF-02: one component per funnel step. Editable/FixedNote/mockInput and the
+// Stripe key shape moved to ./registrationSetup/setupChrome with them.
+import { STRIPE_KEY_RE } from './registrationSetup/setupChrome'
+import AccountStepPreview from './registrationSetup/AccountStepPreview'
+import FamilyStepPreview from './registrationSetup/FamilyStepPreview'
+import { DetailsStepPreview, RecordsStepPreview } from './registrationSetup/DetailsRecordsSteps'
+import { PaperworkStepPreview, FeeStepPreview } from './registrationSetup/PaperworkFeeSteps'
+import DoneStepPreview from './registrationSetup/DoneStepPreview'
 
 const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const confirm = useConfirm()
@@ -387,682 +352,73 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const editorSteps = STEPS.filter((st) => (st !== 'fee' || feeStepVisible) && (st !== 'records' || askRecords))
   const editorLabels = askContacts ? STEP_LABELS : { ...STEP_LABELS, details: 'A few questions' }
 
-  // ── Step bodies (the funnel, verbatim, with Edit affordances) ──────────────
-
-  const accountStep = (
-    <div className="space-y-6">
-      <Section title="Your account" subtitle="Registration starts with your parent account.">
-        <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-neutral-50 mb-5">
-          <span className="text-sm px-4 py-1.5 rounded-md font-medium bg-optio-purple text-white">Create account</span>
-          <span className="text-sm px-4 py-1.5 rounded-md font-medium text-neutral-600">I have an Optio account</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="block text-xs font-medium text-neutral-500 mb-1">First name</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div><label className="block text-xs font-medium text-neutral-500 mb-1">Last name</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Email</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div><label className="block text-xs font-medium text-neutral-500 mb-1">Password</label>
-            <div className="pointer-events-none"><PasswordInput value="" onChange={() => {}} /></div></div>
-          <div><label className="block text-xs font-medium text-neutral-500 mb-1">Confirm password</label>
-            <div className="pointer-events-none"><PasswordInput value="" onChange={() => {}} /></div></div>
-        </div>
-        <FixedNote>
-          Standard step — same for every organization. Parents create an Optio account (with an
-          emailed 6-digit confirmation code) or sign in with an existing one, and it is attached
-          to {org.name || 'your school'} automatically.
-        </FixedNote>
-      </Section>
-      <div className="pointer-events-none"><PrimaryButton>Create account</PrimaryButton></div>
-    </div>
-  )
-
-  const familyStep = (
-    <div className="space-y-6">
-      <Section title="Contact & address">
-        <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
-          <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Phone</label>
-            <input className={mockInput} readOnly placeholder="XXX-XXX-XXXX" value="" /></div>
-          <div className="sm:col-span-4"><label className="block text-xs font-medium text-neutral-500 mb-1">Street address</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Apt / unit (optional)</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">City</label>
-            <input className={mockInput} readOnly value="" /></div>
-          <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">State</label>
-            <input className={mockInput} readOnly placeholder="UT" value="" /></div>
-          <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">ZIP</label>
-            <input className={mockInput} readOnly value="" /></div>
-        </div>
-        <FixedNote>
-          Standard step — parents add their contact details, a family photo, and each child
-          (name, date of birth, photo, allergies, medications). Teens can get their own login.
-        </FixedNote>
-      </Section>
-
-      <Editable
-        label="Edit"
-        open={openZones.has('gates')}
-        onToggle={() => toggleZone('gates')}
-        editor={(
-          <div className="space-y-4">
-            <label className="flex items-center gap-2 text-sm text-neutral-700 select-none">
-              <input type="checkbox" checked={askHealth}
-                onChange={(e) => setAskHealth(e.target.checked)}
-                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-              Ask for each child's allergies and required medications
-            </label>
-            <p className="text-xs text-neutral-500">
-              The waitlist settings below drive the notice families see when they enter a child's
-              date of birth (ages are judged as of the first day of school). They save on their own,
-              separate from the main Save button.
-            </p>
-            <FirstDayOfSchoolCard orgId={orgId} org={org} onUpdate={onUpdate} />
-            <EnrollmentAgeGatesCard orgId={orgId} org={org} onUpdate={onUpdate} />
-          </div>
-        )}
-      >
-        <Section title="Children">
-          <div className="rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-neutral-700">Child 1</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input className={mockInput} readOnly placeholder="First name" value="" />
-              <input className={mockInput} readOnly placeholder="Last name" value="" />
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-neutral-500 mb-1">Date of birth</label>
-                <input className={mockInput} readOnly placeholder="MM/DD/YYYY" value="" />
-                {waitlistGates.map((g, i) => (
-                  <p key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
-                    Students {gateBandText(g)} are currently joining a waitlist. You can
-                    finish registering this child — {org.name || 'the school'} will
-                    email you as soon as they can choose classes.
-                  </p>
-                ))}
-                {waitlistGates.length > 0 && (
-                  <p className="text-[11px] text-neutral-400 mt-1">
-                    ↑ Families see this notice when the child's birth date falls in a waitlisted age group.
-                  </p>
-                )}
-              </div>
-              {askHealth && (
-                <>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-neutral-500 mb-1">Allergies</label>
-                    <textarea rows={2} className={mockInput} readOnly value="" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-neutral-500 mb-1">Required medications</label>
-                    <textarea rows={2} className={mockInput} readOnly value="" />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="mt-4">
-            <span className="text-sm font-medium text-optio-purple">+ Add another child</span>
-          </div>
-        </Section>
-      </Editable>
-
-      {feeApplies && (
-        <p className="text-center text-sm text-neutral-500">
-          Registration fee: <span className="font-semibold text-neutral-800">{money(draftFeeCents(1))}</span>
-        </p>
-      )}
-      <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>
-    </div>
-  )
-
-  const questionEditor = (q, i) => {
-    const opts = asOptions(q)
-    return (
-      <div className="space-y-2">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input className={`${field} sm:flex-1`} placeholder="Question label"
-            value={q.label} onChange={(e) => setQ(i, { label: e.target.value })} />
-          <select className={`${field} sm:w-44`} value={q.type || 'select'}
-            onChange={(e) => setQ(i, { type: e.target.value })}>
-            <option value="select">Pick one</option>
-            <option value="multi">Pick multiple</option>
-            <option value="text">Text answer</option>
-          </select>
-          <button onClick={() => setQuestions((qs) => qs.filter((_, j) => j !== i))}
-            className="text-red-500 text-sm px-2 hover:underline">Remove</button>
-        </div>
-        <textarea rows={2} className={field} placeholder="Help text shown under the question (optional)"
-          value={q.help || ''} onChange={(e) => setQ(i, { help: e.target.value })} />
-        {q.type !== 'text' && (
-          <div className="pl-1">
-            <p className="text-[11px] font-medium text-neutral-400 uppercase tracking-wide mb-1.5">Answer options</p>
-            <div className="space-y-1.5">
-              {opts.map((opt, oi) => (
-                <div key={oi} className="flex items-center gap-2">
-                  <span className={`w-3.5 h-3.5 shrink-0 border-2 border-gray-300 ${q.type === 'multi' ? 'rounded' : 'rounded-full'}`} />
-                  <input
-                    ref={(el) => { if (el && optFocus.current === `${i}:${oi}`) { el.focus(); optFocus.current = null } }}
-                    className={`${field} flex-1`}
-                    placeholder={`Option ${oi + 1}`}
-                    value={opt}
-                    onChange={(e) => patchOptions(i, (os) => os.map((o, j) => (j === oi ? e.target.value : o)))}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(i) } }}
-                  />
-                  <button onClick={() => patchOptions(i, (os) => os.filter((_, j) => j !== oi))}
-                    aria-label={`Remove option ${oi + 1}`}
-                    className="text-neutral-400 hover:text-red-500 text-lg leading-none px-1">×</button>
-                </div>
-              ))}
-              {opts.length === 0 && <p className="text-xs text-neutral-400">No options yet.</p>}
-            </div>
-            <button onClick={() => addOption(i)} className="mt-1.5 text-sm font-medium text-optio-purple hover:underline">
-              + Add option
-            </button>
-          </div>
-        )}
-        <div className="flex flex-wrap gap-x-5 gap-y-1 pl-1">
-          <label className="flex items-center gap-2 text-xs text-neutral-500 select-none">
-            <input type="checkbox" checked={q.required !== false}
-              onChange={(e) => setQ(i, { required: e.target.checked })}
-              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            Required
-          </label>
-          <label className="flex items-center gap-2 text-xs text-neutral-500 select-none">
-            <input type="checkbox" checked={!!q.per_student}
-              onChange={(e) => setQ(i, { per_student: e.target.checked })}
-              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            Asked once per child (instead of once per family)
-          </label>
-        </div>
-      </div>
-    )
-  }
-
-  const familyQs = questions.filter((q) => !q.per_student)
-  const studentQs = questions.filter((q) => q.per_student)
-
-  const contactsEditor = (
-    <label className="flex items-center gap-2 text-sm text-neutral-700 select-none">
-      <input type="checkbox" checked={askContacts}
-        onChange={(e) => setAskContacts(e.target.checked)}
-        className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-      Ask families for emergency contacts (at least one required)
-    </label>
-  )
-
-  // ── School records (credit partners) ───────────────────────────────────────
-  // Turning this on adds a funnel step asking, per student, which school's
-  // registrar receives their Optio Academy transcript. Enrolling in Optio
-  // Academy is the separate switch: a partner might collect the destination
-  // without enrolling, or enroll a family who has no school of record yet.
-  const recordsEditor = (
-    <div className="space-y-3">
-      <label className="flex items-start gap-2 text-sm text-neutral-700 select-none">
-        <input type="checkbox" checked={askRecords}
-          onChange={(e) => setAskRecords(e.target.checked)}
-          className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-        <span>
-          Ask each family where their student&rsquo;s transcript should be sent
-          <span className="block text-xs text-neutral-500">
-            Adds a School records step to the funnel. Turn this on for credit partner programs.
-          </span>
-        </span>
-      </label>
-      <label className="flex items-start gap-2 text-sm text-neutral-700 select-none">
-        <input type="checkbox" checked={academyEnroll}
-          onChange={(e) => setAcademyEnroll(e.target.checked)}
-          className="mt-0.5 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-        <span>
-          Enroll each registered student in Optio Academy
-          <span className="block text-xs text-neutral-500">
-            Happens when the family finishes registering. This is what puts Optio Academy&rsquo;s
-            accreditation on their transcript.
-          </span>
-        </span>
-      </label>
-    </div>
-  )
-
-  const detailsStep = (
-    <div className="space-y-6">
-      <Editable label="Edit" open={openZones.has('contacts')} onToggle={() => toggleZone('contacts')} editor={contactsEditor}>
-        {askContacts ? (
-          <Section title="Emergency contacts" subtitle="Add at least one emergency contact for your family.">
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-neutral-700">Contact 1</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input className={mockInput} readOnly placeholder="Full name" value="" />
-                <select className={mockInput} disabled><option>Relationship</option></select>
-                <input className={mockInput} readOnly placeholder="Phone" value="" />
-                <input className={mockInput} readOnly placeholder="Email (optional)" value="" />
-              </div>
-            </div>
-          </Section>
-        ) : (
-          <div className="rounded-xl border border-dashed border-gray-300 bg-white/60 px-4 py-3 text-sm text-neutral-400">
-            Emergency contacts are turned off — families skip straight to your questions.
-          </div>
-        )}
-      </Editable>
-
-      <Section title="A few questions">
-        <div className="space-y-5">
-          {questions.length === 0 && (
-            <p className="text-sm text-neutral-400">
-              No intake questions yet — add one below and it appears here exactly as families will see it.
-            </p>
-          )}
-          {familyQs.map((q) => {
-            const i = questions.indexOf(q)
-            return (
-              <Editable key={q.key || `q-${i}`} open={openZones.has(`q-${i}`)} onToggle={() => toggleZone(`q-${i}`)}
-                editor={questionEditor(q, i)}>
-                <div className="p-1">
-                  <div className="pointer-events-none">
-                    <QuestionField q={q} value={q.type === 'multi' ? [] : ''} onChange={() => {}} />
-                  </div>
-                </div>
-              </Editable>
-            )
-          })}
-          {studentQs.length > 0 && (
-            <div className={familyQs.length ? 'pt-4 border-t border-gray-100' : ''}>
-              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Your child</h3>
-              <p className="text-[11px] text-neutral-400 mb-3">↓ These repeat for each child on the registration.</p>
-              <div className="space-y-5">
-                {studentQs.map((q) => {
-                  const i = questions.indexOf(q)
-                  return (
-                    <Editable key={q.key || `q-${i}`} open={openZones.has(`q-${i}`)} onToggle={() => toggleZone(`q-${i}`)}
-                      editor={questionEditor(q, i)}>
-                      <div className="p-1">
-                        <div className="pointer-events-none">
-                          <QuestionField q={q} value={q.type === 'multi' ? [] : ''} onChange={() => {}} />
-                        </div>
-                      </div>
-                    </Editable>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              setQuestions((qs) => [...qs, { key: '', label: '', help: '', type: 'select', options: ['', ''], required: true, per_student: false }])
-              toggleZone(`q-${questions.length}`)
-            }}
-            className="text-sm font-medium text-optio-purple hover:underline">
-            + Add question
-          </button>
-        </div>
-      </Section>
-      <Editable label="Edit" open={openZones.has('records')} onToggle={() => toggleZone('records')} editor={recordsEditor}>
-        <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-neutral-600">
-          <span className="font-medium text-neutral-800">Optio Academy credit</span>
-          <p className="mt-1">
-            {askRecords
-              ? 'Families are asked where each student\u2019s transcript should be sent. See the School records step.'
-              : 'Families are not asked where transcripts should be sent.'}
-          </p>
-          <p className="mt-1">
-            {academyEnroll
-              ? 'Finishing registration enrolls each student in Optio Academy.'
-              : 'Finishing registration does not enroll anyone in Optio Academy.'}
-          </p>
-        </div>
-      </Editable>
-      <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>
-    </div>
-  )
-
-  const paperworkEditor = (it, i) => {
-    const linked = it.key && linkedKeys.has(it.key)
-    return (
-      <div className="space-y-2">
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <input className={`${field} sm:flex-1`} placeholder="Label (e.g. Enrollment Agreement)"
-            value={it.label} onChange={(e) => setItem(i, { label: e.target.value })} />
-          {!linked && (
-            <label className={`inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap cursor-pointer transition-colors ${
-              uploadingDoc === i
-                ? 'border-gray-200 text-neutral-400'
-                : 'border-gray-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple'
-            }`}>
-              {uploadingDoc === i ? 'Uploading…' : it.doc_url ? 'Replace document' : 'Upload document'}
-              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
-                disabled={uploadingDoc != null}
-                onChange={(e) => { uploadDoc(i, e.target.files?.[0]); e.target.value = '' }} />
-            </label>
-          )}
-          <button onClick={() => setPaperwork((p) => p.filter((_, j) => j !== i))}
-            className="text-red-500 text-sm px-2 hover:underline">Remove</button>
-        </div>
-        <textarea rows={3} className={field}
-          placeholder="Text families read and agree to (optional if a document is attached)"
-          value={it.body || ''} onChange={(e) => setItem(i, { body: e.target.value })} />
-        {linked ? (
-          <p className="text-xs text-neutral-500">
-            {it.doc_url && (
-              <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
-            )}
-            <span className={it.doc_url ? 'ml-3 text-neutral-400' : 'text-neutral-400'}>
-              In your Resources library — replace or remove this document in the Resources tab, and the form updates too.
-            </span>
-          </p>
-        ) : it.doc_url ? (
-          <p className="text-xs text-neutral-500">
-            <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-optio-purple font-medium hover:underline">View document</a>
-            <button onClick={() => setItem(i, { doc_url: '' })} className="ml-3 text-red-500 hover:underline">Remove document</button>
-            <span className="ml-2 text-neutral-400">Saving adds this to your Resources library as the source of truth.</span>
-          </p>
-        ) : (
-          <p className="text-xs text-neutral-400">No document yet — upload the waiver/agreement PDF, paste a link, or rely on the text above.</p>
-        )}
-        <input className={field} placeholder="Or paste a link to the document (https://…)"
-          value={it.doc_url || ''} onChange={(e) => setItem(i, { doc_url: e.target.value })} />
-      </div>
-    )
-  }
-
+  // ── Step bodies ────────────────────────────────────────────────────────────
+  // One component per funnel step, in ./registrationSetup/. They render the
+  // family-facing markup; this component keeps the draft state and the save,
+  // which is why the props go one way and every setter comes from here.
   const sampleFee = draftFeeCents(1)
-  const feeEditor = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1">Fee structure</label>
-        <select className={field} value={feeMode} onChange={(e) => setFeeMode(e.target.value)}>
-          <option value="flat">Flat per family</option>
-          <option value="per_student">Per student</option>
-          <option value="lesser">Per student, capped per family</option>
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1">Per-family fee ($)</label>
-        <input className={field} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1">Per-student fee ($)</label>
-        <input className={field} inputMode="decimal" value={perStudentFee} onChange={(e) => setPerStudentFee(e.target.value)} />
-      </div>
-      <div className="sm:col-span-3">
-        <label className="block text-xs font-medium text-neutral-500 mb-1">Stripe secret key (school's own Stripe account)</label>
-        {stripeEnabled && !stripeClear && (
-          <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
-            Card payment is on — a Stripe key is configured. Enter a new key to replace it, or clear it below.
-          </p>
-        )}
-        <input type="password" className={field} value={stripeKey} onChange={(e) => { setStripeKey(e.target.value); if (e.target.value) setStripeClear(false) }}
-          placeholder={stripeEnabled ? 'Enter a new key to replace the current one' : 'rk_live_… (restricted key recommended)'} autoComplete="off" />
-        {stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim()) && (
-          <p className="text-xs text-red-600 mt-1" role="alert">
-            This doesn't look like a Stripe secret key — it should start with sk_ or rk_ (e.g. sk_live_…)
-            and be much longer. Copy the full key from Stripe Dashboard → Developers → API keys.
-          </p>
-        )}
-        {stripeEnabled && (
-          <label className="flex items-center gap-2 text-xs text-neutral-500 mt-2 select-none">
-            <input type="checkbox" checked={stripeClear}
-              onChange={(e) => { setStripeClear(e.target.checked); if (e.target.checked) setStripeKey('') }}
-              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            Remove the stored key on save (turns card payment off)
-          </label>
-        )}
-        <p className="text-xs text-neutral-400 mt-1">
-          With a key set, parents pay by card at checkout and the platform verifies the payment
-          with Stripe automatically. Without one, the funnel falls back to the external payment
-          link below (or records the fee for you to collect separately).
-        </p>
-      </div>
-      <div className="sm:col-span-3">
-        <label className="block text-xs font-medium text-neutral-500 mb-1">Payment link (external, fallback)</label>
-        <input className={field} value={paymentUrl} onChange={(e) => setPaymentUrl(e.target.value)} placeholder="https://…" />
-      </div>
-    </div>
-  )
-
-  const recordsStep = (
-    <div className="space-y-6">
-      <Editable label="Edit" open={openZones.has('records')} onToggle={() => toggleZone('records')} editor={recordsEditor}>
-        <Section
-          title="Where should the school records go?"
-          subtitle="Credit is issued by Optio Academy on an official transcript. Tell us where each student's transcript should be sent, so we can send it for you when credit is awarded."
-        >
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-neutral-800">Is your child enrolled in a school?</label>
-            <select className={mockInput} disabled><option>-- Please select --</option></select>
-            <input className={mockInput} readOnly placeholder="School name" value="" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input className={mockInput} readOnly placeholder="City" value="" />
-              <input className={mockInput} readOnly placeholder="State" value="" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input className={mockInput} readOnly placeholder="Registrar name" value="" />
-              <input className={mockInput} readOnly placeholder="Registrar email" value="" />
-            </div>
-            <label className="flex items-start gap-2 text-sm text-neutral-600">
-              <input type="checkbox" readOnly checked={false} className="mt-1 pointer-events-none" />
-              <span>Send the official transcript to this school automatically once credit is awarded.</span>
-            </label>
-          </div>
-        </Section>
-      </Editable>
-    </div>
-  )
-
-  const paperworkStep = (
-    <div className="space-y-6">
-      <Section title="Paperwork" subtitle="Review each item, confirm you agree, and type your full name to sign.">
-        <div className="space-y-5">
-          {paperwork.length === 0 && (
-            <p className="text-sm text-neutral-400">
-              No paperwork yet — add the agreements families read and e-sign during registration.
-            </p>
-          )}
-          {paperwork.map((it, i) => (
-            <Editable key={it.key || `p-${i}`} open={openZones.has(`p-${i}`)} onToggle={() => toggleZone(`p-${i}`)}
-              editor={paperworkEditor(it, i)}>
-              <div className="rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="font-semibold text-neutral-900">{it.label || 'Untitled item'}</span>
-                  {it.doc_url && <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-sm text-optio-purple hover:underline whitespace-nowrap">Open in new tab</a>}
-                </div>
-                {it.doc_url && /\.pdf($|\?)/i.test(it.doc_url) && (
-                  <iframe src={absUrl(it.doc_url)} title={it.label}
-                    className="w-full h-80 rounded-lg border border-gray-200 mb-3 bg-white" />
-                )}
-                {it.body && (
-                  <div className="text-sm text-neutral-600 whitespace-pre-wrap bg-neutral-50 rounded-lg p-3 mb-3 max-h-56 overflow-y-auto">
-                    {it.body}
-                  </div>
-                )}
-                <label className="flex items-center gap-2 text-sm text-neutral-700 mb-2 pointer-events-none">
-                  <input type="checkbox" readOnly checked={false}
-                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                  I confirm I have read and agree to the above terms
-                </label>
-                <input className={mockInput} readOnly placeholder="Type your full name to sign" value="" />
-                <p className="text-xs text-neutral-400 mt-1.5">
-                  By typing your name above, you agree this electronic signature has the same legal force and effect as a manual written signature.
-                </p>
-              </div>
-            </Editable>
-          ))}
-          <button
-            onClick={() => {
-              setPaperwork((p) => [...p, { key: '', label: '', doc_url: '', body: '' }])
-              toggleZone(`p-${paperwork.length}`)
-            }}
-            className="text-sm font-medium text-optio-purple hover:underline">
-            + Add paperwork item
-          </button>
-        </div>
-      </Section>
-      {!feeStepVisible && seesFinance && (
-        <Editable label="Add a fee" open={openZones.has('fee')} onToggle={() => toggleZone('fee')} editor={feeEditor}>
-          <div className="rounded-xl border border-dashed border-gray-300 bg-white/60 px-4 py-3 text-sm text-neutral-400">
-            No registration fee — after signing, families go straight to the finish step.
-            Setting a fee, payment link, or Stripe key adds the fee step back.
-          </div>
-        </Editable>
-      )}
-      <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>
-    </div>
-  )
-
-  const feeStep = (
-    <div className="space-y-6">
-      <Editable label="Edit fees & payment" open={openZones.has('fee')} onToggle={() => toggleZone('fee')}
-        editor={seesFinance ? feeEditor : null}>
-        {!seesFinance ? (
-          <Section title="Registration fee">
-            <p className="text-sm text-neutral-500 my-3 text-center">
-              Whatever families are charged here is set by an organization admin.
-            </p>
-          </Section>
-        ) : (
-        <Section title={sampleFee > 0 ? 'Registration fee' : 'Finish your registration'}>
-          <div className="text-center">
-            {sampleFee > 0
-              ? <p className="text-3xl font-bold text-optio-purple my-3">{money(sampleFee)}</p>
-              : <p className="text-sm text-neutral-500 my-3">No payment is due — complete your registration below.</p>}
-            {feeMode !== 'flat' && (
-              <p className="text-[11px] text-neutral-400 -mt-1 mb-2">
-                ↑ Shown for one student — {feeMode === 'per_student' ? 'multiplied by the number of children registered' : 'per student, capped at the per-family amount'}.
-              </p>
-            )}
-            {sampleFee > 0 && (stripeEnabled && !stripeClear ? (
-              <p className="text-xs text-neutral-400">
-                You'll be taken to a secure Stripe checkout. Your registration completes automatically once the payment is verified.
-              </p>
-            ) : absUrl(paymentUrl) ? (
-              <>
-                <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
-                  Pay {money(sampleFee)}
-                </span>
-                <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you've paid.</p>
-              </>
-            ) : (
-              <p className="text-sm text-neutral-400">Your school will collect the fee separately.</p>
-            ))}
-          </div>
-        </Section>
-        )}
-      </Editable>
-      {waitlistGates.length > 0 && sampleFee > 0 && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold mb-1">One of your children is in a waitlisted age group.</p>
-          <p className="mb-3">
-            Paying now <strong>holds their place in line</strong> — it does not
-            guarantee a spot. If they aren't accepted, that portion of your
-            registration fee is <strong>fully refunded</strong> to your card. Your
-            other children are enrolled as usual.
-          </p>
-          <label className="flex items-start gap-2 pointer-events-none">
-            <input type="checkbox" readOnly checked={false}
-              className="mt-0.5 h-4 w-4 rounded border-amber-400 text-optio-purple" />
-            <span>I understand this fee holds my child's place and is fully
-              refunded if they aren't accepted.</span>
-          </label>
-          <p className="text-[11px] text-amber-700/70 mt-2">
-            ↑ Only shown when a registering child falls in a waitlisted age group.
-          </p>
-        </div>
-      )}
-      <div className="pointer-events-none">
-        <PrimaryButton>
-          {sampleFee > 0 && stripeEnabled && !stripeClear ? `Pay ${money(sampleFee)} securely`
-            : sampleFee > 0 && absUrl(paymentUrl) ? "I've paid — finish registration"
-              : 'Finish registration'}
-        </PrimaryButton>
-      </div>
-    </div>
-  )
-
-  const doneEditor = (
-    <div className="space-y-3">
-      <div>
-        <label className="block text-xs font-medium text-neutral-500 mb-1">After registration, families are sent to…</label>
-        <select className={field} value={flow} onChange={(e) => setFlow(e.target.value)}>
-          <option value="schedule">Schedule Builder + booking an appointment (iCreate style)</option>
-          <option value="goals">The family goals page — set direction and goals together</option>
-        </select>
-        <p className="text-xs text-neutral-400 mt-1">
-          This also switches the org between schedule mode and goals mode in the SIS
-          (the Goals tab shows for goals-mode orgs).
-        </p>
-      </div>
-      {flow !== 'goals' && (
-        <div>
-          <label className="block text-xs font-medium text-neutral-500 mb-1">Scheduling link (emailed after payment)</label>
-          <input className={field} value={schedulingUrl} onChange={(e) => setSchedulingUrl(e.target.value)} placeholder="https://…" />
-        </div>
-      )}
-    </div>
-  )
-
-  const doneStep = (
-    <div className="space-y-6">
-      <Editable label="Edit next steps" open={openZones.has('done')} onToggle={() => toggleZone('done')} editor={doneEditor}>
-        {flow === 'goals' ? (
-          <div className="space-y-6 text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
-              <p className="text-neutral-500 mb-5">
-                Next, sit down with each of your kids and set a direction and goals for the
-                year together.
-              </p>
-              <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
-                Set your student's goals
-              </span>
-              <p className="text-sm text-neutral-500 mt-5">
-                You'll review these together at your meeting with {org.name || 'the school'}.
-              </p>
-            </div>
-            <p className="text-sm text-neutral-400">
-              Registration is complete. You can sign in at any time with your email and password.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6 text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
-              <p className="text-neutral-500 mb-5">
-                Your account has been created. Next, use the Schedule Builder to create your
-                family's schedule for the coming school year.
-              </p>
-              <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
-                Open the Schedule Builder
-              </span>
-              <div className="border-t border-gray-100 mt-7 pt-6">
-                <p className="text-neutral-500 mb-5">
-                  Then book an appointment with {org.name || 'the school'} staff to build your Customized Learning
-                  Plan — our team will review your schedule with you at the meeting.
-                </p>
-                {absUrl(schedulingUrl) ? (
-                  <span className="inline-block px-5 py-2.5 rounded-lg border border-optio-purple text-optio-purple font-semibold">
-                    Book appointment
-                  </span>
-                ) : (
-                  <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </Editable>
-    </div>
-  )
+  const feeEditorProps = {
+    fee, setFee, feeMode, setFeeMode, paymentUrl, setPaymentUrl,
+    perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
+    stripeEnabled, stripeKey, setStripeKey,
+  }
 
   // If the viewed step just disappeared (e.g. the fee was cleared while on the
   // fee step), fall to the finish step rather than a blank pane.
   const activeStep = editorSteps.includes(step) ? step : 'done'
   const stepBody = {
-    account: accountStep, family: familyStep, details: detailsStep,
-    records: recordsStep, paperwork: paperworkStep, fee: feeStep, done: doneStep,
+    account: <AccountStepPreview org={org} />,
+    family: (
+      <FamilyStepPreview
+        askHealth={askHealth} setAskHealth={setAskHealth}
+        draftFeeCents={draftFeeCents} feeApplies={feeApplies} onUpdate={onUpdate}
+        openZones={openZones} toggleZone={toggleZone}
+        org={org} orgId={orgId} waitlistGates={waitlistGates}
+      />
+    ),
+    details: (
+      <DetailsStepPreview
+        academyEnroll={academyEnroll} setAcademyEnroll={setAcademyEnroll}
+        addOption={addOption} asOptions={asOptions}
+        askContacts={askContacts} setAskContacts={setAskContacts}
+        askRecords={askRecords} setAskRecords={setAskRecords}
+        openZones={openZones} toggleZone={toggleZone}
+        optFocus={optFocus} patchOptions={patchOptions}
+        questions={questions} setQ={setQ} setQuestions={setQuestions}
+      />
+    ),
+    records: (
+      <RecordsStepPreview
+        academyEnroll={academyEnroll} setAcademyEnroll={setAcademyEnroll}
+        askRecords={askRecords} setAskRecords={setAskRecords}
+        openZones={openZones} toggleZone={toggleZone}
+      />
+    ),
+    paperwork: (
+      <PaperworkStepPreview
+        draftFeeCents={draftFeeCents} linkedKeys={linkedKeys}
+        setItem={setItem} setPaperwork={setPaperwork}
+        uploadDoc={uploadDoc} uploadingDoc={uploadingDoc}
+        paperwork={paperwork} openZones={openZones} toggleZone={toggleZone}
+        feeStepVisible={feeStepVisible} seesFinance={seesFinance}
+        feeEditorProps={feeEditorProps}
+      />
+    ),
+    fee: (
+      <FeeStepPreview
+        feeMode={feeMode} paymentUrl={paymentUrl} sampleFee={sampleFee}
+        seesFinance={seesFinance} stripeClear={stripeClear} stripeEnabled={stripeEnabled}
+        waitlistGates={waitlistGates} openZones={openZones} toggleZone={toggleZone}
+        feeEditorProps={feeEditorProps}
+      />
+    ),
+    done: (
+      <DoneStepPreview
+        flow={flow} setFlow={setFlow}
+        schedulingUrl={schedulingUrl} setSchedulingUrl={setSchedulingUrl}
+        org={org} openZones={openZones} toggleZone={toggleZone}
+      />
+    ),
   }[activeStep]
 
   return (

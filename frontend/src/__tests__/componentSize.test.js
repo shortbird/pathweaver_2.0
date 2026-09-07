@@ -52,20 +52,27 @@ const CAP = 1000
  *   components/admin/QuestForm.jsx          1151 -> 770
  *   pages/sis/ReportsPage.jsx               1012 -> 936
  *
+ * SPLIT AND REMOVED (QF-02, 2026-09-07) -- the rest of the list:
+ *   pages/RegisterFunnelPage.jsx            1617 -> 932   (8 step components)
+ *   components/quest/TaskWorkspace.jsx      1223 -> 722   (5 components)
+ *   components/sis/RegistrationSetupTab.jsx 1176 -> 531   (7 step previews)
+ *   pages/admin/TranscriptGeneratorPage.jsx 1081 -> 505   (6 components)
+ *   pages/sis/ClpPage.jsx                   1011 -> 413   (5 components)
+ *
  * REMOVED AS STALE (2026-09-04): pages/sis/StaffPage.jsx (429) and
  * pages/QuestDetail.jsx (800) were already under the cap. They had been shrunk
  * since this list was written, and an exemption on a file that does not need
  * one is a limit nobody is under -- the next file to take that path would
- * inherit a cap granted to something else.
+ * inherit a cap granted to something else. Since 2026-09-07 a test enforces
+ * that rather than leaving it to whoever remembers.
+ *
+ * The two that remain are being edited in another session's working tree, and
+ * splitting a file somebody has uncommitted changes to hands them a conflict on
+ * every line. They are the next two to go.
  */
 const EXEMPT = {
-  'pages/RegisterFunnelPage.jsx': 1670,
   'pages/DiplomaPage.jsx': 1270,
-  'components/quest/TaskWorkspace.jsx': 1260,
   'components/quests/QuestPersonalizationWizard.jsx': 1230,
-  'components/sis/RegistrationSetupTab.jsx': 1210,
-  'pages/admin/TranscriptGeneratorPage.jsx': 1130,
-  'pages/sis/ClpPage.jsx': 1070,
 }
 
 function jsxFiles(dir, acc = []) {
@@ -101,6 +108,21 @@ describe('component size', () => {
       `Split the component instead of raising the limit. A page this size has `
       + 'more possible states than anyone can hold in their head:\n  '
       + offenders.join('\n  '),
+    ).toEqual([])
+  })
+
+  it('no exemption is being carried for a file that no longer needs one', () => {
+    // The list only ever shrinks. A file that has come back under the cap keeps
+    // its entry only until somebody notices -- which is to say, until this
+    // fails. Without it the exemptions outlive the problem and the cap quietly
+    // stops applying to paths nobody is watching.
+    const bySize = new Map(measured.map((m) => [m.rel, m.lines]))
+    const unnecessary = Object.keys(EXEMPT)
+      .filter((rel) => bySize.has(rel) && bySize.get(rel) <= CAP)
+      .map((rel) => `${rel} is ${bySize.get(rel)} lines, under the ${CAP} cap`)
+    expect(
+      unnecessary,
+      `Delete these entries from EXEMPT:\n  ${unnecessary.join('\n  ')}`,
     ).toEqual([])
   })
 
