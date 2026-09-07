@@ -12,6 +12,7 @@ from datetime import datetime
 import re
 import logging
 
+from app_config import Config
 from database import get_supabase_admin_client
 from utils.storage_urls import canonical_stored_url, sign_stored_url, sign_stored_urls
 
@@ -1059,66 +1060,9 @@ class PortfolioService:
             'total_quests_completed': len(completed_quests),
             'total_xp': total_xp,
             'curated': self.get_curated_completions(user_id),
-            'portfolio_url': f"https://optio.com/portfolio/{diploma.get('portfolio_slug')}"
+            'portfolio_url': f"{Config.FRONTEND_URL}/portfolio/{diploma.get('portfolio_slug')}"
         }
 
-    def get_public_portfolio_data(self, portfolio_slug: str) -> Dict[str, Any]:
-        """
-        DEAD CODE -- do not call. Kept only so this note has somewhere to live.
-
-        This was the slug-lookup path behind GET /api/portfolio/public/<slug>.
-        It is a second, thinner implementation of get_diploma_data() below, and
-        the two disagreed: this one returns `completed_quests` where the other
-        returns `achievements`, `skill_xp` as a list where the other returns a
-        per-pillar dict, and a different quest/XP tally entirely (62 quests /
-        13,847 XP vs 24 / 103,175 for the same student). DiplomaPage.jsx only
-        ever learned to read the get_diploma_data() shape, so this one rendered
-        an empty portfolio. The route now delegates to get_diploma_data().
-
-        If you need portfolio data by slug: resolve the slug with
-        get_diploma_by_slug(), then call get_diploma_data() with the user_id.
-
-        Get public portfolio data by slug.
-
-        Args:
-            portfolio_slug: Portfolio slug
-
-        Returns:
-            Dict with portfolio data or error
-        """
-        diploma = self.get_diploma_by_slug(portfolio_slug)
-
-        if not diploma or not diploma.get('is_public'):
-            return {'error': 'Portfolio not found or private'}
-
-        user_id = diploma['user_id']
-        user_data = self.get_user_basic_info(user_id)
-
-        if not user_data:
-            return {'error': 'User not found'}
-
-        completed_quests = self.get_completed_quests(user_id)
-        skill_xp = self.get_skill_xp(user_id)
-        skill_details = self.get_skill_details(user_id)
-
-        if not skill_details and completed_quests:
-            skill_details = self.calculate_skill_details_from_quests(completed_quests)
-
-        total_xp = sum(skill_xp.values())
-
-        return {
-            'student': user_data,
-            'diploma_issued': diploma.get('issued_date'),
-            'completed_quests': completed_quests,
-            'skill_xp': [
-                {'skill_category': k, 'total_xp': v} for k, v in skill_xp.items()
-            ],
-            'skill_details': skill_details,
-            'total_quests_completed': len(completed_quests),
-            'total_xp': total_xp,
-            'curated': self.get_curated_completions(user_id),
-            'portfolio_url': f"https://optio.com/portfolio/{portfolio_slug}"
-        }
 
     def get_diploma_data(
         self,
