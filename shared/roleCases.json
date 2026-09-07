@@ -22,7 +22,6 @@
     "Each side has a test that reads this file. Adding a case here makes all three",
     "prove they still agree.",
     "",
-    "One case here documents a disagreement INSIDE the server, not between the",
     "server and a client: for {role:'org_managed', org_role:'advisor',",
     "org_roles:['teacher']} the singular get_effective_role falls through to",
     "org_role and says 'advisor', while get_effective_roles filters the array to",
@@ -32,7 +31,17 @@
     "constraint (valid_org_roles -> validate_org_roles()) that rejects an unknown",
     "value -- so it is REPRODUCED here rather than corrected. Correcting it means",
     "widening what the server allows, which is a decision for whoever owns the",
-    "authorization model."
+    "authorization model.",
+    "",
+    "One case here used to document a disagreement INSIDE the server: for",
+    "{role:'org_managed', org_role:'advisor', org_roles:['teacher']} the singular",
+    "get_effective_role fell through to org_role and said 'advisor', while",
+    "get_effective_roles filtered the array to nothing and returned []. An empty",
+    "roles list passes no role check at all, so that account resolved to a real",
+    "role and was refused everywhere. FIXED 2026-09-07: the plural now falls",
+    "through the same way, so both answer 'advisor'. It was unreachable through",
+    "the valid_org_roles CHECK constraint, which is why it had gone unnoticed --",
+    "the fix removes a lockout that depended on that constraint staying correct."
   ],
   "validRoles": [
     "advisor",
@@ -212,7 +221,9 @@
         ]
       },
       "effectiveRole": "advisor",
-      "effectiveRoles": []
+      "effectiveRoles": [
+        "advisor"
+      ]
     },
     {
       "why": "an org_role that is not a real org role falls back to student",

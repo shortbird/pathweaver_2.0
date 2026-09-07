@@ -80,17 +80,15 @@ export function effectiveRoleOf(user: RoleShape | null | undefined): string | nu
  * Every effective role — get_effective_roles in roles.py. Use this for "does
  * this user hold ANY of these roles".
  *
- * CAN RETURN AN EMPTY ARRAY, and that is the server's behaviour, not a bug
- * introduced here: when org_roles is non-empty but holds nothing valid, the
- * plural filters it to nothing and — unlike the singular above — does NOT fall
- * through to org_role. An account in that state passes no role check at all
- * while still resolving to a real role through effectiveRoleOf.
- *
- * It is unreachable through the database: users.org_roles carries a CHECK
- * constraint (`valid_org_roles` -> validate_org_roles()) that rejects an
- * unknown value. Reproduced rather than corrected because correcting it would
- * WIDEN what the server allows, and that is a decision for whoever owns the
- * authorization model, not a side effect of sharing a helper.
+ * Falls through to org_role when org_roles holds nothing valid, exactly as the
+ * singular does. Until 2026-09-07 the server's plural did not: it filtered the
+ * array to nothing and returned [], so an account whose org_roles held an
+ * unknown value resolved to a real role through effectiveRoleOf and passed no
+ * role check anywhere, because every gate asks "is any of my roles in this
+ * list" and an empty list answers no to all of them. Unreachable through the
+ * database (users.org_roles carries the valid_org_roles CHECK constraint),
+ * which is why it survived — a lockout that depended on that constraint
+ * staying correct.
  */
 export function effectiveRolesOf(user: RoleShape | null | undefined): string[] {
   if (!user) return [];
@@ -100,7 +98,8 @@ export function effectiveRolesOf(user: RoleShape | null | undefined): string[] {
   if (role === 'org_managed') {
     const orgRoles = user.org_roles;
     if (Array.isArray(orgRoles) && orgRoles.length > 0) {
-      return orgRoles.filter(isValidOrgRole);
+      const valid = orgRoles.filter(isValidOrgRole);
+      if (valid.length > 0) return valid;
     }
     const orgRole = user.org_role;
     if (orgRole && isValidOrgRole(orgRole)) return [orgRole];
