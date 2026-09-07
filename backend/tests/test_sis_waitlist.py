@@ -142,6 +142,34 @@ class TestWaitlistRoutes:
         assert resp.status_code == 409
         assert json.loads(resp.data)['enrollment_waitlisted'] is True
 
+    def test_direct_enrollment_warns_on_schedule_conflict(
+            self, client, auth_headers, mock_verify_token):
+        """Direct enrollment via /classes/<id>/enrollments must warn when the
+        student is already enrolled in a class meeting at the same time."""
+        cat_client = Mock()
+        cat_table = Mock()
+        cat_client.table.return_value = cat_table
+        for chained in ('select', 'eq', 'limit'):
+            getattr(cat_table, chained).return_value = cat_table
+        cat_table.execute.return_value = Mock(data=[{'id': 's1', 'organization_id': 'org-1'}])
+        clash = [{'class_id': 'c2', 'class_name': 'Elementary Microschool (Wednesday 9-11)'}]
+        with staff(), patch('routes.sis.catalog.get_supabase_admin_client', return_value=cat_client), \
+             patch('routes.sis.catalog._org_or_error', return_value=('org-1', None)), \
+             patch('routes.sis.catalog._load_class', return_value={'id': 'c1'}), \
+             patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value=None), \
+             patch('services.sis_waitlist_service.schedule_conflicts', return_value=clash):
+            # Without force: returns 409 conflict
+            resp = client.post('/api/sis/classes/c1/enrollments', headers=auth_headers,
+                               json={'student_user_id': 's1', 'organization_id': 'org-1'})
+            assert resp.status_code == 409
+            body = json.loads(resp.data)
+            assert body['conflicts'] == clash
+
+            # With force: succeeds
+            resp_force = client.post('/api/sis/classes/c1/enrollments', headers=auth_headers,
+                                     json={'student_user_id': 's1', 'organization_id': 'org-1', 'force': True})
+            assert resp_force.status_code == 200 or resp_force.status_code == 201
+
     def test_offer_next_when_empty(self, client, auth_headers, mock_verify_token):
         # The response also explains WHY nobody could be offered (see
         # TestNobodyWaitingReason in test_sis_waitlist_staff_actions.py).
