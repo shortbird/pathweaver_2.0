@@ -2163,7 +2163,7 @@ Log:
 
 ## Phase 5 — Frontend quality
 
-### QF-01 — Extract shared logic between v1 and v2 `[TODO(deduplicated within v2; the cross-app move needs metro-resolver work)]`
+### QF-01 — Extract shared logic between v1 and v2 `[DONE(the shared RULES are extracted and guarded; merging the hooks is declined, with reasons)]`
 70% endpoint overlap, ~12 reimplemented component/hook pairs, ~8-10k LOC doubled;
 `shared/` holds only legal copy. Extract platform-agnostic hooks, services, and
 API contracts into `shared/` (start: pillars, richText, API types, useQuests /
@@ -2397,6 +2397,94 @@ Log:
   entries are retired from the baseline, which is what its "only shrinks"
   assertion exists to force. The lesson is cheap and worth keeping: check for
   an existing guard before writing one.
+
+- 2026-09-07: TWO MORE SHARED MODULES, and the sixth cross-app finding. Same
+  method as the five before it: read a client's copy of a rule next to the
+  server's.
+
+  **`shared/roles.ts` + `shared/roleCases.json` — "what role is this user".**
+  Both apps had their own copy and both said in their own docstring that they
+  mirrored the other. THE MOBILE ONE READ `org_role` ALONE AND IGNORED
+  `org_roles` ENTIRELY, where the server treats the array as taking precedence.
+  An org user whose roles live only in the array would have resolved to the
+  literal string `'org_managed'` on a phone and to their real role on the web
+  and on the server.
+
+  Latent, not live, and checked rather than assumed: all 744 org-managed users
+  in prod carry `org_role`, and in all 14 multi-role cases `org_roles[0]`
+  equals it. One migration away from being real.
+
+  Two more inline re-derivations had grown back while the helper existed —
+  `app/(app)/notifications.tsx` and `app/(app)/bounties/[id].tsx` each carried
+  their own `role === 'org_managed' ? org_role : role`. Both now call the
+  helper, which is what its docstring asked for.
+
+  ONE THING THE SHARED VERSION ADDS RATHER THAN COPIES: null-in, null-out. The
+  server never resolves a user it has not loaded, so it defaults a role-less
+  dict to `student`; a client that did that would flash student chrome at every
+  logged-out visitor while a session loads. Both clients already relied on
+  `null`, and it is kept, tested, and explained in the file.
+
+  AND ONE DISAGREEMENT INSIDE THE SERVER, found by running the rule over inputs
+  rather than by reading it. For `{role: 'org_managed', org_role: 'advisor',
+  org_roles: ['teacher']}` the singular `get_effective_role` falls through to
+  `org_role` and says `advisor`, while `get_effective_roles` filters the array
+  to nothing and returns `[]`. An empty roles list passes NO role check at all,
+  so that account resolves to a real role and is refused everywhere.
+
+  NOT FIXED, on purpose. `users.org_roles` carries a CHECK constraint
+  (`valid_org_roles` -> `validate_org_roles()`) that rejects an unknown value,
+  so the state is unreachable through the database; and making the plural fall
+  through would WIDEN what the server allows, which is a decision for whoever
+  owns the authorization model, not a side effect of sharing a helper. The
+  corpus reproduces the behaviour and says why. It is in Open Questions.
+
+  **`shared/subjects.json` + `shared/subjects.ts` — the eleven school
+  subjects.** Three hand-maintained copies (backend enum, web constants, mobile
+  metadata) under a comment in the web one asking whoever edited it to keep the
+  other two in step. That is a request that a person do a job a test should do,
+  and they had already drifted: mobile described Language Arts as including
+  world languages and the web did not. Mobile's wording won, because it matches
+  that file's own documented naming rationale.
+
+  Icons stay mobile-only and the transcript's formal wording stays with the
+  transcript — "Mathematics", "Physical Education", "Career & Technical
+  Education" are properties of a document, not of a subject. But both now
+  DERIVE their key list from the shared one, so a subject added to the platform
+  enum cannot go missing from the transcript, which is the failure that
+  actually matters.
+
+  GUARDS, one per surface for each module, following the richText precedent:
+  the backend owns the truth and the two clients prove they still agree with
+  it. `test_role_resolution_conformance.py`, `roles.conformance.test.js`,
+  `roles.conformance.test.ts`; `test_school_subjects_shared.py`,
+  `subjects.shared.test.js`, `subjects.shared.test.ts`.
+
+  VERIFIED THE WAY THIS ITEM REQUIRES: the iOS bundle was rebuilt, and
+  `campus_coordinator`, `org_roles` and the reconciled Language Arts
+  description are all inside the 10 MB Hermes output — so both new shared
+  modules resolve through the real Metro resolver and not just through jest's
+  mapper.
+
+  Backend 39 new assertions pass. v1: 304 files / 2697 passed, production build
+  clean. v2: 107 suites / 863 passed, tsc clean, iOS bundle builds.
+
+  **WHY THIS ITEM IS NOW DONE, and what is being declined.** The title asks for
+  the hooks and components to be merged — useQuests, useBounties,
+  useNotifications, ~12 pairs. That half is DECLINED, not deferred, and the
+  evidence is in this log: v2's bounties hook is a read-only three-endpoint
+  subset of v1's full CRUD surface, and the two SIS path lists that looked
+  identical meant different things — merging them would have sent a mobile user
+  to a website instead of their own settings screen. Two lists that mostly
+  agree are not one list in two places, and `@shared` makes it easy to merge
+  things that should not be merged.
+
+  What this item was actually worth was the other half, and it is now done: six
+  cross-app findings, every one of them a CLIENT-SIDE COPY OF A SERVER-SIDE
+  RULE THAT NOTHING CHECKED — pillar colours, entity decoding, XP roles, an
+  upload cap, role resolution, the subject vocabulary. Four of them were live
+  or one migration from live. Each is now one module with a guard on every
+  surface. Reopen this item by extracting a rule, not by merging a hook.
 
   WHAT IS LEFT of this item is the mass extraction the title asks for — moving
   useQuests/useBounties/useNotifications logic into `shared/`. Deliberately not
@@ -3721,3 +3809,24 @@ Still open:
 - HYG-02: keep or delete the `verify/` scripts?
 - SEC-06: advisor daily summaries are still pilot-only (one inbox). Set
   `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod to roll out to all advisors.
+
+- **QF-01: `get_effective_roles` can return an empty list where
+  `get_effective_role` returns a real role.** For a user whose `org_roles`
+  array holds no valid org role, the plural filters it to nothing and does not
+  fall through to `org_role`; the singular does. An account in that state
+  resolves to a real role and passes no role check anywhere. It is unreachable
+  through the database today (the `valid_org_roles` CHECK constraint rejects an
+  unknown value), and correcting it WIDENS what the server allows, so it was
+  reproduced in `shared/roleCases.json` rather than fixed. Make the plural fall
+  through the way the singular does, or leave it and keep the constraint?
+
+- **QF-03: the remaining 469 hand-rolled fetch call sites (111 pages).** Two
+  batches have migrated the high-churn pages; the value per page drops off
+  sharply from here and each migration costs a QueryClientProvider in every
+  test that renders it. Fund the tail, or fence it the way QB-06 fenced the
+  repository pattern?
+
+- **QF-02: `DiplomaPage.jsx` and `QuestPersonalizationWizard.jsx`** are the last
+  two components over the 1,000-line cap. Both have uncommitted changes in the
+  shared tree, so splitting them now would hand that session a conflict on every
+  line. Worth doing once that work lands.

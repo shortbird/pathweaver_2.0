@@ -16,6 +16,7 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -176,7 +177,7 @@ export default function NotificationsScreen() {
   const [broadcastAudience, setBroadcastAudience] = useState<string>('all');
   const [broadcasting, setBroadcasting] = useState(false);
 
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role;
+  const effectiveRole = effectiveRoleOf(user);
   // Role check is sufficient — when masquerading as a demo account the
   // effective role becomes the target's, which is never one of these.
   const canBroadcast = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');

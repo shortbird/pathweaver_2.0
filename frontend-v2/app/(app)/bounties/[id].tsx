@@ -22,6 +22,7 @@ import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
   PillarBadge,
 } from '@/src/components/ui';
+import { effectiveRoleOf } from '@/src/utils/effectiveRole';
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   claimed: { bg: '#DBEAFE', text: '#1D4ED8', label: 'In Progress' },
@@ -150,9 +151,7 @@ export default function BountyDetailPage() {
   // stays in the student detail experience instead of being bounced to the
   // poster review page.
   const effectiveRole =
-    user?.role === 'superadmin' && previewRole
-      ? previewRole
-      : (user?.org_role && user?.role === 'org_managed' ? user.org_role : user?.role);
+    user?.role === 'superadmin' && previewRole ? previewRole : effectiveRoleOf(user);
   const isSuperadmin = effectiveRole === 'superadmin';
   const isPoster = bounty?.poster_id === user?.id;
   const isStudent = effectiveRole === 'student';
