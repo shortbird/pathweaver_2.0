@@ -154,6 +154,30 @@ def refresh_body_tokens(access_token: str, refresh_token: str) -> Dict[str, str]
     return {'access_token': access_token, 'refresh_token': refresh_token}
 
 
+def acting_as_body_tokens(access_token: str, refresh_token: str) -> Dict[str, str]:
+    """Same decision for POST /api/dependents/<id>/act-as, which names its
+    fields `acting_as_token` / `acting_as_refresh_token`.
+
+    This one could not be gated until FU-05 gave acting-as a cookie of its own:
+    session_manager read the acting-as JWT only from `Authorization: Bearer`, so
+    withholding it from the body would have deleted the feature rather than
+    hardened it. Now the response sets the httpOnly `acting_as_token` cookie and
+    get_effective_user_id() reads it, so a cookie-capable browser needs nothing
+    readable by script.
+
+    Severity note, so this is not over-read: the token grants the DEPENDENT'S
+    authority to a parent who already controls that account outright, so there
+    is no escalation here. It is a credential that belonged in an httpOnly
+    cookie and was living in JS memory.
+    """
+    if not needs_header_auth():
+        return {}
+    return {
+        'acting_as_token': access_token,
+        'acting_as_refresh_token': refresh_token,
+    }
+
+
 def masquerade_body_tokens(access_token: str, refresh_token: str) -> Dict[str, str]:
     """Same decision for POST /api/admin/masquerade/<id>, which names its fields
     `masquerade_token` / `masquerade_refresh_token`.

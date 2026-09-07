@@ -170,6 +170,10 @@ class TestDeescalationIsTheNamedException:
         for path in sorted(routes.rglob('*.py')):
             if 'get_deescalation_user_id' in path.read_text(encoding='utf-8'):
                 callers.add(path.relative_to(routes).as_posix())
-        assert callers == {'auth/login/core.py', 'dependents.py'}, (
+        # dependents.py -> dependents_acting_as.py on 2026-09-07: the two
+        # acting-as views moved to their own module when FU-05's cookie work
+        # put the parent file over the route-size cap. Still exactly two
+        # de-escalating routes -- logging out, and stepping out of acting-as.
+        assert callers == {'auth/login/core.py', 'dependents_acting_as.py'}, (
             'get_deescalation_user_id() accepts any credential the request '
             f'carries; it belongs only on routes that REMOVE access: {callers}')

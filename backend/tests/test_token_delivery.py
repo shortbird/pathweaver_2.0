@@ -154,19 +154,13 @@ _LEGITIMATE_TOKEN_ISSUERS = {
     'routes/auth/oauth.py',
     # LTI 1.3 client-credentials grant, same shape, same reason.
     'routes/lti/token.py',
-    # Acting-as (parent -> dependent) START still hands out
-    # `acting_as_refresh_token` in the body, because that flow has NO COOKIE of
-    # its own: the token is replayed as a Bearer, so gating it would delete the
-    # feature rather than harden it. Giving it a cookie the way masquerade has
-    # one is the fix (FU-05), and it needs a browser to verify.
-    #
-    # NARROWED 2026-09-03: /stop-acting-as no longer qualifies. It was returning
-    # the PARENT'S OWN access + 30-day refresh token to every client, which is
-    # the same defect SEC-03 fixed on masquerade's /exit and has nothing to do
-    # with the missing acting-as cookie -- de-escalation hands somebody back
-    # their own cookie-anchored session. It now goes through
-    # refresh_body_tokens() and sets auth cookies.
-    'routes/dependents.py',
+    # RETIRED 2026-09-07 (FU-05): routes/dependents.py used to be here, because
+    # acting-as had no cookie of its own -- the token was replayed as a Bearer,
+    # so gating the body would have deleted the feature rather than hardened it.
+    # It has a cookie now (session_manager.set_acting_as_cookie, read by
+    # get_effective_user_id), and both /act-as and /stop-acting-as go through
+    # token_delivery. The allowlist is down to the two machine-to-machine
+    # grants, which is what it was meant to hold.
 }
 
 # Response-body field names that carry a durable credential.
@@ -272,7 +266,7 @@ class TestStopActingAsDeEscalation:
         admin.table.return_value.select.return_value.eq.return_value.single \
             .return_value.execute.return_value = MagicMock(
                 data={'id': PARENT_ID, 'display_name': 'Pat'})
-        with patch('routes.dependents.get_supabase_admin_client', return_value=admin), \
+        with patch('routes.dependents_acting_as.get_supabase_admin_client', return_value=admin), \
              patch.object(session_manager, 'get_deescalation_user_id',
                           return_value=PARENT_ID):
             return client.post('/api/dependents/stop-acting-as', json={}, headers=headers)

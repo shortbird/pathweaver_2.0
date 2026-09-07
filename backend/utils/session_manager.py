@@ -712,6 +712,59 @@ class SessionManager:
         logger.info(f"[SessionManager] Masquerade cookie set | TTL: {int(self.masquerade_token_expiry.total_seconds())}s")
         return response
 
+    def set_acting_as_cookie(self, response, acting_as_token: str):
+        """Set the httpOnly acting_as_token cookie.
+
+        The parent -> dependent equivalent of set_masquerade_cookie, added by
+        FU-05. Until it existed the acting-as JWT was readable JSON in the
+        response body and nothing else, because session_manager had no cookie
+        to read it from -- so gating the body the way SEC-03 gated masquerade's
+        would have deleted the feature rather than hardened it.
+        """
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            cookie_kwargs['domain'] = self.cookie_domain
+        response.set_cookie(
+            'acting_as_token',
+            acting_as_token,
+            max_age=int(self.acting_as_token_expiry.total_seconds()),
+            **cookie_kwargs,
+        )
+        logger.info(
+            "[SessionManager] Acting-as cookie set | TTL: "
+            f"{int(self.acting_as_token_expiry.total_seconds())}s")
+        return response
+
+    def clear_acting_as_cookie(self, response):
+        """Clear only the acting_as_token cookie (leaves the parent's own auth
+        intact). Cleared with AND without the domain attribute for the same
+        reason clear_auth_cookies does it: a cookie set one way is not cleared
+        by the other, and a stale acting-as cookie leaves a parent inside their
+        child's account with no way out."""
+        partitioned = self.is_cross_origin
+        cookie_kwargs = {
+            'expires': 0,
+            'httponly': True,
+            'secure': self.cookie_secure,
+            'samesite': self.cookie_samesite,
+            'path': '/',
+            'partitioned': partitioned,
+        }
+        if self.cookie_domain:
+            domain_kwargs = cookie_kwargs.copy()
+            domain_kwargs['domain'] = self.cookie_domain
+            response.set_cookie('acting_as_token', '', **domain_kwargs)
+        response.set_cookie('acting_as_token', '', **cookie_kwargs)
+        logger.info("[SessionManager] Acting-as cookie cleared")
+        return response
+
     def clear_masquerade_cookie(self, response):
         """Clear only the masquerade_token cookie (leaves admin auth intact)."""
         partitioned = self.is_cross_origin
@@ -756,12 +809,14 @@ class SessionManager:
             response.set_cookie('access_token', '', **cookie_kwargs_with_domain)
             response.set_cookie('refresh_token', '', **cookie_kwargs_with_domain)
             response.set_cookie('masquerade_token', '', **cookie_kwargs_with_domain)
+            response.set_cookie('acting_as_token', '', **cookie_kwargs_with_domain)
             response.set_cookie('role_view_token', '', **cookie_kwargs_with_domain)
 
         # Then clear without domain (for current hostname)
         response.set_cookie('access_token', '', **cookie_kwargs)
         response.set_cookie('refresh_token', '', **cookie_kwargs)
         response.set_cookie('masquerade_token', '', **cookie_kwargs)
+        response.set_cookie('acting_as_token', '', **cookie_kwargs)
         response.set_cookie('role_view_token', '', **cookie_kwargs)
 
         mode = "cross-origin" if self.is_cross_origin else "same-origin"
@@ -837,8 +892,9 @@ class SessionManager:
                 "verification failed")
             return None
 
-        # Cookie fallback. Check masquerade cookie first so an active masquerade
-        # session takes precedence over the admin's own access cookie.
+        # Cookie fallback. Check the elevated-session cookies first so an active
+        # masquerade or acting-as session takes precedence over the caller's own
+        # access cookie.
         masquerade_cookie = request.cookies.get('masquerade_token')
         if masquerade_cookie:
             mq_payload = self.verify_masquerade_token(masquerade_cookie)
@@ -846,6 +902,14 @@ class SessionManager:
                 admin_id = mq_payload.get('user_id')
                 logger.debug(f"[SessionManager] Masquerade cookie auth for admin {admin_id[:8]}...")
                 return admin_id
+
+        acting_as_cookie = request.cookies.get('acting_as_token')
+        if acting_as_cookie:
+            aa_payload = self.verify_acting_as_token(acting_as_cookie)
+            if aa_payload:
+                parent_id = aa_payload.get('user_id')
+                logger.debug(f"[SessionManager] Acting-as cookie auth for parent {parent_id[:8]}...")
+                return parent_id
 
         access_token = request.cookies.get('access_token')
         if access_token:
@@ -901,12 +965,19 @@ class SessionManager:
             logger.warning("[SessionManager] Authorization header present but token verification failed")
             return None
 
-        # Cookie fallback. Masquerade cookie wins so the effective user is the target.
+        # Cookie fallback. An elevated-session cookie wins so the effective user
+        # is the target being viewed, not the person viewing.
         masquerade_cookie = request.cookies.get('masquerade_token')
         if masquerade_cookie:
             mq_payload = self.verify_masquerade_token(masquerade_cookie)
             if mq_payload:
                 return mq_payload.get('masquerade_as')
+
+        acting_as_cookie = request.cookies.get('acting_as_token')
+        if acting_as_cookie:
+            aa_payload = self.verify_acting_as_token(acting_as_cookie)
+            if aa_payload:
+                return aa_payload.get('acting_as')
 
         access_token = request.cookies.get('access_token')
         if access_token:
@@ -940,6 +1011,7 @@ class SessionManager:
                     return payload['user_id']
 
         for cookie_name, verify in (('masquerade_token', self.verify_masquerade_token),
+                                    ('acting_as_token', self.verify_acting_as_token),
                                     ('access_token', self.verify_access_token)):
             cookie = request.cookies.get(cookie_name)
             if cookie:

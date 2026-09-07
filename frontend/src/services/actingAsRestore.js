@@ -65,15 +65,23 @@ export function restoreActingAs() {
       // The backend re-verifies that this parent owns this dependent, so the
       // re-mint is an authorization check, not just a token refresh.
       const response = await api.post(`/api/dependents/${dependent.id}/act-as`, {})
-      const freshToken = response.data?.acting_as_token
-      if (!freshToken) throw new Error('No acting_as_token returned on restore')
+      // FU-05: the response sets an httpOnly acting_as_token cookie, and the
+      // body copy now goes only to clients that cannot use it (the mobile app,
+      // and browsers that block our cookies). An empty body here is the
+      // SUCCESS case on web -- the credential arrived, it is just not readable
+      // by script. Treating it as a failure would drop the acting-as session
+      // on every cookie-capable browser.
+      const freshToken = response.data?.acting_as_token || null
 
       // Ordering (above) keeps /me and the page's own queries on the right
       // side of this swap, but anything already dispatched by an earlier
       // render is still parent-scoped and will 403 as the child.
       beginSessionSwitch()
-      await tokenStore.setTokens(freshToken, tokenStore.getRefreshToken() || '')
-      logger.debug('[actingAsRestore] Re-minted acting-as token on reload')
+      if (freshToken) {
+        await tokenStore.setTokens(freshToken, tokenStore.getRefreshToken() || '')
+      }
+      logger.debug('[actingAsRestore] Acting-as re-established on reload',
+        freshToken ? '(header token)' : '(cookie)')
       return { dependent, token: freshToken }
     } catch (error) {
       // Parent session unavailable or no longer authorized: drop the state and
