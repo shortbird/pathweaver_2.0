@@ -2660,7 +2660,7 @@ Log:
 
   Web suite 304 files / 2698 passed. Production build clean.
 
-### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet enforced; the top-churn pages are migrated, the tail is not)]`
+### QF-03 — Finish one data-fetching paradigm in v1 `[DONE(fenced; the tail is declined, not deferred)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
 `hooks/api/`; migrate the highest-churn pages first. Not a big-bang rewrite.
 Log:
@@ -2794,12 +2794,33 @@ Log:
   not satisfy it, so that half is covered by the jsdom suite rather than by the
   browser -- said plainly rather than counted as a browser verification.
 
-  THE TAIL -- 111 pages, 469 call sites -- STAYS OPEN ON PURPOSE, which is what
-  keeps this item TODO. The item says migrate the highest-churn pages first and
-  not to big-bang it; two batches have now done exactly that, and the value per
-  page drops off sharply from here (the remaining pages average four call sites
-  and single-digit churn). Finishing the tail is a funding decision of the same
-  shape as QB-06, not an afternoon.
+  THE TAIL -- 111 pages, 469 call sites -- stays where it is. The item says
+  migrate the highest-churn pages first and not to big-bang it; two batches
+  have now done exactly that.
+
+- 2026-09-07, later: FENCED, and the tail DECLINED rather than deferred (user:
+  "fence it"). Same disposition as QB-06, for the same reason: what finishing
+  would buy is consistency, and the price is out of proportion to it.
+
+  WHAT THIS DECIDES, so nobody reopens it as an oversight. 469 hand-rolled call
+  sites across 111 pages is the accepted steady state. New and rewritten pages
+  go through `hooks/api/` -- enforced by `dataFetchingParadigm.test.js`, which
+  fails when the call-site count rises -- and an existing hand-rolled page is
+  migrated only when something else brings a session into it. Nobody is behind
+  on anything.
+
+  THE HONEST CASE AGAINST FINISHING: the two batches that ARE done took the
+  pages where the missing cache actually cost something -- the highest-churn
+  page in the console at 44 commits in six months, and three drawers the office
+  reopens all day. The 111 that remain average four call sites and single-digit
+  churn, so most would gain a cache nobody returns to and a dedupe with nothing
+  to dedupe. Each also costs a QueryClientProvider in every test that renders
+  it: ten test files for four pages last time, and that price does not fall as
+  the pages get smaller.
+
+  What the item asked for that IS delivered: one paradigm for anything new, the
+  highest-churn pages migrated first, and three duplicate fetches removed that
+  only the migration could have found.
 
 ### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval
@@ -3904,11 +3925,9 @@ Still open:
   impossibility rested on a constraint staying correct. `shared/roleCases.json`
   regenerated; all three conformance suites agree.
 
-- **QF-03: the remaining 469 hand-rolled fetch call sites (111 pages).** Two
-  batches have migrated the high-churn pages; the value per page drops off
-  sharply from here and each migration costs a QueryClientProvider in every
-  test that renders it. Fund the tail, or fence it the way QB-06 fenced the
-  repository pattern?
+- ~~**QF-03: the remaining 469 hand-rolled fetch call sites (111 pages).**~~ —
+  ANSWERED 2026-09-07 (user: "fence it"). Declined on cost, like QB-06. The
+  ratchet stops the count rising; the tail is the accepted steady state.
 
 - ~~**QF-02: `DiplomaPage.jsx` and `QuestPersonalizationWizard.jsx`**~~ —
   ANSWERED 2026-09-07 (user: "fix"). Both split once the session holding them

@@ -95,9 +95,24 @@ const PAGES = path.resolve(__dirname, '../pages')
  * scratchpad in the other. That is a design decision, not a mechanical
  * migration, and it is the family-facing scheduling flow.
  *
- * The tail -- 111 pages, 469 call sites -- stays open ON PURPOSE. The item
- * says this is not a big-bang rewrite, and the cost is real: this batch needed
- * a QueryClientProvider added to ten test files.
+ * THE TAIL IS DECLINED, NOT DEFERRED (2026-09-07, owner's decision). 469 call
+ * sites across 111 pages is the accepted steady state, the same disposition
+ * QB-06 gave the repository pattern and for the same reason: what finishing
+ * would buy is consistency, and the price is out of proportion to it.
+ *
+ * So this file is now the whole of the policy. New and rewritten pages go
+ * through hooks/api/ -- that is what the baseline below enforces -- and an
+ * existing hand-rolled page is migrated only when something else brings a
+ * session into it. Nobody is behind on anything.
+ *
+ * The case against finishing, recorded so it is not re-argued from scratch:
+ * the two batches that ARE done took the pages where the missing cache cost
+ * something -- the highest-churn page in the console (44 commits in six
+ * months) and three drawers the office reopens all day. The rest average four
+ * call sites and single-digit churn, so most would gain a cache nobody returns
+ * to and a dedupe with nothing to dedupe. Each also costs a
+ * QueryClientProvider in every test that renders it: ten test files for four
+ * pages last time, and that price does not fall as the pages get smaller.
  */
 const CALL_SITE_BASELINE = 469
 const SLACK = 40
