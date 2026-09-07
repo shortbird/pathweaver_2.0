@@ -3402,7 +3402,7 @@ Log:
 
   ruff clean, mypy clean, 4856 passed.
 
-### OPS-09 — 907 CRLF files, no `.gitattributes` `[NEEDS-USER(recipe ready; needs a quiet window)]`
+### OPS-09 — 907 CRLF files, no `.gitattributes` `[BLOCKED(.gitattributes landed; the mass renormalize needs 10 branches merged first)]`
 Normalization touches ~900 files and rewrites blame; must land at a quiet moment
 coordinated with all in-flight branches. Prepare the `.gitattributes` +
 `git add --renormalize` recipe; user schedules it.
@@ -3427,6 +3427,34 @@ Log:
   conflicts with every uncommitted edit in any of them, on every line. It needs
   an empty `git status`, no other session mid-task, and in-flight branches
   merged first.
+
+- 2026-09-07: HALF DONE (user: "fix"). `.gitattributes` landed; the mass
+  renormalize did not, and stopping there was a judgement call worth stating
+  plainly rather than burying.
+
+  The recipe's step 1 is a gate: "no other session mid-task, no long-lived
+  branch waiting to merge." The tree failed it. Eleven branches unmerged, two
+  of them 20+ commits across 254 files, and NINE worktrees checked out — five
+  on active `fix/*` branches belonging to other sessions. The renormalize
+  commit rewrites every line of ~870 files, so every one of those branches
+  would have taken a whole-file conflict in anything it touches. That is not a
+  cost to this branch; it is damage to other people's unmerged work, done
+  without their knowing, and it is the specific thing CLAUDE.md's "Working
+  alongside other agents" section exists to prevent.
+
+  WHAT LANDING `.gitattributes` ALONE BUYS, which is most of the value: the
+  drift stops growing. `text=auto` normalizes a file the next time anybody
+  stages it, so the ~870 convert gradually, each inside the commit of whoever
+  touched it, where a whole-file diff is theirs and expected. The big bang
+  becomes a rollout. The file is new, so it conflicts with nothing.
+
+  Also `*.sh text eol=lf`, which the original recipe had and is not cosmetic: a
+  CRLF shebang line does not execute.
+
+  WHAT IS LEFT is one command in a quiet window. The doc now carries a
+  readiness check that prints exactly what still has to merge; on the day it
+  printed 8 other worktrees and 10 other branches, and it needs to print
+  roughly nothing.
 
 ---
 
@@ -3897,7 +3925,9 @@ Still open:
 - OPS-03: approve a gated migration-apply step in the release pipeline.
 - OPS-05: keep direct-push-to-main, or add a PR gate now that CI is solid?
 - OPS-06: have the owning session commit `marketing/` + `marketingUrl.js`.
-- OPS-09: schedule the CRLF normalization window.
+- OPS-09: `.gitattributes` is in (2026-09-07); the one-shot renormalize still
+  wants a window when the other worktrees and branches have landed. The doc has
+  a readiness check that says when.
 - FU-05: DONE 2026-09-07, but walk the acting-as loop once in a browser before
   merging — enter, reload, leave, sign out, sign back in.
 - CI-05: should integration tests gate the prod deploy?

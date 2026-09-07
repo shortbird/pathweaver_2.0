@@ -1,7 +1,37 @@
 # Line-ending normalization (OPS-09)
 
-**Status: prepared, not run.** Everything below is ready to execute; it needs a
-window, not more work. Ask before running it.
+**Status: half done.** `.gitattributes` landed 2026-09-07, so the drift stops
+growing — every file normalizes the next time anybody stages it. The one-shot
+`git add --renormalize .` over the ~870 files already committed as CRLF is
+still pending, and still needs a quiet window.
+
+**Why the second half did not run on 2026-09-07**, when it was asked for: step 1
+below is a gate, and the tree failed it badly. Eleven branches were unmerged
+(two of them 20+ commits over 254 files) and nine worktrees were checked out,
+five on active `fix/*` branches belonging to other sessions. The renormalize
+commit rewrites every line of every CRLF file, so each of those branches would
+have taken a whole-file conflict in anything it touches — damage to other
+people's uncommitted and unmerged work, inflicted without their knowing. That is
+the exact failure the "Working alongside other agents" section of CLAUDE.md
+exists to prevent, so it stopped at the gate rather than pushing through it.
+
+Adding `.gitattributes` on its own has no such cost: it is a new file, so it
+conflicts with nothing, and it converts the big bang into a gradual rollout —
+each file normalizes when someone next touches it, in that person's own commit,
+where the whole-file diff is theirs and expected.
+
+## Readiness check
+
+Run this before attempting step 3. It prints what still has to land.
+
+```bash
+git status --porcelain                      # must be empty
+git worktree list | grep -v "$(git rev-parse --show-toplevel)$"   # ideally none
+git branch --no-merged main                 # each will conflict; merge first
+```
+
+On 2026-09-07 that printed 8 other worktrees and 10 other unmerged branches. It
+needs to print roughly nothing.
 
 ## What is wrong
 
@@ -44,7 +74,8 @@ git worktree list               # check nobody else is mid-task
 git branch -a --no-merged main  # each of these will conflict; merge them first
 ```
 
-**2. Add `.gitattributes`** at the repo root:
+**2. Add `.gitattributes`** at the repo root — **DONE 2026-09-07**, and it is
+already in the repo. Kept here for the record:
 
 ```gitattributes
 # Normalize line endings on commit; check out platform-native.
@@ -83,7 +114,8 @@ git branch -a --no-merged main  # each of these will conflict; merge them first
 *.jks    binary
 ```
 
-**3. Renormalize, in its own commit, with nothing else in it:**
+**3. Renormalize, in its own commit, with nothing else in it. THIS IS THE STEP
+THAT IS STILL PENDING**, and the only one with a blast radius:
 
 ```bash
 git add --renormalize .

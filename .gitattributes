@@ -1,0 +1,49 @@
+# Line-ending policy (OPS-09).
+#
+# `text=auto` means: store text files with LF in the repository, check them out
+# platform-native. From this commit on, a file normalizes the next time anyone
+# stages it, so the CRLF/LF drift this repo accumulated (it started on Windows
+# and moved to macOS) stops growing.
+#
+# The one-shot `git add --renormalize .` that would convert the ~870 files
+# already committed as CRLF is NOT done -- see docs/ops/CRLF_NORMALIZATION.md.
+# It rewrites every line of every one of them, which conflicts with every
+# unmerged branch that touches any of them, and there are ten of those.
+
+* text=auto
+
+# Explicitly text, so a file whose first bytes look binary is not misdetected.
+*.py     text
+*.js     text
+*.jsx    text
+*.ts     text
+*.tsx    text
+*.json   text
+*.md     text
+*.sql    text
+*.yml    text
+*.yaml   text
+*.html   text
+*.css    text
+*.mjs    text
+*.cjs    text
+
+# Shell scripts are LF even on Windows -- a CRLF shebang line does not execute.
+*.sh     text eol=lf
+
+# Binary -- never touch these.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+*.svg    text
+*.pdf    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.keystore binary
+*.jks    binary
+*.hbc    binary
