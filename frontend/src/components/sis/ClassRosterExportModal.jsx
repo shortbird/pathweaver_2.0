@@ -29,10 +29,30 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 
 const STORE_KEY = 'sis_roster_export'
 
+const fmtTime = (hhmm) => {
+  if (!hhmm) return ''
+  const [h, m] = String(hhmm).split(':').map(Number)
+  if (Number.isNaN(h)) return ''
+  const ampm = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
+}
+
 const COLUMNS = [
   { key: 'name', label: 'Student', get: (s) => s.name, always: true },
   { key: 'preferred_name', label: 'Goes by', get: (s) => s.preferred_name || '' },
   { key: 'age', label: 'Age', get: (s) => (s.age == null ? '' : String(s.age)) },
+  {
+    key: 'next_class',
+    label: 'Next class',
+    get: (s) => {
+      const n = s.next_class
+      if (!n) return ''
+      const loc = n.location ? ` (${n.location})` : ''
+      const time = n.start_time ? ` @ ${fmtTime(n.start_time)}` : ''
+      return `${n.name}${loc}${time}`
+    },
+  },
   {
     key: 'guardians',
     label: 'Guardians',

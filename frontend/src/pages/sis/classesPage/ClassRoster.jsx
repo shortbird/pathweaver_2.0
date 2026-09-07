@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast'
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import { useSisOrg, withOrg } from '../useSisOrg'
+import { fmt12ap } from '../../../components/sis/classFields'
 
 const ClassRoster = ({ classId, className, orgId, onChanged }) => {
   const confirm = useConfirm()
@@ -147,6 +148,15 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
               <span className="text-sm font-medium text-neutral-800">
                 {s.name}
                 {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
+                {/* Where this student goes next, so staff running a roster can
+                    point them at it (ticket 2af45fd2). */}
+                {s.next_class && (
+                  <span className="block text-xs font-normal text-neutral-500 truncate">
+                    Next: {s.next_class.name}
+                    {s.next_class.location ? ` · ${s.next_class.location}` : ''}
+                    {s.next_class.start_time ? ` · ${fmt12ap(s.next_class.start_time)}` : ''}
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-3 shrink-0">
                 <span className="text-xs text-neutral-400 truncate max-w-[10rem]">{s.email || s.username || ''}</span>
