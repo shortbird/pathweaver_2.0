@@ -287,3 +287,91 @@ def update_course_settings(org_id: str, course_id: str, fields: Dict[str, Any],
         'assigned_by': assigned_by,
     }, on_conflict='organization_id,course_id').execute()
     return {'teacher': _instructors_by_id([teacher_id]).get(teacher_id)}
+
+
+# ── Acknowledged schedule conflicts ──────────────────────────────────────────
+#
+# iCreate, 2026-09-05 (8479edee): "The warnings section for teachers and classes
+# is good, but I think I'd like to have a button to hit that allows me to
+# acknowledge I've seen it, but I think it's ok, so clear it from the warnings."
+#
+# The checks are advisory by design — a school may genuinely want two things in
+# the gym — so a permanent banner about a deliberate arrangement trains the
+# office to ignore the banner, which is how the accidental one gets missed.
+#
+# Stored on the org rather than per-user: the arrangement is the school's
+# decision, and the next admin to open the page should not be asked again. Keyed
+# by sis_registration_service.conflict_key, which includes the day and hour, so
+# moving either class re-raises it.
+ACK_KEY = 'acknowledged_conflicts'
+
+
+def _org_flags(org_id: str) -> Dict[str, Any]:
+    from repositories.organization_repository import OrganizationRepository
+    org = OrganizationRepository(client=_admin()).find_by_id(org_id) or {}
+    return org.get('feature_flags') or {}
+
+
+def acknowledged_conflicts(org_id: str) -> Dict[str, Any]:
+    """{conflict key: {by, at}} for this org.
+
+    Never raises. The conflict checks are advisory and sit on the Classes page's
+    load path — failing to read which of them were waved off must show the
+    warnings, not take the page down with a 500.
+    """
+    try:
+        acks = ((_org_flags(org_id).get('sis_settings') or {}).get(ACK_KEY)) or {}
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not read acknowledged conflicts for {org_id}: {e}')
+        return {}
+    return acks if isinstance(acks, dict) else {}
+
+
+def set_conflict_acknowledged(org_id: str, key: str, user_id: Optional[str],
+                              acknowledged: bool,
+                              live_keys: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Mark one double-booking as seen-and-fine, or take that back.
+
+    `live_keys` is every conflict the org currently has. Anything not in it is
+    dropped on the way past: an acknowledgement outlives the arrangement it was
+    about (someone reschedules the class), and without this the blob would grow
+    a row for every conflict the school ever had and never shed one.
+    """
+    from repositories.organization_repository import OrganizationRepository
+    from datetime import datetime, timezone
+
+    repo = OrganizationRepository(client=_admin())
+    flags = _org_flags(org_id)
+    settings = dict(flags.get('sis_settings') or {})
+    acks = dict(settings.get(ACK_KEY) or {})
+
+    if live_keys is not None:
+        keep = set(live_keys) | ({key} if acknowledged else set())
+        acks = {k: v for k, v in acks.items() if k in keep}
+
+    if acknowledged:
+        acks[key] = {'by': user_id, 'at': datetime.now(timezone.utc).isoformat()}
+    else:
+        acks.pop(key, None)
+
+    settings[ACK_KEY] = acks
+    flags = dict(flags)
+    flags['sis_settings'] = settings
+    repo.update_organization(org_id, {'feature_flags': flags})
+    return acks
+
+
+def split_acknowledged(conflicts: List[Dict[str, Any]], acks: Dict[str, Any]
+                       ) -> Dict[str, List[Dict[str, Any]]]:
+    """Partition a conflict list into the ones still asking for an answer and
+    the ones the office has already answered. Pure — the interesting rule is
+    that a row with no key can never be acknowledged, so it always shows."""
+    live, seen = [], []
+    for c in conflicts:
+        k = c.get('key')
+        if k and k in (acks or {}):
+            seen.append({**c, 'acknowledged_by': (acks[k] or {}).get('by'),
+                         'acknowledged_at': (acks[k] or {}).get('at')})
+        else:
+            live.append(c)
+    return {'conflicts': live, 'acknowledged': seen}

@@ -33,7 +33,8 @@ import api from '@/src/services/api';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuestDetail } from '@/src/hooks/useQuestDetail';
+import { useQuestDetail, subjectNames } from '@/src/hooks/useQuestDetail';
+import { extractApiError } from '@/src/services/apiError';
 import type { QuestViewerContext } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
@@ -315,11 +316,12 @@ function TaskItem({
     try {
       await onSubmitCompletion(evidenceBlocks.map(normalizeBlockForSave));
       onComplete(task.id);
-    } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || err?.response?.data?.error;
-      setCompleteError(typeof msg === 'string' && msg
-        ? msg
-        : "That didn't save. Check your connection and try again.");
+    } catch (err: unknown) {
+      // An already-recorded completion is settled inside the hook, so anything
+      // reaching here is a real failure. extractApiError keeps the server's
+      // internals out of the banner.
+      setCompleteError(extractApiError(
+        err, "That didn't save. Check your connection and try again.").message);
     } finally {
       setCompleting(false);
     }
@@ -443,7 +445,15 @@ function TaskItem({
               </View>
             ) : (
               <Pressable
-                onPress={(e) => { e.stopPropagation(); if (!task.is_completed) handleComplete(); }}
+                // `task.is_completed` only flips once the request returns, so
+                // two quick taps ran the whole completion twice. In parent mode
+                // that also re-POSTed the evidence blocks, leaving duplicates
+                // on the child's task before the second completion 400'd.
+                disabled={completing}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  if (!task.is_completed && !completing) handleComplete();
+                }}
                 className="flex-shrink-0"
               >
                 <Ionicons
@@ -555,10 +565,10 @@ function TaskItem({
                   ))}
                 </VStack>
               )}
-              {task.diploma_subjects?.length > 0 && (
+              {subjectNames(task.diploma_subjects).length > 0 && (
                 <HStack className="items-center gap-1 flex-wrap">
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Subjects:</UIText>
-                  {task.diploma_subjects.map((s: string) => (
+                  {subjectNames(task.diploma_subjects).map((s: string) => (
                     <Badge key={s} action="muted">
                       <BadgeText className="text-typo-500 dark:text-dark-typo-500">{s}</BadgeText>
                     </Badge>

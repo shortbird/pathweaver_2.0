@@ -135,7 +135,7 @@
     "default": "off",
     "gate": "flags",
     "legacy": "kiosk_flag",
-    "parent": "sis",
+    "parent": null,
     "requires": [],
     "requires_any": []
   },

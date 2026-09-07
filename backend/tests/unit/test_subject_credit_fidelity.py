@@ -16,9 +16,14 @@ agreed to. Both silently rewrote transcripts, and both are pinned here.
    sum-to-xp_value correction then took the whole 200 XP overflow out of the
    largest subject alone, crediting 100/100.
 
+3. ``PersonalizationService.finalize_personalization`` -- the batch sibling of
+   defect 1 -- kept its own unconditional ``classify_task_subjects`` call after
+   the accept-task path was fixed, so the same shadow answer still reached any
+   client using ``POST /finalize-tasks``.
+
 Found 2026-09-05 when a student reconciled his own transcript: three tasks he
 accepted as 600 Social Studies paid out 465 Social Studies + 60 Language Arts
-+ 75 Financial Literacy.
++ 75 Financial Literacy. Defect 3 found 2026-09-07 reviewing the same report.
 """
 
 from unittest.mock import MagicMock, patch
@@ -154,3 +159,183 @@ class TestAcceptedCreditIsNotReclassified:
         )
         subject_service.classify_task_subjects.assert_called_once()
         assert row['subject_xp_distribution'] == {'math': 100}
+
+
+def _finalize(tasks, classifier_result=None):
+    """Run finalize_personalization, returning (inserted rows, subject_service)."""
+    from services.personalization_service import PersonalizationService
+
+    service = PersonalizationService()
+    captured = {}
+
+    def table(name):
+        chain = MagicMock()
+        if name == 'user_quest_tasks':
+            def insert(rows):
+                captured['rows'] = rows
+                inner = MagicMock()
+                inner.execute.return_value = MagicMock(
+                    data=[dict(r, id=f'task-{i}') for i, r in enumerate(rows)])
+                return inner
+            chain.insert.side_effect = insert
+        return chain
+
+    subject_service = MagicMock()
+    subject_service.classify_task_subjects.return_value = classifier_result or {}
+
+    supabase = MagicMock()
+    supabase.table.side_effect = table
+
+    library = MagicMock()
+    library.sanitize_library.return_value = {'success': True, 'async': True}
+
+    with patch.object(PersonalizationService, 'supabase', supabase), \
+            patch('services.subject_classification_service.SubjectClassificationService',
+                  return_value=subject_service), \
+            patch('services.task_library_service.TaskLibraryService', return_value=library):
+        result = service.finalize_personalization(
+            session_id='s-1', user_id='user-1', quest_id='quest-1',
+            user_quest_id='uq-1', selected_tasks=[dict(t) for t in tasks],
+        )
+    assert result['success'], result
+    return captured['rows'], subject_service
+
+
+class TestBatchFinalizeIsNotReclassified:
+    """Defect 3: the batch path must honor the accepted split like accept-task."""
+
+    def test_accepted_subjects_survive_the_batch_path(self):
+        rows, subject_service = _finalize(
+            [{
+                'title': 'Build a Legal Case Against Monopolies',
+                'pillar': 'civics',
+                'xp_value': 200,
+                'diploma_subjects': {'Social Studies': 200},
+            }],
+            classifier_result={'language_arts': 60, 'social_studies': 140},
+        )
+        assert rows[0]['subject_xp_distribution'] == {'social_studies': 200}
+        subject_service.classify_task_subjects.assert_not_called()
+
+    def test_batch_path_still_classifies_an_untagged_task(self):
+        rows, subject_service = _finalize(
+            [{'title': 'Untagged task', 'pillar': 'stem', 'xp_value': 100}],
+            classifier_result={'math': 100},
+        )
+        subject_service.classify_task_subjects.assert_called_once()
+        assert rows[0]['subject_xp_distribution'] == {'math': 100}
+
+    def test_the_two_stored_fields_agree_in_the_batch_path(self):
+        rows, _ = _finalize([{
+            'title': 'Analyze the Historical Value of Paper Money',
+            'pillar': 'civics',
+            'xp_value': 200,
+            'diploma_subjects': {'Social Studies': 150, 'Financial Literacy': 50},
+        }])
+        displayed = get_subject_xp_distribution(
+            {'diploma_subjects': rows[0]['diploma_subjects']}, rows[0]['xp_value']
+        )
+        assert displayed == rows[0]['subject_xp_distribution']
+
+
+class TestSubjectLock:
+    """A student finishing one credit can demand tasks that pay only into it."""
+
+    def _validate(self, tasks, subjects, strict, level='standard'):
+        from services.personalization_service import personalization_service
+        return personalization_service._validate_tasks(
+            [dict(t) for t in tasks], [], subjects,
+            challenge_level=level, strict_subjects=strict,
+        )
+
+    TASK = {
+        'title': 'Analyze a Museum Exhibit',
+        'pillar': 'art',
+        'xp_value': 100,
+        'diploma_subjects': {'Fine Arts': 50, 'Language Arts': 50},
+    }
+
+    def test_unselected_subjects_are_dropped_and_their_xp_reassigned(self):
+        out = self._validate([self.TASK], ['fine_arts'], strict=True)
+        assert out[0]['diploma_subjects'] == {'Fine Arts': 100}
+
+    def test_xp_total_is_unchanged_by_the_lock(self):
+        out = self._validate([self.TASK], ['fine_arts'], strict=True)
+        assert sum(out[0]['diploma_subjects'].values()) == out[0]['xp_value']
+
+    def test_a_task_ignoring_the_lock_entirely_goes_to_the_first_selection(self):
+        """The prompt asks; the clamp is what makes it true."""
+        out = self._validate(
+            [{'title': 'Off-target', 'pillar': 'stem', 'xp_value': 100,
+              'diploma_subjects': {'Math': 75, 'Science': 25}}],
+            ['fine_arts'], strict=True,
+        )
+        assert out[0]['diploma_subjects'] == {'Fine Arts': 100}
+
+    def test_several_selected_subjects_are_all_allowed(self):
+        out = self._validate([self.TASK], ['fine_arts', 'language_arts'], strict=True)
+        assert out[0]['diploma_subjects'] == {'Fine Arts': 50, 'Language Arts': 50}
+
+    def test_without_the_lock_the_mixed_split_is_left_alone(self):
+        out = self._validate([self.TASK], ['fine_arts'], strict=False)
+        assert out[0]['diploma_subjects'] == {'Fine Arts': 50, 'Language Arts': 50}
+
+    def test_lock_composes_with_the_challenge_flat_rate(self):
+        out = self._validate([self.TASK], ['fine_arts'], strict=True, level='challenge')
+        assert out[0]['xp_value'] == 200
+        assert out[0]['diploma_subjects'] == {'Fine Arts': 200}
+
+    def test_a_strict_batch_never_reuses_a_loose_cached_batch(self):
+        from services.personalization_service import TaskCacheService
+        cache = TaskCacheService()
+        loose = cache.build_cache_key(['museums'], ['fine_arts'])
+        strict = cache.build_cache_key(['museums'], ['fine_arts'], strict_subjects=True)
+        assert loose != strict
+
+
+class TestClassQuestsGenerateWhatTheyStore:
+    """A class already forces 100% of every task into its transcript_subject.
+
+    ``_class_subject_override`` applies that at persist time, but generation
+    still produced mixed-subject cards -- so the accept card showed a split
+    ("Social Studies 150 / Financial Literacy 50") that persistence then threw
+    away. Harmless to the transcript, dishonest on screen, and the same
+    shown-is-not-stored gap as the defects above. Class generation is now
+    locked to the class subject, so the card matches the row.
+    """
+
+    # 150 is the Standard ceiling; a 200 here would be clamped and then rescaled,
+    # which is correct but tests the challenge-level band rather than the lock.
+    def _locked_split(self, transcript_subject, ai_split, xp=150):
+        from services.personalization_service import personalization_service
+        out = personalization_service._validate_tasks(
+            [{'title': 'A task', 'pillar': 'civics', 'xp_value': xp,
+              'diploma_subjects': dict(ai_split)}],
+            [], [transcript_subject],
+            challenge_level='standard', strict_subjects=True,
+        )
+        return out[0]
+
+    def test_a_class_task_pays_only_the_class_subject(self):
+        task = self._locked_split(
+            'social_studies',
+            {'Social Studies': 100, 'Financial Literacy': 50},
+        )
+        assert task['diploma_subjects'] == {'Social Studies': 150}
+
+    def test_the_card_and_the_stored_row_agree(self):
+        """What persist_accepted_task would store, vs what the card renders."""
+        from routes.quest_personalization import _class_subject_override
+        from unittest.mock import MagicMock
+
+        task = self._locked_split('fine_arts', {'Fine Arts': 75, 'Language Arts': 75})
+
+        supabase = MagicMock()
+        supabase.table.return_value.select.return_value.eq.return_value \
+            .single.return_value.execute.return_value = MagicMock(
+                data={'quest_type': 'class', 'transcript_subject': 'fine_arts'})
+        _, class_sxd = _class_subject_override(supabase, 'q-1', task['xp_value'])
+
+        shown = get_subject_xp_distribution(
+            {'diploma_subjects': task['diploma_subjects']}, task['xp_value'])
+        assert shown == class_sxd

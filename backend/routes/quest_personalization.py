@@ -16,6 +16,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
+from utils.ai_errors import ai_failure_response
 from services.task_quality_service import TaskQualityService
 from datetime import datetime
 
@@ -386,6 +387,9 @@ def generate_tasks(user_id: str, quest_id: str):
         "approach": "real_world_project|traditional_class|hybrid" (optional, defaults to 'hybrid'),
         "interests": ["basketball", "piano", "..."],
         "cross_curricular_subjects": ["math", "science", "..."],
+        "strict_subjects": true (optional) - pay 100% of every task's XP into
+            cross_curricular_subjects and nothing else, instead of merely
+            preferring them.
         "student_id": "uuid" (optional) - a child of the caller's, when a parent
             is generating tasks on that child's quest. Everything personal to
             the learner is then read off the CHILD: the AI consent toggle, the
@@ -422,6 +426,7 @@ def generate_tasks(user_id: str, quest_id: str):
         approach = data.get('approach', 'hybrid')
         interests = data.get('interests', [])
         cross_curricular_subjects = data.get('cross_curricular_subjects', [])
+        strict_subjects = bool(data.get('strict_subjects'))
         exclude_tasks = data.get('exclude_tasks', [])
         additional_feedback = data.get('additional_feedback', '')
 
@@ -477,6 +482,11 @@ def generate_tasks(user_id: str, quest_id: str):
             logger.warning(f"Could not fetch user vision statement: {e}")
         challenge_level = challenge_level or 'standard'
 
+        # A subject lock needs something to lock onto. Asking for one with no
+        # subjects selected would generate a normal mixed batch under a label
+        # promising otherwise, so drop the flag rather than half-honor it.
+        # (The class-quest injection below can still supply the subject.)
+
         # Class quests carry a transcript_subject — auto-inject it into the
         # cross_curricular list so generated tasks naturally pay XP toward
         # the class subject. Student-supplied subjects still come along.
@@ -490,8 +500,19 @@ def generate_tasks(user_id: str, quest_id: str):
                 ts = quest_row.data.get('transcript_subject')
                 if ts and ts not in cross_curricular_subjects:
                     cross_curricular_subjects = [ts, *cross_curricular_subjects]
+                if ts:
+                    # A class already dumps 100% of every accepted task into its
+                    # transcript_subject (_class_subject_override), so generating
+                    # mixed-subject cards only meant showing the student a split
+                    # that persistence then discarded. Lock generation to match
+                    # what will actually be stored.
+                    cross_curricular_subjects = [ts]
+                    strict_subjects = True
         except Exception as e:
             logger.warning(f"Could not check class context for quest {quest_id}: {e}")
+
+        if strict_subjects and not cross_curricular_subjects:
+            strict_subjects = False
 
         # Generate tasks
         result = personalization_service.generate_task_suggestions(
@@ -504,11 +525,14 @@ def generate_tasks(user_id: str, quest_id: str):
             additional_feedback=additional_feedback,
             vision_statement=vision_statement,
             age_band=age_band,
-            challenge_level=challenge_level
+            challenge_level=challenge_level,
+            strict_subjects=strict_subjects
         )
 
         if not result['success']:
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Failed to generate tasks. Please try again.')
+            return jsonify(payload), status
 
         return jsonify({
             'success': True,
@@ -521,25 +545,8 @@ def generate_tasks(user_id: str, quest_id: str):
         logger.warning(f"Guardian access denied in generate_tasks: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
-        logger.error(f"Error generating tasks: {str(e)}")
-        error_str = str(e).lower()
-
-        # Check for rate limiting errors from Gemini API
-        if '429' in error_str or 'too many requests' in error_str or 'quota' in error_str or 'rate limit' in error_str:
-            return jsonify({
-                'success': False,
-                'error': 'AI service rate limit reached. Please wait 30 seconds and try again.'
-            }), 429
-        elif '403' in error_str or 'api key' in error_str or 'leaked' in error_str:
-            return jsonify({
-                'success': False,
-                'error': 'AI service configuration error. Please contact support.'
-            }), 500
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to generate tasks. Please try again.'
-            }), 500
+        payload, status = ai_failure_response(e, 'Failed to generate tasks. Please try again.')
+        return jsonify(payload), status
 
 
 @bp.route('/<quest_id>/refine-tasks', methods=['POST'])
@@ -577,7 +584,9 @@ def refine_tasks(user_id: str, quest_id: str):
         )
 
         if not result['success']:
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Failed to refine tasks. Please try again.')
+            return jsonify(payload), status
 
         return jsonify({
             'success': True,
@@ -621,7 +630,9 @@ def edit_task(user_id: str, quest_id: str):
         )
 
         if not result['success']:
-            return jsonify(result), 400
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not refine that task. Please try again.')
+            return jsonify(payload), status
 
         return jsonify({
             'success': True,
@@ -674,7 +685,9 @@ def adjust_task_difficulty(user_id: str, quest_id: str):
         )
 
         if not result['success']:
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not adjust that task. Please try again.')
+            return jsonify(payload), status
 
         return jsonify({
             'success': True,
@@ -683,17 +696,8 @@ def adjust_task_difficulty(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        logger.error(f"Error adjusting task difficulty: {str(e)}")
-        error_str = str(e).lower()
-        if '429' in error_str or 'too many requests' in error_str or 'quota' in error_str or 'rate limit' in error_str:
-            return jsonify({
-                'success': False,
-                'error': 'AI service rate limit reached. Please wait 30 seconds and try again.'
-            }), 429
-        return jsonify({
-            'success': False,
-            'error': 'Failed to adjust task. Please try again.'
-        }), 500
+        payload, status = ai_failure_response(e, 'Failed to adjust task. Please try again.')
+        return jsonify(payload), status
 
 
 @bp.route('/<quest_id>/analyze-manual-task', methods=['POST'])
@@ -1112,7 +1116,11 @@ def finalize_tasks(user_id: str, quest_id: str):
         )
 
         if not result['success']:
-            return jsonify(result), 500
+            # finalize_personalization classifies each task's subjects through
+            # Gemini, so this path can carry an upstream AI failure too.
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not save those tasks. Please try again.')
+            return jsonify(payload), status
 
         return jsonify({
             'success': True,

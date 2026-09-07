@@ -402,10 +402,16 @@ api.interceptors.response.use(
         // Canvas LTI iframe pages — a refresh failure here should never
         // navigate to /login; the iframe lives in someone else's chrome.
         const isLtiPage = currentPath.startsWith('/lti-')
-        // The Treehouse kiosk is a public, token-gated shared-device page; a 401
-        // (e.g. right after a student logs out to hand off the device) must keep
-        // us on the kiosk picker, not bounce to /login.
-        const isTreehouseKiosk = currentPath.startsWith('/treehouse-kiosk')
+        // The kiosks (/kiosk for any org, /treehouse-kiosk for the Treehouse
+        // program) are public, token-gated shared-device pages. Every page load
+        // runs /api/auth/me, and a fresh iPad has no session, so the refresh
+        // fails on the very first visit — before an admin has even pasted the
+        // device code. That, and the 401 right after a student logs out to hand
+        // off the device, must keep us on the kiosk, not bounce to /login.
+        // (/kiosk was missing from this list until 2026-09-07 and could not be
+        // set up at all: a cold load went straight to /login.)
+        const isKiosk = currentPath === '/kiosk' || currentPath.startsWith('/kiosk/')
+          || currentPath.startsWith('/treehouse-kiosk')
         // Org login pages (/login/<slug>) are themselves login pages — a 401
         // from the background session check must not bounce a school's
         // students off their branded login onto the main /login.
@@ -422,7 +428,7 @@ api.interceptors.response.use(
         // sent to. Prefix-match the whole area.
         const isPoePage = currentPath === '/poe' || currentPath.startsWith('/poe/')
 
-        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isTreehouseKiosk && !isOrgLoginPage && !isRegistrationFunnel && !isPoePage) {
+        if (!authPaths.includes(currentPath) && !isPublicDiploma && !isConsultationPage && !isDemoPage && !isQuestsPage && !isJoinPage && !isPublicCoursePage && !isObserverAcceptPage && !isPublicReportPage && !isSharedPage && !isInvitationPage && !isDocsPage && !isPublicTranscript && !isPromoPage && !isMarketingPage && !isLtiPage && !isKiosk && !isOrgLoginPage && !isRegistrationFunnel && !isPoePage) {
           window.location.href = '/login'
         }
 

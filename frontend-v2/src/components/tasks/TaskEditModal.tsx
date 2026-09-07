@@ -10,7 +10,7 @@ import { View, Modal, Pressable, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
-import { PILLARS, DIPLOMA_SUBJECTS } from '@/src/hooks/useQuestDetail';
+import { PILLARS, DIPLOMA_SUBJECTS, subjectNames } from '@/src/hooks/useQuestDetail';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { HStack, Heading, UIText, Button, ButtonText,
 } from '@/src/components/ui';
@@ -34,7 +34,7 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
   const c = useThemeColors();
   const [pillar, setPillar] = useState<string>(task?.pillar || 'stem');
   const [subjects, setSubjects] = useState<string[]>(
-    Array.isArray(task?.diploma_subjects) ? task.diploma_subjects : (task?.school_subjects || [])
+    subjectNames(task?.diploma_subjects ?? task?.school_subjects)
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function TaskEditModal({ visible, task, onClose, onSaved }: TaskEditModal
   React.useEffect(() => {
     if (task) {
       setPillar(task.pillar || 'stem');
-      setSubjects(Array.isArray(task.diploma_subjects) ? task.diploma_subjects : (task.school_subjects || []));
+      setSubjects(subjectNames(task.diploma_subjects ?? task.school_subjects));
       setError(null);
     }
   }, [task?.id]);

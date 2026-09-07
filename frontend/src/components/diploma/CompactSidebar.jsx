@@ -8,6 +8,7 @@ import {
   TOTAL_CREDITS_REQUIRED,
   meetsGraduationRequirements
 } from '../../utils/creditRequirements';
+import { tracksDiplomaCredits } from '../../utils/age';
 
 const CompactSidebar = ({
   totalXP,
@@ -17,9 +18,16 @@ const CompactSidebar = ({
   totalXPCount,
   isOwner,
   studentName,
+  dateOfBirth,
   onCreditsClick
   // onBadgesClick prop removed (January 2026 - Microschool client feedback)
 }) => {
+  // One picture, chosen by who is looking at it. Showing both meant every
+  // elementary learner carried a 26-credit graduation tracker they will not
+  // think about for six years, and every high schooler had their actual credit
+  // progress pushed below a chart they had no use for.
+  const showsCredits = tracksDiplomaCredits(dateOfBirth);
+
   const [isRadarExpanded, setIsRadarExpanded] = useState(true);
   // isBadgesExpanded state removed (January 2026 - Microschool client feedback)
   const [isCreditsExpanded, setIsCreditsExpanded] = useState(true);
@@ -82,7 +90,9 @@ const CompactSidebar = ({
         </button>
 
         <div className="md:pt-0 pt-16 px-4 md:px-0">
-      {/* Skills Radar Chart Section */}
+      {/* Skills Radar Chart Section — the diploma is not what a nine-year-old
+          is working toward, so the pillars are what they see instead. */}
+      {!showsCredits && (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <button
           onClick={() => setIsRadarExpanded(!isRadarExpanded)}
@@ -126,7 +136,10 @@ const CompactSidebar = ({
         )}
       </div>
 
+      )}
+
       {/* Credits Summary Section */}
+      {showsCredits && (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <button
           onClick={() => setIsCreditsExpanded(!isCreditsExpanded)}
@@ -239,6 +252,7 @@ const CompactSidebar = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Badges Section removed (January 2026 - Microschool client feedback) */}
         </div>
@@ -255,6 +269,8 @@ CompactSidebar.propTypes = {
   totalXPCount: PropTypes.number,
   isOwner: PropTypes.bool,
   studentName: PropTypes.string,
+  // The LEARNER's date of birth (not the viewer's). Absent -> credit view.
+  dateOfBirth: PropTypes.string,
   onCreditsClick: PropTypes.func
   // onBadgesClick prop removed (January 2026 - Microschool client feedback)
 };

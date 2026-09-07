@@ -135,3 +135,18 @@ def test_unknown_key_fails_loudly():
 def test_non_core_answers_false_without_an_org_row():
     for key in ('sis', 'billing', 'journal', 'ai'):
         assert module_enabled_for_row(None, key) is False
+
+
+def test_kiosk_is_a_platform_block_with_no_sis_parent():
+    """An LMS-only school (no SIS console) can run classroom kiosks: the flat
+    legacy flag and the explicit modules entry both turn it on without `sis`,
+    an explicit off beats the flat flag, and it is off by default. Arete
+    Academy was the first such school (2026-09-07); with parent='sis' the
+    device card was unreachable for them."""
+    assert MODULES['kiosk'].parent is None
+    assert not module_enabled_for_row(org({}), 'kiosk')
+    assert module_enabled_for_row(org({'kiosk': True}), 'kiosk')
+    assert module_enabled_for_row(org({'modules': {'kiosk': True}}), 'kiosk')
+    assert not module_enabled_for_row(org({'kiosk': True, 'modules': {'kiosk': False}}), 'kiosk')
+    got = effective_modules_for_row(org({'modules': {'kiosk': True}}))
+    assert 'kiosk' in got and 'sis' not in got

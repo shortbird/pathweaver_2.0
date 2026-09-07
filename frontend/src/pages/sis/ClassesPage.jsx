@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import { acknowledgeScheduleConflict } from '../../hooks/api/useSisScheduleConflicts'
 import Button from '../../components/ui/Button'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -68,6 +69,84 @@ const roomConflictText = (c) => {
   return `${c.room} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
 }
 
+/**
+ * One advisory warning list, with a way to answer it.
+ *
+ * iCreate, 2026-09-05 (8479edee): "the warnings section for teachers and
+ * classes is good, but I think I'd like to have a button to hit that allows me
+ * to acknowledge I've seen it, but I think it's ok, so clear it from the
+ * warnings." Both checks are deliberately advisory — a school may genuinely
+ * want two things in the gym — and a warning nobody can answer is one the
+ * office learns to scroll past, which is how the accidental double-booking gets
+ * missed.
+ *
+ * Waved-off rows are kept and shown behind a toggle rather than forgotten: the
+ * office should be able to see what it decided, and undo it.
+ */
+export const ConflictBanner = ({
+  title, conflicts = [], acknowledged = [], render, canAcknowledge, onAcknowledge,
+}) => {
+  const [showSeen, setShowSeen] = React.useState(false)
+  const [busy, setBusy] = React.useState(null)
+  if (!conflicts.length && !acknowledged.length) return null
+
+  const act = async (c, next) => {
+    setBusy(c.key)
+    try { await onAcknowledge(c, next) } finally { setBusy(null) }
+  }
+  const rowKey = (c) => c.key || `${c.class_a_id}-${c.class_b_id}`
+
+  return (
+    <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      {conflicts.length > 0 && (
+        <>
+          <p className="font-semibold mb-1">{title}</p>
+          <ul className="space-y-1">
+            {conflicts.map((c) => (
+              <li key={rowKey(c)} className="flex items-start gap-2">
+                <span className="flex-1">{render(c)}</span>
+                {canAcknowledge && c.key && (
+                  <button type="button" disabled={busy === c.key}
+                    onClick={() => act(c, true)}
+                    aria-label={`Dismiss: ${render(c)}`}
+                    className="shrink-0 rounded border border-amber-400 px-2 py-0.5 text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                    That&apos;s fine
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {acknowledged.length > 0 && (
+        <div className={conflicts.length ? 'mt-2 pt-2 border-t border-amber-200' : ''}>
+          <button type="button" onClick={() => setShowSeen((v) => !v)}
+            className="text-xs underline hover:no-underline">
+            {acknowledged.length} marked fine{showSeen ? ' — hide' : ' — show'}
+          </button>
+          {showSeen && (
+            <ul className="mt-1 space-y-1 text-amber-800/80">
+              {acknowledged.map((c) => (
+                <li key={rowKey(c)} className="flex items-start gap-2">
+                  <span className="flex-1">{render(c)}</span>
+                  {canAcknowledge && c.key && (
+                    <button type="button" disabled={busy === c.key}
+                      onClick={() => act(c, false)}
+                      aria-label={`Warn me again: ${render(c)}`}
+                      className="shrink-0 underline text-xs disabled:opacity-50">
+                      Warn me again
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ClassesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
@@ -83,6 +162,9 @@ const ClassesPage = () => {
   const [loading, setLoading] = useState(true)
   const [teacherConflicts, setTeacherConflicts] = useState([]) // advisory double-booking rows
   const [roomConflicts, setRoomConflicts] = useState([])       // ...and the same for rooms
+  // The same rows, already answered: "seen it, that one is on purpose" (8479edee).
+  const [ackedTeacher, setAckedTeacher] = useState([])
+  const [ackedRoom, setAckedRoom] = useState([])
   // {room name: [{class_name, day_of_week, start_time, end_time}]} — what the
   // room picker consults to say which rooms are already taken at an hour.
   const [roomOccupancy, setRoomOccupancy] = useState({})
@@ -149,7 +231,9 @@ const ClassesPage = () => {
       .then(([cls, crs, stf, ct, sched, tc, rs]) => {
         setClasses(cls.data?.classes || [])
         setTeacherConflicts(tc.data?.conflicts || [])
+        setAckedTeacher(tc.data?.acknowledged || [])
         setRoomConflicts(rs.data?.conflicts || [])
+        setAckedRoom(rs.data?.acknowledged || [])
         setRoomOccupancy(rs.data?.occupancy || {})
         const all = crs.data?.courses || []
         setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
@@ -190,6 +274,7 @@ const ClassesPage = () => {
       const r = await api.get(withOrg('/api/sis/teacher-conflicts', orgId))
       const conflicts = r.data?.conflicts || []
       setTeacherConflicts(conflicts)
+      setAckedTeacher(r.data?.acknowledged || [])
       const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
       if (hit) toast(conflictText(hit), { icon: '⚠️', duration: 10000 })
     } catch { /* advisory only */ }
@@ -202,10 +287,34 @@ const ClassesPage = () => {
       const r = await api.get(withOrg('/api/sis/room-schedule', orgId))
       const conflicts = r.data?.conflicts || []
       setRoomConflicts(conflicts)
+      setAckedRoom(r.data?.acknowledged || [])
       setRoomOccupancy(r.data?.occupancy || {})
       const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
       if (hit) toast(roomConflictText(hit), { icon: '⚠️', duration: 10000 })
     } catch { /* advisory only */ }
+  }
+
+  // "That's fine" / "warn me again" on a double-booking warning (8479edee).
+  // The row moves locally on success so the banner answers immediately; the
+  // server is the record, and the next load reads it back.
+  const setConflictAcknowledged = async (conflict, acknowledged) => {
+    const isRoom = Boolean(conflict.room)
+    try {
+      await acknowledgeScheduleConflict(orgId, conflict.key, acknowledged)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save that')
+      return
+    }
+    const move = (live, seen) => (acknowledged
+      ? [live.filter((c) => c.key !== conflict.key), [...seen, conflict]]
+      : [[...live, conflict], seen.filter((c) => c.key !== conflict.key)])
+    if (isRoom) {
+      const [live, seen] = move(roomConflicts, ackedRoom)
+      setRoomConflicts(live); setAckedRoom(seen)
+    } else {
+      const [live, seen] = move(teacherConflicts, ackedTeacher)
+      setTeacherConflicts(live); setAckedTeacher(seen)
+    }
   }
 
   const classBody = (payload) => ({
@@ -603,33 +712,19 @@ const ClassesPage = () => {
 
       {/* Teacher double-booking cross-check — advisory, so an intentional save
           still goes through; this just makes sure nobody finds out on the day. */}
-      {tab === 'classes' && teacherConflicts.length > 0 && (
-        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-semibold mb-1">
-            Teacher double-booked
-          </p>
-          <ul className="list-disc pl-5 space-y-0.5">
-            {teacherConflicts.map((c) => (
-              <li key={`${c.teacher_id}-${c.class_a_id}-${c.class_b_id}`}>{conflictText(c)}</li>
-            ))}
-          </ul>
-        </div>
+      {tab === 'classes' && (
+        <ConflictBanner title="Teacher double-booked" render={conflictText}
+          conflicts={teacherConflicts} acknowledged={ackedTeacher}
+          canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
       )}
 
       {/* Room double-booking — the same advisory as the teacher check above.
           Separate banner rather than one merged list: they are fixed by
           different edits, and by different people. */}
-      {tab === 'classes' && roomConflicts.length > 0 && (
-        <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-semibold mb-1">
-            Room double-booked
-          </p>
-          <ul className="list-disc pl-5 space-y-0.5">
-            {roomConflicts.map((c) => (
-              <li key={`${c.room}-${c.class_a_id}-${c.class_b_id}`}>{roomConflictText(c)}</li>
-            ))}
-          </ul>
-        </div>
+      {tab === 'classes' && (
+        <ConflictBanner title="Room double-booked" render={roomConflictText}
+          conflicts={roomConflicts} acknowledged={ackedRoom}
+          canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
       )}
 
       {/* Optio-course billing notice — Optio invoices the school per enrollment */}

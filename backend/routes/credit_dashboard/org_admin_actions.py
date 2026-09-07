@@ -154,6 +154,7 @@ def org_approve_credit(user_id: str, completion_id: str):
             from routes.tasks import (
                 finalize_subject_xp,
                 get_subject_xp_distribution,
+                pending_subjects_for_completion,
                 remove_pending_subject_xp,
             )
 
@@ -170,7 +171,8 @@ def org_approve_credit(user_id: str, completion_id: str):
                 if override_subjects and isinstance(override_subjects, dict)
                 else get_subject_xp_distribution(task_data, xp_value)
             )
-            original_subjects = get_subject_xp_distribution(task_data, xp_value)
+            original_subjects = pending_subjects_for_completion(
+                admin_supabase, completion_id, task_data, xp_value)
             try:
                 remove_pending_subject_xp(
                     admin_supabase, completion.data['user_id'], original_subjects,

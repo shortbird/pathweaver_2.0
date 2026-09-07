@@ -443,6 +443,54 @@ describe('useQuestDetail in parent mode', () => {
     expect(body.get('acting_as_dependent_id')).toBe('kid-1');
   });
 
+  // Sentry OPTIO-MOBILE-V. The completion endpoint answers 400
+  // TASK_ALREADY_COMPLETED when a completion row exists, so a double tap or a
+  // retry after a dropped response reported failure on work that had saved.
+  const alreadyCompleted = () => Object.assign(new Error('Request failed with status code 400'), {
+    isAxiosError: true,
+    response: {
+      status: 400,
+      data: { error: { code: 'TASK_ALREADY_COMPLETED', message: 'Task already completed' } },
+    },
+  });
+
+  it('treats an already-recorded completion as done, not as a failure', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockImplementation((url: string) =>
+      url === '/api/tasks/task-1/complete'
+        ? Promise.reject(alreadyCompleted())
+        : Promise.resolve({ data: { success: true } })
+    );
+
+    await act(async () => {
+      // Must not reject: the task IS complete and the XP is already awarded.
+      await result.current.completeTask('task-1', [{ type: 'text', content: 'done' }]);
+    });
+
+    expect(result.current.quest?.quest_tasks[0].is_completed).toBe(true);
+  });
+
+  it('still surfaces a genuine completion failure', async () => {
+    const result = await mounted();
+    const boom = Object.assign(new Error('Request failed with status code 500'), {
+      isAxiosError: true,
+      response: { status: 500, data: { error: { message: 'Server exploded' } } },
+    });
+    (api.post as jest.Mock).mockImplementation((url: string) =>
+      url === '/api/tasks/task-1/complete'
+        ? Promise.reject(boom)
+        : Promise.resolve({ data: { success: true } })
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.completeTask('task-1', [{ type: 'text', content: 'done' }])
+      ).rejects.toBe(boom);
+    });
+
+    expect(result.current.quest?.quest_tasks[0].is_completed).toBe(false);
+  });
+
   it("attaches the parent's evidence instead of a placeholder", async () => {
     // iCreate, 2026-09-04 (dc7ccacc). This used to drop the blocks and post the
     // literal string "Marked complete by parent" as the evidence, which is what

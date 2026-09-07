@@ -23,8 +23,11 @@ import pytest
 
 from services.base_ai_service import (
     BaseAIService,
+    AICreditsExhaustedError,
     AIGenerationError,
     AIServiceOverloadedError,
+    is_credits_exhausted_error,
+    is_transient_ai_error,
 )
 
 
@@ -150,3 +153,81 @@ def test_generate_raises_plain_error_on_persistent_non_transient_failure():
 def test_overloaded_error_is_subclass_of_generation_error():
     # Existing `except AIGenerationError` handlers must still catch the new type.
     assert issubclass(AIServiceOverloadedError, AIGenerationError)
+
+
+# --------------------------------------------------------------------------
+# Credit exhaustion vs. capacity (Sentry OPTIO-BACKEND-86/87/88, 2026-09-07)
+# --------------------------------------------------------------------------
+#
+# Google answers "you are going too fast" and "your prepay balance is empty"
+# with the same 429. The second is account-wide and permanent, so treating it
+# as transient burned every retry and every fallback model on each request and
+# told the student the AI was "experiencing high demand".
+
+GEMINI_CREDITS_DEPLETED = (
+    '429 Your prepayment credits are depleted. Please go to AI Studio at '
+    'https://ai.studio/projects to manage your project and billing. Learn more '
+    'at https://ai.google.dev/gemini-api/docs/billing#prepay.'
+)
+
+
+@pytest.mark.parametrize('msg', [
+    GEMINI_CREDITS_DEPLETED,
+    '429 You exceeded your current quota, please check your plan and billing details',
+    'Billing account for project is not found; please enable billing',
+])
+def test_credit_exhaustion_is_not_transient(msg):
+    assert is_credits_exhausted_error(msg) is True
+    # The bare '429' must not win over the billing wording.
+    assert is_transient_ai_error(msg) is False
+    assert BaseAIService._is_transient_ai_error(Exception(msg)) is False
+
+
+@pytest.mark.parametrize('msg', [
+    '503 This model is currently experiencing high demand.',
+    '429 Resource exhausted',
+])
+def test_capacity_errors_are_still_transient(msg):
+    assert is_credits_exhausted_error(msg) is False
+    assert is_transient_ai_error(msg) is True
+
+
+def test_generate_fails_fast_when_credits_are_exhausted():
+    """No retry and no fallback model: the balance is empty for all of them."""
+    svc = _bare_service(['fallback-model'])
+    broke = _model_raising(Exception(GEMINI_CREDITS_DEPLETED))
+
+    with patch.object(BaseAIService, '_get_model_by_name', return_value=broke), \
+         patch('services.base_ai_service.Config') as cfg, \
+         patch('services.base_ai_service.time.sleep') as sleep:
+        cfg.GEMINI_FALLBACK_MODELS = ['fallback-model']
+        with pytest.raises(AICreditsExhaustedError):
+            svc.generate('prompt', max_retries=3, log_tokens=False)
+
+    # One call, one model, no backoff.
+    broke.generate_content.assert_called_once()
+    sleep.assert_not_called()
+
+
+def test_credits_exhausted_message_carries_no_vendor_detail():
+    """The student never sees AI Studio, billing, or a top-up instruction."""
+    svc = _bare_service([])
+    broke = _model_raising(Exception(GEMINI_CREDITS_DEPLETED))
+
+    with patch.object(BaseAIService, '_get_model_by_name', return_value=broke), \
+         patch('services.base_ai_service.Config') as cfg, \
+         patch('services.base_ai_service.time.sleep'):
+        cfg.GEMINI_FALLBACK_MODELS = []
+        with pytest.raises(AICreditsExhaustedError) as exc:
+            svc.generate('prompt', max_retries=1, log_tokens=False)
+
+    shown = str(exc.value).lower()
+    for leak in ('billing', 'ai studio', 'prepayment', 'credits', 'http'):
+        assert leak not in shown, f"user-facing message leaked {leak!r}"
+
+
+def test_credits_exhausted_is_catchable_as_generation_error():
+    """Existing `except AIGenerationError` handlers must still catch it, and it
+    must NOT masquerade as a capacity problem."""
+    assert issubclass(AICreditsExhaustedError, AIGenerationError)
+    assert not issubclass(AICreditsExhaustedError, AIServiceOverloadedError)

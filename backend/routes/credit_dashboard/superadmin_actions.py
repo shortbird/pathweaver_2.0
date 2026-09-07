@@ -68,7 +68,8 @@ def approve_credit(user_id: str, completion_id: str):
         xp_value = task_data.get('xp_value', 0)
 
         # Use superadmin-overridden subjects if provided, otherwise use task suggestion
-        from routes.tasks import get_subject_xp_distribution, finalize_subject_xp, remove_pending_subject_xp
+        from routes.tasks import (get_subject_xp_distribution, finalize_subject_xp,
+                                  pending_subjects_for_completion, remove_pending_subject_xp)
         override_subjects = data.get('subjects')
         if override_subjects and isinstance(override_subjects, dict):
             approved_subjects = override_subjects
@@ -107,8 +108,11 @@ def approve_credit(user_id: str, completion_id: str):
             admin_supabase.table('diploma_review_rounds').insert(review_data).execute()
 
         # First remove pending XP (the amount added at request time),
-        # then finalize with the approved amount.
-        original_subjects = get_subject_xp_distribution(task_data, xp_value)
+        # then finalize with the approved amount. These are two different
+        # numbers whenever a reviewer overrides the split, which is why
+        # finalize_subject_xp no longer touches pending itself.
+        original_subjects = pending_subjects_for_completion(
+            admin_supabase, completion_id, task_data, xp_value)
         try:
             remove_pending_subject_xp(admin_supabase, student_id, original_subjects)
         except Exception as e:

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AcademicCapIcon, BookOpenIcon, CheckCircleIcon, PaperAirplaneIcon, PlusIcon, TrophyIcon } from '@heroicons/react/24/outline';
+import { AcademicCapIcon, BookOpenIcon, CheckCircleIcon, PaperAirplaneIcon, PlusIcon, TrophyIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 import { getSubjectName } from '../../constants/subjects';
 import { useAuth } from '../../contexts/AuthContext';
@@ -80,6 +80,16 @@ const QuestCompletionCelebration = ({
     return () => clearInterval(interval);
   }, [isEmptyQuest]);
 
+  // Escape closes the celebration (but not from under the confirm dialog,
+  // which owns the key while it is open).
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape' && !showDialog) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showDialog, onClose]);
+
   const handleFinishClick = () => {
     setShowDialog(true);
   };
@@ -96,11 +106,40 @@ const QuestCompletionCelebration = ({
 
   return (
     <>
-      {/* Main Celebration Modal */}
+      {/* Main Celebration Modal.
+          This screen has no required action -- finishing the last task is not
+          a decision point, and the task the learner just completed is sitting
+          behind it waiting for a credit request. Without a way out, students
+          were pressing "Add More Tasks" and cancelling the picker purely to
+          reach the page again. So: a close button, the backdrop, and Escape. */}
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 relative overflow-hidden">
+        {/* A real <button>, not a clickable div: those are unreachable by
+            keyboard (see components/ui/__tests__/a11y.test.jsx). Hidden from
+            assistive tech because it duplicates the X below -- a screen
+            reader user should hear one "Close", not two. */}
+        <button
+          type="button"
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={onClose}
+          className="absolute inset-0 w-full h-full cursor-default"
+        />
+        <div
+          className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 relative overflow-hidden z-10"
+          role="dialog"
+          aria-modal="true"
+          aria-label={isEmptyQuest ? 'No tasks in quest' : 'Quest complete'}
+        >
           {/* Gradient background decoration */}
           <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-optio-purple/10 via-optio-pink/10 to-yellow-400/10 -z-10" />
+
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors z-10"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
 
           {/* Icon */}
           <div className="flex justify-center mb-6">
@@ -192,7 +231,7 @@ const QuestCompletionCelebration = ({
                 ? `An Optio teacher will review your work. If a task needs more evidence, they'll send it back with notes. Once it's approved, your ${subjectName} credit is added to your transcript.`
                 : isEmptyQuest
                   ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
-                  : 'Add more tasks to keep learning, or finish this quest and return to your dashboard.'}
+                  : 'Add more tasks to keep learning, or finish this quest and return to your dashboard. You can also close this and keep working on what you just finished.'}
             </p>
           </div>
 

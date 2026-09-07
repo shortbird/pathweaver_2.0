@@ -5,7 +5,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const EvidenceEmptyState = ({ message }) => {
+const EvidenceEmptyState = ({ message = 'No evidence available' }) => {
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
       <svg
@@ -31,10 +31,6 @@ const EvidenceEmptyState = ({ message }) => {
 
 EvidenceEmptyState.propTypes = {
   message: PropTypes.string
-};
-
-EvidenceEmptyState.defaultProps = {
-  message: 'No evidence available'
 };
 
 export default EvidenceEmptyState;

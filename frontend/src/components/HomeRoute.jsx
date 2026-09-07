@@ -1,11 +1,11 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getPostLoginPath } from '../utils/postLoginPath'
 import { hasLocalSessionHint } from '../utils/sessionHint'
 import { goToSisSurface, isSisSurfacePath } from '../utils/appSurface'
 import { isSisStaff } from '../pages/sis/sisRole'
-import HomePage from '../pages/marketing/HomePage'
+import { marketingUrl } from '../utils/marketingUrl'
 
 // Matches App's PageLoader; role=status so screen readers announce the wait.
 const DecidingLoader = () => (
@@ -15,33 +15,75 @@ const DecidingLoader = () => (
 )
 
 /**
- * The `/` route. Anonymous visitors get the marketing homepage; signed-in users
- * are forwarded to their landing page instead of being shown a marketing page
- * whose header offers "Login" — which read as "you got logged out". Every path
- * that funnels users here (PWA start_url, typed domain, the catch-all, error
- * bounces) is healed by this one branch.
+ * True when the page is running as an installed PWA rather than in a browser
+ * tab. `display-mode: standalone` covers Android/desktop; navigator.standalone
+ * is the iOS equivalent.
+ */
+const isStandalone = () => {
+  try {
+    return (
+      window.matchMedia?.('(display-mode: standalone)').matches === true
+      || window.navigator?.standalone === true
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Leaves this host for the marketing site. A real navigation, not a router
+ * one: the destination is a different origin. `replace` so the back button
+ * does not bounce the visitor straight back here and round again.
+ */
+const RedirectToMarketing = () => {
+  useEffect(() => {
+    window.location.replace(marketingUrl('/'))
+  }, [])
+  return <DecidingLoader />
+}
+
+/**
+ * The `/` route. Signed-in users go to their landing page. Anonymous visitors
+ * are sent to the marketing homepage on www.
  *
- * While the session check is in flight we pick the likely branch using the
- * session_sync hint AuthContext writes on every login/logout: hint present →
- * hold with a loader (no marketing flash for signed-in users, even across a
- * slow cold start); hint absent → render marketing immediately (no delay for
- * the anonymous majority, and no SEO cost — crawlers never have a hint).
+ * They used to be SHOWN it, from a copy of the marketing homepage inside this
+ * SPA. That copy stopped being the real homepage at the 2026-09-01 cutover: www
+ * became an Astro site with the maintained content, and this host kept a stale
+ * duplicate that `/` alone still rendered. Sending them to the real one retires
+ * the duplicate rather than letting the two drift further apart.
+ *
+ * An installed PWA is the exception. Its start_url is this path, so an
+ * unconditional redirect would eject a logged-out PWA user out of the app shell
+ * and into a browser on the marketing site, with no route back short of
+ * reinstalling. They get /login, which is what somebody opening the app wanted.
+ *
+ * NOTE: we now wait for the session check rather than guessing from the
+ * session_sync hint. Rendering marketing early was free to get wrong -- when
+ * auth resolved, the signed-in branch just took over. A cross-origin redirect
+ * is not: guess wrong and a signed-in user is already gone, on a marketing page
+ * offering them a "Login" button. The cost is a brief loader for anonymous
+ * visitors who are leaving anyway. Crawlers do not enter into it any more --
+ * this path is Disallow'd in public/robots.txt.
  */
 const HomeRoute = () => {
   const { isAuthenticated, user, loading } = useAuth()
   if (loading) {
-    return hasLocalSessionHint() ? <DecidingLoader /> : <HomePage />
+    return <DecidingLoader />
   }
   if (isAuthenticated && user) {
     return <Navigate to={getPostLoginPath(user)} replace />
   }
-  return <HomePage />
+  if (isStandalone()) {
+    return <Navigate to="/login" replace />
+  }
+  return <RedirectToMarketing />
 }
 
 /**
  * Unknown paths. Signed-in users go to their landing page — silently dumping
  * them on the marketing homepage made every stale bookmark or removed route
- * read as "you got logged out". Anonymous visitors keep landing on `/`.
+ * read as "you got logged out". Anonymous visitors keep landing on `/`, which
+ * now forwards them to the marketing site (or to /login inside a PWA).
  */
 export const NotFoundRedirect = () => {
   const { isAuthenticated, user, loading } = useAuth()

@@ -141,13 +141,6 @@ const FamilyStudentPage = lazy(() => import('./pages/FamilyStudentPage'))
 const FamilyStudentSchedulePage = lazy(() => import('./pages/FamilyStudentSchedulePage'))
 const FamilyBillingPage = lazy(() => import('./pages/FamilyBillingPage'))
 const KioskPage = lazy(() => import('./pages/KioskPage'))
-// Marketing pages
-const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorksPage'))
-const ClassesPage = lazy(() => import('./pages/marketing/ClassesPage'))
-const ForFamiliesPage = lazy(() => import('./pages/marketing/ForFamiliesPage'))
-const AcademyPage = lazy(() => import('./pages/marketing/AcademyPage'))
-const ForSchoolsPage = lazy(() => import('./pages/marketing/ForSchoolsPage'))
-const PhilosophyPage = lazy(() => import('./pages/marketing/PhilosophyPage'))
 // Help Center / Docs pages (February 2026)
 const DocsLandingPage = lazy(() => import('./pages/docs/DocsLandingPage'))
 const DocsCategoryPage = lazy(() => import('./pages/docs/DocsCategoryPage'))
@@ -492,14 +485,13 @@ function App() {
                   auth-aware: signed-in users are forwarded to their landing page
                   instead of the marketing homepage — see HomeRoute. */}
               <Route path="/" element={<HomeRoute />} />
-              <Route path="classes" element={<ClassesPage />} />
-              {/* /for-students is the legacy URL for the same offering; preserve external links by redirecting. */}
-              <Route path="for-students" element={<Navigate to="/classes" replace />} />
-              <Route path="for-families" element={<ForFamiliesPage />} />
-              <Route path="academy" element={<AcademyPage />} />
-              <Route path="for-schools" element={<ForSchoolsPage />} />
-              <Route path="how-it-works" element={<HowItWorksPage />} />
-              <Route path="philosophy" element={<PhilosophyPage />} />
+              {/* /classes, /academy, /for-families, /for-schools, /how-it-works,
+                  /philosophy and /for-students were removed on 2026-09-07. They
+                  moved to the marketing site at the 2026-09-01 cutover and the
+                  copies here were stale duplicates of live www pages, reachable
+                  only by a bookmark to this host made in the six days between.
+                  MarketingNav and MarketingFooter now link to www directly. An
+                  unknown path falls through to NotFoundRedirect. */}
               {/* Public course catalog + detail — marketing chrome (nav + footer), no auth */}
               <Route path="catalog" element={<PublicCatalogPage />} />
               <Route path="course/:slug" element={<PublicCoursePage />} />
@@ -688,8 +680,13 @@ function App() {
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
-              {/* Organization Management - accessible to org admins and platform admins */}
-              <Route element={<PrivateRoute />}>
+              {/* Organization Management - accessible to org admins and platform admins.
+                  The guard was a bare <PrivateRoute />, so any signed-in user could
+                  open the page; its first call is GET /api/admin/organizations/:id
+                  behind @require_org_admin, so they got a broken page and a Sentry
+                  403 (OPTIO-WEB-N). is_org_admin covers campus_coordinator too, so
+                  this matches the backend gate exactly. */}
+              <Route element={<PrivateRoute requiredRole={["org_admin", "superadmin"]} />}>
                 <Route path="organization" element={<OrganizationManagement />} />
               </Route>
 

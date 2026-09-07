@@ -37,7 +37,7 @@ const XP_OPTIONS = [
 const CHALLENGE_LEVELS = [
   { id: 'easier', label: 'Easier', desc: 'Smaller steps, quicker wins' },
   { id: 'standard', label: 'Standard', desc: 'A good stretch' },
-  { id: 'challenge', label: 'Challenge', desc: 'Bigger projects, more XP' },
+  { id: 'challenge', label: 'Challenge', desc: 'Bigger projects, 200 XP each' },
 ];
 
 // Max taps in one direction on the per-task complexity dial.

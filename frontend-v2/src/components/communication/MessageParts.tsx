@@ -18,6 +18,8 @@ import { View, Pressable, Image, Linking, ActivityIndicator } from 'react-native
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { UIText, toast } from '@/src/components/ui';
+import { showAlert } from '@/src/utils/alerts';
+import { describeMediaError } from '@/src/utils/mediaErrors';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
 import { MediaModal } from '@/src/components/feed/MediaModal';
@@ -287,12 +289,24 @@ export function usePendingAttachments() {
   const [pending, setPending] = useState<PendingAttachment[]>([]);
 
   const pickAttachments = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      quality: 0.8,
-      allowsMultipleSelection: true,
-      selectionLimit: MAX_ATTACHMENTS,
-    });
+    // Wired straight to onPress, so a native picker throw was an unhandled
+    // rejection with no feedback at all (Sentry OPTIO-MOBILE-Q).
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_ATTACHMENTS,
+      });
+    } catch (err) {
+      const copy = describeMediaError(err, {
+        title: 'Something went wrong',
+        message: 'Could not open your photos. Please try again.',
+      });
+      if (copy) showAlert(copy.title, copy.message);
+      return;
+    }
     if (result.canceled || !result.assets?.length) return;
 
     for (const asset of result.assets) {

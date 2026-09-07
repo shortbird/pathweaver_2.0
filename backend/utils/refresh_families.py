@@ -50,10 +50,13 @@ reuse now carries:
                         shape a replayed stolen token makes.
       `user_mismatch`   a token signed for a different user than owns the
                         family. Key compromise, not replay.
-  * `same_client` -- whether the replay came from the same client as the
-    rotation it replays, via `last_client_fp` (see the 20260827140000
+  * `same_client` -- whether the replay came from the same device AND network
+    as the rotation it replays, via `last_client_fp` (see the 20260827140000
     migration). The single most decisive field: `stale_previous` + same client
     is a race, `unknown_jti` + different client is theft.
+  * `same_device` -- the device half alone, which survives a client changing
+    network. This is what the recovery path tests; `same_client` staying in the
+    report is what keeps the stricter signal visible.
   * how stale the presented token was, how old the family is, and how long since
     it was last used, plus 8-character jti prefixes for correlating the chain
     across events without putting live credentials in an error tracker.
@@ -127,11 +130,32 @@ REPLAY_GRACE_SECONDS = 120
 #
 # A thief clears (1) only by holding the one specific superseded token, clears
 # (2) only while the victim is idle, and clears (3) only from the victim's own
-# user agent AND IP -- and even then receives the family's live jti, the same
-# token the victim already holds, exactly as the 120s window has always handed
-# out. Condition (3) is a stricter test than the existing grace window applies
-# at all. The bound below keeps the exposure finite rather than lasting the
-# refresh token's full 30 days.
+# user agent -- and even then receives the family's live jti, the same token the
+# victim already holds, exactly as the 120s window has always handed out. The
+# bound below keeps the exposure finite rather than lasting the refresh token's
+# full 30 days.
+#
+# 2026-09-07: condition (3) was "same user agent AND same IP" and is now the
+# user agent alone. The IP was doing more harm than work. `_client_fp` hashes
+# the client IP, so closing a laptop at home and opening it at the office --
+# or a phone handing off cellular to Wi-Fi -- reads as a different client, and
+# it does that most reliably across exactly the long gaps where a lost rotation
+# is likeliest. Every revocation still firing after the recovery path shipped
+# (2026-09-02) was `same_client=no` from a Mac, an iPhone and an Android, each
+# carrying the full lost-rotation signature: shape=stale_previous with
+# seconds_since_last_use == seconds_since_rotation to the second. One was 444
+# seconds after its own rotation. Those are people, not thieves, and the IP
+# test was the only thing signing them out.
+#
+# What that costs, precisely: a thief who already satisfies (1) and (2) no
+# longer additionally needs the victim's network. They still need the victim's
+# exact user agent, the one specific superseded token, a victim idle since that
+# rotation, and all of it inside LOST_ROTATION_SECONDS -- and what they receive
+# is the token the victim already holds, not a rotation of their own. A user
+# agent is spoofable in a way an IP is not, so this is a real reduction; it buys
+# roughly one honest person a day not being signed out of everything.
+# `same_client` is still computed and still reported, so the stricter signal is
+# only ever hidden from the revocation decision, never from the alarm.
 LOST_ROTATION_SECONDS = 24 * 3600
 
 # Rotation outcomes.
@@ -191,14 +215,27 @@ def _parse_ts(value) -> Optional[datetime]:
 def _client_fp(family_id: str) -> Optional[str]:
     """A comparison key for "is this the same client as last time?".
 
-    sha256(family_id || user agent || client ip), truncated. Salting with the
-    family id is what keeps this a diagnostic rather than a tracker: the value
-    is only ever equal to itself within one chain, so it can answer the reuse
-    question and cannot be used to follow a device between users or sessions.
+    Two truncated sha256 digests joined by a dot: the device half (user agent)
+    and the network half (client ip), each salted with the family id. Salting is
+    what keeps this a diagnostic rather than a tracker: a value is only ever
+    equal to itself within one chain, so it can answer the reuse question and
+    cannot be used to follow a device between users or sessions.
+
+    Stored as one string in `last_client_fp` rather than a second column, so
+    this needed no migration. Rows written before the split hold a single
+    segment; `_fp_parts` reports those as unknown rather than guessing, and they
+    self-heal on the family's next rotation.
+
+    Why the halves are separate: the two answer different questions, and the
+    network half is the one that moves for innocent reasons. A laptop closed at
+    home and opened at the office, or a phone handing off from cellular to
+    Wi-Fi, changes ip and keeps its user agent -- and it does so most often
+    across exactly the long gaps where a lost rotation is most likely. Holding
+    both halves lets `_rotation_was_lost` ask "same device?" while the reuse
+    report keeps showing the stricter "same device AND network?".
 
     None when there is no request to read (a test, a background path). A missing
-    fingerprint degrades the report to same_client='unknown'; it never blocks a
-    refresh.
+    fingerprint degrades the report to 'unknown'; it never blocks a refresh.
     """
     try:
         from flask import has_request_context, request
@@ -207,10 +244,25 @@ def _client_fp(family_id: str) -> Optional[str]:
         from utils.client_ip import get_real_ip
         # get_real_ip reads X-Forwarded-For from the RIGHT (TRUSTED_PROXY_HOPS),
         # so a client cannot pick its own fingerprint by forging the header.
-        material = f"{family_id}|{request.headers.get('User-Agent', '')}|{get_real_ip()}"
-        return hashlib.sha256(material.encode('utf-8')).hexdigest()[:16]
+        ua = request.headers.get('User-Agent', '')
+        device = hashlib.sha256(f"{family_id}|{ua}".encode('utf-8')).hexdigest()[:16]
+        network = hashlib.sha256(f"{family_id}|{get_real_ip()}".encode('utf-8')).hexdigest()[:16]
+        return f"{device}.{network}"
     except Exception:  # noqa: BLE001 — diagnostics must never break a refresh
         return None
+
+
+def _fp_parts(fp: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """(device, network) halves of a fingerprint, or (None, None).
+
+    A pre-split value (one segment, no dot) yields (None, None): it cannot be
+    compared half-against-half, and reading it as a mismatch would sign people
+    out for the duration of the rollout.
+    """
+    if not fp or '.' not in fp:
+        return None, None
+    device, _, network = fp.partition('.')
+    return (device or None), (network or None)
 
 
 def _age_seconds(ts: Optional[datetime]) -> Optional[float]:
@@ -374,7 +426,9 @@ def rotate(user_id: str, family_id: Optional[str], jti: Optional[str],
             f"[RefreshFamilies] Lost rotation recovered on family "
             f"{family_id[:8]}... | user {str(user_id)[:8]}... | "
             f"age={_age_seconds(rotated_at)}s of {LOST_ROTATION_SECONDS}s | "
-            f"same_client=yes | presented_jti_prefix={_prefix(jti)} "
+            f"same_device=yes "
+            f"same_client={_same_client(row.get('last_client_fp'), family_id)} | "
+            f"presented_jti_prefix={_prefix(jti)} "
             f"current_jti_prefix={_prefix(current)} | the jti this rotation "
             f"minted was never used; serving it rather than revoking")
         return RECOVERED, family_id, current
@@ -391,10 +445,12 @@ def _rotation_was_lost(row: dict, family_id: str) -> bool:
 
     True only when the jti that rotation minted has never been presented
     (`last_used_at` still equal to `rotated_at`, since `_advance` writes both),
-    the rotation is recent enough to bound the exposure, and the caller
-    fingerprints as the client that performed it. `same_client` must be a
-    positive 'yes': 'unknown' (no fingerprint recorded, no request context) is
-    not evidence and must not open the path.
+    the rotation is recent enough to bound the exposure, and the caller is the
+    same DEVICE that performed it. `same_device` must be a positive 'yes':
+    'unknown' (no fingerprint recorded, no request context, or a pre-split
+    fingerprint) is not evidence and must not open the path.
+
+    Device, not device-and-network, since 2026-09-07 -- see LOST_ROTATION_SECONDS.
     """
     rotated_at = _parse_ts(row.get('rotated_at'))
     if rotated_at is None:
@@ -412,7 +468,7 @@ def _rotation_was_lost(row: dict, family_id: str) -> bool:
     if abs((last_used_at - rotated_at).total_seconds()) > 1:
         return False
 
-    return _same_client(row.get('last_client_fp'), family_id) == 'yes'
+    return _same_device(row.get('last_client_fp'), family_id) == 'yes'
 
 
 def _within_grace(rotated_at: Optional[datetime]) -> bool:
@@ -497,19 +553,41 @@ def _revoke(family_id: str, reason: str) -> None:
 
 
 def _same_client(stored_fp: Optional[str], family_id: str) -> str:
-    """'yes' / 'no' / 'unknown' -- whether this request looks like the client
-    that last rotated this family.
+    """'yes' / 'no' / 'unknown' -- same device AND same network as the client
+    that last rotated this family. The strict test, kept for the report.
 
     Deliberately a three-valued string rather than a bool: 'unknown' (nothing
-    recorded, or no request context) must not read as 'no', which is the value
-    that means theft.
+    recorded, no request context, or a pre-split fingerprint) must not read as
+    'no', which is the value that means theft.
     """
+    return _fp_match(stored_fp, family_id, half='both')
+
+
+def _same_device(stored_fp: Optional[str], family_id: str) -> str:
+    """'yes' / 'no' / 'unknown' -- same device as the client that last rotated
+    this family, whatever network it is on now.
+
+    The test `_rotation_was_lost` applies. See `_client_fp` for why the network
+    half is excluded there and kept in `_same_client`.
+    """
+    return _fp_match(stored_fp, family_id, half='device')
+
+
+def _fp_match(stored_fp: Optional[str], family_id: str, half: str) -> str:
     if not stored_fp:
         return 'unknown'
     current = _client_fp(family_id)
     if not current:
         return 'unknown'
-    return 'yes' if current == stored_fp else 'no'
+    stored_device, stored_network = _fp_parts(stored_fp)
+    current_device, current_network = _fp_parts(current)
+    if not stored_device or not current_device:
+        return 'unknown'  # pre-split row, or a malformed value
+    if current_device != stored_device:
+        return 'no'
+    if half == 'device':
+        return 'yes'
+    return 'yes' if current_network == stored_network else 'no'
 
 
 def _reuse_shape(row: dict, presented_jti: str) -> str:
@@ -576,13 +654,14 @@ def _report_reuse(user_id: str, family_id: str, row: dict, presented_jti: str,
     facts = _reuse_facts(row, presented_jti, lost_cas_race=lost_cas_race,
                          owner_id=owner_id)
     same_client = _same_client(row.get('last_client_fp'), family_id)
+    same_device = _same_device(row.get('last_client_fp'), family_id)
     detail = ' '.join(f'{k}={v}' for k, v in facts.items())
     # One line, all of it: Sentry samples and Render logs do not, so a
     # reconstruction six weeks from now can start from the log alone.
     logger.warning(
         f"[RefreshFamilies] REFRESH TOKEN REUSE DETECTED | shape={shape} | "
         f"user {str(user_id)[:8]}... | family {str(family_id)[:8]}... | "
-        f"same_client={same_client} | {detail} | "
+        f"same_client={same_client} same_device={same_device} | {detail} | "
         f"family revoked, all sessions on this chain ended"
     )
     try:
@@ -595,6 +674,10 @@ def _report_reuse(user_id: str, family_id: str, row: dict, presented_jti: str,
             # and `reuse_shape:stale_previous same_client:yes` is the one that
             # says the grace window needs another look.
             scope.set_tag('same_client', same_client)
+            # same_device=no is the strong signal now that the recovery path
+            # tests the device alone: it means the replay came from hardware
+            # that was never in this chain.
+            scope.set_tag('same_device', same_device)
             scope.set_tag('user_id_prefix', str(user_id)[:8])
             scope.set_extra('family_id', str(family_id))
             for key, value in facts.items():

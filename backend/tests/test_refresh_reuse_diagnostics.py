@@ -321,3 +321,143 @@ class TestALostRotationIsRecoveredNotRevoked:
         assert 'Lost rotation recovered' in line
         assert 'same_client=yes' in line
         assert PREVIOUS[:8] in line
+
+
+@pytest.mark.unit
+class TestAClientThatChangedNetwork:
+    """The IP is no longer part of the recovery test (2026-09-07).
+
+    `_client_fp` hashes the client IP, so a laptop closed at home and opened at
+    the office -- or a phone handing off cellular to Wi-Fi -- fingerprinted as a
+    different client and was signed out of everything. Every revocation still
+    firing after the recovery path shipped was exactly that: `same_client=no`
+    from a Mac, an iPhone and an Android, each with the full lost-rotation
+    signature, one of them 444 seconds after its own rotation.
+
+    So the recovery path asks "same device?" while the report keeps showing the
+    stricter "same device AND network?".
+    """
+
+    HOME = {'REMOTE_ADDR': '203.0.113.7'}
+    OFFICE = {'REMOTE_ADDR': '198.51.100.22'}
+
+    def _fp_at(self, app, ua, where):
+        with app.test_request_context(headers={'User-Agent': ua}, environ_base=where):
+            return rf._client_fp(FAMILY)
+
+    def test_moving_network_keeps_the_device_but_not_the_client(self, app):
+        home = self._fp_at(app, 'Safari/18.6', self.HOME)
+        with app.test_request_context(headers={'User-Agent': 'Safari/18.6'},
+                                      environ_base=self.OFFICE):
+            assert rf._same_device(home, FAMILY) == 'yes'
+            # The strict signal is preserved, not replaced.
+            assert rf._same_client(home, FAMILY) == 'no'
+
+    def test_a_different_device_is_not_the_same_device(self, app):
+        """Even from the very same address: the device half has to match."""
+        home = self._fp_at(app, 'Safari/18.6', self.HOME)
+        with app.test_request_context(headers={'User-Agent': 'curl/8'},
+                                      environ_base=self.HOME):
+            assert rf._same_device(home, FAMILY) == 'no'
+            assert rf._same_client(home, FAMILY) == 'no'
+
+    def test_the_halves_still_cannot_follow_a_client_between_families(self, app):
+        """Both halves stay salted with the family id -- splitting the value in
+        two must not turn either half into a device or network tracker."""
+        with app.test_request_context(headers={'User-Agent': 'Safari/18.6'},
+                                      environ_base=self.HOME):
+            here = rf._client_fp(FAMILY)
+            there = rf._client_fp(OTHER_FAMILY)
+        assert rf._fp_parts(here)[0] != rf._fp_parts(there)[0]   # device half
+        assert rf._fp_parts(here)[1] != rf._fp_parts(there)[1]   # network half
+
+    def test_a_prefix_split_fingerprint_reads_as_unknown(self, app):
+        """Rows written before the split hold one segment. Reading that as a
+        mismatch would sign people out for the length of the rollout, and
+        reading it as a match would open the path on no evidence."""
+        legacy = 'a1b2c3d4e5f60718'   # what _client_fp used to return
+        with app.test_request_context(headers={'User-Agent': 'Safari/18.6'},
+                                      environ_base=self.HOME):
+            assert rf._same_device(legacy, FAMILY) == 'unknown'
+            assert rf._same_client(legacy, FAMILY) == 'unknown'
+        assert rf._fp_parts(legacy) == (None, None)
+
+
+@pytest.mark.unit
+class TestRecoveryAcrossANetworkChange:
+    """The behaviour the split exists for, end to end through rotate()."""
+
+    def _rotate_with(self, row, presented_jti):
+        client = MagicMock()
+        (client.table.return_value.select.return_value.eq.return_value
+         .limit.return_value.execute.return_value) = MagicMock(data=[row])
+        with patch.object(rf, '_admin', return_value=client), \
+             patch.object(rf, '_revoke') as revoke, \
+             patch.object(rf, '_report_reuse') as report:
+            outcome, family_id, next_jti = rf.rotate(
+                USER, FAMILY, presented_jti, timedelta(days=30))
+        return outcome, next_jti, revoke, report
+
+    def _lost_at(self, app, ua, ip, **overrides):
+        with app.test_request_context(headers={'User-Agent': ua},
+                                      environ_base={'REMOTE_ADDR': ip}):
+            fp = rf._client_fp(FAMILY)
+        row = _row(rotated_at=_ago(minutes=10), last_used_at=_ago(minutes=10),
+                   last_client_fp=fp)
+        row.update(overrides)
+        return row
+
+    def test_the_same_phone_on_a_new_network_keeps_its_session(self, app):
+        """The whole point. Cellular to Wi-Fi is not a token theft."""
+        row = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7')
+        with app.test_request_context(headers={'User-Agent': 'Mobile Safari/26.6.1'},
+                                      environ_base={'REMOTE_ADDR': '198.51.100.22'}):
+            outcome, next_jti, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.RECOVERED
+        assert outcome not in rf.DENY
+        assert next_jti == CURRENT
+        assert not revoke.called
+        assert not report.called
+
+    def test_a_stranger_on_the_victims_network_is_still_a_replay(self, app):
+        """Loosening (3) to the device must not let the network alone carry it:
+        someone on the same Wi-Fi with their own browser is still a stranger."""
+        row = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7')
+        with app.test_request_context(headers={'User-Agent': 'curl/8'},
+                                      environ_base={'REMOTE_ADDR': '203.0.113.7'}):
+            outcome, _, revoke, report = self._rotate_with(row, PREVIOUS)
+        assert outcome == rf.REUSE
+        assert revoke.called and report.called
+
+    def test_the_other_conditions_still_hold_across_a_network_change(self, app):
+        """A moved IP buys nothing on its own: the recovery still needs the
+        immediately-preceding jti, an unused rotation, and the time bound."""
+        moved = {'headers': {'User-Agent': 'Mobile Safari/26.6.1'},
+                 'environ_base': {'REMOTE_ADDR': '198.51.100.22'}}
+
+        used = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7',
+                             last_used_at=_ago(minutes=2))
+        stale = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7',
+                              rotated_at=_ago(hours=30), last_used_at=_ago(hours=30))
+        older = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7')
+
+        for row, presented in ((used, PREVIOUS), (stale, PREVIOUS), (older, ANCIENT)):
+            with app.test_request_context(**moved):
+                outcome, _, revoke, report = self._rotate_with(row, presented)
+            assert outcome == rf.REUSE
+            assert revoke.called and report.called
+
+    def test_a_revocation_reports_both_signals(self, app):
+        """same_device is the strong one now; same_client has to stay visible
+        so the stricter test is only ever hidden from the DECISION."""
+        row = self._lost_at(app, 'Mobile Safari/26.6.1', '203.0.113.7')
+        sentry = MagicMock()
+        scope = sentry.new_scope.return_value.__enter__.return_value
+        tags = {}
+        scope.set_tag.side_effect = lambda k, v: tags.__setitem__(k, v)
+        with app.test_request_context(headers={'User-Agent': 'curl/8'},
+                                      environ_base={'REMOTE_ADDR': '198.51.100.22'}):
+            with patch.dict('sys.modules', {'sentry_sdk': sentry}):
+                rf._report_reuse(USER, FAMILY, row, ANCIENT)
+        assert tags['same_device'] == 'no'
+        assert tags['same_client'] == 'no'

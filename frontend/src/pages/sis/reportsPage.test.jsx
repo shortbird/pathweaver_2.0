@@ -31,6 +31,24 @@ const { api } = vi.hoisted(() => {
         parent: 'Pat Parent', parent_phone: '555-0100', emergency_contact: 'Gran (grandmother) 555-0101',
       }] } } }
     }
+    if (url.includes('/reports/emergency-contacts')) {
+      return { data: { report: {
+        max_guardians: 2, max_emergency: 2, incomplete: 1,
+        rows: [
+          { student: 'Adaline Bellon', age: 7, family: 'Bellon',
+            guardians: [
+              { name: 'Jane Bellon (Mother)', phone: '555-0100' },
+              { name: 'Sam Bellon (Father)', phone: '555-0101' },
+            ],
+            emergency_contacts: [{ name: 'Ruth Vance (Grandmother)', phone: '555-0199' }],
+            missing: '' },
+          { student: 'Kai Ono', age: 9, family: 'Ono',
+            guardians: [{ name: 'Mia Ono (Mother)', phone: '' }],
+            emergency_contacts: [],
+            missing: 'no guardian phone; no emergency contact' },
+        ],
+      } } }
+    }
     if (url.includes('/reports/media-release')) {
       return { data: { report: {
         questions: [{ key: 'media_release', label: 'Photo & Media Release' }],
@@ -237,6 +255,30 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Print')).toBeInTheDocument()
     expect(screen.getByText('Download CSV')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/reports/medications'))
+  })
+
+  // iCreate, 2026-09-05 (41c838c5): "Could we get an emergency master list of
+  // students with both parents/guardians listed along with contact info? ...
+  // it would help us to see if we are missing any contact info still."
+  it('runs the emergency contact sheet with both guardians on one row', async () => {
+    render(<ReportsPage />)
+    await screen.findByText('Information reports')
+    fireEvent.click(screen.getByRole('button', { name: 'Run Emergency contacts' }))
+    expect(await screen.findByText('Adaline Bellon')).toBeInTheDocument()
+    expect(screen.getByText('Jane Bellon (Mother)')).toBeInTheDocument()
+    expect(screen.getByText('Sam Bellon (Father)')).toBeInTheDocument()
+    expect(screen.getByText('Ruth Vance (Grandmother)')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/reports/emergency-contacts'))
+  })
+
+  it('says on the sheet which families are still missing contact information', async () => {
+    render(<ReportsPage />)
+    await screen.findByText('Information reports')
+    fireEvent.click(screen.getByRole('button', { name: 'Run Emergency contacts' }))
+    expect(await screen.findByText(/1 student still missing contact information/))
+      .toBeInTheDocument()
+    expect(screen.getByText('no guardian phone; no emergency contact')).toBeInTheDocument()
   })
 
   it('runs the class report and lets the office pick which columns to show', async () => {

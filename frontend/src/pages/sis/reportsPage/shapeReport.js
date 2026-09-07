@@ -59,6 +59,35 @@ const shapeReport = (type, data, questionLabel) => {
       ]),
     }
   }
+  if (type === 'emergency-contacts') {
+    // Flat, and in the order somebody reads it in a hurry: who the child is,
+    // then who to call, then what we still do not have. The counts of guardian
+    // and emergency-contact columns come from the API so this and the CSV can
+    // never disagree about how many fit (iCreate, 2026-09-05, 41c838c5).
+    const guardians = report.max_guardians || 2
+    const emergency = report.max_emergency || 2
+    const nth = (list, i, key) => (list || [])[i]?.[key] ?? ''
+    const seq = (n) => Array.from({ length: n }, (_, i) => i)
+    return {
+      title: 'Emergency contacts',
+      summary: report.incomplete
+        ? `${report.incomplete} student${report.incomplete === 1 ? '' : 's'} still missing contact information.`
+        : 'Every student has a guardian and an emergency contact on file.',
+      columns: [
+        'Student', 'Age', 'Family',
+        ...seq(guardians).flatMap((i) => [`Guardian ${i + 1}`, `Guardian ${i + 1} phone`]),
+        ...seq(emergency).flatMap((i) => [`Emergency contact ${i + 1}`, `Emergency contact ${i + 1} phone`]),
+        'Missing',
+      ],
+      rows: (report.rows || []).map((r) => [
+        r.student, r.age ?? '', r.family,
+        ...seq(guardians).flatMap((i) => [nth(r.guardians, i, 'name'), nth(r.guardians, i, 'phone')]),
+        ...seq(emergency).flatMap((i) => [
+          nth(r.emergency_contacts, i, 'name'), nth(r.emergency_contacts, i, 'phone')]),
+        r.missing,
+      ]),
+    }
+  }
   if (type === 'media-release') {
     const questions = report.questions || []
     return {

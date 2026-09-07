@@ -6,7 +6,6 @@ REPOSITORY MIGRATION: COMPLETE
 """
 
 from flask import Blueprint, jsonify, request
-from flask_cors import cross_origin
 from services.portfolio_service import PortfolioService
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
@@ -18,26 +17,70 @@ logger = get_logger(__name__)
 
 bp = Blueprint('portfolio', __name__)
 
+# NO @cross_origin DECORATORS IN THIS FILE. CORS is owned entirely by
+# cors_config.py, whose resource regex r"/(api|portfolio|lti)/.*" already covers
+# every route here and sets supports_credentials=True.
+#
+# A per-route @cross_origin() does not ADD to that config, it REPLACES it for
+# that view - with flask-cors' defaults, which mean supports_credentials=False.
+# Three of these were added together on 2026-02-04 and only one of them passed
+# supports_credentials=True. The other two silently dropped the
+# Access-Control-Allow-Credentials header, and because the frontend axios client
+# sets withCredentials: true globally (services/api.js), the browser refused
+# every response. GET /api/portfolio/public/<slug> is the endpoint behind the
+# shareable /portfolio/:slug link, so public portfolios failed to load and the
+# page fell through to its "This diploma may be private or does not exist"
+# branch. That was live in production for seven months.
+#
+# If a route here ever genuinely needs different CORS (a wildcard origin for an
+# unauthenticated embed, say - see routes/embed.py), add it to cors_config.py
+# rather than decorating the view.
+
 
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
-@cross_origin()
 def get_public_portfolio(portfolio_slug):
     """
-    Public endpoint (no auth required) to view a student's portfolio.
-    Returns: user info, completed quests with evidence, skill XP totals
+    Public endpoint (no auth required) to view a student's portfolio by slug.
+    This backs the shareable /portfolio/<slug> link.
+
+    Delegates to get_diploma_data() -- the same call behind /diploma/<user_id>
+    -- and returns the same UNWRAPPED shape, because the two routes render the
+    identical page.
+
+    They had drifted apart. This one used to call get_public_portfolio_data(),
+    a parallel implementation returning a different shape (`completed_quests`
+    instead of `achievements`, `skill_xp` as a list instead of a per-pillar
+    dict) wrapped in a success_response envelope the caller did not unwrap. It
+    also counted differently: 62 quests / 13,847 XP against the diploma route's
+    24 / 103,175 for the same student. DiplomaPage only ever learned to read
+    the diploma shape, so this route rendered an empty page -- no pillars, no
+    credits, no evidence.
+
+    Nobody caught it because the route was unreachable from a browser from
+    2026-02-04 until today: a bare @cross_origin() on this view dropped the
+    Access-Control-Allow-Credentials header (see the note at the top of this
+    file), so every request failed CORS before the payload mattered.
+
+    Access policy now matches /diploma/<user_id> exactly: public to anyone, and
+    still readable by a viewer the family has connected to the student (parent,
+    advisor, invited observer) when the portfolio is private.
     """
     try:
         portfolio_service = PortfolioService()
-        result = portfolio_service.get_public_portfolio_data(portfolio_slug)
+
+        diploma = portfolio_service.get_diploma_by_slug(portfolio_slug)
+        if not diploma:
+            return jsonify({'error': 'Portfolio not found or private'}), 404
+
+        viewer_user_id = session_manager.get_current_user_id()
+        result = portfolio_service.get_diploma_data(
+            diploma['user_id'], viewer_user_id
+        )
 
         if 'error' in result:
-            return error_response(
-                code='PORTFOLIO_NOT_FOUND',
-                message=result['error'],
-                status=404
-            )
+            return jsonify({'error': 'Portfolio not found or private'}), 404
 
-        return success_response(data=result)
+        return jsonify(result), 200
 
     except Exception as e:
         import traceback
@@ -51,7 +94,6 @@ def get_public_portfolio(portfolio_slug):
 
 
 @bp.route('/user/<user_id>', methods=['GET'])
-@cross_origin()
 @require_auth
 @require_relationship_to('user_id', allow=(
     'self', 'parent', 'advisor', 'teacher', 'observer', 'peer', 'org_staff'), discloses='portfolio')
@@ -104,7 +146,6 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
 
 
 @bp.route('/diploma/<user_id>', methods=['GET'])
-@cross_origin(supports_credentials=True)
 def get_public_diploma_by_user_id(user_id):
     """
     Public endpoint to view a student's diploma by user ID.

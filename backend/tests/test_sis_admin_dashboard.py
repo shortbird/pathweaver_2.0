@@ -268,12 +268,13 @@ class TestTheRestOfThePayload:
         data = _run(settings={'hidden_modules': ['clp', 'billing'],
                               'prior_learning_enabled': True,
                               'post_registration_flow': 'goals'})
-        # hidden_modules is the module system's answer now, so the opt-in
-        # modules this org never turned on (community, kiosk) are reported
-        # off alongside the explicitly hidden ones — the frontend's filter
-        # vocabulary and the gate agree by construction.
+        # hidden_modules is the module system's answer now, so an opt-in SIS
+        # module this org never turned on (community) is reported off alongside
+        # the explicitly hidden ones — the frontend's filter vocabulary and the
+        # gate agree by construction. The kiosk is not in this list any more:
+        # it lost its SIS parent on 2026-09-07 (LMS-only schools run it).
         assert data['settings'] == {
-            'hidden_modules': ['billing', 'clp', 'community', 'kiosk'],
+            'hidden_modules': ['billing', 'clp', 'community'],
             'prior_learning_enabled': True,
             'post_registration_flow': 'goals',
         }

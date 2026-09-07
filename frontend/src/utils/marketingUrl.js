@@ -1,12 +1,22 @@
 /**
- * Links from the app to the marketing site (which lives in marketing/ and
- * deploys as a static site at the root domain).
+ * Links from the app to the marketing site (marketing/, an Astro static site
+ * serving www.optioeducation.com).
  *
- * Until the DNS cutover, VITE_MARKETING_URL is unset and these resolve to
- * relative paths, which the SPA's own marketing routes still serve. After the
- * cutover (app on app.optioeducation.com, marketing on the root domain), set
- * VITE_MARKETING_URL=https://www.optioeducation.com on the app services and
- * the same links land on the static site.
+ * DEFAULT IS ABSOLUTE. Before the 2026-09-01 cutover this fell back to '' so
+ * the links resolved relatively and were served by the SPA's own marketing
+ * routes. After the cutover that default became wrong: the SPA moved to
+ * app.optioeducation.com, where a relative /schools is not a route at all --
+ * it fell through the router to NotFoundRedirect, which sends anonymous
+ * visitors to `/`. So the "For schools" link on the public catalog quietly
+ * delivered people to the app's stale marketing homepage instead of the real
+ * Schools page on www. Same for /academy#free-class and /academy#how-it-works,
+ * which landed on the duplicate AcademyPage still routed in this SPA.
+ *
+ * VITE_MARKETING_URL still overrides, for anyone running `astro dev` locally.
  */
+const PROD_MARKETING_URL = 'https://www.optioeducation.com'
+
 export const marketingUrl = (path) =>
-  `${import.meta.env.VITE_MARKETING_URL || ''}${path}`
+  `${import.meta.env.VITE_MARKETING_URL || PROD_MARKETING_URL}${path}`
+
+export { PROD_MARKETING_URL }

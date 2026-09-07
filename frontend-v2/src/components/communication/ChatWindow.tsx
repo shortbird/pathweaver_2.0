@@ -47,6 +47,7 @@ import {
   COMPOSER_MIN_BOTTOM_PAD,
   COMPOSER_KEYBOARD_GAP,
 } from './MessageParts';
+import MessageText from './MessageText';
 import { MessageActionsSheet } from './MessageActionsSheet';
 
 interface Props {
@@ -423,12 +424,11 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                       <ReplyQuote replyTo={msg.reply_to} isMine={isMine} />
                       <MessageAttachments attachments={msg.attachments} isMine={isMine} />
                       {msg.message_content ? (
-                        <UIText
-                          size="sm"
-                          style={{ color: isMine ? '#fff' : c.text, lineHeight: 20 }}
-                        >
-                          {msg.message_content}
-                        </UIText>
+                        <MessageText
+                          content={msg.message_content}
+                          color={isMine ? '#fff' : c.text}
+                          linkColor={isMine ? '#fff' : c.brand}
+                        />
                       ) : null}
                     </>
                   )}

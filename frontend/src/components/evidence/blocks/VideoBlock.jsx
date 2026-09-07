@@ -7,7 +7,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { getVideoEmbedUrl } from '../../../utils/videoUtils';
 
-const VideoBlock = ({ block, displayMode }) => {
+const VideoBlock = ({ block, displayMode = 'full' }) => {
   const { content } = block;
 
   // Handle both old format (content.url) and new format (content.items)
@@ -170,10 +170,6 @@ VideoBlock.propTypes = {
     ])
   }).isRequired,
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview'])
-};
-
-VideoBlock.defaultProps = {
-  displayMode: 'full'
 };
 
 export default VideoBlock;

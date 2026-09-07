@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { showAlert } from '@/src/utils/alerts';
+import { describeMediaError, isCancelledMediaError } from '@/src/utils/mediaErrors';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
 import { haptic } from '@/src/utils/haptics';
 import { captureException, captureMessage } from '@/src/services/sentry';
@@ -152,8 +153,30 @@ export function TaskEvidenceSheet({
     } catch (err) {
       recordAction('evidence:process-threw', { error: String(err).slice(0, 200) });
       captureException(err, { stage: 'task-evidence-process' });
-      showAlert('Something went wrong', "That file couldn't be added. Please try again.");
+      // Reading a ph:// asset that is only in iCloud fails here, not at launch.
+      const copy = describeMediaError(err, {
+        title: 'Something went wrong',
+        message: "That file couldn't be added. Please try again.",
+      });
+      if (copy) showAlert(copy.title, copy.message);
     }
+  };
+
+  // "That didn't work. Please try again." is wrong for the common case: an
+  // iCloud photo that is not on the device fails identically on every retry
+  // until the phone has a network (Sentry OPTIO-MOBILE-Q). Name what happened.
+  const reportPickerFailure = (err: unknown, source?: string) => {
+    recordAction('evidence:picker-threw', {
+      ...(source ? { source } : {}),
+      error: String(err).slice(0, 200),
+    });
+    if (isCancelledMediaError(err)) return;
+    captureException(err, { stage: 'task-evidence-picker-launch' });
+    const copy = describeMediaError(err, {
+      title: 'Something went wrong',
+      message: "That didn't work. Please try again.",
+    });
+    if (copy) showAlert(copy.title, copy.message);
   };
 
   const runWithSheetHidden = (action: PickerAction, label: string) => {
@@ -168,9 +191,7 @@ export function TaskEvidenceSheet({
         try {
           assets = await action();
         } catch (err) {
-          recordAction('evidence:picker-threw', { source: label, error: String(err).slice(0, 200) });
-          captureException(err, { stage: 'task-evidence-picker-launch' });
-          showAlert('Something went wrong', "That didn't work. Please try again.");
+          reportPickerFailure(err, label);
           return;
         }
         recordAction('evidence:picker-returned', { source: label, assetCount: assets ? assets.length : 0 });
@@ -193,9 +214,7 @@ export function TaskEvidenceSheet({
         assets = await action();
         recordAction('evidence:picker-returned', { assetCount: assets ? assets.length : 0 });
       } catch (err) {
-        recordAction('evidence:picker-threw', { error: String(err).slice(0, 200) });
-        captureException(err, { stage: 'task-evidence-picker-launch' });
-        showAlert('Something went wrong', "That didn't work. Please try again.");
+        reportPickerFailure(err);
       } finally {
         // Re-present the sheet BEFORE the (possibly slow) video transcode, so
         // the "Optimizing video…" progress is visible instead of the popup

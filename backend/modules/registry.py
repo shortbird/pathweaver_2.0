@@ -196,8 +196,16 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   ('Prior Learning',),
                   default='off', parent='sis', surfaces=('console', 'family'),
                   legacy='prior_learning_enabled'),
+        # A shared classroom device: tap your name, photograph your paper
+        # work into a quest task. It rides on core LMS surfaces only (quests,
+        # tasks, evidence), so it has NO parent -- an LMS-only school can run
+        # kiosks without taking on the SIS console. It carried parent='sis'
+        # until 2026-09-07, when Arete Academy (no SIS) asked for it and the
+        # device card turned out to be unreachable for them: the card sat on
+        # the console-only settings surface, behind a block the SIS switch
+        # kept off. Both settings surfaces carry the card now.
         ModuleDef('kiosk', 'Kiosk Check-In', 'operations', ('Kiosk Check-In',),
-                  default='off', parent='sis', surfaces=('console',),
+                  default='off', surfaces=('console', 'learning'),
                   legacy='kiosk_flag'),
     )
 

@@ -7,7 +7,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { formatFileSize } from '../../../utils/mediaUtils';
 
-const DocumentBlock = ({ block, displayMode }) => {
+const DocumentBlock = ({ block, displayMode = 'full' }) => {
   const { content } = block;
 
   // Handle both old format (content.url) and new format (content.items)
@@ -147,10 +147,6 @@ DocumentBlock.propTypes = {
     ])
   }).isRequired,
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview'])
-};
-
-DocumentBlock.defaultProps = {
-  displayMode: 'full'
 };
 
 export default DocumentBlock;

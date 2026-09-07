@@ -298,6 +298,23 @@ def list_schedule_conflicts(org_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def conflict_key(kind: str, subject: str, class_a: str, class_b: str,
+                 slot: Dict[str, Any]) -> str:
+    """A stable name for one double-booking, used to remember that the office
+    has already looked at it and decided it is fine (iCreate 8479edee: "I'd like
+    to have a button to hit that allows me to acknowledge I've seen it, but I
+    think it's ok, so clear it from the warnings").
+
+    The SLOT is part of the name on purpose. An acknowledgement is a judgement
+    about a specific overlap — "yes, both of those can be in the gym at 10:30" —
+    so moving either class to a different day or hour is a different question,
+    and the warning comes back to be answered again.
+    """
+    when = '-'.join(str(slot.get(k) or '') for k in ('day_of_week', 'start_time', 'end_time'))
+    a, b = sorted([class_a or '', class_b or ''])
+    return ':'.join([kind, (subject or '').strip().lower(), a, b, when])
+
+
 def list_teacher_conflicts(org_id: str) -> List[Dict[str, Any]]:
     """Every teacher who is the primary instructor of two classes whose
     meetings overlap — the front office double-booked a person (iCreate:
@@ -360,6 +377,7 @@ def list_teacher_conflicts(org_id: str) -> List[Dict[str, Any]]:
             'day_of_week': slot.get('day_of_week'),
             'start_time': slot.get('start_time'),
             'end_time': slot.get('end_time'),
+            'key': conflict_key('teacher', p['key'], p['class_a'], p['class_b'], slot),
         })
     out.sort(key=lambda r: (r['teacher_name'].lower(), r['class_a'] or ''))
     return out
@@ -456,6 +474,7 @@ def room_schedule(org_id: str) -> Dict[str, Any]:
             'day_of_week': slot.get('day_of_week'),
             'start_time': slot.get('start_time'),
             'end_time': slot.get('end_time'),
+            'key': conflict_key('room', p['key'], p['class_a'], p['class_b'], slot),
         })
     conflicts.sort(key=lambda r: (r['room'].lower(), r['class_a'] or ''))
     return {'occupancy': occupancy, 'conflicts': conflicts}

@@ -65,13 +65,23 @@ class TestListTeacherConflicts:
 
     def test_reports_the_double_booked_teacher(self):
         out, _ = self._run()
-        assert out == [{
+        # `key` is the name an acknowledgement is filed under (8479edee) and is
+        # asserted below; this stays about the conflict itself.
+        assert [{k: v for k, v in c.items() if k != 'key'} for c in out] == [{
             'teacher_id': HOLLIE,
             'teacher_name': 'Hollie Smith',
             'class_a_id': 'art', 'class_a': 'Digital Art Studio',
             'class_b_id': 'story', 'class_b': 'Story Detectives',
             'day_of_week': 4, 'start_time': '14:00', 'end_time': '15:00',
         }]
+
+    def test_the_conflict_carries_a_name_the_office_can_wave_off(self):
+        """iCreate, 2026-09-05 (8479edee): "a button ... that allows me to
+        acknowledge I've seen it, but I think it's ok, so clear it from the
+        warnings." The name includes the hour, so rescheduling either class
+        raises the question again instead of staying quietly dismissed."""
+        out, _ = self._run()
+        assert out[0]['key'] == f'teacher:{HOLLIE.lower()}:art:story:4-14:00-15:00'
 
     def test_only_multi_class_teachers_are_checked(self):
         # Pottery's teacher has one class; archived/teacherless rows never

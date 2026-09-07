@@ -110,12 +110,20 @@ export default function ClassFieldsEditor({
   const draftEnd = addMin(d.start_time, d.duration_minutes)
   const busyRooms = React.useMemo(() => {
     if (!d.start_time || !draftEnd || !d.days_of_week?.length) return {}
+    // hhmm() on BOTH sides before comparing. The draft carries "11:30" and the
+    // server sends Postgres time as "11:30:00", and as strings "11:30" sorts
+    // BEFORE "11:30:00" — so every class starting exactly when the previous one
+    // ended read as an overlap, which is every consecutive pair of blocks
+    // (iCreate 7901c118: Theater Jr. in block 3 warned about Brain Games in
+    // block 2, in the same room, one ending as the other starts).
+    const start = hhmm(d.start_time)
+    const end = hhmm(draftEnd)
     const out = {}
     for (const [room, slots] of Object.entries(roomOccupancy || {})) {
       const clash = slots.filter((s) => (
         s.class_id !== d.id
         && d.days_of_week.includes(s.day_of_week)
-        && s.start_time < draftEnd && d.start_time < s.end_time
+        && hhmm(s.start_time) < end && start < hhmm(s.end_time)
       ))
       if (clash.length) out[room] = clash
     }

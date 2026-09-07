@@ -6,7 +6,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const LinkBlock = ({ block, displayMode }) => {
+const LinkBlock = ({ block, displayMode = 'full' }) => {
   const { content } = block;
 
   // Handle both old format (content.url) and new format (content.items)
@@ -96,10 +96,6 @@ LinkBlock.propTypes = {
     ])
   }).isRequired,
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview'])
-};
-
-LinkBlock.defaultProps = {
-  displayMode: 'full'
 };
 
 export default LinkBlock;

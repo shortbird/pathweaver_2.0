@@ -54,12 +54,25 @@ def _run(classes=CLASSES, meetings=MEETINGS):
 class TestRoomConflicts:
     def test_reports_two_classes_put_in_one_room_at_one_hour(self):
         out, _ = _run()
-        assert out['conflicts'] == [{
+        # `key` is the name the acknowledgement is filed under (8479edee); it is
+        # asserted on its own below, so this stays about the conflict itself.
+        assert [{k: v for k, v in c.items() if k != 'key'} for c in out['conflicts']] == [{
             'room': 'Art Room',
             'class_a_id': 'art', 'class_a': 'Digital Art Studio',
             'class_b_id': 'story', 'class_b': 'Story Detectives',
             'day_of_week': 4, 'start_time': '14:00', 'end_time': '15:00',
         }]
+
+    def test_the_conflict_is_named_by_room_classes_and_hour(self):
+        """iCreate, 2026-09-05 (8479edee): the office can say "seen it, that one
+        is fine". The name it is filed under carries the SLOT, so moving either
+        class to another hour asks the question again rather than staying
+        silently dismissed."""
+        out, _ = _run()
+        key = out['conflicts'][0]['key']
+        assert key.startswith('room:art room:')
+        assert 'art' in key and 'story' in key
+        assert '14:00' in key and '15:00' in key
 
     def test_a_room_with_one_class_is_not_a_conflict(self):
         out, _ = _run()

@@ -65,8 +65,22 @@ const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm foc
  * The link table has allowed one quest on many curricula since it was created;
  * nothing said so, and the only route to it was to leave this quest, open the
  * other curriculum, and find the title again in a picker of everything.
+ *
+ * `onChanged` refreshes the library BEHIND this panel. Adding the quest here
+ * changes another curriculum's "N quests", and this used to reload only its own
+ * chips — so the master list went on saying the other curriculum had nothing
+ * until the page was reloaded (iCreate, 2026-09-05, 3eda88ac: "I assigned the
+ * quest to Teen Maker Lab, but it doesn't show as having 1 quest on the master
+ * list page"; she then worried the quest had not saved at all).
+ *
+ * `onMoved` is the second picker: put it there and take it off here, in one
+ * action. Moving was already possible as add-then-Remove, which is only obvious
+ * once you know that "Remove" means this curriculum and not the quest — and the
+ * person who asked did not (iCreate, 2026-09-05, 291955e0: "I accidentally put
+ * it in the wrong curriculum. How can I move this to a different curriculum?",
+ * then c1ca4929: "I'm still not sure what remove will do, didn't dare try it").
  */
-function QuestCurricula({ base, orgId, curriculumId }) {
+function QuestCurricula({ base, orgId, curriculumId, onChanged, onMoved }) {
   const [state, setState] = useState(null) // {on, available}
   const [busy, setBusy] = useState(false)
 
@@ -86,9 +100,28 @@ function QuestCurricula({ base, orgId, curriculumId }) {
       const n = data?.pushed_to_classes || 0
       toast.success(n ? `Added, and pushed to ${n} class${n === 1 ? '' : 'es'}` : 'Added')
       load()
+      onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not add it there')
     } finally { setBusy(false) }
+  }
+
+  // Add first, unlink second, and only unlink if the add succeeded — the
+  // failure a move must never have is the one that leaves the quest on neither
+  // curriculum. The unlink is the host's job: it owns this curriculum's quest
+  // list, and the route that edits it is the same one the row's Remove uses.
+  const moveTo = async (targetId, targetTitle) => {
+    setBusy(true)
+    try {
+      await api.post(withOrg(`${base}/curricula`, orgId),
+        { target_curriculum_id: targetId })
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not move it there')
+      setBusy(false)
+      return
+    }
+    setBusy(false)
+    onMoved?.(targetTitle)
   }
 
   const removeFrom = async (targetId) => {
@@ -96,6 +129,7 @@ function QuestCurricula({ base, orgId, curriculumId }) {
     try {
       await api.delete(withOrg(`${base}/curricula/${targetId}`, orgId))
       load()
+      onChanged?.()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove it')
     } finally { setBusy(false) }
@@ -126,21 +160,37 @@ function QuestCurricula({ base, orgId, curriculumId }) {
         <p className="text-xs text-neutral-400 mb-1.5">No other curriculum.</p>
       )}
       {state.available.length > 0 && (
-        <select className="text-xs border border-gray-300 rounded px-1.5 py-1"
-          aria-label="Add this quest to another curriculum"
-          value="" disabled={busy}
-          onChange={(e) => e.target.value && addTo(e.target.value)}>
-          <option value="">Add to another curriculum…</option>
-          {state.available.map((c) => (
-            <option key={c.id} value={c.id}>{c.title}</option>
-          ))}
-        </select>
+        <div className="flex flex-wrap gap-1.5">
+          <select className="text-xs border border-gray-300 rounded px-1.5 py-1"
+            aria-label="Add this quest to another curriculum"
+            value="" disabled={busy}
+            onChange={(e) => e.target.value && addTo(e.target.value)}>
+            <option value="">Add to another curriculum…</option>
+            {state.available.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </select>
+          {onMoved && (
+            <select className="text-xs border border-gray-300 rounded px-1.5 py-1"
+              aria-label="Move this quest to another curriculum"
+              value="" disabled={busy}
+              onChange={(e) => {
+                const c = state.available.find((x) => x.id === e.target.value)
+                if (c) moveTo(c.id, c.title)
+              }}>
+              <option value="">Move to another curriculum…</option>
+              {state.available.map((c) => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
+            </select>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
+function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChanged, onMoved }) {
   const confirm = useConfirm()
   const [detail, setDetail] = useState(null)   // { title, description, editable }
   const [editingInfo, setEditingInfo] = useState(false)
@@ -237,7 +287,8 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
 
       <PresetTaskManager base={`${base}/tasks`} orgId={orgId} />
 
-      <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId} />
+      <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId}
+        onChanged={onChanged} onMoved={onMoved} />
 
       {detail.editable && (
         <div className="mt-2 pt-2 border-t border-gray-100 text-right">
@@ -252,6 +303,7 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted }) {
 }
 
 export default function CurriculumResources({ orgId, curriculumId, canManage, onChanged }) {
+  const confirm = useConfirm()
   const [quests, setQuests] = useState([])
   const [questOptions, setQuestOptions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -295,6 +347,24 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
       toast.error(err?.response?.data?.error || 'Could not save the quest set')
       load()
     } finally { setBusy(false) }
+  }
+
+  // Taking a quest off THIS curriculum. Named in the dialog because the button
+  // cannot be: "Remove" sits next to a quest title, and the two things it could
+  // plausibly mean — off this curriculum, or gone from the school — are a long
+  // way apart. Classes already running it keep it (see the note above the list
+  // and services/sis_curriculum_sync), so the dialog says that too.
+  const unlinkQuest = async (q) => {
+    const ok = await confirm({
+      title: `Take "${q.title}" off this curriculum?`,
+      body: 'It stays in the school\'s quest library, and classes already using '
+        + 'it keep it with their own due dates. You can add it back here at any '
+        + 'time.',
+      confirmLabel: 'Take it off',
+      cancelLabel: 'Leave it here',
+    })
+    if (!ok) return
+    saveQuests(quests.filter((x) => x.id !== q.id))
   }
 
   const resetNew = () => {
@@ -372,9 +442,16 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                       <span className="text-neutral-800 flex-1 min-w-0 truncate">{q.title}</span>
                     )}
                     {canManage && (
+                      // Confirmed, because "Remove" alone does not say WHAT it
+                      // removes it from, and the person who asked read it as
+                      // possibly deleting the quest and left it alone rather
+                      // than find out (iCreate, 2026-09-05, c1ca4929: "I'm
+                      // still not sure what remove will do, didn't dare try
+                      // it"). The sentence is the fix; the dialog is how it
+                      // gets read.
                       <button type="button" disabled={busy}
                         aria-label={`Remove ${q.title}`}
-                        onClick={() => saveQuests(quests.filter((x) => x.id !== q.id))}
+                        onClick={() => unlinkQuest(q)}
                         className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
                     )}
                   </div>
@@ -392,6 +469,12 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                         setExpandedId(null)
                         setQuests((prev) => prev.filter((x) => x.id !== q.id))
                         onChanged?.()
+                      }}
+                      onChanged={onChanged}
+                      onMoved={(title) => {
+                        setExpandedId(null)
+                        saveQuests(quests.filter((x) => x.id !== q.id))
+                        toast.success(`Moved to ${title}`)
                       }}
                     />
                   )}

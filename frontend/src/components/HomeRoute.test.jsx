@@ -1,98 +1,118 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import HomeRoute, { NotFoundRedirect } from './HomeRoute'
+import { PROD_MARKETING_URL } from '../utils/marketingUrl'
 
 let authState = {}
+let replaceSpy
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))
 
-// The real marketing homepage drags in layout and analytics; a stub is enough
-// to prove which branch rendered.
-vi.mock('../pages/marketing/HomePage', () => ({
-  default: () => <div data-testid="marketing-home">Marketing homepage</div>
-}))
-
 const writeLogin = (userId) =>
   localStorage.setItem('session_sync', JSON.stringify({ userId, action: 'login', timestamp: 1 }))
+
+/** Pretend the page is an installed PWA (or not). */
+function setStandalone(on) {
+  window.matchMedia = vi.fn().mockReturnValue({ matches: on })
+}
 
 function renderAt(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/" element={<HomeRoute />} />
+        <Route path="/login" element={<div data-testid="login" />} />
         <Route path="/dashboard" element={<div data-testid="student-dashboard" />} />
-        <Route path="/parent/dashboard" element={<div data-testid="parent-dashboard" />} />
-        <Route path="/school" element={<div data-testid="school-home" />} />
         <Route path="*" element={<NotFoundRedirect />} />
       </Routes>
     </MemoryRouter>
   )
 }
 
+beforeEach(() => {
+  localStorage.clear()
+  authState = { isAuthenticated: false, user: null, loading: false }
+  setStandalone(false)
+  replaceSpy = vi.fn()
+  // jsdom's location is not writable; swap in a stub we can assert on.
+  Object.defineProperty(window, 'location', {
+    value: { replace: replaceSpy, href: 'http://localhost:3000/' },
+    writable: true,
+    configurable: true,
+  })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('HomeRoute (the / route)', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    authState = { isAuthenticated: false, user: null, loading: false }
-  })
-
-  it('shows the marketing homepage to anonymous visitors', () => {
+  it('sends anonymous visitors to the marketing homepage on www', async () => {
     renderAt('/')
-    expect(screen.getByTestId('marketing-home')).toBeInTheDocument()
+    await waitFor(() => expect(replaceSpy).toHaveBeenCalledWith(`${PROD_MARKETING_URL}/`))
   })
 
-  it('renders marketing immediately while auth loads with no session hint (crawlers, fresh visitors)', () => {
+  it('leaves this host entirely — never renders a local homepage copy', async () => {
+    renderAt('/')
+    await waitFor(() => expect(replaceSpy).toHaveBeenCalled())
+    const target = replaceSpy.mock.calls[0][0]
+    expect(target).toMatch(/^https:\/\/www\.optioeducation\.com/)
+  })
+
+  /**
+   * The PWA's start_url is this path. Redirecting would drop a logged-out user
+   * out of the installed app and into a browser, with no way back short of
+   * reinstalling.
+   */
+  it('keeps an installed PWA in the app shell, on /login', async () => {
+    setStandalone(true)
+    renderAt('/')
+    expect(await screen.findByTestId('login')).toBeInTheDocument()
+    expect(replaceSpy).not.toHaveBeenCalled()
+  })
+
+  it('forwards a signed-in student to their dashboard, never off-site', async () => {
+    authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'student' } }
+    renderAt('/')
+    expect(await screen.findByTestId('student-dashboard')).toBeInTheDocument()
+    expect(replaceSpy).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The regression that matters. Guessing "anonymous" from a missing session
+   * hint used to be free — the signed-in branch took over when auth resolved.
+   * A cross-origin redirect cannot be taken back, so we wait.
+   */
+  it('waits for the session check rather than redirecting mid-flight', () => {
     authState = { isAuthenticated: false, user: null, loading: true }
     renderAt('/')
-    expect(screen.getByTestId('marketing-home')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(replaceSpy).not.toHaveBeenCalled()
   })
 
-  it('holds with a loader instead of flashing marketing while a probable session resolves', () => {
+  it('waits even when a session hint is present', () => {
     writeLogin('u1')
     authState = { isAuthenticated: false, user: null, loading: true }
     renderAt('/')
     expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
-  })
-
-  it('forwards a signed-in student to the dashboard', () => {
-    authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'student' } }
-    renderAt('/')
-    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
-    expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
-  })
-
-  it('forwards a signed-in parent to the role home (/dashboard)', () => {
-    authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent' } }
-    renderAt('/')
-    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
-  })
-
-  it('sends homepage-school families to the role home too (school section lives inside Home)', () => {
-    authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent', school: { id: 'o', homepage: true } } }
-    renderAt('/')
-    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
+    expect(replaceSpy).not.toHaveBeenCalled()
   })
 })
 
 describe('NotFoundRedirect (unknown paths)', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    authState = { isAuthenticated: false, user: null, loading: false }
-  })
-
-  it('sends a signed-in user to their app home, not the marketing homepage', () => {
+  it('sends a signed-in user to their app home, not off-site', async () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'student' } }
     renderAt('/some/removed/page')
-    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
-    expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('student-dashboard')).toBeInTheDocument()
+    expect(replaceSpy).not.toHaveBeenCalled()
   })
 
-  it('keeps sending anonymous visitors to the homepage', () => {
+  it('routes anonymous visitors via / , which forwards them to www', async () => {
     renderAt('/some/removed/page')
-    expect(screen.getByTestId('marketing-home')).toBeInTheDocument()
+    await waitFor(() => expect(replaceSpy).toHaveBeenCalledWith(`${PROD_MARKETING_URL}/`))
   })
 
   it('waits for a probable session instead of guessing', () => {
@@ -100,11 +120,5 @@ describe('NotFoundRedirect (unknown paths)', () => {
     authState = { isAuthenticated: false, user: null, loading: true }
     renderAt('/some/removed/page')
     expect(screen.getByRole('status')).toBeInTheDocument()
-  })
-
-  it('redirects home without waiting when there is no session hint', () => {
-    authState = { isAuthenticated: false, user: null, loading: true }
-    renderAt('/some/removed/page')
-    expect(screen.getByTestId('marketing-home')).toBeInTheDocument()
   })
 })

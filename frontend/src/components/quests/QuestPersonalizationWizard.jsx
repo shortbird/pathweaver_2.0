@@ -4,6 +4,7 @@ import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
 import ManualTaskCreator from './ManualTaskCreator';
+import SubjectLockToggle from './SubjectLockToggle';
 import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
 import { useAIAccess } from '../../contexts/AIAccessContext';
@@ -40,7 +41,7 @@ const INTEREST_OPTIONS = [
 const CHALLENGE_LEVELS = [
   { id: 'easier', label: 'Easier', description: 'Smaller steps, quicker wins' },
   { id: 'standard', label: 'Standard', description: 'A good stretch for most students' },
-  { id: 'challenge', label: 'Challenge', description: 'Bigger projects, more depth, more XP' }
+  { id: 'challenge', label: 'Challenge', description: 'Bigger projects, more depth. Every task 200 XP' }
 ];
 
 // Max taps in one direction on the per-task complexity dial.
@@ -134,6 +135,11 @@ export default function QuestPersonalizationWizard({
   // Wizard state
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [crossCurricularSubjects, setCrossCurricularSubjects] = useState([]);
+  // Off by default: cross-curricular tasks are the point for most learners.
+  // On, it stops the AI paying a slice of every task into a subject the
+  // student did not pick — which is what made it impossible to tell how close
+  // they were to finishing the one credit they were actually working on.
+  const [strictSubjects, setStrictSubjects] = useState(false);
   const [generatedTasks, setGeneratedTasks] = useState([]);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [acceptedTasks, setAcceptedTasks] = useState([]);
@@ -243,6 +249,7 @@ export default function QuestPersonalizationWizard({
         approach: 'hybrid', // Default since we removed the approach selection
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects,
+        strict_subjects: strictSubjects,
         // Parity with v2 mobile: tell the AI which tasks already exist so it
         // doesn't re-suggest them. The backend also merges in the student's
         // persisted quest tasks server-side, so this covers any accepted this
@@ -485,12 +492,23 @@ export default function QuestPersonalizationWizard({
 
   // Toggle subject selection
   const toggleSubject = (subjectId) => {
-    setCrossCurricularSubjects(prev =>
-      prev.includes(subjectId)
+    setCrossCurricularSubjects(prev => {
+      const next = prev.includes(subjectId)
         ? prev.filter(id => id !== subjectId)
-        : [...prev, subjectId]
-    );
+        : [...prev, subjectId];
+      // A lock with nothing selected is a promise we cannot keep, and the
+      // backend drops the flag anyway. Clear it rather than leave a checked
+      // box that does nothing.
+      if (next.length === 0) setStrictSubjects(false);
+      return next;
+    });
   };
+
+  // "Only Fine Arts" reads better than "only these subjects" when there is one.
+  const selectedSubjectNames = crossCurricularSubjects
+    .map(id => DIPLOMA_SUBJECTS.find(s => s.id === id)?.label)
+    .filter(Boolean)
+    .join(', ');
 
   const currentTask = generatedTasks[currentTaskIndex];
   // AI: method, interests, generation, review (4). Manual: method, manual creator (3).
@@ -822,6 +840,14 @@ export default function QuestPersonalizationWizard({
                 );
               })}
             </div>
+
+            {crossCurricularSubjects.length > 0 && (
+              <SubjectLockToggle
+                checked={strictSubjects}
+                onChange={setStrictSubjects}
+                subjectNames={selectedSubjectNames}
+              />
+            )}
           </div>
           )}
 
