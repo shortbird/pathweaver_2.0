@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -10,6 +9,12 @@ import { classLabel } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import {
+  useStudentContacts, useStudentRecord, useStudentClasses,
+  useOrgClassList, useOrgHouseholds, sisStudentApi,
+} from '../../hooks/api/useSisStudentDetail'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../../utils/queryKeys'
 
 /**
  * Tabbed per-student management modal.
@@ -60,7 +65,7 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const saveProfile = async () => {
     setSaving(true)
     try {
-      const reqs = [api.patch(`/api/sis/students/${student.student_id}`, {
+      const reqs = [sisStudentApi.updateStudent(student.student_id, {
         first_name: form.first_name, last_name: form.last_name,
         preferred_name: form.preferred_name || null, gender: form.gender || null,
         allergies: form.allergies || null, medications: form.medications || null,
@@ -69,10 +74,10 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         sis_tuition_plan: form.sis_tuition_plan || null, organization_id: orgId,
       })]
       if (form.roles.length) {
-        reqs.push(api.patch(`/api/sis/users/${student.student_id}/role`, { roles: form.roles, organization_id: orgId }))
+        reqs.push(sisStudentApi.updateRoles(student.student_id, form.roles, orgId))
       }
       if (isStudent) {
-        reqs.push(api.patch(`/api/sis/enrollments/${student.student_id}`, {
+        reqs.push(sisStudentApi.updateEnrollment(student.student_id, {
           status: form.status, grade_level: form.grade_level, organization_id: orgId,
         }))
       }
@@ -252,7 +257,7 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   const resetPassword = async () => {
     if (!(await confirm(`Reset ${student.name}'s password?`))) return
     try {
-      const r = await api.post(`/api/admin/organizations/${orgId}/users/${student.student_id}/reset-password`, {})
+      const r = await sisStudentApi.resetPassword(orgId, student.student_id)
       const pw = r.data?.new_password || r.data?.password
       toast.success(pw ? `New password: ${pw}` : (r.data?.message || 'Password reset'), { duration: pw ? 10000 : 4000 })
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not reset password') }
@@ -260,7 +265,7 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
   const remove = async () => {
     if (!(await confirm(`Remove ${student.name} from this organization? Their account becomes a platform account (not deleted).`))) return
     try {
-      await api.post(`/api/admin/organizations/${orgId}/users/remove`, { user_id: student.student_id })
+      await sisStudentApi.removeFromOrg(orgId, student.student_id)
       toast.success(`${student.name} removed from the organization`)
       onSaved?.(); onClose?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not remove student') }
@@ -277,25 +282,15 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
 }
 
 const FamilySection = ({ student, orgId, onSaved }) => {
-  const [households, setHouseholds] = useState([])
-  const [loading, setLoading] = useState(true)
   const [chosen, setChosen] = useState('')
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    api.get(`/api/sis/households?organization_id=${orgId}`)
-      .then((r) => setHouseholds(r.data?.households || []))
-      .catch(() => { /* non-fatal */ })
-      .finally(() => setLoading(false))
-  }, [orgId])
+  const { data: households = [], isLoading: loading } = useOrgHouseholds(orgId)
 
   const assign = async () => {
     if (!chosen) { toast.error('Pick a family'); return }
     setBusy(true)
     try {
-      await api.post(`/api/sis/households/${chosen}/members`, {
-        user_id: student.student_id, relationship: 'student', organization_id: orgId,
-      })
+      await sisStudentApi.addToHousehold(chosen, student.student_id, orgId)
       toast.success('Added to family')
       onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not assign') }
@@ -333,15 +328,9 @@ const FamilySection = ({ student, orgId, onSaved }) => {
  * an empty box.
  */
 const EmergencyStrip = ({ student }) => {
-  const [contacts, setContacts] = useState([])
-
-  useEffect(() => {
-    let live = true
-    api.get(`/api/sis/students/${student.student_id}/emergency-contacts`)
-      .then((r) => { if (live) setContacts(r.data?.contacts || []) })
-      .catch(() => { /* non-fatal: the editable section below still loads */ })
-    return () => { live = false }
-  }, [student.student_id])
+  // Same query key as ContactsSection below, which is on screen at the same
+  // time. One request now answers both.
+  const { data: contacts = [] } = useStudentContacts(student.student_id)
 
   const rows = contacts.filter((c) => c.phone || c.email)
   if (!rows.length) return null
@@ -367,22 +356,23 @@ const EmergencyStrip = ({ student }) => {
 
 const ContactsSection = ({ student, orgId }) => {
   const confirm = useConfirm()
-  const [contacts, setContacts] = useState([])
+  const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
   const emptyContact = { name: '', relationship: '', phone: '', email: '' }
   const [nc, setNc] = useState(emptyContact)
 
-  const reload = useCallback(() => {
-    api.get(`/api/sis/students/${student.student_id}/emergency-contacts`)
-      .then((r) => setContacts(r.data?.contacts || []))
-      .catch(() => { /* non-fatal */ })
-  }, [student.student_id])
-
-  useEffect(() => { reload() }, [reload])
+  const { data: contacts = [], refetch: reload } = useStudentContacts(student.student_id)
+  // Add and remove wrote to this section's own useState before, which left the
+  // "Who to call" strip above showing the old list until the drawer reopened.
+  // Writing to the shared cache updates both.
+  const setContacts = (next) => qc.setQueryData(
+    queryKeys.sis.studentContacts(student.student_id),
+    (old) => (typeof next === 'function' ? next(old || []) : next),
+  )
 
   const copyFromFamily = async () => {
     try {
-      const r = await api.post(`/api/sis/students/${student.student_id}/emergency-contacts/copy-from-family`, {})
+      const r = await sisStudentApi.copyContactsFromFamily(student.student_id)
       if (r.data?.no_family) { toast.error('Student is not in a family'); return }
       const n = r.data?.copied ?? 0
       toast.success(n ? `Copied ${n} contact${n === 1 ? '' : 's'} from family` : 'No new family contacts to copy')
@@ -393,7 +383,7 @@ const ContactsSection = ({ student, orgId }) => {
   const add = async () => {
     if (!nc.name.trim()) { toast.error('Contact name required'); return }
     try {
-      const r = await api.post(`/api/sis/students/${student.student_id}/emergency-contacts`, { ...nc, organization_id: orgId })
+      const r = await sisStudentApi.addContact(student.student_id, nc, orgId)
       setContacts((c) => [...c, r.data.contact])
       setNc(emptyContact)
       setAdding(false)
@@ -401,7 +391,7 @@ const ContactsSection = ({ student, orgId }) => {
   }
   const remove = async (c) => {
     if (!(await confirm(`Remove ${c.name} as an emergency contact?`))) return
-    try { await api.delete(`/api/sis/emergency-contacts/${c.id}`); setContacts((x) => x.filter((y) => y.id !== c.id)) }
+    try { await sisStudentApi.removeContact(c.id); setContacts((x) => x.filter((y) => y.id !== c.id)) }
     catch { toast.error('Could not remove contact') }
   }
 
@@ -475,25 +465,19 @@ const overlaps = (a, b) => {
 // ── Schedule: active classes + teacher + quest link, plus enroll ──────────────
 const SchedulePanel = ({ student, orgId }) => {
   const confirm = useConfirm()
-  const [classes, setClasses] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [all, setAll] = useState([])
   const [chosen, setChosen] = useState('')
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState('grid') // grid (block schedule) | list
 
-  const reload = useCallback(() => {
-    setLoading(true)
-    api.get(`/api/sis/students/${student.student_id}/classes?organization_id=${orgId}`)
-      .then((r) => setClasses(r.data?.classes || []))
-      .catch(() => toast.error('Could not load schedule'))
-      .finally(() => setLoading(false))
-  }, [student.student_id, orgId])
+  const enrolled = useStudentClasses(student.student_id, orgId)
+  const { data: all = [] } = useOrgClassList(orgId)
+  const classes = enrolled.data || []
+  const loading = enrolled.isLoading
+  const reload = enrolled.refetch
 
-  useEffect(() => { reload() }, [reload])
   useEffect(() => {
-    api.get(`/api/sis/classes?organization_id=${orgId}`).then((r) => setAll(r.data?.classes || [])).catch(() => {})
-  }, [orgId])
+    if (enrolled.isError) toast.error('Could not load schedule')
+  }, [enrolled.isError])
 
   // Enrolling someone still waiting on a place at the school comes back as a
   // 409 and is confirmed before forcing.
@@ -501,8 +485,7 @@ const SchedulePanel = ({ student, orgId }) => {
     if (!chosen) { toast.error('Pick a class'); return }
     setBusy(true)
     try {
-      const r = await api.post(`/api/sis/classes/${chosen}/enrollments`,
-        { student_user_id: student.student_id, force })
+      const r = await sisStudentApi.enroll(chosen, student.student_id, force)
       toast.success(r.data?.already_enrolled ? 'Already enrolled' : 'Enrolled in class')
       setChosen('')
       reload()
@@ -524,7 +507,7 @@ const SchedulePanel = ({ student, orgId }) => {
     if (!(await confirm(`Drop ${student.name || 'this student'} from ${c.name}?`))) return
     setDropping(c.class_id)
     try {
-      await api.delete(`/api/sis/classes/${c.class_id}/enrollments/${student.student_id}?organization_id=${orgId}`)
+      await sisStudentApi.drop(c.class_id, student.student_id, orgId)
       toast.success(`Dropped ${c.name}`)
       reload()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not drop the class') }
@@ -644,7 +627,7 @@ const MessagePanel = ({ student, orgId }) => {
     if (!body.trim()) { toast.error('Write a message'); return }
     setSending(true)
     try {
-      await api.post(`/api/sis/students/${student.student_id}/message`, { subject, body, organization_id: orgId })
+      await sisStudentApi.message(student.student_id, subject, body, orgId)
       toast.success('Message sent')
       setSubject(''); setBody('')
     } catch (e) {
@@ -677,22 +660,25 @@ const PROFILE_FIELDS = [
 const prettyKey = (k) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 
 const RecordPanel = ({ student, orgId }) => {
-  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  // The fetched record is the starting point for an editable form, so it is
+  // copied into local state once loaded rather than read from the cache on
+  // every render -- staff type into these fields before saving.
+  const record = useStudentRecord(student.student_id, orgId)
   const [profile, setProfile] = useState({})
   const [assessments, setAssessments] = useState({})
-  const [fields, setFields] = useState([])
-  const [saving, setSaving] = useState(false)
+  const fields = record.data?.fields || []
+  const loading = record.isLoading
 
   useEffect(() => {
-    api.get(`/api/sis/students/${student.student_id}/record?organization_id=${orgId}`)
-      .then((r) => {
-        setProfile(r.data?.record?.profile || {})
-        setAssessments(r.data?.record?.assessments || {})
-        setFields(r.data?.assessment_fields || [])
-      })
-      .catch(() => toast.error('Could not load the student record'))
-      .finally(() => setLoading(false))
-  }, [student.student_id, orgId])
+    if (!record.data) return
+    setProfile(record.data.profile)
+    setAssessments(record.data.assessments)
+  }, [record.data])
+
+  useEffect(() => {
+    if (record.isError) toast.error('Could not load the student record')
+  }, [record.isError])
 
   const setProfileField = (k, v) => setProfile((p) => ({ ...p, [k]: v }))
   const setAssessment = (key, col, v) =>
@@ -701,9 +687,7 @@ const RecordPanel = ({ student, orgId }) => {
   const save = async () => {
     setSaving(true)
     try {
-      await api.put(`/api/sis/students/${student.student_id}/record`, {
-        profile, assessments, organization_id: orgId,
-      })
+      await sisStudentApi.saveRecord(student.student_id, profile, assessments, orgId)
       toast.success('Record saved')
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not save the record')
@@ -779,24 +763,31 @@ const RecordPanel = ({ student, orgId }) => {
 // ── Materials: curriculum checklist with Paid/Received ────────────────────────
 const MaterialsPanel = ({ student, orgId }) => {
   const confirm = useConfirm()
-  const [materials, setMaterials] = useState(null)
+  const qc = useQueryClient()
   const emptyItem = { item_name: '', notes: '' }
   const [ni, setNi] = useState(emptyItem)
   const [busy, setBusy] = useState(false)
 
+  // Same /record response the Record tab reads -- one request serves both tabs.
+  const record = useStudentRecord(student.student_id, orgId)
+  const materials = record.isLoading ? null : (record.data?.materials || [])
+  const setMaterials = (next) => qc.setQueryData(
+    queryKeys.sis.studentRecord(student.student_id, orgId),
+    (old) => (old ? {
+      ...old,
+      materials: typeof next === 'function' ? next(old.materials || []) : next,
+    } : old),
+  )
+
   useEffect(() => {
-    api.get(`/api/sis/students/${student.student_id}/record?organization_id=${orgId}`)
-      .then((r) => setMaterials(r.data?.materials || []))
-      .catch(() => { toast.error('Could not load materials'); setMaterials([]) })
-  }, [student.student_id, orgId])
+    if (record.isError) toast.error('Could not load materials')
+  }, [record.isError])
 
   const add = async () => {
     if (!ni.item_name.trim()) { toast.error('Item name required'); return }
     setBusy(true)
     try {
-      const r = await api.post(`/api/sis/students/${student.student_id}/materials`, {
-        item_name: ni.item_name, notes: ni.notes || undefined, organization_id: orgId,
-      })
+      const r = await sisStudentApi.addMaterial(student.student_id, ni, orgId)
       setMaterials((m) => [...(m || []), r.data.material])
       setNi(emptyItem)
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not add the item') }
@@ -807,7 +798,7 @@ const MaterialsPanel = ({ student, orgId }) => {
     const prev = materials
     setMaterials((list) => list.map((x) => (x.id === m.id ? { ...x, ...changes } : x)))
     try {
-      await api.patch(`/api/sis/materials/${m.id}`, { ...changes, organization_id: orgId })
+      await sisStudentApi.updateMaterial(m.id, changes, orgId)
     } catch (e) {
       setMaterials(prev)
       toast.error(e?.response?.data?.error || 'Could not update the item')
@@ -817,7 +808,7 @@ const MaterialsPanel = ({ student, orgId }) => {
   const remove = async (m) => {
     if (!(await confirm(`Remove "${m.item_name}" from the materials list?`))) return
     try {
-      await api.delete(`/api/sis/materials/${m.id}?organization_id=${orgId}`)
+      await sisStudentApi.removeMaterial(m.id, orgId)
       setMaterials((list) => list.filter((x) => x.id !== m.id))
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not remove the item') }
   }

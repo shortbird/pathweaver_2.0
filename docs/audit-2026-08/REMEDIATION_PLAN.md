@@ -2544,7 +2544,7 @@ Log:
 
   Web suite 302 files / 2656 passed. Production build clean.
 
-### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet in place; migration itself still open)]`
+### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet enforced; the top-churn pages are migrated, the tail is not)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
 `hooks/api/`; migrate the highest-churn pages first. Not a big-bang rewrite.
 Log:
@@ -2611,6 +2611,79 @@ Log:
   provider in every test that renders the page.
 
   Web suite 2,539 passed.
+
+- 2026-09-07: SECOND BATCH — the four highest-churn pages left. 549 hand-rolled
+  call sites -> 469; 16 hooked pages -> 21.
+
+      sis/ClassesPage.jsx         44 commits/6mo   21 sites   useSisClasses
+      sis/StudentDetailModal.jsx  24 commits       23 sites   useSisStudentDetail
+      sis/OnboardingPage.jsx      20 commits       17 sites   useSisOnboarding
+      sis/FamilyDetailModal.jsx   19 commits       19 sites   useSisFamilyDetail
+
+  THREE OF THE FOUR TURNED UP A DUPLICATE FETCH the hand-rolled style had made
+  invisible. Not a slow query or a big one -- the same URL requested twice, by
+  two components on screen at the same time, because neither could see the
+  other:
+    * `/students/:id/emergency-contacts` -- the "Who to call" strip at the top
+      of a student's Profile tab and the editable Contacts section directly
+      below it. Both always render. Two requests, every open.
+    * `/students/:id/record` -- one response carrying the profile, the
+      assessment grid AND the curriculum materials, asked for once by the
+      Record tab and again by the Materials tab.
+    * `/staff-admin/onboarding/assignments` -- rendered by AdminOnboarding, and
+      fetched again by the templates manager purely to count how many
+      assignments a template has before offering to sync it.
+  A shared query key removes all three: react-query dedupes what is in flight
+  and serves the second reader from cache. This is the concrete argument for
+  the item, and it is not one anybody would find by reading either file.
+
+  It also fixed a real staleness bug on the way past. Adding or removing an
+  emergency contact wrote to the Contacts section's own `useState`, so the
+  "Who to call" strip six inches above it kept showing the old list until the
+  drawer was closed and reopened. Writing to the shared cache updates both.
+
+  THE WRITES MOVED TOO, not just the reads. Each hook module exports a plain
+  `sisXApi` object, so none of these four pages calls `api` at all any more and
+  every endpoint a page touches is named in one file. Plain functions rather
+  than `useMutation`: none of them needs react-query's pending state -- the
+  pages already report it through toasts -- and several are composites (create
+  a class, then its meetings, then its image) that a mutation would only wrap.
+  FamilyDetailModal had five separate `api.patch` calls to the same household
+  URL from five sections; they are one `updateHousehold`.
+
+  SCHEDULEBUILDERPAGE WAS SKIPPED, and it is second by churn (27 commits, 13
+  sites), so the reason matters. Its staff preview mode holds the schedule in
+  memory and mutates it locally -- `setSchedule` after a simulated add or drop,
+  with no server involved. The same state is a fetched query in one mode and a
+  scratchpad in the other, so migrating it means deciding how preview writes
+  reach a cache, which is a design decision rather than a mechanical
+  migration. It is also the family-facing scheduling flow. Left for a session
+  that can give it the browser time it deserves.
+
+  THE COST, again for whoever does the next batch: ten test files needed a
+  QueryClientProvider, and three needed an `await` they did not need before.
+  Two queries that used to be one `Promise.all` now settle independently, so a
+  synchronous `getByLabelText` immediately after the heading appears is a race.
+  The fix is to wait for the element being asserted on, not the section around
+  it.
+
+  VERIFIED: the full web suite (302 files / 2656 passed) with 70 ClassesPage
+  tests, 39 onboarding, 32 student-detail and 11 family-detail among them, and
+  a clean production build. Checked the thing a migration like this can break
+  silently -- App.jsx does wrap the whole tree, SIS surface included, in a
+  QueryClientProvider (line 439), so these hooks have a client in production.
+  Loaded the built bundle's SIS console in headless Chromium with the API
+  stubbed: the console renders with no page errors and no console errors. The
+  class rows themselves did not render there because the org picker's stub did
+  not satisfy it, so that half is covered by the jsdom suite rather than by the
+  browser -- said plainly rather than counted as a browser verification.
+
+  THE TAIL -- 111 pages, 469 call sites -- STAYS OPEN ON PURPOSE, which is what
+  keeps this item TODO. The item says migrate the highest-churn pages first and
+  not to big-bang it; two batches have now done exactly that, and the value per
+  page drops off sharply from here (the remaining pages average four call sites
+  and single-digit churn). Finishing the tail is a funding decision of the same
+  shape as QB-06, not an afternoon.
 
 ### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval

@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// The drawer reads its panels through hooks/api (QF-03), so it needs a
+// QueryClient. Fresh client per render keeps one test's cache out of the next
+// one's; retry:false makes a failed query fail rather than hang on backoff.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 /**
  * The Schedule tab's Enroll button sends a real request.
@@ -59,7 +68,7 @@ describe('StudentDetailModal Schedule enroll', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
 
-    fireEvent.change(screen.getByLabelText('class'), { target: { value: 'c1' } })
+    fireEvent.change(await screen.findByLabelText('class'), { target: { value: 'c1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Enroll' }))
 
     await vi.waitFor(() => expect(api.post).toHaveBeenCalled())
@@ -96,6 +105,10 @@ describe('StudentDetailModal class picker', () => {
     render(<StudentDetailModal student={{ ...student, ...studentProps }} orgId="org-1" onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
+    // The enrolled classes and the org's class list are two queries now, and
+    // they settle independently -- wait for the picker itself, not the heading
+    // above it.
+    await screen.findByLabelText('class')
   }
 
   const optionNames = () => [...screen.getByLabelText('class').options]
@@ -121,6 +134,7 @@ describe('StudentDetailModal class picker', () => {
     render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
+    await screen.findByLabelText('class')
     expect(optionNames()).toHaveLength(3)
   })
 
