@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { captureEvent } from '../../services/posthog'
+import { marketingUrl } from '../../utils/marketingUrl'
 import WascBadge from '../accreditation/WascBadge'
 
 const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png'
@@ -29,15 +30,28 @@ const SOCIAL_LINKS = [
   }
 ]
 
-const FooterLink = ({ to, children, section }) => (
-  <Link
-    to={to}
-    onClick={() => captureEvent('marketing_footer_link_click', { link: children, section, path: to })}
-    className="text-gray-400 hover:text-white transition-colors text-sm"
-  >
-    {children}
-  </Link>
-)
+const FOOTER_CLASS = 'text-gray-400 hover:text-white transition-colors text-sm'
+
+/**
+ * A footer link. `external` destinations live on the marketing site (www) and
+ * need a real <a>: a react-router <Link> would match them against this SPA's
+ * routes, miss, and land the visitor on NotFoundRedirect. Before the
+ * 2026-09-01 cutover these were all routes here, so <Link> was correct.
+ */
+const FooterLink = ({ to, children, section, external }) => {
+  const track = () =>
+    captureEvent('marketing_footer_link_click', { link: children, section, path: to })
+
+  return external ? (
+    <a href={marketingUrl(to)} onClick={track} className={FOOTER_CLASS}>
+      {children}
+    </a>
+  ) : (
+    <Link to={to} onClick={track} className={FOOTER_CLASS}>
+      {children}
+    </Link>
+  )
+}
 
 const MarketingFooter = () => {
   return (
@@ -83,9 +97,9 @@ const MarketingFooter = () => {
               For Learners
             </h4>
             <div className="flex flex-col gap-3">
-              <FooterLink to="/for-students" section="learners">For Students</FooterLink>
-              <FooterLink to="/for-families" section="learners">For Families</FooterLink>
-              <FooterLink to="/for-schools" section="learners">For Schools</FooterLink>
+              <FooterLink to="/academy#free-class" section="learners" external>For Students</FooterLink>
+              <FooterLink to="/academy" section="learners" external>For Families</FooterLink>
+              <FooterLink to="/schools" section="learners" external>For Schools</FooterLink>
             </div>
           </div>
 
@@ -97,8 +111,8 @@ const MarketingFooter = () => {
               Platform
             </h4>
             <div className="flex flex-col gap-3">
-              <FooterLink to="/how-it-works" section="platform">How It Works</FooterLink>
-              <FooterLink to="/philosophy" section="platform">Our Philosophy</FooterLink>
+              <FooterLink to="/academy#how-it-works" section="platform" external>How It Works</FooterLink>
+              <FooterLink to="/philosophy" section="platform" external>Our Philosophy</FooterLink>
               <FooterLink to="/demo" section="platform">Demo</FooterLink>
               <FooterLink to="/register" section="platform">Create Free Account</FooterLink>
             </div>

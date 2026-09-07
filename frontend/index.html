@@ -134,6 +134,45 @@
     <!-- End Meta Pixel Code -->
     
     <title>Optio</title>
+
+    <!-- DEFAULT SOCIAL TAGS.
+         This SPA renders client-side, so react-helmet-async's per-page tags
+         (DiplomaPage, PublicCoursePage, ...) only exist once React boots.
+         Googlebot runs JS and sees them; NO social scraper does. Facebook,
+         LinkedIn, X, Slack, iMessage and WhatsApp read raw HTML only, so every
+         shared link -- including student portfolios, whose entire purpose is
+         being shared -- previews with no image at all.
+
+         DELIBERATELY NARROW. Helmet APPENDS, it does not replace: with a
+         static og:title here and DiplomaPage's og:title added later, the head
+         ends up holding both, and OG parsers and Google take the FIRST. A full
+         set of defaults would therefore shadow every per-page title and
+         description with the generic one -- worse than having none. So this
+         block carries only:
+           - tags no page sets, where there is nothing to shadow (og:image,
+             its dimensions, twitter:image), and
+           - tags whose per-page value is identical anyway (og:site_name,
+             twitter:card).
+         og:title, og:description, description, og:type, twitter:title and
+         twitter:description are owned by Helmet and must NOT be added here.
+         frontend/src/utils/ogDefaults.test.js enforces that.
+
+         Known trade-off: PublicCoursePage sets og:image when a course has a
+         cover, and this default now precedes it, so Google sees the generic
+         card there. Scrapers could never see the cover anyway (it is
+         Helmet-injected), so this costs one JS-capable consumer a nicer image
+         and buys every other page a branded card instead of a blank one.
+
+         The real fix is server-rendered HTML per portfolio, which a Render
+         static site cannot do. This is the floor, not the ceiling.
+
+         Image lives on the marketing site; this host ships no 1200x630 asset. -->
+    <meta property="og:site_name" content="Optio" />
+    <meta property="og:image" content="https://www.optioeducation.com/images/og/default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://www.optioeducation.com/images/og/default.png" />
   </head>
   <body>
     <!-- The Meta Pixel <noscript> fallback img was removed (Aug 2026). It

@@ -4,18 +4,43 @@ import { captureEvent } from '../../services/posthog'
 import { useAuth } from '../../contexts/AuthContext'
 import { getPostLoginPath } from '../../utils/postLoginPath'
 import { hasLocalSessionHint } from '../../utils/sessionHint'
+import { marketingUrl } from '../../utils/marketingUrl'
 
 const LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/logo_95c9e6ea25f847a2a8e538d96ee9a827.png'
 
+// `external: true` means the destination lives on the marketing site, not in
+// this SPA. Before the 2026-09-01 cutover every one of these was a route here
+// and a react-router <Link> was right. Now only /catalog is: the rest moved to
+// www, and pointing a <Link> at them navigated to this app's stale duplicate
+// pages instead of the real ones. Their paths on www differ too -- Classes and
+// How It Works are anchors on /academy, For Schools is /schools -- so this is
+// a remap, not just an origin swap. Kept in sync with the redirect table in
+// marketing/DEPLOYMENT.md.
 const NAV_LINKS = [
-  { label: 'Classes', path: '/classes' },
+  { label: 'Classes', path: '/academy#free-class', external: true },
   { label: 'Courses', path: '/catalog' },
-  { label: 'Academy', path: '/academy' },
-  { label: 'For Families', path: '/for-families' },
-  { label: 'For Schools', path: '/for-schools' },
-  { label: 'How It Works', path: '/how-it-works' },
-  // { label: 'Philosophy', path: '/philosophy' },
+  { label: 'Academy', path: '/academy', external: true },
+  { label: 'For Families', path: '/academy', external: true },
+  { label: 'For Schools', path: '/schools', external: true },
+  { label: 'How It Works', path: '/academy#how-it-works', external: true },
+  // { label: 'Philosophy', path: '/philosophy', external: true },
 ]
+
+/**
+ * One nav item. External destinations need a real <a> for a cross-origin
+ * navigation; react-router would try to match them against this SPA's routes
+ * and fall through to NotFoundRedirect.
+ */
+const NavItem = ({ link, className, onClick, children }) =>
+  link.external ? (
+    <a href={marketingUrl(link.path)} className={className} onClick={onClick}>
+      {children}
+    </a>
+  ) : (
+    <Link to={link.path} className={className} onClick={onClick}>
+      {children}
+    </Link>
+  )
 
 const MarketingNav = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -65,18 +90,18 @@ const MarketingNav = () => {
           {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
             {NAV_LINKS.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
+              <NavItem
+                key={link.label}
+                link={link}
                 onClick={() => captureEvent('marketing_nav_link_click', { link: link.label, path: link.path })}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  isActive(link.path)
+                  !link.external && isActive(link.path)
                     ? 'text-optio-purple bg-optio-purple/10'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
                 {link.label}
-              </Link>
+              </NavItem>
             ))}
           </div>
 
@@ -137,18 +162,18 @@ const MarketingNav = () => {
       >
         <div className="bg-white border-t border-gray-100 px-4 py-3 space-y-1">
           {NAV_LINKS.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
+            <NavItem
+              key={link.label}
+              link={link}
               onClick={() => captureEvent('marketing_nav_link_click', { link: link.label, path: link.path, mobile: true })}
               className={`block px-4 py-3 rounded-lg text-sm font-semibold transition-colors ${
-                isActive(link.path)
+                !link.external && isActive(link.path)
                   ? 'text-optio-purple bg-optio-purple/10'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
               {link.label}
-            </Link>
+            </NavItem>
           ))}
           <div className="pt-3 border-t border-gray-100 flex flex-col gap-2">
             {dashboardPath ? (

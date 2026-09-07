@@ -11,13 +11,16 @@ const SRC = path.resolve(__dirname, '..')
  * responds by discarding the declared canonical and choosing its own. Use
  * canonicalUrl() from utils/canonicalUrl.js instead - it names the serving host.
  *
- * EXEMPT: src/pages/marketing/. Those are the pre-cutover marketing pages, now
- * duplicated by the real Astro pages on www and blocked in public/robots.txt.
- * Their canonicals point off-host at the live www versions, which is correct
- * for a duplicate. They are dead routes awaiting the "Post-cutover cleanup"
- * item in marketing/DEPLOYMENT.md; when they go, drop this exemption with them.
+ * EXEMPT: pages/marketing/HomePage.jsx, and it is a real exemption rather than
+ * a deferral. That page renders `/` on the app host, which duplicates the
+ * marketing homepage, so www IS its canonical -- and unlike the paths this
+ * guard exists to catch, https://www.optioeducation.com returns 200 rather
+ * than redirecting back here.
+ *
+ * The other six pre-cutover marketing pages were deleted on 2026-09-07, which
+ * is why this list shrank from the whole directory to one file.
  */
-const EXEMPT = ['pages/marketing/']
+const EXEMPT = ['pages/marketing/HomePage.jsx']
 
 function jsxFiles(dir, acc = []) {
   for (const name of fs.readdirSync(dir)) {
