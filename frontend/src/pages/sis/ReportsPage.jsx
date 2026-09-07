@@ -648,6 +648,14 @@ const ReportsPage = () => {
                 </div>
               </ReportCard>
               <ReportCard
+                title="Emergency contacts"
+                description="Every student with the guardians in their household and the emergency contacts named for them — and a Missing column naming whoever is still not on file. Built to print."
+              >
+                <RunButton ariaLabel="Run Emergency contacts"
+                  disabled={reportLoading || !orgId}
+                  onClick={() => runReport('emergency-contacts')} />
+              </ReportCard>
+              <ReportCard
                 title="Media release"
                 description="Who has and hasn't approved the photo and media release, per student. Unanswered families show as Not answered."
               >

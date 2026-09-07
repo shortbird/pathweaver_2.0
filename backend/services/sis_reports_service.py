@@ -1131,3 +1131,158 @@ def block_rosters_csv_rows(report: Dict[str, Any],
                         for c in band]))
                 rows.append([])
     return rows
+
+
+# ── Emergency contact sheet (who to call for each child) ─────────────────────
+#
+# iCreate, 2026-09-05 (41c838c5): "Could we get an emergency master list of
+# students with both parents/guardians listed along with contact info? Then we
+# could have quick access to this and also print out a couple hard copies to
+# have available in case of emergency. And, it would help us to see if we are
+# missing any contact info still."
+#
+# Two jobs in one sheet, which is why `missing` is a column and not a filter:
+# the copy on the wall is only useful if it is complete, and the way the office
+# finds out it is not is by reading the same sheet.
+MAX_LISTED_GUARDIANS = 2
+MAX_LISTED_EMERGENCY = 2
+
+
+def _fmt_contact(name: str, phone: str = '', email: str = '',
+                 relationship: str = '') -> str:
+    """"Jane Doe (Mother)" — the label; the number rides in its own column so a
+    printed sheet can be read down it."""
+    out = (name or '').strip()
+    if relationship:
+        out = f"{out} ({relationship})" if out else f"({relationship})"
+    if not out:
+        out = (phone or email or '').strip()
+    return out
+
+
+def build_emergency_rows(students: List[Dict[str, Any]],
+                         guardians_by_household: Dict[str, List[Dict[str, Any]]],
+                         contacts_by_student: Dict[str, List[Dict[str, Any]]]
+                         ) -> List[Dict[str, Any]]:
+    """One row per student: the adults in their household, then the emergency
+    contacts named on their registration, then what is still missing.
+
+    Pure so the "what is missing" rule can be tested without a database — it is
+    the half of this report the office acts on before there is an emergency.
+
+    `guardians_by_household` and `contacts_by_student` are already ordered:
+    primary guardian first, and emergency contacts by priority.
+    """
+    rows = []
+    for s in students:
+        guardians = guardians_by_household.get(s.get('household_id')) or []
+        contacts = contacts_by_student.get(s['student_id']) or []
+
+        reachable = [g for g in guardians if (g.get('phone') or '').strip()]
+        missing = []
+        if not guardians:
+            missing.append('no guardian on file')
+        elif not reachable:
+            missing.append('no guardian phone')
+        elif len(guardians) < 2:
+            # She asked for BOTH parents/guardians: one is a household the
+            # office cannot reach if that person does not answer.
+            missing.append('only one guardian')
+        if not contacts:
+            missing.append('no emergency contact')
+        elif not any((c.get('phone') or '').strip() for c in contacts):
+            missing.append('no emergency contact phone')
+
+        rows.append({
+            'student': s.get('name') or '',
+            'preferred_name': s.get('preferred_name') or '',
+            'age': s.get('age') if s.get('age') is not None else '',
+            'family': s.get('household_name') or '',
+            'guardians': [{
+                'name': _fmt_contact(g.get('name') or '',
+                                     relationship=g.get('relationship') or ''),
+                'phone': (g.get('phone') or '').strip(),
+                'email': (g.get('email') or '').strip(),
+            } for g in guardians],
+            'emergency_contacts': [{
+                'name': _fmt_contact(c.get('name') or '',
+                                     relationship=c.get('relationship') or ''),
+                'phone': (c.get('phone') or '').strip(),
+                'can_pickup': bool(c.get('can_pickup')),
+            } for c in contacts],
+            'missing': '; '.join(missing),
+        })
+    rows.sort(key=lambda r: (r['student'] or '').lower())
+    return rows
+
+
+def _guardians_by_household(roster: List[Dict[str, Any]]
+                            ) -> Dict[str, List[Dict[str, Any]]]:
+    """{household_id: [adult, ...]} — primary guardian first, then by name.
+
+    Everything comes off the roster, which already reads households and their
+    members; a second read of household_members here would only ask the same
+    question twice.
+    """
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for a in roster:
+        if a.get('is_student') or not a.get('household_id'):
+            continue
+        out.setdefault(a['household_id'], []).append({
+            'name': a.get('name') or '',
+            'relationship': a.get('household_relationship') or '',
+            'phone': a.get('phone_number') or '',
+            'email': a.get('email') or '',
+            'is_primary': bool(a.get('is_primary_guardian')),
+        })
+    for members in out.values():
+        members.sort(key=lambda g: (not g['is_primary'], (g['name'] or '').lower()))
+    return out
+
+
+def emergency_contacts_report(org_id: str) -> Dict[str, Any]:
+    """The sheet that goes on the office wall: every student, who to call, and
+    what is still missing."""
+    from repositories.emergency_contact_repository import EmergencyContactRepository
+    from services import sis_service
+
+    roster = sis_service.get_roster(org_id)
+    students = [r for r in roster if r.get('is_student')]
+    contacts = EmergencyContactRepository(client=_admin())
+    rows = build_emergency_rows(
+        students,
+        _guardians_by_household(roster),
+        contacts.for_students([s['student_id'] for s in students]),
+    )
+    return {
+        'rows': rows,
+        'incomplete': sum(1 for r in rows if r['missing']),
+        'max_guardians': MAX_LISTED_GUARDIANS,
+        'max_emergency': MAX_LISTED_EMERGENCY,
+    }
+
+
+def emergency_contacts_csv(report: Dict[str, Any]) -> tuple:
+    """(header, rows) for the printable sheet. Flat on purpose — this is taped
+    to a wall and read down a column, not filtered."""
+    header = ['Student', 'Age', 'Family']
+    for i in range(MAX_LISTED_GUARDIANS):
+        header += [f'Guardian {i + 1}', f'Guardian {i + 1} phone', f'Guardian {i + 1} email']
+    for i in range(MAX_LISTED_EMERGENCY):
+        header += [f'Emergency contact {i + 1}', f'Emergency contact {i + 1} phone']
+    header.append('Missing')
+
+    def _nth(items, i, *keys):
+        item = items[i] if i < len(items) else {}
+        return [item.get(k) or '' for k in keys]
+
+    rows = []
+    for r in report.get('rows') or []:
+        line = [r['student'], str(r['age']), r['family']]
+        for i in range(MAX_LISTED_GUARDIANS):
+            line += _nth(r['guardians'], i, 'name', 'phone', 'email')
+        for i in range(MAX_LISTED_EMERGENCY):
+            line += _nth(r['emergency_contacts'], i, 'name', 'phone')
+        line.append(r['missing'])
+        rows.append(line)
+    return header, rows

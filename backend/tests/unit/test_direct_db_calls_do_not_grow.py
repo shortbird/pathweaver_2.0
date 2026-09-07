@@ -140,8 +140,15 @@ BACKEND = Path(__file__).resolve().parents[2]
 BASELINES = {
     'routes': 2332,
     'services': 1826,
-    'repositories': 417,
-    'utils': 134,
+    # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
+    # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
+    # The query is new, and it is in the layer that is allowed to have it.
+    'repositories': 418,
+    # 2026-09-07: 134 -> 135. Not growth -- pending_subjects_for_completion
+    # moved here from routes/tasks/xp_helpers.py with its one query, because
+    # PersonalizationService needs it and services must not import from
+    # routes (test_import_layers.py). routes/ dropped by the same one.
+    'utils': 135,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

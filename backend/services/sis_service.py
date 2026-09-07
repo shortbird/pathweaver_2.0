@@ -425,6 +425,11 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'start_date': (enr or {}).get('start_date'),
             'household_id': (hh or {}).get('household_id'),
             'household_name': (hh or {}).get('household_name'),
+            # Already read by _household_by_user; surfaced so a caller that needs
+            # to say WHO an adult is to a child does not read household_members
+            # a second time (sis_reports_service.emergency_contacts_report).
+            'household_relationship': (hh or {}).get('relationship'),
+            'is_primary_guardian': bool((hh or {}).get('is_primary_guardian')),
         })
     roster.sort(key=lambda r: r['name'].lower())
     # Student and staff photos are private-bucket objects. One batch per bucket

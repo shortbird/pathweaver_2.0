@@ -328,4 +328,36 @@ describe('the room picker says what is already in each room', () => {
     fireEvent.click(screen.getByLabelText('Remove Gym'))
     expect(onChange).toHaveBeenCalledWith({ additional_locations: [] })
   })
+
+  // iCreate, 2026-09-05 (7901c118): "when I open up Theater Jr (block 3) the
+  // room booked is Spotlight House. But then it gives me the warning 'Spotlight
+  // house is already booked at this time by Brain Games 5-7 (Tues Block 2)'.
+  // Except theater jr is block 3." The rest of this file's fixtures write times
+  // as "14:00"; the API sends Postgres `time` as "14:00:00", and comparing the
+  // two as strings puts "15:00" before "15:00:00" — so the block that starts
+  // when the previous one ends always looked like an overlap.
+  it('leaves the next block alone when the previous one ends on its start time', () => {
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Gym' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS}
+        roomOccupancy={{
+          // Pottery is Tuesdays 14:00-15:00. Choir has the Gym until 14:00.
+          Gym: [{ class_id: 'other', class_name: 'Choir', day_of_week: 2, start_time: '13:00:00', end_time: '14:00:00' }],
+        }} />)
+    expect(screen.queryByText(/already booked at this time/)).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText('Classroom')).getByRole('option', { name: 'Gym' }))
+      .toBeInTheDocument()
+  })
+
+  it('still warns on a real overlap sent with seconds', () => {
+    render(
+      <ClassFieldsEditor
+        draft={{ ...toDraft(CLASS), location: 'Gym' }}
+        onChange={vi.fn()} staff={STAFF} rooms={ROOMS}
+        roomOccupancy={{
+          Gym: [{ class_id: 'other', class_name: 'Choir', day_of_week: 2, start_time: '14:30:00', end_time: '15:30:00' }],
+        }} />)
+    expect(screen.getByText(/Gym is already booked at this time by Choir\./)).toBeInTheDocument()
+  })
 })

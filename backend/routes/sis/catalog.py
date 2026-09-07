@@ -315,12 +315,19 @@ def teacher_conflicts(user_id):
     """Teachers double-booked as primary instructor of two overlapping classes.
     Surfaced on the Classes page after teacher/schedule edits so the front
     office catches an accidental double-booking at save time (iCreate).
-    Advisory only — never blocks."""
+    Advisory only — never blocks.
+
+    Split into `conflicts` (still asking) and `acknowledged` (the office has
+    looked and decided it is fine — 8479edee), so the banner is only ever about
+    arrangements nobody has ruled on.
+    """
     org_id, err = _org_or_error(user_id)
     if err:
         return err
     from services import sis_registration_service as regs
-    return jsonify({'success': True, 'conflicts': regs.list_teacher_conflicts(org_id)})
+    split = catalog.split_acknowledged(regs.list_teacher_conflicts(org_id),
+                                       catalog.acknowledged_conflicts(org_id))
+    return jsonify({'success': True, **split})
 
 
 @bp.route('/room-schedule', methods=['GET'])
@@ -338,7 +345,41 @@ def room_schedule(user_id):
     if err:
         return err
     from services import sis_registration_service as regs
-    return jsonify({'success': True, **regs.room_schedule(org_id)})
+    report = regs.room_schedule(org_id)
+    split = catalog.split_acknowledged(report.get('conflicts') or [],
+                                       catalog.acknowledged_conflicts(org_id))
+    return jsonify({'success': True, **report, **split})
+
+
+@bp.route('/schedule-conflicts/acknowledge', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def acknowledge_conflict(user_id):
+    """"I have seen this one and it is fine" — clear one double-booking off the
+    Classes page banner (iCreate, 2026-09-05, 8479edee).
+
+    Deliberately org-wide and not per-user: the arrangement is the school's
+    decision, and asking the next admin the same question is the noise this is
+    removing. Deliberately reversible, and deliberately keyed to the day and
+    hour, so rescheduling either class asks again.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    key = (data.get('key') or '').strip()
+    if not key:
+        return jsonify({'success': False, 'error': 'Which warning?'}), 400
+    acknowledged = data.get('acknowledged', True)
+
+    # Every conflict the org has right now, so stale acknowledgements are shed
+    # on the way past rather than accumulating on the org row forever.
+    from services import sis_registration_service as regs
+    live = [c.get('key') for c in regs.list_teacher_conflicts(org_id)]
+    live += [c.get('key') for c in (regs.room_schedule(org_id).get('conflicts') or [])]
+    acks = catalog.set_conflict_acknowledged(
+        org_id, key, user_id, bool(acknowledged),
+        live_keys=[k for k in live if k])
+    return jsonify({'success': True, 'acknowledged': sorted(acks)})
 
 
 # ── Class meetings (schedule) ────────────────────────────────────────────────

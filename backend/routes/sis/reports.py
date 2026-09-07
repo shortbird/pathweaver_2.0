@@ -696,6 +696,28 @@ def daily_attendance(user_id):
     return jsonify({'success': True, 'report': {'rows': rows, 'date': on_date}})
 
 
+@bp.route('/reports/emergency-contacts', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def emergency_contacts(user_id):
+    """The sheet the office keeps on the wall: every student, the guardians in
+    their household, the emergency contacts named for them, and — the second
+    half of the request — what is still missing.
+
+    iCreate, 2026-09-05 (41c838c5): "Could we get an emergency master list of
+    students with both parents/guardians listed along with contact info? ...
+    print out a couple hard copies to have available in case of emergency. And,
+    it would help us to see if we are missing any contact info still."
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    report = reports.emergency_contacts_report(org_id)
+    if request.args.get('format') == 'csv':
+        header, rows = reports.emergency_contacts_csv(report)
+        return _csv_response('emergency-contacts.csv', header, rows)
+    return jsonify({'success': True, 'report': report})
+
+
 @bp.route('/reports/media-release', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def media_release(user_id):
