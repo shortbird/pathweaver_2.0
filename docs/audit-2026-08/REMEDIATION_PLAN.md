@@ -2517,7 +2517,7 @@ Log:
 
   v2: 101 suites / 768 passed, tsc clean.
 
-### QF-02 — Decompose top god components `[DONE(thirteen of fifteen split; two belong to another session's tree)]`
+### QF-02 — Decompose top god components `[DONE(all fifteen split; the exemption list is empty)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
 Then the next 8 by size. Behavior-preserving; tests before refactor where thin.
@@ -2631,6 +2631,34 @@ Log:
   only shrink; twice now that has depended on somebody remembering.
 
   Web suite 302 files / 2656 passed. Production build clean.
+
+- 2026-09-07, later: THE LAST TWO. The session holding `DiplomaPage.jsx` and
+  `QuestPersonalizationWizard.jsx` committed its work, so the reason to leave
+  them alone was gone.
+
+      pages/DiplomaPage.jsx                       1254 -> 958   5 components
+      components/quests/QuestPersonalizationWizard.jsx
+                                                  1195 -> 616   4 step components
+
+  THE EXEMPTION LIST IS NOW EMPTY. That is the state it was written to reach:
+  every `.jsx` file in the web app is under the 1,000-line cap on its own
+  merits, and the next one to cross it fails without anybody having to decide
+  whether it deserves an exception.
+
+  Two guards caught the move, which is the part worth recording. The
+  self-tightening test added earlier today fired the moment DiplomaPage came
+  under the cap and demanded its exemption back. And `modalPortalGuard`
+  flagged `ChoosePathStep.jsx` as a NEW raw-backdrop modal — it is the
+  flag-a-task modal, relocated, exactly as `GenerationModeModal` was by the
+  2026-09-04 split. Both lists updated to the new paths.
+
+  ONE DESIGN CHANGE rather than a pure move: the wizard's step components no
+  longer carry their own `step === N &&` guard. The parent already knows which
+  step it is on, so the guard sits at the call site and each child renders
+  unconditionally. A component that returns `false` for most of its life is
+  harder to read and harder to test than one the parent chooses to mount.
+
+  Web suite 304 files / 2698 passed. Production build clean.
 
 ### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet enforced; the top-churn pages are migrated, the tail is not)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
@@ -3882,7 +3910,6 @@ Still open:
   test that renders it. Fund the tail, or fence it the way QB-06 fenced the
   repository pattern?
 
-- **QF-02: `DiplomaPage.jsx` and `QuestPersonalizationWizard.jsx`** are the last
-  two components over the 1,000-line cap. Both have uncommitted changes in the
-  shared tree, so splitting them now would hand that session a conflict on every
-  line. Worth doing once that work lands.
+- ~~**QF-02: `DiplomaPage.jsx` and `QuestPersonalizationWizard.jsx`**~~ —
+  ANSWERED 2026-09-07 (user: "fix"). Both split once the session holding them
+  committed. The exemption list is empty for the first time.

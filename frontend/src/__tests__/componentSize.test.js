@@ -66,14 +66,18 @@ const CAP = 1000
  * inherit a cap granted to something else. Since 2026-09-07 a test enforces
  * that rather than leaving it to whoever remembers.
  *
- * The two that remain are being edited in another session's working tree, and
- * splitting a file somebody has uncommitted changes to hands them a conflict on
- * every line. They are the next two to go.
+ * SPLIT AND REMOVED (QF-02, 2026-09-07) -- the last two, once the session
+ * holding them had committed:
+ *   pages/DiplomaPage.jsx                        1254 -> 958   (5 components)
+ *   components/quests/QuestPersonalizationWizard.jsx
+ *                                                1195 -> 616   (4 step components)
+ *
+ * THE EXEMPTION LIST IS NOW EMPTY, which is the state it was always meant to
+ * reach: every .jsx file in the app is under the cap on its own merits, and the
+ * next file to cross 1,000 lines fails without anybody deciding whether it
+ * deserves an exception.
  */
-const EXEMPT = {
-  'pages/DiplomaPage.jsx': 1270,
-  'components/quests/QuestPersonalizationWizard.jsx': 1230,
-}
+const EXEMPT = {}
 
 function jsxFiles(dir, acc = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
