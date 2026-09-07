@@ -231,6 +231,26 @@ const FamilyBillingPage = () => {
   const [paying, setPaying] = useState(null) // invoice id mid-checkout
   const [payingFamily, setPayingFamily] = useState(null) // household id mid-checkout
   const [planning, setPlanning] = useState(null) // invoice id mid-plan-setup
+  const [updatingPlan, setUpdatingPlan] = useState(null) // household id mid-pref-update
+
+  const updatePaymentPlanPreference = async (householdId, preference) => {
+    setUpdatingPlan(householdId)
+    try {
+      await api.post('/api/sis/parent/billing/payment-plan-preference', {
+        household_id: householdId,
+        payment_plan_preference: preference,
+      })
+      setHouseholds((prev) => (prev || []).map((h) => (
+        h.household_id === householdId ? { ...h, payment_plan_preference: preference } : h
+      )))
+      const label = preference === 'monthly' ? 'Monthly payments' : 'Pay in full'
+      toast.success(`Updated payment plan preference to ${label}`)
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update payment plan preference')
+    } finally {
+      setUpdatingPlan(null)
+    }
+  }
 
   const loadBilling = () => api.get('/api/sis/parent/billing')
     .then((r) => setHouseholds(r.data?.households || []))
@@ -447,6 +467,38 @@ const FamilyBillingPage = () => {
                 Pay online, by Zelle, or through your scholarship program; the school records each payment here.
               </p>
             </>
+          )}
+
+          {/* Tuition payment plan preference */}
+          {!hh.pay_through_ufa && (
+            <div className="mb-6 rounded-xl bg-gray-50 border border-gray-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-900">Tuition payment plan preference</div>
+                  <div className="text-xs text-gray-500">
+                    Let the school know whether you plan to pay tuition in full or in monthly payments before invoices are generated.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant={hh.payment_plan_preference === 'in_full' ? 'primary' : 'secondary'}
+                    disabled={updatingPlan === hh.household_id}
+                    onClick={() => updatePaymentPlanPreference(hh.household_id, 'in_full')}
+                  >
+                    Pay in full
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={hh.payment_plan_preference === 'monthly' ? 'primary' : 'secondary'}
+                    disabled={updatingPlan === hh.household_id}
+                    onClick={() => updatePaymentPlanPreference(hh.household_id, 'monthly')}
+                  >
+                    Monthly payments
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Invoices */}

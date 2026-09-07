@@ -191,4 +191,20 @@ describe('FamilyBillingPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/invoices/inv3/autopay-setup',
         expect.objectContaining({ installment_count: 10 })))
   })
+
+  it('allows the family to select a payment plan preference', async () => {
+    api.get.mockImplementationOnce(() => Promise.resolve({ data: { households: [{
+      household_id: 'hh1', household_name: 'Bowman Family',
+      organization: { id: 'org-1', name: 'Gryffin Microschool' },
+      pay_through_ufa: false, payment_plan_preference: null,
+      invoices: [], payments: [], totals: { invoiced_cents: 0, paid_cents: 0, balance_cents: 0 },
+    }] } }))
+    render(<FamilyBillingPage />)
+    expect(await screen.findByText('Tuition payment plan preference')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Monthly payments' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/sis/parent/billing/payment-plan-preference', {
+        household_id: 'hh1', payment_plan_preference: 'monthly',
+      }))
+  })
 })
