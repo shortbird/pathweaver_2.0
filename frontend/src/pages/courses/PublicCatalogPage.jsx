@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+import { canonicalUrl } from '../../utils/canonicalUrl'
 import {
   MagnifyingGlassIcon,
   AcademicCapIcon,
@@ -353,8 +354,8 @@ const PublicCatalogPage = () => {
         <meta name="description" content="Optio courses get kids off the computer and into the real world. Project courses for any age, great as a family activity, with high school credit available for older students." />
         <meta property="og:title" content="Courses | Optio" />
         <meta property="og:description" content="The online course that gets you offline. Real-world project courses for any age, with high school credit available." />
-        <meta property="og:url" content="https://www.optioeducation.com/catalog" />
-        <link rel="canonical" href="https://www.optioeducation.com/catalog" />
+        <meta property="og:url" content={canonicalUrl('/catalog')} />
+        <link rel="canonical" href={canonicalUrl('/catalog')} />
       </Helmet>
 
       <div className="min-h-screen bg-gray-50">

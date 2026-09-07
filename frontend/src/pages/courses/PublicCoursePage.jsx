@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+import { canonicalUrl } from '../../utils/canonicalUrl'
 import api from '../../services/api'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import CourseInterestModal from '../../components/marketing/CourseInterestModal'
@@ -246,9 +247,9 @@ const PublicCoursePage = () => {
         <meta property="og:title" content={`${course.title} | Optio`} />
         <meta property="og:description" content={course.description} />
         {course.cover_image_url && <meta property="og:image" content={course.cover_image_url} />}
-        <meta property="og:url" content={`https://www.optioeducation.com/course/${course.slug}`} />
+        <meta property="og:url" content={canonicalUrl(`/course/${course.slug}`)} />
         <meta property="og:type" content="website" />
-        <link rel="canonical" href={`https://www.optioeducation.com/course/${course.slug}`} />
+        <link rel="canonical" href={canonicalUrl(`/course/${course.slug}`)} />
       </Helmet>
 
       <main className="min-h-screen bg-gray-50">
