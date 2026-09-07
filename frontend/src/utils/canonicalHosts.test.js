@@ -11,16 +11,12 @@ const SRC = path.resolve(__dirname, '..')
  * responds by discarding the declared canonical and choosing its own. Use
  * canonicalUrl() from utils/canonicalUrl.js instead - it names the serving host.
  *
- * EXEMPT: pages/marketing/HomePage.jsx, and it is a real exemption rather than
- * a deferral. That page renders `/` on the app host, which duplicates the
- * marketing homepage, so www IS its canonical -- and unlike the paths this
- * guard exists to catch, https://www.optioeducation.com returns 200 rather
- * than redirecting back here.
- *
- * The other six pre-cutover marketing pages were deleted on 2026-09-07, which
- * is why this list shrank from the whole directory to one file.
+ * NO EXEMPTIONS. There were seven, then one, then none: the pre-cutover
+ * marketing pages are all deleted, HomePage.jsx last, once `/` started
+ * forwarding anonymous visitors to the real homepage on www instead of
+ * rendering a stale copy of it here.
  */
-const EXEMPT = ['pages/marketing/HomePage.jsx']
+const EXEMPT = []
 
 function jsxFiles(dir, acc = []) {
   for (const name of fs.readdirSync(dir)) {
