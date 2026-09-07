@@ -148,7 +148,12 @@ export const ActingAsProvider = ({ children }) => {
 
         // Request acting-as token from backend
         const response = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
-        const { acting_as_token } = response.data;
+        // FU-05: the acting-as credential is an httpOnly cookie now. The body
+        // copy is sent only to clients that cannot use it, so on a normal
+        // browser this is undefined and that is the success case -- storing it
+        // unconditionally would have written `undefined` over the token store,
+        // which is the same mistake clearActingAs used to make in reverse.
+        const { acting_as_token: actingAsHeaderToken } = response.data;
 
         // Persist ONLY the non-sensitive dependent info (FE-M12): the token is
         // held in memory and re-minted from the backend on reload, never written
@@ -162,8 +167,12 @@ export const ActingAsProvider = ({ children }) => {
         // beginSessionSwitch in services/api).
         beginSessionSwitch();
 
-        // Store token in tokenStore so it gets included in Authorization header
-        await tokenStore.setTokens(acting_as_token, tokenStore.getRefreshToken() || parentRefresh);
+        // Header clients only: keep the Authorization path working for the
+        // mobile app and cookie-blocked browsers. Everyone else is already
+        // authenticated as the child by the cookie the response just set.
+        if (actingAsHeaderToken) {
+          await tokenStore.setTokens(actingAsHeaderToken, tokenStore.getRefreshToken() || parentRefresh);
+        }
 
         logger.debug('[ActingAsContext] Now acting as dependent:', dependent.display_name);
 
@@ -175,7 +184,7 @@ export const ActingAsProvider = ({ children }) => {
         // The code below won't be reached due to page redirect, but keep for fallback
         startTransition(() => {
           setActingAsDependent(dependent);
-          setActingAsToken(acting_as_token);
+          setActingAsToken(actingAsHeaderToken || null);
         });
       } catch (error) {
         console.error('[ActingAsContext] Failed to generate acting-as token:', error);

@@ -2,11 +2,15 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
-import { acknowledgeScheduleConflict } from '../../hooks/api/useSisScheduleConflicts'
 import Button from '../../components/ui/Button'
 import { useOrganization } from '../../contexts/OrganizationContext'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisOrg } from './useSisOrg'
+import {
+  useSisClassCatalog, useCatalogPatch, sisClassApi,
+} from '../../hooks/api/useSisClasses'
+import {
+  useSisScheduleConflicts, useConflictsPatch, acknowledgeScheduleConflict,
+} from '../../hooks/api/useSisScheduleConflicts'
 import SisOrgPicker from './SisOrgPicker'
 import CreateClassModal from '../../components/sis/CreateClassModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
@@ -154,20 +158,7 @@ const ClassesPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
-  const [classes, setClasses] = useState([])
-  const [courses, setCourses] = useState([])
-  const [staff, setStaff] = useState([])
-  const [courseSettings, setCourseSettings] = useState({}) // course_id -> {teacher}
-  const [courseTuition, setCourseTuition] = useState(null)  // org-wide tuition (cents) for all Optio courses
-  const [loading, setLoading] = useState(true)
-  const [teacherConflicts, setTeacherConflicts] = useState([]) // advisory double-booking rows
-  const [roomConflicts, setRoomConflicts] = useState([])       // ...and the same for rooms
-  // The same rows, already answered: "seen it, that one is on purpose" (8479edee).
-  const [ackedTeacher, setAckedTeacher] = useState([])
-  const [ackedRoom, setAckedRoom] = useState([])
-  // {room name: [{class_name, day_of_week, start_time, end_time}]} — what the
-  // room picker consults to say which rooms are already taken at an hour.
-  const [roomOccupancy, setRoomOccupancy] = useState({})
+  // showArchived is declared below but read here: both queries key on it.
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState(null)     // class being edited
   const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
@@ -185,8 +176,6 @@ const ClassesPage = () => {
     setSearchParams(next, { replace: true })
   }
   const [search, setSearch] = useState('')
-  const [timeBlocks, setTimeBlocks] = useState([]) // school-day periods (Settings)
-  const [rooms, setRooms] = useState([]) // classrooms & activity spaces (Settings)
   const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
   const [showArchived, setShowArchived] = useState(false) // include archived classes
   // "Open all N closed" used to be the only mention of those N classes anywhere
@@ -201,65 +190,42 @@ const ClassesPage = () => {
     try { localStorage.setItem('sis_classes_view', v) } catch { /* ignore */ }
   }
 
-  // silent=true refreshes data without the full-page loading state, so an
-  // inline edit doesn't unmount the table and jump the scroll back to the top.
-  const load = useCallback((silent = false) => {
-    if (!orgId) { setLoading(false); return }
-    if (!silent) setLoading(true)
-    Promise.all([
-      api.get(withOrg(`/api/sis/classes${showArchived ? '?include_archived=true' : ''}`, orgId)),
-      api.get('/api/courses?filter=all').catch(() => ({ data: {} })),
-      // Both are ADMIN_ROLES-gated, and this page is open to teachers too. The
-      // .catch kept the page working but every teacher who opened /classes
-      // still fired two guaranteed 403s (Sentry OPTIO-WEB-4/5). Neither answer
-      // is used outside the admin-only editor, so teachers simply don't ask.
-      isAdmin
-        ? api.get(withOrg('/api/sis/staff', orgId)).catch(() => ({ data: {} }))
-        : Promise.resolve({ data: {} }),
-      isAdmin
-        ? api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => ({ data: {} }))
-        : Promise.resolve({ data: {} }),
-      // Rooms + school-day blocks. Deliberately NOT /api/admin/organizations/:id:
-      // that endpoint is org_admin-gated, so a campus coordinator got a 403 here
-      // and the editor silently degraded to a free-text classroom box and raw
-      // time inputs — a bug only they could see, since a masquerading superadmin
-      // is authorized as themselves.
-      api.get(withOrg('/api/sis/schedule-settings', orgId)).catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/teacher-conflicts', orgId)).catch(() => ({ data: {} })),
-      api.get(withOrg('/api/sis/room-schedule', orgId)).catch(() => ({ data: {} })),
-    ])
-      .then(([cls, crs, stf, ct, sched, tc, rs]) => {
-        setClasses(cls.data?.classes || [])
-        setTeacherConflicts(tc.data?.conflicts || [])
-        setAckedTeacher(tc.data?.acknowledged || [])
-        setRoomConflicts(rs.data?.conflicts || [])
-        setAckedRoom(rs.data?.acknowledged || [])
-        setRoomOccupancy(rs.data?.occupancy || {})
-        const all = crs.data?.courses || []
-        setCourses(all.filter((c) => isSelectableCourse(c, orgId)))
-        setStaff(stf.data?.staff || [])
-        const map = {}
-        for (const row of ct.data?.course_settings || []) map[row.course_id] = row
-        setCourseSettings(map)
-        setCourseTuition(ct.data?.optio_course_tuition_cents ?? null)
-        setTimeBlocks(sched.data?.time_blocks || [])
-        setRooms(sched.data?.rooms || [])
-      })
-      .catch(() => toast.error('Failed to load catalog'))
-      .finally(() => setLoading(false))
-  }, [orgId, showArchived, isAdmin])
+  const catalog = useSisClassCatalog(orgId, { showArchived, isAdmin })
+  const conflicts = useSisScheduleConflicts(orgId)
+  const patchClass = useCatalogPatch(orgId, { showArchived, isAdmin })
+  const patchConflicts = useConflictsPatch(orgId)
 
-  useEffect(() => { load() }, [load])
+  const {
+    classes = [], courses = [], staff = [], courseSettings = {},
+    courseTuition = null, timeBlocks = [], rooms = [],
+  } = catalog.data || {}
+  const {
+    teacherConflicts = [], roomConflicts = [], roomOccupancy = {},
+    ackedTeacher = [], ackedRoom = [],
+  } = conflicts.data || {}
+  // No org selected is not a loading state -- the page renders its org picker.
+  const loading = !!orgId && catalog.isLoading
+
+  useEffect(() => {
+    if (catalog.isError) toast.error('Failed to load catalog')
+  }, [catalog.isError])
+
+  // Every write path used to end in load() or load(true); the silent variant
+  // existed so an inline edit would not unmount the table and jump the scroll
+  // to the top. refetch() keeps the previous data mounted while it runs, so
+  // both callers want the same thing now and there is one of it.
+  const reload = catalog.refetch
+
 
   // ── Class write paths ───────────────────────────────────────────────────────
   const syncMeetings = async (classId, dow, startTime, durationMin, existing = []) => {
     for (const m of existing) {
-      await api.delete(`/api/sis/classes/${classId}/meetings/${m.id}?organization_id=${orgId}`)
+      await sisClassApi.deleteMeeting(classId, m.id, orgId)
     }
     const end = endTime(startTime, durationMin)
     if (!dow?.length || !startTime || !end) return
     for (const day of dow) {
-      await api.post(`/api/sis/classes/${classId}/meetings`, {
+      await sisClassApi.addMeeting(classId, {
         day_of_week: day, start_time: startTime, end_time: end, organization_id: orgId,
       })
     }
@@ -271,11 +237,9 @@ const ClassesPage = () => {
   // went through, and a failed check must never break it.
   const warnIfTeacherDoubleBooked = async (classId) => {
     try {
-      const r = await api.get(withOrg('/api/sis/teacher-conflicts', orgId))
-      const conflicts = r.data?.conflicts || []
-      setTeacherConflicts(conflicts)
-      setAckedTeacher(r.data?.acknowledged || [])
-      const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      const { data } = await conflicts.refetch()
+      const hit = (data?.teacherConflicts || [])
+        .find((x) => x.class_a_id === classId || x.class_b_id === classId)
       if (hit) toast(conflictText(hit), { icon: '⚠️', duration: 10000 })
     } catch { /* advisory only */ }
   }
@@ -284,12 +248,12 @@ const ClassesPage = () => {
   // the same time, so the next class edited sees the room it just took.
   const warnIfRoomDoubleBooked = async (classId) => {
     try {
-      const r = await api.get(withOrg('/api/sis/room-schedule', orgId))
-      const conflicts = r.data?.conflicts || []
-      setRoomConflicts(conflicts)
-      setAckedRoom(r.data?.acknowledged || [])
-      setRoomOccupancy(r.data?.occupancy || {})
-      const hit = conflicts.find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      // Same refetch as the teacher check: one query answers both, and the
+      // room picker's occupancy map refreshes with it, so the next class
+      // edited sees the room this one just took.
+      const { data } = await conflicts.refetch()
+      const hit = (data?.roomConflicts || [])
+        .find((x) => x.class_a_id === classId || x.class_b_id === classId)
       if (hit) toast(roomConflictText(hit), { icon: '⚠️', duration: 10000 })
     } catch { /* advisory only */ }
   }
@@ -308,13 +272,16 @@ const ClassesPage = () => {
     const move = (live, seen) => (acknowledged
       ? [live.filter((c) => c.key !== conflict.key), [...seen, conflict]]
       : [[...live, conflict], seen.filter((c) => c.key !== conflict.key)])
-    if (isRoom) {
-      const [live, seen] = move(roomConflicts, ackedRoom)
-      setRoomConflicts(live); setAckedRoom(seen)
-    } else {
-      const [live, seen] = move(teacherConflicts, ackedTeacher)
-      setTeacherConflicts(live); setAckedTeacher(seen)
-    }
+    // Writes into the shared query cache rather than a local useState, so the
+    // banner and the post-save re-check read the same list (QF-03).
+    patchConflicts((old) => {
+      if (isRoom) {
+        const [live, seen] = move(old.roomConflicts || [], old.ackedRoom || [])
+        return { ...old, roomConflicts: live, ackedRoom: seen }
+      }
+      const [live, seen] = move(old.teacherConflicts || [], old.ackedTeacher || [])
+      return { ...old, teacherConflicts: live, ackedTeacher: seen }
+    })
   }
 
   const classBody = (payload) => ({
@@ -345,23 +312,18 @@ const ClassesPage = () => {
     organization_id: orgId,
   })
 
-  const uploadImage = async (classId, imageFile) => {
-    const form = new FormData()
-    form.append('file', imageFile)
-    await api.post(`/api/sis/classes/${classId}/image?organization_id=${orgId}`, form)
-  }
 
   const handleCreate = async (payload, imageFile) => {
     try {
-      const r = await api.post('/api/sis/classes', classBody(payload))
+      const r = await sisClassApi.create(classBody(payload))
       const id = r.data?.class?.id
       if (id) {
         await syncMeetings(id, payload.days_of_week, payload.start_time, payload.duration_minutes)
-        if (imageFile) await uploadImage(id, imageFile)
+        if (imageFile) await sisClassApi.uploadImage(id, orgId, imageFile)
       }
       toast.success('Class created')
       setCreating(false)
-      load()
+      reload()
       if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not create class')
@@ -371,11 +333,11 @@ const ClassesPage = () => {
   // Shared save path for the card editor and the table's inline rows.
   const saveClass = async (cls, payload, imageFile = null) => {
     try {
-      await api.patch(`/api/sis/classes/${cls.id}`, classBody(payload))
+      await sisClassApi.update(cls.id, classBody(payload))
       await syncMeetings(cls.id, payload.days_of_week, payload.start_time, payload.duration_minutes, cls.meetings || [])
-      if (imageFile) await uploadImage(cls.id, imageFile)
+      if (imageFile) await sisClassApi.uploadImage(cls.id, orgId, imageFile)
       toast.success('Class updated')
-      load(true)  // silent — keep the table mounted so scroll position is preserved
+      reload()
       warnIfTeacherDoubleBooked(cls.id)
       warnIfRoomDoubleBooked(cls.id)
       return true
@@ -414,17 +376,17 @@ const ClassesPage = () => {
         registration_status: 'closed',
         organization_id: orgId,
       }
-      const r = await api.post('/api/sis/classes', body)
+      const r = await sisClassApi.create(body)
       const id = r.data?.class?.id
       // Recreate its meeting times on the copy.
       for (const m of (c.meetings || [])) {
         if (!id || m.day_of_week == null || !m.start_time || !m.end_time) continue
-        await api.post(`/api/sis/classes/${id}/meetings`, {
+        await sisClassApi.addMeeting(id, {
           day_of_week: m.day_of_week, start_time: m.start_time, end_time: m.end_time, organization_id: orgId,
         })
       }
       toast.success('Class duplicated — review and open registration when ready')
-      load(true)
+      reload()
       // A copy shares the original's teacher and times, so it usually IS a
       // double-booking until the schedule is edited — say so up front.
       if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
@@ -444,31 +406,31 @@ const ClassesPage = () => {
   const archiveClass = async (c) => {
     if (!(await confirm(`Archive "${c.name}"? It will no longer accept registrations.`))) return
     try {
-      await api.delete(`/api/sis/classes/${c.id}?organization_id=${orgId}`)
+      await sisClassApi.archive(c.id, orgId)
       toast.success('Class archived')
       setEditing(null)
-      load()
+      reload()
     } catch { toast.error('Could not archive class') }
   }
 
   const restoreClass = async (c) => {
     try {
-      await api.post(`/api/sis/classes/${c.id}/restore?organization_id=${orgId}`, {})
+      await sisClassApi.restore(c.id, orgId)
       toast.success('Class restored')
       setEditing(null)
-      load()
+      reload()
     } catch { toast.error('Could not restore class') }
   }
 
   // Optimistic: flip the row in place so the expanded row / open modal stays
-  // put — a full load() would blank the page and collapse where you were.
+  // put — a refetch that dropped the rows would collapse where you were.
   const toggleRegistration = async (cls) => {
     const next = cls.registration_status === 'open' ? 'closed' : 'open'
-    setClasses((cs) => cs.map((c) => (c.id === cls.id ? { ...c, registration_status: next } : c)))
+    patchClass(cls.id, { registration_status: next })
     try {
-      await api.patch(`/api/sis/classes/${cls.id}`, { registration_status: next, organization_id: orgId })
+      await sisClassApi.update(cls.id, { registration_status: next, organization_id: orgId })
     } catch {
-      setClasses((cs) => cs.map((c) => (c.id === cls.id ? { ...c, registration_status: cls.registration_status } : c)))
+      patchClass(cls.id, { registration_status: cls.registration_status })
       toast.error('Could not update registration')
     }
   }
@@ -478,7 +440,7 @@ const ClassesPage = () => {
   // rows with an open seat AND someone actually waiting (see ClassesTable).
   const offerNextSeat = async (c) => {
     try {
-      const r = await api.post(`/api/sis/classes/${c.id}/waitlist/offer-next`, { organization_id: orgId })
+      const r = await sisClassApi.offerNextSeat(c.id, orgId)
       // Name who — an unnamed "next student" left the office with no record of
       // who had been offered the seat (iCreate, 2026-08-17).
       if (r.data?.entry) toast.success(`Seat offered to ${r.data.entry.student_name || 'the next student'}`)
@@ -486,7 +448,7 @@ const ClassesPage = () => {
       // offer out"), which beats a bare "No one waiting" next to a row that
       // reads Waitlist 1.
       else toast(r.data?.message || 'No one is waiting for this class', { icon: 'ℹ️' })
-      load(true)  // silent — refresh the counts without collapsing the table
+      reload()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not offer seat')
     }
@@ -500,7 +462,7 @@ const ClassesPage = () => {
     if (!(await confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`))) return
     try {
       await Promise.all(closedClasses.map((c) =>
-        api.patch(`/api/sis/classes/${c.id}`, { registration_status: 'open', organization_id: orgId })))
+        sisClassApi.update(c.id, { registration_status: 'open', organization_id: orgId })))
       toast.success('Registration opened for all classes')
     } catch {
       toast.error('Could not open some classes — check the list')
@@ -508,7 +470,7 @@ const ClassesPage = () => {
     // Nothing is closed any more, so leaving the filter on would show an empty
     // page and read as "the classes are gone".
     setClosedOnly(false)
-    load()
+    reload()
   }
 
   // Map staff by ID for quick teacher name resolution during search and rendering
@@ -670,7 +632,7 @@ const ClassesPage = () => {
             {showArchived ? 'Showing archived' : 'Show archived'}
           </button>
         )}
-        {tab === 'classes' && orgId && <ScheduleAiEditor orgId={orgId} onApplied={load} />}
+        {tab === 'classes' && orgId && <ScheduleAiEditor orgId={orgId} onApplied={reload} />}
         {tab === 'classes' && orgId && (
           <button onClick={() => setShowSync(true)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors">
@@ -737,7 +699,7 @@ const ClassesPage = () => {
       )}
 
       {showSync && orgId && (
-        <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={load} />
+        <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={reload} />
       )}
 
       {exporting && (
@@ -817,7 +779,7 @@ const ClassesPage = () => {
           onToggleRegistration={toggleRegistration}
           onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
           onRestore={() => restoreClass(classes.find((c) => c.id === editing.id) || editing)}
-          onRosterChanged={() => load(true)}
+          onRosterChanged={() => reload()}
         />
       )}
       {viewingCourse && (
@@ -832,7 +794,7 @@ const ClassesPage = () => {
           orgId={orgId}
           isSuperadmin={isSuperadmin}
           onClose={() => setSettingsCourse(null)}
-          onSaved={() => { setSettingsCourse(null); load() }}
+          onSaved={() => { setSettingsCourse(null); reload() }}
         />
       )}
     </div>

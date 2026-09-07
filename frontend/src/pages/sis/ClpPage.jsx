@@ -18,122 +18,22 @@ import { matchesPersonSearch } from '../../utils/personSearch'
  * screen can be turned toward the parent and child — the per-student payload
  * contains no other student's data by construction.
  *
- * The sub-views are plain render helpers (not nested components) so the DOM tree
- * stays stable across re-renders and doesn't remount mid-interaction.
+ * The sub-views live in ./clp/ as module-level components. They used to be
+ * plain render helpers inside this function, to keep the DOM stable across
+ * re-renders; a component declared at module scope has the same property (its
+ * identity does not change between renders), so the split cost nothing there.
+ * Declaring one INSIDE this function would remount it on every keystroke --
+ * that is the mistake the old comment was guarding against.
  */
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const DEFAULT_DAYS = [1, 2, 3, 4, 5] // Mon–Fri
-
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = String(hhmm).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
-const toMinutes = (hhmm) => {
-  const [h, m] = String(hhmm || '').split(':').map(Number)
-  return Number.isNaN(h) ? null : h * 60 + (m || 0)
-}
-
-// Two meetings overlap when they share a weekday and their time ranges intersect.
-const meetingsOverlap = (a, b) => {
-  if (a.day_of_week == null || b.day_of_week == null) return false
-  if (a.day_of_week !== b.day_of_week) return false
-  const as = toMinutes(a.start_time)
-  const ae = toMinutes(a.end_time)
-  const bs = toMinutes(b.start_time)
-  const be = toMinutes(b.end_time)
-  if (as == null || ae == null || bs == null || be == null) return false
-  return as < be && bs < ae
-}
-
-// Does any meeting of `cls` overlap any meeting in the enrolled schedule
-// (ignoring the class itself)?
-const conflictsWithSchedule = (cls, schedule) => {
-  const others = schedule.filter((s) => s.class_id !== cls.class_id)
-  return cls.meetings.some((m) => others.some((s) => s.meetings.some((sm) => meetingsOverlap(m, sm))))
-}
-
-// A short "Mon/Wed 9:00–10:00am" style summary; groups meetings by identical time.
-const meetingSummary = (meetings) => {
-  const recurring = meetings.filter((m) => m.day_of_week != null && m.start_time)
-  if (!recurring.length) {
-    const oneOff = meetings.find((m) => m.specific_date)
-    return oneOff ? `${oneOff.specific_date} ${fmtTime(oneOff.start_time)}` : 'No set time'
-  }
-  const byTime = {}
-  for (const m of recurring) {
-    const key = `${m.start_time}-${m.end_time}`
-    ;(byTime[key] = byTime[key] || { days: [], m }).days.push(m.day_of_week)
-  }
-  return Object.values(byTime)
-    .map(({ days, m }) => {
-      const label = days.sort((a, b) => a - b).map((d) => DAY_LABELS[d]).join('/')
-      return `${label} ${fmtTime(m.start_time)}–${fmtTime(m.end_time)}`
-    })
-    .join(', ')
-}
-
-const priceLabel = (cents) => (cents ? `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}` : null)
-
-const dollars = (n) => `$${Number(n).toFixed(Number(n) % 1 ? 2 : 0)}`
-
-// Sortable "when does this class first meet" key: day * 1440 + start minutes.
-// Unscheduled classes sort to the end.
-const firstSlot = (c) => {
-  let best = Infinity
-  for (const m of c.meetings || []) {
-    if (m.day_of_week == null) continue
-    const mins = toMinutes(m.start_time)
-    const key = m.day_of_week * 1440 + (mins == null ? 0 : mins)
-    if (key < best) best = key
-  }
-  return best
-}
-
-// Does this class admit a student of `age`? Unknown ages and unbounded classes pass.
-const fitsAge = (cls, age) => {
-  if (age == null) return true
-  if (cls.min_age != null && age < cls.min_age) return false
-  if (cls.max_age != null && age > cls.max_age) return false
-  return true
-}
-
-const Pill = ({ children, className = '' }) => (
-  <span className={`inline-flex items-center text-[11px] font-semibold rounded-full px-2 py-0.5 ${className}`}>{children}</span>
-)
-
-const CheckIcon = ({ className = '', label }) => (
-  <svg className={className} viewBox="0 0 20 20" fill="currentColor"
-    role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-  </svg>
-)
-
-const LEARNING_DAY_LABELS = {
-  quest_learning_day: 'Quest Learning Day',
-  elementary_at_home: 'Elementary At-Home Academic Learning Day',
-}
-
-const FUNDING_LABELS = {
-  ufa: 'UFA', ufa_private: 'UFA – Private School',
-  private_pay: 'Private Pay', other: 'Other',
-}
-
-// Seats "3 / 12 · 9 left" or "8 / 8 · Full" or "Unlimited".
-const SeatsPill = ({ cls }) => {
-  if (cls.capacity == null) return <Pill className="bg-neutral-100 text-neutral-600">Unlimited</Pill>
-  if (cls.is_full) return <Pill className="bg-rose-100 text-rose-700">{cls.enrolled_count} / {cls.capacity} · Full</Pill>
-  return (
-    <Pill className="bg-emerald-100 text-emerald-700">
-      {cls.enrolled_count} / {cls.capacity} · {cls.spots_left} left
-    </Pill>
-  )
-}
+// QF-02: the directory, the week grid, one class card and the meeting body
+// itself each live in ./clp/. They are module-level components rather than
+// the render helpers they used to be -- a component defined at module scope
+// has a stable identity across renders, so the DOM does not remount
+// mid-interaction, which is what the old helpers were protecting.
+import { fitsAge, firstSlot, conflictsWithSchedule, meetingsOverlap, DEFAULT_DAYS } from './clp/clpHelpers'
+import StudentDirectory from './clp/StudentDirectory'
+import StudentDetail from './clp/StudentDetail'
 
 const ClpPage = () => {
   const confirm = useConfirm()
@@ -437,532 +337,30 @@ const ClpPage = () => {
       .sort((a, b) => firstSlot(a) - firstSlot(b) || (a.name || '').localeCompare(b.name || ''))
   }, [student, classSearch, hideFull, fitsOnly, allAges, studentAge, timeFocus, schedule])
 
-  // ── Render helpers (plain functions → stable DOM, no remount) ───────────────
-  const renderClassActions = (cls) => {
-    const busy = busyId === cls.class_id
-    if (cls.is_enrolled) {
-      return <Button size="sm" variant="outline" disabled={busy} onClick={() => drop(cls)}>{busy ? '…' : 'Drop'}</Button>
-    }
-    if (cls.on_waitlist) {
-      return (
-        <div className="flex items-center gap-2">
-          <Pill className="bg-amber-100 text-amber-700">Waitlisted{cls.waitlist_position ? ` #${cls.waitlist_position}` : ''}</Pill>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => leaveWaitlist(cls)}>{busy ? '…' : 'Leave'}</Button>
-        </div>
-      )
-    }
-    if (cls.is_full) {
-      return <Button size="sm" variant="outline" disabled={busy} onClick={() => joinWaitlist(cls)}>{busy ? '…' : 'Join waitlist'}</Button>
-    }
-    return <Button size="sm" disabled={busy} onClick={() => enroll(cls)}>{busy ? '…' : 'Enroll'}</Button>
-  }
-
-  const renderClassCard = (cls) => (
-    <div key={cls.class_id} className="rounded-xl border border-gray-200 bg-white p-3 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-neutral-900 truncate">{cls.name}</span>
-          {cls.conflicts && <Pill className="bg-rose-100 text-rose-700">Time conflict</Pill>}
-          {cls.registration_status === 'closed' && <Pill className="bg-neutral-100 text-neutral-500">Registration closed</Pill>}
-        </div>
-        <div className="text-sm text-neutral-500 mt-0.5">{meetingSummary(cls.meetings)}</div>
-        <div className="flex items-center gap-2 flex-wrap mt-1.5">
-          {cls.primary_instructor?.name && <span className="text-xs text-neutral-500">{cls.primary_instructor.name}</span>}
-          <SeatsPill cls={cls} />
-          {cls.waitlist_count > 0 && <Pill className="bg-amber-100 text-amber-700">{cls.waitlist_count} waiting</Pill>}
-          {priceLabel(cls.price_cents) && <span className="text-xs text-neutral-500">{priceLabel(cls.price_cents)}</span>}
-          {Number(cls.supply_fee) > 0 && <span className="text-xs text-neutral-500">{dollars(cls.supply_fee)} supplies</span>}
-        </div>
-      </div>
-      <div className="flex-shrink-0">{renderClassActions(cls)}</div>
-    </div>
+  const studentDetail = (
+    <StudentDetail
+      allAges={allAges} setAllAges={setAllAges}
+      availableClasses={availableClasses} busyId={busyId}
+      classSearch={classSearch} setClassSearch={setClassSearch}
+      confirm={confirm} drop={drop} enroll={enroll}
+      enrollFromWaitlist={enrollFromWaitlist}
+      fitsOnly={fitsOnly} setFitsOnly={setFitsOnly}
+      hideFull={hideFull} setHideFull={setHideFull}
+      joinWaitlist={joinWaitlist} leaveWaitlist={leaveWaitlist}
+      lowEnrollmentClasses={lowEnrollmentClasses}
+      notesDraft={notesDraft} notesStatus={notesStatus}
+      offerOtherSection={offerOtherSection} onNotesChange={onNotesChange}
+      openRequests={openRequests} presentation={presentation}
+      removeWaitlistEntry={removeWaitlistEntry} resolveException={resolveException}
+      saveNotes={saveNotes} schedule={schedule} scheduleDays={scheduleDays}
+      schoolBusy={schoolBusy} selectStudent={selectStudent}
+      student={student} studentAge={studentAge} studentLoading={studentLoading}
+      timeFocus={timeFocus} setTimeFocus={setTimeFocus}
+      toggleFinished={toggleFinished} togglePrivateSchool={togglePrivateSchool}
+      waitlistedClasses={waitlistedClasses}
+    />
   )
 
-  const renderScheduleGrid = () => {
-    // Rows are keyed on START time, shared across the whole week — the row
-    // model WeeklyScheduleGrid proved out. Independent per-day stacks put
-    // Tuesday's 9:30 class at a different height than Monday's 9:30, so the
-    // grid read as "empty at 9:30" on the day it was busiest (iCreate,
-    // 2026-08-25). Each card carries its own end time, so rows only need the
-    // shared start.
-    const cell = {}
-    const slotSet = new Set()
-    const dayHasClass = {}
-    for (const c of schedule) {
-      for (const m of c.meetings) {
-        if (m.day_of_week == null) continue
-        const slot = m.start_time || ''
-        slotSet.add(slot)
-        dayHasClass[m.day_of_week] = true
-        ;(cell[`${m.day_of_week}|${slot}`] = cell[`${m.day_of_week}|${slot}`] || []).push({ cls: c, m })
-      }
-    }
-    const slots = [...slotSet].sort((a, b) => (toMinutes(a) || 0) - (toMinutes(b) || 0))
-    if (!slots.length) slots.push('') // one row of day placeholders for an empty week
-    const unscheduled = schedule.filter((c) => !c.meetings.some((m) => m.day_of_week != null))
-
-    // Per-day supply-fee totals — each class counted once per day it meets.
-    const supplyByDay = {}
-    for (const c of schedule) {
-      if (!Number(c.supply_fee)) continue
-      const days = new Set(c.meetings.filter((m) => m.day_of_week != null).map((m) => m.day_of_week))
-      for (const d of days) supplyByDay[d] = (supplyByDay[d] || 0) + Number(c.supply_fee)
-    }
-    const anySupply = scheduleDays.some((d) => supplyByDay[d] > 0)
-
-    const renderCard = ({ cls, m }, i, d) => {
-      const focused = timeFocus && timeFocus.classId === cls.class_id && timeFocus.day === d
-      return (
-        <div key={`${cls.class_id}-${i}`} className="relative">
-          <button
-            type="button"
-            onClick={() => setTimeFocus(focused ? null : { label: cls.name, day: d, classId: cls.class_id, meetings: cls.meetings })}
-            className={`w-full text-left rounded-lg p-2.5 pr-7 border transition-colors ${
-              focused
-                ? 'border-optio-purple bg-optio-purple/10 ring-1 ring-optio-purple'
-                : 'border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white hover:border-optio-purple'
-            }`}
-          >
-            <div className="text-sm font-semibold text-neutral-900 leading-tight">{cls.name}</div>
-            <div className="text-xs text-neutral-500 mt-0.5">{fmtTime(m.start_time)}–{fmtTime(m.end_time)}</div>
-            {cls.primary_instructor?.name && <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{cls.primary_instructor.name}</div>}
-          </button>
-          <button
-            type="button"
-            title={`Drop ${cls.name}`}
-            aria-label={`Drop ${cls.name}`}
-            disabled={busyId === cls.class_id}
-            onClick={async () => { if (await confirm(`Drop ${cls.name} from this student's schedule?`)) drop(cls) }}
-            className="absolute top-1 right-1 text-neutral-300 hover:text-red-600 leading-none text-base font-bold px-1 disabled:opacity-40"
-          >
-            {busyId === cls.class_id ? '·' : '×'}
-          </button>
-        </div>
-      )
-    }
-
-    return (
-      <div>
-        {/* One CSS grid: a header row, then one row per start time (cells fill
-            left to right, one per day, so same-time classes align), then the
-            per-day supply footers. */}
-        <div className="grid gap-x-3 gap-y-2" style={{ gridTemplateColumns: `repeat(${scheduleDays.length}, minmax(0, 1fr))` }}>
-          {scheduleDays.map((d) => (
-            <div key={`head-${d}`} className="min-w-0 text-xs font-semibold uppercase tracking-wide text-neutral-400 text-center">
-              {DAY_LABELS[d]}
-            </div>
-          ))}
-          {slots.map((slot, si) => scheduleDays.map((d) => (
-            <div key={`${slot}|${d}`} data-slot={slot} className="min-w-0 space-y-2">
-              {(cell[`${d}|${slot}`] || []).map((entry, i) => renderCard(entry, i, d))}
-              {si === 0 && !dayHasClass[d] && <div className="text-xs text-neutral-300 text-center py-4">—</div>}
-            </div>
-          )))}
-          {anySupply && scheduleDays.map((d) => (
-            <div key={`supply-${d}`} className="min-w-0">
-              {supplyByDay[d] > 0 && (
-                <div className="text-[11px] text-neutral-500 text-center border-t border-gray-100 pt-1.5">
-                  Supplies: <span className="font-semibold text-neutral-700">{dollars(supplyByDay[d])}</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {unscheduled.length > 0 && (
-          <div className="mt-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">No set meeting time</div>
-            <div className="flex flex-wrap gap-2">
-              {unscheduled.map((c) => <Pill key={c.class_id} className="bg-[#F3EFF4] text-neutral-700">{c.name}</Pill>)}
-            </div>
-          </div>
-        )}
-
-        {!schedule.length && (
-          <p className="text-sm text-neutral-400">Not registered for any classes yet. Add classes from the catalog below.</p>
-        )}
-      </div>
-    )
-  }
-
-  const renderStudentDetail = () => {
-    if (studentLoading) return <p className="text-neutral-500">Loading student…</p>
-    if (!student) {
-      return (
-        <div>
-          <div className="flex items-center justify-center py-10 text-neutral-400 text-center">
-            <div>
-              <p className="font-medium">Search for a student to begin their learning plan.</p>
-              <p className="text-sm mt-1">Their schedule and every available class will appear here.</p>
-            </div>
-          </div>
-          {(waitlistedClasses.length > 0 || lowEnrollmentClasses.length > 0) && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-neutral-900 mb-1">Classes with a waitlist</h3>
-                <p className="text-xs text-neutral-400 mb-3">Students waiting for a seat — open the class to offer it.</p>
-                {waitlistedClasses.length === 0
-                  ? <p className="text-sm text-neutral-400">No classes have a waitlist.</p>
-                  : (
-                    <ul className="divide-y divide-gray-100">
-                      {waitlistedClasses.map((c) => (
-                        <li key={c.id} className="py-2 flex items-center justify-between gap-2">
-                          <span className="text-sm text-neutral-800 truncate">{c.name}</span>
-                          <Pill className="bg-amber-100 text-amber-700 shrink-0">{c.waitlist_count} waiting</Pill>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-neutral-900 mb-1">Low enrollment</h3>
-                <p className="text-xs text-neutral-400 mb-3">Fewer than 4 students — may be in danger of being dropped.</p>
-                {lowEnrollmentClasses.length === 0
-                  ? <p className="text-sm text-neutral-400">Every class has 4 or more students.</p>
-                  : (
-                    <ul className="divide-y divide-gray-100">
-                      {lowEnrollmentClasses.map((c) => (
-                        <li key={c.id} className="py-2 flex items-center justify-between gap-2">
-                          <span className="text-sm text-neutral-800 truncate">{c.name}</span>
-                          <Pill className={`shrink-0 ${(c.enrolled_count ?? 0) === 0 ? 'bg-rose-100 text-rose-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {c.enrolled_count ?? 0} enrolled
-                          </Pill>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-              </div>
-            </div>
-          )}
-        </div>
-      )
-    }
-    const s = student.student
-    return (
-      <div>
-        {/* Student header */}
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
-            <h2 className={`font-bold text-neutral-900 ${presentation ? 'text-3xl' : 'text-2xl'}`}>
-              {s.name}
-              {s.age != null && <span className="font-normal text-neutral-400"> · {s.age}</span>}
-            </h2>
-            <div className="text-neutral-500 mt-0.5 text-sm">
-              {student.family?.name && <span>{student.family.name}</span>}
-            </div>
-            {/* Guardian phone right here — building a schedule meant switching
-                to the family directory and back for every call (iCreate,
-                2026-09-02). Hidden with the screen turned to the family: they
-                know their own number, and it is one more thing on the page. */}
-            {!presentation && student.family?.guardians?.length > 0 && (
-              <div className="text-sm text-neutral-500 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                {student.family.guardians.map((g) => (
-                  <span key={g.name + (g.phone || g.email || '')}>
-                    <span className="text-neutral-600">{g.name}</span>
-                    {g.phone
-                      ? <a href={`tel:${g.phone}`} className="ml-1.5 text-optio-purple hover:underline">{g.phone}</a>
-                      : <span className="ml-1.5 text-neutral-300">no phone on file</span>}
-                  </span>
-                ))}
-              </div>
-            )}
-            {/* School of record. Read-only with the screen turned to the family;
-                staff can set it right here during the meeting, which is what
-                iCreate asked for ("maybe we could check the box during the
-                CLP") — it used to be editable only on the Families page. */}
-            {student.family?.school_name && (student.family?.enrolled_private_school || !presentation) && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                <span className="text-xs text-neutral-400">School:</span>
-                {presentation ? (
-                  <Pill className="bg-emerald-100 text-emerald-700">{student.family.school_name}</Pill>
-                ) : (
-                  <button type="button" onClick={togglePrivateSchool} disabled={schoolBusy}
-                    className={`text-[11px] font-medium rounded-full px-2 py-0.5 shadow-sm transition-colors disabled:opacity-50 ${
-                      student.family.enrolled_private_school
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}
-                    title={student.family.enrolled_private_school
-                      ? `Enrolled in ${student.family.school_name} — click to unset`
-                      : `Not enrolled in ${student.family.school_name} — click to set`}>
-                    {student.family.enrolled_private_school
-                      ? `✓ ${student.family.school_name}`
-                      : `Not ${student.family.school_name}`}
-                  </button>
-                )}
-              </div>
-            )}
-            {(student.family?.funding_source || student.family?.payment_intent?.length > 0 || student.family?.ufa_private) && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                <span className="text-xs text-neutral-400">Form of payment:</span>
-                {student.family?.funding_source ? (
-                  // Explicit funding source is the source of truth (staff-set or
-                  // funnel-derived); distinguishes UFA vs UFA-Private at a glance.
-                  <Pill className="bg-indigo-100 text-indigo-700">{FUNDING_LABELS[student.family.funding_source] || student.family.funding_source}</Pill>
-                ) : (
-                  <>
-                    {(student.family.payment_intent || []).map((p) => (
-                      p === 'Utah Fits All' && student.family.ufa_private
-                        ? <Pill key={p} className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
-                        : <Pill key={p} className="bg-sky-100 text-sky-700">{p}</Pill>
-                    ))}
-                    {student.family.ufa_private && !(student.family.payment_intent || []).includes('Utah Fits All') && (
-                      <Pill className="bg-indigo-100 text-indigo-700">UFA · Private School</Pill>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {student.learning_day?.choice && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                <span className="text-xs text-neutral-400">Learning day:</span>
-                <Pill className="bg-violet-100 text-violet-700">
-                  {LEARNING_DAY_LABELS[student.learning_day.choice] || student.learning_day.choice}
-                </Pill>
-              </div>
-            )}
-            {student.siblings?.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                <span className="text-xs text-neutral-400">Siblings:</span>
-                {student.siblings.map((sib) => (
-                  <button
-                    key={sib.student_id}
-                    type="button"
-                    onClick={() => selectStudent(sib.student_id)}
-                    className="text-xs font-medium rounded-full px-2.5 py-1 bg-[#F3EFF4] text-optio-purple hover:bg-optio-purple/20"
-                  >
-                    {sib.name}
-                    {sib.age != null && <span className="text-optio-purple/60"> · {sib.age}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* CLP finished: visible in presentation too — marking it at the end
-              of the meeting, screen still turned to the family, is the flow. */}
-          <div className="shrink-0 flex flex-col items-end gap-1.5">
-            {student.clp_record?.finished ? (
-              <>
-                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                  <CheckIcon className="w-4 h-4" /> CLP done
-                </span>
-                <button type="button" onClick={toggleFinished}
-                  className="text-xs text-neutral-400 underline hover:text-neutral-600">
-                  Reopen
-                </button>
-              </>
-            ) : (
-              <Button size="sm" onClick={toggleFinished}>Mark CLP done</Button>
-            )}
-          </div>
-        </div>
-
-        {/* Staff meeting notes — never rendered in presentation (parent-safe). */}
-        {!presentation && (
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-neutral-900 text-sm">
-                Meeting notes <span className="text-xs font-normal text-neutral-400">· staff only</span>
-              </h3>
-              <span className={`text-xs ${notesStatus === 'dirty' ? 'text-amber-600' : 'text-neutral-400'}`}>
-                {notesStatus === 'saving' ? 'Saving…' : notesStatus === 'dirty' ? 'Unsaved' : 'Saved'}
-              </span>
-            </div>
-            <textarea
-              rows={3}
-              value={notesDraft}
-              onChange={(e) => onNotesChange(e.target.value)}
-              onBlur={() => { if (notesStatus === 'dirty') saveNotes(notesDraft) }}
-              placeholder="Notes from the CLP meeting…"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-            />
-          </div>
-        )}
-
-        {/* What the family has asked for and is still waiting on. These lived on
-            two other pages, so a CLP meeting could finish without anyone
-            noticing an open request (iCreate, 2026-07-31). */}
-        {!presentation && (openRequests.waitlist.length > 0 || openRequests.age_exceptions.length > 0) && (
-          <div className="bg-white rounded-xl border border-amber-200 p-4 mb-6">
-            <h3 className="font-semibold text-neutral-900 text-sm mb-2">
-              Open requests <span className="text-xs font-normal text-neutral-400">· staff only</span>
-            </h3>
-            <div className="space-y-1.5">
-              {openRequests.waitlist.map((w) => (
-                <div key={w.entry_id}>
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-neutral-700 min-w-0 truncate">
-                      Waitlist · {w.class_name}
-                      <span className="ml-1.5 text-xs text-neutral-400">
-                        {w.status === 'offered' ? 'seat offered' : `#${w.position}`}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2 shrink-0 text-xs">
-                      <button onClick={() => enrollFromWaitlist(w)} disabled={busyId === w.entry_id}
-                        className="text-optio-purple hover:underline disabled:opacity-50">Enroll now</button>
-                      <button onClick={() => removeWaitlistEntry(w)} disabled={busyId === w.entry_id}
-                        className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Remove</button>
-                    </span>
-                  </div>
-                  {/* The answer to a waitlist place is often a seat at another
-                      time — say so here, where the meeting is happening. */}
-                  {(w.sections || []).length > 0 && (
-                    <div className="mt-0.5 ml-3 text-xs text-neutral-500">
-                      Other sections with room:{' '}
-                      {w.sections.map((sec, i) => (
-                        <span key={sec.class_id}>
-                          {i > 0 && ', '}
-                          <button onClick={() => offerOtherSection(w, sec)} disabled={busyId === w.entry_id}
-                            className="text-optio-purple hover:underline disabled:opacity-50">
-                            offer {sec.name}
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {openRequests.age_exceptions.map((r) => (
-                <div key={r.request_id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-neutral-700 min-w-0 truncate">
-                    Age exception · {r.class_name}
-                    {r.message && <span className="ml-1.5 text-xs text-neutral-400">“{r.message}”</span>}
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0 text-xs">
-                    <button onClick={() => resolveException(r, 'approve')} disabled={busyId === r.request_id}
-                      className="text-optio-purple hover:underline disabled:opacity-50">Approve</button>
-                    <button onClick={() => resolveException(r, 'decline')} disabled={busyId === r.request_id}
-                      className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">Decline</button>
-                  </span>
-                </div>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-neutral-400">
-              Approve or decline each age exception here; waitlist places are kept until you enroll
-              or remove them.
-            </p>
-          </div>
-        )}
-
-        {/* Weekly schedule */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
-          <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-            <div>
-              <h3 className="font-semibold text-neutral-900">Weekly schedule</h3>
-              <span className="text-sm text-neutral-400">{schedule.length} class{schedule.length === 1 ? '' : 'es'}</span>
-            </div>
-          </div>
-          {renderScheduleGrid()}
-        </div>
-
-        {/* Available classes */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <h3 className="font-semibold text-neutral-900">
-              Available classes
-              {studentAge != null && !allAges && (
-                <span className="ml-2 text-xs font-normal text-neutral-400">for age {studentAge}</span>
-              )}
-            </h3>
-            <div className="flex items-center gap-3 flex-wrap">
-              <input
-                value={classSearch}
-                onChange={(e) => setClassSearch(e.target.value)}
-                placeholder="Search classes…"
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-              />
-              <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                <input type="checkbox" checked={fitsOnly} onChange={(e) => setFitsOnly(e.target.checked)}
-                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                Fits schedule
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                <input type="checkbox" checked={hideFull} onChange={(e) => setHideFull(e.target.checked)}
-                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                Hide full
-              </label>
-              {studentAge != null && (
-                <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                  <input type="checkbox" checked={allAges} onChange={(e) => setAllAges(e.target.checked)}
-                    className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                  All ages
-                </label>
-              )}
-            </div>
-          </div>
-
-          {timeFocus && (
-            <div className="flex items-center justify-between gap-3 mb-3 rounded-lg bg-optio-purple/10 border border-optio-purple/30 px-3 py-2">
-              <span className="text-sm text-optio-purple font-medium">
-                Showing classes that overlap <strong>{timeFocus.label}</strong>’s time
-              </span>
-              <button onClick={() => setTimeFocus(null)} className="text-sm text-optio-purple hover:underline">Clear</button>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            {availableClasses.map((cls) => renderClassCard(cls))}
-            {!availableClasses.length && (
-              <p className="text-sm text-neutral-400 py-4 text-center">
-                {timeFocus ? 'No other classes meet during this time.' : 'No classes match these filters.'}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const renderDirectory = () => (
-    <div className="w-72 flex-shrink-0">
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search students or families…"
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple mb-2"
-      />
-      <div className="flex flex-wrap gap-1 mb-3">
-        {[
-          ['all', 'Everyone', directory.counts?.total],
-          ['clp_todo', 'CLP to do', directory.counts?.clp_todo],
-          ['clp_done', 'CLP done', directory.counts?.clp_finished],
-        ].map(([key, label, count]) => (
-          <button key={key} type="button" onClick={() => setLens(key)}
-            className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
-              lens === key
-                ? 'bg-optio-purple/10 border-optio-purple/40 text-optio-purple font-semibold'
-                : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'}`}>
-            {label}{count != null ? ` · ${count}` : ''}
-          </button>
-        ))}
-      </div>
-      <div className="bg-white rounded-xl border border-gray-200 max-h-[calc(100vh-220px)] overflow-y-auto">
-        {dirLoading && <p className="text-sm text-neutral-400 p-3">Loading…</p>}
-        {!dirLoading && !filteredFamilies.length && <p className="text-sm text-neutral-400 p-3">No students found.</p>}
-        {filteredFamilies.map((f) => (
-          <div key={f.household_id || f.students[0]?.student_id} className="border-b border-gray-100 last:border-b-0">
-            <div className="px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-              {f.name}{f.student_count > 1 ? ` · ${f.student_count}` : ''}
-            </div>
-            {f.students.map((stu) => (
-              <button
-                key={stu.student_id}
-                type="button"
-                onClick={() => selectStudent(stu.student_id)}
-                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
-                  selectedId === stu.student_id ? 'bg-optio-purple/10 text-optio-purple font-semibold' : 'text-neutral-700 hover:bg-[#F3EFF4]'
-                }`}
-              >
-                {stu.name}
-                {stu.age != null && <span className="text-xs text-neutral-400 ml-1.5">· {stu.age}</span>}
-                {stu.grade_level && <span className="text-xs text-neutral-400 ml-1.5">Grade {stu.grade_level}</span>}
-                {stu.clp_finished && <CheckIcon className="w-3.5 h-3.5 text-green-500 inline ml-1.5 align-text-bottom" label="CLP done" />}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 
   // ── Presentation (parent-safe) mode: student only, no directory/search ──────
   if (presentation) {
@@ -973,7 +371,7 @@ const ClpPage = () => {
             <span className="text-sm font-semibold uppercase tracking-wide text-optio-purple">Customized Learning Plan</span>
             <Button size="sm" variant="outline" onClick={() => setPresentation(false)}>Exit presentation</Button>
           </div>
-          {selectedId ? renderStudentDetail() : (
+          {selectedId ? studentDetail : (
             <p className="text-neutral-400 text-center py-16">Select a student before entering presentation mode.</p>
           )}
         </div>
@@ -1000,8 +398,13 @@ const ClpPage = () => {
 
       {orgId && (
         <div className="flex gap-6 items-start">
-          {renderDirectory()}
-          <div className="flex-1 min-w-0">{renderStudentDetail()}</div>
+          <StudentDirectory
+            dirLoading={dirLoading} directory={directory}
+            filteredFamilies={filteredFamilies} lens={lens} setLens={setLens}
+            search={search} setSearch={setSearch}
+            selectStudent={selectStudent} selectedId={selectedId}
+          />
+          <div className="flex-1 min-w-0">{studentDetail}</div>
         </div>
       )}
     </div>

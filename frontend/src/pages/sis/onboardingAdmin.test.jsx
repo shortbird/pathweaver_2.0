@@ -8,7 +8,15 @@
  * to approve — was reachable only by opening every person's checklist in turn.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+// Onboarding reads its checklists through hooks/api (QF-03), so these need a
+// QueryClient. Fresh client per render keeps one test's cache out of the next
+// one's; retry:false makes a failed query fail rather than hang on backoff.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -135,6 +143,9 @@ describe('removing a checklist', () => {
   it('keeps Unassign out of the row you click to expand', async () => {
     renderTab()
     await screen.findByText('Checklist progress')
+    // The heading is static; the rows arrive with the assignments query, so
+    // wait for a row rather than for the section around it.
+    await screen.findAllByText('Sam Teacher')
     // "Sam Teacher" names them in the review strip too; the progress row is the
     // one wrapped in a <summary>.
     const summary = screen.getAllByText('Sam Teacher')

@@ -1,18 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
-import { getPreviewTeacher, withPreview } from './teacherPreview'
+import { getPreviewTeacher } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { itemDocuments } from './checklistDocuments'
+import {
+  useMyOnboarding, useOnboardingAssignments, useOnboardingTemplates, sisOnboardingApi,
+} from '../../hooks/api/useSisOnboarding'
 
 /**
  * OnboardingPage — role-switched.
@@ -43,24 +45,20 @@ const ItemBadge = ({ status }) => (
 // hideWhenEmpty: on the admin view this renders above the template manager, and
 // an admin with no checklist of their own shouldn't see an empty-state for it.
 export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, heading = null, openItemKey = null }) => {
-  const [assignments, setAssignments] = useState([])
   const [busyKey, setBusyKey] = useState(null)
 
-  const load = useCallback(() => {
-    api.get(withPreview(withOrg('/api/sis/teacher/onboarding', orgId), preview))
-      .then((r) => setAssignments(r.data?.assignments || []))
-      .catch(() => toast.error('Failed to load your onboarding'))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, preview?.id])
+  const mine = useMyOnboarding(orgId, preview)
+  const assignments = mine.data || []
+  const load = mine.refetch
 
-  useEffect(() => { if (orgId) load() }, [load, orgId])
+  useEffect(() => {
+    if (mine.isError) toast.error('Failed to load your onboarding')
+  }, [mine.isError])
 
   const patchItem = async (assignmentId, itemKey, fields) => {
     setBusyKey(`${assignmentId}:${itemKey}`)
     try {
-      await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
-        organization_id: orgId, ...fields,
-      })
+      await sisOnboardingApi.patchItem(assignmentId, itemKey, orgId, fields)
       load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not update the item')
@@ -70,11 +68,9 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
   }
 
   const uploadDoc = async (assignmentId, itemKey, file) => {
-    const form = new FormData()
-    form.append('file', file)
     setBusyKey(`${assignmentId}:${itemKey}`)
     try {
-      const r = await api.post(withOrg('/api/sis/teacher/onboarding/upload', orgId), form)
+      const r = await sisOnboardingApi.upload(orgId, file)
       // add_document, not document_url: an item holds a list now, so a second
       // file is an addition rather than a replacement (iCreate asked for an ID
       // and a birth certificate on one I-9 item and had nowhere to put the second).
@@ -95,7 +91,7 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
 
   const openDoc = async (path) => {
     try {
-      const r = await api.get(withOrg(`/api/sis/teacher/onboarding/doc-url?path=${encodeURIComponent(path)}`, orgId))
+      const r = await sisOnboardingApi.docUrl(orgId, path)
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
     } catch {
       toast.error('Could not open the document')
@@ -108,8 +104,7 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
   // contract that checklist is waiting on, not just read its name.
   const openSignDoc = async (doc) => {
     try {
-      const r = await api.get(
-        withPreview(withOrg(`/api/sis/teacher/my-documents/${doc.id}/url`, orgId), preview))
+      const r = await sisOnboardingApi.signDocUrl(orgId, doc.id, preview)
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
     } catch {
       toast.error('Could not open the document')
@@ -272,8 +267,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
     setBusy(true)
     try {
       const body = { organization_id: orgId, name: name.trim(), role_type: roleType.trim(), audience, description: description.trim(), items: cleaned }
-      if (template?.id) await api.put(`/api/sis/staff-admin/onboarding/templates/${template.id}`, body)
-      else await api.post('/api/sis/staff-admin/onboarding/templates', body)
+      await sisOnboardingApi.saveTemplate(template?.id, body)
       toast.success('Template saved')
       onSaved()
     } catch (err) {
@@ -393,9 +387,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
 // and the per-assignment card, and exported so the Task Center's unified
 // Assigned list can reuse both without re-deriving the PATCH.
 const patchAssignmentItem = async (orgId, assignmentId, itemKey, fields) => {
-  await api.patch(`/api/sis/teacher/onboarding/${assignmentId}/items/${itemKey}`, {
-    organization_id: orgId, ...fields,
-  })
+  await sisOnboardingApi.patchItem(assignmentId, itemKey, orgId, fields)
 }
 
 // Everything somebody has finished and is now waiting on the office for.
@@ -456,8 +448,7 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
     setAttachingKey(itemKey)
     if (filed !== null) return
     try {
-      const r = await api.get(withOrg(
-        `/api/sis/staff-admin/onboarding/assignments/${a.id}/attachable-documents`, orgId))
+      const r = await sisOnboardingApi.attachableDocuments(a.id, orgId)
       setFiled(r.data?.documents || [])
     } catch {
       setFiled([])
@@ -521,7 +512,7 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
       : ''
     if (!(await confirm(`Remove "${a.template_name}" from ${a.user_name}?${warning}`))) return
     try {
-      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/assignments/${a.id}`, orgId))
+      await sisOnboardingApi.unassign(a.id, orgId)
       toast.success('Removed')
       onChanged?.()
     } catch (err) {
@@ -540,7 +531,7 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
       ? withOrg(`/api/sis/secure-documents/${doc.secure_document_id}/url`, orgId)
       : withOrg(`/api/sis/staff-admin/onboarding/doc-url?path=${encodeURIComponent(doc.path)}&audience=${a.audience || 'staff'}`, orgId)
     try {
-      const r = await api.get(url)
+      const r = await sisOnboardingApi.signedUrl(url)
       if (r.data?.url) window.open(r.data.url, '_blank', 'noopener')
     } catch {
       toast.error('Could not open the document')
@@ -665,23 +656,25 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
  * Authoring is the rare act; it must not sit on top of the daily list. */
 export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
   const confirm = useConfirm()
-  const [templates, setTemplates] = useState([])
   const [editing, setEditing] = useState(null) // null | 'new' | template
   const [templatesOpen, setTemplatesOpen] = useState(false)
 
-  const load = useCallback(() => {
-    api.get(withOrg('/api/sis/staff-admin/onboarding/templates', orgId))
-      .then((t) => setTemplates(t.data?.templates || []))
-      .catch(() => toast.error('Failed to load checklist templates'))
-  }, [orgId])
+  const query = useOnboardingTemplates(orgId)
+  const templates = query.data || []
+  const load = query.refetch
+  // The same assignments list AdminOnboarding renders. Sync needs a count of
+  // what it is about to rewrite; sharing the key means it does not re-ask.
+  const assignmentsQuery = useOnboardingAssignments(orgId)
 
-  useEffect(() => { if (orgId) load() }, [load, orgId])
+  useEffect(() => {
+    if (query.isError) toast.error('Failed to load checklist templates')
+  }, [query.isError])
 
   const duplicateTemplate = async (t) => {
     try {
       // Server-side: the copy has to keep blocks_access and drop the original's
       // per-person document bindings, neither of which the editor carries.
-      await api.post(`/api/sis/staff-admin/onboarding/templates/${t.id}/duplicate`, {})
+      await sisOnboardingApi.duplicateTemplate(t.id)
       toast.success('Template duplicated')
       load()
     } catch (err) {
@@ -690,16 +683,16 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
   }
 
   const syncTemplate = async (t) => {
-    const assigned = await api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId))
-      .then((r) => (r.data?.assignments || []).filter((a) => a.template_id === t.id).length)
-      .catch(() => null)
+    const assigned = assignmentsQuery.data
+      ? assignmentsQuery.data.filter((a) => a.template_id === t.id).length
+      : null
     const who = assigned === null ? 'the checklists already assigned'
       : `${assigned} assigned checklist${assigned === 1 ? '' : 's'}`
     if (!(await confirm(
       `Update ${who} to match "${t.name}"? Finished checklists are left alone, and `
       + 'nothing anyone has already done is changed.'))) return
     try {
-      const r = await api.post(`/api/sis/staff-admin/onboarding/templates/${t.id}/sync`, {})
+      const r = await sisOnboardingApi.syncTemplate(t.id)
       const d = r.data || {}
       const parts = []
       if (d.added) parts.push(`${d.added} item${d.added === 1 ? '' : 's'} added`)
@@ -720,7 +713,7 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
   const deleteTemplate = async (t, { force = false } = {}) => {
     if (!force && !(await confirm(`Delete the "${t.name}" template? This can't be undone.`))) return
     try {
-      await api.delete(withOrg(`/api/sis/staff-admin/onboarding/templates/${t.id}${force ? '?force=1' : ''}`, orgId))
+      await sisOnboardingApi.deleteTemplate(t.id, orgId, force)
       toast.success('Template deleted')
       load()
     } catch (err) {
@@ -804,16 +797,15 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
 }
 
 export const AdminOnboarding = ({ orgId, onCount = null }) => {
-  const [assignments, setAssignments] = useState([])
   const [assigningOpen, setAssigningOpen] = useState(false)
 
-  const load = useCallback(() => {
-    api.get(withOrg('/api/sis/staff-admin/onboarding/assignments', orgId))
-      .then((a) => setAssignments(a.data?.assignments || []))
-      .catch(() => toast.error('Failed to load onboarding admin'))
-  }, [orgId])
+  const query = useOnboardingAssignments(orgId)
+  const assignments = query.data || []
+  const load = query.refetch
 
-  useEffect(() => { if (orgId) load() }, [load, orgId])
+  useEffect(() => {
+    if (query.isError) toast.error('Failed to load onboarding admin')
+  }, [query.isError])
 
   const awaiting = awaitingReviewOf(assignments).length
   useEffect(() => { onCount?.(awaiting) }, [awaiting, onCount])

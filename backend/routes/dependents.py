@@ -13,7 +13,7 @@ NOTE: Admin client usage justified throughout this file for cross-user operation
 Parents managing dependents requires elevated privileges to create/update dependent records.
 All endpoints verify parent role before allowing operations.
 """
-from flask import Blueprint, request, jsonify, make_response, send_file
+from flask import Blueprint, request, jsonify, send_file
 from datetime import datetime
 from database import get_supabase_admin_client
 from repositories.dependent_repository import DependentRepository
@@ -21,8 +21,6 @@ from repositories.base_repository import NotFoundError, PermissionError, Validat
 from services.dependent_progress_service import DependentProgressService
 from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
-from routes.auth.token_delivery import refresh_body_tokens
-from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
 from utils.validation.password_validator import validate_password_strength
@@ -1099,122 +1097,6 @@ def update_child_ai_features(user_id: str, child_id: str):
         return jsonify({'success': False, 'error': 'Failed to update AI features'}), 500
 
 
-@bp.route('/<string:dependent_id>/act-as', methods=['POST'])
-@require_auth
-@validate_uuid_param('dependent_id')
-@require_relationship_to('dependent_id', allow=('parent',))
-def generate_acting_as_token(user_id, dependent_id):
-    """
-    Generate an acting-as token for a parent to act as their dependent.
-    This allows the parent to use the platform as if they were the dependent,
-    similar to admin masquerade functionality.
-
-    Returns:
-        200: Token generated successfully with acting_as_token
-        403: User is not a parent or doesn't own this dependent
-        404: Dependent not found
-    """
-    try:
-        verify_parent_role(user_id)
-
-        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
-        supabase = get_supabase_admin_client()
-        dependent_repo = DependentRepository(client=supabase)
-
-        # Verify that this dependent belongs to this parent
-        # get_dependent() will raise NotFoundError or PermissionError if not valid
-        dependent = dependent_repo.get_dependent(dependent_id, user_id)
-
-        # Generate acting-as token (+ refresh token so native sessions survive the
-        # 401-refresh cycle without reverting to the parent's own identity).
-        acting_as_token = session_manager.generate_acting_as_token(user_id, dependent_id)
-        acting_as_refresh_token = session_manager.generate_acting_as_refresh_token(user_id, dependent_id)
-
-        logger.info(f"Parent {user_id} generated acting-as token for dependent {dependent_id}")
-
-        return jsonify({
-            'success': True,
-            'acting_as_token': acting_as_token,
-            'acting_as_refresh_token': acting_as_refresh_token,
-            'dependent_id': dependent_id,
-            'dependent_display_name': dependent.get('display_name'),
-            'message': f"Now acting as {dependent.get('display_name')}"
-        }), 200
-
-    except AuthorizationError as e:
-        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 403
-    except (NotFoundError, PermissionError) as e:
-        logger.warning(f"Error accessing dependent {dependent_id} for user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 403
-    except Exception as e:
-        logger.error(f"Error generating acting-as token for dependent {dependent_id}: {str(e)}")
-        return jsonify({'success': False, 'error': 'Failed to generate token'}), 500
-
-
-@bp.route('/stop-acting-as', methods=['POST'])
-def stop_acting_as():
-    """
-    Stop acting as a dependent and return fresh tokens for the parent.
-
-    This endpoint is called when a parent wants to switch back from viewing
-    the platform as their dependent. It generates new access and refresh tokens
-    for the parent, bypassing any sessionStorage issues in cross-origin production
-    environments.
-
-    Uses get_actual_admin_id() to extract the parent's ID from the acting-as token,
-    since @require_auth's get_effective_user_id() would return the dependent's ID.
-
-    Returns:
-        200: Fresh tokens for the parent
-        401: Not authenticated or not in acting-as mode
-        404: Parent user not found
-        500: Server error
-    """
-    try:
-        # Get the parent's ID from the acting-as token (not the dependent's ID).
-        # De-escalation resolver: acting-as tokens expire after 24h, and a
-        # parent whose token died still has their own session cookie and still
-        # needs the way out. This endpoint only ever hands someone back their
-        # own identity.
-        user_id = session_manager.get_deescalation_user_id()
-
-        if not user_id:
-            return jsonify({'success': False, 'error': 'Authentication required'}), 401
-
-        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
-        supabase = get_supabase_admin_client()
-
-        # Verify the parent user exists
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-
-        if not user_response.data:
-            logger.warning(f"Parent user not found when stopping acting-as: {user_id}")
-            return jsonify({'success': False, 'error': 'Parent user not found'}), 404
-
-        # Generate fresh access and refresh tokens for the parent
-        access_token = session_manager.generate_access_token(user_id)
-        refresh_token = session_manager.generate_refresh_token(user_id)
-
-        logger.info(f"Parent {user_id} stopped acting as dependent, fresh tokens generated")
-
-        # SEC-03's gate, for the same reason it was applied to masquerade's
-        # /exit next door: these are the parent's OWN tokens and the refresh
-        # token lives 30 days. refresh_body_tokens() hands them only to clients
-        # that cannot use cookies; everyone else gets the cookies below, which
-        # this endpoint never set at all before -- so a cookie-capable browser
-        # was relying entirely on the body copy reaching tokenStore.
-        response = make_response(jsonify({
-            'success': True,
-            **refresh_body_tokens(access_token, refresh_token),
-            'user': user_response.data
-        }), 200)
-        session_manager.set_auth_cookies(response, user_id, access_token, refresh_token)
-        return response
-
-    except Exception as e:
-        logger.error(f"Error stopping acting-as for parent {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': 'Failed to restore parent session'}), 500
 
 
 # ==================== Progress Reports ====================
@@ -1398,3 +1280,12 @@ def export_dependent_progress_report(user_id, dependent_id):
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': 'Failed to export progress report'}), 500
+
+
+# ── Acting as a dependent ─────────────────────────────────────────────────────
+# The two endpoints that change who the caller IS live in their own module
+# (FU-05 put this file over the 1400-line route cap). Registered here rather
+# than in routes/__init__.py so the blueprint still has exactly one owner.
+from routes.dependents_acting_as import register as _register_acting_as  # noqa: E402
+
+_register_acting_as(bp)

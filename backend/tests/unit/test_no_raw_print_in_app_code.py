@@ -44,7 +44,6 @@ EXEMPT_FILES = {
     'api_spec_generator.py',
     'app_config.py',
     'cron_dispatch.py',
-    'cron_trigger.py',
     'sis_attendance_sweep_trigger.py',
     'log_scrubber.py',      # its __main__ block demos the masking functions
 }

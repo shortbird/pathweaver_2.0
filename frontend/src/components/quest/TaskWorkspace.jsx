@@ -1,162 +1,26 @@
 import { useState, useEffect } from 'react';
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import {
-  TrophyIcon,
-  ExclamationCircleIcon,
-  CheckCircleIcon,
-  PlusIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-  Bars3Icon,
-  TrashIcon
-} from '@heroicons/react/24/outline';
+import { PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { TrophyIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import confetti from 'canvas-confetti';
 import toast from 'react-hot-toast';
 import { getPillarData } from '../../utils/pillarMappings';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import logger from '../../utils/logger';
-import EvidenceDisplay from '../evidence/EvidenceDisplay';
-import CreditFeedbackThread from '../credit/CreditFeedbackThread';
+import api from '../../services/api';
 import AddEvidenceModal from '../evidence/AddEvidenceModal';
-import SubjectBadges from '../common/SubjectBadges';
 import TaskStepsModal from './TaskStepsModal';
 import StudentTaskEditModal from './StudentTaskEditModal';
-import { SparklesIcon, AcademicCapIcon, PencilSquareIcon, BookmarkIcon } from '@heroicons/react/24/outline';
-import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
 import useHidePillars from '../../hooks/useHidePillars';
 
-// optio-purple. Stands in for the pillar colour where pillars are hidden.
-const BRAND_PURPLE = '#6d469b';
-import api from '../../services/api';
-import { Spinner, ButtonSpinner } from '../ui';
-
-// Sortable Task Item for the collapsible list
-const SortableTaskItem = ({ task, isSelected, onClick, onRemove, onMoveUp, onMoveDown, isFirst, isLast }) => {
-  const hidePillars = useHidePillars();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: task.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const pillarData = getPillarData(task.pillar);
-  const isRequired = task.is_required;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      onClick={onClick}
-      className={`
-        group flex items-start gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all
-        min-h-[72px] bg-white border
-        ${isRequired ? 'border-l-4 border-l-amber-500' : ''}
-        ${isSelected
-          ? 'border-optio-purple bg-optio-purple/5 shadow-sm'
-          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-        }
-        ${task.is_completed ? 'opacity-60 bg-gray-50' : ''}
-      `}
-    >
-      {/* Reorder controls or required icon */}
-      {!isRequired ? (
-        <div className="flex flex-col items-center justify-center flex-shrink-0">
-          {/* Desktop: Drag handle */}
-          <button
-            type="button"
-            className="hidden sm:flex cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 min-w-[24px] min-h-[24px] touch-manipulation items-center justify-center"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Bars3Icon className="w-4 h-4" />
-          </button>
-          {/* Mobile: Up/Down arrows */}
-          <div className="flex sm:hidden flex-col -my-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveUp?.();
-              }}
-              disabled={isFirst}
-              className={`p-1 rounded transition-colors ${isFirst ? 'text-gray-200' : 'text-gray-400 active:bg-gray-100'}`}
-            >
-              <ChevronUpIcon className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveDown?.();
-              }}
-              disabled={isLast}
-              className={`p-1 rounded transition-colors ${isLast ? 'text-gray-200' : 'text-gray-400 active:bg-gray-100'}`}
-            >
-              <ChevronDownIcon className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="p-1 min-w-[24px] min-h-[24px] flex-shrink-0 flex items-center justify-center" title="Required task">
-          <ExclamationCircleIcon className="w-4 h-4 text-amber-500" />
-        </div>
-      )}
-
-      {/* Task content - title and metadata */}
-      <div className="flex-1 min-w-0">
-        {/* Task title - full width */}
-        <span className={`block text-sm leading-snug line-clamp-2 ${isSelected ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
-          {task.title}
-        </span>
-        {/* XP pill + status row */}
-        <div className="flex items-center gap-2 mt-1">
-          {task.is_completed ? (
-            <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-              <CheckCircleIcon className="w-3.5 h-3.5" />
-              Completed
-            </span>
-          ) : (
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full text-white"
-              style={{ backgroundColor: hidePillars ? BRAND_PURPLE : pillarData.color }}
-            >
-              {task.xp_amount || task.xp_value} XP
-            </span>
-          )}
-          {/* Delete button inline - hover only, hidden for required tasks */}
-          {onRemove && !task.is_completed && !isRequired && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(task.id);
-              }}
-              className="sm:opacity-0 sm:group-hover:opacity-100 p-0.5 text-red-400 hover:text-red-600 rounded transition-all ml-auto"
-            >
-              <TrashIcon className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+// QF-02: the sidebar, the phone picker and the two halves of the detail pane
+// each live in their own file now. This component keeps the state and the
+// handlers -- they are shared by all four -- and the layout that arranges them.
+import MobileTaskPicker from './taskWorkspace/MobileTaskPicker';
+import TaskListPanel from './taskWorkspace/TaskListPanel';
+import TaskDetailsSection from './taskWorkspace/TaskDetailsSection';
+import TaskEvidenceSection from './taskWorkspace/TaskEvidenceSection';
 
 const TaskWorkspace = ({
   task,
@@ -752,47 +616,11 @@ const TaskWorkspace = ({
   return (
     <div className="h-full flex flex-col sm:flex-row">
       {/* Mobile: Task Dropdown */}
-      <div className="sm:hidden px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
-        <div className="relative flex-1">
-          <select
-            value={task?.id || ''}
-            onChange={(e) => {
-              const selected = tasks.find(t => t.id === e.target.value);
-              if (selected) onTaskSelect?.(selected);
-            }}
-            className="w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-optio-purple/30 focus:border-optio-purple"
-          >
-            {activeTasks.length > 0 && (
-              <optgroup label={`Active (${activeTasks.length})`}>
-                {activeTasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} ({t.xp_value} XP)
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {completedTasks.length > 0 && (
-              <optgroup label={`Completed (${completedTasks.length})`}>
-                {completedTasks.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title} ({t.xp_value} XP)
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-          <ChevronDownIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        </div>
-        {onAddTask && (
-          <button
-            onClick={onAddTask}
-            className="flex-shrink-0 p-2 text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors"
-            title="Add Task"
-          >
-            <PlusIcon className="w-5 h-5" />
-          </button>
-        )}
-      </div>
+      <MobileTaskPicker
+        task={task} tasks={tasks}
+        activeTasks={activeTasks} completedTasks={completedTasks}
+        onTaskSelect={onTaskSelect} onAddTask={onAddTask}
+      />
 
       {/* Desktop: Content Area with Full-Height Sidebar */}
         {/* Expand button when collapsed */}
@@ -807,375 +635,46 @@ const TaskWorkspace = ({
         )}
 
         {/* Collapsible Task List Panel (desktop only) */}
-        <div className={`
-          hidden sm:block
-          ${isTaskListOpen ? 'w-64' : 'w-0'}
-          flex-shrink-0 border-r border-gray-200 transition-all duration-300 overflow-hidden
-        `}>
-          <div className="h-full flex flex-col w-64">
-            {/* Task List Header */}
-            <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Tasks ({tasks.length})
-              </span>
-              <button
-                onClick={() => setIsTaskListOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                title="Hide task list"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Task List */}
-            <div className="flex-1 overflow-y-auto px-2 py-2">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={activeTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {activeTasks.map((t, index) => (
-                      <SortableTaskItem
-                        key={t.id}
-                        task={t}
-                        isSelected={t.id === task?.id}
-                        onClick={() => onTaskSelect?.(t)}
-                        onRemove={onRemoveTask}
-                        onMoveUp={() => handleMoveUp(t.id)}
-                        onMoveDown={() => handleMoveDown(t.id)}
-                        isFirst={index === 0 || activeTasks[index - 1]?.is_required === true}
-                        isLast={index === activeTasks.length - 1}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-
-              {/* Completed Tasks */}
-              {completedTasks.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-gray-200">
-                  <div className="px-1 mb-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                      Completed ({completedTasks.length})
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {completedTasks.map((t) => (
-                      <SortableTaskItem
-                        key={t.id}
-                        task={t}
-                        isSelected={t.id === task?.id}
-                        onClick={() => onTaskSelect?.(t)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Add Task Button */}
-            {onAddTask && (
-              <div className="p-2 border-t border-gray-100">
-                <button
-                  onClick={onAddTask}
-                  className="w-full py-2 text-sm text-optio-purple hover:bg-optio-purple/5 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                  Add Task
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <TaskListPanel
+          task={task} tasks={tasks}
+          activeTasks={activeTasks} completedTasks={completedTasks}
+          isTaskListOpen={isTaskListOpen} setIsTaskListOpen={setIsTaskListOpen}
+          sensors={sensors} handleDragEnd={handleDragEnd}
+          handleMoveUp={handleMoveUp} handleMoveDown={handleMoveDown}
+          onTaskSelect={onTaskSelect} onRemoveTask={onRemoveTask} onAddTask={onAddTask}
+        />
 
         {/* Main Content Area */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {/* Content */}
           {task ? (
             <div className="flex-1 overflow-y-auto">
-              {/* Task Details Section */}
-              <div className="px-4 sm:px-6 py-5 border-b border-gray-200">
-                {/* Title row with Steps button */}
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
-                      {task.title}
-                    </h2>
-                    {task.is_required && (
-                      <span className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-md border border-amber-200 mt-1">
-                        <ExclamationCircleIcon className="w-4 h-4" />
-                        Required
-                      </span>
-                    )}
-                  </div>
-                  {/* Action buttons - right aligned */}
-                  <div className="flex-shrink-0 flex items-center gap-2">
-                    <button
-                      onClick={() => setIsEditModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                      title={pillarsVisible ? 'Edit pillar, XP, and diploma credit' : 'Edit XP and diploma credit'}
-                    >
-                      <PencilSquareIcon className="w-4 h-4" />
-                      Edit
-                    </button>
-                    {canUseTaskGeneration && !task.is_completed && (
-                      <button
-                        onClick={() => setIsStepsModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 rounded-lg transition-colors"
-                      >
-                        <SparklesIcon className="w-4 h-4" />
-                        Steps
-                      </button>
-                    )}
-                  </div>
-                </div>
+              <TaskDetailsSection
+                task={task} pillarData={pillarData} pillarsVisible={pillarsVisible}
+                canUseTaskGeneration={canUseTaskGeneration}
+                isDescriptionExpanded={isDescriptionExpanded}
+                setIsDescriptionExpanded={setIsDescriptionExpanded}
+                setIsStepsModalOpen={setIsStepsModalOpen}
+                setIsEditModalOpen={setIsEditModalOpen}
+              />
 
-                {/* Description - expandable on tap */}
-                {task.description && (
-                  <div className="mb-5">
-                    <p
-                      className={`text-sm text-gray-600 leading-relaxed ${isDescriptionExpanded ? '' : 'line-clamp-3'}`}
-                    >
-                      {task.description}
-                    </p>
-                    {task.description.length > 150 && (
-                      <button
-                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                        className="text-xs text-optio-purple font-medium mt-2 touch-manipulation min-h-[32px] flex items-center"
-                      >
-                        {isDescriptionExpanded ? 'Show less' : 'Show more'}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {/* Success criteria - the checkable "done" bar for this task */}
-                {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
-                  <div className="mb-5 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Definition of Done
-                    </p>
-                    <ul className="space-y-1.5">
-                      {task.success_criteria.map((criterion, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                          <CheckCircleIcon className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                          <span>{criterion}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Task metadata cards */}
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* Pillar badge. Hidden for school training, where which of
-                      the five pillars an onboarding task grew is noise, and for
-                      schools that have switched the pillars off entirely. */}
-                  {pillarsVisible && (
-                    <div
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-sm font-medium"
-                      style={{ backgroundColor: pillarData?.color }}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-white/40" />
-                      {pillarData?.name}
-                    </div>
-                  )}
-
-                  {/* XP badge. It borrows the pillar's colour, so without the
-                      pillar shown it falls back to the brand purple. */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold"
-                    style={{
-                      backgroundColor: `${pillarsVisible ? pillarData?.color : BRAND_PURPLE}15`,
-                      color: pillarsVisible ? pillarData?.color : BRAND_PURPLE
-                    }}
-                  >
-                    <TrophyIcon className="w-4 h-4" />
-                    {task.xp_amount || task.xp_value} XP
-                  </div>
-                </div>
-
-                {/* Subject Credits - separate row */}
-                {(task.subject_xp_distribution || task.school_subjects) && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Credits</span>
-                      <SubjectBadges
-                        subjectXpDistribution={task.subject_xp_distribution || task.school_subjects}
-                        compact={false}
-                        maxDisplay={4}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* My Evidence Header + Action Buttons */}
-              <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3 shadow-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide whitespace-nowrap">
-                    My Evidence
-                  </h3>
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    {/* There is no Save button. Evidence saves itself: adding,
-                        editing, deleting and reordering each call saveEvidence
-                        on the spot, so the button only ever re-posted blocks
-                        that were already stored. It sat first in a row of five
-                        controls and read as the thing you had to press. */}
-                    {isSaving && (
-                      <span className="flex items-center gap-1.5 text-xs text-gray-400" role="status">
-                        <Spinner size="sm" />
-                        <span className="hidden sm:inline">Saving…</span>
-                      </span>
-                    )}
-
-                    {/* Add Evidence Button - icon only on mobile */}
-                    <button
-                      onClick={() => setIsModalOpen(true)}
-                      className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-optio-purple hover:bg-optio-purple/10 border border-optio-purple/30 rounded-lg transition-colors min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 touch-manipulation"
-                      title="Add Evidence"
-                    >
-                      <PlusIcon className="w-4 h-4" />
-                      <span className="hidden sm:inline">Add</span>
-                    </button>
-
-                    {/* Mark Complete Button - compact on mobile */}
-                    {!isTaskCompleted ? (
-                      <button
-                        onClick={handleMarkComplete}
-                        disabled={isCompleting || isSaving}
-                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-1.5 text-xs sm:text-sm font-semibold bg-gradient-primary text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] touch-manipulation"
-                      >
-                        {isCompleting ? (
-                          <ButtonSpinner />
-                        ) : (
-                          <>
-                            <CheckCircleIcon className="w-4 h-4" />
-                            <span className="hidden sm:inline">Done</span>
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        {/* Plain text, not a bordered pill. The tick already
-                            says "completed", so the word was saying it twice,
-                            and boxing a status made it compete with the two
-                            real buttons beside it. */}
-                        <span className="flex items-center gap-1 text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap">
-                          <CheckCircleIcon className="w-4 h-4 text-green-600" />
-                          +{task.xp_amount} XP
-                        </span>
-                        {/* Per-task diploma credit. Hidden inside a class quest —
-                            there, credit is requested at the class level once the
-                            XP requirement is met (see the class progress panel). */}
-                        {!isClassQuest && canRequestCredit && (creditStatus === 'none' || creditStatus === 'grow_this') && (
-                          <button
-                            onClick={handleRequestCredit}
-                            disabled={isRequestingCredit}
-                            className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-optio-purple bg-optio-purple/10 hover:bg-optio-purple/20 border border-optio-purple/30 rounded-lg transition-colors disabled:opacity-50 min-h-[32px] touch-manipulation"
-                            title={creditStatus === 'grow_this' ? 'Resubmit for diploma credit' : 'Request diploma credit for this task'}
-                          >
-                            {isRequestingCredit ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <>
-                                <AcademicCapIcon className="w-4 h-4" />
-                                <span className="hidden sm:inline">
-                                  {creditStatus === 'grow_this' ? 'Resubmit' : 'Request Credit'}
-                                </span>
-                              </>
-                            )}
-                          </button>
-                        )}
-                        {!isClassQuest && creditStatus === 'pending_review' && (
-                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
-                            <AcademicCapIcon className="w-4 h-4" />
-                            <span className="hidden sm:inline">Awaiting Review</span>
-                          </span>
-                        )}
-                        {!isClassQuest && creditStatus === 'pending_org_approval' && (
-                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-optio-purple bg-optio-purple/5 border border-optio-purple/20 rounded-lg">
-                            <AcademicCapIcon className="w-4 h-4" />
-                            <span className="hidden sm:inline">Awaiting Org Review</span>
-                          </span>
-                        )}
-                        {!isClassQuest && creditStatus === 'finalized' && (
-                          <span className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg">
-                            <AcademicCapIcon className="w-4 h-4" />
-                            <span className="hidden sm:inline">Credit Approved</span>
-                          </span>
-                        )}
-                        {/* Portfolio curation: only rendered when this completion
-                            belongs to the viewer (the lookup 404s otherwise). */}
-                        {portfolioPick && (
-                          <button
-                            onClick={handleTogglePortfolio}
-                            disabled={isTogglingPortfolio}
-                            className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 min-h-[32px] touch-manipulation ${
-                              portfolioPick.inPortfolio
-                                ? 'text-optio-purple bg-optio-purple/10 border-optio-purple/40'
-                                : 'text-gray-600 bg-white border-gray-300 hover:border-optio-purple/40 hover:text-optio-purple'
-                            }`}
-                            title={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
-                            aria-label={portfolioPick.inPortfolio ? 'Remove from portfolio picks' : 'Include in portfolio'}
-                            aria-pressed={portfolioPick.inPortfolio}
-                          >
-                            {/* Icon only. "Include in portfolio" was the widest
-                                thing in the row for a toggle whose filled/empty
-                                bookmark already says which way it is set. */}
-                            {portfolioPick.inPortfolio ? (
-                              <BookmarkSolidIcon className="w-4 h-4" />
-                            ) : (
-                              <BookmarkIcon className="w-4 h-4" />
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {error && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <ExclamationCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0" />
-                      <span className="text-red-700 text-sm">{error}</span>
-                    </div>
-                  </div>
-                )}
-
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="flex items-center gap-3">
-                      <Spinner size="sm" />
-                      <span className="text-gray-500 text-sm">Loading evidence...</span>
-                    </div>
-                  </div>
-                ) : (
-                  <EvidenceDisplay
-                    blocks={evidenceBlocks}
-                    onDelete={handleDeleteEvidence}
-                    onDeleteItem={handleDeleteItem}
-                    onReorder={handleReorder}
-                    onEdit={handleEditEvidence}
-                    emptyMessage="No evidence yet. Click 'Add Evidence' to show your work."
-                  />
-                )}
-
-                {/* A teacher's feedback on submitted work, where the student is
-                    already standing. The thread existed and was written to from
-                    the SIS submissions inbox, but the student's only view of it
-                    was folded inside the Diploma page's credit tracker, so
-                    feedback landed somewhere they never looked -- and the
-                    notification pointed here, at a page that showed none of it
-                    (Gryffin, 2026-08-31: "I submitted feedback on one of the
-                    submissions, and the student doesn't see it anywhere").
-                    completionId comes from loadPortfolioPick, already fetched
-                    for every completed task. */}
-                {task.is_completed && portfolioPick?.completionId && (
-                  <CreditFeedbackThread completionId={portfolioPick.completionId} />
-                )}
-              </div>
+              <TaskEvidenceSection
+                task={task} evidenceBlocks={evidenceBlocks}
+                isLoading={isLoading} isSaving={isSaving} error={error}
+                isTaskCompleted={isTaskCompleted} isCompleting={isCompleting}
+                isClassQuest={isClassQuest}
+                creditStatus={creditStatus} canRequestCredit={canRequestCredit}
+                isRequestingCredit={isRequestingCredit}
+                portfolioPick={portfolioPick} isTogglingPortfolio={isTogglingPortfolio}
+                setIsModalOpen={setIsModalOpen}
+                handleEditEvidence={handleEditEvidence}
+                handleDeleteEvidence={handleDeleteEvidence}
+                handleDeleteItem={handleDeleteItem}
+                handleReorder={handleReorder}
+                handleMarkComplete={handleMarkComplete}
+                handleRequestCredit={handleRequestCredit}
+                handleTogglePortfolio={handleTogglePortfolio}
+              />
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-gray-400">

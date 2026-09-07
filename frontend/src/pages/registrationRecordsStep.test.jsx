@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { firstDestinationError } from './RegisterFunnelPage'
+import { firstDestinationError } from './registerFunnel/funnelFields'
 
 /**
  * Credit Partner Program: the funnel step that asks where each student's

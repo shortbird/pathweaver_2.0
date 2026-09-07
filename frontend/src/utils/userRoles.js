@@ -1,20 +1,26 @@
 /**
  * Role helpers for the learning-app chrome.
  *
- * A user's role can arrive in three shapes: the platform `role` column, the
- * `org_roles` array (multi-role org users), or the legacy `org_role` field.
- * Anything that gates chrome on a role has to check all three — an iCreate
- * teacher who is also a parent has role='org_managed' with 'advisor' in
- * org_roles, so a plain `user.role === 'advisor'` check misses them.
+ * The rule itself — how a role resolves out of `role` / `org_role` /
+ * `org_roles` — lives in `@shared/roles`, generated against and conformance
+ * tested against `backend/utils/roles.py`. This file holds only the web app's
+ * own compositions of it.
+ *
+ * An iCreate teacher who is also a parent has role='org_managed' with
+ * 'advisor' in org_roles, so a plain `user.role === 'advisor'` check misses
+ * them. That is what userHasRole is for.
  */
 
-export const userHasRole = (user, role) => {
-  if (!user || !role) return false
-  if (user.role === role) return true
-  if (Array.isArray(user.org_roles) && user.org_roles.includes(role)) return true
-  if (user.org_role === role) return true
-  return false
-}
+import { userHasRole as sharedUserHasRole, effectiveRoleOf, effectiveRolesOf } from '@shared/roles'
+
+export { effectiveRoleOf, effectiveRolesOf }
+
+/**
+ * True when the user holds the role, in any of the three shapes it can arrive
+ * in. Kept at this arity — `(user, role)` — because every call site in the web
+ * app passes exactly one; the shared implementation is variadic.
+ */
+export const userHasRole = (user, role) => sharedUserHasRole(user, role)
 
 /**
  * School staff: teachers (advisors), org admins, campus coordinators,
@@ -22,6 +28,12 @@ export const userHasRole = (user, role) => {
  * guardian who advises students, and `is_org_admin` marks org admins whose
  * role column says org_managed. Coordinators don't set `is_org_admin` (the
  * trigger reserves it for org_admin), so they must match by org role here.
+ *
+ * Chrome only. This is deliberately wider than any server gate — notably
+ * `has_advisor_assignments`, which is a count of rows in
+ * advisor_student_assignments and puts nothing into get_effective_roles. Do
+ * not use it to decide whether a request will be allowed; see useCanEditXp,
+ * which used to and offered a control the server refused.
  */
 export const isStaffUser = (user) => {
   if (!user) return false

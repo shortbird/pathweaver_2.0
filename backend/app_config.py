@@ -250,9 +250,6 @@ class Config:
     # students. The default preserves the pilot cohort exactly — widening the
     # rollout is a product decision made by setting this env var, never by
     # editing code.
-    ADVISOR_SUMMARY_EMAIL_ALLOWLIST = os.getenv(
-        'ADVISOR_SUMMARY_EMAIL_ALLOWLIST', 'tannerbowman@gmail.com'
-    )
 
     # The curriculum pipeline (structure detection / philosophy alignment /
     # content generation) follows GEMINI_MODEL by default. It ran on

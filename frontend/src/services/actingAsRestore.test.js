@@ -107,12 +107,34 @@ describe('actingAsRestore', () => {
     expect(tokenStore.setTokens).not.toHaveBeenCalled()
   })
 
-  it('treats a response with no token as a failure rather than a session', async () => {
+  it('treats a response with no token as a COOKIE session, not a failure', async () => {
+    // INVERTED 2026-09-07 (FU-05). This used to assert the opposite, and it was
+    // right to: before acting-as had a cookie, a response with no token meant
+    // no credential had arrived at all.
+    //
+    // The endpoint now sets an httpOnly acting_as_token cookie and sends the
+    // body copy only to clients that cannot use it. So on every cookie-capable
+    // browser the body is empty and the session is real -- reading that as a
+    // failure would drop acting-as on reload for exactly the clients the
+    // hardening was for.
     sessionStorage.setItem('acting_as_dependent', JSON.stringify(CHILD))
-    api.post.mockResolvedValue({ data: {} })
+    api.post.mockResolvedValue({ data: { success: true } })
+
+    await expect(restoreActingAs()).resolves.toEqual({ dependent: CHILD, token: null })
+    // Nothing to store: the credential is in a cookie the script cannot read.
+    expect(tokenStore.setTokens).not.toHaveBeenCalled()
+    // And the state survives, which is the whole point.
+    expect(sessionStorage.getItem('acting_as_dependent')).not.toBeNull()
+  })
+
+  it('still fails closed when the parent is no longer authorized', async () => {
+    // The distinction the case above depends on: an empty body is success, an
+    // ERROR is not. A parent whose ownership was revoked must lose the state.
+    sessionStorage.setItem('acting_as_dependent', JSON.stringify(CHILD))
+    api.post.mockRejectedValue(new Error('403'))
 
     await expect(restoreActingAs()).resolves.toBeNull()
-    expect(tokenStore.setTokens).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem('acting_as_dependent')).toBeNull()
   })
 
   it('purges an acting-as token left in storage by an older build', async () => {

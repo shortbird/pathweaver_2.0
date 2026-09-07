@@ -1,19 +1,13 @@
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import LearningEventCard from '../components/learning-events/LearningEventCard';
 import EvidenceMasonryGallery from '../components/diploma/EvidenceMasonryGallery';
 import CompactSidebar from '../components/diploma/CompactSidebar';
-import CreditProgressModal from '../components/diploma/CreditProgressModal';
 // BadgesModal removed (January 2026 - Microschool client feedback)
-import EvidenceDetailModal from '../components/diploma/EvidenceDetailModal';
-import AchievementDetailModal from '../components/diploma/AchievementDetailModal';
-import DiplomaExplanationModal from '../components/diploma/DiplomaExplanationModal';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -21,136 +15,22 @@ import logger from '../utils/logger';
 import {
   getAllCreditProgress,
   calculateTotalCredits,
-  TOTAL_CREDITS_REQUIRED,
   meetsGraduationRequirements
 } from '../utils/creditRequirements';
-import { getPillarGradient, getPillarDisplayName } from '../config/pillars';
-import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
-import PublicConsentModal from '../components/diploma/PublicConsentModal';
 import PublicNoticeBanner from '../components/diploma/PublicNoticeBanner';
 import { canonicalUrl as buildCanonicalUrl } from '../utils/canonicalUrl';
 
-// Subject display names for transfer credits
-const SUBJECT_DISPLAY_NAMES = {
-  'language_arts': 'Language Arts',
-  'math': 'Mathematics',
-  'science': 'Science',
-  'social_studies': 'Social Studies',
-  'financial_literacy': 'Financial Literacy',
-  'health': 'Health',
-  'pe': 'Physical Education',
-  'fine_arts': 'Fine Arts',
-  'cte': 'Career & Tech Ed',
-  'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
 
-// Transfer Credits Card - displays imported credits from external transcripts
-const TransferCreditsCard = memo(({ transferCredits, className = '' }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  if (!transferCredits || !transferCredits.total_credits) return null;
-
-  const subjectCredits = transferCredits.subject_credits || {};
-  const sortedSubjects = Object.entries(subjectCredits)
-    .filter(([, credits]) => credits > 0)
-    .sort((a, b) => b[1] - a[1]);
-
-  return (
-    <div className={`bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden ${className}`}>
-      {/* Header */}
-      <div
-        className="p-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">Transfer Credits</h3>
-              <p className="text-emerald-100">
-                From {transferCredits.school_name || 'Previous School'}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold">{transferCredits.total_credits.toFixed(1)}</div>
-            <div className="text-emerald-100 text-sm">credits</div>
-          </div>
-        </div>
-
-        {/* Expand indicator */}
-        <div className="mt-4 flex items-center justify-center">
-          <svg
-            className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Expandable Details */}
-      {isExpanded && (
-        <div className="p-6">
-          {/* Subject Breakdown */}
-          <div className="mb-6">
-            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              Subject Breakdown
-            </h4>
-            <div className="grid grid-cols-2 gap-3">
-              {sortedSubjects.map(([subject, credits]) => (
-                <div
-                  key={subject}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
-                  <span className="text-gray-700 font-medium">
-                    {SUBJECT_DISPLAY_NAMES[subject] || subject}
-                  </span>
-                  <span className="text-emerald-600 font-bold">
-                    {credits.toFixed(1)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Transcript Link */}
-          {transferCredits.transcript_url && (
-            <div className="pt-4 border-t border-gray-200">
-              <a
-                href={transferCredits.transcript_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-emerald-600 hover:text-emerald-700 font-medium"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View Transcript
-              </a>
-            </div>
-          )}
-
-          {/* Notes */}
-          {transferCredits.notes && (
-            <div className="mt-4 p-3 bg-amber-50 rounded-lg text-sm text-amber-800">
-              <strong>Note:</strong> {transferCredits.notes}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-TransferCreditsCard.displayName = 'TransferCreditsCard';
+// QF-02: the head, the masthead, the owner's share bar, the modal stack and
+// the transfer-credits card each live in components/diploma/ now. The page
+// keeps the data loading and the state -- opening a modal is the page's job --
+// and the layout that arranges them.
+import DiplomaHead from '../components/diploma/DiplomaHead';
+import DiplomaHero from '../components/diploma/DiplomaHero';
+import DiplomaShareControls from '../components/diploma/DiplomaShareControls';
+import DiplomaModals from '../components/diploma/DiplomaModals';
+import TransferCreditsCard from '../components/diploma/TransferCreditsCard';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
@@ -908,65 +788,15 @@ const DiplomaPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={pageDescription} />
+      <DiplomaHead
+        pageTitle={pageTitle} pageDescription={pageDescription}
+        canonicalUrl={canonicalUrl}
+      />
 
-        {/* Canonical URL - prefer /portfolio/:slug format */}
-        <link rel="canonical" href={canonicalUrl} />
-
-        {/* Open Graph / Social Media Tags */}
-        <meta property="og:type" content="profile" />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={pageDescription} />
-        <meta property="og:url" content={canonicalUrl} />
-        <meta property="og:site_name" content="Optio" />
-
-        {/* Twitter Card Tags */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={pageTitle} />
-        <meta name="twitter:description" content={pageDescription} />
-
-        {/* Additional SEO */}
-        <meta name="robots" content="index, follow" />
-      </Helmet>
-
-      {/* Hero Section with Professional Diploma Title */}
-      <div className="relative overflow-hidden bg-gradient-primary text-white">
-        <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 py-12">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="mb-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-sm rounded-full text-white/80 text-sm font-medium mb-3">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.909V17h2V9L12 3z"/>
-                </svg>
-                Portfolio Diploma
-              </div>
-            </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
-              {getStudentName()}
-            </h1>
-            <div className="text-base md:text-lg text-white/95 mb-6 leading-relaxed">
-              <p className="mb-1">
-                has accepted the responsibility to self-validate their education.
-              </p>
-              <p className="text-white/80">
-                This portfolio diploma is a record of their learning process.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowDiplomaExplanation(true)}
-              className="inline-flex items-center gap-2 text-white/90 hover:text-white hover:bg-white/10 px-4 py-2 rounded-lg transition-all duration-200 text-sm min-h-[44px]"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>What is a self-validated diploma?</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <DiplomaHero
+        getStudentName={getStudentName}
+        setShowDiplomaExplanation={setShowDiplomaExplanation}
+      />
 
       {/* FERPA compliance: Show public notice banner on public portfolios */}
       {isPublicRoute && diploma?.public_consent_info?.opted_in && (
@@ -978,102 +808,13 @@ const DiplomaPage = () => {
       )}
 
       <div className="max-w-7xl mx-auto px-4 py-10">
-        {/* Back Button and Share Controls */}
-        <div className="flex items-center justify-between mb-6">
-          {/* Back Button */}
-          {user && (
-            <button
-              onClick={() => {
-                if (fromOrgProgress && sourceOrgId) {
-                  // Navigate back to org management with progress tab active
-                  navigate(`/admin/organizations/${sourceOrgId}`, { state: { activeTab: 'progress' } });
-                } else {
-                  navigate('/dashboard');
-                }
-              }}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors group min-h-[44px]"
-            >
-              <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span className="font-medium">{fromOrgProgress ? 'Back to Progress' : 'Back to Dashboard'}</span>
-            </button>
-          )}
-
-          {/* Share Controls and Privacy Settings */}
-          {isOwner && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Privacy Toggle */}
-              <div className="flex items-center gap-3">
-                {visibilityStatus?.pending_parent_approval ? (
-                  <div className="px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-center gap-2 text-sm min-h-[44px]">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Awaiting Parent Approval
-                  </div>
-                ) : visibilityStatus?.parent_approval_denied ? (
-                  <div className="px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 flex items-center gap-2 text-sm min-h-[44px]">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    Request Denied
-                  </div>
-                ) : (
-                  <button
-                    onClick={handlePrivacyToggle}
-                    disabled={privacyLoading}
-                    className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm min-h-[44px] transition-colors ${
-                      visibilityStatus?.is_public
-                        ? 'bg-green-100 hover:bg-green-200 text-green-800'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    } ${privacyLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    title={visibilityStatus?.is_public ? 'Your portfolio is public' : 'Your portfolio is private'}
-                  >
-                    {privacyLoading ? (
-                      <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                    ) : visibilityStatus?.is_public ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    )}
-                    {visibilityStatus?.is_public ? 'Public' : 'Private'}
-                  </button>
-                )}
-              </div>
-              {/* Share button - only show if public */}
-              {visibilityStatus?.is_public && (
-                <button
-                  onClick={copyShareLink}
-                  className="btn-primary min-h-[44px]"
-                >
-                  {linkCopied ? (
-                    <>
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
-                      </svg>
-                      Share Portfolio
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        <DiplomaShareControls
+          copyShareLink={copyShareLink} fromOrgProgress={fromOrgProgress}
+          handlePrivacyToggle={handlePrivacyToggle} isOwner={isOwner}
+          linkCopied={linkCopied} navigate={navigate}
+          privacyLoading={privacyLoading} sourceOrgId={sourceOrgId}
+          user={user} visibilityStatus={visibilityStatus}
+        />
 
         {/* Main Layout: Sidebar + Evidence Gallery */}
         <div className="flex flex-col lg:flex-row gap-8">
@@ -1195,60 +936,23 @@ const DiplomaPage = () => {
           </div>
         )}
 
-        {/* Full Credits Modal */}
-        <CreditProgressModal
-          isOpen={showFullCreditsModal}
-          onClose={() => setShowFullCreditsModal(false)}
-          subjectXP={subjectXP}
-          pendingSubjectXP={pendingSubjectXP}
-          isOwner={isOwner}
+        <DiplomaModals
+          showFullCreditsModal={showFullCreditsModal}
+          setShowFullCreditsModal={setShowFullCreditsModal}
+          subjectXP={subjectXP} pendingSubjectXP={pendingSubjectXP}
+          selectedEvidenceItem={selectedEvidenceItem}
+          setSelectedEvidenceItem={setSelectedEvidenceItem}
+          selectedAchievement={selectedAchievement}
+          setSelectedAchievement={setSelectedAchievement}
+          showDiplomaExplanation={showDiplomaExplanation}
+          setShowDiplomaExplanation={setShowDiplomaExplanation}
+          showAccreditedDiplomaModal={showAccreditedDiplomaModal}
+          setShowAccreditedDiplomaModal={setShowAccreditedDiplomaModal}
+          showConsentModal={showConsentModal} setShowConsentModal={setShowConsentModal}
+          handleConsentConfirm={handleConsentConfirm}
           getStudentFirstName={getStudentFirstName}
-          onAccreditedDiplomaClick={() => setShowAccreditedDiplomaModal(true)}
-        />
-
-        {/* Badge system removed (January 2026 - Microschool client feedback) */}
-
-        {/* Evidence Detail Modal */}
-        <EvidenceDetailModal
-          isOpen={!!selectedEvidenceItem}
-          onClose={() => setSelectedEvidenceItem(null)}
-          evidenceItem={selectedEvidenceItem}
-        />
-
-        {/* Achievement Detail Modal (legacy - for old selectedAchievement state) */}
-        <AchievementDetailModal
-          isOpen={!!selectedAchievement}
-          onClose={() => setSelectedAchievement(null)}
-          achievement={selectedAchievement}
-        />
-
-        {/* Self-Validated Diploma Explanation Modal */}
-        <DiplomaExplanationModal
-          isOpen={showDiplomaExplanation}
-          onClose={() => setShowDiplomaExplanation(false)}
-        />
-
-        {/* Accredited Diploma Modal */}
-        <AccreditedDiplomaModal
-          isOpen={showAccreditedDiplomaModal}
-          onClose={() => setShowAccreditedDiplomaModal(false)}
-        />
-
-        {/* FERPA Compliance: Public Consent Modal */}
-        <PublicConsentModal
-          isOpen={showConsentModal}
-          onClose={() => setShowConsentModal(false)}
-          onConfirm={handleConsentConfirm}
-          isMinor={visibilityStatus?.is_minor}
-          parentName={
-            visibilityStatus?.approver?.first_name
-            || visibilityStatus?.parent_info?.first_name
-            || 'your parent or guardian'
-          }
-          approverKind={visibilityStatus?.approver_kind}
-          minorReason={visibilityStatus?.minor_reason}
-          canMakePublic={visibilityStatus?.can_make_public !== false}
-          loading={privacyLoading}
+          visibilityStatus={visibilityStatus} privacyLoading={privacyLoading}
+          isOwner={isOwner}
         />
       </div>
     </div>

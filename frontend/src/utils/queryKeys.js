@@ -46,6 +46,31 @@ export const queryKeys = {
     staff: (orgId) => [...queryKeys.sis.all, 'staff', orgId],
     households: (orgId) => [...queryKeys.sis.all, 'households', orgId],
     teacherClassRoster: (orgId, classId) => [...queryKeys.sis.all, 'teacherClassRoster', orgId, classId],
+    // The catalog varies by two flags as well as by org: archived classes are a
+    // different list, and a teacher is served a smaller payload than an admin.
+    // Both belong in the key, or switching either would read the other's cache.
+    classCatalog: (orgId, { showArchived, isAdmin } = {}) =>
+      [...queryKeys.sis.all, 'classCatalog', orgId, !!showArchived, !!isAdmin],
+    scheduleConflicts: (orgId) => [...queryKeys.sis.all, 'scheduleConflicts', orgId],
+    // Student drawer. studentContacts has no orgId: the endpoint is scoped by
+    // the student, and two panels on screen at once share this key so the
+    // request is made once.
+    studentContacts: (studentId) => [...queryKeys.sis.all, 'studentContacts', studentId],
+    studentRecord: (studentId, orgId) => [...queryKeys.sis.all, 'studentRecord', studentId, orgId],
+    studentClasses: (studentId, orgId) => [...queryKeys.sis.all, 'studentClasses', studentId, orgId],
+    orgClassList: (orgId) => [...queryKeys.sis.all, 'orgClassList', orgId],
+    householdList: (orgId) => [...queryKeys.sis.all, 'householdList', orgId],
+    // Family drawer.
+    householdBilling: (id, orgId) => [...queryKeys.sis.all, 'householdBilling', id, orgId],
+    householdContacts: (id, orgId) => [...queryKeys.sis.all, 'householdContacts', id, orgId],
+    householdRegistration: (id, orgId) => [...queryKeys.sis.all, 'householdRegistration', id, orgId],
+    // Onboarding checklists. previewUserId is in the key because an admin
+    // previewing somebody else's checklist must not be served their own from
+    // cache, or the reverse.
+    myOnboarding: (orgId, previewUserId) =>
+      [...queryKeys.sis.all, 'myOnboarding', orgId, previewUserId],
+    onboardingAssignments: (orgId) => [...queryKeys.sis.all, 'onboardingAssignments', orgId],
+    onboardingTemplates: (orgId) => [...queryKeys.sis.all, 'onboardingTemplates', orgId],
   },
 
   // Evidence

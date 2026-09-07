@@ -132,6 +132,10 @@ const BASELINE = [
   'src/components/quest/RestartQuestModal.jsx',
   'src/components/quest/TaskCompletionModal.jsx',
   'src/components/quests/QuestPersonalizationWizard.jsx',
+  // The flag-a-task modal's raw backdrop moved here when the wizard was split
+  // into per-step components (QF-02, 2026-09-07) -- same relocation as
+  // GenerationModeModal below, caught the same way.
+  'src/components/quests/personalizationWizard/ChoosePathStep.jsx',
   'src/components/services/ServiceInquiryModal.jsx',
   'src/components/student/QuestIdeaSubmission.jsx',
   'src/components/ui/mobile/MobileModal.jsx',

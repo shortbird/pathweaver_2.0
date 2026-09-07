@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+// Onboarding reads its checklists through hooks/api (QF-03), so these need a
+// QueryClient. Fresh client per render keeps one test's cache out of the next
+// one's; retry:false makes a failed query fail rather than hang on backoff.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 import { MemoryRouter } from 'react-router-dom'
 
 /**

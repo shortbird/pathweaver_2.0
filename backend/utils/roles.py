@@ -328,10 +328,22 @@ def _real_effective_roles(user: Dict) -> List[str]:
     if role == UserRole.ORG_MANAGED.value:
         # First check new org_roles array (takes precedence)
         org_roles = user.get('org_roles')
-        if org_roles:
-            if isinstance(org_roles, list) and len(org_roles) > 0:
-                # Filter to only valid roles
-                return [r for r in org_roles if r in VALID_ORG_ROLES]
+        if isinstance(org_roles, list) and org_roles:
+            valid = [r for r in org_roles if r in VALID_ORG_ROLES]
+            # Only return the array's answer when it HAS one. An org_roles
+            # holding nothing valid used to return [] here, while
+            # get_effective_role fell through to org_role and named a real
+            # role -- so the same account resolved to 'advisor' and passed no
+            # role check anywhere, because every gate asks "is any of my roles
+            # in this list" and an empty list answers no to all of them.
+            #
+            # Unreachable through the database (users.org_roles carries the
+            # valid_org_roles CHECK constraint), so this is a lockout that
+            # depended on that constraint staying correct. Falling through
+            # costs nothing and can only ever return the role the singular
+            # already reports. Pinned by shared/roleCases.json.
+            if valid:
+                return valid
 
         # Fallback to legacy org_role field
         org_role = user.get('org_role')

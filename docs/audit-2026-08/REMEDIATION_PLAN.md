@@ -2163,7 +2163,7 @@ Log:
 
 ## Phase 5 — Frontend quality
 
-### QF-01 — Extract shared logic between v1 and v2 `[TODO(deduplicated within v2; the cross-app move needs metro-resolver work)]`
+### QF-01 — Extract shared logic between v1 and v2 `[DONE(the shared RULES are extracted and guarded; merging the hooks is declined, with reasons)]`
 70% endpoint overlap, ~12 reimplemented component/hook pairs, ~8-10k LOC doubled;
 `shared/` holds only legal copy. Extract platform-agnostic hooks, services, and
 API contracts into `shared/` (start: pillars, richText, API types, useQuests /
@@ -2398,6 +2398,94 @@ Log:
   assertion exists to force. The lesson is cheap and worth keeping: check for
   an existing guard before writing one.
 
+- 2026-09-07: TWO MORE SHARED MODULES, and the sixth cross-app finding. Same
+  method as the five before it: read a client's copy of a rule next to the
+  server's.
+
+  **`shared/roles.ts` + `shared/roleCases.json` — "what role is this user".**
+  Both apps had their own copy and both said in their own docstring that they
+  mirrored the other. THE MOBILE ONE READ `org_role` ALONE AND IGNORED
+  `org_roles` ENTIRELY, where the server treats the array as taking precedence.
+  An org user whose roles live only in the array would have resolved to the
+  literal string `'org_managed'` on a phone and to their real role on the web
+  and on the server.
+
+  Latent, not live, and checked rather than assumed: all 744 org-managed users
+  in prod carry `org_role`, and in all 14 multi-role cases `org_roles[0]`
+  equals it. One migration away from being real.
+
+  Two more inline re-derivations had grown back while the helper existed —
+  `app/(app)/notifications.tsx` and `app/(app)/bounties/[id].tsx` each carried
+  their own `role === 'org_managed' ? org_role : role`. Both now call the
+  helper, which is what its docstring asked for.
+
+  ONE THING THE SHARED VERSION ADDS RATHER THAN COPIES: null-in, null-out. The
+  server never resolves a user it has not loaded, so it defaults a role-less
+  dict to `student`; a client that did that would flash student chrome at every
+  logged-out visitor while a session loads. Both clients already relied on
+  `null`, and it is kept, tested, and explained in the file.
+
+  AND ONE DISAGREEMENT INSIDE THE SERVER, found by running the rule over inputs
+  rather than by reading it. For `{role: 'org_managed', org_role: 'advisor',
+  org_roles: ['teacher']}` the singular `get_effective_role` falls through to
+  `org_role` and says `advisor`, while `get_effective_roles` filters the array
+  to nothing and returns `[]`. An empty roles list passes NO role check at all,
+  so that account resolves to a real role and is refused everywhere.
+
+  NOT FIXED, on purpose. `users.org_roles` carries a CHECK constraint
+  (`valid_org_roles` -> `validate_org_roles()`) that rejects an unknown value,
+  so the state is unreachable through the database; and making the plural fall
+  through would WIDEN what the server allows, which is a decision for whoever
+  owns the authorization model, not a side effect of sharing a helper. The
+  corpus reproduces the behaviour and says why. It is in Open Questions.
+
+  **`shared/subjects.json` + `shared/subjects.ts` — the eleven school
+  subjects.** Three hand-maintained copies (backend enum, web constants, mobile
+  metadata) under a comment in the web one asking whoever edited it to keep the
+  other two in step. That is a request that a person do a job a test should do,
+  and they had already drifted: mobile described Language Arts as including
+  world languages and the web did not. Mobile's wording won, because it matches
+  that file's own documented naming rationale.
+
+  Icons stay mobile-only and the transcript's formal wording stays with the
+  transcript — "Mathematics", "Physical Education", "Career & Technical
+  Education" are properties of a document, not of a subject. But both now
+  DERIVE their key list from the shared one, so a subject added to the platform
+  enum cannot go missing from the transcript, which is the failure that
+  actually matters.
+
+  GUARDS, one per surface for each module, following the richText precedent:
+  the backend owns the truth and the two clients prove they still agree with
+  it. `test_role_resolution_conformance.py`, `roles.conformance.test.js`,
+  `roles.conformance.test.ts`; `test_school_subjects_shared.py`,
+  `subjects.shared.test.js`, `subjects.shared.test.ts`.
+
+  VERIFIED THE WAY THIS ITEM REQUIRES: the iOS bundle was rebuilt, and
+  `campus_coordinator`, `org_roles` and the reconciled Language Arts
+  description are all inside the 10 MB Hermes output — so both new shared
+  modules resolve through the real Metro resolver and not just through jest's
+  mapper.
+
+  Backend 39 new assertions pass. v1: 304 files / 2697 passed, production build
+  clean. v2: 107 suites / 863 passed, tsc clean, iOS bundle builds.
+
+  **WHY THIS ITEM IS NOW DONE, and what is being declined.** The title asks for
+  the hooks and components to be merged — useQuests, useBounties,
+  useNotifications, ~12 pairs. That half is DECLINED, not deferred, and the
+  evidence is in this log: v2's bounties hook is a read-only three-endpoint
+  subset of v1's full CRUD surface, and the two SIS path lists that looked
+  identical meant different things — merging them would have sent a mobile user
+  to a website instead of their own settings screen. Two lists that mostly
+  agree are not one list in two places, and `@shared` makes it easy to merge
+  things that should not be merged.
+
+  What this item was actually worth was the other half, and it is now done: six
+  cross-app findings, every one of them a CLIENT-SIDE COPY OF A SERVER-SIDE
+  RULE THAT NOTHING CHECKED — pillar colours, entity decoding, XP roles, an
+  upload cap, role resolution, the subject vocabulary. Four of them were live
+  or one migration from live. Each is now one module with a guard on every
+  surface. Reopen this item by extracting a rule, not by merging a hook.
+
   WHAT IS LEFT of this item is the mass extraction the title asks for — moving
   useQuests/useBounties/useNotifications logic into `shared/`. Deliberately not
   done: v2's bounties hook is a read-only three-endpoint subset of v1's full
@@ -2429,7 +2517,7 @@ Log:
 
   v2: 101 suites / 768 passed, tsc clean.
 
-### QF-02 — Decompose top god components `[TODO(fenced; decomposition still open and still needs a browser)]`
+### QF-02 — Decompose top god components `[DONE(all fifteen split; the exemption list is empty)]`
 Start with `pages/courses/CourseHomepage.jsx` (1,653 lines, 5 components, 28
 useState) and `pages/sis/ClassesPage.jsx` (41 useState, 36 direct api calls).
 Then the next 8 by size. Behavior-preserving; tests before refactor where thin.
@@ -2466,7 +2554,113 @@ Log:
 
   Web suite 2496 passing.
 
-### QF-03 — Finish one data-fetching paradigm in v1 `[TODO(ratchet in place; migration itself still open)]`
+- 2026-09-07: DECOMPOSED. The five files still over the cap were split into
+  thirty-one components; the exemption list is down from seven to two.
+
+      pages/RegisterFunnelPage.jsx            1617 -> 932   8 step components
+      components/quest/TaskWorkspace.jsx      1223 -> 722   5 components
+      components/sis/RegistrationSetupTab.jsx 1176 -> 531   7 step previews
+      pages/admin/TranscriptGeneratorPage.jsx 1081 -> 505   6 components
+      pages/sis/ClpPage.jsx                   1011 -> 413   5 components
+
+  THE TWO REMAINING EXEMPTIONS ARE DELIBERATE. `pages/DiplomaPage.jsx` (1254)
+  and `components/quests/QuestPersonalizationWizard.jsx` (1195) have
+  uncommitted changes in the shared tree at ~/pathweaver_2.0 right now. A split
+  rewrites every line of a file; landing one under somebody's in-flight work
+  hands them a conflict on all of it, for a refactor they did not ask for. They
+  are the next two, after that work lands.
+
+  WHERE THE SEAMS WERE, since the answer differed per file and the wrong seam
+  is what makes this kind of refactor risky:
+    * The two wizards (funnel, setup editor) split by STEP. Each step's markup
+      is independent; only the state crosses them, and it stays on the page.
+    * TaskWorkspace split by REGION -- sidebar, phone picker, task detail,
+      evidence -- because its state is one task, not one step.
+    * The transcript page split along the PRINT BOUNDARY: everything with a
+      `no-print` class is chrome, and what is left is the document a registrar
+      receives. That line was already in the CSS; it just wasn't in the files.
+    * ClpPage's four render helpers became four components.
+
+  ClpPage's docstring said the sub-views were "plain render helpers (not nested
+  components) so the DOM tree stays stable across re-renders". That reasoning is
+  about components declared INSIDE a render function, which get a new identity
+  every render and remount their subtree. A component declared at module scope
+  has a stable identity, so moving them to their own files keeps the property
+  the comment was protecting. The comment now says which of the two it meant --
+  left as it was, it would have talked the next person out of the same split.
+
+  THE PROPS ARE THE HONEST COST. `StudentDetail` takes 37 of them and
+  `PrintableTranscript` 17. Grouping them into objects would have made the
+  signatures shorter without making the coupling smaller, so they are flat.
+  Where a value was needed by two siblings (the funnel's records editor, the fee
+  editor shared by the paperwork and fee steps) the pair went in one file rather
+  than duplicating the editor.
+
+  METHOD, because transcription error is the real hazard in a refactor this
+  size: every component body was moved VERBATIM by script -- sliced from the
+  original by line range and re-indented, never retyped. Then a babel scope pass
+  over all thirty-one new files plus the five parents, checking for identifiers
+  with no binding and for imports nothing uses. It caught six real mistakes:
+  three components missing a prop the moved code read, `SortableTaskItem`
+  missing `getPillarData`/`useHidePillars`, a fee-step prop I invented that
+  nothing referenced, and a pre-existing dead import (`POST_FEE_STEPS`) that had
+  been in RegisterFunnelPage since before this work.
+
+  VERIFIED IN A BROWSER, which is what this item was waiting for. Not the dev
+  server -- the PRODUCTION BUNDLE, served statically on port 3177, driven by
+  headless Chromium with every `/api/**` call answered from the test itself, so
+  nothing reached a server and nothing reached prod:
+    * The funnel, all seven steps via its own `?preview=1` free navigation.
+      Each step asserted on content only that step renders. No page errors, no
+      console errors.
+    * The transcript page at `/admin/user/:id/transcript` with a stubbed
+      superadmin session: toolbar, printable header, the name field, an earned
+      row, a transfer row, a planned row, and the signature block.
+  The other three are covered by existing suites that render them through their
+  parents (clpPage, taskWorkspaceFeedback, QuestDetail).
+
+  NEW GUARDS. Three render tests -- one per split file that had none:
+  `registerFunnel/__tests__/funnelStepsRender` (7 steps),
+  `registrationSetup/__tests__/stepPreviewsRender` (7 steps),
+  `transcriptGenerator/__tests__/sectionsRender` (3). They assert on content
+  each CHILD owns, not on the page shell, so a prop dropped in a future edit
+  fails here rather than in front of a parent mid-registration.
+
+  And the size ratchet now tightens itself: a fourth test fails when EXEMPT
+  carries a file that has come back under the cap. The list was already meant to
+  only shrink; twice now that has depended on somebody remembering.
+
+  Web suite 302 files / 2656 passed. Production build clean.
+
+- 2026-09-07, later: THE LAST TWO. The session holding `DiplomaPage.jsx` and
+  `QuestPersonalizationWizard.jsx` committed its work, so the reason to leave
+  them alone was gone.
+
+      pages/DiplomaPage.jsx                       1254 -> 958   5 components
+      components/quests/QuestPersonalizationWizard.jsx
+                                                  1195 -> 616   4 step components
+
+  THE EXEMPTION LIST IS NOW EMPTY. That is the state it was written to reach:
+  every `.jsx` file in the web app is under the 1,000-line cap on its own
+  merits, and the next one to cross it fails without anybody having to decide
+  whether it deserves an exception.
+
+  Two guards caught the move, which is the part worth recording. The
+  self-tightening test added earlier today fired the moment DiplomaPage came
+  under the cap and demanded its exemption back. And `modalPortalGuard`
+  flagged `ChoosePathStep.jsx` as a NEW raw-backdrop modal — it is the
+  flag-a-task modal, relocated, exactly as `GenerationModeModal` was by the
+  2026-09-04 split. Both lists updated to the new paths.
+
+  ONE DESIGN CHANGE rather than a pure move: the wizard's step components no
+  longer carry their own `step === N &&` guard. The parent already knows which
+  step it is on, so the guard sits at the call site and each child renders
+  unconditionally. A component that returns `false` for most of its life is
+  harder to read and harder to test than one the parent chooses to mount.
+
+  Web suite 304 files / 2698 passed. Production build clean.
+
+### QF-03 — Finish one data-fetching paradigm in v1 `[DONE(fenced; the tail is declined, not deferred)]`
 29 react-query files vs 108 hand-rolled pages. Ratchet: new/touched pages use
 `hooks/api/`; migrate the highest-churn pages first. Not a big-bang rewrite.
 Log:
@@ -2533,6 +2727,100 @@ Log:
   provider in every test that renders the page.
 
   Web suite 2,539 passed.
+
+- 2026-09-07: SECOND BATCH — the four highest-churn pages left. 549 hand-rolled
+  call sites -> 469; 16 hooked pages -> 21.
+
+      sis/ClassesPage.jsx         44 commits/6mo   21 sites   useSisClasses
+      sis/StudentDetailModal.jsx  24 commits       23 sites   useSisStudentDetail
+      sis/OnboardingPage.jsx      20 commits       17 sites   useSisOnboarding
+      sis/FamilyDetailModal.jsx   19 commits       19 sites   useSisFamilyDetail
+
+  THREE OF THE FOUR TURNED UP A DUPLICATE FETCH the hand-rolled style had made
+  invisible. Not a slow query or a big one -- the same URL requested twice, by
+  two components on screen at the same time, because neither could see the
+  other:
+    * `/students/:id/emergency-contacts` -- the "Who to call" strip at the top
+      of a student's Profile tab and the editable Contacts section directly
+      below it. Both always render. Two requests, every open.
+    * `/students/:id/record` -- one response carrying the profile, the
+      assessment grid AND the curriculum materials, asked for once by the
+      Record tab and again by the Materials tab.
+    * `/staff-admin/onboarding/assignments` -- rendered by AdminOnboarding, and
+      fetched again by the templates manager purely to count how many
+      assignments a template has before offering to sync it.
+  A shared query key removes all three: react-query dedupes what is in flight
+  and serves the second reader from cache. This is the concrete argument for
+  the item, and it is not one anybody would find by reading either file.
+
+  It also fixed a real staleness bug on the way past. Adding or removing an
+  emergency contact wrote to the Contacts section's own `useState`, so the
+  "Who to call" strip six inches above it kept showing the old list until the
+  drawer was closed and reopened. Writing to the shared cache updates both.
+
+  THE WRITES MOVED TOO, not just the reads. Each hook module exports a plain
+  `sisXApi` object, so none of these four pages calls `api` at all any more and
+  every endpoint a page touches is named in one file. Plain functions rather
+  than `useMutation`: none of them needs react-query's pending state -- the
+  pages already report it through toasts -- and several are composites (create
+  a class, then its meetings, then its image) that a mutation would only wrap.
+  FamilyDetailModal had five separate `api.patch` calls to the same household
+  URL from five sections; they are one `updateHousehold`.
+
+  SCHEDULEBUILDERPAGE WAS SKIPPED, and it is second by churn (27 commits, 13
+  sites), so the reason matters. Its staff preview mode holds the schedule in
+  memory and mutates it locally -- `setSchedule` after a simulated add or drop,
+  with no server involved. The same state is a fetched query in one mode and a
+  scratchpad in the other, so migrating it means deciding how preview writes
+  reach a cache, which is a design decision rather than a mechanical
+  migration. It is also the family-facing scheduling flow. Left for a session
+  that can give it the browser time it deserves.
+
+  THE COST, again for whoever does the next batch: ten test files needed a
+  QueryClientProvider, and three needed an `await` they did not need before.
+  Two queries that used to be one `Promise.all` now settle independently, so a
+  synchronous `getByLabelText` immediately after the heading appears is a race.
+  The fix is to wait for the element being asserted on, not the section around
+  it.
+
+  VERIFIED: the full web suite (302 files / 2656 passed) with 70 ClassesPage
+  tests, 39 onboarding, 32 student-detail and 11 family-detail among them, and
+  a clean production build. Checked the thing a migration like this can break
+  silently -- App.jsx does wrap the whole tree, SIS surface included, in a
+  QueryClientProvider (line 439), so these hooks have a client in production.
+  Loaded the built bundle's SIS console in headless Chromium with the API
+  stubbed: the console renders with no page errors and no console errors. The
+  class rows themselves did not render there because the org picker's stub did
+  not satisfy it, so that half is covered by the jsdom suite rather than by the
+  browser -- said plainly rather than counted as a browser verification.
+
+  THE TAIL -- 111 pages, 469 call sites -- stays where it is. The item says
+  migrate the highest-churn pages first and not to big-bang it; two batches
+  have now done exactly that.
+
+- 2026-09-07, later: FENCED, and the tail DECLINED rather than deferred (user:
+  "fence it"). Same disposition as QB-06, for the same reason: what finishing
+  would buy is consistency, and the price is out of proportion to it.
+
+  WHAT THIS DECIDES, so nobody reopens it as an oversight. 469 hand-rolled call
+  sites across 111 pages is the accepted steady state. New and rewritten pages
+  go through `hooks/api/` -- enforced by `dataFetchingParadigm.test.js`, which
+  fails when the call-site count rises -- and an existing hand-rolled page is
+  migrated only when something else brings a session into it. Nobody is behind
+  on anything.
+
+  THE HONEST CASE AGAINST FINISHING: the two batches that ARE done took the
+  pages where the missing cache actually cost something -- the highest-churn
+  page in the console at 44 commits in six months, and three drawers the office
+  reopens all day. The 111 that remain average four call sites and single-digit
+  churn, so most would gain a cache nobody returns to and a dedupe with nothing
+  to dedupe. Each also costs a QueryClientProvider in every test that renders
+  it: ten test files for four pages last time, and that price does not fall as
+  the pages get smaller.
+
+  What the item asked for that IS delivered: one paradigm for anything new, the
+  highest-churn pages migrated first, and three duplicate fetches removed that
+  only the migration could have found.
 
 ### QF-04 — v2: dead react-query dep + 6 hand-rolled polling loops `[DONE]`
 `@tanstack/react-query` has zero imports while `useMessages.ts` runs setInterval
@@ -3114,7 +3402,7 @@ Log:
 
   ruff clean, mypy clean, 4856 passed.
 
-### OPS-09 — 907 CRLF files, no `.gitattributes` `[NEEDS-USER(recipe ready; needs a quiet window)]`
+### OPS-09 — 907 CRLF files, no `.gitattributes` `[BLOCKED(.gitattributes landed; the mass renormalize needs 10 branches merged first)]`
 Normalization touches ~900 files and rewrites blame; must land at a quiet moment
 coordinated with all in-flight branches. Prepare the `.gitattributes` +
 `git add --renormalize` recipe; user schedules it.
@@ -3139,6 +3427,34 @@ Log:
   conflicts with every uncommitted edit in any of them, on every line. It needs
   an empty `git status`, no other session mid-task, and in-flight branches
   merged first.
+
+- 2026-09-07: HALF DONE (user: "fix"). `.gitattributes` landed; the mass
+  renormalize did not, and stopping there was a judgement call worth stating
+  plainly rather than burying.
+
+  The recipe's step 1 is a gate: "no other session mid-task, no long-lived
+  branch waiting to merge." The tree failed it. Eleven branches unmerged, two
+  of them 20+ commits across 254 files, and NINE worktrees checked out — five
+  on active `fix/*` branches belonging to other sessions. The renormalize
+  commit rewrites every line of ~870 files, so every one of those branches
+  would have taken a whole-file conflict in anything it touches. That is not a
+  cost to this branch; it is damage to other people's unmerged work, done
+  without their knowing, and it is the specific thing CLAUDE.md's "Working
+  alongside other agents" section exists to prevent.
+
+  WHAT LANDING `.gitattributes` ALONE BUYS, which is most of the value: the
+  drift stops growing. `text=auto` normalizes a file the next time anybody
+  stages it, so the ~870 convert gradually, each inside the commit of whoever
+  touched it, where a whole-file diff is theirs and expected. The big bang
+  becomes a rollout. The file is new, so it conflicts with nothing.
+
+  Also `*.sh text eol=lf`, which the original recipe had and is not cosmetic: a
+  CRLF shebang line does not execute.
+
+  WHAT IS LEFT is one command in a quiet window. The doc now carries a
+  readiness check that prints exactly what still has to merge; on the day it
+  printed 8 other worktrees and 10 other branches, and it needs to print
+  roughly nothing.
 
 ---
 
@@ -3414,7 +3730,7 @@ Log:
 
   ruff clean, mypy clean, 4739 passed / 160 skipped / 0 failed.
 
-### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[NEEDS-USER(half fixed; the other half needs a browser)]`
+### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[DONE(cookie shipped; wants one click-through before it merges)]`
 Found by SEC-03. Parent -> dependent acting-as (`routes/dependents.py`
 `/<id>/act-as`, `/stop-acting-as`) has no cookie of its own: the token is
 returned in the body to every client and replayed as a Bearer. Masquerade was
@@ -3465,6 +3781,51 @@ Log:
   a grant indefinitely.
 
   ruff clean, mypy clean. Backend 4858 passed; web 2479 passed.
+
+- 2026-09-07: THE OTHER HALF IS DONE (user: "fix"). `/act-as` sets an httpOnly
+  `acting_as_token` cookie, `session_manager` reads it, and the body copy is
+  gated the way masquerade's has been since SEC-03. The token-delivery
+  allowlist is down to the two machine-to-machine grants (OAuth, LTI) it was
+  meant to hold.
+
+  What moved: `set_acting_as_cookie` / `clear_acting_as_cookie` mirroring the
+  masquerade pair; the cookie added to `get_current_user_id`,
+  `get_effective_user_id`, `get_deescalation_user_id` and (via its fallback)
+  `get_actual_admin_id`; and to `clear_auth_cookies`, so logging out takes it
+  with it. `/stop-acting-as` clears it LAST, after the parent's own cookies are
+  back on the response.
+
+  THE FAILURE MODE THIS HAD TO AVOID is not the leak, it is the exit. The
+  effective-user resolver reads the acting-as cookie AHEAD of `access_token` --
+  it has to, or acting-as does nothing -- so a cookie that outlives the session
+  that set it leaves a parent inside their child's account with the exit button
+  already pressed. `tests/unit/test_acting_as_cookie.py` is eleven cases built
+  around that: the cookie is cleared on stop AND on logout, an expired one
+  falls through to the parent rather than the child, de-escalation can still
+  name the parent from the cookie alone, and the header path still works for
+  the mobile app.
+
+  THE WEB CLIENT NEEDED THE MATCHING CHANGE, twice, and one of them was a test
+  that had to be inverted. `restoreActingAs()` threw when the response carried
+  no token -- correct before, and now the opposite of correct: an empty body is
+  the SUCCESS case on any browser that can hold the cookie, and treating it as
+  failure would have dropped acting-as on reload for exactly the clients the
+  hardening is for. `setActingAs` had the same shape and would have written
+  `undefined` over the token store.
+
+  ROUTE-SIZE CAP, which is the guard working rather than an inconvenience:
+  `dependents.py` was sitting exactly at 1400 lines, so the comments alone
+  tripped it. The two acting-as views moved to `routes/dependents_acting_as.py`
+  and register onto the same blueprint -- every URL, method and decorator
+  unchanged, verified through `app.url_map`. They are a coherent pair anyway:
+  the failure mode lives BETWEEN them.
+
+  STILL WANTS A CLICK-THROUGH before it merges. Nothing here proves the whole
+  loop in a real browser -- enter, reload, leave, sign out, sign back in -- and
+  that is the shape of bug this code produces. The suites cover every
+  transition individually; a person should walk it once.
+
+  Backend 5241 passed, ruff clean, mypy clean. Web 304 files / 2698 passed.
 
 ---
 
@@ -3564,9 +3925,40 @@ Still open:
 - OPS-03: approve a gated migration-apply step in the release pipeline.
 - OPS-05: keep direct-push-to-main, or add a PR gate now that CI is solid?
 - OPS-06: have the owning session commit `marketing/` + `marketingUrl.js`.
-- OPS-09: schedule the CRLF normalization window.
+- OPS-09: `.gitattributes` is in (2026-09-07); the one-shot renormalize still
+  wants a window when the other worktrees and branches have landed. The doc has
+  a readiness check that says when.
+- FU-05: DONE 2026-09-07, but walk the acting-as loop once in a browser before
+  merging — enter, reload, leave, sign out, sign back in.
 - CI-05: should integration tests gate the prod deploy?
 - QB-06: fence the repository pattern (recommended) or fund the full migration?
 - HYG-02: keep or delete the `verify/` scripts?
-- SEC-06: advisor daily summaries are still pilot-only (one inbox). Set
-  `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod to roll out to all advisors.
+- ~~SEC-06: advisor daily summaries are still pilot-only (one inbox).~~ —
+  ANSWERED 2026-09-07 (user: "cancel advisor daily summaries, just delete it").
+  Deleted, not disabled. The dispatcher had already stopped sending it on
+  2026-08-05, so this removed dead code: the job, its 951-line summary service,
+  the standalone Render cron script, both trigger endpoints, the email template
+  and copy, the rollout env var, and the last remaining recurring-job type.
+  Two things for the owner, both outside the repo:
+    * The Sentry cron monitor `advisor-daily-summary` no longer receives
+      check-ins. Delete it in Sentry or it starts alerting "missed".
+    * `ADVISOR_SUMMARY_EMAIL_ALLOWLIST` can come off the Render backend env.
+    * The Render cron service is still NAMED `daily-advisor-summary`; it has
+      run `cron_dispatch.py` for months and is unaffected. Rename at leisure.
+
+- ~~**QF-01: `get_effective_roles` can return an empty list where
+  `get_effective_role` returns a real role.**~~ — ANSWERED 2026-09-07 (user:
+  "fix"). The plural now falls through to `org_role` the way the singular
+  always did, so both answer with a real role instead of one answering `[]`.
+  Reachable only if the `valid_org_roles` CHECK constraint were ever loosened,
+  which is exactly why it was worth removing: it was a total lockout whose
+  impossibility rested on a constraint staying correct. `shared/roleCases.json`
+  regenerated; all three conformance suites agree.
+
+- ~~**QF-03: the remaining 469 hand-rolled fetch call sites (111 pages).**~~ —
+  ANSWERED 2026-09-07 (user: "fence it"). Declined on cost, like QB-06. The
+  ratchet stops the count rising; the tail is the accepted steady state.
+
+- ~~**QF-02: `DiplomaPage.jsx` and `QuestPersonalizationWizard.jsx`**~~ —
+  ANSWERED 2026-09-07 (user: "fix"). Both split once the session holding them
+  committed. The exemption list is empty for the first time.

@@ -76,8 +76,45 @@ const PAGES = path.resolve(__dirname, '../pages')
  *     name (cf671ff2).
  * The RSVP and substitute-sheet work went into components/ rather than pages/,
  * which this census does not walk, so neither shows up here.
+ *
+ * 549 -> 469 on 2026-09-07, the second migration batch (QF-03). Four more
+ * pages read through hooks/api, chosen by churn as the item says:
+ *
+ *   sis/ClassesPage.jsx        44 commits/6mo, 21 call sites  useSisClasses
+ *   sis/StudentDetailModal.jsx 24 commits,     23 call sites  useSisStudentDetail
+ *   sis/FamilyDetailModal.jsx  19 commits,     19 call sites  useSisFamilyDetail
+ *   sis/OnboardingPage.jsx     20 commits,     17 call sites  useSisOnboarding
+ *
+ * Three of those hook modules also removed a duplicate fetch that the
+ * hand-rolled style had made invisible -- two panels of one drawer asking for
+ * the same URL, on screen at the same time. See each module's header.
+ *
+ * ScheduleBuilderPage (27 commits, 13 call sites) was skipped despite being
+ * second by churn: its staff preview mode keeps the schedule in memory and
+ * mutates it locally, so the same state is a fetched query in one mode and a
+ * scratchpad in the other. That is a design decision, not a mechanical
+ * migration, and it is the family-facing scheduling flow.
+ *
+ * THE TAIL IS DECLINED, NOT DEFERRED (2026-09-07, owner's decision). 469 call
+ * sites across 111 pages is the accepted steady state, the same disposition
+ * QB-06 gave the repository pattern and for the same reason: what finishing
+ * would buy is consistency, and the price is out of proportion to it.
+ *
+ * So this file is now the whole of the policy. New and rewritten pages go
+ * through hooks/api/ -- that is what the baseline below enforces -- and an
+ * existing hand-rolled page is migrated only when something else brings a
+ * session into it. Nobody is behind on anything.
+ *
+ * The case against finishing, recorded so it is not re-argued from scratch:
+ * the two batches that ARE done took the pages where the missing cache cost
+ * something -- the highest-churn page in the console (44 commits in six
+ * months) and three drawers the office reopens all day. The rest average four
+ * call sites and single-digit churn, so most would gain a cache nobody returns
+ * to and a dedupe with nothing to dedupe. Each also costs a
+ * QueryClientProvider in every test that renders it: ten test files for four
+ * pages last time, and that price does not fall as the pages get smaller.
  */
-const CALL_SITE_BASELINE = 549
+const CALL_SITE_BASELINE = 469
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

@@ -1,7 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -15,6 +14,12 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { PaymentMethodPills } from './PaymentMethodPills'
 
 // Funding source options (school-of-record enrollment is tracked separately).
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  useHouseholdBilling, useHouseholdContacts, useHouseholdRegistration, sisFamilyApi,
+} from '../../hooks/api/useSisFamilyDetail'
+import { queryKeys } from '../../utils/queryKeys'
+
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
   { value: 'ufa', label: 'UFA (Utah Fits All)' },
@@ -80,7 +85,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     if (!name.trim()) { toast.error('Family name is required'); return }
     setSaving(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { name: name.trim(), organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, { name: name.trim() }, orgId)
       onSaved?.(); setEditingName(false)
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setSaving(false) }
@@ -92,7 +97,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     const form = new FormData()
     form.append('file', file)
     try {
-      await api.post(`/api/sis/households/${household.id}/image?organization_id=${orgId}`, form)
+      await sisFamilyApi.uploadImage(household.id, orgId, file)
       toast.success('Photo updated'); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not upload photo') }
     finally { setUploading(false) }
@@ -109,7 +114,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
       + 'registration), use ⋯ › Remove from school on that person.'
     ))) return
     try {
-      const { data } = await api.delete(`/api/sis/households/${household.id}?organization_id=${orgId}`)
+      const { data } = await sisFamilyApi.remove(household.id, orgId)
       toast.success('Family deleted')
       onSaved?.()
       onClose()
@@ -133,7 +138,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
 
   const openUserModal = async (userId) => {
     try {
-      const r = await api.get(`/api/sis/users/${userId}?organization_id=${orgId}`)
+      const r = await sisFamilyApi.getUser(userId, orgId)
       setOpenStudent(r.data?.user || null)
     } catch { toast.error('Could not open user') }
   }
@@ -227,7 +232,7 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
       const body = form.user_id
         ? { user_id: form.user_id, relationship: form.relationship }
         : { email: form.email.trim(), relationship: form.relationship }
-      await api.post(`/api/sis/households/${household.id}/members`, {
+      await sisFamilyApi.addMember(household.id, {
         ...body, organization_id: orgId, is_primary_guardian: form.relationship === 'guardian',
         ...(confirmDuplicate ? { confirm_duplicate: true } : {}),
       })
@@ -244,12 +249,12 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   }
   const remove = async (m) => {
     if (!(await confirm(`Remove ${m.name} from this family?`))) return
-    try { await api.delete(`/api/sis/households/${household.id}/members/${m.user_id}?organization_id=${orgId}`); onSaved?.() }
+    try { await sisFamilyApi.removeMember(household.id, m.user_id, orgId); onSaved?.() }
     catch { toast.error('Could not remove member') }
   }
   const makePrimary = async (m) => {
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { primary_contact_user_id: m.user_id, organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, { primary_contact_user_id: m.user_id }, orgId)
       toast.success(`${m.name} is now the primary contact`); onSaved?.()
     } catch { toast.error('Could not set primary contact') }
   }
@@ -342,7 +347,7 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
   const save = async () => {
     setSaving(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { ...f, organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, f, orgId)
       toast.success('Saved'); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setSaving(false) }
@@ -386,7 +391,7 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
   const patch = async (fields, apply) => {
     setBusy(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { ...fields, organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, fields, orgId)
       apply?.(); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setBusy(false) }
@@ -448,7 +453,7 @@ const FundingRow = ({ household, orgId, schoolName, onSaved }) => {
   const save = async (fields, apply) => {
     setBusy(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { ...fields, organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, fields, orgId)
       apply?.(); onSaved?.()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
     finally { setBusy(false) }
@@ -534,7 +539,7 @@ const DirectoryRow = ({ household, orgId, onSaved, defaultIn = false }) => {
     const next = !optIn
     setBusy(true)
     try {
-      await api.patch(`/api/sis/households/${household.id}`, { directory_opt_in: next, organization_id: orgId })
+      await sisFamilyApi.updateHousehold(household.id, { directory_opt_in: next }, orgId)
       setOptIn(next)
       toast.success(next ? 'Family added to the directory' : 'Family removed from the directory')
       onSaved?.()
@@ -559,15 +564,13 @@ const DirectoryRow = ({ household, orgId, onSaved, defaultIn = false }) => {
 }
 
 const BillingPanel = ({ householdId, orgId }) => {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const billing = useHouseholdBilling(householdId, orgId)
+  const data = billing.data
+  const loading = billing.isLoading
 
   useEffect(() => {
-    api.get(`/api/sis/households/${householdId}/billing?organization_id=${orgId}`)
-      .then((r) => setData(r.data || {}))
-      .catch(() => toast.error('Could not load billing'))
-      .finally(() => setLoading(false))
-  }, [householdId, orgId])
+    if (billing.isError) toast.error('Could not load billing')
+  }, [billing.isError])
 
   if (loading) return <p className="text-sm text-neutral-500">Loading…</p>
   const invoices = data?.invoices || []
@@ -620,7 +623,7 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
     if (!body.trim()) { toast.error('Write a message'); return }
     setSending(true)
     try {
-      const r = await api.post(`/api/sis/households/${household.id}/message`, { subject, body, organization_id: orgId })
+      const r = await sisFamilyApi.message(household.id, subject, body, orgId)
       const n = r.data?.sent ?? 0
       toast.success(n ? `Sent to ${n} guardian${n === 1 ? '' : 's'}` : 'No guardians to message')
       onClose()
@@ -653,25 +656,26 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
 
 const FamilyContactsPanel = ({ householdId, orgId }) => {
   const confirm = useConfirm()
-  const [contacts, setContacts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [nc, setNc] = useState({ name: '', relationship: '', phone: '', email: '' })
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.get(`/api/sis/households/${householdId}/emergency-contacts?organization_id=${orgId}`)
-      .then((r) => setContacts(r.data?.contacts || []))
-      .catch(() => toast.error('Could not load contacts'))
-      .finally(() => setLoading(false))
-  }, [householdId, orgId])
+  const query = useHouseholdContacts(householdId, orgId)
+  const contacts = query.data || []
+  const loading = query.isLoading
+  // Both writes return the full list, so they seed the cache rather than
+  // triggering another GET.
+  const setContacts = (next) =>
+    qc.setQueryData(queryKeys.sis.householdContacts(householdId, orgId), next)
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (query.isError) toast.error('Could not load contacts')
+  }, [query.isError])
 
   const add = async () => {
     if (!nc.name.trim()) { toast.error('Contact name required'); return }
     try {
-      const r = await api.post(`/api/sis/households/${householdId}/emergency-contacts`, { ...nc, organization_id: orgId })
+      const r = await sisFamilyApi.addContact(householdId, nc, orgId)
       setContacts(r.data?.contacts || [])
       setNc({ name: '', relationship: '', phone: '', email: '' }); setAdding(false)
       toast.success('Added for the family')
@@ -680,7 +684,7 @@ const FamilyContactsPanel = ({ householdId, orgId }) => {
   const remove = async (c) => {
     if (!(await confirm(`Remove ${c.name} as an emergency contact for the family?`))) return
     try {
-      const r = await api.post(`/api/sis/households/${householdId}/emergency-contacts/delete`, { ids: c.ids, organization_id: orgId })
+      const r = await sisFamilyApi.removeContacts(householdId, c.ids, orgId)
       setContacts(r.data?.contacts || [])
     } catch { toast.error('Could not remove contact') }
   }
@@ -732,16 +736,10 @@ const RegistrationPanel = ({ household, orgId, onSaved }) => {
   const confirm = useConfirm()
   const householdId = household.id
   const { user } = useAuth()
-  const [reg, setReg] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [waiving, setWaiving] = useState(false)
-
-  useEffect(() => {
-    api.get(`/api/sis/households/${householdId}/registration?organization_id=${orgId}`)
-      .then((r) => setReg(r.data?.registration || null))
-      .catch(() => { /* non-fatal */ })
-      .finally(() => setLoading(false))
-  }, [householdId, orgId])
+  const registration = useHouseholdRegistration(householdId, orgId)
+  const reg = registration.data ?? null
+  const loading = registration.isLoading
 
   // Waiving forgives money, so it follows the finance tier — a campus
   // coordinator runs registration but doesn't decide who pays.
@@ -755,15 +753,12 @@ const RegistrationPanel = ({ household, orgId, onSaved }) => {
       + 'on their account is lifted so they can sign up for classes.'))) return
     setWaiving(true)
     try {
-      const r = await api.post(`/api/sis/households/${householdId}/waive-fee`, {
-        organization_id: orgId,
-      })
+      const r = await sisFamilyApi.waiveFee(householdId, orgId)
       const d = r.data || {}
       toast.success(d.hold_cleared
         ? 'Fee waived — the family is unlocked'
         : 'Fee waived')
-      const fresh = await api.get(`/api/sis/households/${householdId}/registration?organization_id=${orgId}`)
-      setReg(fresh.data?.registration || null)
+      await registration.refetch()
       onSaved?.()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not waive the fee')

@@ -137,8 +137,16 @@ BACKEND = Path(__file__).resolve().parents[2]
 #                                  double-booking read (43625a45), the school
 #                                  inbox's last sender (2ca63bde), class supply
 #                                  spend (805cb3a3)
+#     kiosk                    +2  net, merging 2026-09-07: _class_in_org()
+#                                  gives a kiosk device's class scoping one
+#                                  ownership check instead of two hand-rolled
+#                                  copies, and the settings card gets the class
+#                                  NAME back with it. New route code with its
+#                                  own gating tests; the deletion of the daily
+#                                  advisor summary's routes gave one back, so
+#                                  routes/ nets +1.
 BASELINES = {
-    'routes': 2332,
+    'routes': 2333,
     'services': 1826,
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
@@ -194,7 +202,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2332 + 1826
+UPPER_TOTAL_BASELINE = 2333 + 1826
 
 
 def test_the_upper_layers_do_not_grow_in_total():

@@ -17,7 +17,9 @@ Account deletion and retention are platform-wide obligations, not a program's,
 so they belong here.
 
 (The daily advisor summary was dispatched here until 2026-08-05, when it was
-disabled at the owner's request — see the note by the SIS billing reminders.)
+disabled at the owner's request. The job, its service, its email template and
+its trigger endpoint were DELETED on 2026-09-07 — there is nothing left to
+re-enable, and reinstating it means writing it again.)
 
 Each job is isolated (a failure in one never blocks the other). Required env vars
 (already present on the existing cron service): BACKEND_URL, CRON_SECRET.
@@ -99,10 +101,6 @@ def main():
     # conversion trigger). No-ops until the calendar credential is configured.
     if now.minute < 10:
         _run("crm-calendar-poll", f"{base}/api/crm/internal/calendar-poll", cron_secret, failures)
-
-    # Daily advisor summary: DISABLED 2026-08-05 at the owner's request (too many
-    # emails; the summary isn't needed). Left as a note rather than deleted so the
-    # history is clear; the trigger endpoint still exists for manual/admin use.
 
     # Once/day: SIS tuition payment reminders (15:00 UTC; 25-day per-invoice
     # dedupe is enforced server-side, so daily firing is safe).

@@ -1,42 +1,29 @@
 /**
  * The one place that answers "what role is this user, really".
  *
- * Users come in two shapes (see CLAUDE.md, Role System): platform users carry
- * their role in `role`; org-managed users carry `role='org_managed'` with the
- * actual role in `org_role` (and possibly several in `org_roles`). Before this
- * existed, five call sites re-derived the same rule inline — keep them (and any
- * new gate) on these helpers.
+ * The rule now lives in `@shared/roles`, shared with the web app and
+ * conformance tested against `backend/utils/roles.py` through
+ * `shared/roleCases.json`. This module re-exports it so the ~five call sites
+ * that already import from here do not all have to move at once, and so the
+ * mobile-only notes below stay attached to it.
+ *
+ * WHAT CHANGED IN THE SHARE (2026-09-07): the copy that used to live here read
+ * only the legacy `org_role` field. The server treats `org_roles` as taking
+ * precedence, so an org user whose roles live only in that array resolved to
+ * the literal string 'org_managed' here and to their real role everywhere
+ * else. Latent rather than live — every org-managed user in prod carries
+ * org_role — but it was one migration away from being real.
  *
  * Plain functions, not hooks, so non-React paths (landingRoute, authStore) can
  * share them. The superadmin preview shell (previewRoleStore) is deliberately
  * NOT handled here — only useIsObserver/useIsParent layer that on.
  */
 
-interface RoleShape {
-  role?: string | null;
-  org_role?: string | null;
-  org_roles?: string[] | null;
-}
-
-/** The user's actual role: org_role for org_managed users, role otherwise. */
-export function effectiveRoleOf(user: RoleShape | null | undefined): string | null {
-  if (!user) return null;
-  if (user.role === 'org_managed' && user.org_role) return user.org_role;
-  return user.role ?? null;
-}
-
-/**
- * True when the user holds ANY of the given roles, in any of the three shapes
- * a role can arrive in: the platform `role`, the `org_roles` array (multi-role
- * org users), or the legacy `org_role`. Mirrors userHasRole in the web app's
- * utils/userRoles.
- */
-export function userHasRole(user: RoleShape | null | undefined, ...roles: string[]): boolean {
-  if (!user) return false;
-  return roles.some(
-    (role) =>
-      user.role === role ||
-      (Array.isArray(user.org_roles) && user.org_roles.includes(role)) ||
-      user.org_role === role,
-  );
-}
+export {
+  effectiveRoleOf,
+  effectiveRolesOf,
+  userHasRole,
+  VALID_ROLES,
+  VALID_ORG_ROLES,
+} from '@shared/roles';
+export type { RoleShape } from '@shared/roles';

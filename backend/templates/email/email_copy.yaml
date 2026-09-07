@@ -816,19 +816,3 @@ emails:
       text: "Log in to Optio"
       url: "{{ login_url }}"
     signature: "team"
-
-  # Daily Advisor Summary (Morning Briefing)
-  # V2 Enhancement: Now includes cohort summary, milestones, check-in data,
-  # and per-student engagement metrics (rhythm states, streaks, pillar balance)
-  daily_advisor_summary:
-    subject: "{{ subject_prefix }}Morning Briefing: Your Students' Progress - {{ summary_date }}"
-    title: "Morning Briefing"
-    salutation: "Hi {{ advisor_name }},"
-    paragraphs:
-      - "Here's your morning briefing for {{ summary_date }}:"
-    # students_html is passed as closing_html directly in the context
-    # (not via closing_paragraphs, which wraps in <p> tags and breaks block-level HTML)
-    cta:
-      text: "View Full Dashboard"
-      url: "{{ dashboard_url }}"
-    signature: "team"

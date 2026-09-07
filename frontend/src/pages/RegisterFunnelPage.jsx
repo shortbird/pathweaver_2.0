@@ -5,15 +5,14 @@ import api from '../services/api'
 import { compressImage } from '../utils/compressImage'
 import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 // Presentational funnel pieces are shared with the SIS Registration setup
-// editor, which renders these exact components with the config editable.
+// editor, which renders these exact components with the config editable. The
+// page itself now only needs the steppers and absUrl; each step component
+// imports the fields and buttons it actually uses.
+// (POST_FEE_STEPS was imported here and never referenced -- dropped.)
 import {
-  STEPS, STEP_LABELS, POST_FEE_STEPS, field, money, absUrl,
-  ageFromDob, enrollmentGateFor, gateBandText,
-  QuestionField, PhotoPicker, VerticalStepper, MobileStepper,
-  Section, PasswordInput, PrimaryButton,
+  STEPS, STEP_LABELS, absUrl, enrollmentGateFor,
+  VerticalStepper, MobileStepper,
 } from '../components/registration/funnelUi'
-import GoogleButton from '../components/auth/GoogleButton'
-import AppleButton from '../components/auth/AppleButton'
 
 // Branded multi-step parent registration for the iCreate microschool.
 // Reached only for iCreate parent registration links (AcceptInvitationPage
@@ -32,122 +31,21 @@ import AppleButton from '../components/auth/AppleButton'
 //               schedule beforehand. Both stay reachable after leaving (the
 //               booking link is emailed; the Schedule Builder has a
 //               "Book appointment" button), so this page never has to be found again.
-
-const CONTACT_RELATIONSHIPS = ['Grandparent', 'Guardian', 'Parent', 'Family friend', 'Neighbor', 'Other']
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
-
-// ── Date of birth as validated text (MM/DD/YYYY) ─────────────────────────────
-// A plain masked text input with real calendar validation: impossible dates
-// like 2/31/2008 are rejected with an inline error instead of being accepted
-// (or silently mangled) the way loosely-handled date boxes do.
-
-// Keep only digits and group them as MM/DD/YYYY while the parent types.
-const formatMdy = (raw) => {
-  const d = String(raw || '').replace(/\D/g, '').slice(0, 8)
-  if (d.length <= 2) return d
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
-}
-
-// "MM/DD/YYYY" -> ISO date, or null when incomplete, impossible, or in the future.
-const mdyToIso = (text) => {
-  const m = String(text || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!m) return null
-  const [, mm, dd, yyyy] = m
-  const mo = Number(mm); const da = Number(dd); const yr = Number(yyyy)
-  const d = new Date(yr, mo - 1, da)
-  if (d.getFullYear() !== yr || d.getMonth() !== mo - 1 || d.getDate() !== da) return null
-  if (yr < 1900 || d > new Date()) return null
-  return `${yyyy}-${mm}-${dd}`
-}
-
-const isoToMdy = (iso) => {
-  const [y, mo, d] = String(iso || '').slice(0, 10).split('-')
-  return (y && mo && d) ? `${mo}/${d}/${y}` : ''
-}
-
-// Stable identity for kid rows so async photo uploads land on the right kid
-// even if rows are added/removed while an upload is in flight.
-const kidKey = () => Math.random().toString(36).slice(2)
-
-const emptyKid = () => ({
-  _key: kidKey(),
-  user_id: '',                       // set on resume back-edit (account exists)
-  first_name: '', last_name: '', preferred_name: '', gender: '',
-  date_of_birth: '', dob_text: '',
-  email: '', allergies: '', medications: '',
-  photo_file: null, photo_preview: '', avatar_url: '',
-  staged_url: '',                    // uploaded-on-select photo, attached at family submit
-  photo_uploading: false, photo_error: '',
-})
-const emptyContact = () => ({ name: '', relationship: '', phone: '', email: '' })
-
-// Browser/password-manager autofill can paint values into inputs WITHOUT firing
-// the events React listens to, so the field looks filled while state stays ''.
-// The submit then fails validation ("add an address") even though the parent
-// sees their address on screen. Before validating, trust the DOM for any
-// state-empty field: read input[name=...] values out of the section and merge.
-export const mergeAutofilledFields = (state, container, nameByKey) => {
-  if (!container) return state
-  const merged = { ...state }
-  for (const [key, inputName] of Object.entries(nameByKey)) {
-    if (String(merged[key] || '').trim()) continue
-    const el = container.querySelector(`input[name="${inputName}"]`)
-    if (el && el.value.trim()) merged[key] = el.value
-  }
-  return merged
-}
-
-const FAMILY_INPUT_NAMES = {
-  phone: 'phone', address_line1: 'address-line1', address_line2: 'address-line2',
-  city: 'city', state: 'state', postal_code: 'zip',
-}
-
-// First validation error for the org's registration questions, or null.
-// Family-level questions hold a single value; per_student questions hold
-// {kidUserId: value} and every kid on the registration must answer required
-// ones (kidsList = the kids as the server knows them, with user_id).
-export const firstQuestionError = (questions, answers, kidsList) => {
-  const empty = (q, v) => (q.type === 'multi' ? !(v || []).length : !(v || '').trim())
-  for (const q of questions || []) {
-    if (!q.required) continue
-    if (q.per_student) {
-      for (const k of kidsList || []) {
-        if (empty(q, (answers[q.key] || {})[k.user_id])) {
-          return `Please answer for ${k.first_name || k.name || 'each child'}: ${q.label}`
-        }
-      }
-    } else if (empty(q, answers[q.key])) {
-      return `Please answer: ${q.label}`
-    }
-  }
-  return null
-}
-
-// First validation error for the school-records step, or null. Mirrors the
-// backend's validate_destination so a family sees the problem before a round
-// trip. Exported for unit tests, like firstQuestionError above.
-export const firstDestinationError = (kidsList, destinations) => {
-  const who = (k) => (k.first_name || k.name || 'your student').trim()
-  for (const k of kidsList || []) {
-    const d = (destinations || {})[k.user_id] || {}
-    if (!d.destination_type) return `Choose where ${who(k)}'s records should go`
-    if (d.destination_type !== 'school') continue
-    if (!(d.school_name || '').trim()) return `Enter the school ${who(k)} attends`
-    if (d.auto_send_consent && !(d.registrar_email || '').trim()) {
-      return `Add a registrar email for ${who(k)}, or untick sending the transcript automatically`
-    }
-  }
-  return null
-}
-
-// What to try when a photo won't attach — written for the common iPhone case
-// (the original lives in iCloud and Safari silently fails to fetch it).
-const PHOTO_TIPS = "That photo didn't come through. On iPhones this usually means the "
-  + 'photo has to download from iCloud first. Try taking a new photo with the camera '
-  + 'instead of choosing from your library, connect to Wi-Fi and try again, or finish '
-  + 'this form on a computer — your progress is saved.'
+import {
+  EMAIL_RE, isoToMdy, emptyKid, emptyContact, mergeAutofilledFields,
+  FAMILY_INPUT_NAMES, firstQuestionError, firstDestinationError, PHOTO_TIPS,
+} from './registerFunnel/funnelFields'
+// One component per step. The page owns the state -- a wizard's state genuinely
+// crosses its steps, and `kids` alone is read by four of them -- and each step
+// owns its own markup, which is the half that was 650 lines of one render.
+import AccountStep from './registerFunnel/AccountStep'
+import VerifyStep from './registerFunnel/VerifyStep'
+import FamilyStep from './registerFunnel/FamilyStep'
+import DetailsStep from './registerFunnel/DetailsStep'
+import RecordsStep from './registerFunnel/RecordsStep'
+import PaperworkStep from './registerFunnel/PaperworkStep'
+import FeeStep from './registerFunnel/FeeStep'
+import DoneStep from './registerFunnel/DoneStep'
 
 // (PhotoPicker, steppers, Section, PasswordInput, PrimaryButton, QuestionField
 // all live in components/registration/funnelUi.jsx, shared with the SIS setup
@@ -956,657 +854,74 @@ const RegisterFunnelPage = () => {
         )}
 
         {step === 'account' && !pendingVerify && (
-          <div className="space-y-6">
-            <Section title="Your account" subtitle="Registration starts with your parent account.">
-              {accountNotice && (
-                <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  {accountNotice}
-                </div>
-              )}
-
-              {/* Google/Apple come FIRST, and serve both modes: an account made
-                  with either has no password at all, so a parent who starts by
-                  typing one is walking into a dead end — "create" says the email
-                  is taken, "sign in" says the password is wrong. The buttons
-                  route through /auth/callback, which posts this code to
-                  /api/registration/attach and returns them to the funnel. Hidden in
-                  preview mode, which must never leave the page or write. */}
-              {!previewMode && (
-                <div className="space-y-3 mb-5">
-                  <GoogleButton
-                    mode={mode === 'create' ? 'signup' : 'signin'}
-                    registrationCode={code}
-                    onError={(m) => setAccountNotice(m)}
-                  />
-                  <AppleButton
-                    mode={mode === 'create' ? 'signup' : 'signin'}
-                    registrationCode={code}
-                    onError={(m) => setAccountNotice(m)}
-                  />
-                  <div className="flex items-center gap-3 pt-1">
-                    <div className="h-px flex-1 bg-gray-200" />
-                    <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">or use email</span>
-                    <div className="h-px flex-1 bg-gray-200" />
-                  </div>
-                </div>
-              )}
-
-              <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-neutral-50 mb-5">
-                <button onClick={() => setMode('create')}
-                  className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${mode === 'create' ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}>
-                  Create account
-                </button>
-                <button onClick={() => setMode('signin')}
-                  className={`text-sm px-4 py-1.5 rounded-md font-medium transition-colors ${mode === 'signin' ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}>
-                  I have an Optio account
-                </button>
-              </div>
-
-              {mode === 'create' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">First name</label>
-                    <input className={field} value={account.first_name} onChange={(e) => setAccount({ ...account, first_name: e.target.value })} /></div>
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">Last name</label>
-                    <input className={field} value={account.last_name} onChange={(e) => setAccount({ ...account, last_name: e.target.value })} /></div>
-                  <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Email</label>
-                    <input type="email" className={field} value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></div>
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">Password</label>
-                    <PasswordInput value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} /></div>
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">Confirm password</label>
-                    <PasswordInput value={account.confirm} onChange={(e) => setAccount({ ...account, confirm: e.target.value })} /></div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-neutral-500 -mt-1">
-                    Sign in with your existing Optio account — it will be connected to {org.name} automatically.
-                  </p>
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">Email</label>
-                    <input type="email" className={field} value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} /></div>
-                  <div><label className="block text-xs font-medium text-neutral-500 mb-1">Password</label>
-                    <PasswordInput value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && submitSignin()} />
-                    {/* Also the way in for the org-imported parents whose
-                        accounts were created without a password. */}
-                    <a href="/forgot-password" target="_blank" rel="noopener noreferrer"
-                      className="inline-block mt-2 text-sm text-optio-purple font-medium hover:underline">
-                      Forgot password?
-                    </a></div>
-                </div>
-              )}
-            </Section>
-
-            <PrimaryButton onClick={mode === 'create' ? submitCreate : submitSignin} disabled={submitting}>
-              {submitting ? 'One moment…' : mode === 'create' ? 'Create account' : 'Sign in & continue'}
-            </PrimaryButton>
-          </div>
+          <AccountStep
+            account={account} setAccount={setAccount}
+            accountNotice={accountNotice} setAccountNotice={setAccountNotice}
+            code={code} mode={mode} setMode={setMode} org={org}
+            previewMode={previewMode} submitting={submitting}
+            submitCreate={submitCreate} submitSignin={submitSignin}
+          />
         )}
 
         {step === 'account' && pendingVerify && (
-          <div className="space-y-6">
-            <Section title="Check your email"
-              subtitle={`We sent a 6-digit code to ${pendingVerify.email}. Enter it below to confirm your email.`}>
-              <input
-                inputMode="numeric" autoComplete="one-time-code" maxLength={6}
-                className={`${field} text-center text-2xl tracking-[0.5em] font-semibold`}
-                placeholder="••••••"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                onKeyDown={(e) => e.key === 'Enter' && submitVerify()}
-                autoFocus
-              />
-              <div className="flex items-center justify-between mt-3">
-                <button onClick={resendCode} className="text-sm text-optio-purple font-medium hover:underline">Resend code</button>
-                <button onClick={() => { setPendingVerify(null); setOtp('') }} className="text-sm text-neutral-500 hover:underline">Use a different email</button>
-              </div>
-            </Section>
-            <PrimaryButton onClick={submitVerify} disabled={submitting || otp.length !== 6}>
-              {submitting ? 'Verifying…' : 'Confirm email'}
-            </PrimaryButton>
-          </div>
+          <VerifyStep
+            otp={otp} setOtp={setOtp}
+            pendingVerify={pendingVerify} setPendingVerify={setPendingVerify}
+            resendCode={resendCode} submitVerify={submitVerify} submitting={submitting}
+          />
         )}
 
         {step === 'family' && (
-          <div className="space-y-6">
-            <Section title="Contact & address">
-              <div ref={addressBoxRef} className="grid grid-cols-1 sm:grid-cols-6 gap-4">
-                <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Phone</label>
-                  <input type="tel" name="phone" autoComplete="tel" className={field} placeholder="XXX-XXX-XXXX" value={family.phone} onChange={(e) => setFamily({ ...family, phone: e.target.value })} /></div>
-                <div className="sm:col-span-4"><label className="block text-xs font-medium text-neutral-500 mb-1">Street address</label>
-                  <input name="address-line1" autoComplete="address-line1" className={field} value={family.address_line1} onChange={(e) => setFamily({ ...family, address_line1: e.target.value })} /></div>
-                <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">Apt / unit (optional)</label>
-                  <input name="address-line2" autoComplete="address-line2" className={field} value={family.address_line2} onChange={(e) => setFamily({ ...family, address_line2: e.target.value })} /></div>
-                <div className="sm:col-span-2"><label className="block text-xs font-medium text-neutral-500 mb-1">City</label>
-                  <input name="city" autoComplete="address-level2" className={field} value={family.city} onChange={(e) => setFamily({ ...family, city: e.target.value })} /></div>
-                <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">State</label>
-                  <input name="state" autoComplete="address-level1" className={field} placeholder="UT" value={family.state} onChange={(e) => setFamily({ ...family, state: e.target.value })} /></div>
-                <div className="sm:col-span-1"><label className="block text-xs font-medium text-neutral-500 mb-1">ZIP</label>
-                  <input name="zip" autoComplete="postal-code" className={field} value={family.postal_code} onChange={(e) => setFamily({ ...family, postal_code: e.target.value })} /></div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <label className="block text-xs font-medium text-neutral-500 mb-2">
-                  Your photo <span className="text-red-400">*</span>
-                </label>
-                <PhotoPicker
-                  label="Add your photo"
-                  url={parentPhoto.preview || parentPhoto.avatar_url}
-                  busy={parentPhoto.uploading}
-                  error={parentPhoto.error}
-                  onSelect={pickParentPhoto}
-                />
-                <p className="text-xs text-neutral-400 mt-1.5">Photos are required for every family member so staff can recognize your family.</p>
-              </div>
-            </Section>
-
-            <Section title="Children">
-              <div className="space-y-5">
-                {kids.map((k, i) => {
-                  const age = ageFromDob(k.date_of_birth)
-                  const teen = age != null && age >= 13
-                  const dobInvalid = k.dob_text.length === 10 && !k.date_of_birth
-                  return (
-                    <div key={k._key || i} className="rounded-lg border border-gray-200 p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-medium text-neutral-700">Child {i + 1}{age != null ? ` · age ${age}` : ''}</span>
-                        {kids.length > 1 && <button onClick={() => setKids((ks) => ks.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">Remove</button>}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <input className={field} placeholder="First name" value={k.first_name} onChange={(e) => setKid(i, { first_name: e.target.value })} />
-                        <input className={field} placeholder="Last name" value={k.last_name} onChange={(e) => setKid(i, { last_name: e.target.value })} />
-                        <input className={field} placeholder="Preferred name (if different)" value={k.preferred_name} onChange={(e) => setKid(i, { preferred_name: e.target.value })} />
-                        <select className={field} value={k.gender} onChange={(e) => setKid(i, { gender: e.target.value })}>
-                          <option value="">Gender</option>
-                          <option value="female">Female</option>
-                          <option value="male">Male</option>
-                        </select>
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-neutral-500 mb-1">Date of birth</label>
-                          <input
-                            className={`${field} ${dobInvalid ? 'border-red-400 focus:ring-red-400' : ''}`}
-                            placeholder="MM/DD/YYYY" inputMode="numeric" maxLength={10}
-                            value={k.dob_text}
-                            onChange={(e) => {
-                              const text = formatMdy(e.target.value)
-                              setKid(i, { dob_text: text, date_of_birth: mdyToIso(text) || '' })
-                            }}
-                          />
-                          {dobInvalid && (
-                            <p className="text-xs text-red-500 mt-1" role="alert">
-                              That date doesn't exist — double-check the month and day.
-                            </p>
-                          )}
-                          {(() => {
-                            const gate = enrollmentGateFor(config, k.date_of_birth)
-                            if (!gate) return null
-                            return (
-                              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
-                                Students {gateBandText(gate)} are currently joining a waitlist. You can
-                                finish registering {k.first_name.trim() || 'this child'} — {org.name || 'the school'} will
-                                email you as soon as they can choose classes.
-                              </p>
-                            )
-                          })()}
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-neutral-500 mb-1">
-                            Photo <span className="text-red-400">*</span>
-                          </label>
-                          <PhotoPicker
-                            label={`Add ${k.first_name.trim() ? `${k.first_name.trim()}'s` : "this child's"} photo`}
-                            url={k.photo_preview || k.staged_url || k.avatar_url}
-                            busy={k.photo_uploading}
-                            error={k.photo_error}
-                            onSelect={(f) => pickKidPhoto(k, f)}
-                          />
-                        </div>
-                        {config.health_fields !== false && (
-                          <>
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">Allergies <span className="text-neutral-400"></span></label>
-                              <textarea rows={2} className={field} value={k.allergies} onChange={(e) => setKid(i, { allergies: e.target.value })} />
-                            </div>
-                            <div className="sm:col-span-2">
-                              <label className="block text-xs font-medium text-neutral-500 mb-1">Required medications <span className="text-neutral-400"></span></label>
-                              <textarea rows={2} className={field} value={k.medications} onChange={(e) => setKid(i, { medications: e.target.value })} />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                      {teen && (
-                        <div className="mt-3">
-                          <label className="block text-xs font-medium text-neutral-500 mb-1">Child's Email (Optional)</label>
-                          <input type="email" className={field} placeholder="name@example.com"
-                            value={k.email} onChange={(e) => setKid(i, { email: e.target.value })} />
-                          <p className="mt-1 text-xs text-neutral-400">
-                            With an email, {k.first_name.trim() || 'your child'} gets their own login. If they already
-                            have an Optio account, enter its email and we'll connect it. Leave it blank to
-                            manage their account under yours.
-                          </p>
-                        </div>
-                      )}
-                      {age != null && age < 13 && (
-                        <p className="mt-2 text-xs text-neutral-400">Under 13 — managed under your account (no separate login).</p>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-4">
-                <button onClick={() => setKids((ks) => [...ks, emptyKid()])} className="text-sm font-medium text-optio-purple hover:underline">+ Add another child</button>
-              </div>
-            </Section>
-
-            {estimateFeeCents() > 0 && (
-              <p className="text-center text-sm text-neutral-500">
-                Registration fee: <span className="font-semibold text-neutral-800">{money(estimateFeeCents())}</span>
-              </p>
-            )}
-
-            <PrimaryButton onClick={submitFamily} disabled={submitting}>
-              {submitting ? 'Saving your family…' : 'Continue'}
-            </PrimaryButton>
-          </div>
+          <FamilyStep
+            addressBoxRef={addressBoxRef} config={config} org={org}
+            family={family} setFamily={setFamily}
+            kids={kids} setKids={setKids} setKid={setKid}
+            parentPhoto={parentPhoto} pickParentPhoto={pickParentPhoto}
+            pickKidPhoto={pickKidPhoto} estimateFeeCents={estimateFeeCents}
+            submitFamily={submitFamily} submitting={submitting}
+          />
         )}
 
         {step === 'details' && (
-          <div className="space-y-6">
-            {config.emergency_contacts !== false && (
-            <Section title="Emergency contacts"
-              subtitle="Add at least one emergency contact for your family.">
-              <div className="space-y-4">
-                {contacts.map((c, i) => (
-                  <div key={i} className="rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-neutral-700">Contact {i + 1}</span>
-                      {contacts.length > 1 && <button onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">Remove</button>}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <input className={field} placeholder="Full name" value={c.name} onChange={(e) => setContact(i, { name: e.target.value })} />
-                      <select className={field} value={c.relationship} onChange={(e) => setContact(i, { relationship: e.target.value })}>
-                        <option value="">Relationship</option>
-                        {CONTACT_RELATIONSHIPS.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      <input type="tel" className={field} placeholder="Phone" value={c.phone} onChange={(e) => setContact(i, { phone: e.target.value })} />
-                      <input type="email" className={field} placeholder="Email (optional)" value={c.email} onChange={(e) => setContact(i, { email: e.target.value })} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => setContacts((cs) => [...cs, emptyContact()])} className="mt-3 text-sm font-medium text-optio-purple hover:underline">+ Add another contact</button>
-            </Section>
-            )}
-
-            {(config.questions || []).length > 0 && (() => {
-              const familyQs = (config.questions || []).filter((q) => !q.per_student)
-              const studentQs = (config.questions || []).filter((q) => q.per_student)
-              // Per-student answers are keyed by the kid's user_id, which only
-              // exists after the family step submits. Preview mode fakes ids
-              // from the sample kids so staff sees the per-child layout.
-              const qKids = previewMode
-                ? kids.map((k, i) => ({ user_id: `preview-${i}`, first_name: k.first_name, name: `${k.first_name} ${k.last_name}`.trim() }))
-                : serverKids
-              // Built-in follow-up: only Utah Fits All families need to say
-              // whether they're enrolling as a UFA Private School.
-              const paymentIsUFA = familyQs.some((q) => {
-                const v = answers[q.key]
-                return Array.isArray(v) ? v.includes('Utah Fits All') : v === 'Utah Fits All'
-              })
-              return (
-                <Section title="A few questions">
-                  <div className="space-y-5">
-                    {familyQs.map((q) => (
-                      <QuestionField key={q.key} q={q} value={answers[q.key]}
-                        onChange={(v) => setAnswers((a) => ({ ...a, [q.key]: v }))} />
-                    ))}
-                    {paymentIsUFA && (
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-800 mb-1">
-                          Are you enrolling as a UFA (Utah Fits All) Private School?
-                        </label>
-                        <select className={field} value={answers.ufa_private || ''}
-                          onChange={(e) => setAnswers((a) => ({ ...a, ufa_private: e.target.value }))}>
-                          <option value="">-- Please select --</option>
-                          <option value="No">No, standard Utah Fits All</option>
-                          <option value="Yes">Yes, UFA Private School</option>
-                        </select>
-                      </div>
-                    )}
-                    {studentQs.length > 0 && qKids.map((k, idx) => (
-                      <div key={k.user_id} className={familyQs.length || idx > 0 ? 'pt-4 border-t border-gray-100' : ''}>
-                        <h3 className="text-sm font-semibold text-neutral-900 mb-3">
-                          {(k.first_name || k.name || 'Your child').trim()}
-                        </h3>
-                        <div className="space-y-5">
-                          {studentQs.map((q) => (
-                            <QuestionField key={q.key} q={q} value={(answers[q.key] || {})[k.user_id]}
-                              onChange={(v) => setAnswers((a) => ({
-                                ...a,
-                                [q.key]: { ...(a[q.key] || {}), [k.user_id]: v },
-                              }))} />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Section>
-              )
-            })()}
-
-            <PrimaryButton onClick={submitDetails} disabled={submitting}>
-              {submitting ? 'Saving…' : 'Continue'}
-            </PrimaryButton>
-          </div>
+          <DetailsStep
+            config={config} contacts={contacts} setContacts={setContacts}
+            setContact={setContact} answers={answers} setAnswers={setAnswers}
+            kids={kids} serverKids={serverKids} previewMode={previewMode}
+            submitDetails={submitDetails} submitting={submitting}
+          />
         )}
 
-        {step === 'records' && (() => {
-          // Preview mode has no server-side kids; fake ids from the sample
-          // family so staff walking the funnel see the per-child layout.
-          const rKids = previewMode
-            ? kids.map((k, i) => ({ user_id: `preview-${i}`, first_name: k.first_name, name: `${k.first_name} ${k.last_name}`.trim() }))
-            : serverKids
-          return (
-            <div className="space-y-6">
-              <Section
-                title="Where should the school records go?"
-                subtitle="Credit is issued by Optio Academy on an official transcript. Tell us where each student's transcript should be sent, so we can send it for you when credit is awarded."
-              >
-                <div className="space-y-5">
-                  {rKids.map((k, idx) => {
-                    const d = destinations[k.user_id] || {}
-                    const name = (k.first_name || k.name || 'Your child').trim()
-                    return (
-                      <div key={k.user_id} className={idx > 0 ? 'pt-5 border-t border-gray-100' : ''}>
-                        <h3 className="text-sm font-semibold text-neutral-900 mb-3">{name}</h3>
-
-                        <label className="block text-sm font-medium text-neutral-800 mb-1">
-                          Is {name} enrolled in a school? <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          className={field}
-                          value={d.destination_type || ''}
-                          onChange={(e) => setDestination(k.user_id, { destination_type: e.target.value })}
-                        >
-                          <option value="">-- Please select --</option>
-                          <option value="school">Yes, {name} attends a school</option>
-                          <option value="homeschool">No, we homeschool</option>
-                          <option value="optio_only">No, {name} is not enrolled anywhere right now</option>
-                        </select>
-
-                        {d.destination_type === 'school' && (
-                          <div className="mt-3 space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-neutral-800 mb-1">
-                                School name <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                className={field}
-                                placeholder="e.g. Green Canyon High School"
-                                value={d.school_name || ''}
-                                onChange={(e) => setDestination(k.user_id, { school_name: e.target.value })}
-                              />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <input
-                                className={field} placeholder="City"
-                                value={d.school_city || ''}
-                                onChange={(e) => setDestination(k.user_id, { school_city: e.target.value })}
-                              />
-                              <input
-                                className={field} placeholder="State"
-                                value={d.school_state || ''}
-                                onChange={(e) => setDestination(k.user_id, { school_state: e.target.value })}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-neutral-800 mb-1">
-                                Registrar or counselor
-                              </label>
-                              <p className="text-xs text-neutral-500 mb-2">
-                                Who at the school receives transcripts. If you are not sure, leave this blank
-                                and we will look it up.
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <input
-                                  className={field} placeholder="Name"
-                                  value={d.registrar_name || ''}
-                                  onChange={(e) => setDestination(k.user_id, { registrar_name: e.target.value })}
-                                />
-                                <input
-                                  type="email" className={field} placeholder="Email"
-                                  value={d.registrar_email || ''}
-                                  onChange={(e) => setDestination(k.user_id, { registrar_email: e.target.value })}
-                                />
-                              </div>
-                            </div>
-                            <label className="flex items-start gap-2 text-sm text-neutral-700">
-                              <input
-                                type="checkbox" className="mt-1"
-                                checked={!!d.auto_send_consent}
-                                onChange={(e) => setDestination(k.user_id, { auto_send_consent: e.target.checked })}
-                              />
-                              <span>
-                                Send {name}&rsquo;s official transcript to this school automatically once credit
-                                is awarded. Leave this unticked and we will email you first instead.
-                              </span>
-                            </label>
-                          </div>
-                        )}
-
-                        {d.destination_type === 'homeschool' && (
-                          <p className="mt-2 text-sm text-neutral-600">
-                            Optio Academy will issue {name}&rsquo;s transcript directly to you, and you can send
-                            it anywhere later.
-                          </p>
-                        )}
-                        {d.destination_type === 'optio_only' && (
-                          <p className="mt-2 text-sm text-neutral-600">
-                            We will hold {name}&rsquo;s transcript on file. You can ask us to send it to a school
-                            any time.
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </Section>
-
-              <PrimaryButton onClick={submitRecords} disabled={submitting}>
-                {submitting ? 'Saving\u2026' : 'Continue'}
-              </PrimaryButton>
-            </div>
-          )
-        })()}
+        {step === 'records' && (
+          <RecordsStep
+            destinations={destinations} setDestination={setDestination}
+            kids={kids} serverKids={serverKids} previewMode={previewMode}
+            submitRecords={submitRecords} submitting={submitting}
+          />
+        )}
 
         {step === 'paperwork' && (
-          <div className="space-y-6">
-            <Section title="Paperwork" subtitle="Review each item, confirm you agree, and type your full name to sign.">
-              <div className="space-y-5">
-                {(config.paperwork || []).map((it) => (
-                  <div key={it.key} className="rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                      <span className="font-semibold text-neutral-900">{it.label}</span>
-                      {it.doc_url && <a href={absUrl(it.doc_url)} target="_blank" rel="noreferrer" className="text-sm text-optio-purple hover:underline whitespace-nowrap">Open in new tab</a>}
-                    </div>
-                    {/* Uploaded PDFs render inline so parents can read before signing;
-                        other file types fall back to the open-in-new-tab link above. */}
-                    {it.doc_url && /\.pdf($|\?)/i.test(it.doc_url) && (
-                      <iframe src={absUrl(it.doc_url)} title={it.label}
-                        className="w-full h-80 rounded-lg border border-gray-200 mb-3 bg-white" />
-                    )}
-                    {it.body && (
-                      <div className="text-sm text-neutral-600 whitespace-pre-wrap bg-neutral-50 rounded-lg p-3 mb-3 max-h-56 overflow-y-auto">
-                        {it.body}
-                      </div>
-                    )}
-                    <label className="flex items-center gap-2 text-sm text-neutral-700 mb-2">
-                      <input type="checkbox" checked={!!agreed[it.key]}
-                        onChange={(e) => setAgreed((a) => ({ ...a, [it.key]: e.target.checked }))}
-                        className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-                      I confirm I have read and agree to the above terms
-                    </label>
-                    <input className={field} placeholder="Type your full name to sign"
-                      value={signatures[it.key] || ''} onChange={(e) => setSignatures((s) => ({ ...s, [it.key]: e.target.value }))} />
-                    <p className="text-xs text-neutral-400 mt-1.5">
-                      By typing your name above, you agree this electronic signature has the same legal force and effect as a manual written signature.
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </Section>
-            <PrimaryButton onClick={submitPaperwork} disabled={submitting}>
-              {submitting ? 'Saving…' : 'Continue'}
-            </PrimaryButton>
-          </div>
+          <PaperworkStep
+            config={config} agreed={agreed} setAgreed={setAgreed}
+            signatures={signatures} setSignatures={setSignatures}
+            submitPaperwork={submitPaperwork} submitting={submitting}
+          />
         )}
 
-        {step === 'fee' && (() => {
-          const anyWaitlisted = kids.some((k) => enrollmentGateFor(config, k.date_of_birth))
-          // A fee that includes a waitlisted child needs explicit consent to the
-          // hold-your-place / fully-refundable terms before we let them pay.
-          const needsAck = !feeDeferred && feeCents > 0 && anyWaitlisted
-          const ackBlocks = needsAck && !waitlistAck
-          return (
-          <div className="space-y-6">
-            {/* When nothing is due (fee configured at 0, or a prepaid credit)
-                this step is just a finish gate — don't headline it as a fee. */}
-            <Section title={feeDeferred || feeCents > 0 ? 'Registration fee' : 'Finish your registration'}>
-              <div className="text-center">
-                {feeDeferred ? (
-                  <>
-                    <p className="text-3xl font-bold text-optio-purple my-3">{money(feeCents)}</p>
-                    <p className="text-sm text-neutral-500">
-                      Nothing to pay today. Because your student{kids.length === 1 ? ' is' : 's are'} joining
-                      the waitlist, your registration fee is due when a spot opens — we'll email you.
-                    </p>
-                  </>
-                ) : feeCents > 0
-                  ? <p className="text-3xl font-bold text-optio-purple my-3">{money(feeCents)}</p>
-                  : <p className="text-sm text-neutral-500 my-3">
-                      No payment is due — complete your registration below.
-                    </p>}
-                {/* Payment affordances only render when something is actually
-                    owed NOW: a $0 family (prepaid credit) or a fee-deferred
-                    waitlist family must never be handed a payment link. */}
-                {!feeDeferred && feeCents > 0 && (config.stripe_enabled ? (
-                  <p className="text-xs text-neutral-400">
-                    You'll be taken to a secure Stripe checkout. Your registration completes automatically once the payment is verified.
-                  </p>
-                ) : paymentUrl ? (
-                  <>
-                    <a href={paymentUrl} target="_blank" rel="noreferrer"
-                      className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                      Pay {money(feeCents)}
-                    </a>
-                    <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you've paid.</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-neutral-400">Your school will collect the fee separately.</p>
-                ))}
-              </div>
-            </Section>
-            {needsAck && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-semibold mb-1">
-                  {kids.filter((k) => enrollmentGateFor(config, k.date_of_birth)).length === 1
-                    ? 'One of your children is in a waitlisted age group.'
-                    : 'Some of your children are in a waitlisted age group.'}
-                </p>
-                <p className="mb-3">
-                  Paying now <strong>holds their place in line</strong> — it does not
-                  guarantee a spot. If they aren't accepted, that portion of your
-                  registration fee is <strong>fully refunded</strong> to your card. Your
-                  other children are enrolled as usual.
-                </p>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input type="checkbox" checked={waitlistAck}
-                    onChange={(e) => setWaitlistAck(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-optio-purple focus:ring-optio-purple" />
-                  <span>I understand this fee holds my child's place and is fully
-                    refunded if they aren't accepted.</span>
-                </label>
-              </div>
-            )}
-            {!feeDeferred && config.stripe_enabled && feeCents > 0 ? (
-              <>
-                <PrimaryButton onClick={startCheckout} disabled={submitting || ackBlocks}>
-                  {submitting ? 'One moment…' : `Pay ${money(feeCents)} securely`}
-                </PrimaryButton>
-                <button onClick={() => confirmPayment()} disabled={submitting}
-                  className="w-full text-sm text-optio-purple font-medium hover:underline disabled:opacity-50">
-                  Already paid? Verify my payment
-                </button>
-              </>
-            ) : (
-              <PrimaryButton onClick={() => finishFee()} disabled={submitting || ackBlocks}>
-                {submitting ? 'Finishing…'
-                  : !feeDeferred && paymentUrl && feeCents > 0 ? "I've paid — finish registration"
-                  : 'Finish registration'}
-              </PrimaryButton>
-            )}
-          </div>
-          )
-        })()}
-
-        {step === 'done' && config.post_registration_flow === 'goals' && (
-          <div className="space-y-6 text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
-              <p className="text-neutral-500 mb-5">
-                Next, sit down with each of your kids and set a direction and goals for the
-                year together.
-              </p>
-              <a href="/family/goals"
-                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                Set your student's goals
-              </a>
-              <p className="text-sm text-neutral-500 mt-5">
-                You'll review these together at your meeting with {org.name || 'the school'}.
-              </p>
-            </div>
-            <p className="text-sm text-neutral-400">
-              Registration is complete. You can sign in at any time with your email and password.
-            </p>
-          </div>
+        {step === 'fee' && (
+          <FeeStep
+            config={config} kids={kids} feeCents={feeCents}
+            feeDeferred={feeDeferred} paymentUrl={paymentUrl}
+            waitlistAck={waitlistAck} setWaitlistAck={setWaitlistAck}
+            startCheckout={startCheckout} confirmPayment={confirmPayment}
+            finishFee={finishFee} submitting={submitting}
+          />
         )}
 
-        {step === 'done' && config.post_registration_flow !== 'goals' && (
-          <div className="space-y-6 text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-8">
-              <div className="w-14 h-14 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
-              <h2 className="text-xl font-bold text-neutral-900 mb-2">Your account is ready</h2>
-              <p className="text-neutral-500 mb-5">
-                Your account has been created. Next, use the Schedule page to create your
-                family's schedule for the coming school year.
-              </p>
-              {/* Preview mode opens the staff walkthrough of the builder (real
-                  catalog, sample student, nothing saved) in a new tab so the
-                  funnel preview stays put. */}
-              <a href={previewMode ? `/schedule-builder/preview/${code}` : '/schedule-builder'}
-                target={previewMode ? '_blank' : undefined} rel={previewMode ? 'noreferrer' : undefined}
-                className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-                Open your Schedule
-              </a>
-              <div className="border-t border-gray-100 mt-7 pt-6">
-                <p className="text-neutral-500 mb-5">
-                  Then book an appointment with {org.name || 'the school'} staff to build your Customized Learning
-                  Plan — our team will review your schedule with you at the meeting.
-                  {scheduling.emailed && ' We also emailed you the booking link.'}
-                </p>
-                {scheduling.url ? (
-                  <a href={scheduling.url} target="_blank" rel="noreferrer"
-                    className="inline-block px-5 py-2.5 rounded-lg border border-optio-purple text-optio-purple font-semibold hover:bg-optio-purple/5">
-                    Book appointment
-                  </a>
-                ) : (
-                  <p className="text-sm text-neutral-400">The school will reach out to schedule your appointment.</p>
-                )}
-              </div>
-            </div>
-            <p className="text-sm text-neutral-400">
-              Registration is complete. You can sign in at any time with your email and password —
-              the Schedule page also has a Book appointment button if you need it later.
-            </p>
-          </div>
+        {step === 'done' && (
+          <DoneStep
+            code={code} config={config} org={org}
+            previewMode={previewMode} scheduling={scheduling}
+          />
         )}
         </div>
       </main>

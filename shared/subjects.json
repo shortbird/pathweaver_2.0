@@ -1,0 +1,100 @@
+{
+  "_comment": [
+    "The eleven platform school subjects, in transcript order.",
+    "",
+    "Canonical source of the KEYS and the display NAMES is",
+    "backend/utils/school_subjects.py (SCHOOL_SUBJECTS / SCHOOL_SUBJECT_DISPLAY_NAMES):",
+    "the keys are a database enum and the names are what a transcript line says.",
+    "The descriptions and accent colours are the clients' -- the backend has its",
+    "own SCHOOL_SUBJECT_DESCRIPTIONS written for quest creators, which is a",
+    "different audience and deliberately not this list.",
+    "",
+    "Written 2026-09-07 (QF-01). Before it there were three hand-maintained",
+    "copies -- backend, frontend/src/constants/subjects.js, and",
+    "frontend-v2/src/components/class/SUBJECTS.ts -- and the web one carried a",
+    "comment asking whoever edited it to keep the other two in step, which is a",
+    "request that a person do a job a test should do. They had already drifted:",
+    "mobile described Language Arts as including world languages and the web did",
+    "not. Mobile's wording is used here, because it matches that file's own",
+    "documented naming rationale.",
+    "",
+    "JSON rather than TypeScript for the same reason as pillars.json: a",
+    "CommonJS consumer cannot require a .ts module. shared/subjects.ts is the",
+    "typed front door for app code.",
+    "",
+    "What is NOT here, because it belongs to one surface rather than to the",
+    "subject: mobile's Ionicons name, and the formal wording an official",
+    "transcript uses ('Mathematics', 'Physical Education', 'Career & Technical",
+    "Education'). A transcript says the long form on purpose; the pickers say the",
+    "short one. Both derive their KEY list from here, so a new subject cannot go",
+    "missing from either."
+  ],
+  "subjects": [
+    {
+      "key": "language_arts",
+      "name": "Language Arts",
+      "description": "Reading, writing, storytelling, journalism, world languages",
+      "accent": "#6D469B"
+    },
+    {
+      "key": "math",
+      "name": "Math",
+      "description": "Numbers, patterns, budgeting, problem solving",
+      "accent": "#0F766E"
+    },
+    {
+      "key": "science",
+      "name": "Science",
+      "description": "Curiosity about how the world works",
+      "accent": "#1D4ED8"
+    },
+    {
+      "key": "social_studies",
+      "name": "Social Studies",
+      "description": "History, civics, world cultures, languages",
+      "accent": "#B45309"
+    },
+    {
+      "key": "financial_literacy",
+      "name": "Financial Literacy",
+      "description": "Money, investing, building a business",
+      "accent": "#15803D"
+    },
+    {
+      "key": "health",
+      "name": "Health",
+      "description": "Wellness, nutrition, mental health",
+      "accent": "#BE123C"
+    },
+    {
+      "key": "pe",
+      "name": "PE",
+      "description": "Sports, dance, training, outdoor skills",
+      "accent": "#C2410C"
+    },
+    {
+      "key": "fine_arts",
+      "name": "Fine Arts",
+      "description": "Visual art, music, theater, dance",
+      "accent": "#A21CAF"
+    },
+    {
+      "key": "cte",
+      "name": "CTE",
+      "description": "Trades, internships, real-world work",
+      "accent": "#525252"
+    },
+    {
+      "key": "digital_literacy",
+      "name": "Digital Literacy",
+      "description": "Coding, design, technology skills",
+      "accent": "#0369A1"
+    },
+    {
+      "key": "electives",
+      "name": "Electives",
+      "description": "Anything else that sparks your interest",
+      "accent": "#7E22CE"
+    }
+  ]
+}
