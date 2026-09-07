@@ -265,7 +265,10 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
     if (!template?.id) return
     setBusy(true)
     try {
-      await api.post(`/api/sis/staff-admin/onboarding/templates/${template.id}/duplicate`, {})
+      // Through the same helper the list-level Duplicate uses. This branch was
+      // cut before OnboardingPage moved onto hooks/api, so it called api.post
+      // directly -- and that import is gone, so the button threw.
+      await sisOnboardingApi.duplicateTemplate(template.id)
       toast.success('Template duplicated')
       onSaved()
     } catch (err) {
