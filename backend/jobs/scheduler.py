@@ -21,7 +21,9 @@ class JobScheduler:
     # METRICS_UPDATE, MONTHLY_REPORT — all depended on services.ai_quest_maintenance_service
     # / jobs.quality_monitor (deleted).
     JOB_TYPE_COURSE_GENERATION = 'course_generation'
-    JOB_TYPE_DAILY_ADVISOR_SUMMARY = 'daily_advisor_summary'
+    # DAILY_ADVISOR_SUMMARY was removed 2026-09-07. The dispatcher had stopped
+    # sending it on 2026-08-05 at the owner's request; this deletes the job it
+    # would have run.
 
     # Job status
     STATUS_PENDING = 'pending'
@@ -206,10 +208,6 @@ class JobScheduler:
                 success = job_service.process_job(gen_job_id)
                 result = {'job_id': gen_job_id, 'success': success}
 
-            elif job_type == JobScheduler.JOB_TYPE_DAILY_ADVISOR_SUMMARY:
-                from jobs.daily_advisor_summary import DailyAdvisorSummaryJob
-                result = DailyAdvisorSummaryJob.execute(job_data)
-
             else:
                 raise ValueError(f"Unknown job type: {job_type}")
 
@@ -260,28 +258,6 @@ class JobScheduler:
             'results': results,
             'executed_at': datetime.utcnow().isoformat()
         }
-
-    @staticmethod
-    def schedule_recurring_jobs():
-        """
-        Schedule recurring jobs (call this daily via cron or scheduler).
-
-        2026-04-13 M1 cleanup: removed quality monitor, metrics update, monthly
-        report, and content generation schedulers — all depended on deleted
-        services. Only the daily advisor summary survives.
-        """
-        # Daily advisor summary at 5 AM - recap of previous day's activity
-        # Scheduled for next 5 AM UTC
-        next_5am = datetime.utcnow().replace(hour=5, minute=0, second=0, microsecond=0)
-        if datetime.utcnow().hour >= 5:
-            next_5am += timedelta(days=1)
-
-        JobScheduler.schedule_job(
-            job_type=JobScheduler.JOB_TYPE_DAILY_ADVISOR_SUMMARY,
-            job_data={},
-            scheduled_for=next_5am,
-            priority=7
-        )
 
     @staticmethod
     def get_job_history(

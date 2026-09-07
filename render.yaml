@@ -42,11 +42,15 @@
 
 services:
   # Optio Cron — single consolidated cron service. Runs every 10 min and dispatches
-  # the time-appropriate jobs (see backend/jobs/cron_dispatch.py):
-  #   - SIS attendance sweep   -> every run (off-hours runs no-op server-side)
-  #   - Daily advisor summary  -> once/day in the 12:00 UTC window (unchanged effect)
-  # This replaces the previous separate daily-advisor-summary cron; the existing
-  # dashboard cron service just needs its schedule + start command updated.
+  # the time-appropriate jobs (see backend/jobs/cron_dispatch.py): the SIS
+  # sweeps, CRM funnel, account deletion, retention, and the per-program daily
+  # jobs. Each no-ops cheaply outside its window.
+  #
+  # The service is still NAMED daily-advisor-summary because that is what the
+  # live dashboard-managed service is called; the job it was named for was
+  # disabled 2026-08-05 and deleted 2026-09-07. Renaming it here would not
+  # rename the live service (this file is not Blueprint-synced — see OPS-02),
+  # so the name is left truthful about what exists rather than about what runs.
   - type: cron
     name: daily-advisor-summary
     runtime: python

@@ -3653,7 +3653,7 @@ Log:
 
   ruff clean, mypy clean, 4739 passed / 160 skipped / 0 failed.
 
-### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[NEEDS-USER(half fixed; the other half needs a browser)]`
+### FU-05 — Acting-as tokens are body-only, so SEC-03's gate cannot apply `[DONE(cookie shipped; wants one click-through before it merges)]`
 Found by SEC-03. Parent -> dependent acting-as (`routes/dependents.py`
 `/<id>/act-as`, `/stop-acting-as`) has no cookie of its own: the token is
 returned in the body to every client and replayed as a Bearer. Masquerade was
@@ -3704,6 +3704,51 @@ Log:
   a grant indefinitely.
 
   ruff clean, mypy clean. Backend 4858 passed; web 2479 passed.
+
+- 2026-09-07: THE OTHER HALF IS DONE (user: "fix"). `/act-as` sets an httpOnly
+  `acting_as_token` cookie, `session_manager` reads it, and the body copy is
+  gated the way masquerade's has been since SEC-03. The token-delivery
+  allowlist is down to the two machine-to-machine grants (OAuth, LTI) it was
+  meant to hold.
+
+  What moved: `set_acting_as_cookie` / `clear_acting_as_cookie` mirroring the
+  masquerade pair; the cookie added to `get_current_user_id`,
+  `get_effective_user_id`, `get_deescalation_user_id` and (via its fallback)
+  `get_actual_admin_id`; and to `clear_auth_cookies`, so logging out takes it
+  with it. `/stop-acting-as` clears it LAST, after the parent's own cookies are
+  back on the response.
+
+  THE FAILURE MODE THIS HAD TO AVOID is not the leak, it is the exit. The
+  effective-user resolver reads the acting-as cookie AHEAD of `access_token` --
+  it has to, or acting-as does nothing -- so a cookie that outlives the session
+  that set it leaves a parent inside their child's account with the exit button
+  already pressed. `tests/unit/test_acting_as_cookie.py` is eleven cases built
+  around that: the cookie is cleared on stop AND on logout, an expired one
+  falls through to the parent rather than the child, de-escalation can still
+  name the parent from the cookie alone, and the header path still works for
+  the mobile app.
+
+  THE WEB CLIENT NEEDED THE MATCHING CHANGE, twice, and one of them was a test
+  that had to be inverted. `restoreActingAs()` threw when the response carried
+  no token -- correct before, and now the opposite of correct: an empty body is
+  the SUCCESS case on any browser that can hold the cookie, and treating it as
+  failure would have dropped acting-as on reload for exactly the clients the
+  hardening is for. `setActingAs` had the same shape and would have written
+  `undefined` over the token store.
+
+  ROUTE-SIZE CAP, which is the guard working rather than an inconvenience:
+  `dependents.py` was sitting exactly at 1400 lines, so the comments alone
+  tripped it. The two acting-as views moved to `routes/dependents_acting_as.py`
+  and register onto the same blueprint -- every URL, method and decorator
+  unchanged, verified through `app.url_map`. They are a coherent pair anyway:
+  the failure mode lives BETWEEN them.
+
+  STILL WANTS A CLICK-THROUGH before it merges. Nothing here proves the whole
+  loop in a real browser -- enter, reload, leave, sign out, sign back in -- and
+  that is the shape of bug this code produces. The suites cover every
+  transition individually; a person should walk it once.
+
+  Backend 5241 passed, ruff clean, mypy clean. Web 304 files / 2698 passed.
 
 ---
 
@@ -3804,21 +3849,32 @@ Still open:
 - OPS-05: keep direct-push-to-main, or add a PR gate now that CI is solid?
 - OPS-06: have the owning session commit `marketing/` + `marketingUrl.js`.
 - OPS-09: schedule the CRLF normalization window.
+- FU-05: DONE 2026-09-07, but walk the acting-as loop once in a browser before
+  merging — enter, reload, leave, sign out, sign back in.
 - CI-05: should integration tests gate the prod deploy?
 - QB-06: fence the repository pattern (recommended) or fund the full migration?
 - HYG-02: keep or delete the `verify/` scripts?
-- SEC-06: advisor daily summaries are still pilot-only (one inbox). Set
-  `ADVISOR_SUMMARY_EMAIL_ALLOWLIST='*'` in prod to roll out to all advisors.
+- ~~SEC-06: advisor daily summaries are still pilot-only (one inbox).~~ —
+  ANSWERED 2026-09-07 (user: "cancel advisor daily summaries, just delete it").
+  Deleted, not disabled. The dispatcher had already stopped sending it on
+  2026-08-05, so this removed dead code: the job, its 951-line summary service,
+  the standalone Render cron script, both trigger endpoints, the email template
+  and copy, the rollout env var, and the last remaining recurring-job type.
+  Two things for the owner, both outside the repo:
+    * The Sentry cron monitor `advisor-daily-summary` no longer receives
+      check-ins. Delete it in Sentry or it starts alerting "missed".
+    * `ADVISOR_SUMMARY_EMAIL_ALLOWLIST` can come off the Render backend env.
+    * The Render cron service is still NAMED `daily-advisor-summary`; it has
+      run `cron_dispatch.py` for months and is unaffected. Rename at leisure.
 
-- **QF-01: `get_effective_roles` can return an empty list where
-  `get_effective_role` returns a real role.** For a user whose `org_roles`
-  array holds no valid org role, the plural filters it to nothing and does not
-  fall through to `org_role`; the singular does. An account in that state
-  resolves to a real role and passes no role check anywhere. It is unreachable
-  through the database today (the `valid_org_roles` CHECK constraint rejects an
-  unknown value), and correcting it WIDENS what the server allows, so it was
-  reproduced in `shared/roleCases.json` rather than fixed. Make the plural fall
-  through the way the singular does, or leave it and keep the constraint?
+- ~~**QF-01: `get_effective_roles` can return an empty list where
+  `get_effective_role` returns a real role.**~~ — ANSWERED 2026-09-07 (user:
+  "fix"). The plural now falls through to `org_role` the way the singular
+  always did, so both answer with a real role instead of one answering `[]`.
+  Reachable only if the `valid_org_roles` CHECK constraint were ever loosened,
+  which is exactly why it was worth removing: it was a total lockout whose
+  impossibility rested on a constraint staying correct. `shared/roleCases.json`
+  regenerated; all three conformance suites agree.
 
 - **QF-03: the remaining 469 hand-rolled fetch call sites (111 pages).** Two
   batches have migrated the high-churn pages; the value per page drops off
