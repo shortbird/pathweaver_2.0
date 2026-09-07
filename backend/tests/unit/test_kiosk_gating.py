@@ -214,3 +214,103 @@ class TestTheCodeStaysVisible:
         by_name = {d['name']: d['token'] for d in res.get_json()['devices']}
         assert by_name == {'Room 2 iPad': 'ksk_live', 'Retired iPad': None, 'Pre-column iPad': None}
         assert 'token_hash' not in res.get_data(as_text=True)
+
+
+# ---------------------------------------------------------------------------
+# Limiting a device to one class (2026-09-07)
+#
+# class_id was accepted at provisioning from the start, but the card had no
+# control for it, so scoping a room's iPad to that room's students was a hand
+# edit by Optio. PATCH /devices/<id> puts it in the org admin's hands.
+# ---------------------------------------------------------------------------
+
+CLASS_ID = '55555555-5555-4555-8555-555555555555'
+OTHER_ORG = '66666666-6666-4666-8666-666666666666'
+MY_DEVICE = {'id': DEVICE_ID, 'organization_id': ORG, 'name': 'Explorers iPad', 'class_id': None}
+MY_CLASS = {'id': CLASS_ID, 'organization_id': ORG, 'name': 'Explorers'}
+
+
+def _sequenced_client(*answers):
+    """A route client whose successive execute() calls answer `answers` in
+    order (device read, class read, update ...)."""
+    m = Mock()
+    for name in ('table', 'select', 'eq', 'limit', 'order', 'in_', 'update', 'insert'):
+        getattr(m, name).return_value = m
+    m.execute.side_effect = [Mock(data=rows) for rows in answers]
+    return m
+
+
+def _admin_route_with(stack, route_client):
+    stack.enter_context(patch('database.get_supabase_admin_client', return_value=_chain_client([
+        {'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin']},
+    ])))
+    stack.enter_context(patch('routes.kiosk._caller_org_id', return_value=(ORG, None)))
+    stack.enter_context(patch('routes.kiosk.get_supabase_admin_client', return_value=route_client))
+    return route_client
+
+
+@pytest.mark.unit
+class TestLimitingADeviceToAClass:
+    def test_an_admin_limits_a_device_to_one_of_their_own_classes(
+            self, client, auth_headers, mock_verify_token):
+        with ExitStack() as stack:
+            rc = _admin_route_with(stack, _sequenced_client([MY_DEVICE], [MY_CLASS], []))
+            res = client.patch(f'/api/kiosk/devices/{DEVICE_ID}', json={'class_id': CLASS_ID},
+                               headers=auth_headers)
+        assert res.status_code == 200, res.get_json()
+        device = res.get_json()['device']
+        assert device['class_id'] == CLASS_ID
+        assert device['class_name'] == 'Explorers'
+        assert rc.update.call_args.args[0] == {'class_id': CLASS_ID}
+
+    def test_a_class_from_another_school_is_refused_and_nothing_is_written(
+            self, client, auth_headers, mock_verify_token):
+        foreign = {**MY_CLASS, 'organization_id': OTHER_ORG}
+        with ExitStack() as stack:
+            rc = _admin_route_with(stack, _sequenced_client([MY_DEVICE], [foreign]))
+            res = client.patch(f'/api/kiosk/devices/{DEVICE_ID}', json={'class_id': CLASS_ID},
+                               headers=auth_headers)
+        assert res.status_code == 404
+        assert res.get_json()['error'] == 'Class not found in this organization'
+        rc.update.assert_not_called()
+
+    def test_clearing_the_class_lists_the_whole_school_again(
+            self, client, auth_headers, mock_verify_token):
+        scoped = {**MY_DEVICE, 'class_id': CLASS_ID}
+        with ExitStack() as stack:
+            rc = _admin_route_with(stack, _sequenced_client([scoped], []))
+            res = client.patch(f'/api/kiosk/devices/{DEVICE_ID}', json={'class_id': None},
+                               headers=auth_headers)
+        assert res.status_code == 200, res.get_json()
+        assert res.get_json()['device']['class_id'] is None
+        assert rc.update.call_args.args[0] == {'class_id': None}
+
+    def test_another_schools_device_does_not_exist_as_far_as_this_admin_knows(
+            self, client, auth_headers, mock_verify_token):
+        foreign = {**MY_DEVICE, 'organization_id': OTHER_ORG}
+        with ExitStack() as stack:
+            rc = _admin_route_with(stack, _sequenced_client([foreign]))
+            res = client.patch(f'/api/kiosk/devices/{DEVICE_ID}', json={'class_id': CLASS_ID},
+                               headers=auth_headers)
+        assert res.status_code == 404
+        assert res.get_json()['error'] == 'Device not found'
+        rc.update.assert_not_called()
+
+    def test_an_empty_body_changes_nothing(self, client, auth_headers, mock_verify_token):
+        with ExitStack() as stack:
+            rc = _admin_route_with(stack, _sequenced_client([MY_DEVICE]))
+            res = client.patch(f'/api/kiosk/devices/{DEVICE_ID}', json={}, headers=auth_headers)
+        assert res.status_code == 400
+        rc.update.assert_not_called()
+
+    def test_provisioning_with_a_class_reports_its_name(
+            self, client, auth_headers, mock_verify_token):
+        with ExitStack() as stack:
+            stack.enter_context(patch('modules.enabled._org_row',
+                                      return_value=_org_row({'modules': {'kiosk': True}})))
+            rc = _admin_route_with(stack, _sequenced_client([MY_CLASS], [{'id': DEVICE_ID, 'created_at': 'now'}]))
+            res = client.post('/api/kiosk/devices', json={'name': 'Explorers iPad', 'class_id': CLASS_ID},
+                              headers=auth_headers)
+        assert res.status_code == 201, res.get_json()
+        assert res.get_json()['device']['class_name'] == 'Explorers'
+        assert rc.insert.call_args.args[0]['class_id'] == CLASS_ID

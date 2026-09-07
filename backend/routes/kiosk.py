@@ -142,6 +142,17 @@ def _device_scope_students(admin, device):
     return students
 
 
+def _class_in_org(admin, class_id, org_id):
+    """The org_classes row for `class_id` if it belongs to `org_id`, else an
+    error response. A device may only be scoped to its own school's class."""
+    cls = admin.table('org_classes').select('id, organization_id, name')\
+        .eq('id', class_id).limit(1).execute()
+    if not cls.data or cls.data[0].get('organization_id') != org_id:
+        return None, (jsonify({'success': False,
+                               'error': 'Class not found in this organization'}), 404)
+    return cls.data[0], None
+
+
 def _student_payload(u):
     name = u.get('first_name') or u.get('display_name') or ''
     display = u.get('display_name') or ' '.join(
@@ -176,11 +187,12 @@ def create_device(user_id):
 
     name = (data.get('name') or 'Classroom device').strip()
     class_id = data.get('class_id') or None
+    class_name = None
     if class_id:
-        cls = admin.table('org_classes').select('id, organization_id')\
-            .eq('id', class_id).limit(1).execute()
-        if not cls.data or cls.data[0].get('organization_id') != org_id:
-            return jsonify({'success': False, 'error': 'Class not found in this organization'}), 404
+        cls, err = _class_in_org(admin, class_id, org_id)
+        if err:
+            return err
+        class_name = cls.get('name')
 
     token = TOKEN_PREFIX + secrets.token_urlsafe(32)
     ins = admin.table('org_kiosk_devices').insert({
@@ -199,10 +211,64 @@ def create_device(user_id):
     return jsonify({
         'success': True,
         'device': {'id': device['id'], 'name': name, 'class_id': class_id,
-                   'organization_id': org_id, 'is_active': True,
-                   'created_at': device.get('created_at'), 'token': token},
+                   'class_name': class_name, 'organization_id': org_id,
+                   'is_active': True, 'created_at': device.get('created_at'),
+                   'token': token},
         'device_token': token,
     }), 201
+
+
+@bp.route('/devices/<device_id>', methods=['PATCH'])
+@require_role(*ADMIN_ROLES)
+@validate_uuid_param('device_id')
+def update_device(user_id, device_id):
+    """
+    Change which students a device lists, or rename it. Body: {class_id: uuid}
+    limits the name grid to that class's active roster, {class_id: null} lists
+    the whole school; {name} renames. The org's own admins manage this from
+    the settings card (2026-09-07 — it used to take a hand edit by Optio).
+    The device picks the change up on its next roster refresh, so the iPad
+    never needs re-pairing.
+    """
+    data = request.get_json() or {}
+    # admin client justified: role-gated edit of an org kiosk device; the device's org is matched against the caller's org before the write
+    admin = get_supabase_admin_client()
+    res = admin.table('org_kiosk_devices').select('id, organization_id, name, class_id')\
+        .eq('id', device_id).limit(1).execute()
+    if not res.data:
+        return jsonify({'success': False, 'error': 'Device not found'}), 404
+    device = res.data[0]
+
+    org_id, err = _caller_org_id(admin, user_id, device['organization_id'])
+    if err:
+        return err
+    if device['organization_id'] != org_id:
+        return jsonify({'success': False, 'error': 'Device not found'}), 404
+
+    changes = {}
+    class_name = None
+    if 'name' in data:
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'name cannot be empty'}), 400
+        changes['name'] = name
+    if 'class_id' in data:
+        class_id = data.get('class_id') or None
+        if class_id:
+            cls, err = _class_in_org(admin, class_id, org_id)
+            if err:
+                return err
+            class_name = cls.get('name')
+        changes['class_id'] = class_id
+    if not changes:
+        return jsonify({'success': False, 'error': 'Nothing to update'}), 400
+
+    admin.table('org_kiosk_devices').update(changes).eq('id', device_id).execute()
+    logger.info(f"Kiosk device updated: {device_id[:8]} {sorted(changes)} by {user_id[:8]}")
+    return jsonify({
+        'success': True,
+        'device': {**device, **changes, 'class_name': class_name},
+    }), 200
 
 
 @bp.route('/devices', methods=['GET'])

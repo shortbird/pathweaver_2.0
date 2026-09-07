@@ -1,12 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import api from '../../services/api'
 
 /**
  * Student mode on the kiosk: after the passwordless login, greet the student,
- * let them pick one of their active quests -> a task, photograph their paper
- * work (multi-shot camera input with thumbnails), and turn it in as evidence
+ * let them pick one of their quests -> a task, photograph their paper work
+ * (multi-shot camera input with thumbnails), and turn it in as evidence
  * through the standard evidence-document endpoints. Ends on a success screen
  * that auto signs the student out (via onFinished from the parent page).
+ *
+ * Two things a five-year-old at a shared iPad cannot do any other way
+ * (2026-09-07, Arete's Explorers):
+ *
+ *  - Start a quest their teacher assigned to their class. Assigning creates
+ *    no enrollment; the student has to press Start from their own login, and
+ *    these students never log in anywhere. So the first screen also lists
+ *    the class assignments under "Assigned to you", and a tap enrolls with
+ *    the same call the web app's Start button makes. A quest with teacher
+ *    tasks copies them on enrollment, so the task list is there at once.
+ *
+ *  - Add a task of their own. The quest may list nothing that matches what
+ *    they just did, or nothing at all, so the task screen ends with "I did
+ *    something else": one question, "What did you do?", then straight to the
+ *    camera. It is the web app's manual-task path with no pillar or XP asked
+ *    (the server picks a pillar and applies the school's XP policy), and the
+ *    task is approved on the spot, like every student-made task.
  *
  * Defensive by design: every network step surfaces a friendly retryable error
  * instead of throwing, because this runs unattended on a shared iPad.
@@ -36,39 +53,61 @@ const Header = ({ title, subtitle, onBack, onSignOut }) => (
   </div>
 )
 
+/** The dashboard payload -> the two lists the kiosk offers. */
+function shapeDashboard(data) {
+  const active = (data?.active_quests || [])
+    .map((enrollment) => {
+      const q = enrollment.quests || {}
+      const tasks = (q.quest_tasks || []).filter((t) => t && t.id)
+      return {
+        quest_id: enrollment.quest_id || q.id,
+        title: q.title || 'Quest',
+        image_url: q.image_url,
+        tasks,
+        openTasks: tasks.filter((t) => !t.is_completed),
+      }
+    })
+    .filter((q) => q.quest_id)
+  const activeIds = new Set(active.map((q) => q.quest_id))
+  const assigned = (data?.assigned_class_quests || [])
+    .map((a) => ({
+      quest_id: a.quest?.id,
+      title: a.quest?.title || 'Quest',
+      class_name: a.class_name,
+    }))
+    .filter((a) => a.quest_id && !activeIds.has(a.quest_id))
+  return { active, assigned }
+}
+
 export default function KioskStudentSession({ studentName, accentColor, onFinished }) {
-  // step: loading | quests | tasks | capture | uploading | done | error
+  // step: loading | quests | tasks | newTask | capture | uploading | done | error
   const [step, setStep] = useState('loading')
   const [quests, setQuests] = useState([])
+  const [assigned, setAssigned] = useState([])
   const [quest, setQuest] = useState(null)
   const [task, setTask] = useState(null)
   const [photos, setPhotos] = useState([]) // [{ file, previewUrl }]
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef(null)
   const doneTimer = useRef(null)
 
-  // Load the student's active quests + tasks via the standard dashboard API.
+  // The student's quests (started + assigned) via the standard dashboard API.
+  const loadDashboard = useCallback(async () => {
+    const { data } = await api.get('/api/users/dashboard')
+    const shaped = shapeDashboard(data)
+    setQuests(shaped.active)
+    setAssigned(shaped.assigned)
+    return shaped
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const { data } = await api.get('/api/users/dashboard')
-        if (cancelled) return
-        const active = (data?.active_quests || [])
-          .map((enrollment) => {
-            const q = enrollment.quests || {}
-            const tasks = (q.quest_tasks || []).filter((t) => t && t.id)
-            return {
-              quest_id: enrollment.quest_id || q.id,
-              title: q.title || 'Quest',
-              image_url: q.image_url,
-              tasks,
-              openTasks: tasks.filter((t) => !t.is_completed),
-            }
-          })
-          .filter((q) => q.tasks.length > 0)
-        setQuests(active)
-        setStep('quests')
+        await loadDashboard()
+        if (!cancelled) setStep('quests')
       } catch (e) {
         if (!cancelled) {
           setError('Could not load your quests.')
@@ -77,13 +116,56 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [loadDashboard])
 
   useEffect(() => () => {
     photos.forEach((p) => URL.revokeObjectURL(p.previewUrl))
     if (doneTimer.current) clearTimeout(doneTimer.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // A tap on an assigned quest starts it for this student, then opens its
+  // task list (the teacher's tasks, copied on enrollment).
+  const startAssigned = async (a) => {
+    setBusy(true)
+    setError('')
+    try {
+      await api.post(`/api/quests/${a.quest_id}/enroll`, {})
+      const shaped = await loadDashboard()
+      const started = shaped.active.find((q) => q.quest_id === a.quest_id)
+      setQuest(started || { quest_id: a.quest_id, title: a.title, tasks: [], openTasks: [] })
+      setStep('tasks')
+    } catch (e) {
+      setError(e?.response?.data?.error || 'Could not start that quest. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // "I did something else": one title, server-picked pillar and XP, approved
+  // immediately, then straight to the camera for that task.
+  const createTask = async () => {
+    const title = newTaskTitle.trim()
+    if (!title || !quest) return
+    setBusy(true)
+    setError('')
+    try {
+      const { data } = await api.post(`/api/quests/${quest.quest_id}/add-manual-tasks`, {
+        tasks: [{ title }],
+      })
+      const created = data?.tasks?.[0]
+      if (!data?.success || !created?.id) throw new Error(data?.error || 'Could not add that task')
+      const added = { ...created, is_completed: false }
+      setQuest((q) => (q ? { ...q, tasks: [...q.tasks, added], openTasks: [...q.openTasks, added] } : q))
+      setTask(added)
+      setNewTaskTitle('')
+      setStep('capture')
+    } catch (e) {
+      setError(e?.response?.data?.error || 'Could not add that task. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const addPhotos = (fileList) => {
     const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'))
@@ -197,26 +279,53 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
         {step === 'quests' && (
           <>
             <Header title={`Hi, ${studentName}!`} subtitle="Which quest is this work for?" onSignOut={onFinished} />
-            {quests.length === 0 ? (
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
+            )}
+            {quests.length === 0 && assigned.length === 0 ? (
               <div className="bg-white rounded-2xl p-8 text-center">
-                <p className="text-neutral-600 font-semibold">You don't have any active quests yet.</p>
-                <p className="text-neutral-400 text-sm mt-1">Ask your teacher to help you start one.</p>
+                <p className="text-neutral-600 font-semibold">You don't have any quests yet.</p>
+                <p className="text-neutral-400 text-sm mt-1">Ask your teacher to assign one to your class.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {quests.map((q) => (
-                  <button
-                    key={q.quest_id}
-                    onClick={() => { setQuest(q); setStep('tasks') }}
-                    className="bg-white rounded-2xl p-5 text-left shadow-sm hover:shadow-md active:scale-[0.98] transition touch-manipulation"
-                  >
-                    <p className="text-lg font-bold text-neutral-900">{q.title}</p>
-                    <p className="text-sm text-neutral-400 mt-1">
-                      {q.openTasks.length} task{q.openTasks.length === 1 ? '' : 's'} to do
-                    </p>
-                  </button>
-                ))}
-              </div>
+              <>
+                {quests.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {quests.map((q) => (
+                      <button
+                        key={q.quest_id}
+                        onClick={() => { setQuest(q); setError(''); setStep('tasks') }}
+                        className="bg-white rounded-2xl p-5 text-left shadow-sm hover:shadow-md active:scale-[0.98] transition touch-manipulation"
+                      >
+                        <p className="text-lg font-bold text-neutral-900">{q.title}</p>
+                        <p className="text-sm text-neutral-400 mt-1">
+                          {q.openTasks.length} task{q.openTasks.length === 1 ? '' : 's'} to do
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {assigned.length > 0 && (
+                  <div className={quests.length > 0 ? 'mt-8' : ''}>
+                    <h2 className="text-lg font-bold text-neutral-700 mb-3">Assigned to you</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {assigned.map((a) => (
+                        <button
+                          key={a.quest_id}
+                          disabled={busy}
+                          onClick={() => startAssigned(a)}
+                          className="bg-white rounded-2xl p-5 text-left shadow-sm hover:shadow-md active:scale-[0.98] transition disabled:opacity-50 touch-manipulation border-2 border-dashed border-neutral-200"
+                        >
+                          <p className="text-lg font-bold text-neutral-900">{a.title}</p>
+                          <p className="text-sm text-neutral-400 mt-1">
+                            {a.class_name ? `From ${a.class_name} · ` : ''}{busy ? 'Starting...' : 'Tap to start'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -226,9 +335,12 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
             <Header
               title={quest.title}
               subtitle="Which task did you work on?"
-              onBack={() => { setQuest(null); setStep('quests') }}
+              onBack={() => { setQuest(null); setError(''); setStep('quests') }}
               onSignOut={onFinished}
             />
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
+            )}
             <div className="space-y-3">
               {quest.tasks.map((t) => (
                 <button
@@ -244,6 +356,48 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
                   <span className="text-sm font-bold text-neutral-400 whitespace-nowrap">{t.xp_value} XP</span>
                 </button>
               ))}
+              <button
+                onClick={() => { setNewTaskTitle(''); setError(''); setStep('newTask') }}
+                className="w-full rounded-2xl p-4 flex items-center gap-3 text-left border-2 border-dashed border-neutral-300 text-neutral-600 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+              >
+                <span className="w-9 h-9 rounded-full bg-white shadow-sm flex items-center justify-center text-2xl font-bold leading-none">+</span>
+                <span className="font-semibold">I did something else</span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'newTask' && quest && (
+          <>
+            <Header
+              title="What did you do?"
+              subtitle={quest.title}
+              onBack={() => { setError(''); setStep('tasks') }}
+              onSignOut={onFinished}
+            />
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
+            )}
+            <input
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') createTask() }}
+              placeholder="I built a bird feeder"
+              aria-label="What did you do?"
+              autoFocus
+              autoComplete="off"
+              maxLength={120}
+              className="w-full rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-xl focus:outline-none focus:ring-2 focus:ring-optio-purple"
+            />
+            <div className="mt-6">
+              <button
+                onClick={createTask}
+                disabled={busy || !newTaskTitle.trim()}
+                className={`w-full ${btnPrimary}`}
+                style={accent ? { background: accent } : undefined}
+              >
+                {busy ? 'Saving...' : 'Next: take a photo'}
+              </button>
             </div>
           </>
         )}

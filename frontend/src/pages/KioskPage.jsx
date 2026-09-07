@@ -83,7 +83,11 @@ export default function KioskPage() {
       await authService.logout() // clears httpOnly cookies + all client auth state
     } catch { /* local cleanup already ran */ }
     setActiveStudent(null)
-  }, [])
+    // Re-read the roster on every hand-off, not only on the periodic timer, so
+    // a student added or a device re-scoped to a class in the settings card
+    // shows up for the next child without anyone touching the iPad.
+    loadRoster(token, { silent: true })
+  }, [token, loadRoster])
 
   // Shared-device safety: 3 minutes idle in student mode returns to the grid.
   useKioskIdleTimeout({
