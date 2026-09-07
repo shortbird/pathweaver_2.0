@@ -9,6 +9,7 @@ import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import SearchSelect from '../../components/ui/SearchSelect'
+import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
@@ -792,7 +793,10 @@ const StaffFormsPage = () => {
       </div>
 
       {admin && !preview && (
-        <AdminQueue orgId={orgId} staff={staff} openSubmissionId={openSubmissionId} />
+        <>
+          <AdminQueue orgId={orgId} staff={staff} openSubmissionId={openSubmissionId} />
+          <PaperworkTemplatesManager orgId={orgId} staff={staff} defaultTab="forms" />
+        </>
       )}
     </div>
   )

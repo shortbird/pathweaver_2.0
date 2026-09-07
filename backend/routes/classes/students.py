@@ -220,8 +220,12 @@ def enroll_students(user_id, org_id, class_id):
                     st_conflicts = schedule_conflicts(sid, class_id)
                     if st_conflicts:
                         conflicts.extend(st_conflicts)
-                except Exception:
-                    pass
+                except Exception as e:  # noqa: BLE001 -- advisory only
+                    # The clash check must never block an enrollment staff have
+                    # asked for; a silent `pass` also meant nobody could tell a
+                    # student with no clashes from a check that fell over.
+                    logger.debug(
+                        f'[enroll] schedule conflict check skipped for {sid}: {e}')
             if conflicts:
                 cnames = ', '.join(c.get('class_name', 'another class') for c in conflicts)
                 return jsonify({

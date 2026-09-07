@@ -114,7 +114,12 @@ const PAGES = path.resolve(__dirname, '../pages')
  * QueryClientProvider in every test that renders it: ten test files for four
  * pages last time, and that price does not fall as the pages get smaller.
  */
-const CALL_SITE_BASELINE = 469
+// 469 -> 470 on 2026-09-07, merging ticket/d4bc2603. One PUT on
+// FamilyBillingPage for the family's tuition payment-plan preference. The page
+// has eight hand-rolled calls already and is not on the migrated list, so
+// hooking this one would leave a single page fetching two ways -- the same
+// judgement the entries above record.
+const CALL_SITE_BASELINE = 470
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

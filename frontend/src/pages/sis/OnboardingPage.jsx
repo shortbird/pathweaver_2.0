@@ -10,6 +10,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModal'
+import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { itemDocuments } from './checklistDocuments'
 import {
@@ -699,10 +700,12 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
 
 /** The checklist template library: a single collapsed row until opened.
  * Authoring is the rare act; it must not sit on top of the daily list. */
-export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
+export const ChecklistTemplatesManager = ({ orgId, onChanged, embedded = false, onCount, open: externalOpen }) => {
   const confirm = useConfirm()
   const [editing, setEditing] = useState(null) // null | 'new' | template
-  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const templatesOpen = externalOpen !== undefined ? externalOpen : internalOpen
+  const toggleTemplatesOpen = () => setInternalOpen((v) => !v)
 
   const query = useOnboardingTemplates(orgId)
   const templates = query.data || []
@@ -710,6 +713,11 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
   // The same assignments list AdminOnboarding renders. Sync needs a count of
   // what it is about to rewrite; sharing the key means it does not re-ask.
   const assignmentsQuery = useOnboardingAssignments(orgId)
+
+  // Report the count up to PaperworkTemplatesManager, which shows it on the
+  // tab. An effect rather than a line in the fetch, because the fetch is the
+  // query's now and may serve this render from cache without running.
+  useEffect(() => { onCount?.(templates.length) }, [onCount, templates.length])
 
   useEffect(() => {
     if (query.isError) toast.error('Failed to load checklist templates')
@@ -773,13 +781,11 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
     }
   }
 
-  return (
+  const content = (
     <>
-      {/* Collapsed until asked for, so sitting above the progress list costs it
-          a single row rather than a screenful. */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
+      {!embedded && (
         <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={() => setTemplatesOpen((v) => !v)}
+          <button type="button" onClick={toggleTemplatesOpen}
             aria-expanded={templatesOpen}
             className="flex items-center gap-2 font-semibold text-neutral-900">
             <span className={`text-neutral-400 text-xs transition-transform ${templatesOpen ? 'rotate-90' : ''}`}
@@ -791,35 +797,54 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
             + New template
           </button>
         </div>
-        {templatesOpen && (
-          <ul className="divide-y divide-gray-100 mt-3">
-            {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
-            {templates.map((t) => (
-              <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
-                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-neutral-900">{t.name}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
-                    {t.audience === 'family' ? 'Family' : 'Staff'}
-                  </span>
-                  {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
-                  <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
-                  {t.description && (
-                    <p className="text-xs text-neutral-500 mt-0.5 w-full">{t.description}</p>
-                  )}
-                </div>
-                <div className="ml-auto flex items-center gap-3">
-                  <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
-                  <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
-                  {/* Deliberately a button, not automatic on save: a half-finished
-                      edit must not go out to everyone holding the checklist. */}
-                  <button onClick={() => syncTemplate(t)} className="text-sm text-optio-purple hover:underline">Sync assigned</button>
-                  <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      )}
+
+      {embedded && templatesOpen && (
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="text-sm font-semibold text-neutral-800">Onboarding Checklist Templates</span>
+          <button onClick={() => setEditing('new')} className="text-sm text-optio-purple font-medium hover:underline">
+            + New template
+          </button>
+        </div>
+      )}
+
+      {templatesOpen && (
+        <ul className="divide-y divide-gray-100 mt-3">
+          {!templates.length && <p className="text-sm text-neutral-500">No templates yet.</p>}
+          {templates.map((t) => (
+            <li key={t.id} className="py-2.5 flex items-center gap-2 flex-wrap">
+              {/* The wrapper and the description are HEAD's; their side of this
+                  merge had dropped both, which would have hidden every
+                  template's description from the list. */}
+              <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-neutral-900">{t.name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${t.audience === 'family' ? 'bg-optio-pink/10 text-optio-pink' : 'bg-optio-purple/10 text-optio-purple'}`}>
+                  {t.audience === 'family' ? 'Family' : 'Staff'}
+                </span>
+                {t.role_type && <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">{t.role_type}</span>}
+                <span className="text-xs text-neutral-400">{(t.items || []).length} items</span>
+                {t.description && (
+                  <p className="text-xs text-neutral-500 mt-0.5 w-full">{t.description}</p>
+                )}
+              </div>
+              <div className="ml-auto flex items-center gap-3">
+                <button onClick={() => setEditing(t)} className="text-sm text-optio-purple hover:underline">Edit</button>
+                <button onClick={() => duplicateTemplate(t)} className="text-sm text-optio-purple hover:underline">Duplicate</button>
+                {/* Deliberately a button, not automatic on save: a half-finished
+                    edit must not go out to everyone holding the checklist. */}
+                <button onClick={() => syncTemplate(t)} className="text-sm text-optio-purple hover:underline">Sync assigned</button>
+                <button onClick={() => deleteTemplate(t)} className="text-sm text-red-600 hover:underline">Delete</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+
+  return (
+    <>
+      {embedded ? <div>{content}</div> : <div className="bg-white rounded-xl border border-gray-200 p-4">{content}</div>}
 
       {editing && (
         <ModalOverlay onClose={() => setEditing(null)}>
@@ -832,7 +857,7 @@ export const ChecklistTemplatesManager = ({ orgId, onChanged }) => {
               <button onClick={() => setEditing(null)} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
             </div>
             <TemplateEditor orgId={orgId} template={editing === 'new' ? null : editing}
-              onSaved={() => { setEditing(null); setTemplatesOpen(true); load() }}
+              onSaved={() => { setEditing(null); setInternalOpen(true); load() }}
               onCancel={() => setEditing(null)} />
           </div>
         </ModalOverlay>
@@ -858,7 +883,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
   return (
     <div className="space-y-6">
       <ReviewStrip orgId={orgId} assignments={assignments} onChanged={load} />
-      <ChecklistTemplatesManager orgId={orgId} onChanged={load} />
+      <PaperworkTemplatesManager orgId={orgId} onChanged={load} defaultTab="checklists" />
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">

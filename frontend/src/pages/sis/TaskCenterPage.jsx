@@ -12,7 +12,7 @@ import AssignChecklistModal from '../../components/sis/tasks/AssignChecklistModa
 import AssignedWork from '../../components/sis/tasks/AssignedWork'
 import FormRoutingModal from '../../components/sis/tasks/FormRoutingModal'
 import { AdminQueue, SubmitForm } from './StaffFormsPage'
-import FormBuilder from '../../components/sis/tasks/FormBuilder'
+import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { awaitingReviewOf } from './OnboardingPage'
 import { SecureDocumentsPanel } from './SecureDocumentsPage'
 import { isPathHidden } from './sisModules'
@@ -227,29 +227,26 @@ const TaskCenterPage = () => {
         <div className="space-y-4">
           <AdminQueue key={`req-${refreshKey}`} orgId={orgId} staff={staff}
             openSubmissionId={openSubmissionId} onCount={countRequests} />
-          {/* Authoring, collapsed to one row: the forms people file, and where
-              each kind goes. A form template shapes a REQUEST, so it lives
-              here, under the queue it feeds — not on top of it. */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <button type="button" onClick={() => setManageFormsOpen((v) => !v)}
-                aria-expanded={manageFormsOpen}
-                className="flex items-center gap-2 font-semibold text-neutral-900">
-                <span className={`text-neutral-400 text-xs transition-transform ${manageFormsOpen ? 'rotate-90' : ''}`}
-                  aria-hidden="true">▶</span>
-                Manage forms
-              </button>
+          {/* Authoring: paperwork templates (forms and checklists) and request routing */}
+          <div className="space-y-2">
+            {/* ONE tabbed manager for forms and checklist templates (ticket
+                b0d6324a), replacing the two separate sections. It collapses on
+                its own, so it no longer needs the manageFormsOpen wrapper HEAD
+                had -- but that flag still drives it OPEN, and initialEditing
+                still points it at a new form, so "New form template" in the
+                action menu lands where it always did. */}
+            <PaperworkTemplatesManager
+              key={`forms-${refreshKey}`} orgId={orgId} staff={staff}
+              title="Paperwork templates (Manage forms)" defaultTab="forms"
+              initiallyOpen={manageFormsOpen}
+              initialEditing={creating === 'form_template' ? 'new' : null}
+            />
+            <div className="flex justify-end px-1">
               <button onClick={() => setRouting(true)}
                 className="text-sm text-optio-purple font-medium hover:underline">
                 Where requests go
               </button>
             </div>
-            {manageFormsOpen && (
-              <div className="mt-3">
-                <FormBuilder key={`forms-${refreshKey}`} orgId={orgId} staff={staff} embedded defaultOpen
-                  initialEditing={creating === 'form_template' ? 'new' : null} />
-              </div>
-            )}
           </div>
         </div>
       )}
