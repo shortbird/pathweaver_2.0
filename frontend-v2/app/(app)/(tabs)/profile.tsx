@@ -31,6 +31,7 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { DiplomaCreditTracker } from '@/src/components/diploma/DiplomaCreditTracker';
+import { tracksDiplomaCredits } from '@/src/utils/age';
 
 // Native-only system date picker (iOS spinner / Android dialog), used by the
 // date-of-birth field in the edit sheet. Guarded so the web bundle -- which
@@ -122,6 +123,10 @@ export default function ProfileScreen() {
   const setPortfolioPublic = setHookPortfolioPublic;
 
   const isStudent = user?.role === 'student' || user?.org_role === 'student';
+
+  // Which picture of their own work this learner gets: the pillar radar below
+  // 13, credit progress at 13 and up. Unknown birthday reads as 13+.
+  const showsDiplomaCredits = tracksDiplomaCredits(user?.date_of_birth);
 
   // Observer invites are a shareable LINK, not an email. The email endpoint
   // this screen used to POST to (/api/observers/invite) does not exist —
@@ -389,8 +394,12 @@ export default function ProfileScreen() {
           )}
 
           {/* Pillar XP — radar chart with pillar ICONS at each vertex (bug #22),
-              with an icon legend below mapping each icon to its XP. */}
-          {pillarXP.length > 0 && (
+              with an icon legend below mapping each icon to its XP.
+              Under-13s see this INSTEAD of credit progress: the diploma is not
+              what an elementary learner is working toward, and a 26-credit
+              graduation tracker is noise to them. Matches CompactSidebar on
+              the web app. */}
+          {pillarXP.length > 0 && !showsDiplomaCredits && (
             <CollapsibleSection title="Pillar Breakdown">
               <Card variant="elevated" size="md">
                 <VStack space="md" className="items-center">
@@ -493,14 +502,14 @@ export default function ProfileScreen() {
           </CollapsibleSection>
 
           {/* Subject Credits */}
-          {subjectXP.length > 0 && (
+          {subjectXP.length > 0 && showsDiplomaCredits && (
             <CollapsibleSection title="Subject Credits" defaultOpen={false}>
               <SubjectCreditsGrid subjectXP={subjectXP} />
             </CollapsibleSection>
           )}
 
           {/* Diploma Credit Tracker (students) */}
-          {isStudent && (
+          {isStudent && showsDiplomaCredits && (
             <CollapsibleSection title="Diploma Credits" defaultOpen={false}>
               <DiplomaCreditTracker />
             </CollapsibleSection>

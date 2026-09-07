@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import api from '@/src/services/api';
 import { showAlert } from '@/src/utils/alerts';
+import { describeMediaError, isCancelledMediaError } from '@/src/utils/mediaErrors';
 import { haptic } from '@/src/utils/haptics';
 import { toast } from '@/src/stores/toastStore';
 import { captureException, captureMessage } from '@/src/services/sentry';
@@ -157,6 +158,20 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
   const [pickerSuspended, setPickerSuspended] = useState(false);
   const pendingPickerRef = useRef<null | (() => Promise<void>)>(null);
 
+  // Both picker paths used to report to Sentry and show the user NOTHING, so a
+  // failed pick looked like a dead button. The most common cause is an iCloud
+  // photo that was never downloaded (Sentry OPTIO-MOBILE-Q), which needs a
+  // different instruction than "try again".
+  const reportPickerFailure = (err: unknown) => {
+    if (isCancelledMediaError(err)) return;
+    captureException(err, { stage: 'capture-picker-launch' });
+    const copy = describeMediaError(err, {
+      title: 'Something went wrong',
+      message: "That didn't work. Please try again.",
+    });
+    if (copy) showAlert(copy.title, copy.message);
+  };
+
   const runWithSheetHidden = (action: () => Promise<void>, label: string) => {
     recordAction('capture:picker-tap', { source: label, platform: Platform.OS });
     // Android needs the Modal fully dismissed before launching a native picker,
@@ -166,7 +181,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     // just closes). So only do the close-then-launch dance on Android; launch
     // directly from the open sheet on iOS (the original, working behavior).
     if (Platform.OS !== 'android') {
-      action().catch((err) => captureException(err, { stage: 'capture-picker-launch' }));
+      action().catch(reportPickerFailure);
       return;
     }
     pendingPickerRef.current = action;
@@ -181,7 +196,7 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
       try {
         await action();
       } catch (err) {
-        captureException(err, { stage: 'capture-picker-launch' });
+        reportPickerFailure(err);
       } finally {
         setPickerSuspended(false); // re-present the sheet with state intact
       }

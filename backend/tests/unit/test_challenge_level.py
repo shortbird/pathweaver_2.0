@@ -123,7 +123,7 @@ class TestXpDistribution:
         return [{'title': f't{i}', 'xp_value': v} for i, v in enumerate(values)]
 
     @pytest.mark.parametrize('level,anchor', [
-        ('easier', 75), ('standard', 100), ('challenge', 150), (None, 100),
+        ('easier', 75), ('standard', 100), ('challenge', 200), (None, 100),
     ])
     def test_half_of_tasks_anchor_at_level_value(self, service, level, anchor):
         tasks = service._enforce_xp_distribution(
@@ -133,15 +133,26 @@ class TestXpDistribution:
 
     def test_already_anchored_batch_untouched(self, service):
         tasks = service._enforce_xp_distribution(
-            self._tasks([150, 150, 150, 200, 100, 175]), challenge_level='challenge'
+            self._tasks([100, 100, 100, 150, 50, 75]), challenge_level='standard'
         )
-        assert [t['xp_value'] for t in tasks] == [150, 150, 150, 200, 100, 175]
+        assert [t['xp_value'] for t in tasks] == [100, 100, 100, 150, 50, 75]
 
     def test_level_config_shape(self):
         for level, cfg in CHALLENGE_LEVELS.items():
-            assert cfg['min_xp'] < cfg['anchor'] <= cfg['max_xp'], level
+            assert cfg['min_xp'] <= cfg['anchor'] <= cfg['max_xp'], level
         assert DEFAULT_CHALLENGE_LEVEL == 'standard'
         assert CHALLENGE_LEVELS['challenge']['max_xp'] == 200
+
+    def test_challenge_is_a_flat_rate_not_a_band(self):
+        """Challenge means 200, every time.
+
+        It used to anchor at 150 and clamp 50-200, so a Challenge batch came
+        back mostly 150 with scattered 75s and 175s. Students who pick
+        Challenge want the top of the range, and were regenerating batches
+        (burning AI credit) until the numbers read 200.
+        """
+        cfg = CHALLENGE_LEVELS['challenge']
+        assert cfg['min_xp'] == cfg['anchor'] == cfg['max_xp'] == 200
 
 
 # ---------------------------------------------------------------------------
@@ -164,8 +175,9 @@ class TestPromptComposition:
 
     def test_challenge_level_changes_xp_band_and_adds_guidance(self, service):
         prompt = self._prompt(service, challenge_level='challenge')
-        assert 'At least 50% of tasks should be worth exactly 150 XP' in prompt
-        assert 'range from 100-200 XP' in prompt
+        # A flat level states the one number rather than describing a band.
+        assert 'EVERY task must be worth exactly 200 XP' in prompt
+        assert 'range from' not in prompt
         assert 'CHALLENGE LEVEL: CHALLENGE' in prompt
         assert 'finds typical tasks too easy' in prompt
 

@@ -680,8 +680,13 @@ function App() {
                 <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
               </Route>
 
-              {/* Organization Management - accessible to org admins and platform admins */}
-              <Route element={<PrivateRoute />}>
+              {/* Organization Management - accessible to org admins and platform admins.
+                  The guard was a bare <PrivateRoute />, so any signed-in user could
+                  open the page; its first call is GET /api/admin/organizations/:id
+                  behind @require_org_admin, so they got a broken page and a Sentry
+                  403 (OPTIO-WEB-N). is_org_admin covers campus_coordinator too, so
+                  this matches the backend gate exactly. */}
+              <Route element={<PrivateRoute requiredRole={["org_admin", "superadmin"]} />}>
                 <Route path="organization" element={<OrganizationManagement />} />
               </Route>
 

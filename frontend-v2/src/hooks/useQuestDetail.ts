@@ -12,6 +12,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { extractApiError } from '../services/apiError';
 import { useAuthStore } from '../stores/authStore';
 import { pillars as pillarConfig } from '../config/pillars';
 
@@ -36,7 +37,8 @@ export interface QuestTask {
   pillar: string;
   xp_value: number;
   xp_amount: number;
-  diploma_subjects: string[];
+  /** Either a list of subject names or a weighted {subject: weight} map — see subjectNames(). */
+  diploma_subjects: string[] | Record<string, number> | null;
   order_index: number;
   is_completed: boolean;
   is_required: boolean;
@@ -178,7 +180,22 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       const form = new FormData();
       form.append('acting_as_dependent_id', studentId);
       form.append('is_confidential', 'false');
-      ({ data } = await api.post(`/api/tasks/${taskId}/complete`, form));
+      try {
+        ({ data } = await api.post(`/api/tasks/${taskId}/complete`, form));
+      } catch (err: unknown) {
+        // A completion row already exists, so the task IS done and the XP is
+        // already awarded — this endpoint answers 400 TASK_ALREADY_COMPLETED
+        // rather than repeating the award. A double tap, a retry after a
+        // dropped response, or a replayed request all land here (Sentry
+        // OPTIO-MOBILE-V), and every caller turned it into a red "Task already
+        // completed" on work that had in fact saved. Fall through to the same
+        // local state update a first-time success does.
+        //
+        // The student path below needs no equivalent: /evidence/documents is
+        // already idempotent, skipping the award when a completion exists.
+        if (extractApiError(err).code !== 'TASK_ALREADY_COMPLETED') throw err;
+        data = undefined;
+      }
     } else {
       ({ data } = await api.post(`/api/evidence/documents/${taskId}`, {
         blocks: normalized,
@@ -353,3 +370,20 @@ export const DIPLOMA_SUBJECTS = [
   'Language Arts', 'Math', 'Science', 'Social Studies', 'Financial Literacy',
   'Health', 'PE', 'Fine Arts', 'CTE', 'Digital Literacy', 'Electives',
 ];
+
+/**
+ * The subject names on a task, whichever shape the field arrived in.
+ *
+ * `diploma_subjects` is legitimately dual-shape: a plain list of names
+ * (`['Math']`) or a weighted map of name -> share (`{'Fine Arts': 75,
+ * 'Digital Literacy': 25}`) that the personalization wizard writes. The
+ * backend reads both (routes/tasks/xp_helpers.py), and about a third of
+ * user_quest_tasks rows are the map form, so every reader has to accept both.
+ * Treating a map as a list crashed the task editor (OPTIO-MOBILE-W) and made
+ * the subject chips silently vanish on the quest screen.
+ */
+export function subjectNames(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.filter((s): s is string => typeof s === 'string');
+  if (raw && typeof raw === 'object') return Object.keys(raw as Record<string, unknown>);
+  return [];
+}

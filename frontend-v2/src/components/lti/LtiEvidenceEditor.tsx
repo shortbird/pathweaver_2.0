@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { Platform, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadViaSignedUrl } from '@/src/services/signedUpload';
+import { describeMediaError } from '@/src/utils/mediaErrors';
 import {
   VStack, HStack, UIText, Button, ButtonText, Input, InputField, Badge, BadgeText,
 } from '@/src/components/ui';
@@ -119,7 +120,13 @@ export function LtiEvidenceEditor({
         file_name: (result.file_name || result.filename || filename) as string,
       });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Upload failed');
+      // Raw native text ("PHPhotosErrorDomain error 3164") was going straight
+      // into the error banner (Sentry OPTIO-MOBILE-Q).
+      const copy = describeMediaError(e, {
+        title: '',
+        message: e instanceof Error ? e.message : 'Upload failed',
+      });
+      setErr(copy ? [copy.title, copy.message].filter(Boolean).join(' ') : null);
     } finally {
       setBusy(null);
     }

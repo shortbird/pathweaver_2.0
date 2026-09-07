@@ -244,14 +244,19 @@ Complete guide to all configurable environment variables for the Optio Platform 
 - **Example**: `GUNICORN_WORKER_CONNECTIONS=100`
 
 ### GUNICORN_THREADS
-- **Description**: Number of threads per worker
-- **Default**: `2`
-- **Example**: `GUNICORN_THREADS=2`
+- **Description**: Threads per worker. Gunicorn swaps the sync worker for
+  gthread whenever this is > 1, so this is the real per-worker concurrency.
+  Fleet-wide in-flight requests = `numInstances x GUNICORN_WORKERS x GUNICORN_THREADS`.
+- **Default**: `8` (raised from 2 on 2026-09-07; at 2 the prod fleet capped at
+  eight concurrent requests and queued behind it during the morning peak)
+- **Example**: `GUNICORN_THREADS=8`
 
 ### GUNICORN_MAX_REQUESTS
-- **Description**: Maximum requests before worker restart (prevents memory leaks)
-- **Default**: `1000`
-- **Example**: `GUNICORN_MAX_REQUESTS=1000`
+- **Description**: Maximum requests before worker restart (prevents memory leaks).
+  Counts requests, not time, so raising `GUNICORN_THREADS` shortens the recycle
+  interval proportionally -- raise both together.
+- **Default**: `4000`
+- **Example**: `GUNICORN_MAX_REQUESTS=4000`
 
 ### GUNICORN_MAX_REQUESTS_JITTER
 - **Description**: Random jitter for max_requests to prevent thundering herd

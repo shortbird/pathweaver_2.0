@@ -73,15 +73,76 @@ const baseProfileMock = {
   refetch: jest.fn(),
 };
 
+const dobForAge = (years: number) => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+};
+
 describe('ProfileScreen', () => {
-  it('renders user name, total XP, and pillar breakdown', () => {
+  it('renders user name and total XP', () => {
     (useProfile as jest.Mock).mockReturnValue(baseProfileMock);
 
     const { getByText } = render(<ProfileScreen />);
 
     expect(getByText('Test Student')).toBeTruthy();
     expect(getByText('1,250')).toBeTruthy();
-    expect(getByText('Pillar Breakdown')).toBeTruthy();
+  });
+
+  /**
+   * One picture per learner, chosen by age (Tanner <> Finn, 2026-09-07):
+   * "show that radar chart to younger kids who are too young for a diploma,
+   * and once you're ready to start working on your diploma it switches to show
+   * you the diploma thing instead."
+   */
+  describe('pillar radar vs diploma credits', () => {
+    const withSubjects = () => (useProfile as jest.Mock).mockReturnValue({
+      ...baseProfileMock,
+      subjectXP: [{ school_subject: 'fine_arts', xp_amount: 300, pending_xp: 0 }],
+    });
+
+    it('shows the pillar radar and no credit tracking under 13', () => {
+      setAuthAsStudent({ date_of_birth: dobForAge(9) });
+      withSubjects();
+
+      const { getByText, queryByText } = render(<ProfileScreen />);
+
+      expect(getByText('Pillar Breakdown')).toBeTruthy();
+      expect(queryByText('Diploma Credits')).toBeNull();
+      expect(queryByText('Subject Credits')).toBeNull();
+    });
+
+    it('shows credit tracking and no radar at 13 and up', () => {
+      setAuthAsStudent({ date_of_birth: dobForAge(16) });
+      withSubjects();
+
+      const { getByText, queryByText } = render(<ProfileScreen />);
+
+      expect(getByText('Diploma Credits')).toBeTruthy();
+      expect(getByText('Subject Credits')).toBeTruthy();
+      expect(queryByText('Pillar Breakdown')).toBeNull();
+    });
+
+    it('switches on the learner\'s 13th birthday, not before', () => {
+      setAuthAsStudent({ date_of_birth: dobForAge(13) });
+      withSubjects();
+
+      const { getByText, queryByText } = render(<ProfileScreen />);
+
+      expect(getByText('Diploma Credits')).toBeTruthy();
+      expect(queryByText('Pillar Breakdown')).toBeNull();
+    });
+
+    it('falls back to credits when no birthday is on file', () => {
+      setAuthAsStudent({ date_of_birth: null });
+      withSubjects();
+
+      const { getByText, queryByText } = render(<ProfileScreen />);
+
+      expect(getByText('Diploma Credits')).toBeTruthy();
+      expect(queryByText('Pillar Breakdown')).toBeNull();
+    });
   });
 
   it('formats subject credit names from snake_case to Title Case', () => {

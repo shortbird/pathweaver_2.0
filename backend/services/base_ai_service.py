@@ -95,9 +95,38 @@ class AIServiceOverloadedError(AIGenerationError):
     pass
 
 
+class AICreditsExhaustedError(AIGenerationError):
+    """Generation failed because the Gemini account has no credit left.
+
+    Google answers both "you are going too fast" and "your prepay balance is
+    empty" with a 429; only the wording separates them. The second never clears
+    on a retry or on a different model, so it must not be treated as transient
+    -- doing so burned every retry and every fallback model on each request,
+    and told the student "the AI is experiencing high demand" while the real
+    fix was to top up billing (Sentry OPTIO-BACKEND-86/87/88, 2026-09-07).
+
+    Subclasses AIGenerationError so existing ``except AIGenerationError`` /
+    ``except AIServiceError`` handlers still catch it, and deliberately NOT
+    AIServiceOverloadedError, so an operator can tell a capacity problem from
+    a billing one at a glance.
+    """
+    pass
+
+
 class AIParsingError(AIServiceError):
     """Failed to parse AI response."""
     pass
+
+
+# The error vocabulary lives in utils.ai_errors so route modules can classify a
+# failure without importing the service layer. Re-exported here because this is
+# where every AI service already looks for it.
+from utils.ai_errors import (  # noqa: E402  (re-export)
+    CREDITS_EXHAUSTED_MARKERS,
+    TRANSIENT_ERROR_MARKERS,
+    is_credits_exhausted_error,
+    is_transient_ai_error,
+)
 
 
 class _EmptyAIResponseError(AIGenerationError):
@@ -279,18 +308,19 @@ class BaseAIService(BaseService):
             return self._model_override
         return self._model_name or self.default_model()
 
-    # Substrings that mark a transient/overload error worth falling back on.
-    _TRANSIENT_ERROR_MARKERS = (
-        '503', '500', '429', 'overloaded', 'high demand', 'unavailable',
-        'resource exhausted', 'resourceexhausted', 'rate limit', 'deadline',
-        'try again later', 'internal error', 'temporarily',
-    )
+    # Kept as class attributes for subclasses/tests that referenced them.
+    _TRANSIENT_ERROR_MARKERS = TRANSIENT_ERROR_MARKERS
+    _CREDITS_EXHAUSTED_MARKERS = CREDITS_EXHAUSTED_MARKERS
+
+    @classmethod
+    def _is_credits_exhausted_error(cls, error: Exception) -> bool:
+        """Whether an exception means the AI account is out of credit."""
+        return is_credits_exhausted_error(error)
 
     @classmethod
     def _is_transient_ai_error(cls, error: Exception) -> bool:
         """Whether an exception looks like a transient model/capacity error."""
-        msg = str(error).lower()
-        return any(marker in msg for marker in cls._TRANSIENT_ERROR_MARKERS)
+        return is_transient_ai_error(error)
 
     def _get_model_by_name(self, model_name: str):
         """Return the model instance for a given name (primary or alternative)."""
@@ -691,6 +721,16 @@ class BaseAIService(BaseService):
                 last_error = e
                 error_str = str(e).lower()
 
+                # Out of credit: no retry and no other model can succeed.
+                if self._is_credits_exhausted_error(e):
+                    logger.error(
+                        f"AI credits exhausted -- top up Gemini billing. "
+                        f"No retry can clear this: {e}"
+                    )
+                    raise AICreditsExhaustedError(
+                        "AI features are temporarily unavailable."
+                    ) from e
+
                 # Don't retry on certain errors
                 if any(x in error_str for x in ['api_key', 'authentication', 'quota', 'rate_limit']):
                     logger.error(f"Non-retryable error: {e}")
@@ -718,6 +758,10 @@ class BaseAIService(BaseService):
         # was a transient capacity/overload error (e.g. a 503 "high demand"),
         # raise the dedicated AIServiceOverloadedError so callers can soft-fail
         # with a friendly "try again" 503 instead of a generic 500.
+        if last_error is not None and self._is_credits_exhausted_error(last_error):
+            raise AICreditsExhaustedError(
+                "AI features are temporarily unavailable."
+            ) from last_error
         if last_error is not None and self._is_transient_ai_error(last_error):
             raise AIServiceOverloadedError(
                 "The AI is experiencing high demand right now. "

@@ -22,6 +22,7 @@ from .xp_helpers import (  # noqa: F401,E402
     add_pending_subject_xp,
     finalize_subject_xp,
     get_subject_xp_distribution,
+    pending_subjects_for_completion,
     remove_pending_subject_xp,
 )
 
@@ -30,5 +31,6 @@ __all__ = [
     'add_pending_subject_xp',
     'finalize_subject_xp',
     'get_subject_xp_distribution',
+    'pending_subjects_for_completion',
     'remove_pending_subject_xp',
 ]

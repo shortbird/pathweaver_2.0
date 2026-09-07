@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 import QuestDetailScreen from '../[id]';
 import api from '@/src/services/api';
@@ -127,5 +127,50 @@ describe('long task titles', () => {
     await waitFor(() => {
       expect(result.getByText(longTitle).props.numberOfLines).toBeUndefined();
     });
+  });
+});
+
+/**
+ * Double-tapping the completion circle. Sentry OPTIO-MOBILE-V.
+ *
+ * `task.is_completed` only flips once the request comes back, so the circle —
+ * unlike the "Complete" button, which has always been disabled while its
+ * request is in flight — happily ran the whole completion twice. The second
+ * one came back 400 TASK_ALREADY_COMPLETED and was rendered to the student as
+ * a failure on work that had, in fact, saved.
+ */
+describe('completion circle', () => {
+  const evidence = [{ id: 'b1', block_type: 'text', content: { text: 'my working' }, order_index: 0 }];
+
+  beforeEach(() => {
+    (api.get as jest.Mock).mockImplementation((url: string) =>
+      url.startsWith('/api/evidence/documents/')
+        ? Promise.resolve({ data: { blocks: evidence } })
+        : Promise.resolve({ data: { quest: mockQuest, blocks: [], engagement: null } })
+    );
+  });
+
+  it('submits the completion once, however many times it is tapped', async () => {
+    // Hold the completion open so both taps land while it is still in flight.
+    let release: (v: unknown) => void = () => {};
+    const inFlight = new Promise((resolve) => { release = resolve; });
+    (api.post as jest.Mock).mockImplementation(() => inFlight.then(() => ({ data: { success: true } })));
+
+    const result = render(<QuestDetailScreen />);
+    await waitFor(() => expect(result.getByText('Solve 10 equations')).toBeTruthy());
+
+    const circle = await waitFor(() => result.getByTestId('icon-ellipse-outline'));
+    // fireEvent supplies no synthetic event; the handler calls stopPropagation
+    // on it the way a real press would.
+    const tap = () => fireEvent.press(circle, { stopPropagation: () => {} });
+    tap();
+    tap();
+    tap();
+
+    const completions = (api.post as jest.Mock).mock.calls
+      .filter(([url]) => String(url).includes(`/${'task-1'}`));
+    expect(completions).toHaveLength(1);
+
+    await act(async () => { release(null); });
   });
 });

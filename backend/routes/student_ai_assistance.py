@@ -21,6 +21,7 @@ from utils.auth.decorators import require_auth
 from utils.ai_access import require_ai_access
 from middleware.rate_limiter import rate_limit
 from services.student_ai_assistant_service import StudentAIAssistantService
+from utils.ai_errors import ai_failure_response
 from database import get_supabase_admin_client
 import logging
 
@@ -100,7 +101,9 @@ def suggest_improvements(user_id):
         )
 
         if not result.get('success'):
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not get suggestions right now. Please try again.')
+            return jsonify(payload), status
 
         return jsonify(result), 200
 
@@ -197,7 +200,9 @@ def find_similar_quests(user_id):
         )
 
         if not result.get('success'):
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not search for similar quests right now. Please try again.')
+            return jsonify(payload), status
 
         return jsonify(result), 200
 
@@ -272,7 +277,9 @@ def validate_idea(user_id):
         )
 
         if not result.get('success'):
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not check that idea right now. Please try again.')
+            return jsonify(payload), status
 
         return jsonify(result), 200
 
@@ -353,7 +360,9 @@ def recommend_tasks(user_id):
         )
 
         if not result.get('success'):
-            return jsonify(result), 500
+            payload, status = ai_failure_response(
+                result.get('error'), 'Could not recommend tasks right now. Please try again.')
+            return jsonify(payload), status
 
         return jsonify(result), 200
 

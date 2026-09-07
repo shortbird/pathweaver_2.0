@@ -1087,6 +1087,11 @@ const DiplomaPage = () => {
                 totalXPCount={totalXPCount}
                 isOwner={isOwner}
                 studentName={getStudentFirstName()}
+                // Whose diploma this is, not who is reading it — a parent
+                // viewing their 9-year-old's page should see the same pillar
+                // view the child sees. Public payloads omit the birthday
+                // (routes/public.py), which falls through to the credit view.
+                dateOfBirth={displayData.student?.date_of_birth || effectiveUser?.date_of_birth}
                 onCreditsClick={() => setShowFullCreditsModal(true)}
               />
             </div>

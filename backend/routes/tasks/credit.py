@@ -13,6 +13,7 @@ from routes.tasks.xp_helpers import (
 )
 from utils.api_response_v1 import error_response, success_response
 from utils.auth.decorators import require_auth
+from utils.error_reporting import report_error
 from utils.logger import get_logger
 from utils.org_features import org_has_feature
 
@@ -194,11 +195,29 @@ def request_diploma_credit(user_id: str, task_id: str):
             'revision_number': new_revision
         }).eq('id', completion_data['id']).execute()
 
-        # Add subject XP to pending
+        # Add subject XP to pending.
+        #
+        # Deliberately non-fatal: the credit request itself has already landed
+        # (the review round is written and the reviewer will see it), and
+        # pending_xp is the student's progress bar rather than the record. A
+        # 500 here would refuse a submission that actually succeeded.
+        #
+        # But it must not be SILENT. A bare logger.error left this invisible,
+        # and one learner accumulated ~1,635 XP of missing pending credit that
+        # nobody noticed until their subject totals were reconciled by hand on
+        # 2026-09-07. report_error puts it in Sentry; the state it leaves
+        # behind (a pending completion with no pending XP) is what
+        # scripts/repair_pending_subject_xp.py reconciles.
         try:
             add_pending_subject_xp(admin_supabase, user_id, subject_xp)
         except Exception as xp_err:
-            logger.error(f"Failed to add pending subject XP for credit request: {xp_err}")
+            report_error(
+                xp_err,
+                'Failed to add pending subject XP for credit request',
+                user_id=user_id,
+                task_id=task_id,
+                completion_id=completion_data['id'],
+            )
 
         # Send notifications
         try:

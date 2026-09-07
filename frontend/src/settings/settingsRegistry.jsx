@@ -42,7 +42,9 @@ export const SETTINGS_CARDS = [
   { key: 'time-blocks', module: 'classes', surfaces: ['console'], Component: TimeBlocksCard },
   { key: 'calendar-categories', module: 'calendar', surfaces: ['console'], Component: CalendarCategoriesCard },
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
-  { key: 'kiosk', module: 'kiosk', surfaces: ['console'], Component: KioskDevicesCard },
+  // Both surfaces: the kiosk block has no SIS parent, so an LMS-only school
+  // provisions its classroom devices from the web app's Organization tab.
+  { key: 'kiosk', module: 'kiosk', surfaces: ['console', 'learning'], Component: KioskDevicesCard },
   { key: 'help-video', surfaces: ['console', 'learning'], Component: HelpVideoCard },
   { key: 'pillars', surfaces: ['learning'], Component: PillarsCard },
   { key: 'step-printing', surfaces: ['console', 'learning'], Component: StepPrintingCard },

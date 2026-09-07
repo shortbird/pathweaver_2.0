@@ -83,6 +83,14 @@ describe('moduleEnabled', () => {
     expect(moduleEnabled(o, 'transcripts')).toBe(false)
   })
 
+  it('kiosk is a platform block: on without sis, from either key', () => {
+    expect(moduleEnabled(org({}), 'kiosk')).toBe(false)
+    expect(moduleEnabled(org({ kiosk: true }), 'kiosk')).toBe(true)
+    expect(moduleEnabled(org({ modules: { kiosk: true } }), 'kiosk')).toBe(true)
+    expect(moduleEnabled(org({ kiosk: true, modules: { kiosk: false } }), 'kiosk')).toBe(false)
+    expect(effectiveModules(org({ kiosk: true }))).not.toContain('sis')
+  })
+
   it('unknown key fails loudly', () => {
     expect(() => moduleEnabled(org({}), 'not_a_module')).toThrow(/Unknown module key/)
   })

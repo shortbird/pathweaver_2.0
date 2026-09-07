@@ -1,6 +1,10 @@
-# Gunicorn configuration for memory-optimized deployment
-# Designed for 512MB memory limit on Render Starter plan
-# ALL settings configurable via environment variables
+# Gunicorn configuration for the Optio backend.
+# ALL settings configurable via environment variables.
+#
+# This file used to say "designed for 512MB memory limit on Render Starter
+# plan". Both prod backends have run on Pro (4GB, 2 instances) since the
+# 2026-08-10 rebuild, and the stale ceiling is why the concurrency settings
+# below were as tight as they were.
 
 import logging
 import multiprocessing
@@ -19,8 +23,27 @@ backlog = int(os.getenv('GUNICORN_BACKLOG', '128'))
 workers = int(os.getenv('GUNICORN_WORKERS', '2'))
 worker_class = os.getenv('GUNICORN_WORKER_CLASS', 'sync')
 worker_connections = int(os.getenv('GUNICORN_WORKER_CONNECTIONS', '100'))
-threads = int(os.getenv('GUNICORN_THREADS', '2'))
-max_requests = int(os.getenv('GUNICORN_MAX_REQUESTS', '1000'))
+# Gunicorn silently swaps the sync worker for gthread when threads > 1, so
+# THREADS is the real per-worker concurrency. Total in-flight requests across
+# the fleet = numInstances x workers x threads: at 2 x 2 x 2 that was EIGHT,
+# and every request past it queued in the backlog before touching a handler.
+# Measured on 2026-09-07 against /api/health (a no-op route, so all of it is
+# queueing): p50 0.26s at concurrency 1, 0.60s at 32, and 1.48s max during the
+# 10am MDT school-start peak, when Supabase request volume runs ~6x the
+# overnight floor. An iCreate admin reported the platform as "sluggish".
+#
+# Threads are the right axis to widen: this backend is I/O-bound (it waits on
+# PostgREST and, on the AI routes, on Gemini for up to ~98s per request), so
+# the slots are almost always parked on a socket rather than burning CPU. 8
+# threads takes the fleet to 32 concurrent requests for no extra interpreter.
+threads = int(os.getenv('GUNICORN_THREADS', '8'))
+# Raised with threads, deliberately. max_requests recycles a worker to bound
+# leaks, but it counts REQUESTS, so 4x the per-worker concurrency means 4x the
+# recycle rate at the same traffic -- and with preload_app off each restart
+# re-imports the whole app. On 2026-09-07, two days after the last deploy,
+# every worker in the fleet was under an hour old. 4000 keeps the recycle
+# interval roughly where 1000 put it before this change.
+max_requests = int(os.getenv('GUNICORN_MAX_REQUESTS', '4000'))
 max_requests_jitter = int(os.getenv('GUNICORN_MAX_REQUESTS_JITTER', '50'))
 
 # Timeout settings - CONFIGURABLE

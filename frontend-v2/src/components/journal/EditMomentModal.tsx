@@ -21,6 +21,7 @@ import {
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
+import { describeMediaError } from '@/src/utils/mediaErrors';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
@@ -247,12 +248,26 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
   // via onUploadComplete), so we leave the modal open and just confirm.
   const handleAddEvidence = async () => {
     if (!event) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      quality: 0.8,
-      allowsMultipleSelection: true,
-      selectionLimit: 10,
-    });
+    // onPress gets this async function directly, so a throw from the native
+    // picker became an unhandled rejection and the button looked dead. The
+    // usual cause is an iCloud photo that is not on the device
+    // (Sentry OPTIO-MOBILE-Q), which needs its own instruction.
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: 10,
+      });
+    } catch (err) {
+      const copy = describeMediaError(err, {
+        title: 'Error',
+        message: 'Could not open your photos. Please try again.',
+      });
+      if (copy) showAlert(copy.title, copy.message);
+      return;
+    }
     if (result.canceled || !result.assets?.length) return;
     setAddingEvidence(true);
     try {

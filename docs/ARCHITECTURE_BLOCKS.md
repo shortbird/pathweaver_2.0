@@ -113,7 +113,7 @@ features into fake toggles or merge real toggles into fake features. So:
 | `reports` | on | Reports & Exports | parent `sis`, `min_tier: admin` |
 | `community` | off | Community Hub, Family Directory | parent `sis`; = today's `community_enabled` |
 | `prior_learning` | off | Prior Learning | parent `sis`; = today's `prior_learning_enabled` — already gated full-stack, the template this design generalizes |
-| `kiosk` | off | Kiosk Check-In | parent `sis`; = today's flat `kiosk` flag |
+| `kiosk` | off | Kiosk Check-In | **no parent** (core LMS surfaces only, so an LMS-only school can run it; lost its `sis` parent 2026-09-07); = today's flat `kiosk` flag |
 
 **Tuition** (inside `billing`) additionally declares `requires_any: (clp, goals)` —
 the tuition-approval queue keys on CLP/goal completion, and today a Goals-mode org
@@ -633,7 +633,7 @@ Tier shown where above `staff`. Superadmin sees each org exactly as configured.
 | calendar / resources / training | — | F M | — | C | C | C | — |
 | reports | — | — | — | — | C | C | C |
 | community | — | F (hub, directory) | — | C | C | C | — |
-| kiosk | shared device | — | — | C setup | C | C | — |
+| kiosk | shared device | — | — | C L setup | C | C L | — |
 
 ### 8.B Legacy gate → target compatibility table
 
@@ -643,7 +643,7 @@ Tier shown where above `staff`. Superadmin sees each org exactly as configured.
 | `sis_settings.hidden_modules` | `modules[k] = false` per listed key | backfill; array left in place until old bundles age out |
 | `sis_settings.community_enabled` | `modules.community` | backfill where true |
 | `sis_settings.prior_learning_enabled` | `modules.prior_learning` | backfill; backend check swaps to `module_enabled` |
-| `kiosk` (flat) | `modules.kiosk` | backfill; `routes/kiosk.py` gets `module_guard` |
+| `kiosk` (flat) | `modules.kiosk` | done 2026-09-07: `routes/kiosk.py` calls `module_enabled` inline (the roster/login routes resolve the org from the device token, which the caller-based blueprint guard cannot) |
 | `post_registration_flow: 'goals'` | `modules.goals = true` (+ `modules.clp = false` where applicable) | enum stays as the family-flow setting during transition |
 | `registration` / `icreate_registration` (config dict) | unchanged (config, not toggle) | dual-key collapse is its own P4 step |
 | `ai_features_enabled` + 3 columns | stay columns; registry bridges via `gate: 'ai_columns'` | none |

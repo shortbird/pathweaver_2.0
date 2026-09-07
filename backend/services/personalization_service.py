@@ -25,10 +25,18 @@ from services.task_library_service import TaskLibraryService
 # Challenge levels (UI: Easier / Standard / Challenge). Each level defines the
 # XP anchor that _enforce_xp_distribution holds 50% of tasks to, the min/max
 # clamp applied to AI-returned XP, and the range quoted in the prompt.
+#
+# Challenge is deliberately a FLAT 200, not a band. It used to anchor at 150
+# and clamp 50-200, which made a Challenge batch land mostly on 150 with
+# scattered 75s, 125s and 175s -- so the students who pick Challenge because
+# they want the hardest work regenerated the batch, or clicked the difficulty
+# dial up on every task, until the numbers read 200. Picking Challenge is
+# already the request for the top of the range; making it mean one number
+# removes the regeneration loop (and the AI spend behind it).
 CHALLENGE_LEVELS = {
     'easier': {'anchor': 75, 'min_xp': 25, 'max_xp': 100, 'range_text': '50-100'},
     'standard': {'anchor': 100, 'min_xp': 25, 'max_xp': 150, 'range_text': '50-150'},
-    'challenge': {'anchor': 150, 'min_xp': 50, 'max_xp': 200, 'range_text': '100-200'},
+    'challenge': {'anchor': 200, 'min_xp': 200, 'max_xp': 200, 'range_text': '200'},
 }
 DEFAULT_CHALLENGE_LEVEL = 'standard'
 
@@ -60,7 +68,8 @@ class TaskCacheService(BaseService):
         cross_curricular: List[str],
         exclude_tasks: List[str] = None,
         challenge_level: str = None,
-        student_context: str = None
+        student_context: str = None,
+        strict_subjects: bool = False
     ) -> str:
         """Build a cache key from interests, cross-curricular subjects, the
         set of tasks the student already has, the challenge level, and the
@@ -82,6 +91,11 @@ class TaskCacheService(BaseService):
         different student who happens to pick the same interests. Students
         with no context (None) are keyed WITHOUT a context segment, keeping
         pre-existing cache entries valid for them.
+
+        strict_subjects is part of the key for the same reason challenge_level
+        is: a strict request must never be served the mixed-subject batch a
+        previous non-strict request cached. False is keyed WITHOUT a segment so
+        pre-existing entries stay valid.
         """
         combined = sorted(interests) + sorted(cross_curricular)
         if exclude_tasks:
@@ -90,6 +104,8 @@ class TaskCacheService(BaseService):
             combined += [f'level:{challenge_level}']
         if student_context:
             combined += ['context:' + hashlib.md5(student_context.encode()).hexdigest()]
+        if strict_subjects:
+            combined += ['strict_subjects']
         key_str = '|'.join(combined)
         return hashlib.md5(key_str.encode()).hexdigest()
 
@@ -243,7 +259,8 @@ class PersonalizationService(BaseService):
         additional_feedback: str = '',
         vision_statement: str = '',
         age_band: str = None,
-        challenge_level: str = None
+        challenge_level: str = None,
+        strict_subjects: bool = False
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching.
 
@@ -254,6 +271,12 @@ class PersonalizationService(BaseService):
         scope/rigor of the whole batch and its XP band. It composes with
         age_band: difficulty is expressed relative to the learner's age, and
         the age band's reading-level rules always win.
+
+        strict_subjects makes cross_curricular_subjects exclusive rather than
+        preferred: every task pays 100% of its XP into the chosen subjects and
+        nothing else. Without it the prompt only asks for a 70% majority, which
+        is why a student working through their last Fine Arts credit kept
+        getting half-Fine-Arts tasks and could not tell how close they were.
         """
         challenge_level = challenge_level or DEFAULT_CHALLENGE_LEVEL
         try:
@@ -307,7 +330,8 @@ class PersonalizationService(BaseService):
             cache_key = self.cache.build_cache_key(
                 interests, cross_curricular_subjects, exclude_tasks,
                 challenge_level=challenge_level,
-                student_context=student_context
+                student_context=student_context,
+                strict_subjects=strict_subjects
             )
 
             # Skip cache if we have exclude_tasks (i.e. the quest already has
@@ -364,7 +388,8 @@ class PersonalizationService(BaseService):
                 age_band=age_band,
                 course_context=course_context,
                 challenge_level=challenge_level,
-                student_context=student_context
+                student_context=student_context,
+                strict_subjects=strict_subjects
             )
 
             # Generate tasks using AI service (falls back to alternate models on
@@ -386,7 +411,8 @@ class PersonalizationService(BaseService):
                 logger.info(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
 
             tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects,
-                                              challenge_level=challenge_level)
+                                              challenge_level=challenge_level,
+                                              strict_subjects=strict_subjects)
 
             # Debug: Log pillar values AFTER validation
             logger.info("[PERSONALIZATION] After validation:")
@@ -419,7 +445,15 @@ class PersonalizationService(BaseService):
             }
 
         except Exception as e:
-            logger.error(f"Error generating task suggestions: {e}")
+            # Transient upstream capacity is not a defect here, so it logs as a
+            # warning; the route classifies the same text again to pick the HTTP
+            # status. Logging both at error level made every Gemini blip a
+            # high-priority Sentry issue titled with the vendor's own message.
+            from services.base_ai_service import is_transient_ai_error
+            if is_transient_ai_error(e):
+                logger.warning(f"Transient AI error generating task suggestions: {e}")
+            else:
+                logger.error(f"Error generating task suggestions: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -690,6 +724,7 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         try:
             # Import subject classification service
             from services.subject_classification_service import SubjectClassificationService
+            from utils.subject_xp import get_subject_xp_distribution
             subject_service = SubjectClassificationService()
             # Use selected tasks directly if provided, otherwise get from session
             if selected_tasks:
@@ -737,6 +772,7 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
                 logger.info(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
 
                 # Handle diploma_subjects - ensure proper format
+                raw_diploma_subjects = task.get('diploma_subjects')
                 diploma_subjects = task.get('diploma_subjects', {})
                 if isinstance(diploma_subjects, list):
                     # Convert old array format to dict
@@ -747,19 +783,36 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
                 elif not isinstance(diploma_subjects, dict):
                     diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
-                # Generate subject XP distribution using AI
+                # The credit shown to the learner is the credit they get. The
+                # wizard renders diploma_subjects ("Diploma Credits: Social
+                # Studies (200 XP)") on the card the student accepts, so that
+                # split is a promise. Re-classifying here with a SECOND,
+                # independent Gemini call answered the same question from
+                # scratch and silently won at credit time, because
+                # get_subject_xp_distribution reads subject_xp_distribution
+                # first: three tasks accepted as 200 Social Studies each paid
+                # out 465 Social Studies + 60 Language Arts + 75 Financial
+                # Literacy between them. Fixed for accept-task and
+                # add-manual-tasks in 5af66544; this batch path was missed.
+                # Only classify when the task arrived with no subject of its own.
                 subject_xp_distribution = {}
-                try:
-                    subject_xp_distribution = subject_service.classify_task_subjects(
-                        title=task['title'],
-                        description=description,
-                        pillar=db_pillar,
-                        xp_value=task.get('xp_value', 100)
+                if raw_diploma_subjects:
+                    subject_xp_distribution = get_subject_xp_distribution(
+                        {'diploma_subjects': diploma_subjects},
+                        task.get('xp_value', 100)
                     )
-                    logger.info(f"Generated subject distribution for task '{task['title']}': {subject_xp_distribution}")
-                except Exception as e:
-                    logger.error(f"Failed to generate subject distribution for task '{task['title']}': {e}")
-                    # Continue without subject distribution - it will be null
+                else:
+                    try:
+                        subject_xp_distribution = subject_service.classify_task_subjects(
+                            title=task['title'],
+                            description=description,
+                            pillar=db_pillar,
+                            xp_value=task.get('xp_value', 100)
+                        )
+                        logger.info(f"Generated subject distribution for task '{task['title']}': {subject_xp_distribution}")
+                    except Exception as e:
+                        logger.error(f"Failed to generate subject distribution for task '{task['title']}': {e}")
+                        # Continue without subject distribution - it will be null
 
                 user_task = {
                     'user_id': user_id,
@@ -936,7 +989,8 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         age_band: str = None,
         course_context: Dict = None,
         challenge_level: str = None,
-        student_context: str = None
+        student_context: str = None,
+        strict_subjects: bool = False
     ) -> str:
         """Build AI prompt for personalized task generation.
 
@@ -955,9 +1009,23 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         student_context (optional) is the compact per-student block from
         utils.student_context (long-term direction, per-subject year goals,
         hobbies/interests). None leaves the prompt unchanged.
+
+        strict_subjects turns cross_curricular_subjects from a preference into
+        a hard constraint. _validate_tasks clamps the result either way -- the
+        prompt change is so the AI writes tasks that genuinely belong to those
+        subjects, rather than writing cross-curricular ones we then relabel.
         """
         challenge_level = challenge_level or DEFAULT_CHALLENGE_LEVEL
         level_cfg = _challenge_config(challenge_level)
+
+        # Challenge is a flat rate, so "50% at the anchor, the rest in a range"
+        # describes nothing. Say the one number instead.
+        if level_cfg['min_xp'] == level_cfg['max_xp']:
+            xp_lines = (f"2. EVERY task must be worth exactly {level_cfg['anchor']} XP\n"
+                        "3. Do not vary the XP between tasks; vary the work instead")
+        else:
+            xp_lines = (f"2. At least 50% of tasks should be worth exactly {level_cfg['anchor']} XP\n"
+                        f"3. Other tasks can range from {level_cfg['range_text']} XP based on complexity")
 
         quest_title = quest['title']
         quest_description = quest.get('big_idea') or quest.get('description', '')
@@ -1050,7 +1118,18 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
         # Build priority subjects text
         priority_subjects_instruction = ''
         if cross_curricular_subjects and cross_curricular_subjects != ['this subject only']:
-            priority_subjects_instruction = f"""
+            if strict_subjects:
+                priority_subjects_instruction = f"""
+HARD REQUIREMENT -- SUBJECT LOCK: The student is working toward diploma credit in these subjects ONLY: {subjects_text}
+- EVERY task must put 100% of its XP into those subjects. No exceptions, no variety tasks.
+- diploma_subjects may contain ONLY these subject names: {subjects_text}
+- Do not add a second subject "for balance". A writing-heavy history task is still
+  100% Social Studies here; label it that way.
+- If a task idea genuinely cannot pay into these subjects, do not generate it --
+  generate a different task that can.
+"""
+            else:
+                priority_subjects_instruction = f"""
 PRIORITY REQUIREMENT: The student specifically wants to earn diploma credits in these subjects: {subjects_text}
 - At least 70% of generated tasks MUST allocate the majority of their XP to the student's selected subjects
 - Each task aligned with selected subjects should have 60-100% of its XP going to those subjects
@@ -1151,8 +1230,7 @@ Student's Selected Diploma Subjects: {subjects_text}
 
 Generate 6-10 tasks that:
 {difficulty_line}
-2. At least 50% of tasks should be worth exactly {level_cfg['anchor']} XP
-3. Other tasks can range from {level_cfg['range_text']} XP based on complexity
+{xp_lines}
 4. Each task must be assigned to ONE of these pillars (use exact lowercase names):
    - stem
    - wellness
@@ -1211,15 +1289,31 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
         tasks: List[Dict],
         interests: List[str],
         cross_curricular: List[str],
-        challenge_level: str = None
+        challenge_level: str = None,
+        strict_subjects: bool = False
     ) -> List[Dict]:
         """Validate and enhance generated tasks.
 
         challenge_level bounds the XP clamp per level (easier caps at 100,
         standard at 150, challenge at 200) so a level's XP band survives
         validation instead of being flattened to the legacy 25-150 range.
+
+        strict_subjects drops any subject the student did not select from each
+        task's split and re-spreads the XP over what is left. The prompt asks
+        for this too, but a prompt is a request: the clamp is what lets the
+        wizard promise "only Fine Arts" and mean it.
         """
         level_cfg = _challenge_config(challenge_level)
+
+        # Selected subjects as (key, display name), for the strict clamp below.
+        allowed_subjects = []
+        if strict_subjects:
+            from utils.school_subjects import (
+                SCHOOL_SUBJECT_DISPLAY_NAMES, normalize_subject_key)
+            for raw in (cross_curricular or []):
+                key = normalize_subject_key(raw)
+                if key and key not in [k for k, _ in allowed_subjects]:
+                    allowed_subjects.append((key, SCHOOL_SUBJECT_DISPLAY_NAMES[key]))
 
         validated = []
         for task in tasks:
@@ -1252,6 +1346,32 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
             else:
                 logger.debug(f"[PILLAR VALIDATION] Task '{task.get('title', 'Unknown')}': pillar='{validated_pillar}' (no change)")
 
+            clamped_xp = max(level_cfg['min_xp'],
+                             self.ai_service._validate_xp(task.get('xp_value', 100),
+                                                          max_xp=level_cfg['max_xp']))
+
+            # Subject lock: keep only what the student asked for. A task the AI
+            # tagged Social Studies 175 / Financial Literacy 25 becomes Social
+            # Studies 200 -- the XP is not lost, it moves to a subject the
+            # student is actually trying to finish. When the AI ignored the
+            # instruction entirely, the whole task goes to the first selection.
+            if allowed_subjects:
+                allowed_keys = {k for k, _ in allowed_subjects}
+                kept = {
+                    name: xp for name, xp in diploma_subjects.items()
+                    if normalize_subject_key(name) in allowed_keys
+                    and isinstance(xp, (int, float)) and xp > 0
+                }
+                diploma_subjects = kept or {allowed_subjects[0][1]: clamped_xp}
+
+            # The clamp can move xp_value away from the total the AI split
+            # across subjects. Leaving the two out of step shows the learner a
+            # card whose subject amounts do not add up to its XP, so re-spread
+            # the same proportions over the clamped total.
+            if sum(v for v in diploma_subjects.values()
+                   if isinstance(v, (int, float))) != clamped_xp:
+                diploma_subjects = self._rescale_diploma_subjects(diploma_subjects, clamped_xp)
+
             validated_task = {
                 'title': task.get('title', 'Learning Task'),
                 'description': task.get('description', ''),
@@ -1259,9 +1379,7 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
                 'success_criteria': sanitize_success_criteria(task.get('success_criteria')),
                 'pillar': validated_pillar,
                 'diploma_subjects': diploma_subjects,
-                'xp_value': max(level_cfg['min_xp'],
-                                self.ai_service._validate_xp(task.get('xp_value', 100),
-                                                             max_xp=level_cfg['max_xp']))
+                'xp_value': clamped_xp
             }
             validated.append(validated_task)
 
@@ -1269,7 +1387,8 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
 
     def _enforce_xp_distribution(self, tasks: List[Dict], challenge_level: str = None) -> List[Dict]:
         """Ensure at least 50% of tasks sit at the challenge level's anchor XP
-        (Easier: 75, Standard: 100, Challenge: 150)."""
+        (Easier: 75, Standard: 100, Challenge: 200). Challenge clamps every task
+        to its anchor in _validate_tasks, so this is a no-op at that level."""
 
         anchor = _challenge_config(challenge_level)['anchor']
 
