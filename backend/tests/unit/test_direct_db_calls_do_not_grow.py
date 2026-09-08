@@ -183,10 +183,16 @@ BACKEND = Path(__file__).resolve().parents[2]
 BASELINES = {
     'routes': 2340,
     'services': 1828,
+    # 2026-09-08: 418 -> 439. ParentDigestRepository, which owns every read
+    # behind the weekly parent digest: the roster, both guardian links, the
+    # week's completions and the evidence documents under them, learning
+    # moments, and the class quests whose due date has passed. Twenty-one calls
+    # across eight tables, all of them new work, none of them above
+    # repositories/ — routes/ and services/ did not move.
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
-    'repositories': 418,
+    'repositories': 439,
     # 2026-09-07: 134 -> 135. Not growth -- pending_subjects_for_completion
     # moved here from routes/tasks/xp_helpers.py with its one query, because
     # PersonalizationService needs it and services must not import from

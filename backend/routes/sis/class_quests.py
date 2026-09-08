@@ -33,6 +33,7 @@ from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils.quest_completion import is_quest_done
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_notifications
@@ -933,21 +934,12 @@ def delete_preset_task(user_id, class_id, quest_id, task_id):
 def _is_done(user_quest, done, total):
     """Is this student finished with this quest, as a teacher means it?
 
-    `user_quests.completed_at` is NOT the answer on its own. Nothing on the
-    platform sets it automatically: finishing the last task only makes the
-    student's own app offer a celebration modal, and ending the quest there is
-    the student's choice — they are equally free to keep it open and add more
-    tasks ("The Process Is The Goal"). A student who finishes everything and
-    dismisses that modal leaves completed_at NULL forever.
-
-    Read literally, that left this grid saying "1/1" in amber for work that was
-    checked off everywhere else on the platform (Gryffin, 2026-09-02: "why
-    Presley's reading appreciation task doesn't say 'done' in the progress, but
-    is checked off everywhere else"). 35 enrollments across 7 orgs were in that
-    state. A teacher asking "is this student done" means every assigned task is
-    turned in, so answer that question instead.
+    The rule itself moved to utils/quest_completion.py when the weekly parent
+    digest needed it: a digest that counted late work differently from this
+    grid would tell a family something their teacher's screen contradicts.
+    Read the docstring there — it carries the postmortem.
     """
-    return bool(user_quest and user_quest.get('completed_at')) or (total > 0 and done >= total)
+    return is_quest_done(user_quest, done, total)
 
 
 @bp.route('/classes/<class_id>/progress', methods=['GET'])

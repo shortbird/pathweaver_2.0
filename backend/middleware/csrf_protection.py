@@ -132,6 +132,13 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'crm.sendgrid_events',
     'crm.funnel_sweep',
     'crm.calendar_poll',
+    # Weekly parent digest. Unsubscribe is gated by the signed per-user token
+    # and must work for a parent whose browser happens to carry auth cookies
+    # (same trap as the CRM one above), and for the mail client's one-click
+    # POST, which carries no session at all. The sweep requires X-Cron-Secret
+    # or a superadmin session.
+    'parent_digest.unsubscribe_perform',
+    'parent_digest.digest_sweep',
     # SendGrid Inbound Parse callback (reply-by-email into Optio messages).
     # Server-to-server, no session, and gated by a shared secret in the URL
     # that is compared in constant time. Listed here rather than relying on

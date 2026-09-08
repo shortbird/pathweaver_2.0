@@ -7,6 +7,7 @@ import QuickLinksCard from '../components/sis/QuickLinksCard'
 import KioskDevicesCard from '../components/sis/KioskDevicesCard'
 import SchoolLoginLinkCard from '../components/organization/SchoolLoginLinkCard'
 import HelpVideoCard from './cards/HelpVideoCard'
+import ParentDigestCard from './cards/ParentDigestCard'
 import PillarsCard from './cards/PillarsCard'
 import StepPrintingCard from './cards/StepPrintingCard'
 import { moduleEnabled } from '../modules/moduleEnabled'
@@ -42,6 +43,10 @@ export const SETTINGS_CARDS = [
   { key: 'time-blocks', module: 'classes', surfaces: ['console'], Component: TimeBlocksCard },
   { key: 'calendar-categories', module: 'calendar', surfaces: ['console'], Component: CalendarCategoriesCard },
   { key: 'quick-links', surfaces: ['console'], Component: QuickLinksCard },
+  // Console only, deliberately (owner's call, 2026-09-08): the weekly digest
+  // reports on class work with due dates, which is a school's business, and the
+  // people who decide whether a school emails its families sit in the SIS.
+  { key: 'parent-digest', module: 'classes', surfaces: ['console'], Component: ParentDigestCard },
   // Both surfaces: the kiosk block has no SIS parent, so an LMS-only school
   // provisions its classroom devices from the web app's Organization tab.
   { key: 'kiosk', module: 'kiosk', surfaces: ['console', 'learning'], Component: KioskDevicesCard },

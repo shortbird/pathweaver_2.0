@@ -74,6 +74,10 @@ def register_all(app):
     from routes.crm import bp as crm_bp
     app.register_blueprint(crm_bp)
 
+    # ── Weekly parent digest (public unsubscribe + the cron trigger) ──────────
+    from routes.parent_digest import bp as parent_digest_bp
+    app.register_blueprint(parent_digest_bp)
+
     from routes.demo import bp as demo_bp
     app.register_blueprint(demo_bp)
 

@@ -97,6 +97,14 @@ def main():
     # are all enforced server-side, so off-hours runs no-op cheaply.
     _run("crm-funnel-sweep", f"{base}/api/crm/internal/funnel-sweep", cron_secret, failures)
 
+    # Every run: weekly parent digest. The send day and hour belong to each
+    # school (in ITS timezone), so the window check has to happen server-side —
+    # a fixed UTC hour here would send Sunday's digest on Monday for half the
+    # country. Off for every org until an admin turns it on, and one row per
+    # parent per week means the six ticks inside the send hour send once.
+    _run("parent-weekly-digest", f"{base}/api/parent-digest/internal/sweep",
+         cron_secret, failures)
+
     # Hourly: Google Calendar booking poll (the "scheduled a video chat"
     # conversion trigger). No-ops until the calendar credential is configured.
     if now.minute < 10:

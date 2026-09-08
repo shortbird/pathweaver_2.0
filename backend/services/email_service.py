@@ -1721,6 +1721,245 @@ class EmailService(BaseService):
             }
         )
 
+    # ── Weekly parent digest ────────────────────────────────────────────────
+    #
+    # The renderer for services/parent_weekly_digest_service. Copy lives here,
+    # in one place, so the subject line and the body cannot drift apart.
+    #
+    # It shows no evidence media, ever. Student photos and video are in private
+    # buckets behind expiring signed URLs (utils/storage_urls); a live link in a
+    # forwarded email is a minor's work handed to a stranger. The email names the
+    # work, counts the media, and sends the parent to the app to see it — which
+    # is the honest version of the "download the app" ask.
+
+    APP_STORE_URL = 'https://apps.apple.com/us/app/optio-education/id6773061928'
+    PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.optioeducation.optio'
+
+    @staticmethod
+    def _digest_evidence_sentence(evidence: Dict[str, int]) -> Optional[str]:
+        """"4 photos, 1 video and 2 written notes" — or None when there is none."""
+        parts = []
+        for key, singular, plural in (
+            ('photos', 'photo', 'photos'),
+            ('videos', 'video', 'videos'),
+            ('files', 'file', 'files'),
+            ('links', 'link', 'links'),
+            ('reflections', 'written note', 'written notes'),
+        ):
+            count = (evidence or {}).get(key) or 0
+            if count:
+                parts.append(f"{count} {singular if count == 1 else plural}")
+        if not parts:
+            return None
+        if len(parts) == 1:
+            return parts[0]
+        return ', '.join(parts[:-1]) + f' and {parts[-1]}'
+
+    def _digest_subject(self, org_name: str, children: List[Dict[str, Any]]) -> str:
+        if len(children) == 1:
+            child = children[0]
+            count = len(child['tasks'])
+            if count:
+                word = 'task' if count == 1 else 'tasks'
+                return f"{child['name']}'s week at {org_name}: {count} {word} finished"
+            return f"{child['name']}'s week at {org_name}"
+        names = [c['name'] for c in children]
+        joined = ', '.join(names[:-1]) + f' and {names[-1]}'
+        return f"This week at {org_name}: {joined}"
+
+    def send_parent_weekly_digest(
+        self,
+        to_email: str,
+        parent_name: str,
+        org_name: str,
+        children: List[Dict[str, Any]],
+        unsubscribe_url: Optional[str] = None,
+    ) -> bool:
+        """One parent's weekly digest, covering every child they are linked to.
+
+        `children` entries carry: name, student_id, tasks[{title, quest, pillar,
+        xp}], xp, evidence{photos,videos,files,links,reflections}, moments[str],
+        late[{title, class_name, days_late, started}].
+        """
+        from services.parent_weekly_digest_service import MAX_LATE_SHOWN, MAX_TASKS_SHOWN
+
+        app_base = (Config.FRONTEND_URL or '').rstrip('/')
+        subject = self._digest_subject(org_name, children)
+
+        html_children, text_children = [], []
+        for child in children:
+            name = escape(child['name'])
+            tasks = child['tasks']
+            late = child['late']
+            # One child: link straight to that child's page. Several: the family
+            # home, where they pick. (Anchored on FRONTEND_URL, which is the app
+            # host — links built against the marketing host 404.)
+            child_url = f"{app_base}/parent/dashboard/{child['student_id']}"
+
+            rows = []
+            for task in tasks[:MAX_TASKS_SHOWN]:
+                context = ' · '.join(
+                    [p for p in (escape(task['quest']) if task.get('quest') else None,
+                                 escape(task['pillar']) if task.get('pillar') else None) if p]
+                )
+                rows.append(
+                    '<li style="margin-bottom:6px;">'
+                    f'<span style="color:#1f2937;">{escape(task["title"])}</span>'
+                    + (f'<br><span style="color:#6b7280;font-size:13px;">{context}</span>'
+                       if context else '')
+                    + '</li>'
+                )
+            more = len(tasks) - MAX_TASKS_SHOWN
+            if more > 0:
+                rows.append(f'<li style="color:#6b7280;">and {more} more</li>')
+
+            evidence = self._digest_evidence_sentence(child.get('evidence'))
+            moments = child.get('moments') or []
+
+            if tasks:
+                headline = (f'{name} finished {len(tasks)} '
+                            f'{"task" if len(tasks) == 1 else "tasks"} this week'
+                            + (f' and earned {child["xp"]} XP.' if child.get('xp') else '.'))
+            else:
+                headline = (f'{name} did not log any work this week. A short "show me what '
+                            'you are working on" is often all it takes.')
+
+            block = [
+                '<div style="border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:0 0 18px;">',
+                f'<h2 style="margin:0 0 10px;font-size:18px;color:#6D469B;">{name}</h2>',
+                f'<p style="margin:0 0 12px;font-size:15px;line-height:1.6;">{headline}</p>',
+            ]
+            if rows:
+                block.append(
+                    '<ul style="margin:0 0 12px;padding-left:20px;font-size:15px;line-height:1.5;">'
+                    + ''.join(rows) + '</ul>')
+            if evidence:
+                block.append(
+                    '<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#374151;">'
+                    f'They added {evidence}. The photos and video are in the Optio app '
+                    f'— <a href="{child_url}" style="color:#6D469B;">open {name}\'s page</a>.'
+                    '</p>')
+            if moments:
+                shown = ', '.join(escape(m) for m in moments[:3])
+                extra = len(moments) - 3
+                block.append(
+                    '<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#374151;">'
+                    f'Learning moments logged: {shown}'
+                    + (f' and {extra} more' if extra > 0 else '') + '.</p>')
+
+            if late:
+                items = []
+                for item in late[:MAX_LATE_SHOWN]:
+                    where = f' ({escape(item["class_name"])})' if item.get('class_name') else ''
+                    days = item.get('days_late')
+                    when = f' — {days} {"day" if days == 1 else "days"} past due' if days else ''
+                    items.append(f'<li style="margin-bottom:4px;">{escape(item["title"])}'
+                                 f'{where}<span style="color:#6b7280;">{when}</span></li>')
+                extra = len(late) - MAX_LATE_SHOWN
+                if extra > 0:
+                    items.append(f'<li style="color:#6b7280;">and {extra} more</li>')
+                block.append(
+                    '<div style="background:#f9fafb;border-radius:8px;padding:14px;margin-top:4px;">'
+                    '<p style="margin:0 0 8px;font-size:14px;font-weight:bold;color:#374151;">'
+                    'Still to finish</p>'
+                    '<ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.5;">'
+                    + ''.join(items) + '</ul></div>')
+            block.append('</div>')
+            html_children.append(''.join(block))
+
+            lines = [f"{child['name']}"]
+            if tasks:
+                lines.append(f"Finished {len(tasks)} task(s)"
+                             + (f", {child['xp']} XP" if child.get('xp') else ''))
+                lines += [f"  - {t['title']}" + (f" ({t['quest']})" if t.get('quest') else '')
+                          for t in tasks[:MAX_TASKS_SHOWN]]
+                if more > 0:
+                    lines.append(f"  - and {more} more")
+            else:
+                lines.append("No work logged this week.")
+            if evidence:
+                lines.append(f"Added {evidence}. See them in the Optio app: {child_url}")
+            if moments:
+                lines.append("Learning moments: " + ', '.join(moments[:3]))
+            if late:
+                lines.append("Still to finish:")
+                for item in late[:MAX_LATE_SHOWN]:
+                    days = item.get('days_late')
+                    lines.append(f"  - {item['title']}"
+                                 + (f" ({item['class_name']})" if item.get('class_name') else '')
+                                 + (f" — {days} day(s) past due" if days else ''))
+                if len(late) - MAX_LATE_SHOWN > 0:
+                    lines.append(f"  - and {len(late) - MAX_LATE_SHOWN} more")
+            text_children.append('\n'.join(lines))
+
+        family_url = (f"{app_base}/parent/dashboard/{children[0]['student_id']}"
+                      if len(children) == 1 else f"{app_base}/parent/dashboard")
+
+        html_body = f"""\
+<div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; color: #1f2937;">
+  <div style="background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); padding: 24px; border-radius: 12px 12px 0 0;">
+    <p style="margin: 0; color: rgba(255,255,255,0.85); font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">{escape(org_name)}</p>
+    <h1 style="margin: 6px 0 0; color: #ffffff; font-size: 22px;">This week</h1>
+  </div>
+  <div style="border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
+    <p style="font-size: 16px; margin: 0 0 18px;">Hi {escape(parent_name)},</p>
+    {''.join(html_children)}
+    <div style="background:#f5f3ff;border-radius:10px;padding:18px;margin:6px 0 18px;">
+      <p style="margin:0 0 6px;font-size:15px;font-weight:bold;color:#6D469B;">See the work itself in the app</p>
+      <p style="margin:0 0 12px;font-size:15px;line-height:1.6;">
+        Photos, video and written work stay behind your login, so they are not in this email.
+        The Optio app is the quickest way to look through them together, and to add a learning
+        moment when something happens outside school.
+      </p>
+      <p style="margin:0;">
+        <a href="{self.APP_STORE_URL}" style="text-decoration: none; display: inline-block; margin: 0 10px 8px 0;"><img src="https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png" alt="Download on the App Store" height="44" style="height: 44px; border: 0;"></a><a href="{self.PLAY_STORE_URL}" style="text-decoration: none; display: inline-block;"><img src="https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png" alt="Get it on Google Play" height="44" style="height: 44px; border: 0;"></a>
+      </p>
+    </div>
+    <p style="margin: 0 0 18px;">
+      <a href="{family_url}" style="display: inline-block; background: linear-gradient(90deg, #6D469B 0%, #EF597B 100%); color: #ffffff; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-weight: bold; font-size: 15px;">Open the full picture</a>
+    </p>
+    <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin: 0;">
+      This is a weekly note from {escape(org_name)}. Questions about the work itself are best
+      sent to your child's teacher.{
+        f' <a href="{unsubscribe_url}" style="color:#6b7280;">Stop these emails</a>.' if unsubscribe_url else ''
+      }
+    </p>
+  </div>
+</div>"""
+
+        text_body = (
+            f"Hi {parent_name},\n\n"
+            f"This week at {org_name}.\n\n"
+            + '\n\n'.join(text_children)
+            + "\n\nPhotos, video and written work stay behind your login, so they are not in "
+              "this email. The Optio app is the quickest way to look through them together:\n"
+              f"iOS: {self.APP_STORE_URL}\n"
+              f"Android: {self.PLAY_STORE_URL}\n\n"
+              f"The full picture: {family_url}\n\n"
+              f"This is a weekly note from {org_name}. Questions about the work itself are "
+              "best sent to your child's teacher.\n"
+            + (f"Stop these emails: {unsubscribe_url}\n" if unsubscribe_url else '')
+        )
+
+        headers = None
+        if unsubscribe_url:
+            headers = {
+                'List-Unsubscribe': f'<{unsubscribe_url}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            # Names a child and quotes their record. Never copied to support,
+            # whatever the per-org setting says.
+            contains_student_records=True,
+            categories=['transactional', 'parent-weekly-digest'],
+            headers=headers,
+        )
+
 
 # Create singleton instance
 email_service = EmailService()
