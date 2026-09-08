@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { PencilSquareIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
 
@@ -87,6 +87,24 @@ export default function PresetTaskManager({ base, orgId }) {
     }
   }
 
+  // iCreate, 2026-09-07 (4da3680d): "I'd also like to be able to duplicate
+  // tasks." Their tasks come in sets that differ by a word, and each one was a
+  // full retype of title, pillar and XP. The copy lands at the end of the list,
+  // which is where the server puts it -- not next to its source, so that the
+  // list the teacher is reading does not reshuffle under them.
+  const duplicate = async (taskId) => {
+    setSaving(true)
+    try {
+      const { data } = await api.post(`${base}/${taskId}/duplicate${q}`, {})
+      setTasks((prev) => [...prev, data.task])
+      toast.success('Task duplicated')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not duplicate the task')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const del = async (taskId) => {
     try {
       await api.delete(`${base}/${taskId}${q}`)
@@ -143,6 +161,10 @@ export default function PresetTaskManager({ base, orgId }) {
                     <>
                       <button onClick={() => startEdit(t)} className="shrink-0 p-1 text-gray-400 hover:text-optio-purple"
                         aria-label={`Edit ${t.title}`}><PencilSquareIcon className="w-4 h-4" /></button>
+                      <button onClick={() => duplicate(t.id)} disabled={saving}
+                        className="shrink-0 p-1 text-gray-400 hover:text-optio-purple disabled:opacity-50"
+                        title="Make a copy of this task at the end of the list"
+                        aria-label={`Duplicate ${t.title}`}><DocumentDuplicateIcon className="w-4 h-4" /></button>
                       <button onClick={() => del(t.id)} className="shrink-0 p-1 text-gray-400 hover:text-red-500"
                         aria-label="Remove task"><TrashIcon className="w-4 h-4" /></button>
                     </>

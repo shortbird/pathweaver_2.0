@@ -439,11 +439,19 @@ const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onC
             Staff must confirm they&apos;ve read it
           </label>
         )}
+        {/* "Staff", not "teacher". Pinned links reached only the teacher
+            dashboard until the coordinator and admin homes started rendering
+            them too, and this label kept promising a teacher portal — so the
+            office ticked Coordinators, went looking on a teacher's portal, and
+            reported the pin as broken (iCreate, 2026-09-01: "I selected show on
+            coordinators but it doesn't show on Katrine"). Who actually sees it
+            is whatever "Which staff" above says; the label now points at the
+            same thing rather than at one of the three homes. */}
         {f.audience !== 'families' && (
           <label className="flex items-center gap-2 text-sm text-neutral-700 pt-4"
-            title="Shows this link in a Links section on every teacher's home, between Today and My classes.">
+            title="Shows this link in a Links section on the home page of every staff member who can see it — teachers, coordinators and admins alike.">
             <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />
-            Pin to teacher home
+            Pin to staff home
           </label>
         )}
         {resource && f.requires_ack && (

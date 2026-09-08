@@ -14,6 +14,7 @@ import { isSisAdmin } from '../../pages/sis/sisRole'
 import { useSisOrg, withOrg } from '../../pages/sis/useSisOrg'
 import SearchSelect from '../ui/SearchSelect'
 import { classLabel } from './classLabel'
+import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
 
 /**
  * Compose an announcement to families/students/advisors. Reuses the existing
@@ -146,7 +147,19 @@ const AnnouncementComposer = () => {
   const loadHistory = useCallback(() => {
     if (!orgId) { setLoadingHistory(false); return }
     setLoadingHistory(true)
-    api.get('/api/announcements', { params: { organization_id: orgId } })
+    // On "View portal" this list has to be the TEACHER's, not the admin's.
+    // Without the id the server answers as the admin, who sees every
+    // announcement in the school, so the preview showed a send addressed to
+    // five named teachers while reading as a teacher who was not one of them
+    // (iCreate, 2026-08-31, 0a10f2ae). Same ?teacher_id= the rest of the
+    // portal uses; the server re-checks that the caller may ask.
+    const preview = getPreviewTeacher()
+    api.get('/api/announcements', {
+      params: {
+        organization_id: orgId,
+        ...(preview?.id ? { teacher_id: preview.id } : {}),
+      },
+    })
       .then((r) => { if (r.data?.success) setHistory(r.data.announcements || []) })
       .catch(() => { /* history is supplementary; stay silent */ })
       .finally(() => setLoadingHistory(false))

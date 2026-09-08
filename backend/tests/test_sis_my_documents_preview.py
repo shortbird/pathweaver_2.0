@@ -77,6 +77,7 @@ def _role_client(role='org_managed', org_role='org_admin'):
 @contextmanager
 def _as(client_mock, *, is_admin=True, sees_hr=True, org_role='org_admin'):
     with patch('database.get_supabase_admin_client', return_value=_role_client(org_role=org_role)), \
+         patch('services.sis_service.get_supabase_admin_client', return_value=client_mock), \
          patch('routes.sis.staff_portal.get_supabase_admin_client', return_value=client_mock), \
          patch('services.sis_service.resolve_org_id', return_value=ORG), \
          patch('services.sis_service.caller_is_admin', return_value=is_admin), \

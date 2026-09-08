@@ -38,10 +38,17 @@ import SisOrgPicker from './SisOrgPicker'
  *   class/teacher/age narrowing, optional email. A teacher's send stays scoped
  *   to their own classes by the backend.
  *
- * Under a teacher preview an admin still gets the admin view here: both thread
- * sources only ever answer for the CALLER (no ?teacher_id=), so a "faithful"
- * preview would show the admin's own DMs behind the teacher's name — the same
- * trap hideInPreview guards on My Tasks.
+ * Under a teacher preview the two halves differ, because only one of them CAN
+ * be faithful:
+ *   - Threads stay the admin's own. Both thread sources answer for the CALLER
+ *     and take no ?teacher_id=, so a "faithful" preview would show the admin's
+ *     own DMs behind the teacher's name — the trap hideInPreview guards on My
+ *     Tasks.
+ *   - Announcements are the previewed teacher's. GET /api/announcements does
+ *     take ?teacher_id=, and answering as the admin meant the preview showed
+ *     every announcement in the school — a send addressed to five named
+ *     teachers, read as a teacher who was not one of them (iCreate,
+ *     2026-08-31, 0a10f2ae). Where the preview can be honest it is.
  */
 const POLL_LIST_MS = 30000
 const POLL_THREAD_MS = 15000

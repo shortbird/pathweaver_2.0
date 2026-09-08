@@ -196,12 +196,38 @@ def list_announcements(user_id):
         if not org_id:
             return jsonify({'success': True, 'announcements': []})
 
+        # Whose view this is. An SIS admin on "View portal" is reading the
+        # teacher chrome and expects the teacher's answer, so the filter below
+        # runs against the PREVIEWED staff member: their role decides the
+        # audience token, their id decides the received-snapshot list.
+        # Without this the preview answered as the admin, and org_admin is in
+        # _ARCHIVE_SEES_ALL — so "as a teacher" showed every announcement in
+        # the school, including a send addressed to five named teachers read as
+        # a teacher who was not one of them (iCreate, 2026-08-31, 0a10f2ae).
+        # resolve_preview_target enforces the portal's rule: admin caller, target
+        # in the same org, reads only.
+        viewer_id = sis_service.resolve_preview_target(
+            user_id, org_id, request.args.get('teacher_id')) or user_id
+
         # Staff see everything; a student or parent calling this endpoint gets
         # the same audience filter the archive applies — without it, a
         # teachers-only notice was readable by any family that hit the API.
         caller = admin.table('users').select('role, org_role, org_roles')\
-            .eq('id', user_id).single().execute().data or {}
-        audience_token = _archive_audience_token(get_effective_role(caller), None)
+            .eq('id', viewer_id).single().execute().data or {}
+        # ?view_as, honoured exactly as the archive honours it. Without this
+        # the two routes answered the same caller differently: an admin
+        # previewing a teacher's portal reads this list, and org_admin is in
+        # _ARCHIVE_SEES_ALL, so the preview showed every announcement in the
+        # school -- including a send addressed to five named teachers, being
+        # read "as" a teacher who was not one of them (iCreate, 2026-08-31,
+        # 0a10f2ae: "I sent this announcement to only 5 teachers but it's
+        # showing up in my preview for a teacher I didn't send it to").
+        #
+        # It can only ever NARROW: _archive_audience_token returns a token for
+        # the previewed role, and a token means the audience filter runs where
+        # it previously did not.
+        audience_token = _archive_audience_token(get_effective_role(caller),
+                                                 request.args.get('view_as'))
         query = admin.table('announcements')\
             .select('id, title, message, target_audience, author_id, created_at, '
                     'last_nudged_at, source_announcement_id, in_app, attachments')\
@@ -218,7 +244,7 @@ def list_announcements(user_id):
                 f'and(target_audience.ilike.%{pgrst_pattern(audience_token)}%,'
                 f'is_targeted.eq.false)',
             ]
-            received = _received_announcement_ids(admin, user_id)
+            received = _received_announcement_ids(admin, viewer_id)
             if received:
                 clauses.append(f'id.in.({",".join(received)})')
             query = query.or_(','.join(clauses))

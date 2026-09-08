@@ -135,3 +135,135 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
         admin.table('quest_template_tasks').insert(cleaned).execute()
 
     return {'quest_id': quest_id, 'task_count': len(cleaned)}
+
+
+# ── Duplicating an existing quest ─────────────────────────────────────────────
+# iCreate, 2026-09-07 (45c7ced1): "Can I please duplicate quests so I don't have
+# to start over every time?" A school's quests are mostly variations on each
+# other -- the same shape of work with a different subject -- and the only way
+# to make the second one was to retype the first, tasks and all.
+#
+# The copy is ALWAYS org-owned, whatever the source was. That is what makes
+# duplicating an Optio-library quest safe and useful at the same time: the
+# school gets an editable quest of its own, and the shared original is not
+# touched. It is also why this cannot be a plain row copy -- is_public and
+# organization_id have to be forced, not inherited.
+
+# Copied verbatim onto the new quest. Everything absent from this list is
+# deliberately not copied: identity (id, created_*), anything that belongs to a
+# particular delivery of the quest (lms_*, lti_*, class_review_*), and the
+# lifecycle flags a copy should start clean on (archived_at, deactivated_at,
+# requires_review).
+_COPIED_QUEST_FIELDS = (
+    'description', 'big_idea', 'header_image_url', 'image_url',
+    'image_search_term', 'material_link', 'curriculum_content',
+    'topics', 'topic_primary', 'approach_examples', 'allow_custom_tasks',
+    'xp_threshold', 'transcript_subject', 'recommended_age', 'source_material',
+    'is_v3', 'quest_type', 'metadata',
+)
+
+_COPIED_TASK_FIELDS = (
+    'title', 'description', 'pillar', 'xp_value', 'is_required', 'ai_generated',
+)
+
+
+def copy_title(existing_titles, title):
+    """"Watercolor Basics" -> "Watercolor Basics (copy)", then "(copy 2)"...
+
+    Teachers duplicate the same quest more than once, and two rows with the same
+    name in the library is the thing that makes a duplicate feature useless.
+    """
+    base = (title or 'Untitled quest').strip()[:MAX_TITLE_LEN]
+    taken = {t.strip().lower() for t in existing_titles if t}
+    candidate = f'{base} (copy)'
+    n = 1
+    while candidate.strip().lower() in taken:
+        n += 1
+        candidate = f'{base} (copy {n})'
+    return candidate[:MAX_TITLE_LEN]
+
+
+def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
+    """Copy a quest and its preset tasks into a new quest owned by `org_id`.
+
+    Returns {'quest_id', 'title', 'task_count'}. Raises QuestAuthoringError.
+
+    The caller decides what the copy is attached to (a curriculum, a class),
+    exactly as with create_org_quest -- this writes the quest and its tasks and
+    nothing else.
+    """
+    rows = (admin.table('quests').select('*')
+            .eq('id', source_quest_id).limit(1).execute()).data
+    if not rows:
+        raise QuestAuthoringError('Quest not found.', 404)
+    source = rows[0]
+
+    if title:
+        new_title = (title or '').strip()[:MAX_TITLE_LEN]
+        if not new_title:
+            raise QuestAuthoringError('A quest title is required.')
+    else:
+        # Only this org's own titles: a library quest's name being taken
+        # somewhere else is not this school's problem.
+        mine = (admin.table('quests').select('title')
+                .eq('organization_id', org_id).execute()).data or []
+        new_title = copy_title([r.get('title') for r in mine], source.get('title'))
+
+    payload = {k: source.get(k) for k in _COPIED_QUEST_FIELDS if source.get(k) is not None}
+    payload.update({
+        'title': new_title,
+        # Forced, never inherited -- see the note above.
+        'organization_id': org_id,
+        'is_public': False,
+        'is_active': True,
+        'created_by': user_id,
+        'created_at': now_iso(),
+        'updated_at': now_iso(),
+    })
+    quest_row = admin.table('quests').insert(payload).execute().data
+    if not quest_row:
+        raise QuestAuthoringError('Could not duplicate the quest.', 500)
+    quest_id = quest_row[0]['id']
+
+    # Tasks after the quest row, for the same reason create_org_quest does it:
+    # a failure part-way leaves a reachable quest with fewer tasks, not orphans.
+    source_tasks = (admin.table('quest_template_tasks').select('*')
+                    .eq('quest_id', source_quest_id).order('order_index').execute()).data or []
+    copies = []
+    for i, t in enumerate(source_tasks):
+        copy = {k: t.get(k) for k in _COPIED_TASK_FIELDS}
+        copy.update({
+            'quest_id': quest_id,
+            # Renumbered from 0: the source's indexes can have gaps after
+            # deletes, and the copy has no reason to inherit them.
+            'order_index': i,
+            'created_at': now_iso(),
+            'updated_at': now_iso(),
+        })
+        copies.append(copy)
+    if copies:
+        admin.table('quest_template_tasks').insert(copies).execute()
+
+    return {'quest_id': quest_id, 'title': new_title, 'task_count': len(copies)}
+
+
+def duplicate_template_task(admin, source_task, quest_id):
+    """Copy one preset task to the end of `quest_id`. Returns the new row.
+
+    iCreate, 2026-09-07 (4da3680d): "I'd also like to be able to duplicate
+    tasks." Shared by the curriculum and class routes, which had two copies of
+    the "what is the next order_index" read already.
+    """
+    last = (admin.table('quest_template_tasks').select('order_index')
+            .eq('quest_id', quest_id).order('order_index', desc=True)
+            .limit(1).execute()).data
+    next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
+    copy = {k: source_task.get(k) for k in _COPIED_TASK_FIELDS}
+    copy.update({
+        'quest_id': quest_id,
+        'order_index': next_order,
+        'created_at': now_iso(),
+        'updated_at': now_iso(),
+    })
+    rows = admin.table('quest_template_tasks').insert(copy).execute().data
+    return rows[0] if rows else None

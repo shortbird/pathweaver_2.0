@@ -56,21 +56,20 @@ def _preview_target(user_id, org_id):
     preview in play (no ?teacher_id=, the caller's own id, a caller who is not
     an admin, or a target outside this org).
 
-    Split out from _read_target because "nobody is being previewed" and "a
-    preview was asked for and refused" are not the same answer everywhere: a
-    page that may not show someone else's data has to say so rather than
+    Kept as a name here because this module reads it a dozen times, but the
+    RULE moved to sis_service.resolve_preview_target when the announcements
+    list needed the same answer — the preview chrome reaches more than
+    /teacher/*, and two copies of an authorization check drift. This end owns
+    only where the id comes from.
+
+    Still split out from _read_target because "nobody is being previewed" and
+    "a preview was asked for and refused" are not the same answer everywhere:
+    a page that may not show someone else's data has to say so rather than
     quietly answer with the caller's own (see _documents_target).
     """
-    target = request.args.get('teacher_id') or \
+    requested = request.args.get('teacher_id') or \
         (request.get_json(silent=True) or {}).get('teacher_id')
-    if not target or target == user_id or not sis_service.caller_is_admin(user_id):
-        return None
-    # admin client justified: cross-user read to confirm the previewed teacher belongs to the caller's org; only reached after caller_is_admin passes
-    row = (get_supabase_admin_client().table('users').select('id, organization_id')
-           .eq('id', target).limit(1).execute()).data
-    if row and row[0].get('organization_id') == org_id:
-        return target
-    return None
+    return sis_service.resolve_preview_target(user_id, org_id, requested)
 
 
 def _read_target(user_id, org_id):

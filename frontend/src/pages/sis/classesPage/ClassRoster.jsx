@@ -73,7 +73,7 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
           && (e.response.data?.enrollment_waitlisted || e.response.data?.conflicts)) {
         setBusy(false)
         const msg = e.response.data.error
-          || 'This student is already enrolled in a class at the same time.'
+          || 'Another class meets at this time and already has this student.'
         if (await confirm(`${msg}\n\nAdd them anyway?`)) return add(true)
         return
       }

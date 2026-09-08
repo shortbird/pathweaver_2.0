@@ -145,6 +145,18 @@ BACKEND = Path(__file__).resolve().parents[2]
 #                                  own gating tests; the deletion of the daily
 #                                  advisor summary's routes gave one back, so
 #                                  routes/ nets +1.
+# routes/ 2333 -> 2337 on 2026-09-08, duplicating a quest and a task (iCreate
+# 45c7ced1, 4da3680d). The copying itself went into
+# services/sis_quest_authoring, beside create_org_quest, and adds nothing here.
+# What is left in routes/ is the attaching, which is what each route is for and
+# differs per screen:
+#   curriculum.py   +3  the curriculum's next sequence_order and the link row
+#                       for the copy (the same two writes create_curriculum_quest
+#                       makes directly above it), plus reading the source task
+#                       to be duplicated
+#   class_quests.py +1  reading the source task on the class-page twin
+# No repository owns sis_curriculum_quests or quest_template_tasks, and the
+# create/delete routes on either side of these read them the same way.
 # services/ 1826 -> 1827 on 2026-09-08. sis_billing_service.invoice_statuses:
 # the status of a named handful of invoices, so a screen that raised a charge
 # can say whether it landed. Written for the RSVP list on a calendar event
@@ -152,27 +164,25 @@ BACKEND = Path(__file__).resolve().parents[2]
 # paid. It lives here rather than in sis_event_rsvp_service because
 # sis_invoices belongs to this module, and reading the whole org ledger through
 # list_invoices to find a dozen rows is the alternative.
-# routes/ 2333 -> 2337 on 2026-09-08, +4 for the superadmin "email this message
-# to me" action:
-#   direct_messages.py      +3  email_message_to_me. The three reads ARE the
-#                               authorization, not the feature: the caller (is
-#                               this a superadmin?), the message (does it exist,
-#                               is it deleted?), and the other party (is the
-#                               caller even in this conversation?). The same
-#                               three reads forward_to_school makes twenty lines
-#                               above, in the same shape, for the same reason.
-#   push_subscriptions.py   +1  register_expo_token now deactivates a push token
-#                               for every OTHER account before claiming it. One
-#                               device, one signed-in account -- without it a
-#                               phone kept receiving the message previews of
-#                               every account that had ever signed in on it
-#                               (migration 20260908130000).
-# The feature itself -- minting the relay, rendering and sending the mail,
-# parsing an inbound reply -- is in services/message_email_relay_service, which
-# stays well under its own baseline.
+# routes/ 2337 -> 2340 on 2026-09-08. direct_messages.email_message_to_me, the
+# superadmin "email this message to me" action. Three reads, and they are the
+# authorization, not the feature: the caller (is this a superadmin?), the
+# message (does it exist, is it deleted?), and the other party in the thread
+# (is the caller even in this conversation?). They are the same three reads
+# forward_to_school makes twenty lines above, in the same shape, for the same
+# reason. The feature itself -- minting the relay, rendering and sending the
+# mail -- is in services/message_email_relay_service.
+# services/ 1827 -> 1828 on 2026-09-08. sis_service.resolve_preview_target
+# reads the previewed staff member's row to check they are in the caller's org
+# — the one query behind "View portal". It is not new work: it moved down out
+# of routes/sis/staff_portal.py (which drops by the same one) so the
+# announcements list could ask the same question, rather than growing a second
+# copy of an authorization check (iCreate 0a10f2ae). No repository owns `users`
+# at this granularity, and the neighbouring caller_is_admin reads it the same
+# way three lines below.
 BASELINES = {
-    'routes': 2337,
-    'services': 1827,
+    'routes': 2340,
+    'services': 1828,
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
@@ -227,7 +237,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2337 + 1827
+UPPER_TOTAL_BASELINE = 2340 + 1828
 
 
 def test_the_upper_layers_do_not_grow_in_total():

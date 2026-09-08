@@ -31,6 +31,7 @@ from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
+from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
@@ -39,6 +40,7 @@ from services.sis_quest_authoring import (
     QuestAuthoringError,
     clean_task as _clean_task,
     create_org_quest,
+    duplicate_template_task as _duplicate_template_task,
     norm_pillar as _norm_pillar,
 )
 from services.sis_curriculum_sync import assignable_quest_ids
@@ -866,6 +868,43 @@ def update_class_quest(user_id, class_id, quest_id):
                     'xp_threshold': xp_threshold})
 
 
+@bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>/duplicate',
+          methods=['POST'])
+@require_auth
+def duplicate_preset_task(user_id, class_id, quest_id, task_id):
+    """Copy one preset task to the end of the same quest.
+
+    The class-page twin of the curriculum route (routes/sis/curriculum.py); the
+    two screens share one task editor, so a button that worked in the library
+    and did nothing on a class would be the worse bug (iCreate, 2026-09-07:
+    "I'd also like to be able to duplicate tasks").
+    """
+    class_row, admin, quest, err = _authorize_editable_quest(user_id, class_id, quest_id)
+    if err:
+        return err
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+
+    rows = (admin.table('quest_template_tasks').select('*')
+            .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
+    if not rows:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+
+    row = _duplicate_template_task(admin, rows[0], quest_id)
+    if not row:
+        return jsonify({'success': False, 'error': 'Could not duplicate the task.'}), 500
+
+    # Same reason add_preset_task resyncs: a student's task list is a copy taken
+    # at enrollment, so a task added later reaches nobody without this.
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001 -- the duplicate itself succeeded
+        logger.warning(f'Task duplicated but enrollment resync failed for {quest_id}: {e}')
+
+    return jsonify({'success': True, 'task': _serialize_task(row)})
+
+
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
 @require_auth
 def delete_preset_task(user_id, class_id, quest_id, task_id):
@@ -965,9 +1004,14 @@ def class_student_progress(user_id, class_id):
                        .in_('user_id', student_ids).in_('quest_id', quest_ids).execute()).data or []
     uq_ids = [uq['id'] for uq in user_quests]
     if uq_ids:
-        tasks = (admin.table('user_quest_tasks')
-                 .select('id, user_quest_id, user_id, quest_id, title, xp_value')
-                 .in_('user_quest_id', uq_ids).execute()).data or []
+        # Paged: this is one row per task per student per assigned quest, so a
+        # full class crosses PostgREST's row cap without saying so. A truncated
+        # read drops the tail silently, and every cell built from it reports a
+        # smaller `total` than the student actually has — the grid would say a
+        # student is done when they are not (Sentry OPTIO-BACKEND-5T).
+        tasks = fetch_all_rows(lambda: admin.table('user_quest_tasks')
+                               .select('id, user_quest_id, user_id, quest_id, title, xp_value')
+                               .in_('user_quest_id', uq_ids))
     task_ids = [t['id'] for t in tasks]
     for chunk_start in range(0, len(task_ids), 200):  # keep the IN list sane
         chunk = task_ids[chunk_start:chunk_start + 200]

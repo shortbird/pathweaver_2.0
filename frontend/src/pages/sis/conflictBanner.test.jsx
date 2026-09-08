@@ -53,6 +53,62 @@ describe('ConflictBanner', () => {
     await waitFor(() => expect(onAcknowledge).toHaveBeenCalledWith(SEEN, false))
   })
 
+  /**
+   * iCreate, 2026-09-08 (04e30fca): "If all the class or teacher warnings are
+   * cleared, put the '## marked fine — show' at the bottom of the class list,
+   * and mark it as 'teachers double-booked' or whatever the title is."
+   *
+   * The acknowledgement fixed the false alarm and left a smaller version of the
+   * same problem: an amber block at the top of the page that only ever says
+   * nothing is wrong teaches the office to scroll past the banner, which is
+   * exactly what the next real warning needs them not to do.
+   */
+  describe('once every warning has been waved off', () => {
+    it('names itself, since it no longer sits under a heading', () => {
+      render(
+        <ConflictBanner title="Teacher double-booked" render={() => 'x'} only="settled"
+          conflicts={[]} acknowledged={[SEEN]} canAcknowledge onAcknowledge={vi.fn()} />)
+      expect(screen.getByText(/Teacher double-booked/)).toBeInTheDocument()
+      expect(screen.getByText(/1 marked fine/)).toBeInTheDocument()
+    })
+
+    it('drops the alarm colours', () => {
+      const { container } = render(
+        <ConflictBanner title="Room double-booked" render={() => 'x'} only="settled"
+          conflicts={[]} acknowledged={[SEEN]} canAcknowledge onAcknowledge={vi.fn()} />)
+      expect(container.querySelector('.bg-amber-50')).toBeNull()
+    })
+
+    it('still opens, and still puts one back', async () => {
+      const onAcknowledge = vi.fn(async () => {})
+      render(
+        <ConflictBanner title="Room double-booked" render={(c) => c.class_b} only="settled"
+          conflicts={[]} acknowledged={[SEEN]} canAcknowledge onAcknowledge={onAcknowledge} />)
+      fireEvent.click(screen.getByText(/1 marked fine/))
+      fireEvent.click(screen.getByLabelText(/^Warn me again:/))
+      await waitFor(() => expect(onAcknowledge).toHaveBeenCalledWith(SEEN, false))
+    })
+  })
+
+  // The two halves are drawn in different places on the page, so each must be
+  // able to render without the other.
+  it('draws only the live warnings when asked for live', () => {
+    render(
+      <ConflictBanner title="Room double-booked" render={(c) => c.class_b} only="live"
+        conflicts={[ROOM]} acknowledged={[SEEN]} canAcknowledge onAcknowledge={vi.fn()} />)
+    expect(screen.getByText(/Brain Games 5-7/)).toBeInTheDocument()
+    expect(screen.queryByText(/marked fine/)).not.toBeInTheDocument()
+  })
+
+  it('draws nothing for settled while warnings are still live', () => {
+    // Otherwise the foot of the class list grows a second empty box on every
+    // page that still has a real warning at the top.
+    const { container } = render(
+      <ConflictBanner title="Room double-booked" render={() => 'x'} only="settled"
+        conflicts={[ROOM]} acknowledged={[]} canAcknowledge onAcknowledge={vi.fn()} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('shows nothing at all when there is nothing to say', () => {
     const { container } = render(
       <ConflictBanner title="Room double-booked" render={() => 'x'}

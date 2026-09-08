@@ -43,6 +43,8 @@ from services import sis_service
 from services.sis_quest_authoring import (
     QuestAuthoringError,
     create_org_quest,
+    duplicate_org_quest,
+    duplicate_template_task as _duplicate_template_task,
     clean_task as _clean_task,
     norm_pillar as _norm_pillar,
 )
@@ -757,6 +759,55 @@ def update_curriculum_quest(user_id, curriculum_id, quest_id):
     }})
 
 
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/duplicate', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_curriculum_quest(user_id, curriculum_id, quest_id):
+    """Copy a quest, its tasks and all, onto the end of this curriculum.
+
+    iCreate, 2026-09-07: "Can I please duplicate quests so I don't have to start
+    over every time?" Their quests are variations on each other and the only way
+    to make the second one was to retype the first.
+
+    Deliberately allowed on an Optio-library quest as well as the school's own:
+    the copy is org-owned either way (services/sis_quest_authoring forces that),
+    so this is also how a school takes a library quest and makes it theirs to
+    edit -- which the library quest itself never permits.
+
+    The copy is NOT pushed to the curriculum's classes. A duplicate is a draft
+    the admin is about to edit; pushing it would put a half-named quest in front
+    of students before anyone had touched it.
+    """
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    try:
+        created = duplicate_org_quest(
+            _admin(),
+            org_id=org_id,
+            user_id=user_id,
+            source_quest_id=quest_id,
+            title=data.get('title'),
+        )
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+
+    existing = (_admin().table('sis_curriculum_quests').select('sequence_order')
+                .eq('curriculum_id', curriculum_id)
+                .order('sequence_order', desc=True).limit(1).execute()).data
+    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
+    _admin().table('sis_curriculum_quests').insert({
+        'curriculum_id': curriculum_id,
+        'quest_id': created['quest_id'],
+        'sequence_order': next_order,
+        'added_by': user_id,
+    }).execute()
+
+    return jsonify({'success': True, 'quest_id': created['quest_id'],
+                    'title': created['title'], 'task_count': created['task_count']})
+
+
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/delete', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_curriculum_quest(user_id, curriculum_id, quest_id):
@@ -878,6 +929,42 @@ def update_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
         return jsonify({'success': False, 'error': 'Task not found.'}), 404
     _resync_template(quest_id)
     return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
+
+
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>/duplicate',
+          methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def duplicate_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
+    """Copy one preset task to the end of the same quest.
+
+    iCreate, 2026-09-07: "I'd also like to be able to duplicate tasks." Their
+    tasks come in sets that differ by a word -- "Sketch your design", "Sketch
+    your second design" -- and each one was a full retype of title, pillar and
+    XP.
+
+    The copy keeps the original's title. A task list is read inside one quest
+    where the duplicate sits directly below its source, so "(copy)" would be
+    noise the admin has to delete on the way to editing it -- unlike a quest,
+    which is picked out of a library list by name alone.
+    """
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+    if _bad_uuid(task_id):
+        return jsonify({'success': False, 'error': 'Invalid task id'}), 400
+
+    rows = (_admin().table('quest_template_tasks').select('*')
+            .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
+    if not rows:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+
+    row = _duplicate_template_task(_admin(), rows[0], quest_id)
+    if not row:
+        return jsonify({'success': False, 'error': 'Could not duplicate the task.'}), 500
+    _resync_template(quest_id)
+    return jsonify({'success': True, 'task': _serialize_template_task(row)})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])

@@ -405,7 +405,7 @@ export default function ClassQuestsManager({ classId }) {
                 tasks={newTasks} setTasks={setNewTasks}
                 titlePlaceholder="Quest title (e.g. Watercolor Basics)"
                 descriptionPlaceholder="What is this quest about? (optional)"
-                taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own."
+                taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a student can mark it done."
               />
               <div className="flex justify-end">
                 <button onClick={createNew} disabled={creating || !newTitle.trim()}

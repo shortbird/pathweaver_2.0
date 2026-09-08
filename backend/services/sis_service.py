@@ -931,6 +931,42 @@ def is_placeholder_staff_email(email: Optional[str]) -> bool:
     return bool(email) and email.strip().lower().endswith(PLACEHOLDER_EMAIL_SUFFIX)
 
 
+def resolve_preview_target(caller_id: str, org_id: str, requested_id):
+    """Who an SIS admin on "View portal" is allowed to read as, or None.
+
+    None means "answer as the caller", and covers every refusal as well as the
+    ordinary case: nothing requested, the caller's own id, a caller who is not
+    an admin, and a target outside the caller's organization. A refusal falls
+    back rather than erroring, because the admin's own page must still render.
+
+    The Staff page's "View portal" sends the target as ?teacher_id=. This
+    function is deliberately free of the request object: the route reads the
+    parameter and passes it, so the same rule can serve endpoints that name it
+    differently, and so it can be tested without a request context.
+
+    It lives here rather than in the portal blueprint because it now answers
+    for more than one: routes/sis/staff_portal.py and the announcements list,
+    which the preview chrome also reaches. Answering as the ADMIN there is what
+    put a send addressed to five named teachers in front of a teacher who was
+    not one of them (iCreate, 2026-08-31, 0a10f2ae). Two copies of an
+    authorization check drift, and the one that drifts is the unwatched one.
+
+    Reads only. Clocking in, submitting a form and checking off an item stay
+    bound to the caller -- those writes would land on the wrong person.
+    """
+    if not requested_id or requested_id == caller_id:
+        return None
+    if not caller_is_admin(caller_id):
+        return None
+    # admin client justified: cross-user read to confirm the previewed staff
+    # member belongs to the caller's org; only reached after caller_is_admin.
+    row = (get_supabase_admin_client().table('users').select('id, organization_id')
+           .eq('id', requested_id).limit(1).execute()).data
+    if row and row[0].get('organization_id') == org_id:
+        return requested_id
+    return None
+
+
 def caller_is_admin(user_id: str) -> bool:
     """True for the tier that sees the whole SIS: superadmins, org_admins, and
     campus coordinators. Advisors (teachers) get the scoped teacher view instead.

@@ -598,10 +598,18 @@ def enroll_student(user_id, class_id):
             conflicts = []
         if conflicts:
             cnames = ', '.join(c.get('class_name', 'another class') for c in conflicts)
+            # Name the OTHER class as the roster they are on, not just as a
+            # time. "Already enrolled in X at the same time" was read as
+            # "already enrolled here", so the office looked at the roster in
+            # front of them, did not find the student, and reported the system
+            # as wrong (iCreate, 2026-09-08, 8b0bdea5: "what does it mean when
+            # it says they're enrolled but they're not actually on the
+            # roster?"). The sentence has to say whose roster.
             return jsonify({
                 'success': False,
                 'conflicts': conflicts,
-                'error': f'This student is already enrolled in {cnames} at the same time.',
+                'error': (f'{cnames} meets at this time and already has this student. '
+                          f'They are on that roster, not this one.'),
             }), 409
 
     existing = (

@@ -89,10 +89,23 @@ const roomConflictText = (c) => {
  */
 export const ConflictBanner = ({
   title, conflicts = [], acknowledged = [], render, canAcknowledge, onAcknowledge,
+  // Which half to draw. Once every warning has been waved off there is nothing
+  // to act on, and an amber block at the top of the page saying so is the same
+  // banner blindness the acknowledgement was meant to cure — so the page draws
+  // the leftovers underneath the class list instead (iCreate, 2026-09-08,
+  // 04e30fca: "if all the class or teacher warnings are cleared, put the
+  // '## marked fine — show' at the bottom of the class list, and mark it as
+  // 'teachers double-booked' or whatever the title is"). Default draws both,
+  // which is what a caller with live warnings wants.
+  only,
 }) => {
   const [showSeen, setShowSeen] = React.useState(false)
   const [busy, setBusy] = React.useState(null)
-  if (!conflicts.length && !acknowledged.length) return null
+  const live = only === 'settled' ? [] : conflicts
+  const seen = only === 'live' ? [] : acknowledged
+  if (!live.length && !seen.length) return null
+  // Nothing is wrong any more: a quiet line, not an alert.
+  const settled = !live.length
 
   const act = async (c, next) => {
     setBusy(c.key)
@@ -101,12 +114,14 @@ export const ConflictBanner = ({
   const rowKey = (c) => c.key || `${c.class_a_id}-${c.class_b_id}`
 
   return (
-    <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      {conflicts.length > 0 && (
+    <div className={settled
+      ? 'mt-6 rounded-lg border border-gray-200 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-600'
+      : 'mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900'}>
+      {live.length > 0 && (
         <>
           <p className="font-semibold mb-1">{title}</p>
           <ul className="space-y-1">
-            {conflicts.map((c) => (
+            {live.map((c) => (
               <li key={rowKey(c)} className="flex items-start gap-2">
                 <span className="flex-1">{render(c)}</span>
                 {canAcknowledge && c.key && (
@@ -122,15 +137,18 @@ export const ConflictBanner = ({
           </ul>
         </>
       )}
-      {acknowledged.length > 0 && (
-        <div className={conflicts.length ? 'mt-2 pt-2 border-t border-amber-200' : ''}>
+      {seen.length > 0 && (
+        <div className={live.length ? 'mt-2 pt-2 border-t border-amber-200' : ''}>
           <button type="button" onClick={() => setShowSeen((v) => !v)}
             className="text-xs underline hover:no-underline">
-            {acknowledged.length} marked fine{showSeen ? ' — hide' : ' — show'}
+            {/* Named when it stands alone: "2 marked fine" under a class list
+                says nothing about what was marked fine. */}
+            {settled ? `${title}: ` : ''}
+            {seen.length} marked fine{showSeen ? ' — hide' : ' — show'}
           </button>
           {showSeen && (
-            <ul className="mt-1 space-y-1 text-amber-800/80">
-              {acknowledged.map((c) => (
+            <ul className={`mt-1 space-y-1 ${settled ? 'text-neutral-500' : 'text-amber-800/80'}`}>
+              {seen.map((c) => (
                 <li key={rowKey(c)} className="flex items-start gap-2">
                   <span className="flex-1">{render(c)}</span>
                   {canAcknowledge && c.key && (
@@ -675,7 +693,7 @@ const ClassesPage = () => {
       {/* Teacher double-booking cross-check — advisory, so an intentional save
           still goes through; this just makes sure nobody finds out on the day. */}
       {tab === 'classes' && (
-        <ConflictBanner title="Teacher double-booked" render={conflictText}
+        <ConflictBanner title="Teacher double-booked" render={conflictText} only="live"
           conflicts={teacherConflicts} acknowledged={ackedTeacher}
           canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
       )}
@@ -684,7 +702,7 @@ const ClassesPage = () => {
           Separate banner rather than one merged list: they are fixed by
           different edits, and by different people. */}
       {tab === 'classes' && (
-        <ConflictBanner title="Room double-booked" render={roomConflictText}
+        <ConflictBanner title="Room double-booked" render={roomConflictText} only="live"
           conflicts={roomConflicts} acknowledged={ackedRoom}
           canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
       )}
@@ -760,6 +778,21 @@ const ClassesPage = () => {
             )
           ))}
         </div>
+      )}
+
+      {/* What the office has already looked at and accepted, under the list
+          rather than over it. Kept, and reversible, but out of the way — an
+          amber block at the top saying "nothing is wrong" is what teaches
+          everyone to scroll past the one that says something is (04e30fca). */}
+      {tab === 'classes' && !loading && (
+        <>
+          <ConflictBanner title="Teacher double-booked" render={conflictText} only="settled"
+            conflicts={teacherConflicts} acknowledged={ackedTeacher}
+            canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+          <ConflictBanner title="Room double-booked" render={roomConflictText} only="settled"
+            conflicts={roomConflicts} acknowledged={ackedRoom}
+            canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+        </>
       )}
 
       {creating && (

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   SparklesIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon,
-  PencilSquareIcon, TrashIcon,
+  PencilSquareIcon, TrashIcon, DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import CurriculumMaterials from './CurriculumMaterials'
@@ -190,7 +190,7 @@ function QuestCurricula({ base, orgId, curriculumId, onChanged, onMoved }) {
   )
 }
 
-function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChanged, onMoved }) {
+function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChanged, onMoved, onDuplicated }) {
   const confirm = useConfirm()
   const [detail, setDetail] = useState(null)   // { title, description, editable }
   const [editingInfo, setEditingInfo] = useState(false)
@@ -222,6 +222,23 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChang
       onRenamed?.(data.quest?.title)
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the quest')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // iCreate, 2026-09-07 (45c7ced1): "Can I please duplicate quests so I don't
+  // have to start over every time?" Offered on library quests too, not just the
+  // school's own -- the copy comes back org-owned, so this is also the only way
+  // to get an editable version of a library quest.
+  const duplicate = async () => {
+    setBusy(true)
+    try {
+      const { data } = await api.post(withOrg(`${base}/duplicate`, orgId), {})
+      toast.success(`Copied as "${data.title}"`)
+      onDuplicated?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not duplicate the quest')
     } finally {
       setBusy(false)
     }
@@ -290,14 +307,19 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChang
       <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId}
         onChanged={onChanged} onMoved={onMoved} />
 
-      {detail.editable && (
-        <div className="mt-2 pt-2 border-t border-gray-100 text-right">
+      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-3">
+        <button onClick={duplicate} disabled={busy}
+          className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-optio-purple hover:underline disabled:opacity-50"
+          aria-label={`Duplicate ${detail.title || quest.title}`}>
+          <DocumentDuplicateIcon className="w-3.5 h-3.5" /> Duplicate this quest
+        </button>
+        {detail.editable && (
           <button onClick={deleteOutright} disabled={busy}
             className="inline-flex items-center gap-1 text-xs text-red-500 hover:underline disabled:opacity-50">
             <TrashIcon className="w-3.5 h-3.5" /> Delete this quest entirely
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
@@ -471,6 +493,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                         onChanged?.()
                       }}
                       onChanged={onChanged}
+                      onDuplicated={() => { setExpandedId(null); load() }}
                       onMoved={(title) => {
                         setExpandedId(null)
                         saveQuests(quests.filter((x) => x.id !== q.id))
@@ -510,7 +533,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                   tasks={newTasks} setTasks={setNewTasks}
                   titlePlaceholder="Quest title (e.g. Watercolor Basics)"
                   descriptionPlaceholder="What is this quest about? (optional)"
-                  taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own."
+                  taskHint="Preset tasks are copied to each student when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a student can mark it done."
                 />
                 <div className="flex justify-end gap-2">
                   <button type="button" onClick={resetNew} disabled={creating}

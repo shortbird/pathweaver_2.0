@@ -120,7 +120,7 @@ class TestTeacherPreview:
 
     def test_admin_preview_returns_targets_data(self, client, auth_headers, mock_verify_token):
         with as_role('org_managed', org_role='org_admin', org_roles=['org_admin']), \
-             patch('routes.sis.staff_portal.get_supabase_admin_client',
+             patch('services.sis_service.get_supabase_admin_client',
                    return_value=self._org_user_lookup()), \
              patch('services.sis_service.caller_is_admin', return_value=True), \
              patch('services.sis_staff_service.teacher_classes', return_value=[]) as tc:
@@ -143,7 +143,7 @@ class TestTeacherPreview:
         lookup.table.return_value.execute.return_value = Mock(
             data=[{'id': 'teach-1', 'organization_id': 'org-OTHER'}])
         with as_role('org_managed', org_role='org_admin', org_roles=['org_admin']), \
-             patch('routes.sis.staff_portal.get_supabase_admin_client', return_value=lookup), \
+             patch('services.sis_service.get_supabase_admin_client', return_value=lookup), \
              patch('services.sis_service.caller_is_admin', return_value=True), \
              patch('services.sis_staff_service.teacher_classes', return_value=[]) as tc:
             client.get('/api/sis/teacher/classes?organization_id=org-1&teacher_id=teach-1',

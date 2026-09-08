@@ -149,7 +149,13 @@ export default function QuestDraftForm({
   title, setTitle, description, setDescription, tasks, setTasks,
   titlePlaceholder = 'Quest title',
   descriptionPlaceholder = 'What is this quest about?',
-  taskHint = 'Preset tasks are copied to each learner when they start the quest. Leave it empty and they write their own.',
+  // Says that evidence is required. It always has been — the completion
+  // endpoint refuses a task with nothing behind it — but nothing on the
+  // authoring screen said so, so a teacher writing a quest concluded it
+  // would not be asked for (iCreate, 2026-09-05, c7615777: "the quests
+  // aren't asking for any evidence to be uploaded. We do need that!").
+  // The answer belongs where the question is asked, not in a support reply.
+  taskHint = 'Preset tasks are copied to each learner when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a learner can mark it done.',
   addLabel,
   showPillars = true,
 }) {
