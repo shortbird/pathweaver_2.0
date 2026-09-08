@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import QuestDetail from './QuestDetail'
+import { ConfirmProvider } from '../contexts/ConfirmContext'
 
 const mockNavigate = vi.fn()
 let authState = {}
@@ -139,13 +140,15 @@ const mockQueryClient = new QueryClient({
 function renderQuestDetail(questId = 'quest-123') {
   return render(
     <QueryClientProvider client={mockQueryClient}>
-      <MemoryRouter initialEntries={[`/quests/${questId}`]}>
-        <Routes>
-          <Route path="/quests/:id" element={<QuestDetail />} />
-          <Route path="/login" element={<div>Login</div>} />
-          <Route path="/quests" element={<div>Quest List</div>} />
-        </Routes>
-      </MemoryRouter>
+      <ConfirmProvider>
+        <MemoryRouter initialEntries={[`/quests/${questId}`]}>
+          <Routes>
+            <Route path="/quests/:id" element={<QuestDetail />} />
+            <Route path="/login" element={<div>Login</div>} />
+            <Route path="/quests" element={<div>Quest List</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ConfirmProvider>
     </QueryClientProvider>
   )
 }
@@ -163,6 +166,7 @@ describe('QuestDetail', () => {
       refetchQuest: vi.fn(),
       enrollMutation: { mutate: vi.fn(), isPending: false },
       endQuestMutation: { mutate: vi.fn(), isPending: false },
+      reopenQuestMutation: { mutate: vi.fn(), isPending: false },
       isEnrolling: false,
       selectedTask: null,
       setSelectedTask: vi.fn(),
@@ -363,6 +367,100 @@ describe('QuestDetail', () => {
 
       renderQuestDetail()
       expect(screen.getByTestId('completed-badge')).toBeInTheDocument()
+    })
+  })
+
+  // --- Ending a quest ---
+  //
+  // A Hearthwood parent showing her daughter how to submit a biology lab ended
+  // the whole subject instead, four seconds after opening the task, with seven
+  // of nine tasks still to do. "End quest" fired on one tap with no warning,
+  // and once ended there was no way back from inside the app.
+  describe('ending and reopening a quest', () => {
+    const enrolledQuest = () => ({
+      id: 'quest-123',
+      title: 'High School Biology',
+      user_enrollment: { id: 'enrollment-1', quest_id: 'quest-123' },
+      completed_enrollment: null,
+      quest_tasks: [
+        { id: 'task-1', title: 'Unit 1 - Workbook', xp_value: 150, is_completed: true, pillar: 'stem_logic' },
+        { id: 'task-2', title: 'Unit 1 - Lab 1', xp_value: 150, is_completed: false, pillar: 'stem_logic' },
+        { id: 'task-3', title: 'Unit 1 - Test', xp_value: 200, is_completed: false, pillar: 'stem_logic' }
+      ],
+      has_template_tasks: false,
+      progress: { percentage: 33, completed_tasks: 1, total_tasks: 3 }
+    })
+
+    it('asks before ending, and says how many tasks are still unfinished', async () => {
+      questDetailData.quest = enrolledQuest()
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 1
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('End quest'))
+
+      await waitFor(() => {
+        expect(screen.getByText('End this quest?')).toBeInTheDocument()
+      })
+      expect(screen.getByText(/2 tasks are still unfinished/)).toBeInTheDocument()
+      expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+    })
+
+    it('does not end the quest when the person cancels', async () => {
+      questDetailData.quest = enrolledQuest()
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 1
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('End quest'))
+      await waitFor(() => expect(screen.getByText('Cancel')).toBeInTheDocument())
+      fireEvent.click(screen.getByText('Cancel'))
+
+      await waitFor(() => {
+        expect(questDetailData.endQuestMutation.mutate).not.toHaveBeenCalled()
+      })
+    })
+
+    it('ends the quest once confirmed', async () => {
+      questDetailData.quest = enrolledQuest()
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 1
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('End quest'))
+      await waitFor(() => expect(screen.getByText('Confirm')).toBeInTheDocument())
+      fireEvent.click(screen.getByText('Confirm'))
+
+      await waitFor(() => {
+        expect(questDetailData.endQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
+      })
+    })
+
+    it('offers a reopen button on a quest that was ended', async () => {
+      const quest = enrolledQuest()
+      quest.completed_enrollment = { id: 'enrollment-1' }
+      questDetailData.quest = quest
+      questDetailData.isQuestCompleted = true
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 1
+
+      renderQuestDetail()
+
+      const reopen = screen.getByText('Reopen this quest')
+      expect(reopen).toBeInTheDocument()
+      expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+
+      fireEvent.click(reopen)
+      expect(questDetailData.reopenQuestMutation.mutate).toHaveBeenCalledWith('quest-123', expect.any(Object))
+    })
+
+    it('does not offer reopen while the quest is still active', () => {
+      questDetailData.quest = enrolledQuest()
+      questDetailData.totalTasks = 3
+      questDetailData.completedTasks = 1
+
+      renderQuestDetail()
+      expect(screen.queryByText('Reopen this quest')).not.toBeInTheDocument()
     })
   })
 

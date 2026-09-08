@@ -14,6 +14,7 @@ import logging
 
 from app_config import Config
 from database import get_supabase_admin_client
+from utils.db_fetch import fetch_all_rows
 from utils.storage_urls import canonical_stored_url, sign_stored_url, sign_stored_urls
 
 logger = logging.getLogger(__name__)
@@ -170,8 +171,16 @@ class PortfolioService:
         return result.data or []
 
     def get_approved_tasks(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get all approved tasks for a user."""
-        result = self.client.table('user_quest_tasks').select('''
+        """Get all approved tasks for a user.
+
+        Paged: a portfolio is the record of everything a student has ever
+        finished, so this grows without bound over a multi-year enrolment. A
+        single request stops at PostgREST's row cap and says nothing about it,
+        which silently drops the oldest work off the diploma and out of the XP
+        totals computed from this list (Sentry OPTIO-BACKEND-5S, first hit on a
+        real account 2026-09-07).
+        """
+        return fetch_all_rows(lambda: self.client.table('user_quest_tasks').select('''
             id,
             title,
             pillar,
@@ -181,8 +190,7 @@ class PortfolioService:
             approval_status,
             updated_at,
             diploma_subjects
-        ''').eq('user_id', user_id).eq('approval_status', 'approved').execute()
-        return result.data or []
+        ''').eq('user_id', user_id).eq('approval_status', 'approved'))
 
     def get_task_completions(self, user_id: str) -> List[Dict[str, Any]]:
         """Get task completions with associated task info (legacy evidence source)."""
@@ -708,16 +716,21 @@ class PortfolioService:
 
         Returns:
             Dict mapping user_quest_id to task count
+
+        Paged, because the tally happens in Python: the row count is every task
+        across every quest passed in, so one request truncates at the cap and
+        the counts for whatever landed past the cut read as zero. That is the
+        enrollment-count bug shape exactly (see utils/db_fetch).
         """
         if not user_quest_ids:
             return {}
 
-        result = self.client.table('user_quest_tasks').select(
-            'user_quest_id'
-        ).in_('user_quest_id', user_quest_ids).execute()
+        rows = fetch_all_rows(lambda: self.client.table('user_quest_tasks').select(
+            'id, user_quest_id'
+        ).in_('user_quest_id', user_quest_ids))
 
         counts = {}
-        for task in (result.data or []):
+        for task in rows:
             uq_id = task.get('user_quest_id')
             if uq_id:
                 counts[uq_id] = counts.get(uq_id, 0) + 1

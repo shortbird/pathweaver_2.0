@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from './api/useQuests';
+import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest, useReopenQuest } from './api/useQuests';
 import { normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import toast from 'react-hot-toast';
@@ -33,6 +33,7 @@ export const useQuestDetailData = (questId) => {
   const enrollMutation = useEnrollQuest();
   const completeTaskMutation = useCompleteTask();
   const endQuestMutation = useEndQuest();
+  const reopenQuestMutation = useReopenQuest();
 
   // Loading states
   const isEnrolling = enrollMutation.isPending;
@@ -178,6 +179,7 @@ export const useQuestDetailData = (questId) => {
     enrollMutation,
     completeTaskMutation,
     endQuestMutation,
+    reopenQuestMutation,
 
     // Loading states
     isEnrolling,

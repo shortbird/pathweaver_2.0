@@ -296,3 +296,53 @@ class TestCancelAbsencesBatch:
     def test_unknown_ids_are_not_found(self):
         with patch.object(parent.absences, 'get_many', return_value=[]):
             assert parent.cancel_absences('g1', ['nope'])['error'] == 'Absence not found'
+
+
+@pytest.mark.unit
+class TestContextCarriesEffectiveModules:
+    """/context is the ungated call a family surface makes before it knows what
+    it may render, so it is the only place that can tell the frontend which
+    per-module parent endpoints are worth calling.
+
+    Without this, FamilyHome fired the onboarding/forms/billing reads for every
+    school regardless, and one with the block off logged a ModuleGate warning
+    per visit (Sentry OPTIO-BACKEND-81, Optio Academy hides `onboarding`).
+    """
+
+    @staticmethod
+    def _resolver_with_flags(flags):
+        def resolve(table, eq, in_):
+            if table == 'organizations':
+                return [{'id': 'org1', 'name': 'Micro School',
+                         'feature_flags': flags, 'ai_features_enabled': False}]
+            return _resolver(table, eq, in_)
+        return resolve
+
+    def _context(self, flags):
+        with patch('services.sis_parent_service.get_supabase_admin_client',
+                   return_value=_fake_admin(self._resolver_with_flags(flags))), \
+             patch('services.sis_parent_service.org_has_feature', return_value=True):
+            return parent.context('g1')
+
+    def test_a_hidden_module_is_absent_from_the_list(self):
+        ctx = self._context({'sis_enabled': True,
+                             'sis_settings': {'hidden_modules': ['onboarding']}})
+        modules = ctx['orgs'][0]['effective_modules']
+        assert 'onboarding' not in modules
+        assert 'sis' in modules
+
+    def test_an_enabled_module_is_present(self):
+        ctx = self._context({'sis_enabled': True})
+        assert 'onboarding' in ctx['orgs'][0]['effective_modules']
+
+    def test_a_non_sis_org_gets_only_core(self):
+        # The parent cascade: sis off silences every module under it.
+        modules = self._context({})['orgs'][0]['effective_modules']
+        assert 'sis' not in modules
+        assert 'onboarding' not in modules
+
+    def test_the_existing_payload_is_unchanged(self):
+        # Additive only — the fields family surfaces already read must survive.
+        org = self._context({'sis_enabled': True})['orgs'][0]
+        assert org['organization_name'] == 'Micro School'
+        assert org['students'][0]['student_id'] == 'stu1'

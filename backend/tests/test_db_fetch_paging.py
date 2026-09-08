@@ -182,3 +182,58 @@ class TestClassCatalogReadsArePaged:
         repo = SisClassRepository(client=client)
 
         assert len(repo.meetings_for_classes([f'c{i:03d}' for i in range(100)])) == 1400
+
+
+def _tasks(per_user_quest: Dict[str, int]) -> List[Dict[str, Any]]:
+    """One user_quest_tasks row per task, ids sorted so a capped read cuts the
+    tail — the same shape as _enrollments above."""
+    rows = []
+    for uq_id, n in per_user_quest.items():
+        for i in range(n):
+            rows.append({'id': f'{uq_id}-{i:05d}', 'user_quest_id': uq_id,
+                         'user_id': 'u-1', 'quest_id': 'q-1', 'title': 'Task',
+                         'xp_value': 50, 'approval_status': 'approved'})
+    return rows
+
+
+@pytest.mark.unit
+class TestPortfolioReadsArePaged:
+    """Sentry OPTIO-BACKEND-5S: the public portfolio truncated a real account.
+
+    A portfolio is the record of everything a student has ever finished, so the
+    row count grows with years of enrolment rather than with anything bounded.
+    A capped read drops the oldest work off the diploma and out of the XP totals
+    computed from the same list, with nothing to show it happened.
+    """
+
+    def test_every_approved_task_survives_the_cap(self):
+        from services.portfolio_service import PortfolioService
+
+        rows = [{'id': f'{i:05d}', 'approval_status': 'approved', 'xp_value': 50}
+                for i in range(1650)]
+        client, _ = _client(rows, cap=1000)
+
+        got = PortfolioService(client=client).get_approved_tasks('u-1')
+
+        assert len(got) == 1650
+
+    def test_task_counts_per_user_quest_are_exact_past_the_cap(self):
+        # The count is tallied in Python, so a truncated read reports zero for
+        # whichever user_quest landed past the cut.
+        from services.portfolio_service import PortfolioService
+
+        per_uq = {f'uq{i:03d}': 12 for i in range(100)}  # 1,200 rows
+        per_uq['zzz-last-quest'] = 12
+        client, _ = _client(_tasks(per_uq), cap=1000)
+
+        counts = PortfolioService(client=client).get_task_counts_by_user_quest(list(per_uq))
+
+        assert counts == per_uq
+        assert counts['zzz-last-quest'] == 12
+
+    def test_no_user_quests_reads_nothing(self):
+        from services.portfolio_service import PortfolioService
+
+        client, calls = _client([], cap=1000)
+        assert PortfolioService(client=client).get_task_counts_by_user_quest([]) == {}
+        assert calls == []

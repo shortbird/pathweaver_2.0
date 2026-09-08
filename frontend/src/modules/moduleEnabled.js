@@ -64,3 +64,33 @@ export function moduleEnabled(org, key) {
 export function effectiveModules(org) {
   return Object.keys(KEYS).filter((key) => moduleEnabled(org, key)).sort()
 }
+
+/**
+ * Is this module KNOWN to be off for the org? False when we cannot tell.
+ *
+ * For skipping a request that would 404 anyway. It is not moduleEnabled()
+ * negated, and the difference is the whole point: moduleEnabled answers a
+ * boolean for any input, so a payload carrying neither `effective_modules` nor
+ * `feature_flags` gets the fallback's derivation over an empty object — which
+ * reports every SIS module off, because there is no `sis_enabled` in {} to
+ * satisfy the parent cascade. Two payloads look exactly like that:
+ *
+ *   - /api/sis/parent/context, which lists orgs WITHOUT their feature_flags;
+ *   - OrganizationContext's degraded `{ id }`, set when /api/auth/me could not
+ *     load the org.
+ *
+ * Hiding a live feature is far worse than the speculative request this exists
+ * to avoid, so an unanswerable payload means "ask" — today's behaviour — and
+ * only a payload that genuinely says no suppresses the call.
+ */
+export function moduleKnownOff(org, key) {
+  const def = KEYS[key]
+  if (!def) throw new Error(`Unknown module key: ${key}`)
+  // Core is on for everyone and cannot be turned off, so no payload — not even
+  // a list that omits it — is evidence that it is off.
+  if (def.default === 'core') return false
+  if (!org) return false
+  if (Array.isArray(org.effective_modules)) return !org.effective_modules.includes(key)
+  if (org.feature_flags) return !moduleEnabled(org, key)
+  return false
+}

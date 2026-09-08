@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { effectiveModules, moduleEnabled } from './moduleEnabled'
+import { effectiveModules, moduleEnabled, moduleKnownOff } from './moduleEnabled'
 
 const org = (flags = {}, extra = {}) => ({
   id: 'org-1',
@@ -99,5 +99,45 @@ describe('moduleEnabled', () => {
     expect(effectiveModules(null)).toEqual(
       ['messaging', 'portfolio', 'quests', 'teaching', 'xp'],
     )
+  })
+})
+
+/**
+ * moduleKnownOff gates "skip a request that would 404 anyway", so its whole
+ * job is to distinguish "the org says no" from "this payload cannot say".
+ * Getting that backwards hides live features (Sentry OPTIO-BACKEND-81/85/89).
+ */
+describe('moduleKnownOff', () => {
+  it('says off when the server-computed list omits the key', () => {
+    expect(moduleKnownOff(org({}, { effective_modules: ['sis', 'billing'] }), 'onboarding')).toBe(true)
+  })
+
+  it('says nothing-known when the list includes the key', () => {
+    expect(moduleKnownOff(org({}, { effective_modules: ['sis', 'onboarding'] }), 'onboarding')).toBe(false)
+  })
+
+  it('falls back to feature_flags when there is no list', () => {
+    const hidden = org({ sis_enabled: true, sis_settings: { hidden_modules: ['onboarding'] } })
+    expect(moduleKnownOff(hidden, 'onboarding')).toBe(true)
+    expect(moduleKnownOff(org({ sis_enabled: true }), 'onboarding')).toBe(false)
+  })
+
+  it('cannot tell from a payload carrying neither, so it does not say off', () => {
+    // The /api/sis/parent/context org shape: no feature_flags at all. Negating
+    // moduleEnabled here would report EVERY sis module off, because the
+    // fallback finds no sis_enabled in {} to satisfy the parent cascade.
+    expect(moduleKnownOff({ organization_id: 'o1' }, 'onboarding')).toBe(false)
+    // OrganizationContext's degraded shape when /api/auth/me could not load it.
+    expect(moduleKnownOff({ id: 'o1' }, 'classes')).toBe(false)
+    expect(moduleEnabled({ id: 'o1' }, 'classes')).toBe(false) // the trap it avoids
+  })
+
+  it('cannot tell without an org either', () => {
+    expect(moduleKnownOff(null, 'classes')).toBe(false)
+    expect(moduleKnownOff(undefined, 'classes')).toBe(false)
+  })
+
+  it('never reports a core module off', () => {
+    expect(moduleKnownOff(org({}, { effective_modules: [] }), 'quests')).toBe(false)
   })
 })

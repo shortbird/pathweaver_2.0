@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import api, { parentAPI } from '../../services/api'
 import { getMyDependents } from '../../services/dependentAPI'
+import { moduleKnownOff } from '../../modules/moduleEnabled'
 
 /**
  * Data hooks for FamilyHome (pages/home/FamilyHome.jsx).
@@ -17,6 +18,7 @@ const SILENT = {
   refetchOnWindowFocus: false,
   staleTime: 60 * 1000,
 }
+
 
 /**
  * The parent's children: approved parent_student_links + under-13 dependents,
@@ -109,13 +111,20 @@ export function useFamilyAttention() {
   const org = ctx.data?.[0] || null
   const orgId = org?.organization_id
 
+  // Each read below is gated server-side on a different building block, and a
+  // school that turned one off answers 404. "Degrades silently" made that
+  // invisible here but not in the telemetry: /context is the ungated call that
+  // says what the org has on, so ask it rather than probing. Optio Academy has
+  // onboarding off and every family visit logged a ModuleGate warning
+  // (Sentry OPTIO-BACKEND-81). /context carries no feature_flags, so this must
+  // be moduleKnownOff — see the note on that helper.
   const onboarding = useQuery({
     queryKey: ['family-home', 'onboarding', orgId],
     queryFn: async () => {
       const r = await api.get(`/api/sis/parent/onboarding?organization_id=${orgId}`)
       return r.data?.assignments || []
     },
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && !moduleKnownOff(org, 'onboarding'),
     ...SILENT,
   })
 

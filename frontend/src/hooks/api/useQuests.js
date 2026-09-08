@@ -255,6 +255,33 @@ export const useEndQuest = () => {
 }
 
 /**
+ * Hook for reopening a quest that was ended.
+ *
+ * The undo for useEndQuest. Ending a quest is one tap and it hides every
+ * unfinished task from the dashboard, the student's feed and the parent's, so
+ * there has to be a way back that doesn't need a support ticket.
+ */
+export const useReopenQuest = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ['reopenQuest'],
+    mutationFn: async (questId) => {
+      const response = await api.post(`/api/quests/${questId}/reopen`, {})
+      return response.data
+    },
+    onSuccess: () => {
+      queryKeys.invalidateQuests(queryClient)
+      queryClient.invalidateQueries(queryKeys.user.dashboard())
+      toast.success('Quest reopened — your tasks are back')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to reopen quest')
+    },
+  })
+}
+
+/**
  * Hook for fetching quest tasks
  */
 export const useQuestTasks = (questId, options = {}) => {

@@ -14,11 +14,13 @@ import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { useActivityTracking } from '../hooks/useActivityTracking';
 import { useDeleteEnrollment } from '../hooks/api/useQuests';
-import { ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import Spinner, { PageLoader } from '../components/ui/Spinner';
 import { useProgramQuestView } from '../programs/registry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
 import { useConfirm } from '../contexts/ConfirmContext'
+import { OrganizationContext } from '../contexts/OrganizationContext';
+import { moduleKnownOff } from '../modules/moduleEnabled';
 
 // Lazy load heavy components
 const TaskEvidenceModal = lazy(() => import('../components/quest/TaskEvidenceModal'));
@@ -59,6 +61,11 @@ const QuestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  // Read the context directly rather than through useOrganization(), which
+  // throws without a provider. This page is rendered in plenty of places that
+  // do not mount one, and the org here only decides whether to SKIP an
+  // optional request — a missing provider must degrade to asking, not crash.
+  const { organization } = React.useContext(OrganizationContext) || {};
   const { trackTabSwitch, trackButtonClick, trackModalOpen, trackModalClose } = useActivityTracking('QuestDetail');
 
   // Use custom hook for all data management
@@ -69,6 +76,7 @@ const QuestDetail = () => {
     refetchQuest,
     enrollMutation,
     endQuestMutation,
+    reopenQuestMutation,
     isEnrolling,
     selectedTask,
     setSelectedTask,
@@ -241,8 +249,25 @@ const QuestDetail = () => {
     }
   };
 
-  const handleEndQuest = async () => {
+  // `skipConfirm` is for the completion celebration, which asks "Finish This
+  // Quest?" in its own dialog before it gets here.
+  const handleEndQuest = async ({ skipConfirm = false } = {}) => {
     if (!quest?.user_enrollment) return;
+
+    // Ending is a one-tap action that hides every unfinished task from the
+    // dashboard and both the student's feed and the parent's, and it used to
+    // fire with no warning at all. A Hearthwood parent walking her daughter
+    // through a biology lab ended the subject four seconds after opening the
+    // task, with seven of nine tasks still to do. Name the remaining tasks so
+    // the number itself is the warning.
+    if (!skipConfirm) {
+      const remaining = totalTasks - completedTasks;
+      const label = quest.quest_type === 'class' ? 'class' : 'quest';
+      const message = remaining > 0
+        ? `End this ${label}? ${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished, and ${remaining === 1 ? 'it' : 'they'} will disappear from your dashboard. Your finished work and XP are kept, and you can reopen the ${label} later.`
+        : `End this ${label}? Your work and XP are kept, and you can reopen it later.`;
+      if (!(await confirm(message))) return;
+    }
 
     endQuestMutation.mutate(id, {
       onSuccess: () => {
@@ -282,7 +307,15 @@ const QuestDetail = () => {
 
   const handleFinishQuestFromCelebration = () => {
     setShowQuestCompletionCelebration(false);
-    handleEndQuest();
+    handleEndQuest({ skipConfirm: true });
+  };
+
+  const handleReopenQuest = () => {
+    reopenQuestMutation.mutate(id, {
+      onSuccess: () => {
+        refetchQuest();
+      }
+    });
   };
 
   // Class quests: submit to Optio for the final credit review (same endpoint the
@@ -548,7 +581,8 @@ const QuestDetail = () => {
         quest={quest}
         earnedXP={earnedXP}
         isQuestCompleted={isQuestCompleted}
-        onEndQuest={handleEndQuest}
+        // The header's LMS "Mark Complete" asks first, so don't ask twice.
+        onEndQuest={() => handleEndQuest({ skipConfirm: true })}
         endQuestMutation={endQuestMutation}
       />
 
@@ -643,7 +677,7 @@ const QuestDetail = () => {
           !sessionStorage.getItem('courseTaskReturnInfo') && (
           <div className="mt-6 flex justify-center">
             <button
-              onClick={handleEndQuest}
+              onClick={() => handleEndQuest()}
               disabled={endQuestMutation?.isPending}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-red-500 border border-red-200 rounded-full hover:bg-red-50 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
@@ -657,11 +691,52 @@ const QuestDetail = () => {
           </div>
         )}
 
+        {/* Reopen - the undo for the button above. Without it, ending a quest by
+            mistake was final from inside the app: the End button hides itself,
+            "Pick Up Quest" only shows for someone with no enrollment at all, and
+            the remaining tasks drop off every dashboard and feed. The only route
+            back was a support request. */}
+        {quest.completed_enrollment && !quest?.lms_platform && (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <button
+              onClick={handleReopenQuest}
+              disabled={reopenQuestMutation?.isPending}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-white text-optio-purple border border-optio-purple/30 rounded-full hover:bg-optio-purple/5 transition-all text-sm font-medium shadow-sm disabled:opacity-50 min-h-[44px] touch-manipulation"
+            >
+              <ArrowPathIcon className="w-4 h-4" />
+              <span>
+                {reopenQuestMutation?.isPending
+                  ? 'Reopening...'
+                  : quest.quest_type === 'class' ? 'Reopen this class' : 'Reopen this quest'}
+              </span>
+            </button>
+            {totalTasks > completedTasks && (
+              <p className="text-xs text-gray-500 text-center">
+                {totalTasks - completedTasks} task{totalTasks - completedTasks === 1 ? '' : 's'} still
+                {' '}unfinished. Reopening puts {totalTasks - completedTasks === 1 ? 'it' : 'them'} back on the dashboard.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Class materials — only for org members viewing a quest that
             belongs to a SIS class they participate in. The component self-hides
             (backend 403/404) for everyone else, so this stays quiet on ordinary
-            quests. */}
-        {user?.organization_id && quest.user_enrollment && (
+            quests.
+
+            The `classes` module is checked here rather than left to the
+            backend, because "self-hides on 404" is only free when the request
+            could plausibly have succeeded. An org without the module has no
+            classes and no materials, so the probe fired on EVERY quest page
+            view and could only ever come back empty — 46 ModuleGate warnings
+            from one org in a day (Sentry OPTIO-BACKEND-85/89), which is the
+            signal that the P3 enforce flip is read from. Noise that can never
+            be a real hit makes that rollout harder to judge, and it costs a
+            round trip per quest page. moduleKnownOff, not !moduleEnabled: if
+            the org payload cannot answer we still ask, because hiding a live
+            class's materials is the worse failure. */}
+        {user?.organization_id && quest.user_enrollment
+          && !moduleKnownOff(organization, 'classes') && (
           <ClassCurriculum questId={quest.id} className="mt-6" />
         )}
       </div>

@@ -4,7 +4,7 @@ import SisLayout from '../components/sis/SisLayout'
 import { goToLearningSurface, LEARNING_SURFACE_PATHS } from '../utils/appSurface'
 import { isPathHidden, isClpEnabled } from '../pages/sis/sisModules'
 import { useSisOrg } from '../pages/sis/useSisOrg'
-import { canSeeFinance, canSeeHr } from '../pages/sis/sisRole'
+import { canSeeFinance, canSeeHr, isSisAdmin } from '../pages/sis/sisRole'
 import { useAuth } from '../contexts/AuthContext'
 
 // Guards a route whose building-block module is off for the active org —
@@ -48,6 +48,24 @@ const FinanceRoute = ({ children }) => {
 const HrRoute = ({ children }) => {
   const { user } = useAuth()
   if (!canSeeHr(user)) return <Navigate to="/" replace />
+  return children
+}
+
+// The front-office surfaces. Same chrome-guard idea again: the sidebar already
+// marks these adminOnly, so nothing OFFERS them to a teacher — but a bookmark,
+// an old notification link, or a typed URL still mounted the page, and its
+// first render fires the staff-admin fetches unconditionally. Every one of them
+// 403s, which is a blank page plus a burst of Sentry errors that look like an
+// outage (OPTIO-WEB-10/X/Y/Z, 2026-09-08).
+//
+// isSisAdmin reads the NARROWED user, which is the other half of this: an admin
+// who is "viewing as" a teacher is authorized as that teacher on every endpoint
+// (utils/roles.apply_role_view), so without this guard the view-as feature
+// pointed its own user at a page that cannot load. The backend's ADMIN_ROLES is
+// the real gate.
+const AdminRoute = ({ children }) => {
+  const { user } = useAuth()
+  if (!isSisAdmin(user)) return <Navigate to="/" replace />
   return children
 }
 
@@ -167,7 +185,7 @@ const SisRoutes = () => (
           links into (?submission=, ?assignment=&item=), and every notification
           sent before this shipped points at them. They are simply off the nav. */}
       <Route path="my-tasks" element={<ModuleGate path="/my-tasks"><MyTasksPage /></ModuleGate>} />
-      <Route path="tasks" element={<ModuleGate path="/tasks"><TaskCenterPage /></ModuleGate>} />
+      <Route path="tasks" element={<AdminRoute><ModuleGate path="/tasks"><TaskCenterPage /></ModuleGate></AdminRoute>} />
       <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
       <Route path="onboarding" element={<ModuleGate path="/onboarding"><OnboardingPage /></ModuleGate>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />

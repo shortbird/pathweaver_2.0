@@ -672,33 +672,28 @@ def end_quest(user_id: str, quest_id: str):
 def reopen_quest(user_id: str, quest_id: str):
     """Re-activate a previously-ended quest enrollment.
 
-    Used by the LTI flow when a student wants to revise after submitting
-    (e.g., teacher returned the work in Canvas, or the student noticed a
-    mistake before the teacher graded). Sets is_active=true and clears
-    completed_at on the most-recent enrollment so the student can keep
-    editing tasks and resubmit.
+    Two callers. The LTI flow uses it when a student wants to revise after
+    submitting (teacher returned the work in Canvas, or the student noticed a
+    mistake before it was graded). The quest page uses it as the undo for
+    "End quest" — see below. Sets is_active=true and clears completed_at on the
+    most-recent enrollment so the student can keep editing tasks and resubmit.
 
-    For now, this is student-initiated only — Canvas grade polling will add
-    automatic reopen triggers (when teacher's score signals "needs revision")
-    in a follow-up.
+    This was Canvas-only until 2026-09-08, on the reasoning that re-opening an
+    ordinary Optio quest "has UX implications we haven't designed yet". The
+    implication we hadn't designed for was a family with no way out: a Hearthwood
+    parent showing her daughter how to submit a biology lab ended the whole quest
+    by mistake, seven of nine tasks still to do, and every screen then treated the
+    subject as finished. Ending a quest is one tap and reversible in the data —
+    pickup already sets exactly these two columns — so the only thing the gate
+    protected was our own uncertainty. It cost a family their year of biology.
+
+    Reopening is not a new capability: POST /api/quests/<id>/start does the same
+    write for an existing enrollment. This route just says so out loud, and
+    touches only the caller's own row.
     """
     try:
-        # admin client justified: quest reopen flips user_quests.is_active for the caller (self) under @require_auth; cross-table reads of quests.lms_platform need admin to bypass RLS for the LMS-quest case
+        # admin client justified: quest reopen flips user_quests.is_active + completed_at for the caller (self) under @require_auth; user_quests writes are RLS-protected
         supabase = get_supabase_admin_client()
-
-        # Only allow reopen for LMS-tied quests in v1 — re-opening a regular
-        # Optio quest after End Quest has different UX implications we
-        # haven't designed yet. Restrict scope explicitly.
-        quest_meta = supabase.table('quests')\
-            .select('lms_platform')\
-            .eq('id', quest_id)\
-            .single()\
-            .execute()
-        if not quest_meta.data or quest_meta.data.get('lms_platform') != 'canvas':
-            return jsonify({
-                'success': False,
-                'error': 'Reopen is only supported for Canvas LTI quests in v1',
-            }), 400
 
         enrollment = supabase.table('user_quests')\
             .select('id, is_active, completed_at')\
@@ -721,7 +716,7 @@ def reopen_quest(user_id: str, quest_id: str):
             .eq('id', target['id'])\
             .execute()
 
-        logger.info(f"[LTI reopen] User {user_id[:8]} reopened quest {quest_id[:8]}")
+        logger.info(f"[quest reopen] User {user_id[:8]} reopened quest {quest_id[:8]}")
 
         return jsonify({'success': True, 'message': 'Quest reopened'}), 200
     except Exception as e:

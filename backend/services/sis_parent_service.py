@@ -180,12 +180,27 @@ def context(user_id: str) -> Dict[str, Any]:
                               'avatar_url': avatar_by_id.get(s['student_id'])})
     if orgs:
         rows = (
-            _admin().table('organizations').select('id, name, feature_flags')
+            # ai_features_enabled is here only so effective_modules_list below
+            # can answer for the ai-gated modules; without it they evaluate
+            # False and a family surface would hide a block the org has on.
+            _admin().table('organizations').select('id, name, feature_flags, ai_features_enabled')
             .in_('id', list(orgs.keys())).execute()
         ).data or []
+        from modules import effective_modules_list
         for r in rows:
             if r['id'] in orgs:
                 orgs[r['id']]['organization_name'] = r['name']
+                # The org's effective building blocks, computed server-side so
+                # family surfaces consume the answer instead of re-deriving
+                # gating semantics (ARCHITECTURE_BLOCKS 4.1). /context is
+                # deliberately ungated -- it is what the app asks BEFORE it
+                # knows what it may render -- so this is where a family surface
+                # finds out which of the per-module parent endpoints are worth
+                # calling at all. Without it every family home fired the
+                # onboarding, forms and billing reads regardless, and an org
+                # with the module off logged a ModuleGate warning per visit
+                # (Sentry OPTIO-BACKEND-81).
+                orgs[r['id']]['effective_modules'] = effective_modules_list(r)
                 # Appointment-booking link (e.g. iCreate's Customized Learning Plan
                 # meetings) so the Schedule Builder can offer "Book appointment".
                 icfg = get_registration_config(r.get('feature_flags'))
