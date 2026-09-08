@@ -212,6 +212,24 @@ def register_expo_token(user_id: str):
         # admin client justified: push subscription mgmt scoped to caller (self) under @require_auth; writes to web_push_subscriptions
         supabase = get_supabase_admin_client()
 
+        # A push token addresses a PHONE, not an account, and a phone has one
+        # signed-in account. Whoever registers it last owns it; every other
+        # account's row for this token goes inactive.
+        #
+        # Without this the rows accumulate, and expo_push_service fans each
+        # user's notifications out to every active token they hold — so a
+        # device kept buzzing for every account that had ever signed in on it,
+        # carrying their message previews. Tanner's phone had five accounts on
+        # one token (he signs in as members to reproduce their bugs), two of
+        # them iCreate staff and parents; see the 20260908130000 migration.
+        #
+        # Logout is not enough on its own: it only clears the leaving user, and
+        # it does not run when the app is killed, the session expires, or the
+        # account is switched from the login screen.
+        supabase.table('device_tokens').update({
+            'is_active': False,
+        }).eq('token', token).neq('user_id', user_id).eq('is_active', True).execute()
+
         # Upsert into device_tokens (reuse existing table from FCM service)
         supabase.table('device_tokens').upsert({
             'user_id': user_id,

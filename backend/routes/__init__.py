@@ -374,6 +374,10 @@ def register_all(app):
     from routes.push_subscriptions import bp as push_subscriptions_bp
     app.register_blueprint(push_subscriptions_bp)
 
+    # ── Inbound mail (SendGrid Inbound Parse -> Optio messages) ───────────────
+    from routes.inbound_email import bp as inbound_email_bp
+    app.register_blueprint(inbound_email_bp)
+
     # ── Content moderation (report/block + admin queue) ───────────────────────
     from routes.moderation import bp as moderation_bp
     app.register_blueprint(moderation_bp)

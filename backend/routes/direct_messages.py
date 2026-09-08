@@ -608,6 +608,94 @@ def forward_to_school(user_id: str, message_id: str):
                               error_code='internal_error')
 
 
+@bp.route('/<message_id>/email-to-me', methods=['POST'])
+@require_auth
+def email_message_to_me(user_id: str, message_id: str):
+    """
+    Superadmin-only: mail a copy of this message to your own inbox.
+
+    The Optio Support inbox is not where this work gets triaged; Gmail is. A
+    message that needs an answer tomorrow is lost the moment it scrolls off the
+    thread, so this puts it somewhere that nags.
+
+    When reply-by-email is configured the copy carries a Reply-To that lands
+    back in this same Optio thread (services/message_email_relay_service.py).
+    When it isn't, the copy still goes out and says replies are off — a
+    half-working promise is worse than none.
+    """
+    try:
+        from database import get_supabase_admin_client
+        from utils.roles import get_effective_role
+        from services import message_email_relay_service as relay_service
+        from services import school_inbox_service
+
+        # admin client justified: superadmin-only action that reads both sides
+        # of a conversation; role verified immediately below.
+        supabase = get_supabase_admin_client()
+        caller = supabase.table('users') \
+            .select('id, email, role, org_role, organization_id') \
+            .eq('id', user_id).single().execute()
+        if not caller.data or get_effective_role(caller.data) != 'superadmin':
+            return error_response('Superadmin access required', status_code=403,
+                                  error_code='forbidden')
+
+        msg = supabase.table('direct_messages').select('*') \
+            .eq('id', message_id).limit(1).execute()
+        if not msg.data:
+            return error_response('Message not found', status_code=404,
+                                  error_code='not_found')
+        msg = msg.data[0]
+
+        # Only messages in a thread the caller is actually part of. Superadmin
+        # can read a lot, but "email it to my personal inbox" is a bigger step
+        # than reading, and it should not reach threads between two other
+        # people.
+        if user_id not in (msg.get('sender_id'), msg.get('recipient_id')):
+            return error_response('You are not part of this conversation',
+                                  status_code=403, error_code='forbidden')
+        if msg.get('is_deleted'):
+            return error_response('This message was deleted', status_code=400,
+                                  error_code='validation_error')
+
+        other_id = (msg['recipient_id'] if msg['sender_id'] == user_id
+                    else msg['sender_id'])
+        other = supabase.table('users') \
+            .select('id, display_name, first_name, last_name') \
+            .eq('id', other_id).limit(1).execute().data
+        if not other:
+            return error_response('The other person in this thread no longer exists',
+                                  status_code=404, error_code='not_found')
+        other = other[0]
+
+        # Whose words are being mailed. Not always the other party — the caller
+        # can email a message they wrote themselves — but the reply address is
+        # always keyed to the other party, or a reply would loop back here.
+        author = other if msg['sender_id'] == other_id else caller.data
+        org = school_inbox_service.member_org(other_id)
+
+        result = relay_service.email_message_to_owner(
+            owner=caller.data,
+            message=msg,
+            author=author,
+            other_party=other,
+            org_name=(org or {}).get('name'),
+        )
+        if not result['sent']:
+            return error_response('Could not send the email', status_code=502,
+                                  error_code='internal_error')
+        return success_response({
+            'emailed_to': result['to'],
+            'replies_enabled': bool(result['reply_address']),
+        })
+
+    except ValueError as e:
+        return error_response(str(e), status_code=400, error_code='validation_error')
+    except Exception as e:
+        logger.error(f"Error emailing message {message_id}: {str(e)}")
+        return error_response('Failed to email this message', status_code=500,
+                              error_code='internal_error')
+
+
 @bp.route('/contacts', methods=['GET'])
 @require_auth
 def get_contacts(user_id: str):

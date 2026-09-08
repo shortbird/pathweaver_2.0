@@ -294,6 +294,14 @@ export async function forwardMessageToSchool(messageId: string) {
   return data.data || data;
 }
 
+/** Superadmin: mail a copy of this message to your own inbox.
+ *  Returns { emailed_to, replies_enabled } — replies_enabled says whether
+ *  answering that email posts back into this thread. */
+export async function emailMessageToMe(messageId: string) {
+  const { data } = await messageAPI.emailToMe(messageId);
+  return data.data || data;
+}
+
 export async function deleteGroupMessage(groupId: string, messageId: string) {
   const { data } = await groupAPI.deleteMessage(groupId, messageId);
   return data.data || data;

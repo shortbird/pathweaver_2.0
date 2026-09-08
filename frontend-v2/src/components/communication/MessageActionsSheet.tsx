@@ -35,6 +35,8 @@ interface Props {
   onPin?: () => void;
   /** Superadmin support threads only: forward to the sender's school inbox. */
   onForward?: () => void;
+  /** Superadmin only: mail a copy of this message to your own inbox. */
+  onEmailToSelf?: () => void;
 }
 
 interface Row {
@@ -59,6 +61,7 @@ export function MessageActionsSheet({
   onDelete,
   onPin,
   onForward,
+  onEmailToSelf,
 }: Props) {
   const c = useThemeColors();
   // Run the chosen action only AFTER the Modal has fully closed (iOS: a second
@@ -96,6 +99,14 @@ export function MessageActionsSheet({
       label: 'Forward to school inbox',
       icon: 'arrow-redo-outline',
       onPress: onForward,
+    });
+  }
+  if (onEmailToSelf) {
+    rows.push({
+      key: 'email-to-me',
+      label: 'Email this to me',
+      icon: 'mail-outline',
+      onPress: onEmailToSelf,
     });
   }
   if (isOwn && onEdit) {

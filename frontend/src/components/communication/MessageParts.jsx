@@ -11,6 +11,7 @@ import {
   PencilIcon,
   TrashIcon,
   MapPinIcon,
+  EnvelopeIcon,
   DocumentIcon
 } from '@heroicons/react/24/outline'
 
@@ -161,12 +162,14 @@ export const MessageActionBar = ({
   canDelete = false,
   canPin = false,
   canForward = false,
+  canEmailToSelf = false,
   onReact,
   onReply,
   onEdit,
   onDelete,
   onPin,
-  onForward
+  onForward,
+  onEmailToSelf
 }) => {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerBelow, setPickerBelow] = useState(false)
@@ -228,6 +231,17 @@ export const MessageActionBar = ({
             className={itemClass}
           >
             <ArrowUturnRightIcon className="w-4 h-4" />
+          </button>
+        )}
+        {canEmailToSelf && (
+          <button
+            type="button"
+            title="Email this to me"
+            aria-label="Email this message to me"
+            onClick={onEmailToSelf}
+            className={itemClass}
+          >
+            <EnvelopeIcon className="w-4 h-4" />
           </button>
         )}
         {canPin && (

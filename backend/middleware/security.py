@@ -75,6 +75,14 @@ class SecurityMiddleware:
             # (the token rides the query string either way).
             if (request.path or '') == '/api/crm/unsubscribe':
                 should_skip = True
+            # SendGrid Inbound Parse posts the parsed email as
+            # multipart/form-data. Multipart already falls through below, but
+            # this is stated explicitly rather than inherited from the
+            # file-upload branch: a provider that ever posts urlencoded would
+            # otherwise turn every inbound reply into a silent 400, and the
+            # symptom (mail vanishes) points nowhere near this line.
+            if (request.path or '') == '/api/email/inbound':
+                should_skip = True
 
             if not should_skip:
                 # Also skip if it's multipart/form-data (file upload)

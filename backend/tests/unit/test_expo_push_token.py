@@ -39,6 +39,33 @@ def test_register_expo_token_success(client, mock_verify_token):
     assert upsert_args[1]['on_conflict'] == 'user_id,token'
 
 
+def test_register_expo_token_steals_the_token_from_other_accounts(client, mock_verify_token):
+    """One device, one account.
+
+    Registration used to only upsert its own row, so every account ever signed
+    in on a phone kept an active row for that phone's token — and expo_push_
+    service fans out to every active token a user holds. A superadmin who signs
+    into members' accounts to reproduce their bugs ended up receiving their
+    message previews on his own phone. Logout is not a fix: it clears only the
+    leaving user, and it does not run when the app is killed.
+    """
+    supabase = _mock_supabase_chain()
+    with patch('database.get_supabase_admin_client', return_value=supabase):
+        resp = client.post(
+            '/api/push/expo-token',
+            headers={'Authorization': 'Bearer t', 'Content-Type': 'application/json'},
+            data=json.dumps({'token': 'ExponentPushToken[abc123]', 'platform': 'android'}),
+        )
+    assert resp.status_code == 201
+
+    table = supabase.table.return_value
+    table.update.assert_called_once_with({'is_active': False})
+    # Scoped to this token, excluding this user: .eq(token).neq(user_id).eq(is_active)
+    assert table.update.return_value.eq.call_args[0] == ('token', 'ExponentPushToken[abc123]')
+    neq = table.update.return_value.eq.return_value.neq
+    assert neq.call_args[0] == ('user_id', 'test-user-123')
+
+
 def test_register_expo_token_missing_token(client, mock_verify_token):
     resp = client.post(
         '/api/push/expo-token',

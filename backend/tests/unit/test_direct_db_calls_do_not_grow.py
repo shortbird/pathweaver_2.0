@@ -152,8 +152,26 @@ BACKEND = Path(__file__).resolve().parents[2]
 # paid. It lives here rather than in sis_event_rsvp_service because
 # sis_invoices belongs to this module, and reading the whole org ledger through
 # list_invoices to find a dozen rows is the alternative.
+# routes/ 2333 -> 2337 on 2026-09-08, +4 for the superadmin "email this message
+# to me" action:
+#   direct_messages.py      +3  email_message_to_me. The three reads ARE the
+#                               authorization, not the feature: the caller (is
+#                               this a superadmin?), the message (does it exist,
+#                               is it deleted?), and the other party (is the
+#                               caller even in this conversation?). The same
+#                               three reads forward_to_school makes twenty lines
+#                               above, in the same shape, for the same reason.
+#   push_subscriptions.py   +1  register_expo_token now deactivates a push token
+#                               for every OTHER account before claiming it. One
+#                               device, one signed-in account -- without it a
+#                               phone kept receiving the message previews of
+#                               every account that had ever signed in on it
+#                               (migration 20260908130000).
+# The feature itself -- minting the relay, rendering and sending the mail,
+# parsing an inbound reply -- is in services/message_email_relay_service, which
+# stays well under its own baseline.
 BASELINES = {
-    'routes': 2333,
+    'routes': 2337,
     'services': 1827,
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
@@ -209,7 +227,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2333 + 1827
+UPPER_TOTAL_BASELINE = 2337 + 1827
 
 
 def test_the_upper_layers_do_not_grow_in_total():

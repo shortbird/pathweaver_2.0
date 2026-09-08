@@ -132,6 +132,11 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'crm.sendgrid_events',
     'crm.funnel_sweep',
     'crm.calendar_poll',
+    # SendGrid Inbound Parse callback (reply-by-email into Optio messages).
+    # Server-to-server, no session, and gated by a shared secret in the URL
+    # that is compared in constant time. Listed here rather than relying on
+    # "no auth cookie" alone, so the exemption is deliberate and visible.
+    'inbound_email.inbound_email',
 })
 
 # The registration funnel is also served under its DEPRECATED /api/icreate

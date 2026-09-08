@@ -330,6 +330,22 @@ class Config:
     # copy messages carrying attachments or flagged as student records.
     SUPPORT_COPY_EMAILS_ENABLED = os.getenv('SUPPORT_COPY_EMAILS', 'false').lower() == 'true'
 
+    # Inbound mail (reply-by-email on "Send to Gmail"). A dedicated subdomain
+    # whose MX points at the inbound-parse host, so it can never collide with
+    # real mail on optioeducation.com. Every address under it is a relay token:
+    # reply+<token>@<domain>.
+    #
+    # UNSET IS A SUPPORTED STATE and the default. "Send to Gmail" still works —
+    # the copy just arrives without a Reply-To, and says so. Set this only once
+    # the MX record and the provider's inbound route both exist, or replies
+    # bounce and the mail promises something it cannot do.
+    INBOUND_EMAIL_DOMAIN = os.getenv('INBOUND_EMAIL_DOMAIN', '').strip().lower()
+    # Shared secret in the inbound webhook URL (?key=). The provider posts
+    # unauthenticated otherwise, and anyone who learns the URL could inject
+    # mail. Required whenever INBOUND_EMAIL_DOMAIN is set; the endpoint refuses
+    # every request while it is missing.
+    INBOUND_EMAIL_WEBHOOK_SECRET = os.getenv('INBOUND_EMAIL_WEBHOOK_SECRET')
+
     # JWT / Session Tokens (M5)
     # JWT_SECRET_KEY is the dedicated signing key for app-issued access/refresh
     # tokens. We keep a fallback chain to SECRET_KEY for legacy deployments
