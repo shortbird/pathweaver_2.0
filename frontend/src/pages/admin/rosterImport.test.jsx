@@ -77,7 +77,30 @@ const COMMIT = {
   ],
 }
 
+// The same two families, headerless and in Last, First order -- the shape that
+// imported backwards and gave Hearthwood ~70 accounts with a surname for a
+// first name.
+const HEADERLESS_LAST_FIRST = [
+  'Hennessy\tNoah\t27nhennessy@dsdmail.net\tHennessy\tMegan\tmhennessy@opened.co',
+  'Hennessy\tAva\t29ahennessy@dsdmail.net\tHennessy\tMegan\tmhennessy@opened.co',
+].join('\n')
+
 const cell = (label, row) => screen.getByLabelText(`${label} row ${row}`)
+
+const heading = label =>
+  screen.getByRole('button', { name: new RegExp(`^${label} column`) })
+
+const dragColumn = (fromLabel, toLabel) => {
+  fireEvent.dragStart(heading(fromLabel),
+    { dataTransfer: { setData: vi.fn(), effectAllowed: '' } })
+  const target = heading(toLabel).closest('th')
+  fireEvent.dragOver(target)
+  fireEvent.drop(target)
+}
+
+const headingOrder = () =>
+  Array.from(document.querySelectorAll('thead th [role="button"]'))
+    .map(el => el.textContent.replace(/^\W+/, ''))
 
 const pasteRoster = (text = PASTED) =>
   fireEvent.paste(cell('Student first', 1), {
@@ -123,6 +146,15 @@ describe('parseRoster', () => {
     const text = 'Noah\tHennessy\t27nhennessy@dsdmail.net\tMegan\tHennessy\tmhennessy@opened.co'
     expect(parseRoster(text)[0]).toEqual(expect.objectContaining({
       student_first: 'Noah', parent_email: 'mhennessy@opened.co',
+    }))
+  })
+
+  it('reads a headerless paste against the order the columns are dragged into', () => {
+    const order = ['student_last', 'student_first', 'student_email',
+                   'parent_last', 'parent_first', 'parent_email']
+    expect(parseRoster(HEADERLESS_LAST_FIRST, order)[0]).toEqual(expect.objectContaining({
+      student_first: 'Noah', student_last: 'Hennessy',
+      parent_first: 'Megan', parent_last: 'Hennessy',
     }))
   })
 })
@@ -362,6 +394,80 @@ describe('RosterImportPage', () => {
     expect(cell('Student first', 1)).toHaveValue('')
     expect(screen.queryByLabelText('Student first row 2')).not.toBeInTheDocument()
   })
+
+  // Dragging a heading re-labels the sheet: the cells hold what the school
+  // sent, and the heading says what it is. Hearthwood's roster arrived as
+  // Last, First with no header row, imported clean, and put the surname in
+  // every first_name -- there was nothing on this page to say otherwise.
+  it('swaps two columns by dragging, and the cells stay where the school put them', async () => {
+    await renderPage()
+    pasteRoster(HEADERLESS_LAST_FIRST)
+
+    // Read against our default order, the surname landed in the first column.
+    expect(cell('Student first', 1)).toHaveValue('Hennessy')
+    expect(cell('Student last', 1)).toHaveValue('Noah')
+
+    dragColumn('Student last', 'Student first')
+
+    expect(headingOrder().slice(0, 2)).toEqual(['Student last', 'Student first'])
+    expect(cell('Student first', 1)).toHaveValue('Noah')
+    expect(cell('Student last', 1)).toHaveValue('Hennessy')
+    expect(cell('Student first', 2)).toHaveValue('Ava')
+  })
+
+  it('sends the canonical column order however the grid is arranged', async () => {
+    await renderPage()
+    pasteRoster(HEADERLESS_LAST_FIRST)
+    dragColumn('Student last', 'Student first')
+    dragColumn('Parent last', 'Parent first')
+    await previewIt()
+
+    expect(api.post).toHaveBeenCalledWith('/api/admin/roster-import/preview', {
+      csv: SENT, organization_id: 'org-hearthwood',
+    })
+  })
+
+  it('moves a column from the keyboard, for anyone not dragging with a mouse', async () => {
+    await renderPage()
+    pasteRoster(HEADERLESS_LAST_FIRST)
+    fireEvent.keyDown(heading('Student first'), { key: 'ArrowRight' })
+
+    expect(headingOrder().slice(0, 2)).toEqual(['Student last', 'Student first'])
+    expect(cell('Student first', 1)).toHaveValue('Noah')
+  })
+
+  it('will not move the first column off the left edge', async () => {
+    await renderPage()
+    pasteRoster()
+    fireEvent.keyDown(heading('Student first'), { key: 'ArrowLeft' })
+
+    expect(headingOrder()[0]).toBe('Student first')
+    expect(cell('Student first', 1)).toHaveValue('Noah')
+  })
+
+  it('puts the columns back, data and all', async () => {
+    await renderPage()
+    pasteRoster(HEADERLESS_LAST_FIRST)
+    dragColumn('Student last', 'Student first')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset columns' }))
+
+    expect(headingOrder().slice(0, 2)).toEqual(['Student first', 'Student last'])
+    expect(cell('Student first', 1)).toHaveValue('Hennessy')
+    expect(screen.queryByRole('button', { name: 'Reset columns' })).not.toBeInTheDocument()
+  })
+
+  it('drops the preview when a column moves, because the rows now mean something else',
+    async () => {
+      await renderPage()
+      pasteRoster()
+      await previewIt()
+      expect(screen.getByRole('button', { name: /^Create 3 accounts/ })).toBeInTheDocument()
+
+      dragColumn('Student last', 'Student first')
+
+      expect(screen.queryByText('Preview')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Create/ })).not.toBeInTheDocument()
+    })
 
   it('surfaces a rejected request instead of leaving the page looking successful', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'Organization not found' } } })

@@ -13,6 +13,14 @@ import api from '../../services/api'
 // real families and emails all of them, so the superadmin reads what it is
 // about to do first. Any edit drops the preview, because a plan built from
 // different rows is not a plan for what's in the grid now.
+//
+// The columns are draggable because a headerless sheet in Last, First order
+// used to import silently backwards. Hearthwood's roster did exactly that and
+// ~70 accounts landed with the surname in first_name -- the import reported
+// success, and the names only read wrong to a human. Dragging a header moves
+// the *meaning*, not the values: the cells stay where they are and take on the
+// field they now sit under, which is what "these two columns are swapped" means
+// when you are looking at the sheet.
 
 // `header` is what we send back to the server; `label` is what fits in a column.
 const COLUMNS = [
@@ -23,6 +31,9 @@ const COLUMNS = [
   { field: 'parent_last', label: 'Parent last', header: 'Parent Last Name' },
   { field: 'parent_email', label: 'Parent email', header: 'Parent Email', wide: true },
 ]
+
+const COLUMN_BY_FIELD = Object.fromEntries(COLUMNS.map(c => [c.field, c]))
+const DEFAULT_ORDER = COLUMNS.map(c => c.field)
 
 // Header spellings we accept from a school's sheet. The backend does the same
 // matching on the text we send it -- this copy only exists so a paste lands in
@@ -70,8 +81,10 @@ const splitLine = (line, delimiter) => {
 }
 
 // Pasted text -> rows. A header row tells us which column is which (and lets us
-// ignore extras like User ID); without one we fall back to our own column order.
-export const parseRoster = (text) => {
+// ignore extras like User ID); without one we fall back to the grid's current
+// column order, so a sheet in Last, First order lands right once the headers
+// have been dragged to match it.
+export const parseRoster = (text, order = DEFAULT_ORDER) => {
   const lines = (text || '').replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim())
   if (!lines.length) return []
 
@@ -89,7 +102,7 @@ export const parseRoster = (text) => {
   return body.map(record => {
     const row = blankRow()
     record.forEach((cell, index) => {
-      const field = hasHeader ? headerMap[index] : COLUMNS[index]?.field
+      const field = hasHeader ? headerMap[index] : order[index]
       if (field) row[field] = cell
     })
     return row
@@ -97,7 +110,11 @@ export const parseRoster = (text) => {
 }
 
 // The grid goes back to the backend as the tab-separated sheet it came from, so
-// there is exactly one parser and one validator of record -- the server's.
+// there is exactly one parser and one validator of record -- the server's. It
+// always goes in the canonical column order carrying the canonical headers:
+// dragging a column is how the superadmin tells the grid what a cell means, and
+// by the time a row is sent it means the same thing whatever order it is shown
+// in.
 const toRosterText = (rows) => [
   COLUMNS.map(c => c.header).join('\t'),
   ...rows.map(row => COLUMNS.map(c => (row[c.field] || '').trim()).join('\t')),
@@ -134,6 +151,9 @@ export default function RosterImportPage() {
   const [organizations, setOrganizations] = useState([])
   const [orgId, setOrgId] = useState('')
   const [rows, setRows] = useState(() => [blankRow(), blankRow(), blankRow()])
+  const [order, setOrder] = useState(DEFAULT_ORDER)
+  const [dragging, setDragging] = useState(null)
+  const [dropTarget, setDropTarget] = useState(null)
   const [sendEmails, setSendEmails] = useState(true)
   const [preview, setPreview] = useState(null)
   const [outcome, setOutcome] = useState(null)
@@ -160,7 +180,40 @@ export default function RosterImportPage() {
   )
 
   const filledRows = useMemo(() => rows.filter(hasContent), [rows])
+  const columns = useMemo(() => order.map(field => COLUMN_BY_FIELD[field]), [order])
   const clearPlan = () => { setPreview(null); setOutcome(null); setError(null) }
+
+  // Adopt `next` as the column order and re-label the data rather than move it:
+  // whatever is in the third cell of a row stays in the third cell and becomes
+  // whichever field now heads that position. That is what "these two columns
+  // are swapped" asks for -- the sheet is right, our reading of it was wrong.
+  const reorderTo = (next) => {
+    setRows(prev => prev.map(row => {
+      const moved = { ...row }
+      next.forEach((field, position) => { moved[field] = row[order[position]] })
+      return moved
+    }))
+    setOrder(next)
+    clearPlan()
+  }
+
+  const moveColumn = (from, to) => {
+    if (from == null || to == null || from === to) return
+    const next = [...order]
+    next.splice(to, 0, next.splice(from, 1)[0])
+    reorderTo(next)
+  }
+
+  const onHeaderKeyDown = (event, index) => {
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key]
+    if (!step) return
+    const to = index + step
+    if (to < 0 || to >= order.length) return
+    event.preventDefault()
+    moveColumn(index, to)
+  }
+
+  const columnsMoved = order.some((field, index) => field !== DEFAULT_ORDER[index])
 
   const setCell = (key, field, value) => {
     setRows(prev => prev.map(row => (row.key === key ? { ...row, [field]: value } : row)))
@@ -170,7 +223,7 @@ export default function RosterImportPage() {
   const handlePaste = (event, rowIndex) => {
     const text = event.clipboardData.getData('text/plain')
     if (!/[\t\n]/.test(text)) return  // a single value: let the browser paste it
-    const parsed = parseRoster(text)
+    const parsed = parseRoster(text, order)
     if (!parsed.length) return
     event.preventDefault()
     setRows(prev => {
@@ -268,8 +321,22 @@ export default function RosterImportPage() {
               typo gets fixed here rather than back in the sheet. Student email may be left blank
               when the row has a parent email — that student becomes a parent-managed profile.
             </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Sheet in the wrong order? Drag a column heading sideways (or focus it and press the
+              left and right arrow keys) to say what each column really holds. The cells stay put
+              and take the heading they end up under, so a Last, First roster becomes First, Last
+              in one drag.
+            </p>
           </div>
           <div className="flex gap-2 shrink-0">
+            {columnsMoved && (
+              <button
+                onClick={() => reorderTo(DEFAULT_ORDER)}
+                className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg"
+              >
+                Reset columns
+              </button>
+            )}
             {errorRowKeys.length > 0 && (
               <button
                 onClick={removeErrorRows}
@@ -293,8 +360,43 @@ export default function RosterImportPage() {
               <tr className="bg-gray-50 text-left text-gray-600">
                 <th className="w-8" />
                 <th className="w-10 py-2 px-2 font-medium text-xs">#</th>
-                {COLUMNS.map(column => (
-                  <th key={column.field} className="py-2 px-2 font-medium text-xs">{column.label}</th>
+                {columns.map((column, columnIndex) => (
+                  <th
+                    key={column.field}
+                    className={`py-2 px-2 font-medium text-xs ${
+                      dropTarget === columnIndex && dragging !== columnIndex
+                        ? 'bg-optio-purple/10'
+                        : ''
+                    } ${dragging === columnIndex ? 'opacity-50' : ''}`}
+                    onDragOver={e => { e.preventDefault(); setDropTarget(columnIndex) }}
+                    onDrop={e => {
+                      e.preventDefault()
+                      moveColumn(dragging, columnIndex)
+                      setDragging(null); setDropTarget(null)
+                    }}
+                  >
+                    <div
+                      draggable
+                      tabIndex={0}
+                      role="button"
+                      aria-label={
+                        `${column.label} column, position ${columnIndex + 1} of ${columns.length}. `
+                        + 'Drag, or press the left and right arrow keys, to move it.'
+                      }
+                      onDragStart={e => {
+                        // Firefox ignores a drag with no payload set.
+                        e.dataTransfer.setData('text/plain', column.field)
+                        e.dataTransfer.effectAllowed = 'move'
+                        setDragging(columnIndex)
+                      }}
+                      onDragEnd={() => { setDragging(null); setDropTarget(null) }}
+                      onKeyDown={e => onHeaderKeyDown(e, columnIndex)}
+                      className="flex items-center gap-1 cursor-move select-none rounded px-1 -mx-1 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-optio-purple"
+                    >
+                      <span aria-hidden="true" className="text-gray-400 leading-none">&#8942;&#8942;</span>
+                      {column.label}
+                    </div>
+                  </th>
                 ))}
                 {preview && <th className="py-2 px-2 font-medium text-xs">Status</th>}
               </tr>
@@ -325,7 +427,7 @@ export default function RosterImportPage() {
                         </button>
                       </td>
                       <td className="py-1 px-2 text-xs text-gray-400">{index + 1}</td>
-                      {COLUMNS.map((column, columnIndex) => (
+                      {columns.map((column, columnIndex) => (
                         <td key={column.field} className="py-1 px-1">
                           <input
                             aria-label={`${column.label} row ${index + 1}`}
