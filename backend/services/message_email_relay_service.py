@@ -236,7 +236,10 @@ def _render_email(author_name: str, reply_to_name: str, org_name: Optional[str],
                   reply_to: Optional[str]) -> str:
     """Deliberately plain. This lands in a personal inbox next to real mail; it
     should read like a forwarded message, not like marketing."""
-    meta = escape(author_name)
+    # str, not Markup: every piece is escaped as it goes in, and rebinding a
+    # Markup to a plain f-string would silently drop the Markup contract mypy
+    # is tracking here.
+    meta = str(escape(author_name))
     if org_name:
         meta = f"{meta} &middot; {escape(org_name)}"
     if sent_at:

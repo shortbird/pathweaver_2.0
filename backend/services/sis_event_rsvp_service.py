@@ -83,7 +83,8 @@ def rsvps_for(org_id: str, event_id: str) -> List[Dict[str, Any]]:
             logger.warning(f'Could not resolve RSVP invoice status: {e}')
     for r in rows:
         r['household_name'] = names.get(r.get('household_id'))
-        r['invoice_status'] = paid_state.get(r.get('invoice_id'))
+        invoice_id = r.get('invoice_id')
+        r['invoice_status'] = paid_state.get(invoice_id) if invoice_id else None
     rows.sort(key=lambda r: ((r.get('household_name') or '~').lower(), r.get('created_at') or ''))
     return rows
 

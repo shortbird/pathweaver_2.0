@@ -14,8 +14,6 @@ The sentence has to say whose roster the student is on. This test pins that,
 not the exact wording -- the assertions are about the two facts a reader needs.
 """
 
-from unittest.mock import Mock, patch
-
 import pytest
 
 
