@@ -268,6 +268,12 @@ def archive_class(user_id, class_id):
     ).data or []
     supabase.table('org_classes').update(
         {'registration_status': 'closed'}).eq('id', class_id).execute()
+    # Retiring the section takes back the seat these students were promoted for,
+    # so put them back on the queues for the sections that remain.
+    from services import sis_waitlist_service
+    for d in dropped:
+        sis_waitlist_service.restore_entry_for_withdrawal(
+            org_id, class_id, d.get('student_id'))
     try:
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
@@ -651,9 +657,12 @@ def unenroll_student(user_id, class_id, student_id):
     supabase.table('class_enrollments').update({'status': 'withdrawn'}).eq('id', existing[0]['id']).execute()
     from services.class_group_sync_service import sync_class_group
     sync_class_group(class_id, actor_id=user_id)
+    from services import sis_waitlist_service
+    # Dropping the seat they were promoted into puts them back on the queues
+    # they were closed out of. Before the alert, so they count as waiting.
+    sis_waitlist_service.restore_entry_for_withdrawal(org_id, class_id, student_id)
     # A drop may have opened a seat — alert admins so they can offer it to the
     # next waitlisted student (self-gates on there being waiters + an open seat).
-    from services import sis_waitlist_service
     sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
     return jsonify({'success': True})
 

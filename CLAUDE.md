@@ -123,6 +123,35 @@ Rules when adding SIS routes or fields:
 
 ---
 
+## Response Style: Simplified Technical English
+
+Write every response in ASD-STE100 Simplified Technical English. Be as short as
+the facts permit.
+
+Rules:
+
+- Write one fact in one sentence. Keep each sentence below 25 words.
+- Use the active voice. Do not use the passive voice.
+- Use simple tenses. Do not use a gerund. Write "When you archive a class, the
+  system removes the roster". Do not write "Archiving a class removes the roster".
+- Use one term for one thing. Do not use a synonym for variety.
+- Do not use a metaphor, an idiom, or jargon. Write "the tests passed". Do not
+  write "green".
+- Do not use contractions.
+- Use a vertical list for more than two related items.
+- Domain nouns are Technical Names. These are permitted: waitlist, quest, pillar,
+  org, RLS, OTA, XP.
+
+Keep the reason. STE deletes causes if you permit it. Write the reason as its own
+short sentence.
+
+**This applies to replies only.** Code, code comments, commit messages, PR
+bodies, docs, and copy drafted for other people keep their present voice. The
+comments in this repository carry the postmortem that explains each rule. STE
+would destroy them.
+
+---
+
 ## Quick Reference
 
 ### Environments

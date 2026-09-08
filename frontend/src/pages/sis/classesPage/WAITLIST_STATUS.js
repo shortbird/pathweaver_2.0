@@ -1,6 +1,10 @@
 /**
  * Extracted from sis/ClassesPage.jsx on 2026-09-04 (QF-02).
- * Moved verbatim -- no behaviour changed, only the address.
+ *
+ * 'promoted' means the entry was closed out because the student took a seat
+ * somewhere in this course, which is not always THIS section. It used to read
+ * "Enrolled", and iCreate went looking for two students on the Tuesday 11:30
+ * roster who were never in that section (2026-09-08).
  */
 
 const WAITLIST_STATUS = {
@@ -8,7 +12,7 @@ const WAITLIST_STATUS = {
   offered: { label: 'Offered', tone: 'text-green-600' },
   expired: { label: 'Offer expired', tone: 'text-amber-600' },
   declined: { label: 'Declined', tone: 'text-neutral-400' },
-  promoted: { label: 'Enrolled', tone: 'text-neutral-400' },
+  promoted: { label: 'Got a seat', tone: 'text-neutral-400' },
 }
 
 export default WAITLIST_STATUS

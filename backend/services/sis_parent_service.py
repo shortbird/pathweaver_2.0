@@ -994,9 +994,13 @@ def drop_class(user_id: str, org_id: str, student_user_id: str, class_id: str) -
         _admin().table('class_enrollments').update({'status': 'withdrawn'}).eq('id', enr[0]['id']).execute()
         from services.class_group_sync_service import sync_class_group
         sync_class_group(class_id, actor_id=user_id)
+        from services import sis_waitlist_service
+        # Dropping the seat they were promoted into puts them back on the queues
+        # they were closed out of. Before the alert, so they count as waiting.
+        sis_waitlist_service.restore_entry_for_withdrawal(
+            org_id, class_id, student_user_id)
         # A parent dropping their child may free a seat — alert admins to offer it
         # to the next waitlisted student (self-gates on waiters + an open seat).
-        from services import sis_waitlist_service
         sis_waitlist_service.alert_admins_seat_opened(org_id, class_id)
         dropped = True
 

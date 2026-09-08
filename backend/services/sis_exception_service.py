@@ -231,8 +231,12 @@ def resolve(org_id: str, request_id: str, action: str, *, resolved_by: str,
                 .in_('class_id', [c['class_id'] for c in conflicts]) \
                 .eq('status', 'active').execute()
             from services.class_group_sync_service import sync_class_group
+            from services import sis_waitlist_service as _wl
             for c in conflicts:
                 sync_class_group(c['class_id'], actor_id=resolved_by)
+                # They just lost the seat they were promoted for in that course.
+                _wl.restore_entry_for_withdrawal(
+                    org_id, c['class_id'], req['student_user_id'])
         # Enroll immediately — same behavior as staff direct enrollment
         # (capacity-unrestricted; approving IS the override).
         _admin().table('class_enrollments').upsert({

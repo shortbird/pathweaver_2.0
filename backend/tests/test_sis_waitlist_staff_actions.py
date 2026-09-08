@@ -226,6 +226,111 @@ class TestStaleEntryCleanup:
 
 
 @pytest.mark.unit
+class TestRestoreAfterWithdrawal:
+    """iCreate, 2026-09-08: "for reading workshop tuesday 11:30 in the waitlist
+    section it says two students are enrolled (but aren't on the roster)."
+
+    'promoted' is written when a student takes any section of a course, across
+    every sibling section they were queued on. Nothing ever unwrote it, so a
+    student who dropped the section they were promoted into read as Enrolled on
+    queues she was no longer in, and was invisible to offer_next. Naomi Patzer
+    ended up in no Reading Workshop section and no queue for it; 18 entries
+    across 12 students were in that state."""
+
+    def _client(self, *, enrolled, entries, classes=None):
+        client = Mock()
+        tables = {}
+
+        def _table(name):
+            if name not in tables:
+                t = Mock()
+                for chained in ('select', 'eq', 'in_', 'update', 'limit'):
+                    getattr(t, chained).return_value = t
+                if name == 'class_enrollments':
+                    t.execute.return_value = Mock(data=enrolled)
+                elif name == 'org_classes':
+                    t.execute.return_value = Mock(data=classes or [])
+                else:
+                    t.execute.return_value = Mock(data=entries)
+                tables[name] = t
+            return tables[name]
+
+        client.table.side_effect = _table
+        return client, tables
+
+    def test_promoted_entries_go_back_to_waiting(self):
+        client, tables = self._client(
+            enrolled=[],
+            entries=[{'id': 'w1', 'class_id': 'c1', 'status': 'promoted'},
+                     {'id': 'w2', 'class_id': 'c2', 'status': 'promoted'}],
+        )
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids',
+                   return_value=['c1', 'c2']):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')
+        payload = tables['sis_waitlist_entries'].update.call_args[0][0]
+        assert payload['status'] == 'waiting'
+        assert sorted(tables['sis_waitlist_entries'].in_.call_args[0][1]) == ['w1', 'w2']
+
+    def test_position_is_preserved(self):
+        """Restoring is an undo, not a penalty — they keep the spot they held."""
+        client, tables = self._client(
+            enrolled=[],
+            entries=[{'id': 'w1', 'class_id': 'c1', 'status': 'promoted', 'position': 3}],
+        )
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids', return_value=['c1']):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')
+        assert 'position' not in tables['sis_waitlist_entries'].update.call_args[0][0]
+
+    def test_a_seat_in_a_sibling_section_keeps_them_promoted(self):
+        """Everly's case: she dropped Tuesday but still attends Thursday, so she
+        did get what she queued for and stays off the queue."""
+        client, tables = self._client(
+            enrolled=[{'id': 'enr-1'}],
+            entries=[{'id': 'w1', 'class_id': 'c1', 'status': 'promoted'}],
+        )
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids',
+                   return_value=['c1', 'c2']):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')
+        assert 'sis_waitlist_entries' not in tables
+
+    def test_a_retired_section_is_never_requeued(self):
+        """Archiving a class drops its roster through here; a waiting entry on
+        an archived section could never be admitted."""
+        client, tables = self._client(
+            enrolled=[],
+            entries=[{'id': 'w1', 'class_id': 'c1', 'status': 'promoted'}],
+            classes=[{'id': 'c1', 'status': 'archived'}],
+        )
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids', return_value=['c1']):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')
+        tables['sis_waitlist_entries'].update.assert_not_called()
+
+    def test_terminal_statuses_are_left_alone(self):
+        """Only 'promoted' is the state this bug creates. A family that declined
+        or let an offer lapse chose that, and must not be silently requeued."""
+        client, tables = self._client(
+            enrolled=[],
+            entries=[{'id': 'w1', 'class_id': 'c1', 'status': 'declined'},
+                     {'id': 'w2', 'class_id': 'c1', 'status': 'expired'}],
+        )
+        with patch('services.sis_waitlist_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service._sibling_class_ids', return_value=['c1']):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')
+        tables['sis_waitlist_entries'].update.assert_not_called()
+
+    def test_a_failure_never_propagates(self):
+        """Requeuing is bookkeeping — it must not break a withdrawal."""
+        client = Mock()
+        client.table.side_effect = RuntimeError('boom')
+        with patch('services.sis_waitlist_service._admin', return_value=client):
+            wl.restore_entry_for_withdrawal('org-1', 'c1', 's1')  # does not raise
+
+
+@pytest.mark.unit
 class TestNobodyWaitingReason:
     """iCreate, 2026-07-31: "It says 'offer next seat' on brain games thurs for 1
     on the waitlist, but when I click on it it says no one is waiting."

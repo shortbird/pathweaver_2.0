@@ -543,6 +543,66 @@ def clear_entry_for_enrollment(org_id: str, class_id: str, student_user_id: str)
         logger.warning(f"[Waitlist] could not clear entries for class {class_id}: {e}")
 
 
+def restore_entry_for_withdrawal(org_id: str, class_id: str, student_user_id: str) -> None:
+    """The inverse of `clear_entry_for_enrollment`: put a student back on the
+    queues they were closed out of, once they no longer hold a seat anywhere in
+    the course.
+
+    'promoted' means "they got what they were queued for". A drop makes that
+    false again, and nothing used to say so — the entry stayed terminal, the
+    Waitlist tab kept labelling them Enrolled, and they were invisible to
+    offer_next and to the seat-opened alert. iCreate, 2026-09-08: a student was
+    promoted off four Reading Workshop sections when she took Thurs Block 2,
+    dropped it, and ended up in no section of the course and no queue for it.
+
+    Deliberately gated on the whole course, not this one section: a student who
+    drops Tuesday but still attends Thursday *did* get their seat, so their
+    entries stay promoted. Position is preserved, so this restores the queue to
+    where it stood before the promotion rather than sending them to the back.
+    """
+    try:
+        matching_class_ids = _sibling_class_ids(org_id, class_id)
+        still_enrolled = (
+            _admin().table('class_enrollments').select('id')
+            .in_('class_id', matching_class_ids)
+            .eq('student_id', student_user_id).eq('status', 'active')
+            .limit(1).execute()
+        ).data or []
+        if still_enrolled:
+            return
+
+        # Never queue anyone for a retired section: archiving a class drops its
+        # roster through here, and a waiting entry on it could never be admitted.
+        retired = {
+            c['id'] for c in (
+                _admin().table('org_classes').select('id, status')
+                .in_('id', matching_class_ids).execute()
+            ).data or [] if c.get('status') == 'archived'
+        }
+
+        rows = (
+            _admin().table('sis_waitlist_entries').select('id, status, class_id')
+            .eq('organization_id', org_id).in_('class_id', matching_class_ids)
+            .eq('student_user_id', student_user_id).execute()
+        ).data or []
+        stale = [r for r in rows
+                 if r.get('status') == 'promoted' and r.get('class_id') not in retired]
+        if not stale:
+            return
+        stale_ids = [r['id'] for r in stale]
+        (
+            _admin().table('sis_waitlist_entries')
+            .update({'status': 'waiting', 'offered_at': None,
+                     'offer_expires_at': None, 'updated_at': _now().isoformat()})
+            .in_('id', stale_ids).execute()
+        )
+        logger.info(
+            f"[Waitlist] restored {len(stale_ids)} entry(ies) to waiting after a "
+            f"withdrawal from {class_id} across sections {matching_class_ids}")
+    except Exception as e:  # noqa: BLE001 — never break a withdrawal over this
+        logger.warning(f"[Waitlist] could not restore entries for class {class_id}: {e}")
+
+
 def expire_stale_offers() -> Dict[str, Any]:
     """Cron sweep: expire per-class waitlist offers past their TTL so the held
     seat frees up for the next student, then re-alert admins that the seat is
