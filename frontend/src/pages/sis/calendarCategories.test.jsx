@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * Calendar events in more than one category.
@@ -13,7 +14,18 @@ import { MemoryRouter } from 'react-router-dom'
  * per-category ICS feeds — and mirrors categories[0].
  */
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The event editor reads its RSVPs through hooks/api/useSisEventRsvps, so the
+// page needs a QueryClient. A fresh client per render keeps one test's cache
+// out of the next one's, and retry:false makes a failed query fail the
+// assertion rather than hang for three backoff rounds.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

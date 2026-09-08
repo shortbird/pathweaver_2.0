@@ -55,7 +55,8 @@ def _clean_party_size(value: Any) -> int:
 
 
 def rsvps_for(org_id: str, event_id: str) -> List[Dict[str, Any]]:
-    """Every reply to one event, with the family named. The office's headcount."""
+    """Every reply to one event, with the family named and the fee's state. The
+    office's headcount."""
     rows = fetch_all_rows(lambda: (
         _admin().table('sis_event_rsvps').select('*')
         .eq('organization_id', org_id).eq('event_id', event_id)
@@ -69,8 +70,20 @@ def rsvps_for(org_id: str, event_id: str) -> List[Dict[str, Any]]:
             names = {h['id']: h.get('name') for h in hh}
         except Exception as e:  # noqa: BLE001 — a name is a nicety; a count is not
             logger.warning(f'Could not resolve RSVP household names: {e}')
+    # Whether the fee actually came in. Somebody reading a paid event's headcount
+    # is also asking who still owes, and answering that from the billing page
+    # means cross-referencing two lists by hand for one evening.
+    invoice_ids = [r['invoice_id'] for r in rows if r.get('invoice_id')]
+    paid_state = {}
+    if invoice_ids:
+        try:
+            from services import sis_billing_service
+            paid_state = sis_billing_service.invoice_statuses(org_id, invoice_ids)
+        except Exception as e:  # noqa: BLE001 — same rule: a count survives this
+            logger.warning(f'Could not resolve RSVP invoice status: {e}')
     for r in rows:
         r['household_name'] = names.get(r.get('household_id'))
+        r['invoice_status'] = paid_state.get(r.get('invoice_id'))
     rows.sort(key=lambda r: ((r.get('household_name') or '~').lower(), r.get('created_at') or ''))
     return rows
 

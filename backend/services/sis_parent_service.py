@@ -1304,9 +1304,18 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
     family. Same overlap-window semantics as the staff calendar."""
     if not _is_org_member(user_id, org_id):
         return None
+    # The rsvp_* columns are not optional detail: EventRsvp renders NOTHING
+    # without rsvp_enabled, so leaving them out of this projection is what
+    # silently turned the RSVP feature off for every family. iCreate opened two
+    # events for replies and collected zero, because the button was never on the
+    # page (9cf78e9a, found 2026-09-08). `categories` is here for the same
+    # reason: the family calendar draws a chip per category and could only ever
+    # see the first one.
     q = (
         _admin().table('sis_events')
-        .select('id, title, description, location, start_at, end_at, all_day, category, audience')
+        .select('id, title, description, location, start_at, end_at, all_day, '
+                'category, categories, audience, '
+                'rsvp_enabled, rsvp_fee_cents, rsvp_closes_at')
         .eq('organization_id', org_id)
         .eq('audience', 'school')  # families only ever see school-wide events
     )

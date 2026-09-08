@@ -52,6 +52,9 @@ export const queryKeys = {
     classCatalog: (orgId, { showArchived, isAdmin } = {}) =>
       [...queryKeys.sis.all, 'classCatalog', orgId, !!showArchived, !!isAdmin],
     scheduleConflicts: (orgId) => [...queryKeys.sis.all, 'scheduleConflicts', orgId],
+    // Who replied to one calendar event. Keyed by event AND org: a superadmin
+    // switching schools must not be served the previous school's replies.
+    eventRsvps: (eventId, orgId) => [...queryKeys.sis.all, 'eventRsvps', eventId, orgId],
     // Student drawer. studentContacts has no orgId: the endpoint is scoped by
     // the student, and two panels on screen at once share this key so the
     // request is made once.

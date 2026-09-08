@@ -6,6 +6,7 @@ import { ModalOverlay } from '../../components/ui'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -204,6 +205,15 @@ const CalendarPage = () => {
                     {dayEvents.map((e) => {
                       const { time, date: startDate } = splitStamp(e.start_at)
                       const cats = eventCategories(e)
+                      // Time, and the headcount so far. Both belong to the day
+                      // the event STARTS — repeating "11 going" on every day of
+                      // a week-long trip reads as a different number each time.
+                      const going = startDate === key && e.rsvp_enabled
+                        ? (e.rsvp_summary?.people || 0) : 0
+                      const meta = [
+                        !e.all_day && startDate === key ? fmtTime(time) : null,
+                        going ? `${going} going` : null,
+                      ].filter(Boolean)
                       return (
                         <button key={e.id} type="button"
                           title={cats.length > 1 ? cats.join(' · ') : undefined}
@@ -221,7 +231,9 @@ const CalendarPage = () => {
                               <span key={c} className={`inline-block w-1.5 h-1.5 rounded-full ml-1 align-middle ${dotFor(c, categories)}`} />
                             ))}
                           </span>
-                          {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{fmtTime(time)}</span>}
+                          {meta.length > 0 && (
+                            <span className="text-[10px] opacity-80 block truncate">{meta.join(' · ')}</span>
+                          )}
                         </button>
                       )
                     })}
@@ -444,6 +456,11 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
               )}
             </div>
           )}
+          {/* The replies themselves, on the event they answer. Reads the SAVED
+              event, not the form: a checkbox the user has just ticked has no
+              replies yet, and one they have just unticked still has the ones
+              that already came in. */}
+          {event?.rsvp_enabled && <EventRsvpList orgId={orgId} event={event} />}
           {categories.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-neutral-500 mb-1">
@@ -501,6 +518,127 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
         </div>
       </div>
     </ModalOverlay>
+  )
+}
+
+const csvCell = (v) => {
+  const s = v == null ? '' : String(v)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+const slug = (s) => (s || 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+
+// What the fee did for one family. No invoice on a yes to a paid event means the
+// charge never raised — the reply is kept when billing fails, deliberately.
+const payLabel = (r, fee) => {
+  if (!fee || !r.attending) return ''
+  if (!r.invoice_id) return 'Not billed'
+  return r.invoice_status === 'paid' ? 'Paid' : 'Unpaid'
+}
+
+/**
+ * Who has replied to this event — the office's headcount, on the event itself.
+ *
+ * iCreate, 2026-08-28 (9cf78e9a) asked for RSVPs and payments on calendar
+ * events. The collecting shipped and the reading did not: replies went into
+ * sis_event_rsvps and the only way to see one was a database query, which is
+ * not a feature. The list lives in the event a person already clicked, because
+ * that is where they are standing when they ask how many chairs to put out.
+ *
+ * A paid event shows what the fee did, per family. "Coming, no invoice" is a
+ * real state — a charge that failed to raise still keeps the reply (the
+ * headcount matters more than the money), so it must be visible rather than
+ * read as free.
+ */
+const EventRsvpList = ({ orgId, event }) => {
+  const { data: state, isError: failed } = useSisEventRsvps(event.id, orgId)
+
+  const rows = state?.rsvps || []
+  const fee = event.rsvp_fee_cents
+  const closes = event.rsvp_closes_at ? String(event.rsvp_closes_at).slice(0, 10) : null
+
+  const download = () => {
+    const header = ['Family', 'Coming', 'People', 'Note']
+    if (fee) header.push('Payment')
+    const csv = [
+      header.map(csvCell).join(','),
+      ...rows.map((r) => {
+        const line = [
+          r.household_name || 'Unnamed family',
+          r.attending ? 'Yes' : 'No',
+          r.attending ? (r.party_size || 1) : 0,
+          r.note || '',
+        ]
+        if (fee) line.push(payLabel(r, fee))
+        return line.map(csvCell).join(',')
+      }),
+    ].join('\r\n')
+    // The BOM is what makes Excel open a UTF-8 CSV without mangling accented
+    // names — same as the roster exports.
+    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `rsvps-${slug(event.title)}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-neutral-50/60 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-neutral-700">Replies</h3>
+        {rows.length > 0 && (
+          <button type="button" onClick={download}
+            className="text-xs font-medium text-optio-purple hover:underline">Download CSV</button>
+        )}
+      </div>
+
+      {failed ? (
+        <p className="mt-1 text-xs text-red-500">Could not load the replies.</p>
+      ) : !state ? (
+        <p className="mt-1 text-xs text-neutral-400">Loading…</p>
+      ) : !rows.length ? (
+        <p className="mt-1 text-xs text-neutral-500">
+          Nobody has replied yet. Families answer on their calendar.
+        </p>
+      ) : (
+        <>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {state.families} {state.families === 1 ? 'family' : 'families'} coming
+            {' · '}{state.people} {state.people === 1 ? 'person' : 'people'}
+            {rows.length > state.families && ` · ${rows.length - state.families} said no`}
+          </p>
+          <ul className="mt-2 divide-y divide-gray-200 max-h-56 overflow-y-auto">
+            {rows.map((r) => (
+              <li key={r.id} className="py-1.5 flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className={`block text-sm truncate ${r.attending
+                    ? 'text-neutral-800' : 'text-neutral-400 line-through'}`}>
+                    {r.household_name || 'Unnamed family'}
+                  </span>
+                  {r.note && <span className="block text-xs text-neutral-500">{r.note}</span>}
+                </span>
+                <span className="flex-shrink-0 text-xs text-right">
+                  <span className="text-neutral-600">
+                    {r.attending ? `${r.party_size || 1} ${(r.party_size || 1) === 1 ? 'person' : 'people'}` : 'Not coming'}
+                  </span>
+                  {fee > 0 && r.attending && (
+                    <span className={`block ${r.invoice_status === 'paid'
+                      ? 'text-green-600' : 'text-amber-600'}`}>
+                      {payLabel(r, fee)}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {closes && (
+        <p className="mt-2 text-[11px] text-neutral-400">
+          Replies {closes < ymd(new Date()) ? 'closed' : 'close'} {closes}.
+        </p>
+      )}
+    </div>
   )
 }
 

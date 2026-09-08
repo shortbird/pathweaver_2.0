@@ -178,3 +178,56 @@ class TestCounting:
         with patch.object(rsvps, '_admin', return_value=admin):
             assert rsvps.summary_for(ORG, []) == {}
         admin.table.assert_not_called()
+
+
+@pytest.mark.unit
+class TestTheList:
+    """What the office reads on the event: who replied, and what the fee did."""
+
+    def _list(self, rows, households=None, statuses=None, statuses_raise=False):
+        admin = Mock()
+        chain = Mock()
+        for m in ('select', 'eq', 'in_', 'limit'):
+            getattr(chain, m).return_value = chain
+        chain.execute.return_value = Mock(data=households or [])
+        admin.table.return_value = chain
+        billing = (patch('services.sis_billing_service.invoice_statuses',
+                         side_effect=RuntimeError('billing is down'))
+                   if statuses_raise else
+                   patch('services.sis_billing_service.invoice_statuses',
+                         return_value=statuses or {}))
+        with patch.object(rsvps, '_admin', return_value=admin), \
+             patch.object(rsvps, 'fetch_all_rows', return_value=rows), \
+             billing:
+            return rsvps.rsvps_for(ORG, EVENT)
+
+    def test_each_reply_carries_the_family_name(self):
+        out = self._list([{'id': 'r1', 'household_id': HOUSE, 'attending': True}],
+                         households=[{'id': HOUSE, 'name': 'Alvarez'}])
+        assert out[0]['household_name'] == 'Alvarez'
+
+    def test_a_paid_reply_says_whether_the_money_came_in(self):
+        out = self._list(
+            [{'id': 'r1', 'household_id': HOUSE, 'attending': True, 'invoice_id': 'inv-1'}],
+            statuses={'inv-1': 'paid'})
+        assert out[0]['invoice_status'] == 'paid'
+
+    def test_a_reply_that_was_never_billed_has_no_status(self):
+        """respond() keeps the reply when the charge fails to raise, so a yes
+        with no invoice is a real state — and reads as 'not billed', not free."""
+        out = self._list([{'id': 'r1', 'household_id': HOUSE, 'attending': True}])
+        assert out[0]['invoice_status'] is None
+
+    def test_billing_being_down_does_not_take_the_headcount_with_it(self):
+        out = self._list(
+            [{'id': 'r1', 'household_id': HOUSE, 'attending': True, 'invoice_id': 'inv-1'}],
+            statuses_raise=True)
+        assert len(out) == 1
+        assert out[0]['invoice_status'] is None
+
+    def test_the_list_reads_in_family_order(self):
+        out = self._list(
+            [{'id': 'r1', 'household_id': 'h2', 'attending': True},
+             {'id': 'r2', 'household_id': 'h1', 'attending': False}],
+            households=[{'id': 'h1', 'name': 'Alvarez'}, {'id': 'h2', 'name': 'Bennett'}])
+        assert [r['household_name'] for r in out] == ['Alvarez', 'Bennett']

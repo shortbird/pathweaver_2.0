@@ -322,6 +322,22 @@ def list_invoices(org_id: str, household_id: Optional[str] = None,
     return rows
 
 
+def invoice_statuses(org_id: str, invoice_ids: List[str]) -> Dict[str, str]:
+    """{invoice_id: status} for a named handful of invoices.
+
+    For a screen that raised a charge and wants to say whether it landed —
+    an event's RSVP list, say — without pulling the org's whole ledger to find
+    a dozen rows, and without reading sis_invoices from outside this module.
+    """
+    if not invoice_ids:
+        return {}
+    rows = fetch_all_rows(lambda: (
+        _admin().table('sis_invoices').select('id, status')
+        .eq('organization_id', org_id).in_('id', invoice_ids)
+    ))
+    return {r['id']: r.get('status') for r in rows}
+
+
 def get_invoice(org_id: str, invoice_id: str) -> Optional[Dict[str, Any]]:
     rows = (
         _admin().table('sis_invoices').select('*')

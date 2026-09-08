@@ -145,9 +145,16 @@ BACKEND = Path(__file__).resolve().parents[2]
 #                                  own gating tests; the deletion of the daily
 #                                  advisor summary's routes gave one back, so
 #                                  routes/ nets +1.
+# services/ 1826 -> 1827 on 2026-09-08. sis_billing_service.invoice_statuses:
+# the status of a named handful of invoices, so a screen that raised a charge
+# can say whether it landed. Written for the RSVP list on a calendar event
+# (9cf78e9a), which shows who is coming and, on a paid event, who has actually
+# paid. It lives here rather than in sis_event_rsvp_service because
+# sis_invoices belongs to this module, and reading the whole org ledger through
+# list_invoices to find a dozen rows is the alternative.
 BASELINES = {
     'routes': 2333,
-    'services': 1826,
+    'services': 1827,
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
@@ -202,7 +209,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2333 + 1826
+UPPER_TOTAL_BASELINE = 2333 + 1827
 
 
 def test_the_upper_layers_do_not_grow_in_total():

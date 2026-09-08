@@ -143,6 +143,15 @@ def list_events(user_id):
     role = get_effective_role(viewer[0]) if viewer else None
     if role not in ('org_admin', 'superadmin'):
         rows = [e for e in rows if (e.get('audience') or 'school') in ('school', 'teachers')]
+    # How many have said yes, on the events that asked. The office plans the
+    # event on this grid, so the headcount belongs here rather than on a screen
+    # somebody has to know to open (9cf78e9a). One query for the whole month.
+    from services import sis_event_rsvp_service as rsvp_service
+    asked = [e['id'] for e in rows if e.get('rsvp_enabled')]
+    counts = rsvp_service.summary_for(org_id, asked)
+    for e in rows:
+        if e.get('rsvp_enabled'):
+            e['rsvp_summary'] = counts.get(e['id']) or {'families': 0, 'people': 0}
     _, settings = _org_calendar_settings(org_id)
     return jsonify({'success': True, 'events': rows,
                     'categories': settings.get('calendar_categories') or []})
