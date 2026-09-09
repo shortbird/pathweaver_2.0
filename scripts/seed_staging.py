@@ -88,6 +88,14 @@ COUNTS = {
 PILLARS = ["art", "stem", "communication", "civics", "wellness"]
 ORG_ROLES = ["student", "parent", "advisor", "org_admin", "campus_coordinator", "observer"]
 
+# These are CHECK-constrained in the schema, not free text. Values taken from the
+# live constraint definitions rather than guessed -- every one of these columns
+# is NOT NULL with no default, so a wrong value fails at the insert.
+NOTIFICATION_TYPES = ["quest_started", "task_approved", "announcement",
+                      "badge_earned", "message_received", "system_alert"]
+ACCESSOR_ROLES = ["parent", "advisor", "observer", "org_admin"]
+EVENT_CATEGORIES = ["auth", "quest", "task", "navigation", "evidence"]
+
 # Deliberately unmistakable. If one of these ever shows up in a support ticket or
 # a screenshot, it is instantly obvious that someone is looking at staging.
 FIRST = ["Ada", "Bram", "Cleo", "Dex", "Esme", "Fen", "Gus", "Hattie", "Ida",
@@ -258,12 +266,14 @@ def main():
             cid = g.uuid("class")
             classes.append(cid)
             cur.execute(
-                """INSERT INTO public.org_classes (id, organization_id, name, created_at)
-                   VALUES (%s, %s, %s, %s)""",
-                (cid, g.r.choice(orgs), f"Staging Class {i}", g.past(400)))
+                """INSERT INTO public.org_classes (id, organization_id, name, created_by, created_at)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (cid, g.r.choice(orgs), f"Staging Class {i}",
+                 g.r.choice(all_users), g.past(400)))
         for _ in range(n("class_enrollments")):
             cur.execute(
-                """INSERT INTO public.class_enrollments (id, class_id, student_id, status, created_at)
+                # enrolled_at, not created_at -- this table has no created_at.
+                """INSERT INTO public.class_enrollments (id, class_id, student_id, status, enrolled_at)
                    VALUES (%s, %s, %s, 'active', %s) ON CONFLICT DO NOTHING""",
                 (g.uuid("enr"), g.r.choice(classes), g.r.choice(students), g.past(300)))
         print(f"classes: {len(classes)}")
@@ -274,9 +284,16 @@ def main():
             qid = g.uuid("quest")
             quests.append(qid)
             cur.execute(
-                """INSERT INTO public.quests (id, title, is_active, created_at)
-                   VALUES (%s, %s, true, %s)""",
-                (qid, f"Staging Quest {i}: {g.r.choice(LAST)}", g.past(500)))
+                # quest_type MUST be given. Its column default is 'custom',
+                # which check_quest_type rejects -- the default violates the
+                # constraint, so any insert omitting it fails. See
+                # PHASE_2_HANDOFF.md; this is a production schema bug, not a
+                # staging artifact.
+                """INSERT INTO public.quests (id, title, quest_type, is_active, created_at)
+                   VALUES (%s, %s, %s, true, %s)""",
+                (qid, f"Staging Quest {i}: {g.r.choice(LAST)}",
+                 g.r.choices(["optio", "class", "course"], weights=[94, 4, 2])[0],
+                 g.past(500)))
 
         user_quests = []
         for _ in range(n("user_quests")):
@@ -305,10 +322,13 @@ def main():
         for _ in range(n("quest_task_completions")):
             tid, uid, qid = g.r.choice(tasks)
             cur.execute(
+                # No xp_awarded column here. CLAUDE.md's "Core Tables" section
+                # lists one; the table does not have it. XP lives on
+                # user_quest_tasks.xp_value and in user_skill_xp.
                 """INSERT INTO public.quest_task_completions (id, user_id, quest_id,
-                       task_id, xp_awarded, completed_at)
-                   VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
-                (g.uuid("qtc"), uid, qid, tid, g.r.choice([25, 50, 100]), g.past(200)))
+                       task_id, completed_at)
+                   VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING""",
+                (g.uuid("qtc"), uid, qid, tid, g.past(200)))
 
         for uid in students:
             for p in PILLARS:
@@ -322,26 +342,30 @@ def main():
         # user_activity_events is 92 MB in production and is the reason this
         # script bothers with scale at all. Batched -- one INSERT per row here
         # is the difference between a minute and an hour.
-        ev = [(g.uuid("ev"), g.r.choice(all_users),
+        ev = [(g.uuid("ev"), g.r.choice(all_users), g.uuid("sess"),
                g.r.choice(["login", "quest_start", "task_complete", "page_view",
-                           "evidence_upload", "logout"]), g.past(365))
+                           "evidence_upload", "logout"]),
+               g.r.choice(EVENT_CATEGORIES), g.past(365))
               for _ in range(n("user_activity_events"))]
         cur.executemany(
-            """INSERT INTO public.user_activity_events (id, user_id, event_type, created_at)
-               VALUES (%s, %s, %s, %s)""", ev)
+            """INSERT INTO public.user_activity_events
+                   (id, user_id, session_id, event_type, event_category, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s)""", ev)
         print(f"user_activity_events: {len(ev):,}")
 
         cur.executemany(
-            """INSERT INTO public.notifications (id, user_id, title, body, created_at)
-               VALUES (%s, %s, %s, %s, %s)""",
-            [(g.uuid("ntf"), g.r.choice(all_users), "Staging notification",
-              "Generated by seed_staging.py.", g.past(120))
+            """INSERT INTO public.notifications (id, user_id, type, title, message, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            [(g.uuid("ntf"), g.r.choice(all_users), g.r.choice(NOTIFICATION_TYPES),
+              "Staging notification", "Generated by seed_staging.py.", g.past(120))
              for _ in range(n("notifications"))])
 
         cur.executemany(
-            """INSERT INTO public.student_access_logs (id, student_id, accessor_id, created_at)
-               VALUES (%s, %s, %s, %s)""",
-            [(g.uuid("sal"), g.r.choice(students), g.r.choice(all_users), g.past(180))
+            """INSERT INTO public.student_access_logs
+                   (id, student_id, accessor_id, accessor_role, data_accessed, access_timestamp)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            [(g.uuid("sal"), g.r.choice(students), g.r.choice(all_users),
+              g.r.choice(ACCESSOR_ROLES), '{"fields": ["display_name"]}', g.past(180))
              for _ in range(n("student_access_logs"))])
 
         conn.commit()
