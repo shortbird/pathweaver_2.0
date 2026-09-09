@@ -60,7 +60,7 @@ jobs:
     outputs:
       pending: ${{ steps.list.outputs.pending }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check configuration
         env:
@@ -130,7 +130,7 @@ jobs:
     # schema change.
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Confirm intent
         env:
