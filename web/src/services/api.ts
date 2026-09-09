@@ -1,8 +1,36 @@
 import axios from 'axios'
+import type { AxiosError, AxiosRequestConfig } from 'axios'
 import { shouldUseAuthHeaders } from '../utils/browserDetection'
 import logger from '../utils/logger'
 import { captureException } from './sentry'
 import { postRefreshWithRetry, isUnrecoverableAuthFailure } from './sessionRecovery'
+import type {
+  ApiErrorBody, CsrfTokenResponse, CsrfTokenStore, RefreshResponse, TokenStore,
+} from '../types/api'
+
+/**
+ * A JSON request body, as the endpoint helpers below take it.
+ *
+ * Deliberately NOT a per-endpoint type. This module is the boundary, and the
+ * boundary's contract is the envelope (types/api.ts) plus which arguments each
+ * endpoint takes -- not the shape of two hundred payloads that change with the
+ * product. Typing those here would mean a second copy of the backend's
+ * serializers, maintained by hand, in a codebase whose 273k lines of JSX do not
+ * typecheck anyway. See tsconfig.json.
+ */
+type JsonBody = Record<string, unknown>
+
+/** Query-string parameters, before URLSearchParams stringifies them. */
+type QueryParams = Record<string, string | number | boolean | undefined | null>
+
+/**
+ * A refresh failure that means the SESSION is over, not that the request
+ * failed. sessionRecovery reads this flag to decide between a retry and a
+ * logout, so it is a real part of the contract rather than an ad-hoc property.
+ */
+interface SessionOverError extends Error {
+  __sessionOver?: boolean
+}
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -20,8 +48,8 @@ const api = axios.create({
 // as a Safari/iOS/Firefox fallback within the current tab's lifetime.
 // On page reload everything is discarded; the response interceptor will
 // re-hydrate via /api/auth/refresh using the httpOnly refresh cookie.
-let accessToken = null
-let refreshToken = null
+let accessToken: string | null = null
+let refreshToken: string | null = null
 
 // One-time migration: purge any legacy token/user data from localStorage/IndexedDB.
 const purgeLegacyPersistence = () => {
@@ -41,12 +69,12 @@ const purgeLegacyPersistence = () => {
   }
 }
 
-export const tokenStore = {
+export const tokenStore: TokenStore = {
   init: () => {
     purgeLegacyPersistence()
   },
 
-  setTokens: (access, refresh) => {
+  setTokens: (access: string | null, refresh: string | null) => {
     accessToken = access
     refreshToken = refresh
     logger.debug('[TokenStore] Tokens stored in memory')
@@ -88,7 +116,7 @@ api.interceptors.request.use(
     }
 
     // Add CSRF token for state-changing requests
-    if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
+    if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase() ?? '')) {
       // The bootstrap fetch is kicked off unawaited when authService loads, so
       // any mutating request firing early in page load — the acting-as token
       // re-mint on mount, most of all — used to race it and go out with no
@@ -121,7 +149,7 @@ api.interceptors.request.use(
 // - CSRF token stored in memory (not cookies)
 // - Token fetched from API and sent in headers
 // - Flask-WTF validates against httpOnly session cookie
-let csrfToken = null
+let csrfToken: string | null = null
 let csrfTokenIssuedAt = 0
 
 // The backend expires a CSRF token after WTF_CSRF_TIME_LIMIT (1 hour,
@@ -139,24 +167,24 @@ function csrfTokenIsStale() {
 }
 
 // Function to get CSRF token from memory
-function getCsrfToken() {
+function getCsrfToken(): string | null {
   return csrfToken
 }
 
 // Function to set CSRF token in memory (called after fetching from API)
-function setCsrfToken(token) {
+function setCsrfToken(token: string | null) {
   csrfToken = token
   csrfTokenIssuedAt = token ? Date.now() : 0
 }
 
 // One shared bootstrap fetch, so a burst of early mutating requests costs a
 // single /csrf-token round trip instead of one each.
-let csrfBootstrap = null
+let csrfBootstrap: Promise<string | null> | null = null
 
-function ensureCsrfToken() {
+function ensureCsrfToken(): Promise<string | null> {
   if (csrfToken && !csrfTokenIsStale()) return Promise.resolve(csrfToken)
   if (!csrfBootstrap) {
-    csrfBootstrap = api.get('/api/auth/csrf-token')
+    csrfBootstrap = api.get<CsrfTokenResponse>('/api/auth/csrf-token')
       .then(({ data }) => {
         if (data?.csrf_token) {
           setCsrfToken(data.csrf_token)
@@ -174,7 +202,7 @@ function ensureCsrfToken() {
 }
 
 // Export CSRF token management
-export const csrfTokenStore = {
+export const csrfTokenStore: CsrfTokenStore = {
   get: getCsrfToken,
   ensure: ensureCsrfToken,
   set: setCsrfToken,
@@ -189,7 +217,7 @@ export const csrfTokenStore = {
  * - For other browsers: use httpOnly cookies (sent automatically)
  * - This fixes the bug where Safari/iOS/Firefox users get logged out when their access token expires
  */
-let refreshPromise = null
+let refreshPromise: Promise<unknown> | null = null
 
 api.interceptors.response.use(
   (response) => response,
@@ -306,7 +334,7 @@ api.interceptors.response.use(
             try {
               // CRITICAL FIX: For Safari/iOS/Firefox, send refresh_token in request body
               // These browsers block cross-site cookies, so we must use Authorization headers
-              const requestBody = {}
+              const requestBody: { refresh_token?: string; auth_mode?: string } = {}
               const useAuthHeaders = shouldUseAuthHeaders()
 
               if (useAuthHeaders) {
@@ -330,7 +358,7 @@ api.interceptors.response.use(
               // One jittered retry on a transient failure (cold Render worker,
               // network blip). A 4xx still fails fast — see sessionRecovery.js.
               const response = await postRefreshWithRetry(requestBody, {
-                post: (path, b) => api.post(path, b)
+                post: (path: string, b: JsonBody) => api.post<RefreshResponse>(path, b),
               })
 
               if (response.status === 200) {
@@ -348,7 +376,7 @@ api.interceptors.response.use(
               }
               // A non-200 with no thrown error means we got a response but no
               // usable session out of it. Nothing to retry — end the session.
-              const noSession = new Error('Token refresh failed')
+              const noSession: SessionOverError = new Error('Token refresh failed')
               noSession.__sessionOver = true
               throw noSession
             } finally {
@@ -479,7 +507,7 @@ let sessionSwitchAt = 0
 export const beginSessionSwitch = () => { sessionSwitchAt = Date.now() }
 const inSessionSwitch = () => Date.now() - sessionSwitchAt < SESSION_SWITCH_QUIET_MS
 
-const REPORTABLE = (error) => {
+const REPORTABLE = (error: AxiosError<ApiErrorBody>) => {
   const s = error.response?.status
   if (!s) return false
   if (s >= 500) return true
@@ -494,15 +522,20 @@ const REPORTABLE = (error) => {
   return s === 405
 }
 
-function reportApiFailure(error) {
+function reportApiFailure(error: AxiosError<ApiErrorBody>) {
   try {
     if (!REPORTABLE(error)) return
     const method = (error.config?.method || 'get').toUpperCase()
-    const status = error.response.status
+    const status = error.response!.status
     const endpoint = (error.config?.url || 'unknown')
       .split('?')[0]
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
       .replace(/\/\d+(\/|$)/g, '/:id$1')
+    // `error` is a string once the response interceptor has flattened it, and
+    // the nested object before that. reportApiFailure runs on both paths.
+    const body = error.response?.data
+    const nested = typeof body?.error === 'object' && body.error !== null
+      ? body.error : undefined
     const key = `${status}:${method}:${endpoint}`
     if (reportedApiFailures.has(key) || reportedApiFailures.size >= 20) return
     reportedApiFailures.add(key)
@@ -510,10 +543,9 @@ function reportApiFailure(error) {
       status,
       endpoint,
       method,
-      error_code: error.response?.data?.error_detail?.code || error.response?.data?.error?.code,
-      server_message: typeof error.response?.data?.error === 'string'
-        ? error.response.data.error : error.response?.data?.error?.message,
-      request_id: error.response?.data?.error_detail?.request_id,
+      error_code: body?.error_detail?.code || nested?.code,
+      server_message: typeof body?.error === 'string' ? body.error : nested?.message,
+      request_id: body?.error_detail?.request_id,
     })
   } catch {
     // Reporting must never break the caller's error handling.
@@ -533,39 +565,39 @@ export const observerAPI = {
     api.post('/api/observers/generate-link', {}),
 
   // Accept an observer invitation (creates observer-student link)
-  acceptInvitation: (invitationCode, data = {}) =>
+  acceptInvitation: (invitationCode: string, data = {}) =>
     api.post(`/api/observers/accept/${invitationCode}`, data),
 
   // Get my sent invitations
   getMyInvitations: () => api.get('/api/observers/my-invitations'),
 
   // Cancel pending invitation
-  cancelInvitation: (invitationId) => api.delete(`/api/observers/invitations/${invitationId}/cancel`),
+  cancelInvitation: (invitationId: string) => api.delete(`/api/observers/invitations/${invitationId}/cancel`),
 
   // Parent endpoints - create shareable invite link for their child
-  parentCreateInvite: (studentId, relationship) =>
+  parentCreateInvite: (studentId: string, relationship: string) =>
     api.post('/api/observers/parent-invite', { student_id: studentId, relationship }),
 
-  getParentInvitations: (studentId) =>
+  getParentInvitations: (studentId: string) =>
     api.get(`/api/observers/parent-invitations/${studentId}`),
 
-  getObserversForStudent: (studentId) =>
+  getObserversForStudent: (studentId: string) =>
     api.get(`/api/observers/student/${studentId}/observers`),
 
   // Remove observer from student (parent action)
-  removeObserverFromStudent: (studentId, linkId) =>
+  removeObserverFromStudent: (studentId: string, linkId: string) =>
     api.delete(`/api/observers/student/${studentId}/observers/${linkId}`),
 
   // Remove observer (student action - removes own observer link)
-  removeMyObserver: (linkId) =>
+  removeMyObserver: (linkId: string) =>
     api.delete(`/api/observers/${linkId}/remove`),
 
   // Feed endpoints
-  getFeed: (params = {}) => {
+  getFeed: (params: QueryParams = {}) => {
     const queryParams = new URLSearchParams();
-    if (params.studentId) queryParams.append('student_id', params.studentId);
-    if (params.limit) queryParams.append('limit', params.limit);
-    if (params.cursor) queryParams.append('cursor', params.cursor);
+    if (params.studentId) queryParams.append('student_id', String(params.studentId));
+    if (params.limit) queryParams.append('limit', String(params.limit));
+    if (params.cursor) queryParams.append('cursor', String(params.cursor));
     const queryString = queryParams.toString();
     return api.get(`/api/observers/feed${queryString ? `?${queryString}` : ''}`);
   },
@@ -573,22 +605,22 @@ export const observerAPI = {
   getMyStudents: () => api.get('/api/observers/my-students'),
 
   // Record feed item views
-  recordViews: (items) =>
+  recordViews: (items: unknown[]) =>
     api.post('/api/observers/feed/record-views', { items }),
 
   // Get viewers for a feed item
-  getViewers: (targetType, targetId) =>
+  getViewers: (targetType: string, targetId: string) =>
     api.get(`/api/observers/views/${targetType}/${targetId}`),
 
   // Comments on specific completions
-  getCompletionComments: (completionId) =>
+  getCompletionComments: (completionId: string) =>
     api.get(`/api/observers/completions/${completionId}/comments`),
 
   // Comments on learning events (moments)
-  getLearningEventComments: (learningEventId) =>
+  getLearningEventComments: (learningEventId: string) =>
     api.get(`/api/observers/learning-events/${learningEventId}/comments`),
 
-  postComment: (studentId, completionId, commentText, questId = null) =>
+  postComment: (studentId: string, completionId: string, commentText: string, questId = null) =>
     api.post('/api/observers/comments', {
       student_id: studentId,
       task_completion_id: completionId,
@@ -597,53 +629,53 @@ export const observerAPI = {
     }),
 
   // Post comment on learning event (moment)
-  postLearningEventComment: (studentId, learningEventId, commentText) =>
+  postLearningEventComment: (studentId: string, learningEventId: string, commentText: string) =>
     api.post('/api/observers/comments', {
       student_id: studentId,
       learning_event_id: learningEventId,
       comment_text: commentText
     }),
 
-  deleteComment: (commentId) =>
+  deleteComment: (commentId: string) =>
     api.delete(`/api/observers/comments/${commentId}`),
 
   // Share a feed item (generates a public link for other observers)
-  shareFeedItem: ({ completion_id, learning_event_id }) =>
+  shareFeedItem: ({ completion_id, learning_event_id }: JsonBody) =>
     api.post('/api/observers/feed/share', { completion_id, learning_event_id }),
 
   // Student-facing: get all feedback on my work
-  getMyFeedback: (studentId) =>
+  getMyFeedback: (studentId: string) =>
     api.get(`/api/observers/student/${studentId}/comments`),
 
   // Student-facing: toggle feed item visibility for observers
-  toggleFeedItemVisibility: ({ completion_id, learning_event_id, hidden }) =>
+  toggleFeedItemVisibility: ({ completion_id, learning_event_id, hidden }: JsonBody) =>
     api.post('/api/observers/feed-item/toggle-visibility', { completion_id, learning_event_id, hidden }),
 
   // One student's activity feed. The student's own Feed page moved to
   // /api/connections/feed (own work + connected peers'); this stays for the
   // parent/observer case, where the question really is "show me THIS child".
-  getStudentActivityFeed: (studentId, params = {}) => {
+  getStudentActivityFeed: (studentId: string, params: QueryParams = {}) => {
     const queryParams = new URLSearchParams();
-    if (params.limit) queryParams.append('limit', params.limit);
-    if (params.cursor) queryParams.append('cursor', params.cursor);
+    if (params.limit) queryParams.append('limit', String(params.limit));
+    if (params.cursor) queryParams.append('cursor', String(params.cursor));
     const queryString = queryParams.toString();
     return api.get(`/api/observers/student/${studentId}/activity${queryString ? `?${queryString}` : ''}`);
   },
 
   // Family observer endpoints (parent manages observers across all children)
-  familyInvite: (studentIds, relationship = 'other') =>
+  familyInvite: (studentIds: string[], relationship = 'other') =>
     api.post('/api/observers/family-invite', { student_ids: studentIds, relationship }),
 
   getFamilyObservers: () =>
     api.get('/api/observers/family-observers'),
 
-  toggleChildAccess: (observerId, studentId, enabled) =>
+  toggleChildAccess: (observerId: string, studentId: string, enabled: boolean) =>
     api.post(`/api/observers/family-observers/${observerId}/toggle-child`, {
       student_id: studentId,
       enabled
     }),
 
-  removeFamilyObserver: (observerId) =>
+  removeFamilyObserver: (observerId: string) =>
     api.delete(`/api/observers/family-observers/${observerId}`)
 }
 
@@ -656,7 +688,7 @@ export const lmsAPI = {
   getIntegrationStatus: () => api.get('/api/lms/integration/status'),
 
   // Sync roster from OneRoster CSV (admin only)
-  syncRoster: (file, platform) => {
+  syncRoster: (file: File, platform: string) => {
     const formData = new FormData()
     formData.append('roster_csv', file)
     formData.append('lms_platform', platform)
@@ -669,7 +701,7 @@ export const lmsAPI = {
   },
 
   // Sync assignments from LMS (admin only)
-  syncAssignments: (assignments, platform) =>
+  syncAssignments: (assignments: unknown[], platform: string) =>
     api.post('/api/lms/sync/assignments', { assignments, lms_platform: platform }),
 
   // Get grade sync status (admin only)
@@ -682,38 +714,38 @@ export const parentAPI = {
   getMyChildren: () => api.get('/api/parents/my-children'),
 
   // Get dashboard data for a specific student
-  getDashboard: (studentId) => api.get(`/api/parent/dashboard/${studentId}`),
+  getDashboard: (studentId: string) => api.get(`/api/parent/dashboard/${studentId}`),
 
   // Get calendar data for a specific student
-  getCalendar: (studentId) => api.get(`/api/parent/calendar/${studentId}`),
+  getCalendar: (studentId: string) => api.get(`/api/parent/calendar/${studentId}`),
 
   // Get progress/XP breakdown by pillar for a student
-  getProgress: (studentId) => api.get(`/api/parent/progress/${studentId}`),
+  getProgress: (studentId: string) => api.get(`/api/parent/progress/${studentId}`),
 
   // Get learning insights and analytics for a student
-  getInsights: (studentId) => api.get(`/api/parent/insights/${studentId}`),
+  getInsights: (studentId: string) => api.get(`/api/parent/insights/${studentId}`),
 
   // Get task details with evidence (for Calendar tab task detail modal)
-  getTaskDetails: (studentId, taskId) => api.get(`/api/parent/task/${studentId}/${taskId}`),
+  getTaskDetails: (studentId: string, taskId: string) => api.get(`/api/parent/task/${studentId}/${taskId}`),
 
   // Get quest details with student's personalized tasks (read-only)
-  getQuestView: (studentId, questId) => api.get(`/api/parent/quest/${studentId}/${questId}`),
+  getQuestView: (studentId: string, questId: string) => api.get(`/api/parent/quest/${studentId}/${questId}`),
 
   // Get all completed quests for a student
-  getCompletedQuests: (studentId) => api.get(`/api/parent/completed-quests/${studentId}`),
+  getCompletedQuests: (studentId: string) => api.get(`/api/parent/completed-quests/${studentId}`),
 
   // Get recent completions with evidence (for Insights tab)
-  getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
+  getRecentCompletions: (studentId: string) => api.get(`/api/parent/completions/${studentId}`),
 
   // Upload evidence on behalf of student (parent/advisor, no task completion)
   // Uses helper evidence endpoint - adds evidence blocks without completing the task
   // Expects JSON: { student_id, task_id, block_type, content }
-  uploadEvidence: (data) =>
+  uploadEvidence: (data: JsonBody) =>
     api.post('/api/evidence/helper/upload-for-student', data),
 
   // Upload a file (image/document) and get back the URL
   // Used by parent evidence upload to first upload file, then create evidence block
-  uploadFile: (formData) =>
+  uploadFile: (formData: FormData) =>
     api.post('/api/uploads/evidence', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -721,34 +753,34 @@ export const parentAPI = {
     }),
 
   // Get AI tutor conversations for monitoring (Communications tab)
-  getTutorConversations: (studentId) => api.get(`/api/parent/communications/${studentId}`),
+  getTutorConversations: (studentId: string) => api.get(`/api/parent/communications/${studentId}`),
 
   // Get specific conversation messages
-  getConversationMessages: (conversationId) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
+  getConversationMessages: (conversationId: string) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
 
   // Get safety reports for student
-  getSafetyReports: (studentId) => api.get(`/api/tutor/parent/safety-reports/${studentId}`),
+  getSafetyReports: (studentId: string) => api.get(`/api/tutor/parent/safety-reports/${studentId}`),
 
   // Get parent monitoring settings
-  getSettings: (studentId) => api.get(`/api/tutor/parent/settings/${studentId}`),
+  getSettings: (studentId: string) => api.get(`/api/tutor/parent/settings/${studentId}`),
 
   // Update parent monitoring settings
-  updateSettings: (studentId, settings) => api.put(`/api/tutor/parent/settings/${studentId}`, settings),
+  updateSettings: (studentId: string, settings: JsonBody) => api.put(`/api/tutor/parent/settings/${studentId}`, settings),
 
   // NEW: Submit connection requests for multiple children (January 2025 Redesign)
-  submitConnectionRequests: (children) => api.post('/api/parents/submit-connection-requests', { children }),
+  submitConnectionRequests: (children: unknown[]) => api.post('/api/parents/submit-connection-requests', { children }),
 
   // NEW: Get parent's submitted connection requests with status (January 2025 Redesign)
   getMyConnectionRequests: () => api.get('/api/parents/my-connection-requests'),
 
   // Family Settings - Co-Parents management
   getFamilyParents: () => api.get('/api/parents/family-parents'),
-  promoteObserver: (observerId) => api.post('/api/parents/promote-observer', { observer_id: observerId }),
+  promoteObserver: (observerId: string) => api.post('/api/parents/promote-observer', { observer_id: observerId }),
 
   // Parent task management for dependents (under-13 managed accounts)
-  createTaskForDependent: (questId, data) =>
+  createTaskForDependent: (questId: string, data: JsonBody) =>
     api.post(`/api/family/quests/${questId}/tasks`, data),
-  uncompleteTaskForDependent: (questId, taskId, data) =>
+  uncompleteTaskForDependent: (questId: string, taskId: string, data: JsonBody) =>
     api.post(`/api/family/quests/${questId}/tasks/${taskId}/uncomplete`, data),
 
 }
@@ -756,41 +788,41 @@ export const parentAPI = {
 // Admin Parent Connections API methods (January 2025 Redesign)
 export const adminParentConnectionsAPI = {
   // Get all connection requests with filters
-  getConnectionRequests: (filters = {}) => {
+  getConnectionRequests: (filters: QueryParams = {}) => {
     const params = new URLSearchParams();
-    if (filters.status) params.append('status', filters.status);
-    if (filters.parent_id) params.append('parent_id', filters.parent_id);
-    if (filters.start_date) params.append('start_date', filters.start_date);
-    if (filters.end_date) params.append('end_date', filters.end_date);
-    if (filters.page) params.append('page', filters.page);
-    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.status) params.append('status', String(filters.status));
+    if (filters.parent_id) params.append('parent_id', String(filters.parent_id));
+    if (filters.start_date) params.append('start_date', String(filters.start_date));
+    if (filters.end_date) params.append('end_date', String(filters.end_date));
+    if (filters.page) params.append('page', String(filters.page));
+    if (filters.limit) params.append('limit', String(filters.limit));
     return api.get(`/api/admin/parent-connections/requests?${params.toString()}`);
   },
 
   // Approve a connection request
-  approveConnectionRequest: (requestId, adminNotes = '') =>
+  approveConnectionRequest: (requestId: string, adminNotes = '') =>
     api.post(`/api/admin/parent-connections/requests/${requestId}/approve`, { admin_notes: adminNotes }),
 
   // Reject a connection request
-  rejectConnectionRequest: (requestId, adminNotes) =>
+  rejectConnectionRequest: (requestId: string, adminNotes: string) =>
     api.post(`/api/admin/parent-connections/requests/${requestId}/reject`, { admin_notes: adminNotes }),
 
   // Get all active parent-student links
-  getActiveLinks: (filters = {}) => {
+  getActiveLinks: (filters: QueryParams = {}) => {
     const params = new URLSearchParams();
-    if (filters.parent_id) params.append('parent_id', filters.parent_id);
-    if (filters.student_id) params.append('student_id', filters.student_id);
-    if (filters.admin_verified !== undefined) params.append('admin_verified', filters.admin_verified);
-    if (filters.page) params.append('page', filters.page);
-    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.parent_id) params.append('parent_id', String(filters.parent_id));
+    if (filters.student_id) params.append('student_id', String(filters.student_id));
+    if (filters.admin_verified !== undefined) params.append('admin_verified', String(filters.admin_verified));
+    if (filters.page) params.append('page', String(filters.page));
+    if (filters.limit) params.append('limit', String(filters.limit));
     return api.get(`/api/admin/parent-connections/links?${params.toString()}`);
   },
 
   // Disconnect a parent-student link
-  disconnectLink: (linkId) => api.delete(`/api/admin/parent-connections/links/${linkId}`),
+  disconnectLink: (linkId: string) => api.delete(`/api/admin/parent-connections/links/${linkId}`),
 
   // Manually create a parent-student link
-  createManualLink: (parentUserId, studentUserId, adminNotes = '') =>
+  createManualLink: (parentUserId: string, studentUserId: string, adminNotes = '') =>
     api.post('/api/admin/parent-connections/manual-link', {
       parent_user_id: parentUserId,
       student_user_id: studentUserId,
@@ -798,12 +830,12 @@ export const adminParentConnectionsAPI = {
     }),
 
   // Get all users by role (for dropdown selections)
-  getAllUsers: (filters = {}) => {
+  getAllUsers: (filters: QueryParams = {}) => {
     const params = new URLSearchParams();
-    if (filters.role) params.append('role', filters.role);
-    if (filters.search) params.append('search', filters.search);
-    if (filters.page) params.append('page', filters.page);
-    if (filters.per_page) params.append('per_page', filters.per_page);
+    if (filters.role) params.append('role', String(filters.role));
+    if (filters.search) params.append('search', String(filters.search));
+    if (filters.page) params.append('page', String(filters.page));
+    if (filters.per_page) params.append('per_page', String(filters.per_page));
     return api.get(`/api/admin/users?${params.toString()}`);
   },
 }
@@ -814,13 +846,13 @@ export const adminParentConnectionsAPI = {
  */
 export const questLifecycleAPI = {
   // Pick up a quest (start or resume)
-  pickUpQuest: (questId) => api.post(`/api/quests/${questId}/pickup`, {}),
+  pickUpQuest: (questId: string) => api.post(`/api/quests/${questId}/pickup`, {}),
 
   // Set down a quest with optional reflection
-  setDownQuest: (questId, reflectionData) => api.post(`/api/quests/${questId}/setdown`, reflectionData || {}),
+  setDownQuest: (questId: string, reflectionData: JsonBody) => api.post(`/api/quests/${questId}/setdown`, reflectionData || {}),
 
   // Get quest pickup history
-  getPickupHistory: (questId) => api.get(`/api/quests/${questId}/pickup-history`),
+  getPickupHistory: (questId: string) => api.get(`/api/quests/${questId}/pickup-history`),
 
   // Get random reflection prompts
   getReflectionPrompts: (category = null, limit = 5) => {
@@ -833,34 +865,34 @@ export const questLifecycleAPI = {
 // Advisor Check-in API
 export const checkinAPI = {
   // Create a new check-in
-  createCheckin: (data) => api.post('/api/advisor/checkins', data),
+  createCheckin: (data: JsonBody) => api.post('/api/advisor/checkins', data),
 
   // Get all check-ins for the current advisor
   getAdvisorCheckins: (limit = 100) => api.get('/api/advisor/checkins', { params: { limit } }),
 
   // Get all check-ins for a specific student
-  getStudentCheckins: (studentId) => api.get(`/api/advisor/students/${studentId}/checkins`),
+  getStudentCheckins: (studentId: string) => api.get(`/api/advisor/students/${studentId}/checkins`),
 
   // Get pre-populated data for check-in form (active quests, last check-in info)
-  getCheckinData: (studentId) => api.get(`/api/advisor/students/${studentId}/checkin-data`),
+  getCheckinData: (studentId: string) => api.get(`/api/advisor/students/${studentId}/checkin-data`),
 
   // Get a specific check-in by ID
-  getCheckinById: (checkinId) => api.get(`/api/advisor/checkins/${checkinId}`),
+  getCheckinById: (checkinId: string) => api.get(`/api/advisor/checkins/${checkinId}`),
 
   // Get check-in analytics for advisor
   getAnalytics: () => api.get('/api/advisor/checkins/analytics'),
 
   // End a student's quest during check-in
-  endStudentQuest: (studentId, questId) => api.post(`/api/advisor/students/${studentId}/quests/${questId}/end`, {}),
+  endStudentQuest: (studentId: string, questId: string) => api.post(`/api/advisor/students/${studentId}/quests/${questId}/end`, {}),
 
   // Generate parent recap email from meeting notes (AI)
-  generateEmail: (studentId, meetingNotes) => api.post('/api/advisor/checkins/generate-email', {
+  generateEmail: (studentId: string, meetingNotes: string) => api.post('/api/advisor/checkins/generate-email', {
     student_id: studentId,
     meeting_notes: meetingNotes
   }),
 
   // Send the reviewed parent recap email (set test: true to send to advisor's own email)
-  sendEmail: (data) => api.post('/api/advisor/checkins/send-email', data),
+  sendEmail: (data: JsonBody) => api.post('/api/advisor/checkins/send-email', data),
 
   // Admin endpoints
   getAllCheckins: (page = 1, limit = 50) => api.get('/api/admin/checkins', { params: { page, limit } }),
@@ -873,40 +905,40 @@ export const advisorAPI = {
   getCaseloadSummary: () => api.get('/api/advisor/caseload-summary'),
 
   // Learning moments
-  createLearningMoment: (studentId, data) =>
+  createLearningMoment: (studentId: string, data: JsonBody) =>
     api.post(`/api/advisor/students/${studentId}/learning-moments`, data),
 
-  uploadMomentMedia: (studentId, formData) =>
+  uploadMomentMedia: (studentId: string, formData: FormData) =>
     api.post(`/api/advisor/students/${studentId}/learning-moments/upload`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
 
-  getStudentLearningMoments: (studentId, params = {}) =>
+  getStudentLearningMoments: (studentId: string, params = {}) =>
     api.get(`/api/advisor/students/${studentId}/learning-moments`, { params }),
 
-  updateLearningMoment: (studentId, momentId, data) =>
+  updateLearningMoment: (studentId: string, momentId: string, data: JsonBody) =>
     api.put(`/api/advisor/students/${studentId}/learning-moments/${momentId}`, data),
 
-  deleteLearningMoment: (studentId, momentId) =>
+  deleteLearningMoment: (studentId: string, momentId: string) =>
     api.delete(`/api/advisor/students/${studentId}/learning-moments/${momentId}`),
 }
 
 // Evidence Management API (student-facing)
 export const evidenceAPI = {
   // Delete an evidence block and its storage files
-  deleteBlock: (blockId) => api.delete(`/api/evidence/blocks/${blockId}/delete`),
+  deleteBlock: (blockId: string) => api.delete(`/api/evidence/blocks/${blockId}/delete`),
 }
 
 // Helper Evidence API (Advisors/Parents uploading evidence for students)
 export const helperEvidenceAPI = {
   // Upload evidence block for a student (advisor or parent)
-  uploadForStudent: (data) => api.post('/api/evidence/helper/upload-for-student', data),
+  uploadForStudent: (data: JsonBody) => api.post('/api/evidence/helper/upload-for-student', data),
 
   // Get student's active tasks (for evidence upload)
-  getStudentTasks: (studentId) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
+  getStudentTasks: (studentId: string) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
 
   // Remove an evidence block the caller previously uploaded
-  deleteBlock: (blockId) => api.delete(`/api/evidence/helper/blocks/${blockId}`),
+  deleteBlock: (blockId: string) => api.delete(`/api/evidence/helper/blocks/${blockId}`),
 }
 
 /**
@@ -915,20 +947,20 @@ export const helperEvidenceAPI = {
  */
 export const taskStepsAPI = {
   // Generate AI-powered steps for a task
-  generateSteps: (taskId, granularity = 'quick') =>
+  generateSteps: (taskId: string, granularity = 'quick') =>
     api.post(`/api/tasks/${taskId}/steps/generate`, { granularity }),
 
   // Get all steps for a task (including nested sub-steps)
-  getSteps: (taskId) => api.get(`/api/tasks/${taskId}/steps`),
+  getSteps: (taskId: string) => api.get(`/api/tasks/${taskId}/steps`),
 
   // Toggle a step's completion status
-  toggleStep: (taskId, stepId) => api.put(`/api/tasks/${taskId}/steps/${stepId}/toggle`, {}),
+  toggleStep: (taskId: string, stepId: string) => api.put(`/api/tasks/${taskId}/steps/${stepId}/toggle`, {}),
 
   // Drill down into a step (for "I'm stuck" feature)
-  drillDown: (taskId, stepId) => api.post(`/api/tasks/${taskId}/steps/${stepId}/drill-down`, {}),
+  drillDown: (taskId: string, stepId: string) => api.post(`/api/tasks/${taskId}/steps/${stepId}/drill-down`, {}),
 
   // Delete all steps for a task
-  deleteSteps: (taskId) => api.delete(`/api/tasks/${taskId}/steps`),
+  deleteSteps: (taskId: string) => api.delete(`/api/tasks/${taskId}/steps`),
 }
 
 /**
@@ -938,13 +970,13 @@ export const taskStepsAPI = {
  */
 export const transferCreditsAPI = {
   // Get all transfer credits for a student (returns array)
-  get: (userId) => api.get(`/api/admin/transfer-credits/${userId}`),
+  get: (userId: string) => api.get(`/api/admin/transfer-credits/${userId}`),
 
   // Save transfer credits (create or update by school name, or update by ID if provided)
-  save: (userId, data) => api.post(`/api/admin/transfer-credits/${userId}`, data),
+  save: (userId: string, data: JsonBody) => api.post(`/api/admin/transfer-credits/${userId}`, data),
 
   // Upload transcript file (transferCreditId is optional - if not provided, creates a new record)
-  uploadTranscript: (userId, file, transferCreditId = null) => {
+  uploadTranscript: (userId: string, file: File, transferCreditId = null) => {
     const formData = new FormData()
     formData.append('file', file)
     if (transferCreditId) {
@@ -956,10 +988,10 @@ export const transferCreditsAPI = {
   },
 
   // Delete a specific transfer credit by ID
-  deleteOne: (userId, transferCreditId) => api.delete(`/api/admin/transfer-credits/${userId}/${transferCreditId}`),
+  deleteOne: (userId: string, transferCreditId: string) => api.delete(`/api/admin/transfer-credits/${userId}/${transferCreditId}`),
 
   // Delete ALL transfer credits for a student
-  deleteAll: (userId) => api.delete(`/api/admin/transfer-credits/${userId}`),
+  deleteAll: (userId: string) => api.delete(`/api/admin/transfer-credits/${userId}`),
 }
 
 // Hearthwood Academy (OEA) diploma program. Backs the /hearthwood tab.
@@ -974,41 +1006,50 @@ export const oeaAPI = {
   enrollments: () => api.get('/api/oea/enrollments'),
 
   // One student's current enrollment (or null). Self-readable.
-  studentEnrollment: (studentId) => api.get(`/api/oea/enrollments/${studentId}`),
+  studentEnrollment: (studentId: string) => api.get(`/api/oea/enrollments/${studentId}`),
 
   // Select or change a student's diploma pathway (parent only).
-  selectPathway: (studentId, pathwayKey) =>
+  selectPathway: (studentId: string, pathwayKey: string) =>
     api.post('/api/oea/enrollments', { student_id: studentId, pathway_key: pathwayKey }),
 
   // Credits + computed pathway progress + GPA for a student. Self-readable.
   // `config` carries per-call axios options — the diploma probe passes
   // expect403 so its expected refusal is not reported as a failure.
-  credits: (studentId, config) => api.get(`/api/oea/students/${studentId}/credits`, config),
+  credits: (studentId: string, config: AxiosRequestConfig) => api.get(`/api/oea/students/${studentId}/credits`, config),
 
   // Add a course credit to a pathway requirement slot (parent only).
-  addCredit: (studentId, body) => api.post(`/api/oea/students/${studentId}/credits`, body),
+  addCredit: (studentId: string, body: JsonBody) => api.post(`/api/oea/students/${studentId}/credits`, body),
 
   // Update a credit: rename / mark complete / grade / honors weighting (parent only).
-  updateCredit: (creditId, body) => api.patch(`/api/oea/credits/${creditId}`, body),
+  updateCredit: (creditId: string, body: JsonBody) => api.patch(`/api/oea/credits/${creditId}`, body),
 
   // Delete a credit (parent only).
-  deleteCredit: (creditId) => api.delete(`/api/oea/credits/${creditId}`),
+  deleteCredit: (creditId: string) => api.delete(`/api/oea/credits/${creditId}`),
 
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
-  ensureCreditQuest: (creditId) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
+  ensureCreditQuest: (creditId: string) => api.post(`/api/oea/credits/${creditId}/quest`, {}),
+
+  // Course quests left on the dashboard by a credit deleted before the delete
+  // cleaned up after itself (parent only). Empty for anyone who never hit it.
+  unlinkedCourseQuests: (studentId: string) =>
+    api.get(`/api/oea/students/${studentId}/course-quests/unlinked`),
+
+  // Remove one of those leftovers (parent only).
+  removeCourseQuest: (studentId: string, questId: string) =>
+    api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
 
   // Raise/clear a student's transfer + non-direct credit caps (Hearthwood admin only).
-  setCaps: (studentId, body) => api.patch(`/api/oea/enrollments/${studentId}/caps`, body),
+  setCaps: (studentId: string, body: JsonBody) => api.patch(`/api/oea/enrollments/${studentId}/caps`, body),
 
   // Grade periods for a course (quarter/semester/annual grades + summaries).
-  creditPeriods: (creditId) => api.get(`/api/oea/credits/${creditId}/periods`),
-  saveCreditPeriod: (creditId, body) => api.put(`/api/oea/credits/${creditId}/periods`, body),
+  creditPeriods: (creditId: string) => api.get(`/api/oea/credits/${creditId}/periods`),
+  saveCreditPeriod: (creditId: string, body: JsonBody) => api.put(`/api/oea/credits/${creditId}/periods`, body),
 
   // OEA-branded transcript data (credits, grades, GPA, notations).
-  transcript: (studentId) => api.get(`/api/oea/students/${studentId}/transcript`),
+  transcript: (studentId: string) => api.get(`/api/oea/students/${studentId}/transcript`),
 
   // Quarterly progress report (report card) for a term (1-4).
-  progressReport: (studentId, term) =>
+  progressReport: (studentId: string, term: JsonBody) =>
     api.get(`/api/oea/students/${studentId}/progress-report`, { params: { term } }),
 
   // Record that the parent opened the getting-started video. The video is an
@@ -1032,53 +1073,53 @@ export const treehouseAPI = {
   quests: () => api.get('/api/treehouse/quests'),
   // Littles "More ideas": a few AI task suggestions in the same vein as the
   // quest's current task list (added via the standard add-manual-tasks call).
-  questMoreIdeas: (questId) => api.post(`/api/treehouse/quests/${questId}/more-ideas`, {}),
+  questMoreIdeas: (questId: string) => api.post(`/api/treehouse/quests/${questId}/more-ideas`, {}),
 
   // Student raises a help/proud signal. type: 'help' | 'proud'.
-  createSignal: (body) => api.post('/api/treehouse/signals', body),
+  createSignal: (body: JsonBody) => api.post('/api/treehouse/signals', body),
   // Facilitator: open signal queue (optionally scoped to one cohort).
-  signals: (cohortId) => api.get('/api/treehouse/signals', { params: cohortId ? { cohort_id: cohortId } : {} }),
-  resolveSignal: (signalId) => api.post(`/api/treehouse/signals/${signalId}/resolve`, {}),
+  signals: (cohortId: string) => api.get('/api/treehouse/signals', { params: cohortId ? { cohort_id: cohortId } : {} }),
+  resolveSignal: (signalId: string) => api.post(`/api/treehouse/signals/${signalId}/resolve`, {}),
 
   // Facilitator: roster, pin queue, spendable-XP balance (cohort-scoped).
-  students: (cohortId) => api.get('/api/treehouse/students', { params: cohortId ? { cohort_id: cohortId } : {} }),
-  pins: (cohortId) => api.get('/api/treehouse/pins', { params: cohortId ? { cohort_id: cohortId } : {} }),
-  markPins: (items, status) => api.post('/api/treehouse/pins/mark', { items, status }),
-  balance: (studentId) => api.get(`/api/treehouse/students/${studentId}/balance`),
-  adjustBalance: (studentId, amount) => api.post(`/api/treehouse/students/${studentId}/balance/adjust`, { amount }),
+  students: (cohortId: string) => api.get('/api/treehouse/students', { params: cohortId ? { cohort_id: cohortId } : {} }),
+  pins: (cohortId: string) => api.get('/api/treehouse/pins', { params: cohortId ? { cohort_id: cohortId } : {} }),
+  markPins: (items: unknown[], status: JsonBody) => api.post('/api/treehouse/pins/mark', { items, status }),
+  balance: (studentId: string) => api.get(`/api/treehouse/students/${studentId}/balance`),
+  adjustBalance: (studentId: string, amount: number) => api.post(`/api/treehouse/students/${studentId}/balance/adjust`, { amount }),
 
   // Cohorts (A1): list + manage facilitator assignment + enrollment + ui_mode.
   cohorts: () => api.get('/api/treehouse/cohorts'),
-  createCohort: (body) => api.post('/api/treehouse/cohorts', body),
-  updateCohort: (classId, body) => api.patch(`/api/treehouse/cohorts/${classId}`, body),
-  deleteCohort: (classId) => api.delete(`/api/treehouse/cohorts/${classId}`),
-  duplicateCohort: (classId) => api.post(`/api/treehouse/cohorts/${classId}/duplicate`, {}),
-  assignCohortAdvisor: (classId, advisorId) => api.post(`/api/treehouse/cohorts/${classId}/advisors`, { advisor_id: advisorId }),
-  removeCohortAdvisor: (classId, advisorId) => api.delete(`/api/treehouse/cohorts/${classId}/advisors/${advisorId}`),
-  enrollCohortStudents: (classId, studentIds) => api.post(`/api/treehouse/cohorts/${classId}/students`, { student_ids: studentIds }),
-  withdrawCohortStudent: (classId, studentId) => api.delete(`/api/treehouse/cohorts/${classId}/students/${studentId}`),
+  createCohort: (body: JsonBody) => api.post('/api/treehouse/cohorts', body),
+  updateCohort: (classId: string, body: JsonBody) => api.patch(`/api/treehouse/cohorts/${classId}`, body),
+  deleteCohort: (classId: string) => api.delete(`/api/treehouse/cohorts/${classId}`),
+  duplicateCohort: (classId: string) => api.post(`/api/treehouse/cohorts/${classId}/duplicate`, {}),
+  assignCohortAdvisor: (classId: string, advisorId: string) => api.post(`/api/treehouse/cohorts/${classId}/advisors`, { advisor_id: advisorId }),
+  removeCohortAdvisor: (classId: string, advisorId: string) => api.delete(`/api/treehouse/cohorts/${classId}/advisors/${advisorId}`),
+  enrollCohortStudents: (classId: string, studentIds: string[]) => api.post(`/api/treehouse/cohorts/${classId}/students`, { student_ids: studentIds }),
+  withdrawCohortStudent: (classId: string, studentId: string) => api.delete(`/api/treehouse/cohorts/${classId}/students/${studentId}`),
   facilitators: () => api.get('/api/treehouse/facilitators'),
 
   // Facilitator phone capture (G1): one photo+caption → tag one or many students.
-  capture: (body) => api.post('/api/treehouse/capture', body),
+  capture: (body: JsonBody) => api.post('/api/treehouse/capture', body),
   // Photos go up first; /capture stores the pointers this returns. It used to
   // post to /api/evidence, which has no handler — every capture with a photo
   // 404'd as "Could not save capture".
-  captureUpload: (formData) => api.post('/api/treehouse/capture/upload', formData, {
+  captureUpload: (formData: FormData) => api.post('/api/treehouse/capture/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
 
   // Showcase events. scope: 'upcoming' | 'past' | 'all'.
-  showcaseEvents: (scope) => api.get('/api/treehouse/showcase/events', { params: scope ? { scope } : {} }),
-  createShowcase: (body) => api.post('/api/treehouse/showcase/events', body),
-  updateShowcase: (eventId, body) => api.patch(`/api/treehouse/showcase/events/${eventId}`, body),
-  showcaseRoster: (eventId) => api.get(`/api/treehouse/showcase/events/${eventId}/roster`),
-  joinShowcase: (eventId, body) => api.post(`/api/treehouse/showcase/events/${eventId}/join`, body),
+  showcaseEvents: (scope: string) => api.get('/api/treehouse/showcase/events', { params: scope ? { scope } : {} }),
+  createShowcase: (body: JsonBody) => api.post('/api/treehouse/showcase/events', body),
+  updateShowcase: (eventId: string, body: JsonBody) => api.patch(`/api/treehouse/showcase/events/${eventId}`, body),
+  showcaseRoster: (eventId: string) => api.get(`/api/treehouse/showcase/events/${eventId}/roster`),
+  joinShowcase: (eventId: string, body: JsonBody) => api.post(`/api/treehouse/showcase/events/${eventId}/join`, body),
 
   // Kiosk (facilitator provisioning; the login endpoints are unauthenticated + token-gated).
-  createKioskDevice: (label) => api.post('/api/treehouse/kiosk/devices', { label }),
-  kioskRoster: (deviceToken) => api.post('/api/treehouse/kiosk/roster', { device_token: deviceToken }),
-  kioskLogin: (deviceToken, studentId) => api.post('/api/treehouse/kiosk/login', { device_token: deviceToken, student_id: studentId }),
+  createKioskDevice: (label: JsonBody) => api.post('/api/treehouse/kiosk/devices', { label }),
+  kioskRoster: (deviceToken: string) => api.post('/api/treehouse/kiosk/roster', { device_token: deviceToken }),
+  kioskLogin: (deviceToken: string, studentId: string) => api.post('/api/treehouse/kiosk/login', { device_token: deviceToken, student_id: studentId }),
 }
 
 export default api

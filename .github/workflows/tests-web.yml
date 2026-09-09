@@ -54,6 +54,15 @@ jobs:
             echo "npm ci attempt $i failed; retrying..."; sleep 10
           done
           exit 1
+      - name: typecheck
+        working-directory: web
+        # tsc over the API boundary (src/services/api.ts, src/types/) and
+        # over shared/. `checkJs` is off, so this does NOT type-check the
+        # 273k lines of JSX -- see web/tsconfig.json for why. Cheap, and it
+        # is the only thing that fails when a typed boundary and an untyped
+        # caller disagree, because Vite compiles through esbuild and never
+        # invokes tsc.
+        run: npm run typecheck
       - name: npm audit (high/critical only)
         # Through the same gate the mobile job uses, and WITHOUT
         # --omit=dev. That flag is why five high advisories -- postcss
