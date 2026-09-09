@@ -6,7 +6,7 @@
  * labels, short labels and colours now come from `@shared/pillars`, which the web app
  * reads too -- a pillar's name and colour are the same fact on both surfaces,
  * and keeping two copies is how the web app and this one ended up disagreeing
- * about which of civics and wellness is orange (see shared/pillars.json).
+ * about which of civics and wellness is orange (see shared/data/pillars.json).
  *
  * What stays here is genuinely local: Ionicons names, and the NativeWind class
  * strings. Neither means anything to the web app.

@@ -1,4 +1,4 @@
-"""The school-subject vocabulary is one list, in shared/subjects.json.
+"""The school-subject vocabulary is one list, in shared/data/subjects.json.
 
 Keys and display names are canonical HERE -- the keys are a database enum and
 the names are what a transcript line says -- and both clients derive from the
@@ -17,7 +17,7 @@ from pathlib import Path
 
 from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
 
-SHARED = Path(__file__).resolve().parents[3] / 'shared' / 'subjects.json'
+SHARED = Path(__file__).resolve().parents[3] / 'shared' / 'data' / 'subjects.json'
 
 
 def _shared():

@@ -47,7 +47,7 @@ export default {
         coral: '#EF597B',             // → optio-pink
         'coral-dark': '#E73862',      // → optio-pink-dark
 
-        // Design System: Pillar colors. Source of truth: shared/pillars.json
+        // Design System: Pillar colors. Source of truth: shared/data/pillars.json
         // (base hexes); the -light/-dark shades and gradients are web-only.
         // Civics ORANGE / Wellness RED were swapped here until 2026-09-04 --
         // the web app rendered them in each other's colours while mobile, the

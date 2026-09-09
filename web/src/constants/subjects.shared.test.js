@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SUBJECTS, SUBJECT_KEYS, getSubject, getSubjectName } from './subjects'
-import shared from '@shared/subjects.json'
+import shared from '@shared/data/subjects.json'
 import { SUBJECT_OPTIONS } from '../pages/admin/transcriptGenerator/subjectOptions'
 
 /**

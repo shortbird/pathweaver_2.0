@@ -1,4 +1,4 @@
-import shared from '@shared/subjects.json';
+import shared from '@shared/data/subjects.json';
 
 import { SUBJECTS, getSubject } from '../SUBJECTS';
 

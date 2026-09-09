@@ -1,6 +1,6 @@
 /**
  * The eleven platform school subjects — the typed front door to
- * `shared/subjects.json`.
+ * `shared/data/subjects.json`, via the generated constants.
  *
  * See that file's `_comment` for where each field is canonical and what is
  * deliberately left out. In short: the keys and names belong to
@@ -9,17 +9,12 @@
  * transcript's formal wording) stays with that surface.
  */
 
-import data from './subjects.json';
+import { SUBJECTS_DATA, type SubjectRecord } from './generated/subjects';
 
-export interface Subject {
-  key: string;
-  name: string;
-  description: string;
-  accent: string;
-}
+export type Subject = SubjectRecord;
 
 /** In transcript order, which is the order the backend enum declares. */
-export const SUBJECTS: Subject[] = data.subjects;
+export const SUBJECTS: readonly Subject[] = SUBJECTS_DATA;
 
 export const SUBJECT_KEYS: string[] = SUBJECTS.map((s) => s.key);
 

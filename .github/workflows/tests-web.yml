@@ -30,6 +30,19 @@ jobs:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
+      - name: Generated constants match shared/data (no drift)
+        # shared/data/*.json is the one definition of the pillar and subject
+        # vocabularies, and the generator emits it into BOTH languages:
+        # shared/generated/*.ts for the two apps, backend/generated/*.py for
+        # Flask. This step re-runs the generator and fails if what it produces
+        # differs from what is committed -- so editing the JSON without
+        # regenerating, or hand-editing a generated file, stops the build
+        # instead of quietly reintroducing the copies these files replaced.
+        #
+        # It lives in the WEB job because this job already has Node and the
+        # backend job does not. The script has no dependencies, so it runs
+        # before any install.
+        run: node shared/scripts/generate-constants.mjs --check
       - name: Install dependencies
         working-directory: web
         run: |

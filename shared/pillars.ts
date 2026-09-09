@@ -1,11 +1,13 @@
 /**
  * The five pillars — the cross-app definition.
  *
- * The DATA lives in pillars.json next door, not here, because two of the
- * consumers are `tailwind.config.js` files. Those are CommonJS and cannot
- * `require` a `.ts` module, so a TypeScript source would have forced them to
- * keep their own copy of the palette — which is the exact duplication this
- * file exists to end. This module is the typed front door for app code.
+ * The DATA lives in data/pillars.json, not here, because two of the consumers
+ * are `tailwind.config.js` files (CommonJS, cannot `require` a `.ts` module)
+ * and a third is a Flask backend. A TypeScript source would have forced each of
+ * them to keep its own copy of the palette — the exact duplication this file
+ * exists to end. generated/pillars.ts is emitted from that JSON alongside
+ * backend/generated/pillars.py; this module is the typed front door for app
+ * code and holds the helpers, which are not generated.
  *
  * What belongs here: things true of a pillar everywhere — its key, its name,
  * its colour, what it means. What does NOT: icon names (Ionicons on mobile,
@@ -13,20 +15,11 @@
  * are properties of a platform, not of the pillar, and each app keeps its own.
  */
 
-import data from './pillars.json';
+import { PILLARS_DATA, type PillarRecord } from './generated/pillars';
 
-export interface Pillar {
-  key: string;
-  /** Full name, for anywhere with room for it. */
-  label: string;
-  /** For cramped spaces — radar axes, mobile filter chips. Often identical. */
-  shortLabel: string;
-  /** Hex. The single source; see the note in pillars.json about the web app. */
-  color: string;
-  description: string;
-}
+export type Pillar = PillarRecord;
 
-export const PILLARS: readonly Pillar[] = data.pillars;
+export const PILLARS: readonly Pillar[] = PILLARS_DATA;
 
 /** Canonical display order. Everything that lists pillars should use it. */
 export const PILLAR_KEYS: readonly string[] = PILLARS.map((p) => p.key);

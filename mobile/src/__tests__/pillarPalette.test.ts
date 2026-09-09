@@ -13,7 +13,7 @@
  * disagreement was still here and pointed at the audit plan's Open Questions;
  * both the disagreement and that plan are gone.
  *
- * shared/pillars.json is the definition, and this file holds the line in two
+ * shared/data/pillars.json is the definition, and this file holds the line in two
  * directions:
  *
  *   1. Everything wired to it must actually derive from it, not re-declare it.
@@ -30,7 +30,7 @@ import { pillars, pillarShortLabels } from '../config/pillars';
 const REPO = join(__dirname, '..', '..', '..');
 const read = (rel: string) => readFileSync(join(REPO, rel), 'utf8');
 
-/** What shared/pillars.json says, and what six of the eight sources agree on. */
+/** What shared/data/pillars.json says, and what six of the eight sources agree on. */
 const CANONICAL: Record<string, string> = {
   stem: '#2469D1',
   art: '#AF56E5',
@@ -48,7 +48,7 @@ describe('the shared pillar palette', () => {
     for (const p of PILLARS) {
       if (p.color !== CANONICAL[p.key]) {
         throw new Error(
-          `shared/pillars.json says ${p.key} is ${p.color}; docs/COLOR_REFERENCE.md ` +
+          `shared/data/pillars.json says ${p.key} is ${p.color}; docs/COLOR_REFERENCE.md ` +
           `says ${CANONICAL[p.key]}. Change the doc and this test together, or not at all.`);
       }
     }
@@ -90,7 +90,7 @@ describe("mobile derives from it rather than copying it", () => {
       if (hits.length) {
         throw new Error(
           `${rel} spells out pillar hex ${hits.join(', ')} again. Derive it from ` +
-          'shared/pillars.json -- a second copy is how these got out of sync.');
+          'shared/data/pillars.json -- a second copy is how these got out of sync.');
       }
     }
   });
@@ -103,11 +103,11 @@ describe("mobile derives from it rather than copying it", () => {
  *
  * These assertions replace the ones that PINNED the old disagreement. They are
  * the reason it cannot come back: every place that spells a pillar hex is
- * checked against shared/pillars.json, including the -light/-dark shades and
+ * checked against shared/data/pillars.json, including the -light/-dark shades and
  * gradients that only the web app has, which are the parts most likely to be
  * flipped back by someone matching them to a stale screenshot.
  */
-describe('every surface now agrees with shared/pillars.json', () => {
+describe('every surface now agrees with shared/data/pillars.json', () => {
   const SPELLS_PILLAR_HEXES = [
     'web/tailwind.config.js',
     'web/src/constants/brandStyles.js',
@@ -132,7 +132,7 @@ describe('every surface now agrees with shared/pillars.json', () => {
   });
 
   it("the web app's light and dark shades sit on the right base", () => {
-    // The shades are web-only, so shared/pillars.json cannot carry them -- and
+    // The shades are web-only, so shared/data/pillars.json cannot carry them -- and
     // they are the half that gets flipped back, because they are picked by eye.
     // Wellness is the red family, civics the orange family.
     const tw = read('web/tailwind.config.js');

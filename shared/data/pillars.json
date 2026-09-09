@@ -1,0 +1,103 @@
+{
+  "_comment": [
+    "The five pillars: the one definition both apps and the backend read.",
+    "",
+    "JSON rather than TypeScript because the consumers include two tailwind.config",
+    "files (CommonJS, cannot require a .ts module) and a Flask backend. A",
+    "TypeScript file cannot be canonical for a Python process, so scripts/",
+    "generate-constants.mjs emits BOTH languages from this file, and CI fails if",
+    "the emitted files drift from it. Do not hand-edit anything under generated/.",
+    "",
+    "Colours follow docs/COLOR_REFERENCE.md, which is the brand reference.",
+    "",
+    "History worth keeping: the web app and backend/config/pillars.py rendered civics and",
+    "wellness in each other's colours until 2026-09-04, so the same pillar was",
+    "orange on the web and red on mobile. Extracting this file is what surfaced it.",
+    "It is fixed everywhere now, and mobile/src/__tests__/pillarPalette.test.ts",
+    "checks every file that still spells a pillar hex against this one -- including",
+    "the web app's -light/-dark shades and gradients, which are web-only and so cannot live",
+    "here, and are the part most likely to be flipped back to match a stale",
+    "screenshot.",
+    "",
+    "`legacy` is emitted to PYTHON ONLY. It is the pre-2025 vocabulary -- the",
+    "underscore keys, the short keys and the '&' display names -- which the",
+    "backend still has to accept because rows written before the rename are still",
+    "in the database and the AI prompts were written against it. It was declared",
+    "four separate times (utils/pillar_utils.py, prompts/components.py,",
+    "routes/personalization_validators.py, services/roster_import_service.py) and",
+    "the copies did not agree. Neither client has ever needed it, so the",
+    "TypeScript output leaves it out: what a surface does not need, it should not",
+    "be able to read."
+  ],
+  "pillars": [
+    {
+      "key": "stem",
+      "label": "STEM",
+      "shortLabel": "STEM",
+      "color": "#2469D1",
+      "description": "Science, Technology, Engineering, and Mathematics",
+      "legacy": {
+        "displayName": "STEM & Logic",
+        "aliases": [
+          "stem_logic",
+          "critical_thinking"
+        ]
+      }
+    },
+    {
+      "key": "art",
+      "label": "Art",
+      "shortLabel": "Art",
+      "color": "#AF56E5",
+      "description": "Creative expression through visual arts, music, and performance",
+      "legacy": {
+        "displayName": "Arts & Creativity",
+        "aliases": [
+          "arts_creativity",
+          "creativity"
+        ]
+      }
+    },
+    {
+      "key": "communication",
+      "label": "Communication",
+      "shortLabel": "Comm",
+      "color": "#3DA24A",
+      "description": "Writing, speaking, listening, and interpersonal skills",
+      "legacy": {
+        "displayName": "Language & Communication",
+        "aliases": [
+          "language_communication"
+        ]
+      }
+    },
+    {
+      "key": "civics",
+      "label": "Civics",
+      "shortLabel": "Civics",
+      "color": "#FF9028",
+      "description": "Community engagement, leadership, and civic responsibility",
+      "legacy": {
+        "displayName": "Society & Culture",
+        "aliases": [
+          "society_culture",
+          "cultural_literacy"
+        ]
+      }
+    },
+    {
+      "key": "wellness",
+      "label": "Wellness",
+      "shortLabel": "Wellness",
+      "color": "#E65C5C",
+      "description": "Physical and mental health, mindfulness, and self-care",
+      "legacy": {
+        "displayName": "Life & Wellness",
+        "aliases": [
+          "life_wellness",
+          "practical_skills"
+        ]
+      }
+    }
+  ]
+}

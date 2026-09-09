@@ -70,12 +70,12 @@ module.exports = {
         },
 
         // Pillars
-        // Derived from shared/pillars.json so this file and the web app's
+        // Derived from shared/data/pillars.json so this file and the web app's
         // tailwind config cannot drift apart -- which is how civics and
         // wellness ended up swapped between the two. Not a plain object: a
         // hardcoded copy here would be the fifth one.
         pillar: Object.fromEntries(
-          require('../shared/pillars.json').pillars.map((p) => [p.key, p.color]),
+          require('../shared/data/pillars.json').pillars.map((p) => [p.key, p.color]),
         ),
       },
       // Body text sizes, deliberately a step above Tailwind's web defaults.
