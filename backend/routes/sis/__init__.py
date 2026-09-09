@@ -534,7 +534,12 @@ def delete_household(user_id, household_id):
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
 
-    links = (supabase.table('household_members').select('user_id, role')
+    # The column is `relationship` (student/guardian), NOT `role`. This asked for
+    # `role` until 2026-09-09 and every delete died as an unreadable 500 from
+    # PostgREST. `role` is the loaded word here -- it is the 7-role platform
+    # system on `users` -- and a family link is not one of those. The response
+    # key below stays `role` because that is the shipped contract.
+    links = (supabase.table('household_members').select('user_id, relationship')
              .eq('household_id', household_id).execute()).data or []
     orphaned = []
     member_ids = [link['user_id'] for link in links if link.get('user_id')]
@@ -542,7 +547,7 @@ def delete_household(user_id, household_id):
         rows = (supabase.table('users')
                 .select('id, display_name, first_name, last_name')
                 .in_('id', member_ids).execute()).data or []
-        roles = {link['user_id']: link.get('role') for link in links}
+        roles = {link['user_id']: link.get('relationship') for link in links}
         orphaned = [{'id': r['id'], 'name': person_name.full_name(r),
                      'role': roles.get(r['id'])} for r in rows]
         orphaned.sort(key=lambda m: m['name'])

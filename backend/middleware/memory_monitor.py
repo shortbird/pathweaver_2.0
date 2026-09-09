@@ -257,13 +257,24 @@ class MemoryMonitor:
                 # cgroup isn't readable (e.g. dev).
                 usage = cg_usage if cg_usage else rss
                 cap = cg_limit if cg_limit else fallback_cap
+                # Which number we are measuring against, said out loud. Render
+                # leaves cgroup v2 memory.max as "max" and enforces memory a
+                # level up, so `cap` here is almost always MEMORY_LIMIT_MB --
+                # and that default (512MB) is a starter-plan figure. The prod
+                # backend has been on `pro` since 2026-08, so every one of the
+                # 37 "89% -- nearing OOM" alerts to 2026-09-09 measured a
+                # healthy process against a cap four plans out of date. A
+                # watchdog that cries wolf is worse than none, because it
+                # teaches you to scroll past the one that matters.
+                cap_source = 'cgroup' if cg_limit else 'MEMORY_LIMIT_MB'
                 pct = (usage / cap) if cap else 0.0
                 if pct >= threshold:
                     now = time.monotonic()
                     if not over or (now - last_alert) >= cooldown:
                         over = True
                         last_alert = now
-                        self._alert_high_memory(usage, cap, pct, rss, cg_raw)
+                        self._alert_high_memory(usage, cap, pct, rss, cg_raw,
+                                                cap_source=cap_source)
                     # Try to relieve pressure regardless of alert cooldown.
                     self.force_cleanup()
                 else:
@@ -271,9 +282,10 @@ class MemoryMonitor:
             except Exception as e:
                 logger.error(f"Memory watchdog error: {e}")
 
-    def _alert_high_memory(self, usage, cap, pct, rss, raw_usage=None):
+    def _alert_high_memory(self, usage, cap, pct, rss, raw_usage=None,
+                           cap_source='unknown'):
         msg = (f"Memory at {usage / 1024 / 1024:.0f}MB / {cap / 1024 / 1024:.0f}MB "
-               f"({pct * 100:.0f}%) — nearing OOM")
+               f"({pct * 100:.0f}%, cap from {cap_source}) — nearing OOM")
         logger.warning(f"[memory-watchdog] {msg}")
         try:
             import sentry_sdk
@@ -289,6 +301,11 @@ class MemoryMonitor:
                     'container_usage_mb': (round(raw_usage / 1024 / 1024, 1)
                                            if raw_usage else None),
                     'cap_mb': round(cap / 1024 / 1024, 1),
+                    # 'MEMORY_LIMIT_MB' here means the cgroup declared no limit
+                    # and this is a configured guess. Check it against the plan
+                    # before believing the percentage.
+                    'cap_source': cap_source,
+                    'host_total_mb': _host_total_mb(),
                     'percent': round(pct * 100, 1),
                     'process_rss_mb': round(rss / 1024 / 1024, 1),
                     'gc_counts': gc.get_count(),
@@ -298,6 +315,21 @@ class MemoryMonitor:
         except Exception:
             # telemetry must never break the request
             ...
+
+
+def _host_total_mb():
+    """What the machine says it has, reported alongside the cap for comparison.
+
+    Diagnostic only -- it is deliberately NOT used as the cap. In a container
+    with no cgroup limit this can read the whole host, and a cap that large
+    would mean the watchdog never fires again. A wrong-but-loud cap is
+    recoverable; a silent one is not.
+    """
+    try:
+        import psutil
+        return round(psutil.virtual_memory().total / 1024 / 1024, 1)
+    except Exception:
+        return None
 
 
 # Global instance

@@ -243,6 +243,16 @@ def register_expo_token(user_id: str):
         return jsonify({'success': True, 'message': 'Push token registered'}), 201
 
     except Exception as e:
+        # A deleted account whose phone still holds an unexpired token. The app
+        # re-registers its push token on every launch, so a wiped account keeps
+        # calling this until the token expires. require_auth only verifies the
+        # JWT -- it never confirms the users row still exists -- so the request
+        # reaches here and dies on device_tokens_user_id_fkey (Sentry
+        # OPTIO-BACKEND-8F). That is a stale client, not a server fault: answer
+        # 401 so the app clears its session, and do not page anyone.
+        if '23503' in str(e) or 'device_tokens_user_id_fkey' in str(e):
+            logger.info(f"Expo token registration for missing account {user_id[:8]}; session is stale")
+            return jsonify({'error': 'Account no longer exists', 'code': 'account_deleted'}), 401
         logger.error(f"Error registering expo token: {str(e)}")
         return jsonify({'error': 'Failed to register push token'}), 500
 

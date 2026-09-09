@@ -17,10 +17,12 @@ from unittest.mock import Mock, patch
 import pytest
 
 
+# `relationship` is the real column name. These fixtures said `role` and so did
+# the route, so this suite passed green while every production delete 500'd.
 LINKS = [
-    {'user_id': 's2', 'role': 'student'},
-    {'user_id': 's1', 'role': 'student'},
-    {'user_id': 'g1', 'role': 'guardian'},
+    {'user_id': 's2', 'relationship': 'student'},
+    {'user_id': 's1', 'relationship': 'student'},
+    {'user_id': 'g1', 'relationship': 'guardian'},
 ]
 USERS = [
     {'id': 's1', 'display_name': None, 'first_name': 'Ada', 'last_name': 'Tester'},
@@ -32,12 +34,15 @@ USERS = [
 class _Table:
     """Records what was deleted, and answers the two reads the route makes."""
 
-    def __init__(self, name, log, links, users):
-        self.name, self._log, self._links, self._users = name, log, links, users
+    def __init__(self, name, log, links, people, role_row):
+        self.name, self._log, self._links = name, log, links
+        self._people, self._role_row = people, role_row
         self._op = 'select'
+        self._cols = ''
 
-    def select(self, *_a, **_k):
+    def select(self, *a, **_k):
         self._op = 'select'
+        self._cols = a[0] if a else ''
         return self
 
     def delete(self):
@@ -60,23 +65,24 @@ class _Table:
         if self.name == 'household_members':
             return Mock(data=self._links)
         if self.name == 'users':
-            # require_role's own lookup asks users for a role row first.
-            return Mock(data=self._users if self._users is not None else [])
+            # Answer by the columns asked for, NOT by call order. This counted
+            # calls and fed the first one the role row, which broke the moment
+            # something else read users first -- utils.signature_hold now runs
+            # before the route and selects the very same role columns, so
+            # require_role got a list of children and 403'd the whole suite.
+            # The two reads want different shapes; let them say which.
+            if 'display_name' in (self._cols or ''):
+                return Mock(data=self._people)
+            return Mock(data=self._role_row)
         return Mock(data=[])
 
 
 def _delete(client, auth_headers, links=LINKS, users=USERS):
     log = []
     role_row = [{'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin']}]
-    seen = {'users': 0}
-
-    def _users_rows():
-        seen['users'] += 1
-        return role_row if seen['users'] == 1 else users
 
     admin = Mock()
-    admin.table.side_effect = lambda n: _Table(
-        n, log, links, _users_rows() if n == 'users' else None)
+    admin.table.side_effect = lambda n: _Table(n, log, links, users, role_row)
 
     repo = Mock()
     repo.find_by_id.return_value = {'id': 'h1', 'organization_id': 'org-1',

@@ -66,6 +66,44 @@ def test_register_expo_token_steals_the_token_from_other_accounts(client, mock_v
     assert neq.call_args[0] == ('user_id', 'test-user-123')
 
 
+def test_register_expo_token_for_a_deleted_account_is_a_401_not_a_500(client, mock_verify_token):
+    """A wiped account whose phone still holds a live token.
+
+    require_auth verifies the JWT and never checks that the users row still
+    exists, so a deleted account reaches this route and dies on
+    device_tokens_user_id_fkey. The app re-registers on every launch, so it
+    kept coming back (Sentry OPTIO-BACKEND-8F). A 500 says the server is
+    broken and pages somebody; the truth is the client is holding a session
+    that no longer means anything, and 401 is what makes it let go.
+    """
+    supabase = _mock_supabase_chain()
+    supabase.table.return_value.upsert.return_value.execute.side_effect = Exception(
+        "{'message': 'insert or update on table \"device_tokens\" violates foreign key "
+        "constraint \"device_tokens_user_id_fkey\"', 'code': '23503'}")
+    with patch('database.get_supabase_admin_client', return_value=supabase):
+        resp = client.post(
+            '/api/push/expo-token',
+            headers={'Authorization': 'Bearer t', 'Content-Type': 'application/json'},
+            data=json.dumps({'token': 'ExponentPushToken[abc123]', 'platform': 'ios'}),
+        )
+    assert resp.status_code == 401
+    assert resp.get_json()['code'] == 'account_deleted'
+
+
+def test_register_expo_token_still_500s_on_a_real_failure(client, mock_verify_token):
+    """Only the stale-session case is downgraded. A genuine fault must still page."""
+    supabase = _mock_supabase_chain()
+    supabase.table.return_value.upsert.return_value.execute.side_effect = Exception(
+        'connection reset by peer')
+    with patch('database.get_supabase_admin_client', return_value=supabase):
+        resp = client.post(
+            '/api/push/expo-token',
+            headers={'Authorization': 'Bearer t', 'Content-Type': 'application/json'},
+            data=json.dumps({'token': 'ExponentPushToken[abc123]', 'platform': 'ios'}),
+        )
+    assert resp.status_code == 500
+
+
 def test_register_expo_token_missing_token(client, mock_verify_token):
     resp = client.post(
         '/api/push/expo-token',
