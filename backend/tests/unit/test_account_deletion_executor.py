@@ -56,6 +56,10 @@ class _Query:
         self.filters.append(lambda r, c=col, v=val: r.get(c) is not None and r[c] < v)
         return self
 
+    def gt(self, col, val):
+        self.filters.append(lambda r, c=col, v=val: r.get(c) is not None and r[c] > v)
+        return self
+
     def is_(self, col, _null):
         self.filters.append(lambda r, c=col: r.get(c) is None)
         return self
@@ -520,3 +524,140 @@ def test_ferpa_access_log_stamps_no_longer_block_the_accessor(fake_db):
     assert rows['a1']['student_id'] == 'other-student'
     assert rows['a1']['accessor_id'] is None
     assert rows['a3']['accessor_id'] == 'an-advisor'
+
+
+# ---------------------------------------------------------------------------
+# Reactivation: a pending request is not standing consent
+# ---------------------------------------------------------------------------
+
+def test_signing_in_after_the_request_cancels_the_deletion(fake_db):
+    """The iCreate incident, 2026-08-31. A parent asked to delete six minutes
+    after signing up, then came back weeks later, added two children, enrolled
+    them in ten Thursday classes and paid. The sweep read only
+    deletion_status='pending' and erased the parent, both children and every
+    enrollment. PITR was off and daily backups had already rolled past the
+    deletion, so nothing came back; the children were re-entered from the
+    school's paper file."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=2)).isoformat()
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 0
+    assert result['skipped'] == 1
+    assert 'in use' in result['skips'][0]['reason']
+    assert 'due-user' in fake_db.auth_users, 'the account must survive'
+    assert fake_db.tables['account_deletion_log'] == []
+
+
+def test_a_rescinded_request_does_not_come_back_due_tomorrow(fake_db):
+    """Left 'pending', the row is due again on the next run, and every run is
+    another chance to erase a live family."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=2)).isoformat()
+
+    run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert user['deletion_status'] == 'none'
+    assert user['deletion_requested_at'] is None
+    assert user['deletion_scheduled_for'] is None
+
+    second = run_pending_deletion_sweep(admin=fake_db, now=NOW + timedelta(days=1))
+    assert second['due'] == 0
+    assert 'due-user' in fake_db.auth_users
+
+
+def test_a_dependent_added_after_the_request_saves_the_account(fake_db):
+    """A parent's erasure cascades to their children, so a child added after
+    the request is the loudest signal the account is still wanted. Covers the
+    case where last_active never advanced."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=40)).isoformat()
+    fake_db.tables['users'].append({
+        'id': 'the-child', 'managed_by_parent_id': 'due-user',
+        'created_at': (NOW - timedelta(days=10)).isoformat(),
+        'deletion_status': 'none', 'deletion_scheduled_for': None,
+    })
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 0
+    assert result['skips'][0]['reason'] == 'in use: dependent added after request'
+    assert any(r['id'] == 'the-child' for r in fake_db.tables['users'])
+
+
+def test_an_untouched_account_is_still_deleted(fake_db):
+    """The guard must not smother the feature: a genuine request from someone
+    who never came back still erases on schedule."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=35)).isoformat()
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 1
+    assert 'due-user' not in fake_db.auth_users
+
+
+def test_a_dependent_predating_the_request_does_not_block_deletion(fake_db):
+    """Children the parent already had are the normal case, and they are erased
+    with the parent. Only a child added AFTER the request signals a return."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=35)).isoformat()
+    fake_db.tables['users'].append({
+        'id': 'older-child', 'managed_by_parent_id': 'due-user',
+        'created_at': (NOW - timedelta(days=60)).isoformat(),
+        'deletion_status': 'none', 'deletion_scheduled_for': None,
+    })
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 1
+
+
+def test_a_failed_reactivation_check_never_authorises_erasure(fake_db):
+    """Erasure has no undo. If the sweep cannot tell whether the account is in
+    use, it must not resolve the doubt in favour of deleting."""
+    from services.account_deletion_service import _reactivation_signal
+
+    class Exploding:
+        def table(self, _name):
+            raise RuntimeError('postgrest unavailable')
+
+    signal = _reactivation_signal(Exploding(), 'due-user', {
+        'deletion_requested_at': (NOW - timedelta(days=31)).isoformat(),
+        'last_active': None,
+    })
+
+    assert signal, 'an unanswerable check must read as "still in use"'
+
+
+def test_a_request_with_no_timestamp_is_still_deletable(fake_db):
+    """Rows predating deletion_requested_at must not become permanently
+    undeletable: with nothing to compare against, the schedule still governs."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = None
+    user['last_active'] = NOW.isoformat()
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 1
+
+
+def test_finishing_the_session_is_not_a_change_of_heart(fake_db):
+    """Activity in the hours right after the request is the same sitting: the
+    confirmation page, an evening check that it took. Reading that as a return
+    would cancel the deletion of anyone who did not close the tab fast enough,
+    breaking the same promise in the other direction."""
+    user = next(r for r in fake_db.tables['users'] if r['id'] == 'due-user')
+    user['deletion_requested_at'] = (NOW - timedelta(days=31)).isoformat()
+    user['last_active'] = (NOW - timedelta(days=31) + timedelta(hours=6)).isoformat()
+
+    result = run_pending_deletion_sweep(admin=fake_db, now=NOW)
+
+    assert result['deleted'] == 1, 'a genuine request must still be honoured'
+    assert 'due-user' not in fake_db.auth_users
