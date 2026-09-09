@@ -13,19 +13,37 @@ name: Apply migrations to production
 # decided to make at a particular moment, and the failure mode is a locked table
 # on a production database during a release.
 #
-# ── READ BEFORE THE FIRST APPLY
+# ── THE HISTORY IS RECONCILED (2026-09-09)
 #
-# `supabase db push` would currently attempt ~59 migrations that are ALREADY
-# applied, because they were applied by hand and the history rows were never
-# written (56 carry a drifted version stamp, 3 have no row at all). Many are
-# IF NOT EXISTS-guarded; not all are. The `plan` mode below shows you exactly
-# this, and the apply path refuses to run while the pending count is
-# implausible. Reconcile first with:
+# This block used to say `db push` would attempt ~59 already-applied migrations
+# and that you must reconcile before the first apply. That was true and it is
+# now done: 66 rows were written to supabase_migrations.schema_migrations, which
+# went from 96 rows to 162, and every file in supabase/migrations/ now has a
+# history row except the ones genuinely not yet applied. See
+# docs/remediation-2026-09/MIGRATION_RECONCILIATION.md for the file-by-file
+# evidence and docs/remediation-2026-09/reconcile_schema_migrations.sql for what
+# ran.
 #
-#     supabase migration repair --status applied <version>
+# So `plan` reporting a small number is now the expected, healthy state. A count
+# in the dozens means something has regressed -- read the reconciliation doc
+# before applying anything.
 #
-# for each already-applied file, then apply mode becomes safe for the ONE new
-# migration you actually want.
+# ── AND THE COUNT USED TO BE A LIE
+#
+# Until 2026-09-09 the awk below stripped spaces but not the backticks the CLI
+# wraps every cell in, so it printed 0 for ANY input. Two things followed:
+#
+#   - `apply` was unreachable. Its first guard refuses when nothing is pending,
+#     and nothing was ever pending as far as this file could tell.
+#   - The max_pending tripwire below -- which the section further down calls
+#     "the point of the whole file" -- was dead code. 0 is never greater than 3.
+#
+# The protection was real by accident, not by design: the wrong guard blocked
+# everything for the wrong reason. It was found by running `plan` against a
+# freshly reconciled history, expecting 1 and getting 0.
+#
+# If you change the awk, test it against real `migration list` output, not
+# against what you assume the format is. That is the exact mistake being fixed.
 
 on:
   workflow_dispatch:
@@ -93,9 +111,17 @@ jobs:
           supabase migration list --linked | tee /tmp/migrations.txt
           # Rows are "  local | remote | time". A row with a local version and
           # an empty remote column is a migration db push would attempt.
+          # The CLI wraps every cell in backticks -- `20260909163208` -- and an
+          # empty remote column is ` `, not blank. Stripping only spaces left
+          # $1 as `20260909163208` (never matching the digit anchor) and $2 as
+          # `` (never equal to ""), so this counted 0 for ANY input from the
+          # day it was written. That made `apply` unreachable, since its first
+          # guard is "refuse when nothing is pending", and it made the
+          # max_pending tripwire -- the guard this file's header calls its whole
+          # point -- dead code that could never fire. Strip the backticks too.
           pending=$(awk -F'|' '
             NF >= 2 {
-              gsub(/ /, "", $1); gsub(/ /, "", $2)
+              gsub(/[ `]/, "", $1); gsub(/[ `]/, "", $2)
               if ($1 ~ /^[0-9]{14}$/ && $2 == "") n++
             }
             END { print n+0 }' /tmp/migrations.txt)
