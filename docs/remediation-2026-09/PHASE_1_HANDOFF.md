@@ -1,6 +1,6 @@
 # Phase 1 handoff — rename the two frontends to platform siblings
 
-**Branch:** `refactor/remediation-2026-09-phase1` (not merged, not pushed)
+**Branch:** `refactor/remediation-2026-09-phase1` — **shipped to `main` 2026-09-09 as `79a2db4b`**
 **Branched from:** `docs/remediation-2026-09-phase0` @ `b02091a8`, which is 5 commits
 ahead of `main`. Phase 0 is still unmerged, so this branch carries Phase 0's
 commits too.
@@ -11,10 +11,10 @@ commits too.
 follows each file. The names encoded a succession that is not the plan: web and
 mobile are permanent platform siblings.
 
-> **Read NEEDS TANNER first if this branch is anywhere near merging.** Three
-> Render services are dashboard-managed with `frontend`/`frontend-v2` hard-coded
-> in their build config. Merging this to `develop` or `main` without changing
-> them first breaks the web deploy on the first build.
+> **SHIPPED 2026-09-09.** The three Render services were repointed first, then
+> `develop`, then `main`. `Release (main)` green on all seven jobs; prod verified
+> by hand afterwards (§7). NEEDS TANNER §1 is done — it is kept below as the
+> record of what was changed and why.
 
 ---
 
@@ -29,6 +29,7 @@ mobile are permanent platform siblings.
 | `af1d0f01` | Phase 1 handoff (this file, first version) | 1 | +496 |
 | `eae0aaae` | LTI is hosted on the web app — write down the decision that was made in May | 4 | +140 / -52 |
 | `b5bd755e` | Fix the e2e workflow's dead Render service ID, and untrack a test artifact | 3 | +14 / -612 |
+| `79a2db4b` | Give the E2E smoke test's first assertion the same 15s the rest of the suite uses | 1 | +14 / -2 |
 
 Plus one more commit updating this file for the decisions in §5 and §6.
 
@@ -355,7 +356,7 @@ Both were reported first and fixed on the user's instruction.
 
 ## NEEDS TANNER
 
-### 1. Render dashboard — do this BEFORE this branch merges to `develop` or `main`
+### 1. ~~Render dashboard~~ — DONE 2026-09-09, before the merge
 
 All three services below are **dashboard-managed**. `render.yaml` is not synced,
 so the rename in this branch does not reach them. Verified against the live
@@ -523,6 +524,62 @@ ready for the eventual broader migration", and that migration is now cancelled.
 
 ---
 
+## 7. What shipped, and how it was verified
+
+Order was: Render dashboard first, then `develop`, then `main`. The dashboard had
+to move first because the old build command breaks the moment the rename lands
+and the new one breaks until it does, and the two cannot change atomically.
+
+| Step | Result |
+|---|---|
+| Three Render services repointed | Verified by reading them back from the Render API, not from the dashboard UI |
+| `develop` @ `1e8c79a9` | dev web, dev mobile web and dev backend all **live**; `/login` 200, `/version.json` matched |
+| `main` @ `79a2db4b` | `Release (main)` **success on all 7 jobs** — backend, web, mobile, integration, deploy, smoke, OTA |
+| Prod verified by hand | `optio-prod-frontend` deploy **live**, built from `web/`; `app.optioeducation.com/login` 200; `version.json` = `79a2db4`; `api/health` = `79a2db4b`, `db: ok` |
+
+**The by-hand prod check was not optional.** As §6 explains, the `deploy` job only
+confirms Render *accepted* the API call, and `smoke` probes
+`www.optioeducation.com`, which is the marketing site. Neither would have noticed
+a failed web build — the exact failure this rename risked. `app.optioeducation.com`
+is the host that had to be checked, and it was.
+
+### Two things that came up during the ship
+
+**Saving the Render settings fires a deploy immediately.** Both dev static sites
+recorded a `build_failed` at 13:57, before the code was pushed — a
+`service_updated` deploy against the old develop tip, which still had `frontend/`.
+Expected, harmless, and superseded two minutes later. Worth knowing so the next
+person does not read it as a real failure.
+
+**One E2E test failed on develop, and it was not the rename.** `Mobile E2E Tests`
+S1 timed out on `getByText('Total XP')`. The same workflow had already failed on
+2026-09-02, before this branch existed — and that earlier run died at the *Wait
+for Render deploy* step, i.e. on the dead service ID fixed in `b5bd755e`. So this
+branch's run was the first to reach the tests at all: 7 passed, 1 failed.
+
+The failure was a 5s default expect timeout on a stat tile that needs an API
+round-trip, against a backend that had cold-started two minutes earlier. S1 was
+the only assertion in the file without an explicit timeout; S2-S4 and three other
+specs all use 15-20s. Fixed in `79a2db4b` by giving it the same 15s, with the
+matcher left exact so a genuinely missing tile still fails. Re-run: **8 passed.**
+
+Worth recording the causal chain, because it is the opposite of what it looks
+like: fixing the service ID is what *exposed* the flake. The suite now runs
+immediately after a deploy instead of ten minutes later against a warm site. The
+flake was always there; nothing had ever looked at it.
+
+### Still open after the ship
+
+- **NEEDS TANNER §3** — renaming the Render services themselves. Optional,
+  cosmetic, and carries a real trap (the dev hostnames are hard-coded in auth
+  code). Not required by anything.
+- **NEEDS TANNER §4** — what to do with `MOBILE_LAUNCH_READINESS.md`.
+- **NEEDS TANNER §6** — the mobile app's now-unreferenced `(lti)` route group.
+- **§4b** — the 19 ambiguous `v1`/`v2` sites that need a person who knows which
+  was meant.
+
+---
+
 ## What I could not do, and why
 
 - **Could not delete the mobile app's now-dead `(lti)` route group.** It is a
@@ -536,5 +593,4 @@ ready for the eventual broader migration", and that migration is now cancelled.
   not v1/v2 language, and `.design-sync/` tooling reads it. The stale note in
   `.design-sync/NOTES.md` that said PKG_DIR would resolve to `frontend` was fixed
   to say `web`.
-- **Did not push, and did not merge.** The branch is local. Merging it before
-  NEEDS TANNER §1 breaks the web deploy.
+- **Everything above was done and shipped.** See §7.
