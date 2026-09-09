@@ -10,8 +10,16 @@
  * Read-only. Renders inside LtiShell so it sizes the Canvas iframe and
  * stays width-constrained in the cramped SpeedGrader pane.
  *
- * NOTE: not yet wired to AGS. grade-sync keeps pointing at the web app's
- * /public/diploma URL until the staged mobile-as-LTI-host cutover (Phase 4).
+ * NOTE: this screen is NOT reachable in production and never was. The LTI
+ * surface is hosted on the web app (web/src/pages/lti/LtiEvidencePage.jsx);
+ * grade-sync's AGS URL points there. See docs/LTI_FRONTEND_REDESIGN.md §3 --
+ * the cutover that would have made this the live page was superseded on
+ * 2026-05-20 and closed on 2026-09-08.
+ *
+ * This header used to say "not yet wired to AGS ... grade-sync keeps pointing
+ * at the web app's /public/diploma URL", which was wrong on both counts from
+ * 2026-05-20 onward: AGS was repointed to /lti-evidence that day, on the web
+ * app. Kept as design reference; do not assume it runs.
  */
 
 import { useEffect, useState } from 'react';

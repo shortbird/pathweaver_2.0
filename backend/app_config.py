@@ -103,12 +103,19 @@ class Config:
     # Legacy FRONTEND_URL (for backward compatibility)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
-    # LTI-only frontend base. Defaults to FRONTEND_URL so this is a no-op
-    # until the mobile-app-as-LTI-host cutover (docs/LTI_FRONTEND_REDESIGN.md §8):
-    # at cutover, set LTI_FRONTEND_URL=<mobile host> in prod env to move ONLY
-    # the LTI iframe to the mobile app, leaving the rest on the web app.
-    # Used by the LTI launch/token redirects; the AGS evidence URL repoint
-    # is a separate, coordinated cutover step (see runbook).
+    # LTI-only frontend base. Defaults to FRONTEND_URL, so it is a no-op today
+    # and LTI serves the web app like everything else.
+    #
+    # This is NOT waiting on a cutover. It used to say it was: the plan to move
+    # the LTI iframe to the mobile app was superseded on 2026-05-20 (Path A,
+    # commit 0dd805b5, docs/LTI_FRONTEND_REDESIGN.md §3), which rebuilt the LTI
+    # redesign in web/ and repointed AGS in one PR. That comment then sat here
+    # for four months describing a pending step that was already cancelled.
+    #
+    # The variable is kept on purpose: it is a one-env-var lever to move ONLY
+    # the LTI iframe to some other host without a code change, which is worth
+    # having even with no plan to use it. Read by the launch/token redirects and
+    # by lti_grade_sync_service's AGS evidence URL -- so a flip moves both.
     LTI_FRONTEND_URL = os.getenv('LTI_FRONTEND_URL') or FRONTEND_URL
     
     # Supabase Configuration

@@ -349,8 +349,9 @@ def _stash_deep_link_settings(
 
 
 def _frontend_url() -> str:
-    # LTI-only base. Defaults to FRONTEND_URL (no-op) until the staged
-    # mobile-app-as-LTI-host cutover flips LTI_FRONTEND_URL in prod env. The mobile
-    # routes (/lti-launch, /deep-link, /quest/[id]) match these paths, so
-    # the host flip needs no code change here.
+    # LTI-only base. Defaults to FRONTEND_URL, so this resolves to the web app,
+    # which is where the LTI surface lives (docs/LTI_FRONTEND_REDESIGN.md §3).
+    # No cutover is pending -- the comment here used to say one was, and had
+    # been wrong since 2026-05-20. LTI_FRONTEND_URL remains a host override if
+    # one is ever wanted; the paths below need no code change either way.
     return (Config.LTI_FRONTEND_URL or Config.FRONTEND_URL).rstrip("/")
