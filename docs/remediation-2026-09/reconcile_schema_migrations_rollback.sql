@@ -8,7 +8,7 @@
 --
 -- The version list is repeated as a second filter. It is redundant against the
 -- marker, and it is here on purpose: if someone ever reuses that marker string,
--- the blast radius stays these 67 versions instead of everything bearing it.
+-- the blast radius stays these 66 versions instead of everything bearing it.
 --
 -- WHAT THIS DOES NOT DO
 --
@@ -17,7 +17,7 @@
 -- proposing 67 already-applied migrations, which is the state described in
 -- supabase/migrations/README.md -- undesirable, but not destructive.
 --
--- Verify before: SELECT count(*) FROM supabase_migrations.schema_migrations;   -- expect 163
+-- Verify before: SELECT count(*) FROM supabase_migrations.schema_migrations;   -- expect 162
 -- Verify after:  SELECT count(*) FROM supabase_migrations.schema_migrations;   -- expect 96
 --
 
@@ -91,8 +91,7 @@ WHERE created_by = 'reconcile-ops-03'
     '20260907180000',  -- org_kiosk_devices_token
     '20260908120000',  -- message_email_relays
     '20260908130000',  -- device_tokens_one_account_per_device
-    '20260908150000',  -- parent_weekly_digest_sends
-    '20260909144435'  -- baseline_20260909
+    '20260908150000'  -- parent_weekly_digest_sends
   );
 
 SELECT count(*) AS remaining_reconcile_rows

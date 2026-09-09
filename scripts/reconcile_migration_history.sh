@@ -7,7 +7,7 @@
 # 5 have a history row at their exact version, 64 are recorded under a drifted
 # stamp, and 3 have no row at all. `supabase db push` compares FILE VERSION
 # against schema_migrations.version and nothing else, so it would today attempt
-# 67 migrations that are already applied. Many are IF NOT EXISTS-guarded. Not
+# 66 migrations that are already applied. Many are IF NOT EXISTS-guarded. Not
 # all are.
 #
 # The full file-by-file evidence -- including the seven whose recorded SQL could
@@ -109,7 +109,6 @@ VERSIONS=(
   20260908120000   # message_email_relays
   20260908130000   # device_tokens_one_account_per_device
   20260908150000   # parent_weekly_digest_sends
-  20260909144435   # baseline_20260909
 )
 
 if [[ "${1:-}" != "--apply" ]]; then

@@ -7,9 +7,9 @@
 --
 -- WHAT THIS DOES
 --
--- It writes 67 rows to supabase_migrations.schema_migrations and nothing else.
+-- It writes 66 rows to supabase_migrations.schema_migrations and nothing else.
 -- No table is created, altered, dropped or read. No application data is touched.
--- Every object these 67 versions describe is ALREADY in production -- that was
+-- Every object these 66 versions describe is ALREADY in production -- that was
 -- verified object by object, and the verification is the middle table of
 -- MIGRATION_RECONCILIATION.md. This is bookkeeping catching up with reality.
 --
@@ -118,8 +118,7 @@ VALUES
   ('20260907180000', 'org_kiosk_devices_token', NULL, 'reconcile-ops-03'),
   ('20260908120000', 'message_email_relays', NULL, 'reconcile-ops-03'),
   ('20260908130000', 'device_tokens_one_account_per_device', NULL, 'reconcile-ops-03'),
-  ('20260908150000', 'parent_weekly_digest_sends', NULL, 'reconcile-ops-03'),
-  ('20260909144435', 'baseline_20260909', NULL, 'reconcile-ops-03')
+  ('20260908150000', 'parent_weekly_digest_sends', NULL, 'reconcile-ops-03')
 ON CONFLICT (version) DO NOTHING;
 
 -- What this run actually wrote. Expect 67 on a first run, 0 on a repeat.
@@ -127,7 +126,7 @@ SELECT count(*) AS rows_written_by_this_script
 FROM supabase_migrations.schema_migrations
 WHERE created_by = 'reconcile-ops-03';
 
--- Sanity: the history should now hold 163 rows (96 before + 67).
+-- Sanity: the history should now hold 162 rows (96 before + 66).
 SELECT count(*) AS total_history_rows FROM supabase_migrations.schema_migrations;
 
 COMMIT;

@@ -73,7 +73,7 @@ through it. To stop it recurring, see NEEDS TANNER step 1.
 
 ## 2. The baseline
 
-[`supabase/migrations/20260909144435_baseline_20260909.sql`](../../supabase/migrations/20260909144435_baseline_20260909.sql)
+[`supabase/baseline/20260909144435_baseline_20260909.sql`](../../supabase/baseline/20260909144435_baseline_20260909.sql)
 — 241 tables, 634 indexes, 1,106 constraints, 121 functions, 302 policies, 44
 triggers, 827 grants, 316 comments. `public` and `private` only.
 
@@ -114,11 +114,11 @@ live schema directly; all seven present.
 ## 4. The repair scripts — written, validated, not run
 
 - [`reconcile_schema_migrations.sql`](reconcile_schema_migrations.sql) — inserts
-  67 rows, touches nothing else
+  66 rows, touches nothing else
 - [`reconcile_schema_migrations_rollback.sql`](reconcile_schema_migrations_rollback.sql)
-  — deletes exactly those 67
+  — deletes exactly those 66
 
-Validated against production read-only before commit: 67 tuples, 67 distinct
+Validated against production read-only before commit: 66 tuples, 66 distinct
 versions, **0 collide** with an existing row.
 
 **`max_pending` does not need raising.** After the repair, `db push` sees 0
@@ -186,7 +186,7 @@ reconciliation, which is the point.
 This is the one that needs you. It writes to production.
 
 **My recommendation: do step 4 (staging) first, run the reconciliation there,
-then run it on production.** It is 67 rows in a bookkeeping table with a tested
+then run it on production.** It is 66 rows in a bookkeeping table with a tested
 rollback, so the risk is genuinely low — but "low risk" is what the last four
 production incidents in this repo were also described as, and there is now
 somewhere to rehearse it.
@@ -200,7 +200,7 @@ If you want it on production now anyway:
    2026-09-09 and the list is stale. Tell me and I will re-derive it.
 3. Paste the whole of
    [`reconcile_schema_migrations.sql`](reconcile_schema_migrations.sql) and run
-   it. It prints two numbers: expect **67** and **163**.
+   it. It prints two numbers: expect **66** and **162**.
 4. If either number is wrong, run
    [`reconcile_schema_migrations_rollback.sql`](reconcile_schema_migrations_rollback.sql)
    and stop. It prints **0** and **96**.
@@ -209,8 +209,7 @@ If you want it on production now anyway:
 
    | Ref | Expect | Why |
    |---|---|---|
-   | `main` | **0 pending** | The reconciliation covers every migration on `main` |
-   | this branch | **1 pending** | `20260909163208_drop_test_and_backup_schemas` — genuinely not applied |
+   | `main` | **1 pending** | `20260909163208_drop_test_and_backup_schemas` — genuinely not applied |
 
    Either answer is the proof the reconciliation worked, and it is the first
    time that workflow will have told you anything true.
@@ -219,7 +218,7 @@ If you want it on production now anyway:
 are on.** If it reports 60-odd, the reconciliation did not take; run the
 rollback and tell me.
 
-The drop migration is deliberately **not** in the reconciliation's 67. It has
+The drop migration is deliberately **not** in the reconciliation's 66. It has
 never been applied, so it *should* be pending — it is the first honest pending
 migration this repo has had, and at 1 it sits comfortably under `max_pending`'s
 limit of 3. Applying it is how you find out whether the pipeline works, on a
@@ -272,6 +271,42 @@ warning is about, but it is still only safe pushed straight to `main`.
 **Decide: rename it on a direct push to `main`, or leave it and note it.**
 
 ---
+
+## The release that failed, and what it taught
+
+The first push of this work to `main` (`e4707d12`) failed CI, and it was my
+error. `release.yml`'s integration job runs `supabase start`, which replays the
+whole of `supabase/migrations/` onto an empty database. The baseline was in that
+directory, so the 72 incremental files built the schema and then the baseline
+tried to create every type a second time:
+
+```
+ERROR: type "collaboration_status" already exists (SQLSTATE 42710)
+```
+
+I ran the backend suite before pushing and it passed; I did not run the
+integration suite, and I did not reason about the fact that adding a file to
+`supabase/migrations/` changes what a fresh database gets built from. Docker and
+the Supabase CLI are not installed on this machine, so that suite cannot be run
+locally — which makes it exactly the suite to think hardest about before pushing,
+not the one to skip.
+
+**Two things about that failed run you should know:**
+
+1. **The production OTA published. The Render deploy did not.** They are separate
+   jobs; `ota` needs `[backend, web, mobile]` and all three passed, while
+   `deploy` needs `[backend, web]` but the run failed overall before it ran.
+   Prod backend and web stayed on `c4e252ba`. No app source differs between
+   `c4e252ba` and `e4707d12`, so the OTA was behaviourally identical and no user
+   saw anything — but the split is real and it is worth knowing that a red run
+   can still publish an OTA.
+2. **Nothing reached any database.** The failure was a local Docker Postgres in
+   CI. Production was never touched.
+
+The fix moved the baseline to `supabase/baseline/`. The full reasoning, and the
+two alternative fixes that are worse, are in
+[MIGRATION_RECONCILIATION.md](MIGRATION_RECONCILIATION.md) under "Where the
+baseline lives".
 
 ## What I could not do, and why
 

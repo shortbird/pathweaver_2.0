@@ -33,7 +33,11 @@ WHAT IT DOES NOT CAPTURE
 - `test_schema` and `backup_schema` -- see MIGRATION_RECONCILIATION.md; they are
   production cruft that the baseline deliberately does not carry forward.
 
-Usage:  SUPABASE_PAT=... python3 scripts/dump_prod_schema.py > baseline.sql
+Usage:  SUPABASE_PAT=... python3 scripts/dump_prod_schema.py \
+          > supabase/baseline/<timestamp>_baseline_<date>.sql
+
+Output goes in supabase/baseline/, NEVER supabase/migrations/ -- see the header
+this emits, and MIGRATION_RECONCILIATION.md.
 """
 import json, os, sys, urllib.request
 
@@ -439,8 +443,14 @@ HEADER = """--
 -- long series of no-ops and at worst a lock storm. Its two real uses are:
 --   1. standing up a fresh project (staging -- see STAGING_RUNBOOK.md), and
 --   2. reading, to answer "what does production actually look like".
--- The reconciliation script marks it applied in the history table without
--- running it, which is what makes `db push` sane again.
+-- IT DELIBERATELY DOES NOT LIVE IN supabase/migrations/.
+-- It did, for about an hour, and that broke the integration suite: `supabase
+-- start` replays the whole migrations directory onto an empty database, so the
+-- 72 incremental files built the schema and then this file tried to CREATE TYPE
+-- collaboration_status a second time. A directory holding two complete
+-- descriptions of the same schema cannot be replayed by anything. It is not a
+-- migration and it is not in the migration history; nothing applies it, and
+-- `db push` never sees it.
 --
 -- Reconstructed from the system catalogs over the Management API in a READ ONLY
 -- transaction, not from pg_dump -- see the module docstring in
