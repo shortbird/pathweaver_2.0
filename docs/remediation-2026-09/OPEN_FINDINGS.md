@@ -190,14 +190,14 @@ evaporate with the old plan.
 - **CI-03: eslint itself is not stood up.** The two rules the project had
   actually chosen are enforced in vitest, but replacing the CRA preset with a
   flat config, adding the react/hooks plugins and triaging the first run is not
-  autonomous work. v2 has no eslint either (QF-09 chose a count ratchet for the
+  autonomous work. The mobile app has no eslint either (QF-09 chose a count ratchet for the
   same reason).
 - **QF-03 / QB-06 are declined, not deferred.** 469 hand-rolled fetch call sites
   across 111 pages, and ~9% repository adherence, are the **accepted steady
   state**. Nobody is behind on anything. Reopen only with new cost information.
 - **QF-01 is closed by rule extraction, not by hook merging.** Merging
-  `useQuests`/`useBounties`/`useNotifications` is declined: v2's bounties hook is
-  a read-only three-endpoint subset of v1's full CRUD surface, and the two SIS
+  `useQuests`/`useBounties`/`useNotifications` is declined: the mobile bounties hook
+  is a read-only three-endpoint subset of the web app's full CRUD surface, and the two SIS
   path lists that looked identical meant different things. Reopen this item by
   extracting a **rule**, not by merging a hook.
 - **QF-06: the 4GB build heap is unexplained.** Not obviously about the PDF

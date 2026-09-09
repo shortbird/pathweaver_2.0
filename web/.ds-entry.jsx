@@ -1,4 +1,4 @@
-// Design-system entry for /design-sync. Re-exports the v1 web UI library so
+// Design-system entry for /design-sync. Re-exports the web UI library so
 // every component lands on window.OptioUI for the Claude Design bundle.
 export * from './src/components/ui/index.js';
 export { default as Button } from './src/components/ui/Button.jsx';
