@@ -10,15 +10,25 @@ what an automated test run reads and writes. A test run has already sent real
 email to real families through the production Brevo key. That is the finding;
 this is the fix.
 
-**Nothing here has been executed.** No staging project exists yet, so
-`scripts/seed_staging.py` has never run against a real database. Expect to
-iterate on step 6.
+**This runbook has been executed.** Staging is `kltoyqefmcgolbplplsa`
+(Shortbird org, `us-west-1`, $10/mo), created 2026-09-09. Every step below was
+run, and the corrections are folded in — the version before this was wrong in
+four places, all of which only appeared when something actually ran it.
+
+Credentials: `~/optio-staging-credentials.txt` (mode 600), and the database
+password is in your login keychain as `SUPABASE_STAGING_DB_PASSWORD`.
 
 ---
 
-## Decision first: what tier
+## Tier: decided
 
-You deferred this. Pick before step 1.
+**$10/month, in the Shortbird org alongside production.** The free slot was only
+available in the *other* org (`ewldvvivnnnxtyeaxmoz`, which holds `momentum`),
+and splitting staging away from production's org would split billing and
+membership too. Shortbird already has four active projects so its free slots are
+used; a new project there costs $10/mo.
+
+The original comparison is kept below for when this is revisited.
 
 | | Supabase Pro (~$25/mo) | Free tier |
 |---|---|---|
@@ -44,7 +54,9 @@ E2E suite to it, which is when pausing would start costing you.
 2. Name: `optio-staging`. Region: **US West (North California)** — match
    production so latency-sensitive behaviour is comparable.
 3. Set a strong database password and **put it in your password manager now**.
-   You will need it three more times in this runbook.
+   You will need it three more times in this runbook. Use alphanumerics only —
+   a password with `@`, `:` or `/` needs URL-encoding in every connection string
+   you build from it, and that has already caused one outage here.
 4. Note the project ref from the URL (`https://supabase.com/dashboard/project/<REF>`).
    It appears throughout as `<STAGING_REF>`.
 
@@ -57,6 +69,14 @@ having — the file is a catalog reconstruction, not a `pg_dump`, and it has nev
 been executed.
 
 1. Dashboard → **SQL Editor** → paste the whole file → Run.
+
+   **This is where four latent bugs in the baseline surfaced** — sequences never
+   emitted, functions ordered before the tables their signatures reference,
+   constraints ordered before the functions they call, and `COMMENT ON TABLE`
+   against a view. All four are fixed in `scripts/dump_prod_schema.py` (commit
+   `4dc9e742`) and the current file applies cleanly. Recorded because a
+   regenerated baseline can reintroduce this class of problem, and only running
+   it will tell you.
 2. Expect it to take a minute or two. 241 tables, 634 indexes, 1,106
    constraints, 121 functions, 302 policies.
 3. If it fails partway, note the statement and **stop** — do not patch around it
@@ -91,8 +111,23 @@ psql "<STAGING_DB_URL>" -v ON_ERROR_STOP=1 -f supabase/ci/grants.sql
 
 ## 4. Record the migration history
 
-So `supabase db push` treats staging as up to date rather than trying to replay
-73 migrations onto a schema that already has them:
+**The `supabase_migrations` schema does not exist on a fresh project** — the CLI
+creates it on first link. Create it first, matching production's structure:
+
+```sql
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+  version text NOT NULL PRIMARY KEY,
+  statements text[],
+  name text,
+  created_by text,
+  idempotency_key text UNIQUE,
+  rollback text[]
+);
+```
+
+Then, so `supabase db push` treats staging as up to date rather than trying to
+replay 73 migrations onto a schema that already has them:
 
 ```sql
 INSERT INTO supabase_migrations.schema_migrations (version, name, statements, created_by)
@@ -127,6 +162,19 @@ python3 scripts/seed_staging.py --reset --scale 1  # production scale, ~200k row
 
 Use the **session pooler** host and port **5432**. The direct
 `db.<ref>.supabase.co` endpoint is IPv6-only without the IPv4 add-on.
+
+**The pooler hostname is per-project, not per-region.** Staging is
+`aws-0-us-west-1.pooler.supabase.com`; production is `aws-1-`. Both are in
+`us-west-1`. Guessing it from production's gives:
+
+    FATAL: (ENOTFOUND) tenant/user postgres.<ref> not found
+
+Read the real one from the API rather than assuming:
+
+```bash
+curl -s "https://api.supabase.com/v1/projects/<REF>/config/database/pooler" \
+  -H "Authorization: Bearer $SUPABASE_PAT" | python3 -m json.tool
+```
 
 **The data is invented, not anonymised.** The script never reads production.
 "Never copy real student PII" is a property of the design rather than a claim
