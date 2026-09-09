@@ -420,7 +420,13 @@ def main():
             if "FOR ROLE supabase_admin" in s:
                 s = "-- (platform-provisioned; postgres cannot set these) " + s
             out.append(s + "\n")
-    sys.stdout.write("".join(out))
+    # Some function bodies in production carry CRLF line endings -- they were
+    # applied from files written on Windows before .gitattributes landed
+    # (2026-09-08), and pg_get_functiondef returns the source verbatim. Git
+    # normalises them to LF on commit, so leaving them in would make the
+    # committed file differ from a fresh run and destroy the whole point of a
+    # deterministic, diffable baseline. Normalise here instead.
+    sys.stdout.write("".join(out).replace("\r\n", "\n").replace("\r", "\n"))
     for k, v in counts.items():
         print(f"{v:>6}  {k}", file=sys.stderr)
 
