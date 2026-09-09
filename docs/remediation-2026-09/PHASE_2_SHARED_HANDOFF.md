@@ -4,8 +4,10 @@
 cross-platform contracts.** Completed 2026-09-09.
 
 Branch: `refactor/remediation-2026-09-phase2`.
-Five commits, `1062bbe0` … `a9fe2709`, on top of `e2beced5`.
-139 files changed, +2,687 / −1,186.
+Eight commits, `1062bbe0` … `6014ede9`, on top of `e2beced5`.
+
+The last two (`0cd91cf5`, `6014ede9`) came after the first handoff, from
+following up the bugs it recorded — see [B1](#b1-six-paths-seeded-user_skill_xppillar-with-display-names--fixed-in-0cd91cf5).
 
 > **Filename note.** This is *not* `PHASE_2_HANDOFF.md`, which already exists on
 > this branch and covers a different Phase 2 (the migration reconciliation,
@@ -21,15 +23,15 @@ failures at every step; nothing was skipped, xfailed or deleted to get there.
 
 | Suite | Before | After |
 |---|---|---|
-| Backend (`pytest`) | 5,538 passed / 160 skipped / **0 failed** | 5,575 passed / 160 skipped / **0 failed** |
-| Web (`vitest`) | 323 files, 2,855 passed / **0 failed** | 323 files, 2,857 passed / **0 failed** |
+| Backend (`pytest`) | 5,538 passed / 160 skipped / **0 failed** | 5,579 passed / 160 skipped / **0 failed** |
+| Web (`vitest`) | 323 files, 2,855 passed / **0 failed** | 323 files, 2,858 passed / **0 failed** |
 | Mobile (`jest`) | 113 suites, 938 passed, 3 skipped / **0 failed** | 113 suites, 938 passed, 3 skipped / **0 failed** |
 
-The +37 backend and +2 web tests are the new guards listed below. No existing
+The +41 backend and +3 web tests are the new guards listed below. No existing
 test was removed.
 
 **Other gates, all clean after:** `pyflakes` (undefined names: none),
-`ruff` (F/E9/B/S110/S112), `mypy` (1,113 files, no issues),
+`ruff` (F/E9/B/S110/S112), `mypy` (1,114 files, no issues),
 `tsc --noEmit` (mobile), `vite build`, `npx expo export` (iOS + Android),
 `npm run generate:check`.
 
@@ -273,36 +275,86 @@ follow-up.
 
 Per the ground rule that this pass is structural.
 
-### B1. Roster import writes legacy display names into `user_skill_xp.pillar` — **live, 2,850 rows**
+### B1. Six paths seeded `user_skill_xp.pillar` with display names — **fixed in `0cd91cf5`**
 
-`services/roster_import_service.py::_init_skill_xp` seeds a new student's five
-pillar rows using the pre-2025 **display names** (`'Arts & Creativity'`,
-`'STEM & Logic'`, …) where every other writer in the codebase uses a key
-(`'art'`, `'stem'`). There is no CHECK constraint on `user_skill_xp.pillar`
-(verified against production), so the write succeeds silently.
+**This turned out to be six times larger than first reported, and it hid a
+second bug that would have destroyed data.** Both are fixed; the data cleanup is
+the part still waiting on you.
 
-Production, as of 2026-09-09:
+`user_skill_xp.pillar` holds a pillar KEY. Six account-creation paths seeded a
+new student's five zero rows with the pre-2025 DISPLAY names instead:
 
-| Shape | Rows | Users |
-|---|---|---|
-| Legacy display names (5 × 570) | **2,850** | 570 |
-| Correct keys (`stem`/`art`/…) | 795 | 176 max per key |
+| Path | |
+|---|---|
+| `routes/auth/registration.py` | email signup |
+| `routes/auth/login/security.py` | **runs on every login** |
+| `routes/auth/google_oauth.py` | Google sign-in |
+| `routes/admin/bulk_import.py` | both bulk-import routes |
+| `routes/admin/organization_courses.py` | org student create |
+| `services/roster_import_service.py` | roster import |
 
-**There are more wrong-shaped rows in this table than right-shaped ones.**
+There is no CHECK constraint on the column, so every write returned 200.
+Production held **2,850 such rows across 570 students** — more wrong-shaped rows
+than right-shaped ones in the entire table — and the most recent was written on
+2026-09-09, the day of the fix. No XP was lost: all 2,850 carry `xp_amount = 0`.
+The seeding simply never did its job, and 159 of those students later grew a
+second, correct set of rows the moment they earned anything.
 
-Impact is bounded but real: **every one of the 2,850 rows has `xp_amount = 0`**, so
-no XP has been lost or misfiled. They are inert placeholders that the seeding was
-supposed to create under the right key. 159 of the 570 users have both shapes —
-they earned XP later, which correctly created key-shaped rows alongside the dead
-ones. The cost is that any read which iterates a user's `user_skill_xp` rows sees
-five extra unrecognised pillars at zero, and the seeding does not do the job it
-exists to do.
+#### The trap underneath it
 
-A fix is two parts: point `_init_skill_xp` at the pillar keys, and delete or
-re-key the 2,850 rows. A CHECK constraint on `pillar` would have caught this at
-the first write and would stop the next one — but that is a migration, and this
-phase was told not to touch `supabase/migrations/`. The call site now carries a
-comment pointing here.
+The obvious fix is one line per site. **Shipping only that would have been a
+data-loss incident.**
+
+Those writes are `upsert(..., on_conflict='user_id,pillar')` carrying
+`xp_amount: 0`, and a PostgREST upsert **overwrites** on conflict. One of them
+sits under a comment reading *"Try to insert all at once, ignore conflicts (if
+they already exist)"* — what the author believed, not what the call does. And
+`ensure_user_diploma_and_skills` runs on **every successful login**
+(`routes/auth/login/core.py:801`), outside the "new diploma" branch that guards
+the rest of the function.
+
+So the wrong names were the only thing keeping it safe: they never collided, so
+the overwrite never had anything to overwrite. **Correcting the names is
+precisely what would have armed it** — and the next login would have reset all
+five balances to zero for every returning student.
+
+Both halves therefore landed together in `0cd91cf5`, because either alone is
+worse than neither:
+
+- every seeding upsert now passes `ignore_duplicates=True` (`ON CONFLICT DO
+  NOTHING`) — a no-op today by construction, since nothing collides yet;
+- the six pillar lists now come from `generated.pillars.PILLAR_KEYS`.
+
+`scripts/repair_missing_xp.py` deliberately keeps its overwriting upsert: it
+writes a *corrected* balance, which is the whole point of a repair script. The
+guard test distinguishes them by the literal zero.
+
+`tests/unit/test_skill_xp_seeded_with_pillar_keys.py` holds both rules, plus a
+floor so the scan cannot pass by finding nothing.
+
+#### The data — ready to run, waiting on you
+
+Three scripts in this directory, **all executed end to end against staging**
+(synthetic data only) rather than reviewed on paper:
+
+| Script | What it does |
+|---|---|
+| [`cleanup_skill_xp_legacy_pillars.sql`](cleanup_skill_xp_legacy_pillars.sql) | Backs up then deletes the 2,850 rows. Two tripwires abort it if anything is not as expected. |
+| [`cleanup_skill_xp_legacy_pillars_rollback.sql`](cleanup_skill_xp_legacy_pillars_rollback.sql) | Restores them from the backup table. |
+| [`add_skill_xp_pillar_check.sql`](add_skill_xp_pillar_check.sql) | The CHECK constraint that stops a seventh path. Must run *after* the cleanup. |
+
+Verified on staging: the cleanup deleted exactly the 15 seeded legacy rows and
+left all 3,905 real rows untouched with their balances intact; the rollback
+restored all 15; **tripwire 1 was armed deliberately** (one legacy row given
+4,200 XP) and aborted the run as intended; the constraint refused to be added
+while legacy rows were present and then rejected an `'Arts & Creativity'`
+insert. Staging was returned to exactly the state it was found in.
+
+Deleting rather than re-keying, because `user_skill_xp` has
+`UNIQUE (user_id, pillar)` and 159 students already hold correct rows with real
+balances — an UPDATE would collide with exactly the rows that matter. Nothing
+references `user_skill_xp.id` (zero foreign keys, checked against the live
+catalog), so the delete is self-contained.
 
 ### B2. The demo shows a different subject name from everywhere else
 
@@ -316,11 +368,27 @@ prospective family sees.
 
 `prompts/components.SCHOOL_SUBJECT_DISPLAY_NAMES` is a hybrid: the short picker
 names for most subjects (`'Math'`), but the long transcript names for `pe` and
-`cte` (`'Physical Education'`, `'Career & Technical Education'`). It may well be
-deliberate — the long form reads better to a model — but nothing says so, and it
-is a third list where the codebase now has two documented ones. Left as found.
-`test_credit_constants_generated.py` pins the two legitimate vocabularies against
-each other so nobody "fixes" the difference between them by accident.
+`cte`. It may well be deliberate — the long form reads better to a model — but
+nothing says so. Left as found;
+`test_credit_constants_generated.py` pins the two legitimate vocabularies
+against each other so nobody "fixes" the difference by accident.
+
+### B4. A dead validator holding a stale pillar list
+
+`utils/quest_validation.py` scores a quest's tasks against
+`self.valid_pillars`, which is the pre-2025 display names — so a task carrying a
+modern key would be marked *"invalid or missing pillar"*. It does not bite,
+because `QuestValidator` is **never instantiated**: the only live imports are the
+module-level `can_activate_quest` and `can_make_public`. Dead code with a stale
+copy of a vocabulary, which is worth deleting on its own merits.
+
+### B5. Display fallbacks that render a retired name
+
+`routes/quest/completion.py` (4 sites) and `services/portfolio_service.py`
+(3 sites) fall back to `task_info.get('pillar', 'Arts & Creativity')`. These are
+response-dict *display* values, not database writes, so a task with no pillar
+renders a name the product retired in 2025. Left alone because changing them
+changes what a portfolio shows.
 
 ---
 
@@ -418,56 +486,54 @@ the phase was for.
 Steps 4 and 5 are mine to do once you have done 1–3. **Tell me which way you want
 it.**
 
-### 2. Decide what to do about the 2,850 mis-keyed `user_skill_xp` rows (B1)
+### 2. Run three SQL scripts against production, in order
 
-Two decisions, then I can do both:
+The code is fixed and merged. This is the data half, and it is the one thing
+that still needs a human at a keyboard, because it deletes 2,850 rows belonging
+to 570 real students. Each script has been executed end to end on staging.
 
-1. **The code fix** — point `_init_skill_xp` at the pillar keys. One line, no
-   product decision. Say go and it is done in the next phase.
-2. **The data** — the 2,850 rows all carry `xp_amount = 0`, so deleting them loses
-   nothing; re-keying them would collide with the correct-key rows the 159 active
-   students already have (there is a `UNIQUE (user_id, pillar)` constraint). I would
-   **delete** them and let the fixed seeding recreate them properly, but that is a
-   write to production data on 570 real students' rows and I am not doing it on my
-   own judgment. Confirm the approach and whether you want an export first.
-3. **Optional, and the thing that stops a recurrence:** a CHECK constraint on
-   `user_skill_xp.pillar` restricting it to the five keys. That is a migration, and
-   this phase was told not to touch `supabase/migrations/`, so it needs to be a
-   Phase-2-migrations task rather than mine.
+Open the Supabase SQL editor for project **`vvfgxcykxjybtvpfzwyx`** (Optio,
+production) and run these **in this order**:
 
-### 3. Confirm B2 is a bug and not a deliberate demo label
+1. **`docs/remediation-2026-09/cleanup_skill_xp_legacy_pillars.sql`**
+   Backs the rows up into `user_skill_xp_legacy_backup_20260909`, then deletes
+   them. It prints `Deleting 2850 legacy row(s); keeping 795 correctly-keyed
+   row(s).` If it raises `ABORTED:` anything, stop and send me the message —
+   that means production no longer looks the way it did on 2026-09-09.
 
-`web/src/contexts/DemoContext.jsx` shows CTE as `'Career & Technical'`. If that is
-just a typo, point it at the shared map — one line. If the demo shortens it on
-purpose to fit a layout, say so and I will leave a comment there recording that,
-so the next person to notice does not re-open it.
+2. **Check it did what you expect:**
+   ```sql
+   SELECT pillar, count(*) FROM public.user_skill_xp GROUP BY pillar ORDER BY 1;
+   ```
+   Five rows, five keys, nothing else.
 
----
+3. **`docs/remediation-2026-09/add_skill_xp_pillar_check.sql`**
+   Adds the constraint that makes a seventh path impossible. It will fail if
+   step 1 was skipped, which is intentional.
 
-## Where things now live
+   Note this one is DDL and I have deliberately not placed it in
+   `supabase/migrations/` — that directory was out of scope for this phase and
+   has its own reconciliation story. Ideally whoever owns migrations stamps it
+   into a migration file and applies it through `migrate-prod.yml`. Running it
+   in the SQL editor works, but it is the same by-hand path OPS-03 closed.
 
-| Path | What it is |
-|---|---|
-| `shared/data/*.json` | The canonical data. Hand-edited. Nothing else is a source. |
-| `shared/generated/*.ts` | Emitted. **Do not edit.** |
-| `backend/generated/*.py` | Emitted. **Do not edit.** |
-| `shared/scripts/generate-constants.mjs` | The generator. `npm run generate` / `npm run generate:check`. |
-| `shared/credits.ts`, `shared/pillars.ts`, `shared/subjects.ts` | Typed front doors — helpers over the generated data, hand-written. |
-| `backend/utils/admin_client.py` | The one admin-client accessor. |
-| `shared/README.md` | What belongs in `shared/` and what does not. |
+If anything looks wrong afterwards,
+`cleanup_skill_xp_legacy_pillars_rollback.sql` puts every row back.
 
-**If you edit a JSON file under `shared/data/`, run `npm run generate` from the
-repo root and commit what it writes.** CI fails otherwise.
+The backup table can be dropped once you are satisfied — the retention note is
+at the bottom of the rollback script.
 
-### New guards
+### 3. One-line answer: is the demo's short CTE label deliberate?
 
-| Test | Holds |
-|---|---|
-| `backend/tests/unit/test_pillar_constants_generated.py` | Every backend pillar list is a permutation of the canonical five; every name map equals the generated one; every legacy spelling still normalises |
-| `backend/tests/unit/test_credit_constants_generated.py` | The credit table, rate and transcript names match the JSON; no module writes `2000` near "credit" again (AST) |
-| `backend/tests/unit/test_one_admin_accessor.py` | One admin-client accessor, matched on shape, pinned to `utils/admin_client.py`, database imported lazily |
-| `backend/tests/unit/test_admin_client_justified.py` *(extended)* | Importing the shared accessor now requires a justification comment, same as calling the factory |
-| `mobile/src/__tests__/sharedAlias.test.ts` *(extended)* | `shared/` is a workspace package with no `"type"`; Metro declares `nodeModulesPaths` |
-| `mobile/src/__tests__/pillarPalette.test.ts` *(updated)* | `pillar_utils.py` holds **no** pillar hex; every `config/pillars.py` gradient opens on the canonical base |
-| `web/…/studentContextCredits.test.jsx` *(extended)* | No credit table under `web/src`; the app reaches it via `@shared/credits`; it agrees with the canonical JSON |
-| `.github/workflows/tests-web.yml` *(new step)* | The generator's output matches what is committed |
+`web/src/contexts/DemoContext.jsx:113` shows CTE as `'Career & Technical'`.
+Everywhere else says `'Career & Technical Education'`.
+
+I did not change it, because it renders in a tight two-column row
+(`DemoPortfolio.jsx` — subject name left, XP right) where the long form may well
+wrap, and it is what a prospective family sees.
+
+- **"It's a typo"** → I point it at the shared map, one line.
+- **"It's short on purpose"** → I add a comment saying so, so the next person to
+  notice does not re-open it.
+
+Either answer takes me a minute. The only bad outcome is leaving it unlabelled.
