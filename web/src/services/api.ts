@@ -1038,6 +1038,15 @@ export const oeaAPI = {
   removeCourseQuest: (studentId: string, questId: string) =>
     api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
 
+  // Course quests left on the dashboard by a credit deleted before the delete
+  // cleaned up after itself (parent only). Empty for anyone who never hit it.
+  unlinkedCourseQuests: (studentId) =>
+    api.get(`/api/oea/students/${studentId}/course-quests/unlinked`),
+
+  // Remove one of those leftovers (parent only).
+  removeCourseQuest: (studentId, questId) =>
+    api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
+
   // Raise/clear a student's transfer + non-direct credit caps (Hearthwood admin only).
   setCaps: (studentId: string, body: JsonBody) => api.patch(`/api/oea/enrollments/${studentId}/caps`, body),
 
