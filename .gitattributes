@@ -1,14 +1,18 @@
 # Line-ending policy (OPS-09).
 #
 # `text=auto` means: store text files with LF in the repository, check them out
-# platform-native. From this commit on, a file normalizes the next time anyone
-# stages it, so the CRLF/LF drift this repo accumulated (it started on Windows
-# and moved to macOS) stops growing.
+# platform-native. A file normalizes the next time anyone stages it, so the
+# CRLF/LF drift this repo accumulated (it started on Windows and moved to
+# macOS) cannot grow.
 #
-# The one-shot `git add --renormalize .` that would convert the ~870 files
-# already committed as CRLF is NOT done -- see docs/ops/CRLF_NORMALIZATION.md.
-# It rewrites every line of every one of them, which conflicts with every
-# unmerged branch that touches any of them, and there are ten of those.
+# The one-shot `git add --renormalize .` over the ~880 files that were already
+# committed as CRLF IS DONE: 2026-09-08, commit 5638a977, 879 files. This
+# header used to say it had NOT been done, which stayed wrong for a day and
+# then for longer -- see docs/ops/CRLF_NORMALIZATION.md, which now records both
+# halves. `.git-blame-ignore-revs` carries that SHA so blame still works.
+#
+# backend/tests/unit/test_line_endings_stay_lf.py fails the build if a CRLF
+# blob is ever committed again.
 
 * text=auto
 

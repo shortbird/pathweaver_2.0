@@ -1,28 +1,56 @@
 # Line-ending normalization (OPS-09)
 
-**Status: half done.** `.gitattributes` landed 2026-09-07, so the drift stops
-growing — every file normalizes the next time anybody stages it. The one-shot
-`git add --renormalize .` over the ~870 files already committed as CRLF is
-still pending, and still needs a quiet window.
+**Status: DONE.** Both halves have landed and the finding is closed.
 
-**Why the second half did not run on 2026-09-07**, when it was asked for: step 1
-below is a gate, and the tree failed it badly. Eleven branches were unmerged
-(two of them 20+ commits over 254 files) and nine worktrees were checked out,
-five on active `fix/*` branches belonging to other sessions. The renormalize
-commit rewrites every line of every CRLF file, so each of those branches would
-have taken a whole-file conflict in anything it touches — damage to other
-people's uncommitted and unmerged work, inflicted without their knowing. That is
-the exact failure the "Working alongside other agents" section of CLAUDE.md
-exists to prevent, so it stopped at the gate rather than pushing through it.
+| | |
+|---|---|
+| `.gitattributes` | 2026-09-07 |
+| `git add --renormalize .` | **2026-09-08, commit `5638a977`** — 879 files, LF only |
+| `.git-blame-ignore-revs` | carries `5638a977` |
+| Measured 2026-09-09 | **0 CRLF blobs** across 3,690 tracked text files |
 
-Adding `.gitattributes` on its own has no such cost: it is a new file, so it
-conflicts with nothing, and it converts the big bang into a gradual rollout —
-each file normalizes when someone next touches it, in that person's own commit,
-where the whole-file diff is theirs and expected.
+Verify it yourself in one line — it is the same check
+`backend/tests/unit/test_line_endings_stay_lf.py` runs on every build:
+
+```bash
+git ls-files --eol | grep -c 'i/crlf'   # expect 0
+```
+
+> **Your WORKING TREE may still show CRLF and that is fine.** `git ls-files
+> --eol` prints `i/<index> w/<worktree>`, and a file already on disk with CRLF
+> keeps it until git next checks it out. What matters is the index column: that
+> is what is committed, diffed and merged. On 2026-09-09 the index was 100% LF
+> while ~790 files on disk were still CRLF, and nothing was wrong.
+
+This document is kept because it is the record of a change that rewrote 879
+files, and because the "After it lands" section at the end is still live advice
+for anyone with an older checkout. **Everything between here and that section
+describes a job that is finished** — the readiness gate, the reasons it was
+blocked, and the recipe. Read it as history.
+
+---
+
+## Why the second half waited a day
+
+Step 1 of the recipe below is a gate, and on 2026-09-07 the tree failed it
+badly: eleven unmerged branches (two of them 20+ commits over 254 files) and
+nine checked-out worktrees, five on active `fix/*` branches belonging to other
+sessions. The renormalize commit rewrites every line of every CRLF file, so each
+of those branches would have taken a whole-file conflict in anything it touched
+— damage to other people's uncommitted and unmerged work, inflicted without
+their knowing. That is the exact failure the "Working alongside other agents"
+section of CLAUDE.md exists to prevent, so it stopped at the gate rather than
+pushing through.
+
+`.gitattributes` alone had no such cost: it is a new file, so it conflicts with
+nothing, and it converts the big bang into a gradual rollout — each file
+normalizes when someone next touches it, in that person's own commit, where the
+whole-file diff is theirs and expected. That bought the day it took for the tree
+to go quiet.
 
 ## Readiness check
 
-Run this before attempting step 3. It prints what still has to land.
+Historical. This was the gate before step 3, and it prints what had to land first.
 
 ```bash
 git status --porcelain                      # must be empty
@@ -30,12 +58,12 @@ git worktree list | grep -v "$(git rev-parse --show-toplevel)$"   # ideally none
 git branch --no-merged main                 # each will conflict; merge first
 ```
 
-On 2026-09-07 that printed 8 other worktrees and 10 other unmerged branches. It
-needs to print roughly nothing.
+On 2026-09-07 that printed 8 other worktrees and 10 other unmerged branches.
+By 2026-09-08 it printed close to nothing, and the renormalize ran.
 
-## What is wrong
+## What was wrong
 
-883 of 3,555 tracked files are CRLF, and the repo has no `.gitattributes`. The
+883 of 3,555 tracked files were CRLF, and the repo had no `.gitattributes`. The
 mix is historical — the project began on Windows and moved to macOS — so the
 line ending a file carries records which machine last rewrote it rather than
 anything meaningful.
@@ -52,7 +80,7 @@ What it costs day to day:
 - **Merge conflicts with no semantic content**, which is the failure mode most
   likely to hit whoever merges a long-lived branch.
 
-## Why it has not been done
+## Why it was not done sooner
 
 `git add --renormalize` rewrites every affected file in one commit. That commit
 touches ~883 files, and any branch with uncommitted work in one of them gets a
@@ -114,8 +142,8 @@ already in the repo. Kept here for the record:
 *.jks    binary
 ```
 
-**3. Renormalize, in its own commit, with nothing else in it. THIS IS THE STEP
-THAT IS STILL PENDING**, and the only one with a blast radius:
+**3. Renormalize, in its own commit, with nothing else in it** — the only step
+with a blast radius. **Done 2026-09-08 as `5638a977`:**
 
 ```bash
 git add --renormalize .
@@ -149,7 +177,10 @@ it prints. It should print nothing.
 **6. Run the suites** before pushing. A file whose line endings changed can
 still break a test that compares fixture bytes.
 
-## After it lands
+## After it lands — STILL LIVE ADVICE
+
+This is the one section that is not history. It applies to anyone whose
+checkout predates 2026-09-08.
 
 Everyone else with a checkout should refresh rather than merge into stale work:
 
