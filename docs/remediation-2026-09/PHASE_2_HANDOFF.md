@@ -2,8 +2,13 @@
 
 **Branch:** `refactor/remediation-2026-09-phase2`
 **Date:** 2026-09-09
-**Scope:** OPS-01 and OPS-03, steps 1–4 of the brief. **Steps 5 and 6 are not
-done — you said not to proceed past step 4 without you.**
+**Scope:** OPS-01 and OPS-03, all six steps of the brief. **Both findings are
+closed** — OPS-03 fully, OPS-01 for dev with local and E2E explicitly still open.
+
+> **This document was written after step 4 and then overtaken by events.** Read
+> the "What actually happened after step 4" section near the end before trusting
+> any number above it. The reconciliation described below as "not run" has been
+> run, and its row count changed from 67 to 66 along the way.
 
 **Nothing was written to any database.** Every read went through the Supabase
 Management API with `read_only: true`; `SHOW transaction_read_only` returned
@@ -269,6 +274,93 @@ rename reads as a new file. A single rename is much safer than the 64 that
 warning is about, but it is still only safe pushed straight to `main`.
 
 **Decide: rename it on a direct push to `main`, or leave it and note it.**
+
+---
+
+## What actually happened after step 4
+
+Everything below step 4 in this document was written before any of it ran.
+Running it changed several of the numbers and found four defects. This section is
+the correction; where it disagrees with the text above, this section is right.
+
+### The reconciliation went in two parts, not one
+
+**Part 1 — 66 rows, not 67.** The baseline was removed from the list when it
+moved out of `supabase/migrations/`. It is not a migration, `db push` never sees
+it, so it needs no history row. History went 96 → 162.
+
+**Part 2 — delete 91 orphans.** Part 1 gave every file a row; `db push` needs
+correspondence in *both* directions and refused on 91 rows that had no file — the
+apply-time twins. History went 162 → 71. All 91 were exported first to
+`~/optio-schema_migrations-orphans-20260909.sql`, outside the repo, which is the
+only undo.
+
+**Part 3 — one more row.** `20260824_admin_platform_metrics_daily.sql` had been
+excluded from part 1 on the strength of `supabase/migrations/README.md` saying
+the CLI ignores 8-digit stamps. It does not. History 71 → 72, then 73 when the
+drop migration applied.
+
+### Then `apply` worked
+
+`migrate-prod.yml` ran `db push` end to end. `test_schema` and `backup_schema`
+are gone, `public` still holds 241 tables, and the drop migration has a history
+row. **`max_pending` stays at 3** — reconciling is what made it correct.
+
+### Staging exists
+
+`kltoyqefmcgolbplplsa`, Shortbird org, `us-west-1`, $10/mo. Free was only
+available in the *other* org, and splitting staging from production's org splits
+billing and membership with it.
+
+Credentials: `~/optio-staging-credentials.txt` (mode 600); password also in the
+login keychain as `SUPABASE_STAGING_DB_PASSWORD`.
+
+All three dev Render services now read staging. **That is OPS-01's core finding
+closed** — a developer on dev no longer sees real student records.
+
+### Four defects that only appeared by running things
+
+Each had been committed and described as working.
+
+1. **The baseline could not build a database.** Four failures in sequence:
+   sequences never emitted, functions ordered before the tables their signatures
+   reference, constraints before the functions they call, `COMMENT ON TABLE`
+   against a view. Fixed in `4dc9e742`; every object count now matches production.
+2. **`migrate-prod.yml`'s pending count returned 0 for any input** — backticks in
+   the CLI output. `apply` was unreachable and the `max_pending` tripwire was
+   dead code. The protection was real by accident.
+3. **`quests.quest_type` defaults to a value its own CHECK rejects.** A real
+   production bug, not fixed — see [SCHEMA_BUGS.md](SCHEMA_BUGS.md).
+4. **`CLAUDE.md` documented `quest_task_completions.xp_awarded`**, which does not
+   exist. Fixed.
+
+### Things I broke and fixed today
+
+Stated plainly because they cost real time:
+
+- Put the baseline in `supabase/migrations/`, which broke the integration suite —
+  it is a *replacement* for those files, not an addition. Main was red for ~20
+  minutes.
+- Claimed the 66-row reconciliation would make `db push` work. It fixed one
+  direction of two.
+- Told you to rebuild `BACKUP_DB_URL` with the `db.<ref>.supabase.co` host. That
+  endpoint is IPv6-only and unreachable from GitHub runners; the workflow's own
+  comment five lines above says so. Your nightly backup failed twice before it
+  was right.
+
+### Still open
+
+- **Local `backend/.env` and `mobile-e2e.yml` still point at production.** E2E was
+  deferred deliberately, so an E2E break could not be confused with a baseline
+  break.
+- **Dev still carries production Brevo, Stripe and Gemini keys.** Staging fixed
+  the database, nothing else.
+- **The `production` GitHub environment has no required reviewers**, by your
+  choice. The typed string is the only gate on `apply`.
+- **The database password is in this session's transcript.** Rotate it, and set
+  *both* `SUPABASE_DB_PASSWORD` (bare) and `BACKUP_DB_URL` (full pooler URI) from
+  the same reset.
+- [SCHEMA_BUGS.md](SCHEMA_BUGS.md) — `quest_type`, unfixed.
 
 ---
 
