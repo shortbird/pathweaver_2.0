@@ -4,8 +4,20 @@ import { BASE_URL, clickByText, loginAsStudent, loginAsParent, loginAsSuperadmin
 test.describe('Smoke Suite', () => {
   test('S1: Student login -> dashboard loads', async ({ page }) => {
     await loginAsStudent(page);
-    await expect(page.getByText('Total XP')).toBeVisible();
-    await expect(page.getByText('Active Quests')).toBeVisible();
+    // 15s, matching S2-S4 and the other specs. These two are stat tiles that
+    // need an API round-trip, and S1 was the only assertion in the suite left
+    // on Playwright's 5s default -- playwright.config.ts sets `timeout: 60000`,
+    // which is the TEST timeout, not the expect timeout, so it looked covered
+    // and was not. It failed on 2026-09-09 against a dev backend that had
+    // redeployed two minutes earlier: login reached the dashboard ("Welcome
+    // back" resolved) and the tile simply had not arrived inside 5s.
+    //
+    // Raising this is safe because it does not weaken what is asserted -- the
+    // text and its exactness are unchanged, only the patience. Do NOT "fix" a
+    // future failure here by loosening the matcher instead; a missing stat tile
+    // after 15s is a real regression.
+    await expect(page.getByText('Total XP')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Active Quests')).toBeVisible({ timeout: 15000 });
   });
 
   test('S2: Parent login -> family view loads', async ({ page }) => {
