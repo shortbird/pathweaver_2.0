@@ -5,7 +5,7 @@ Reads docs/marketing/brevo_email_html/*.html, normalizes Brevo template tokens
 to the CRM's ({{ contact.FIRSTNAME | default : "there" }} -> {{first_name}},
 {{ unsubscribe }} -> {{unsubscribe_url}}), rewrites the two Brevo-hosted badge
 images to self-hosted copies (frontend/public/email-assets/, deployed at
-www.optioeducation.com/email-assets/), and upserts funnels + steps.
+app.optioeducation.com/email-assets/), and upserts funnels + steps.
 
 Idempotent: funnels upsert on key, steps on (funnel key, step_order); step
 CONTENT is only written when the step is new or --overwrite is passed, so
@@ -29,9 +29,9 @@ HTML_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
 
 IMAGE_REWRITES = {
     'https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9a3cb1d1ad25463b47.png':
-        'https://www.optioeducation.com/email-assets/badge-app-store.png',
+        'https://app.optioeducation.com/email-assets/badge-app-store.png',
     'https://img.mailinblue.com/11613506/images/rnb/original/6a4d5b9b2adfaedf2a9521f7.png':
-        'https://www.optioeducation.com/email-assets/badge-google-play.png',
+        'https://app.optioeducation.com/email-assets/badge-google-play.png',
 }
 
 FIRSTNAME_TOKEN = re.compile(r'\{\{\s*contact\.FIRSTNAME[^}]*\}\}')

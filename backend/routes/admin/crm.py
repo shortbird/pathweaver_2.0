@@ -439,8 +439,16 @@ def test_send_step(user_id, step_id):
         _marketing_footer
     sample = {'first_name': me[0].get('first_name') or 'Jordan',
               'last_name': me[0].get('last_name') or '', 'email': my_email}
-    html = _with_footer(render_step_content(html_body, sample, '#'),
-                        _marketing_footer('#', '[postal address]'))
+    # The real postal address, so a test send looks like the real email. The
+    # placeholder that used to be hardcoded here read as a rendering bug.
+    postal = (db.table('crm_settings').select('value')
+              .eq('key', 'postal_address').limit(1).execute()).data
+    postal_address = postal[0]['value'] if postal else ''
+    if isinstance(postal_address, dict):
+        postal_address = postal_address.get('text', '')
+    html = _with_footer(
+        render_step_content(html_body, sample, '#'),
+        _marketing_footer('#', str(postal_address or '[postal address not set]')))
     from services.email_service import email_service
     message_id = email_service.send_crm_email(
         to_email=my_email,
