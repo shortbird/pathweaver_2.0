@@ -326,6 +326,67 @@ GROUP BY n.nspname, c.relname, a.grantee, a.privilege_type
 ORDER BY c.relname, pg_get_userbyid(a.grantee), a.privilege_type;
 """),
 
+    # Schema-level USAGE. db_security_hardening (20260815203829) created the
+    # `private` schema for the RLS helper functions and granted USAGE on it to
+    # anon and authenticated -- without that grant every policy that calls a
+    # helper fails, which locks the API out of every table. Nothing else in this
+    # file implies it.
+    ("GRANTS (schema level)", f"""
+SELECT 'GRANT ' || string_agg(DISTINCT a.privilege_type, ', ' ORDER BY a.privilege_type)
+       || ' ON SCHEMA ' || quote_ident(n.nspname)
+       || ' TO ' || quote_ident(pg_get_userbyid(a.grantee)) || ';' AS ddl
+FROM pg_namespace n
+CROSS JOIN LATERAL aclexplode(n.nspacl) AS a
+WHERE n.nspname IN ({SCHEMA_LIST})
+  AND pg_get_userbyid(a.grantee) IN ('anon','authenticated','service_role')
+GROUP BY n.nspname, a.grantee
+ORDER BY n.nspname, pg_get_userbyid(a.grantee);
+"""),
+
+    # Function-level EXECUTE, and this section is load-bearing security.
+    #
+    # A function grants EXECUTE to PUBLIC by default, and the default privileges
+    # below additionally grant it to anon, authenticated and service_role. Two
+    # migrations exist purely to take some of that back:
+    # revoke_public_function_grants (20260815203919) and
+    # security_audit_revoke_trigger_fn_from_public (20260814183451, which has no
+    # file in supabase/migrations/ at all). Their entire effect is an ACL.
+    #
+    # So a baseline that emits CREATE FUNCTION and stops does not describe
+    # production -- it describes production with those two migrations undone,
+    # and a project rebuilt from it comes up with the revoked functions
+    # executable again, silently. Hence an explicit REVOKE-then-GRANT per
+    # function instead of relying on defaults.
+    ("GRANTS (function level)", f"""
+WITH fn AS (
+  SELECT p.oid,
+         quote_ident(n.nspname) || '.' || quote_ident(p.proname)
+           || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS sig,
+         n.nspname, p.proname, p.proacl
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname IN ({SCHEMA_LIST}) AND p.prokind IN ('f','p')
+    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid
+                      AND d.classid = 'pg_proc'::regclass AND d.deptype = 'e')
+)
+SELECT 'REVOKE ALL ON FUNCTION ' || fn.sig
+       || ' FROM PUBLIC, anon, authenticated, service_role;'
+       || coalesce((
+            SELECT E'\n' || string_agg(
+                     'GRANT ' || g.privs || ' ON FUNCTION ' || fn.sig
+                       || ' TO ' || g.grantee || ';', E'\n' ORDER BY g.grantee)
+            FROM (
+              SELECT CASE WHEN a.grantee = 0 THEN 'PUBLIC'
+                          ELSE quote_ident(pg_get_userbyid(a.grantee)) END AS grantee,
+                     string_agg(DISTINCT a.privilege_type, ', ' ORDER BY a.privilege_type) AS privs
+              FROM aclexplode(fn.proacl) AS a
+              WHERE a.grantee = 0
+                 OR pg_get_userbyid(a.grantee) IN ('anon','authenticated','service_role')
+              GROUP BY a.grantee
+            ) g), '') AS ddl
+FROM fn
+ORDER BY fn.nspname, fn.proname, fn.sig;
+"""),
+
     ("DEFAULT PRIVILEGES", f"""
 SELECT 'ALTER DEFAULT PRIVILEGES FOR ROLE ' || quote_ident(pg_get_userbyid(d.defaclrole))
        || ' IN SCHEMA ' || quote_ident(n.nspname)
