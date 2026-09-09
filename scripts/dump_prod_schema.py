@@ -123,9 +123,20 @@ WHERE n.nspname IN ({SCHEMA_LIST}) AND t.typtype = 'd'
 ORDER BY n.nspname, t.typname;
 """),
 
-    # Sequences that are not owned by an identity or serial column. Owned ones
-    # come back implicitly with their table's column definition, so emitting
-    # them here too would create them twice.
+    # EVERY sequence, including ones owned by a column.
+    #
+    # The first version of this filtered owned sequences out, reasoning that they
+    # come back implicitly with their table's column definition. They do not.
+    # This dump emits columns as `integer DEFAULT nextval('x_id_seq')`, not as
+    # `serial`, so the sequence has to exist BEFORE the table that defaults to
+    # it. Filtering them produced "SEQUENCES (0)" and a file that died on the
+    # first table with a serial column:
+    #
+    #     ERROR: 42P01: relation "ai_seeds_id_seq" does not exist
+    #
+    # Found by applying the baseline to a real empty database for the first time,
+    # which is the whole reason a staging project exists. Ownership is restored
+    # after the tables are created -- see SEQUENCE OWNERSHIP below.
     ("SEQUENCES", f"""
 SELECT 'CREATE SEQUENCE IF NOT EXISTS ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname)
        || ' AS ' || format_type(s.seqtypid, NULL)
@@ -137,9 +148,6 @@ FROM pg_sequence s
 JOIN pg_class c ON c.oid = s.seqrelid
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname IN ({SCHEMA_LIST})
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d
-                  WHERE d.objid = c.oid AND d.classid = 'pg_class'::regclass
-                    AND d.deptype IN ('a','i'))
 ORDER BY n.nspname, c.relname;
 """),
 
@@ -173,6 +181,55 @@ WHERE n.nspname IN ({SCHEMA_LIST}) AND c.relkind = 'r'
                     AND d.classid = 'pg_class'::regclass AND d.deptype = 'e')
 GROUP BY n.nspname, c.relname
 ORDER BY n.nspname, c.relname;
+"""),
+
+    # Re-attach each sequence to the column that owns it. This is what makes a
+    # sequence get dropped with its table, and what `\d` reads to show a column
+    # as serial. It has to come after the tables exist, which is why the
+    # sequences above are created unowned and adopted here.
+    ("SEQUENCE OWNERSHIP", f"""
+SELECT 'ALTER SEQUENCE ' || quote_ident(sn.nspname) || '.' || quote_ident(sc.relname)
+       || ' OWNED BY ' || quote_ident(tn.nspname) || '.' || quote_ident(tc.relname)
+       || '.' || quote_ident(a.attname) || ';' AS ddl
+FROM pg_class sc
+JOIN pg_namespace sn ON sn.oid = sc.relnamespace
+JOIN pg_depend d ON d.objid = sc.oid AND d.classid = 'pg_class'::regclass
+                AND d.deptype IN ('a','i')
+JOIN pg_class tc ON tc.oid = d.refobjid
+JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+JOIN pg_attribute a ON a.attrelid = tc.oid AND a.attnum = d.refobjsubid
+WHERE sc.relkind = 'S' AND sn.nspname IN ({SCHEMA_LIST})
+ORDER BY sc.relname;
+"""),
+
+    # Ordering here took three failed applications against a real empty
+    # database to get right, and all three were invisible until something
+    # actually ran the file.
+    #
+    #   FUNCTIONS after CONSTRAINTS  -> ERROR 42883: function
+    #       validate_org_roles(jsonb) does not exist. public.users has a CHECK
+    #       constraint that calls a function.
+    #   FUNCTIONS before TABLES      -> ERROR 42704: type users does not exist.
+    #       A function's SIGNATURE references public.users, and
+    #       check_function_bodies=false does not defer signature resolution --
+    #       only bodies.
+    #
+    # So: TABLES, then FUNCTIONS, then CONSTRAINTS. That works because no table
+    # DEFAULT in this database calls a user-defined function (verified: only
+    # now(), gen_random_uuid(), nextval and friends), which is what would close
+    # the cycle and force real dependency sorting like pg_dump does.
+    #
+    # check_function_bodies=false stays set in the header regardless: a function
+    # body may still reference a view or another function created later.
+    ("FUNCTIONS", f"""
+SELECT pg_get_functiondef(p.oid) || ';' AS ddl
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname IN ({SCHEMA_LIST})
+  AND p.prokind IN ('f','p')
+  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid
+                    AND d.classid = 'pg_proc'::regclass AND d.deptype = 'e')
+ORDER BY n.nspname, p.proname, p.oid;
 """),
 
     # PK / UNIQUE / CHECK / EXCLUDE. Foreign keys are a separate section so that
@@ -212,18 +269,6 @@ JOIN pg_namespace n ON n.oid = ic.relnamespace
 WHERE n.nspname IN ({SCHEMA_LIST})
   AND NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conindid = i.indexrelid)
 ORDER BY tc.relname, ic.relname;
-"""),
-
-    # Functions before views and triggers: a view or a policy may call one.
-    ("FUNCTIONS", f"""
-SELECT pg_get_functiondef(p.oid) || ';' AS ddl
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname IN ({SCHEMA_LIST})
-  AND p.prokind IN ('f','p')
-  AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid
-                    AND d.classid = 'pg_proc'::regclass AND d.deptype = 'e')
-ORDER BY n.nspname, p.proname, p.oid;
 """),
 
     ("VIEWS", f"""
@@ -408,7 +453,14 @@ ORDER BY 1;
 """),
 
     ("COMMENTS", f"""
-SELECT 'COMMENT ON TABLE ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname)
+-- The keyword has to match the object kind: COMMENT ON TABLE against a view
+-- fails with 42809 "... is not a table". One view in this database carries a
+-- comment, and that single line aborted the whole file when it was emitted as
+-- TABLE.
+SELECT 'COMMENT ON ' || CASE c.relkind WHEN 'v' THEN 'VIEW'
+                                       WHEN 'm' THEN 'MATERIALIZED VIEW'
+                                       ELSE 'TABLE' END
+       || ' ' || quote_ident(n.nspname) || '.' || quote_ident(c.relname)
        || ' IS ' || quote_literal(d.description) || ';' AS ddl
 FROM pg_description d
 JOIN pg_class c ON c.oid = d.objoid AND d.objsubid = 0
@@ -463,6 +515,11 @@ HEADER = """--
 SET statement_timeout = 0;
 SET client_min_messages = warning;
 SET search_path = public, extensions;
+
+-- Functions are created before the tables their bodies read, because a table's
+-- CHECK constraint may call a function (public.users.valid_org_roles does).
+-- pg_dump emits this for the same reason.
+SET check_function_bodies = false;
 """
 
 
