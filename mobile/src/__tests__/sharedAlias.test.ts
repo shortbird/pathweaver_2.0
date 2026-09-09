@@ -46,6 +46,38 @@ describe('the @shared alias', () => {
     }
   });
 
+  it('is a real npm workspace package', () => {
+    // shared/ owns a package.json and the repo root lists it under
+    // "workspaces", which is what lets it have scripts of its own -- the
+    // pillar/subject code generator runs as `npm run generate`.
+    const pkg = JSON.parse(read('shared/package.json'));
+    if (pkg.name !== '@optio/shared') {
+      throw new Error(`shared/package.json is named "${pkg.name}"; the root workspace entry expects @optio/shared.`);
+    }
+    if ('type' in pkg) {
+      throw new Error(
+        'shared/package.json declared a "type" field. Files under shared/ take their ' +
+        'module type from the nearest package.json, which was the repo root\'s (none) ' +
+        'before this file existed. Adding one reclassifies every .js under shared/.');
+    }
+    const root = JSON.parse(read('package.json'));
+    if (!Array.isArray(root.workspaces) || !root.workspaces.includes('shared')) {
+      throw new Error('the root package.json no longer lists "shared" in workspaces.');
+    }
+  });
+
+  it('lets Metro resolve shared/ imports from the workspace root', () => {
+    // shared/ has no node_modules. Without both search paths, a shared module
+    // that imports anything resolves nowhere -- and only at bundle time.
+    const src = read('mobile/metro.config.js');
+    if (!src.includes('nodeModulesPaths')) {
+      throw new Error(
+        'metro.config.js dropped resolver.nodeModulesPaths. Metro walks node_modules ' +
+        'directories rather than following Node resolution, so a package imported from ' +
+        'shared/ is not found — at bundle time, not here.');
+    }
+  });
+
   it('is declared in metro.config.js as a resolveRequest prefix hook', () => {
     const src = read('mobile/metro.config.js');
     if (!src.includes("const ALIAS_PREFIX = '@shared/';")) {

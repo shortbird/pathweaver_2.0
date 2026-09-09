@@ -18,6 +18,23 @@ const config = getSentryExpoConfig(__dirname);
 const sharedRoot = path.resolve(__dirname, '..', 'shared');
 config.watchFolders = [...(config.watchFolders || []), sharedRoot];
 
+// shared/ is an npm workspace package (@optio/shared) with no node_modules of
+// its own, so a module reached through the alias below resolves its own imports
+// by walking UP from shared/ -- past the repo root and out of the tree. Metro
+// walks node_modules directories rather than following Node's algorithm, so it
+// has to be told both places explicitly: this project's, and the workspace
+// root's, where npm hoists anything shared/ ever depends on.
+//
+// mobile/jest.config.js already carries the same fix as a moduleNameMapper for
+// @babel/runtime, and its comment records how this fails: only files needing a
+// babel helper hit it, which is why shared/legal/* worked for months and the
+// first shared module with a default import did not. Declaring the search path
+// fixes the class of bug rather than one package inside it.
+config.resolver.nodeModulesPaths = [
+  path.resolve(__dirname, 'node_modules'),
+  path.resolve(__dirname, '..', 'node_modules'),
+];
+
 // @supabase/supabase-js uses ws (WebSocket) which references Node built-ins.
 // On web, the native WebSocket API is used; on native, we shim these out.
 config.resolver.unstable_enablePackageExports = false;

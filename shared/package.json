@@ -1,0 +1,7 @@
+{
+  "name": "@optio/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cross-platform contracts read by web/, mobile/ and the Flask backend. See README.md.",
+  "license": "UNLICENSED"
+}
