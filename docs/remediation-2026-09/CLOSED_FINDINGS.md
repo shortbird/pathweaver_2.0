@@ -1,4 +1,4 @@
-# Closed Findings — audit remediation, as of 2026-09-08
+# Closed Findings — audit remediation, as of 2026-09-09
 
 This replaces the 3,964-line `docs/audit-2026-08/REMEDIATION_PLAN.md`, which is
 deleted. It is the file an agent should read before touching anything in these
@@ -70,6 +70,38 @@ undone. These are the findings that cannot quietly regress.
 | FU-06 | An unknown registration code 500'd instead of 404ing | `.single()` → `.limit(1)`. First step of the funnel, unauthenticated — the people hitting it are parents who mistyped their link | Three tests, including an **AST** check that the function does not call `.single()` again (a substring search matches the docstring explaining why) |
 
 ---
+
+## 1b. Closed 2026-09-09 — the two operational findings
+
+Both were `NEEDS-USER` for weeks. Neither has an automated guard; the "how you'd
+know it regressed" column says what to look at instead.
+
+| ID | Finding | How it was fixed | How you'd know it regressed |
+|---|---|---|---|
+| OPS-03 | Nothing applied `supabase/migrations/` to production; migrations reached prod by hand, so the directory and `schema_migrations` disagreed in both directions and `db push` refused | Reconciled in two parts: a history row added at each file's own stamp (66 rows), then the 91 apply-time orphan rows deleted (exported first to `~/optio-schema_migrations-orphans-20260909.sql`). Then `migrate-prod.yml` applied a real migration end to end | Run `migrate-prod.yml` in `plan`. A healthy count is 0 or 1. Dozens means the drift is back — read [MIGRATION_RECONCILIATION.md](MIGRATION_RECONCILIATION.md) before applying |
+| OPS-01 | Dev, local and E2E all pointed at the production database — real student records on localhost and in automated test runs | Staging project `kltoyqefmcgolbplplsa` created, built from the baseline, seeded with synthetic data at production scale. All three dev Render services repointed | `curl` the dev backend's `SUPABASE_URL`, or check the Render env vars. **Partial** — local `.env` and `mobile-e2e.yml` still point at production |
+
+### What closing these actually turned up
+
+Worth reading, because in every case the artifact had been committed and
+described as working, and only executing it disagreed.
+
+- **`migrate-prod.yml`'s pending count returned `0` for any input**, from the day
+  the file was written. The `awk` stripped spaces but not the backticks the CLI
+  wraps every cell in. `apply` was therefore unreachable (its first guard refuses
+  when nothing is pending) and the `max_pending` tripwire — which the file's own
+  header called the point of the whole thing — was dead code. The protection was
+  real by accident, via the wrong guard, for an unrelated reason.
+- **The schema baseline could not build a database.** Committed in the morning as
+  "the new source of truth", it failed four times on first execution: sequences
+  never emitted, functions ordered before the tables their signatures reference,
+  constraints before the functions they call, and `COMMENT ON TABLE` against a
+  view. All four existed from the moment it was written.
+- **`supabase/migrations/README.md` was wrong about the CLI.** It said an 8-digit
+  filename stamp makes a file invisible to the migration sequence. `db push`
+  refused to run until that file had a history row.
+- **`public.quests.quest_type` defaults to a value its own CHECK rejects** — see
+  §2 below. Found by the seed script inserting a quest without specifying it.
 
 ## 2. Closed but unguarded
 
