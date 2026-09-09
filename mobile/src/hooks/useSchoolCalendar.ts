@@ -35,20 +35,23 @@ export const shiftMonth = (month: string, by: number) => {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 };
 
-/** The local calendar date an event sits on.
+/** The calendar date an event sits on, as the school wrote it.
  *
- * An all-day event is stored date-only, as 00:00 UTC: it names a date, not an
- * instant, so it is read back in UTC. Converted to local time it becomes the
- * previous evening anywhere west of Greenwich — which is how "NO CLASS - LABOR
- * DAY" once showed up on the Sunday.
+ * Neither kind of event names an instant. An all-day event is stored date-only
+ * as 00:00 UTC; a timed event is stored as the wall clock the office typed,
+ * tagged +00. Both are read back in UTC. Converted to local time they land on
+ * the previous evening anywhere west of Greenwich — which is how "NO CLASS -
+ * LABOR DAY" once showed up on the Sunday.
  */
 export const eventDay = (e: SchoolEvent): string => {
   if (!e.start_at) return '';
   const d = new Date(e.start_at);
   if (Number.isNaN(d.getTime())) return '';
-  if (e.all_day) return d.toISOString().slice(0, 10);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // UTC for timed events too, not just all-day ones. These stamps are wall
+  // clocks tagged +00 (see EVENT_STAMPS_ARE_WALL_CLOCK in
+  // components/school/format.ts), so local conversion moves an early-morning
+  // event onto the day before — the same fault that put a 10am event at 4am.
+  return d.toISOString().slice(0, 10);
 };
 
 export interface CalendarDay {

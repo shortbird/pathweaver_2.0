@@ -66,6 +66,15 @@ describe('which day an event falls on', () => {
       .toBe('2026-09-07');
   });
 
+  it('reads a timed event in UTC too, so an early one keeps its date', () => {
+    // The same rule, and the same reason: a timed event is the wall clock the
+    // office typed, tagged +00 without conversion. Read as an instant in Denver
+    // it slides back six hours, which put a 10am event at 4am (Perch 1d0d41a9)
+    // and would put a 4am event on the day before.
+    expect(eventDay(ev({ all_day: false, start_at: '2026-09-11T04:00:00Z' })))
+      .toBe('2026-09-11');
+  });
+
   it('has no day when it has no start', () => {
     expect(eventDay(ev({ start_at: null }))).toBe('');
   });

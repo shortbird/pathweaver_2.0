@@ -119,16 +119,19 @@ export const eventTime = (e) => {
   if (!e.start_at) return ''
   const d = new Date(e.start_at)
   if (Number.isNaN(d.getTime())) return ''
-  const opts = { weekday: 'short', month: 'short', day: 'numeric' }
-  // An all-day event is stored date-only, as 00:00 UTC. It names a calendar
-  // date, not an instant, so it must be read back in UTC — converted to local
-  // time it becomes the previous evening anywhere west of Greenwich, and
-  // "NO CLASS - LABOR DAY" on the 7th read "Sun, Sep 6" (iCreate, 2026-08-31).
-  // The family-facing SchoolCommunity.fmtWhen already does this.
-  if (e.all_day) opts.timeZone = 'UTC'
+  // Read in UTC throughout. Neither kind of event names an instant: an all-day
+  // event is stored date-only as 00:00 UTC, and a timed event is stored as the
+  // wall clock the office typed, tagged +00 without conversion. Local time
+  // moves both — "NO CLASS - LABOR DAY" on the 7th read "Sun, Sep 6" (iCreate,
+  // 2026-08-31), and a 10am event read 4am (Perch 1d0d41a9). The family-facing
+  // SchoolCommunity.fmtWhen carries the same rule and the same reason.
+  const opts = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
   const day = d.toLocaleDateString(undefined, opts)
   if (e.all_day) return day
-  return `${day}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+  const time = d.toLocaleTimeString(undefined, {
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  })
+  return `${day}, ${time}`
 }
 
 const SisDashboard = () => {

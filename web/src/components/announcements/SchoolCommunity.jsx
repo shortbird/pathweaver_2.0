@@ -28,22 +28,35 @@ export const fmtDate = (iso) => {
   } catch { return '' }
 }
 
+/** When an event happens, as the school wrote it.
+ *
+ * Read in UTC throughout — timed events as well as all-day ones. `start_at`
+ * does not name an instant: the office types "10:00" and routes/sis/events.py
+ * stores that string into a timestamptz, so Postgres tags it +00 without
+ * converting. The stamp is a wall clock wearing a UTC label, and UTC is the
+ * only zone where it reads back as what the office meant.
+ *
+ * Formatting a timed event in local time instead is how the 10am Hang Time
+ * reached a parent as 4am (Perch 1d0d41a9). The all-day half of this rule was
+ * already here for the same reason one layer up — Labor Day on the 7th showed
+ * as "Sun, Sep 6 · all day" — but it had never been carried to events with a
+ * time on them. /school-calendar avoided the bug by accident: it slices the ISO
+ * string rather than parsing it.
+ */
 export const fmtWhen = (e) => {
   if (!e.start_at) return ''
   try {
     const d = new Date(e.start_at)
-    const opts = { weekday: 'short', month: 'short', day: 'numeric' }
-    // All-day events are stored date-only (00:00 UTC); format them in UTC or
-    // the date renders as the previous evening anywhere west of Greenwich —
-    // Labor Day on the 7th was showing as "Sun, Sep 6 · all day".
-    if (e.all_day) opts.timeZone = 'UTC'
+    const opts = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
     // A school calendar runs across New Year. Without the year, "Mon, Jan 11"
     // under "Mon, Dec 14" reads as out of order instead of as next year.
-    const year = e.all_day ? d.getUTCFullYear() : d.getFullYear()
-    if (year !== new Date().getFullYear()) opts.year = 'numeric'
+    if (d.getUTCFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
     const day = d.toLocaleDateString(undefined, opts)
     if (e.all_day) return `${day} · all day`
-    return `${day} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+    const time = d.toLocaleTimeString(undefined, {
+      hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+    })
+    return `${day} · ${time}`
   } catch { return '' }
 }
 

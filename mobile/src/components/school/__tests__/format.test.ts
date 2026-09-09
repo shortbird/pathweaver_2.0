@@ -30,6 +30,22 @@ describe('fmtWhen', () => {
     expect(label).toMatch(/\d{1,2}[:.]\d{2}/);
   });
 
+  it('shows a timed event at the clock the office typed', () => {
+    // Perch 1d0d41a9: "the hang time was showing up as 4am for him, instead of
+    // 10am". The row is 10:00:00+00 because the SIS form's "10:00" went into a
+    // timestamptz unconverted — a wall clock wearing a UTC label. Formatting it
+    // as an instant subtracts six hours in Denver.
+    const label = fmtWhen({ start_at: '2026-09-11T10:00:00Z', all_day: false } as any);
+    expect(label).toContain('10:00');
+    expect(label).not.toContain('4:00');
+  });
+
+  it('keeps an early-morning event on its own day', () => {
+    const label = fmtWhen({ start_at: '2026-09-11T04:00:00Z', all_day: false } as any);
+    expect(label).toContain('11');
+    expect(label).not.toContain('10');
+  });
+
   it('adds the year when the event is not this year', () => {
     const label = fmtWhen({ start_at: '2027-01-11T00:00:00Z', all_day: true } as any);
     expect(label).toContain('2027');
