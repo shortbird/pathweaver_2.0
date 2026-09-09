@@ -271,7 +271,8 @@ class model (unify onto `org_classes`, transcript "class" → backend "credit").
 **SIS (existing):** `backend/routes/sis/__init__.py`, `backend/services/sis_service.py`,
 `backend/repositories/household_repository.py`, `supabase/migrations/20260623_sis_mvp_tables.sql`,
 `frontend/src/sis/SisRoutes.jsx`, `frontend/src/pages/sis/*`, `frontend/src/components/sis/*`,
-`frontend/src/utils/appSurface.js`, `docs/SIS_MVP.md`.
+`frontend/src/utils/appSurface.js` (`docs/SIS_MVP.md` described the original
+4-table MVP and was deleted 2026-09-08; it is in git history).
 
 **Reusable platform:** `backend/utils/roles.py`, `backend/utils/auth/decorators.py`,
 `backend/routes/parent/*`, `backend/routes/observer/*`, `backend/routes/advisor/*`,
