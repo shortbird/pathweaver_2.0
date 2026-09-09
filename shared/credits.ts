@@ -310,7 +310,7 @@ export const meetsGraduationRequirements = (subjectXP: Record<string, number>): 
   // Reads the same standing the panel shows, so a student can never be told
   // every subject is complete while this says otherwise. Surplus counts only
   // where getCreditStanding lets it: into Electives, never between academics.
-  return getCreditStanding(subjectXP).progress.every((credit) => {
+  return getCreditStanding(subjectXP).progress.every((credit: any) => {
     return credit.isComplete;
   });
 };

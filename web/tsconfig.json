@@ -1,0 +1,50 @@
+{
+  // TypeScript exists here for ONE reason: to type the API boundary
+  // (src/services/api.ts and src/types/), which is where the shapes crossing
+  // between this app and the Flask backend are decided. The other ~273,000
+  // lines of JSX stay untyped and are not being migrated -- `allowJs` lets
+  // them keep compiling and importing from the typed modules.
+  //
+  // So: `checkJs` is deliberately false. Turning it on would report thousands
+  // of inference findings across files nobody is converting, which is how a
+  // type-checker gets turned back off. `strict` applies to the .ts/.tsx files,
+  // which are the ones written with types in mind.
+  //
+  // `noEmit` -- Vite compiles the app through esbuild and never invokes tsc.
+  // This file is for the editor, for `npm run typecheck`, and for ESLint's
+  // import resolver (which reads `paths` below, so @shared/* resolves).
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+
+    "types": ["vite/client"],
+
+    "baseUrl": ".",
+    "paths": {
+      // Mirrors the `@shared` alias in vite.config.js. The shared/ workspace
+      // is the single source of truth for the pillar palette, the role
+      // vocabulary, the subject vocabulary and the legal copy -- read by this
+      // app, the mobile app and the backend generator alike.
+      "@shared/*": ["../shared/*"]
+    }
+  },
+  "include": ["src", "vite.config.js", "eslint.config.js"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

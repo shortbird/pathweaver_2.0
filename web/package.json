@@ -44,16 +44,26 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@sentry/vite-plugin": "^2.23.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/coverage-v8": "^4.0.16",
     "@vitest/ui": "^4.0.16",
     "autoprefixer": "^10.4.19",
+    "eslint": "^9.39.5",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^6.1.1",
+    "eslint-plugin-unused-imports": "^4.4.1",
+    "globals": "^16.5.0",
     "happy-dom": "^20.0.11",
     "jest-axe": "^10.0.0",
     "jsdom": "27.3.0",
@@ -61,6 +71,7 @@
     "rollup-plugin-visualizer": "^5.12.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.4",
+    "typescript": "~5.9.2",
     "vite": "^7.3.0",
     "vitest": "^4.0.16",
     "vitest-axe": "^0.1.0"
@@ -74,30 +85,10 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest --watch"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app"
-    ],
-    "rules": {
-      "no-console": [
-        "error",
-        {
-          "allow": [
-            "warn",
-            "error"
-          ]
-        }
-      ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          "selector": "CallExpression[callee.object.name='localStorage'][callee.property.name='setItem'][arguments.0.value=/^(access_token|refresh_token|app_access_token|app_refresh_token|user|original_admin_token|masquerade_token|session_encryption_key)$/]",
-          "message": "C2 security: never persist auth tokens, the user object, or the legacy encryption key in localStorage. Tokens live in memory + httpOnly cookies via tokenStore (services/api.js)."
-        }
-      ]
-    }
+    "test:watch": "vitest --watch",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc --noEmit"
   },
   "browserslist": {
     "production": [
