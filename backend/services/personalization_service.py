@@ -666,16 +666,18 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
             elif direction == 'easier' and new_xp >= original_xp:
                 new_xp = max(25, original_xp - 25)
 
+            adjusted_pillar = self.ai_service._validate_pillar(
+                adjusted.get('pillar', original_pillar))
             adjusted_task = {
                 'title': adjusted.get('title') or original_title,
                 'description': adjusted.get('description') or original_description,
                 'success_criteria': (sanitize_success_criteria(adjusted.get('success_criteria'))
                                      or original_criteria),
-                'pillar': self.ai_service._validate_pillar(adjusted.get('pillar', original_pillar)),
+                'pillar': adjusted_pillar,
                 'xp_value': new_xp,
                 # Re-spread the original subject split across the new XP total.
                 'diploma_subjects': self._rescale_diploma_subjects(
-                    task.get('diploma_subjects'), new_xp
+                    task.get('diploma_subjects'), new_xp, adjusted_pillar
                 ),
             }
 
@@ -692,14 +694,20 @@ Return as JSON with fields: title, description, success_criteria, pillar, xp_val
             }
 
     @staticmethod
-    def _rescale_diploma_subjects(diploma_subjects, new_xp: int) -> Dict[str, int]:
+    def _rescale_diploma_subjects(diploma_subjects, new_xp: int,
+                                  pillar: str = None) -> Dict[str, int]:
         """Re-spread an existing subject split across a new XP total, keeping
-        proportions and multiples of 25 (remainder to the largest subject)."""
+        proportions and multiples of 25 (remainder to the largest subject).
+
+        `pillar` decides where a task with NO split of its own lands. It used to
+        be Electives unconditionally, which is how personalized history and
+        science tasks ended up filed as electives (Gryffin, 2026-09-09).
+        """
         from utils.personalization_helpers import normalize_diploma_subjects
-        normalized = normalize_diploma_subjects(diploma_subjects or {}, new_xp)
+        normalized = normalize_diploma_subjects(diploma_subjects or {}, new_xp, pillar)
         old_total = sum(normalized.values())
         if old_total <= 0:
-            return {'Electives': new_xp}
+            return normalize_diploma_subjects({}, new_xp, pillar)
         subjects = sorted(normalized.items(), key=lambda kv: -kv[1])
         rescaled = {}
         for name, xp in subjects:
@@ -1370,7 +1378,8 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
             # the same proportions over the clamped total.
             if sum(v for v in diploma_subjects.values()
                    if isinstance(v, (int, float))) != clamped_xp:
-                diploma_subjects = self._rescale_diploma_subjects(diploma_subjects, clamped_xp)
+                diploma_subjects = self._rescale_diploma_subjects(
+                    diploma_subjects, clamped_xp, task.get('pillar'))
 
             validated_task = {
                 'title': task.get('title', 'Learning Task'),

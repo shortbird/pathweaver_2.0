@@ -1,6 +1,8 @@
 import React from 'react'
 import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
+import TaskSubjectPicker from './TaskSubjectPicker'
+import { defaultSubjectForPillar, evenSplit } from '../../constants/diplomaSubjects'
 
 /**
  * The form for building a school quest: a title, a description, and the preset
@@ -40,9 +42,30 @@ export const MIN_TASK_XP = 25
 // wrote it: only the AI drafter set one, so a task typed by hand had none and a
 // generated one could not be corrected. iCreate: "you can see the instructional
 // text that goes with the task, which is nice. But there is no way to edit it!"
-export const blankTask = () => ({ title: '', description: '', pillar: 'art', xp_value: 100, is_required: true })
+// diploma_subjects is the credit the task earns, and it is set here rather
+// than left out because both task tables DEFAULT it to ['Electives'] -- a task
+// saved without one was credited as an elective whatever the work was.
+export const blankTask = () => ({
+  title: '', description: '', pillar: 'art', xp_value: 100, is_required: true,
+  diploma_subjects: [defaultSubjectForPillar('art')],
+  subject_xp_distribution: evenSplit([defaultSubjectForPillar('art')], 100)
+})
 
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+
+/**
+ * The patch a pillar change makes. The subject follows the pillar ONLY while it
+ * is still the pillar's own default -- a teacher who has chosen Social Studies
+ * has chosen it, and changing the pillar afterwards must not quietly undo that.
+ */
+export function followPillar(task, pillar) {
+  const current = task.diploma_subjects || []
+  const wasDefault = current.length <= 1 &&
+    (current.length === 0 || current[0] === defaultSubjectForPillar(task.pillar))
+  if (!wasDefault) return { pillar }
+  const next = [defaultSubjectForPillar(pillar)]
+  return { pillar, diploma_subjects: next, subject_xp_distribution: evenSplit(next, task.xp_value) }
+}
 
 /**
  * showPillars=false hides the pillar picker where the dimension is noise rather
@@ -98,7 +121,7 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
             className={`${inputCls} resize-y text-neutral-600`} />
           <div className="flex flex-wrap items-center gap-2">
             {showPillars && (
-              <select value={t.pillar} onChange={(e) => update(i, { pillar: e.target.value })}
+              <select value={t.pillar} onChange={(e) => update(i, followPillar(t, e.target.value))}
                 aria-label={`Task ${i + 1} pillar`}
                 className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
                 {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
@@ -122,6 +145,10 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>
+          <TaskSubjectPicker
+            subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
+            xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
+            onChange={(patch) => update(i, patch)} />
         </div>
       ))}
       {/* Deliberately a filled button rather than the text link it used to be.

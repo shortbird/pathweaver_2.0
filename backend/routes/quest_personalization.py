@@ -216,10 +216,23 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
 
     user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
 
+    raw_pillar = task.get('pillar')
+    pillar_key = None
+    if raw_pillar:
+        try:
+            pillar_key = normalize_pillar_name(raw_pillar)
+        except ValueError:
+            pillar_key = 'stem'
+
     raw_diploma_subjects = task.get('diploma_subjects')
     diploma_subjects = normalize_diploma_subjects(
         raw_diploma_subjects or {},
-        task.get('xp_value', 100)
+        task.get('xp_value', 100),
+        # Resolved BEFORE the subjects now, because a task that arrives with no
+        # subjects takes the pillar's rather than landing in Electives. Where no
+        # pillar arrived either, the fallback below still reads it back off the
+        # subjects, so the hide_pillars case is unchanged.
+        pillar_key,
     )
 
     # Every caller of this helper serves surfaces where a school may have
@@ -228,13 +241,7 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
     # rather than requiring the field — requiring it strands the family behind a
     # validation error naming a control they cannot see (Hearthwood, 2026-08-25:
     # a parent's IEW writing task refused to finalize over the missing pillar).
-    raw_pillar = task.get('pillar')
-    if raw_pillar:
-        try:
-            pillar_key = normalize_pillar_name(raw_pillar)
-        except ValueError:
-            pillar_key = 'stem'
-    else:
+    if pillar_key is None:
         pillar_key = pillar_for_subject(_first_subject(diploma_subjects))
     next_order = get_next_order_index(target_user_id, quest_id)
 
@@ -823,24 +830,30 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 locked=xp_locked,
             )
 
-            # Ensure diploma_subjects is a dict
+            # Ensure diploma_subjects is a dict. The pillar is resolved first
+            # so a task that arrived with no subjects takes the pillar's rather
+            # than landing in Electives; where no pillar arrived either, the
+            # fallback below still reads it back off the subjects.
+            raw_pillar = task.get('pillar')
+            pillar_key = None
+            if raw_pillar:
+                try:
+                    pillar_key = normalize_pillar_name(raw_pillar)
+                except ValueError:
+                    pillar_key = 'stem'
+
             raw_diploma_subjects = task.get('diploma_subjects')
             diploma_subjects = normalize_diploma_subjects(
                 raw_diploma_subjects or {},
-                task.get('xp_value', 100)
+                task.get('xp_value', 100),
+                pillar_key,
             )
 
             # Normalize pillar name. A school that hides the pillars
             # (feature_flags.hide_pillars) shows no picker, so the client sends
             # none — but the column is NOT NULL. Derive it from the credit the
             # family DID choose rather than filing every task under 'stem'.
-            raw_pillar = task.get('pillar')
-            if raw_pillar:
-                try:
-                    pillar_key = normalize_pillar_name(raw_pillar)
-                except ValueError:
-                    pillar_key = 'stem'
-            else:
+            if pillar_key is None:
                 pillar_key = pillar_for_subject(_first_subject(diploma_subjects))
 
             # Determine the subject XP distribution. When the student explicitly
@@ -1246,7 +1259,8 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
         # Handle diploma_subjects format
         diploma_subjects = normalize_diploma_subjects(
             task.get('diploma_subjects', {}),
-            task.get('xp_value', 100)
+            task.get('xp_value', 100),
+            pillar_key,
         )
 
         # Save task to library for future users

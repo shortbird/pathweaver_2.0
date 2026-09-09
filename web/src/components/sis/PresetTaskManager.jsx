@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { PencilSquareIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
-import { PILLARS, PILLAR_LABEL, blankTask } from './QuestDraftForm'
+import { PILLARS, PILLAR_LABEL, blankTask, followPillar } from './QuestDraftForm'
+import TaskSubjectPicker from './TaskSubjectPicker'
+import { SUBJECT_LABEL } from '../../constants/diplomaSubjects'
 
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -64,7 +66,11 @@ export default function PresetTaskManager({ base, orgId }) {
 
   const startEdit = (t) => {
     setEditingId(t.id)
-    setEditDraft({ title: t.title, pillar: t.pillar, xp_value: t.xp_value, description: t.description || '' })
+    setEditDraft({
+      title: t.title, pillar: t.pillar, xp_value: t.xp_value, description: t.description || '',
+      diploma_subjects: t.diploma_subjects || [],
+      subject_xp_distribution: t.subject_xp_distribution || {}
+    })
   }
 
   const saveEdit = async (taskId) => {
@@ -76,6 +82,8 @@ export default function PresetTaskManager({ base, orgId }) {
         description: editDraft.description,
         pillar: editDraft.pillar,
         xp_value: Number(editDraft.xp_value) || 0,
+        diploma_subjects: editDraft.diploma_subjects,
+        subject_xp_distribution: editDraft.subject_xp_distribution,
       })
       setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)))
       setEditingId(null)
@@ -134,7 +142,7 @@ export default function PresetTaskManager({ base, orgId }) {
                     onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })} />
                   <div className="flex flex-wrap items-center gap-2">
                     <select value={editDraft.pillar} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-                      onChange={(e) => setEditDraft({ ...editDraft, pillar: e.target.value })}>
+                      onChange={(e) => setEditDraft({ ...editDraft, ...followPillar(editDraft, e.target.value) })}>
                       {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                     </select>
                     <input type="number" min="0" value={editDraft.xp_value}
@@ -150,12 +158,24 @@ export default function PresetTaskManager({ base, orgId }) {
                       Cancel
                     </button>
                   </div>
+                  <TaskSubjectPicker
+                    subjects={editDraft.diploma_subjects}
+                    distribution={editDraft.subject_xp_distribution}
+                    xpValue={editDraft.xp_value} pillar={editDraft.pillar}
+                    idPrefix={`preset-edit-${t.id}`}
+                    onChange={(patch) => setEditDraft({ ...editDraft, ...patch })} />
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="flex-1 min-w-0 truncate text-neutral-800">{t.title}</span>
                   <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
                     {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
+                  </span>
+                  {/* The credit the task earns, on the row rather than only in
+                      the editor: a task filed under the wrong subject looks
+                      exactly like a right one until you open it. */}
+                  <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
+                    {(t.diploma_subjects || []).map((s) => SUBJECT_LABEL[s] || s).join(' · ') || 'No subject'}
                   </span>
                   {editable && (
                     <>
@@ -180,7 +200,7 @@ export default function PresetTaskManager({ base, orgId }) {
           <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             placeholder="Add a preset task…" className={inputCls} />
           <div className="flex flex-wrap items-center gap-2">
-            <select value={draft.pillar} onChange={(e) => setDraft({ ...draft, pillar: e.target.value })}
+            <select value={draft.pillar} onChange={(e) => setDraft({ ...draft, ...followPillar(draft, e.target.value) })}
               className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
               {PILLARS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
@@ -200,6 +220,10 @@ export default function PresetTaskManager({ base, orgId }) {
               {saving ? 'Adding…' : 'Add task'}
             </button>
           </div>
+          <TaskSubjectPicker
+            subjects={draft.diploma_subjects} distribution={draft.subject_xp_distribution}
+            xpValue={draft.xp_value} pillar={draft.pillar} idPrefix="preset-new"
+            onChange={(patch) => setDraft({ ...draft, ...patch })} />
         </div>
       ) : (
         <p className="text-xs text-neutral-400">

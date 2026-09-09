@@ -10,6 +10,27 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def subjects_for_copy(template_task):
+    """The diploma subjects a copied task carries, never NULL and never blank.
+
+    Both of these paths write the column explicitly, which means the table's
+    DEFAULT of ['Electives'] never fires for them -- and an explicit NULL reads
+    back as no credit at all, which is worse than the wrong credit. So a
+    template task with no subjects of its own is filled in from its pillar here,
+    at the moment the copy is made.
+
+    It matters because a copy is what the learner's credit is actually computed
+    from: fixing a template task does nothing for the students already holding
+    it until resync rewrites their rows.
+    """
+    from utils.school_subjects import default_subjects_for_pillar
+
+    subjects = template_task.get('diploma_subjects')
+    if isinstance(subjects, (list, tuple)) and any(subjects):
+        return list(subjects)
+    return default_subjects_for_pillar(template_task.get('pillar'))
+
+
 def get_valid_source_template_ids(admin, template_tasks):
     """
     Return the subset of the given tasks' ids that currently exist in
@@ -79,7 +100,7 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
         'is_required': t.get('is_required', False),
         'is_manual': False,
         'approval_status': 'approved',
-        'diploma_subjects': t.get('diploma_subjects', ['Electives']),
+        'diploma_subjects': subjects_for_copy(t),
         'subject_xp_distribution': t.get('subject_xp_distribution'),
         'source_template_task_id': t.get('id') if t.get('id') in valid_template_ids else None,
         'source_task_id': t.get('id'),
@@ -121,7 +142,7 @@ def _task_fields(tmpl, valid_template_ids):
         'xp_value': tmpl.get('xp_value', 100),
         'order_index': tmpl.get('order_index', 0),
         'is_required': tmpl.get('is_required', False),
-        'diploma_subjects': tmpl.get('diploma_subjects', ['Electives']),
+        'diploma_subjects': subjects_for_copy(tmpl),
         'subject_xp_distribution': tmpl.get('subject_xp_distribution'),
         'source_template_task_id': (tmpl.get('id')
                                     if tmpl.get('id') in valid_template_ids else None),

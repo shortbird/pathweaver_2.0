@@ -8,13 +8,16 @@ one: a class's Quests tab (routes/sis/class_quests.py) and the curriculum librar
 attached to, so the creation itself lives here rather than in either of them.
 
 The rules this file owns are the ones a second copy would drift on: the pillar
-key the DB actually stores, the XP floor, the task cap, and the fact that the
-quest row is written before its tasks (a failure part-way leaves a reachable
-quest with fewer tasks, not an orphaned task set).
+key the DB actually stores, the diploma subjects the work earns credit toward,
+the XP floor, the task cap, and the fact that the quest row is written before
+its tasks (a failure part-way leaves a reachable quest with fewer tasks, not an
+orphaned task set).
 """
 
 
 from utils.logger import get_logger
+from utils.school_subjects import default_subjects_for_pillar, normalize_subject_key
+from utils.subject_xp import get_subject_xp_distribution
 
 logger = get_logger(__name__)
 
@@ -34,6 +37,9 @@ DEFAULT_PILLAR = 'art'
 DEFAULT_XP = 100
 MIN_XP = 25
 
+# Matches validate_school_subjects in utils/school_subjects.
+MAX_SUBJECTS = 5
+
 
 class QuestAuthoringError(Exception):
     """A rejection the caller should return verbatim to the client."""
@@ -51,6 +57,99 @@ def norm_pillar(value):
     return PILLAR_ALIASES.get((value or '').strip().lower(), DEFAULT_PILLAR)
 
 
+def clean_subjects(raw_subjects, raw_distribution, xp_value, pillar):
+    """(diploma_subjects, subject_xp_distribution) for one preset task.
+
+    The SIS task editors wrote neither column until 2026-09-09. Both tables
+    DEFAULT diploma_subjects to ['Electives'], so every task a school typed in
+    was credited as an elective -- Gryffin's whole US History unit among them,
+    and 1041 XP of one student's pending credit with it. Nothing on screen said
+    so, because the screens had no subject field to disagree with.
+
+    The split is stored as XP AMOUNTS, not percentages: that is what
+    utils.subject_xp reads back at credit-request and finalize time. Producing
+    it through get_subject_xp_distribution rather than dividing here is
+    deliberate -- rounding to fives and making the parts sum to xp_value is
+    exactly what the read path does, so a second copy of that arithmetic is a
+    second answer to "how much Social Studies is this worth".
+
+    An empty or unrecognized subject list falls back to the pillar rather than
+    to Electives. Sending subjects with no split divides the XP evenly.
+    """
+    keys = []
+    for raw in (raw_subjects or []):
+        key = normalize_subject_key(raw if isinstance(raw, str) else '')
+        if key and key not in keys:
+            keys.append(key)
+    if not keys:
+        keys = default_subjects_for_pillar(pillar)
+    keys = keys[:MAX_SUBJECTS]
+
+    # Amounts the caller gave for subjects it actually asked for. Anything else
+    # in the dict is ignored: a stale entry for a subject just removed would
+    # otherwise keep drawing XP.
+    amounts = {}
+    if isinstance(raw_distribution, dict):
+        for raw, value in raw_distribution.items():
+            key = normalize_subject_key(raw if isinstance(raw, str) else '')
+            if key in keys and isinstance(value, (int, float)) and value > 0:
+                amounts[key] = amounts.get(key, 0) + value
+
+    # Scale to the task's XP by SHARE before handing over. Amounts that already
+    # sum to xp_value pass through untouched; ones that do not are a ratio, and
+    # get_subject_xp_distribution would not treat them as one -- its correction
+    # puts the whole difference on the largest entry, which is right for a
+    # rounding remainder and badly wrong for a rescale. A 75/25 task edited from
+    # 100 XP to 200 came out 175/25 that way instead of 150/50.
+    total = sum(amounts.values())
+    if total and total != xp_value:
+        amounts = {k: v * xp_value / total for k, v in amounts.items()}
+
+    task_data = {'diploma_subjects': keys, 'subject_xp_distribution': amounts}
+    distribution = get_subject_xp_distribution(task_data, xp_value)
+    # get_subject_xp_distribution drops a subject whose share rounds to nothing,
+    # so the list follows the split rather than promising credit that is not
+    # there.
+    return list(distribution.keys()) or keys, distribution
+
+
+def subject_updates(current, data, updates):
+    """The subject columns a task PATCH should also write, or {}.
+
+    Shared by the class and curriculum task editors, which are the same editor
+    against two different parents. `current` is the row as it stands, `data` the
+    request body, `updates` the columns already being written.
+
+    Two things move the split:
+
+      - the caller named subjects, or
+      - the caller changed the XP. The split is stored as amounts, so a task
+        edited from 100 XP to 200 would otherwise keep a 100 XP split and the
+        credit shown on the task would stop matching the credit paid for it.
+    """
+    named_subjects = 'diploma_subjects' in data
+    named_split = 'subject_xp_distribution' in data
+    if not named_subjects and not named_split and 'xp_value' not in updates:
+        return {}
+
+    if named_subjects:
+        raw_subjects = data['diploma_subjects']
+        # A changed subject list with no amounts means "divide it across these".
+        # Carrying the old amounts forward would hand a newly added subject
+        # nothing, which is the opposite of what adding it asked for.
+        raw_split = data.get('subject_xp_distribution')
+    else:
+        raw_subjects = current.get('diploma_subjects')
+        raw_split = (data['subject_xp_distribution'] if named_split
+                     else current.get('subject_xp_distribution'))
+
+    subjects, distribution = clean_subjects(
+        raw_subjects, raw_split,
+        updates.get('xp_value', current.get('xp_value') or DEFAULT_XP),
+        updates.get('pillar', current.get('pillar')))
+    return {'diploma_subjects': subjects, 'subject_xp_distribution': distribution}
+
+
 def clean_task(raw, order_index):
     """One submitted task row -> an insertable quest_template_tasks row.
 
@@ -65,14 +164,23 @@ def clean_task(raw, order_index):
     except (TypeError, ValueError):
         xp = DEFAULT_XP
     xp = max(MIN_XP, xp)
+    pillar = norm_pillar(raw.get('pillar'))
+    # Accepts school_subjects too: that is the name the AI drafter's task shape
+    # uses, and a draft goes straight into this form.
+    subjects, distribution = clean_subjects(
+        raw.get('diploma_subjects') or raw.get('school_subjects'),
+        raw.get('subject_xp_distribution'), xp, pillar)
     return {
         'title': title[:MAX_TITLE_LEN],
         'description': (raw.get('description') or '').strip(),
-        'pillar': norm_pillar(raw.get('pillar')),
+        'pillar': pillar,
         'xp_value': xp,
         'is_required': bool(raw.get('is_required', True)),
         'order_index': order_index,
         'ai_generated': bool(raw.get('ai_generated', False)),
+        # Explicit, never left to the column default -- see clean_subjects.
+        'diploma_subjects': subjects,
+        'subject_xp_distribution': distribution,
         'created_at': now_iso(),
         'updated_at': now_iso(),
     }
@@ -164,7 +272,28 @@ _COPIED_QUEST_FIELDS = (
 
 _COPIED_TASK_FIELDS = (
     'title', 'description', 'pillar', 'xp_value', 'is_required', 'ai_generated',
+    # Without these two a duplicate silently re-defaults to Electives, so
+    # copying a correctly-credited task produced a wrongly-credited one.
+    'diploma_subjects', 'subject_xp_distribution',
 )
+
+
+def _copy_task_fields(source):
+    """The columns a duplicated preset task takes from the one it copies.
+
+    Copying the subject columns by name is not enough on its own: a source row
+    written before the SIS wrote subjects has them NULL, and a NULL copied
+    EXPLICITLY skips the column default and lands as NULL, which reads back as
+    no credit at all. So a source with nothing to copy is filled in from its
+    pillar, the same way a freshly typed task is.
+    """
+    copy = {k: source.get(k) for k in _COPIED_TASK_FIELDS}
+    subjects, distribution = clean_subjects(
+        copy.get('diploma_subjects'), copy.get('subject_xp_distribution'),
+        copy.get('xp_value') or DEFAULT_XP, copy.get('pillar'))
+    copy['diploma_subjects'] = subjects
+    copy['subject_xp_distribution'] = distribution
+    return copy
 
 
 def copy_title(existing_titles, title):
@@ -231,7 +360,7 @@ def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
                     .eq('quest_id', source_quest_id).order('order_index').execute()).data or []
     copies = []
     for i, t in enumerate(source_tasks):
-        copy = {k: t.get(k) for k in _COPIED_TASK_FIELDS}
+        copy = _copy_task_fields(t)
         copy.update({
             'quest_id': quest_id,
             # Renumbered from 0: the source's indexes can have gaps after
@@ -258,7 +387,7 @@ def duplicate_template_task(admin, source_task, quest_id):
             .eq('quest_id', quest_id).order('order_index', desc=True)
             .limit(1).execute()).data
     next_order = ((last[0]['order_index'] or 0) + 1) if last else 0
-    copy = {k: source_task.get(k) for k in _COPIED_TASK_FIELDS}
+    copy = _copy_task_fields(source_task)
     copy.update({
         'quest_id': quest_id,
         'order_index': next_order,
