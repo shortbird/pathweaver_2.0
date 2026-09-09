@@ -32,6 +32,10 @@ export interface GroupSection {
   /** Section header text, or null for the unsectioned single-child case. */
   label: string | null;
   groups: Group[];
+  /** Unread messages across the section, so a COLLAPSED section can still say
+   *  it has mail. Without it, folding a child away would hide new messages
+   *  behind a closed header — a worse bug than the one the sections fixed. */
+  unread: number;
 }
 
 export interface GroupSections {
@@ -55,6 +59,9 @@ export function classMeetingLabel(m: GroupClassMeeting | null | undefined): stri
   return [shortDay, time].filter(Boolean).join(' ');
 }
 
+const sectionUnread = (groups: Group[]) =>
+  groups.reduce((n, g) => n + (g.unread_count || 0), 0);
+
 /**
  * Split `groups` into one section per child, newest-first order preserved
  * within each section (the server already orders by last_message_at).
@@ -73,24 +80,33 @@ export function groupsByChild(groups: Group[] = []): GroupSections {
   }
 
   if (names.size < 2) {
-    return { sections: [{ key: 'all', label: null, groups }], sectioned: false };
+    return {
+      sections: [{ key: 'all', label: null, groups, unread: sectionUnread(groups) }],
+      sectioned: false,
+    };
   }
 
   const childIds = [...names.keys()].sort((a, b) =>
     names.get(a)!.localeCompare(names.get(b)!) || a.localeCompare(b));
 
-  const sections: GroupSection[] = childIds.map((id) => ({
-    key: id,
-    label: `${names.get(id)}'s classes`,
-    groups: groups.filter((g) => (g.for_students || []).some((s) => s?.id === id)),
-  }));
+  const sections: GroupSection[] = childIds.map((id) => {
+    const mine = groups.filter((g) => (g.for_students || []).some((s) => s?.id === id));
+    return {
+      key: id,
+      label: `${names.get(id)}'s classes`,
+      groups: mine,
+      unread: sectionUnread(mine),
+    };
+  });
 
   // Anything not tied to a child — a school-wide announcement group, a chat an
   // admin added the parent to — keeps a home at the bottom rather than
   // vanishing from a list that is now organized around children.
   const other = groups.filter((g) => !(g.for_students || []).length);
   if (other.length) {
-    sections.push({ key: 'other', label: 'Other groups', groups: other });
+    sections.push({
+      key: 'other', label: 'Other groups', groups: other, unread: sectionUnread(other),
+    });
   }
 
   return { sections: sections.filter((s) => s.groups.length > 0), sectioned: true };

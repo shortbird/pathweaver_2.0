@@ -9,7 +9,9 @@ import type { Group } from '@/src/hooks/useMessages';
 
 const kid = (id: string, first_name: string) => ({ id, first_name, last_name: 'T', display_name: first_name });
 
-const grp = (id: string, name: string, students: any[] = [], meeting: any = null): Group => ({
+const grp = (
+  id: string, name: string, students: any[] = [], meeting: any = null, unread_count = 0,
+): Group => ({
   id,
   name,
   description: null,
@@ -17,7 +19,7 @@ const grp = (id: string, name: string, students: any[] = [], meeting: any = null
   member_count: 5,
   last_message_at: null,
   last_message_preview: null,
-  unread_count: 0,
+  unread_count,
   for_students: students,
   class_meeting: meeting,
 } as Group);
@@ -101,6 +103,54 @@ describe('groupsByChild', () => {
   it('handles an empty list', () => {
     expect(groupsByChild([]).sections[0].groups).toEqual([]);
     expect(groupsByChild(undefined as any).sectioned).toBe(false);
+  });
+
+  // The section header stays visible when the parent folds a child away, and it
+  // carries this number. A folded section that silently swallowed a message
+  // would be worse than the flat list the sections replaced.
+  describe('the unread total a folded header keeps showing', () => {
+    it('adds up the unread messages in the section', () => {
+      const groups = [
+        grp('g1', 'Lego Lab Parent Chat', [kid('z', 'Zayah')], null, 2),
+        grp('g2', 'Art Parent Chat', [kid('z', 'Zayah')], null, 3),
+        grp('g3', 'Peak Play PE Parent Chat', [kid('d', 'Daxton')], null, 1),
+      ];
+
+      const { sections } = groupsByChild(groups);
+
+      expect(sections.find((s) => s.key === 'z')!.unread).toBe(5);
+      expect(sections.find((s) => s.key === 'd')!.unread).toBe(1);
+    });
+
+    it('is zero when the section is fully read', () => {
+      const groups = [
+        grp('g1', 'Lego Lab Parent Chat', [kid('z', 'Zayah')]),
+        grp('g2', 'Peak Play PE Parent Chat', [kid('d', 'Daxton')], null, 4),
+      ];
+
+      const { sections } = groupsByChild(groups);
+
+      expect(sections.find((s) => s.key === 'z')!.unread).toBe(0);
+    });
+
+    it('counts a shared class under both children', () => {
+      const groups = [
+        grp('shared', 'Sword of Truth Parent Chat',
+          [kid('d', 'Daxton'), kid('r', 'Rivers')], null, 6),
+        grp('solo', 'Lego Lab Parent Chat', [kid('d', 'Daxton')], null, 1),
+      ];
+
+      const { sections } = groupsByChild(groups);
+
+      expect(sections.find((s) => s.key === 'd')!.unread).toBe(7);
+      expect(sections.find((s) => s.key === 'r')!.unread).toBe(6);
+    });
+
+    it('is present on the flat single-child list too', () => {
+      const groups = [grp('g1', 'Lego Lab Parent Chat', [kid('z', 'Zayah')], null, 2)];
+
+      expect(groupsByChild(groups).sections[0].unread).toBe(2);
+    });
   });
 });
 

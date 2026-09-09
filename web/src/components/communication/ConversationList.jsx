@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react'
-import { AcademicCapIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
+import { AcademicCapIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, UserIcon, UsersIcon, PlusIcon, LifebuoyIcon } from '@heroicons/react/24/outline'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
@@ -248,6 +248,53 @@ const SectionHeader = ({ icon, label }) => (
   </div>
 )
 
+// A child's section header, which is also the control that folds it away.
+//
+// A parent of three is in 36 class chats. Splitting them by child made the list
+// readable; folding two of the three children away is what makes it short. The
+// count and the unread badge stay on the header while it is closed, so folding
+// a child hides the rows without hiding that they have new mail — a closed
+// section that silently swallowed a message would be a worse bug than the one
+// the sections fixed.
+const ChildSectionHeader = ({ label, count, unread, collapsed, onToggle }) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-expanded={!collapsed}
+    className="w-full px-4 pt-4 pb-1 flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors"
+  >
+    {collapsed
+      ? <ChevronRightIcon className="w-3 h-3 flex-shrink-0" />
+      : <ChevronDownIcon className="w-3 h-3 flex-shrink-0" />}
+    <AcademicCapIcon className="w-3 h-3 flex-shrink-0" />
+    <span className="truncate">{label}</span>
+    <span className="font-normal normal-case tracking-normal text-gray-400">({count})</span>
+    {unread > 0 && (
+      <span className="ml-auto min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+        <span className="text-white text-[10px] font-bold">{unread > 9 ? '9+' : unread}</span>
+      </span>
+    )}
+  </button>
+)
+
+// Which children's sections the parent has folded away. localStorage, because a
+// fold that reopened on every 15s poll or every visit to Messages would not be
+// worth making. Wrapped for private mode, where the accessor itself throws.
+const COLLAPSED_KEY = 'optio_messages_collapsed_children'
+
+const readCollapsed = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]')
+    return new Set(Array.isArray(raw) ? raw : [])
+  } catch {
+    return new Set()
+  }
+}
+
+const writeCollapsed = (ids) => {
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...ids])) } catch { /* private mode */ }
+}
+
 // Rows in the shape of the real thing, rather than a centred spinner. The list
 // is assembled from four requests that land at different times; a skeleton
 // keeps the layout still while they arrive instead of replacing the panel
@@ -424,6 +471,23 @@ const ConversationList = ({
     [sectioned, childSections]
   )
 
+  const [collapsedChildren, setCollapsedChildren] = useState(readCollapsed)
+
+  const toggleChildSection = useCallback((key) => {
+    setCollapsedChildren(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      writeCollapsed(next)
+      return next
+    })
+  }, [])
+
+  // A search is a request to see what matches, so it overrides a fold rather
+  // than hiding the hit inside a closed section the parent has to remember to
+  // open. The fold itself is untouched and comes back when the box is cleared.
+  const searching = !!searchQuery.trim()
+
   // Optio Support. Every account gets this contact from the backend
   // (routes/direct_messages.py::_append_support_contact), but it arrived last
   // in an alphabetical Contacts list under every teacher, observer and child —
@@ -522,10 +586,18 @@ const ConversationList = ({
           <>
             {/* A guardian's class chats, one section per child. Only rendered
                 for two or more children — see utils/groupsByChild. */}
-            {childClassSections.map(section => (
+            {childClassSections.map(section => {
+              const collapsed = collapsedChildren.has(section.key) && !searching
+              return (
               <div key={section.key} className="pb-2">
-                <SectionHeader icon={<AcademicCapIcon className="w-3 h-3" />} label={section.label} />
-                {section.groups.map(group => (
+                <ChildSectionHeader
+                  label={section.label}
+                  count={section.groups.length}
+                  unread={section.unread}
+                  collapsed={collapsed}
+                  onToggle={() => toggleChildSection(section.key)}
+                />
+                {!collapsed && section.groups.map(group => (
                   // A class two children share is listed under each of their
                   // sections, so the key carries the section as well as the
                   // group — the same conversation, reachable from either child.
@@ -537,7 +609,8 @@ const ConversationList = ({
                   />
                 ))}
               </div>
-            ))}
+              )
+            })}
 
             {/* Conversations (active threads + groups) */}
             {displayRows.length > 0 && (

@@ -50,6 +50,12 @@ export const classMeetingLabel = (m) => {
 // caller's children. The section split is built out of exactly these.
 export const isChildClassGroup = (g) => !!(g && (g.for_students || []).length)
 
+// Unread messages across a section, so a COLLAPSED section can still say it has
+// mail. Without this, collapsing a child would hide new messages behind a
+// closed header, which is a worse bug than the one the sections fixed.
+const sectionUnread = (groups) =>
+  groups.reduce((n, g) => n + (g.unread_count || 0), 0)
+
 /**
  * Split `groups` into one section per child, newest-first order preserved
  * within each section (the server already orders by last_message_at).
@@ -69,25 +75,34 @@ export const groupsByChild = (groups = []) => {
   }
 
   if (names.size < 2) {
-    return { sections: [{ key: 'all', label: null, groups: list }], sectioned: false }
+    return {
+      sections: [{ key: 'all', label: null, groups: list, unread: sectionUnread(list) }],
+      sectioned: false
+    }
   }
 
   const childIds = [...names.keys()].sort(
     (a, b) => names.get(a).localeCompare(names.get(b)) || a.localeCompare(b)
   )
 
-  const sections = childIds.map((id) => ({
-    key: id,
-    label: `${names.get(id)}'s classes`,
-    groups: list.filter((g) => (g.for_students || []).some((s) => s?.id === id))
-  }))
+  const sections = childIds.map((id) => {
+    const groups = list.filter((g) => (g.for_students || []).some((s) => s?.id === id))
+    return {
+      key: id,
+      label: `${names.get(id)}'s classes`,
+      groups,
+      unread: sectionUnread(groups)
+    }
+  })
 
   // Anything not tied to a child — a school-wide announcement group, a chat an
   // admin added the parent to — keeps a home at the bottom rather than
   // vanishing from a list that is now organized around children.
   const other = list.filter((g) => !isChildClassGroup(g))
   if (other.length) {
-    sections.push({ key: 'other', label: 'Other groups', groups: other })
+    sections.push({
+      key: 'other', label: 'Other groups', groups: other, unread: sectionUnread(other)
+    })
   }
 
   return { sections: sections.filter((s) => s.groups.length > 0), sectioned: true }

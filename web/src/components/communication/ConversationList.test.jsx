@@ -148,6 +148,158 @@ describe('ConversationList', () => {
     expect(screen.getByText('No conversations yet')).toBeInTheDocument()
   })
 
+  // A parent of three reported the class threads as unusable on 2026-09-09:
+  // 37 rows named after the class and nothing else, several sharing a name,
+  // "so I would have to look it up before I can even respond." The mobile app
+  // was fixed first; these are the same guarantees on the web list.
+  describe('a guardian\'s class chats', () => {
+    const kid = (id, first_name) => ({ id, first_name, last_name: 'T', display_name: first_name })
+    const classChat = (id, name, students, meeting = null) => ({
+      id, name, member_count: 4, unread_count: 0,
+      last_message_at: '2025-01-03T00:00:00Z', last_message_preview: 'See you then',
+      source_class_id: `c-${id}`, for_students: students, class_meeting: meeting
+    })
+
+    const threeChildren = [
+      classChat('g1', 'Lego Lab Parent Chat', [kid('z', 'Zayah')]),
+      classChat('g2', 'Peak Play PE Parent Chat', [kid('d', 'Daxton')],
+        { day_of_week: 2, start_time: '09:30:00' }),
+      classChat('g3', 'Peak Play PE Parent Chat', [kid('d', 'Daxton')],
+        { day_of_week: 4, start_time: '14:00:00' })
+    ]
+
+    it('groups them under a heading per child, and out of Conversations', async () => {
+      renderList({ groupConversations: threeChildren })
+
+      await waitFor(() => expect(screen.getByText("Daxton's classes")).toBeInTheDocument())
+      expect(screen.getByText("Zayah's classes")).toBeInTheDocument()
+      // The DM is still in Conversations; the class chats are not listed twice.
+      expect(screen.getByText('Sam Smith')).toBeInTheDocument()
+      expect(screen.getAllByText('Lego Lab Parent Chat')).toHaveLength(1)
+    })
+
+    it('tells two same-named chats apart by when the class meets', async () => {
+      renderList({ groupConversations: threeChildren })
+
+      await waitFor(() => expect(screen.getAllByText('Peak Play PE Parent Chat')).toHaveLength(2))
+      expect(screen.getByText('Tue 9:30 AM')).toBeInTheDocument()
+      expect(screen.getByText('Thu 2:00 PM')).toBeInTheDocument()
+    })
+
+    it('lists a shared class under both children, and names them on the row', async () => {
+      const shared = classChat('gs', 'Sword of Truth Parent Chat',
+        [kid('d', 'Daxton'), kid('r', 'Rivers')])
+      renderList({ groupConversations: [...threeChildren, shared] })
+
+      await waitFor(() => expect(screen.getByText("Rivers's classes")).toBeInTheDocument())
+      expect(screen.getAllByText('Sword of Truth Parent Chat')).toHaveLength(2)
+      expect(screen.getAllByText('Daxton, Rivers')).toHaveLength(2)
+    })
+
+    it('finds a child\'s classes by searching the child\'s name', async () => {
+      renderList({ groupConversations: threeChildren })
+
+      await waitFor(() => expect(screen.getByText('Lego Lab Parent Chat')).toBeInTheDocument())
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'Daxton' } })
+
+      expect(screen.getAllByText('Peak Play PE Parent Chat')).toHaveLength(2)
+      expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+    })
+
+    // Splitting 36 chats by child made the list readable; folding two of the
+    // three children away is what makes it short.
+    describe('folding a child away', () => {
+      beforeEach(() => localStorage.clear())
+
+      it('starts open and hides the rows when the header is clicked', async () => {
+        renderList({ groupConversations: threeChildren })
+
+        await waitFor(() => expect(screen.getByText('Lego Lab Parent Chat')).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+        // Only that child folds; her siblings are untouched.
+        expect(screen.getAllByText('Peak Play PE Parent Chat')).toHaveLength(2)
+      })
+
+      it('opens again on a second click', async () => {
+        renderList({ groupConversations: threeChildren })
+
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+        fireEvent.click(screen.getByText("Zayah's classes"))
+
+        expect(screen.getByText('Lego Lab Parent Chat')).toBeInTheDocument()
+      })
+
+      it('remembers the fold across a remount', async () => {
+        const first = renderList({ groupConversations: threeChildren })
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+        first.unmount()
+
+        renderList({ groupConversations: threeChildren })
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+      })
+
+      // A closed section that silently swallowed a message would be worse than
+      // the flat list this replaced.
+      it('keeps the unread count on the header while it is closed', async () => {
+        const unread = [
+          { ...threeChildren[0], unread_count: 3 },
+          threeChildren[1], threeChildren[2]
+        ]
+        renderList({ groupConversations: unread })
+
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+        expect(screen.getByText('3')).toBeInTheDocument()
+      })
+
+      it('shows a match inside a folded section rather than hiding it', async () => {
+        renderList({ groupConversations: threeChildren })
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+
+        fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'Lego' } })
+        expect(screen.getByText('Lego Lab Parent Chat')).toBeInTheDocument()
+
+        // Clearing the box restores the fold; searching did not undo it.
+        fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: '' } })
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+      })
+
+      it('survives a browser that refuses storage', async () => {
+        const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+          throw new Error('private mode')
+        })
+        const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+          throw new Error('private mode')
+        })
+
+        renderList({ groupConversations: threeChildren })
+        await waitFor(() => expect(screen.getByText("Zayah's classes")).toBeInTheDocument())
+        fireEvent.click(screen.getByText("Zayah's classes"))
+        expect(screen.queryByText('Lego Lab Parent Chat')).not.toBeInTheDocument()
+
+        getItem.mockRestore()
+        setItem.mockRestore()
+      })
+    })
+
+    it('leaves a parent of one child, and a teacher, with the flat list', async () => {
+      renderList({ groupConversations: [threeChildren[0]] })
+
+      await waitFor(() => expect(screen.getByText('Conversations')).toBeInTheDocument())
+      expect(screen.queryByText("Zayah's classes")).not.toBeInTheDocument()
+      expect(screen.getByText('Lego Lab Parent Chat')).toBeInTheDocument()
+    })
+  })
+
   // The perf regression this list shipped with: ConversationItem was declared
   // inside ConversationList's body, so every render produced a new component
   // type and React remounted every row -- <img> included. Typing one character

@@ -10,7 +10,7 @@
  * conversation poll re-renders only what actually changed.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, FlatList, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useScrollToTop } from '@react-navigation/native';
@@ -20,6 +20,7 @@ import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { Contact, Group } from '@/src/hooks/useMessages';
 import { groupsByChild, classMeetingLabel, studentName } from '@/src/utils/groupsByChild';
+import { getFlag, setFlag, childSectionCollapsedKey } from '@/src/stores/prefsStore';
 
 interface SelectedConversation {
   id: string;
@@ -460,6 +461,43 @@ export function ConversationList({
   const { sections: groupSections } = useMemo(
     () => groupsByChild(filteredGroups), [filteredGroups]);
 
+  // Which children's sections the parent has folded away. Splitting 36 class
+  // chats by child made the list readable; folding two of the three children
+  // away is what makes it short. Persisted per child (prefsStore) because a
+  // fold that reopened on every 30s poll would not be worth making.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const sectionKeys = groupSections.map((s) => s.key).join(',');
+
+  useEffect(() => {
+    let cancelled = false;
+    const keys = sectionKeys ? sectionKeys.split(',') : [];
+    Promise.all(keys.map(async (key) => (
+      (key !== 'all' && await getFlag(childSectionCollapsedKey(key))) ? key : null
+    ))).then((folded) => {
+      if (cancelled) return;
+      setCollapsed(new Set(folded.filter(Boolean) as string[]));
+    });
+    return () => { cancelled = true; };
+  }, [sectionKeys]);
+
+  const toggleSection = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      const nowCollapsed = !next.has(key);
+      if (nowCollapsed) next.add(key);
+      else next.delete(key);
+      // Fire and forget: losing a fold is non-fatal, and prefsStore swallows
+      // its own storage errors.
+      setFlag(childSectionCollapsedKey(key), nowCollapsed);
+      return next;
+    });
+  }, []);
+
+  // A search is a request to see what matches, so it overrides a fold rather
+  // than hiding the hit inside a closed section the parent has to remember to
+  // open. The fold itself is untouched and comes back when the box is cleared.
+  const searching = !!search.trim();
+
   const renderContact = useCallback(({ item }: { item: any }) => (
     <ContactRow
       contact={item}
@@ -495,16 +533,43 @@ export function ConversationList({
               </Pressable>
             )}
           </View>
-          {groupSections.map((section) => (
+          {groupSections.map((section) => {
+            const isCollapsed = collapsed.has(section.key) && !searching;
+            return (
             <View key={section.key}>
               {!!section.label && (
-                <View className="px-4 py-1.5 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
+                // The header is the control that folds the section. The count
+                // and the unread badge stay on it while it is closed, so
+                // folding a child hides the rows without hiding that they have
+                // new mail.
+                <Pressable
+                  onPress={() => toggleSection(section.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !isCollapsed }}
+                  accessibilityLabel={`${section.label}, ${section.groups.length} chats`}
+                  className="flex-row items-center gap-1.5 px-4 py-1.5 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300"
+                >
+                  <Ionicons
+                    name={isCollapsed ? 'chevron-forward' : 'chevron-down'}
+                    size={12}
+                    color={c.brand}
+                  />
                   <UIText size="xs" className="font-poppins-semibold text-optio-purple uppercase tracking-wider">
                     {section.label}
                   </UIText>
-                </View>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
+                    ({section.groups.length})
+                  </UIText>
+                  {section.unread > 0 && (
+                    <View className="ml-auto bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center px-1">
+                      <UIText size="xs" className="text-white font-poppins-bold" style={{ fontSize: 10 }}>
+                        {section.unread > 9 ? '9+' : section.unread}
+                      </UIText>
+                    </View>
+                  )}
+                </Pressable>
               )}
-              {section.groups.map((group) => (
+              {!isCollapsed && section.groups.map((group) => (
                 // A class two children share is listed under each of their
                 // sections, so the key has to carry the section as well as the
                 // group — the same conversation, reachable from either child.
@@ -518,7 +583,8 @@ export function ConversationList({
                 />
               ))}
             </View>
-          ))}
+            );
+          })}
         </View>
       )}
 

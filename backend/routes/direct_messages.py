@@ -406,13 +406,27 @@ def mark_conversation_read(user_id: str, conversation_id: str):
 @require_auth
 def get_unread_count(user_id: str):
     """
-    Get total unread message count for badge display
+    Get total unread message count for badge display.
+
+    Both kinds of mail count. This used to return direct messages only, which
+    made the badge quietly wrong for anyone whose mail arrives in class chats:
+    a parent with one unread DM and a dozen unread class-chat messages saw
+    "Messages (1)" and had no way to know the rest were there. The Messages
+    screen has always shown both, so the badge disagreed with the page it
+    points at.
     """
     try:
-        unread_count = message_service.get_unread_count(user_id)
+        from services.group_message_service import GroupMessageService
+
+        direct_unread = message_service.get_unread_count(user_id)
+        group_unread = GroupMessageService().get_unread_total(user_id)
 
         return success_response({
-            'unread_count': unread_count
+            'unread_count': direct_unread + group_unread,
+            # Broken out so a wrong badge can be attributed to a surface
+            # without re-deriving both halves by hand.
+            'direct_unread': direct_unread,
+            'group_unread': group_unread
         })
 
     except Exception as e:

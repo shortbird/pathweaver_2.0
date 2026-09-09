@@ -51,3 +51,10 @@ export const PrefsKeys = {
   // by tapping the header again). Expanded by default on first visit.
   BountyGuideCollapsed: 'optio_bounty_guide_collapsed',
 } as const;
+
+/** True once the parent has folded away this child's class chats in Messages.
+ *  Per child, because folding one sibling away to read another is the whole
+ *  point. Expanded by default; SecureStore keys allow [A-Za-z0-9._-], and a
+ *  child id is a UUID, so it needs no escaping. */
+export const childSectionCollapsedKey = (childId: string) =>
+  `optio_messages_section_collapsed_${childId}`;

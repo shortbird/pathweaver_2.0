@@ -183,6 +183,13 @@ BACKEND = Path(__file__).resolve().parents[2]
 BASELINES = {
     'routes': 2340,
     'services': 1828,
+    # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
+    # Messages badge: this user's group memberships, the still-active groups
+    # among them, and the unread count within one group. The badge counted
+    # direct messages only, so a parent's unread class chats never lit it up.
+    # Group messaging predates the pattern and its data access still sits in
+    # GroupMessageService; this is the first piece moved down, and services/ did
+    # not move as a result.
     # 2026-09-08: 418 -> 439. ParentDigestRepository, which owns every read
     # behind the weekly parent digest: the roster, both guardian links, the
     # week's completions and the evidence documents under them, learning
@@ -192,7 +199,7 @@ BASELINES = {
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
-    'repositories': 439,
+    'repositories': 442,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

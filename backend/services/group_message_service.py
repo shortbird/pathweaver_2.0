@@ -508,6 +508,53 @@ class GroupMessageService(BaseService):
             logger.warning(f"Could not attach guardian class context for {user_id}: {e}")
             return {}
 
+    def get_unread_total(self, user_id: str) -> int:
+        """Unread GROUP messages across every group this user belongs to.
+
+        The Messages badge counted direct_messages and nothing else, so every
+        class chat was invisible to it: a parent with a dozen unread class-chat
+        messages and one unread DM saw "Messages (1)" in the sidebar and could
+        not tell there was anything else waiting. Class chats are where a school
+        family gets most of its mail, so the badge was wrong for exactly the
+        people who rely on it most.
+
+        Same counting rule as get_user_groups so the badge and the list agree:
+        messages from other people, not deleted, newer than this member's
+        last_read_at. Groups with nothing newer than that read marker skip the
+        count query outright, which in a normal inbox is nearly all of them.
+
+        Best-effort: a failure here returns 0 rather than 500ing the badge.
+        """
+        try:
+            # Through the repository rather than another direct .table() call in
+            # this service (REPOSITORY_PATTERN.md; the layer guard in
+            # tests/unit/test_direct_db_calls_do_not_grow.py).
+            from repositories.group_repository import GroupRepository
+            repo = GroupRepository(client=self._get_client())
+
+            memberships = repo.memberships_for_user(user_id)
+            if not memberships:
+                return 0
+
+            last_read_by_group = {
+                m['group_id']: m.get('last_read_at') for m in memberships
+            }
+
+            total = 0
+            for group in repo.active_groups(list(last_read_by_group)):
+                last_read_at = last_read_by_group.get(group['id'])
+                last_message_at = group.get('last_message_at')
+                if last_read_at and (not last_message_at or last_message_at <= last_read_at):
+                    continue
+                total += repo.count_unread_messages(
+                    group['id'], user_id, since=last_read_at)
+
+            return total
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not count unread group messages for {user_id}: {e}")
+            return 0
+
     def get_user_groups(self, user_id: str) -> List[Dict[str, Any]]:
         """
         Get all groups for a user
