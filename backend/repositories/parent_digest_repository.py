@@ -17,7 +17,8 @@ postmortem in CLAUDE.md.
 school's students is how a query silently becomes a 414.
 """
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from functools import partial
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
@@ -66,10 +67,10 @@ class ParentDigestRepository(BaseRepository):
         """
         out: Dict[str, List[str]] = {}
         for chunk in _chunks(_clean(class_ids)):
-            rows = fetch_all_rows(lambda c=chunk: (
+            rows = fetch_all_rows(partial(lambda c: (
                 self.client.table('class_enrollments').select('student_id, class_id')
                 .in_('class_id', c).eq('status', 'active')
-            ))
+            ), chunk))
             for r in rows:
                 if r.get('student_id'):
                     out.setdefault(r['student_id'], []).append(r['class_id'])
@@ -100,17 +101,17 @@ class ParentDigestRepository(BaseRepository):
         """(student_id, parent_id) from parent_student_links — 13 and over."""
         pairs = []
         for chunk in _chunks(_clean(student_ids)):
-            rows = fetch_all_rows(lambda c=chunk: (
+            rows = fetch_all_rows(partial(lambda c: (
                 self.client.table('parent_student_links')
                 .select('parent_user_id, student_user_id')
                 .in_('student_user_id', c).eq('status', 'approved')
-            ))
+            ), chunk))
             pairs += [(r['student_user_id'], r['parent_user_id']) for r in rows
                       if r.get('student_user_id') and r.get('parent_user_id')]
         return pairs
 
-    def opted_out(self, parent_ids: List[str], notification_type: str) -> set:
-        out = set()
+    def opted_out(self, parent_ids: List[str], notification_type: str) -> Set[str]:
+        out: Set[str] = set()
         for chunk in _chunks(_clean(parent_ids)):
             rows = (self.client.table('notification_preferences')
                     .select('user_id, enabled').in_('user_id', chunk)
@@ -134,12 +135,12 @@ class ParentDigestRepository(BaseRepository):
     def completions_since(self, student_ids: List[str], since_iso: str) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(student_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('quest_task_completions')
                 .select('id, user_id, task_id, quest_id, evidence_url, evidence_text, '
                         'completed_at, is_confidential')
                 .in_('user_id', c).gte('completed_at', since_iso)
-            ))
+            ), chunk))
         return rows
 
     def tasks_by_ids(self, task_ids: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -166,30 +167,30 @@ class ParentDigestRepository(BaseRepository):
         """
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(task_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('user_task_evidence_documents')
                 .select('id, user_id, task_id, is_confidential').in_('task_id', c)
-            ))
+            ), chunk))
         return rows
 
     def evidence_blocks(self, document_ids: List[str]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(document_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('evidence_document_blocks')
                 .select('document_id, block_type, is_private').in_('document_id', c)
-            ))
+            ), chunk))
         return rows
 
     def learning_events_since(self, student_ids: List[str],
                               since_date: str) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(student_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('learning_events')
                 .select('user_id, title, event_date, is_confidential')
                 .in_('user_id', c).gte('event_date', since_date)
-            ))
+            ), chunk))
         return rows
 
     # ── Work with a due date ─────────────────────────────────────────────────
@@ -197,11 +198,11 @@ class ParentDigestRepository(BaseRepository):
     def dated_class_quests(self, class_ids: List[str]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(class_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('class_quests')
                 .select('class_id, quest_id, due_date, publish_at')
                 .in_('class_id', c).not_.is_('due_date', 'null')
-            ))
+            ), chunk))
         return rows
 
     def user_quests(self, student_ids: List[str],
@@ -209,28 +210,28 @@ class ParentDigestRepository(BaseRepository):
         rows: List[Dict[str, Any]] = []
         for students in _chunks(_clean(student_ids)):
             for quests in _chunks(_clean(quest_ids)):
-                rows += fetch_all_rows(lambda s=students, q=quests: (
+                rows += fetch_all_rows(partial(lambda s, q: (
                     self.client.table('user_quests')
                     .select('id, user_id, quest_id, completed_at')
                     .in_('user_id', s).in_('quest_id', q)
-                ))
+                ), students, quests))
         return rows
 
     def tasks_for_user_quests(self, user_quest_ids: List[str]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for chunk in _chunks(_clean(user_quest_ids)):
-            rows += fetch_all_rows(lambda c=chunk: (
+            rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('user_quest_tasks').select('id, user_quest_id')
                 .in_('user_quest_id', c)
-            ))
+            ), chunk))
         return rows
 
-    def completed_task_ids(self, task_ids: List[str]) -> set:
-        done = set()
+    def completed_task_ids(self, task_ids: List[str]) -> Set[str]:
+        done: Set[str] = set()
         for chunk in _chunks(_clean(task_ids), 200):
-            rows = fetch_all_rows(lambda c=chunk: (
+            rows = fetch_all_rows(partial(lambda c: (
                 self.client.table('quest_task_completions').select('task_id').in_('task_id', c)
-            ))
+            ), chunk))
             done.update(r['task_id'] for r in rows if r.get('task_id'))
         return done
 

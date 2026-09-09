@@ -216,10 +216,10 @@ def _week_work(repo: ParentDigestRepository, student_ids: List[str],
         bucket = out.get(c['user_id'])
         if bucket is None:
             continue
-        task = tasks.get(c.get('task_id')) or {}
+        task = tasks.get(c.get('task_id') or '') or {}
         bucket['tasks'].append({
             'title': task.get('title') or 'A task',
-            'quest': quests.get(c.get('quest_id')),
+            'quest': quests.get(c.get('quest_id') or ''),
             'pillar': get_pillar_name(task['pillar']) if task.get('pillar') else None,
             'xp': task.get('xp_value') or 0,
             'completed_at': c.get('completed_at'),
@@ -254,7 +254,8 @@ def _add_block_evidence(repo: ParentDigestRepository, out: Dict[str, Dict[str, A
         # either, or the numbers would not match the page.
         if block.get('is_private'):
             continue
-        bucket = out.get(owner_by_doc.get(block.get('document_id')))
+        owner = owner_by_doc.get(block.get('document_id') or '')
+        bucket = out.get(owner) if owner else None
         if bucket is None:
             continue
         bucket['evidence'][_BLOCK_BUCKETS.get(block.get('block_type') or '', 'files')] += 1
@@ -483,8 +484,8 @@ def send_one(digest: Dict[str, Any]) -> bool:
 def _sweep_org(org_row: Dict[str, Any], now: datetime, dry_run: bool) -> Dict[str, Any]:
     digests = build_org_digests(org_row, now)
     week_date = now.astimezone(_zone(org_row)).date()
-    result = {'organization': org_row.get('name'), 'parents': len(digests),
-              'sent': 0, 'skipped': 0, 'failed': 0}
+    result: Dict[str, Any] = {'organization': org_row.get('name'), 'parents': len(digests),
+                              'sent': 0, 'skipped': 0, 'failed': 0}
     if dry_run:
         result['preview'] = digests
         return result
