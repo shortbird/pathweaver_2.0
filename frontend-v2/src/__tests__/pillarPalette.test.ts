@@ -1,25 +1,24 @@
 /**
- * Guard: one pillar palette, and a record of the one place that disagrees (QF-01).
+ * Guard: one pillar palette (QF-01).
  *
  * The five pillars had their colours written out in eight places across the
- * repo, and two of those places disagree with the other six about which of
- * civics and wellness is orange. That is not a tidiness problem: the SAME
- * pillar renders orange in the mobile app and red on the web, on every badge,
+ * repo, and two of those places disagreed with the other six about which of
+ * civics and wellness is orange. That was not a tidiness problem: the SAME
+ * pillar rendered orange in the mobile app and red on the web, on every badge,
  * chart and filter chip.
  *
- * shared/pillars.json is now the definition, and this file holds the line in
- * two directions:
+ * RESOLVED 2026-09-04 -- the web app and backend/config/pillars.py were flipped
+ * to the brand reference (Civics orange #FF9028, Wellness red #E65C5C), so the
+ * assertions below now pin the AGREEMENT. This docblock used to explain why the
+ * disagreement was still here and pointed at the audit plan's Open Questions;
+ * both the disagreement and that plan are gone.
+ *
+ * shared/pillars.json is the definition, and this file holds the line in two
+ * directions:
  *
  *   1. Everything wired to it must actually derive from it, not re-declare it.
- *   2. The files that still disagree are pinned by name and exact value, so
- *      the disagreement cannot spread or be forgotten, and so whoever resolves
- *      it gets a failing test naming every file to change.
- *
- * WHY THE DISAGREEMENT IS STILL HERE: flipping two colours changes what users
- * see on every pillar surface of the production web app. The evidence points
- * one way (below), but it is a brand decision, not a refactor, so it is written
- * up in the Open Questions of docs/audit-2026-08/REMEDIATION_PLAN.md rather
- * than made silently inside a deduplication commit.
+ *   2. The values are checked against the brand reference in
+ *      docs/COLOR_REFERENCE.md, so a future flip has to change both.
  */
 
 import { readFileSync } from 'fs';

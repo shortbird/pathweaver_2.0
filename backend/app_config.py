@@ -165,9 +165,11 @@ class Config:
     # OAuth 2.0 PROVIDER (Optio as an identity provider for third-party apps).
     # OFF by default, and it has never been on: the tables its endpoints read --
     # public.oauth_clients, oauth_authorization_codes, oauth_access_tokens --
-    # do not exist in production. backend/migrations/20251226_create_oauth2_
-    # infrastructure.sql creates them and was never applied, so every one of
-    # these endpoints raises 42P01 the moment it touches the database.
+    # do not exist in production. The migration that creates them
+    # (20251226_create_oauth2_infrastructure.sql) was never applied and is no
+    # longer in the tree -- it is in git history, under
+    # docs/archive/legacy-migrations/. So every one of these endpoints raises
+    # 42P01 the moment it touches the database.
     #
     # Do NOT set this true to "fix" that. Two things are missing before the
     # surface should exist at all (SEC-12): there is no consent screen, so an

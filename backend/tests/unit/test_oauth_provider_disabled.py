@@ -7,8 +7,10 @@ defaults off. Two separate reasons, and the second is the one that matters:
 1. It does not work. The endpoints read `public.oauth_clients`,
    `oauth_authorization_codes` and `oauth_access_tokens`, and NONE of those
    tables exists in production -- checked against the live database on
-   2026-09-03. `backend/migrations/20251226_create_oauth2_infrastructure.sql`
-   creates them and was never applied. Every endpoint raises 42P01 the moment
+   2026-09-03. The migration that creates them
+   (`20251226_create_oauth2_infrastructure.sql`) was never applied and is no
+   longer in the tree -- it is in git history, under
+   `docs/archive/legacy-migrations/`. Every endpoint raises 42P01 the moment
    it touches the database, so nothing can be using it and closing it breaks
    nobody.
 

@@ -1,8 +1,8 @@
 # supabase/migrations
 
 The live migration directory. `backend/migrations/` and root `migrations/` were
-archived on 2026-09-03 — see
-[docs/archive/legacy-migrations/](../../docs/archive/legacy-migrations/README.md).
+archived on 2026-09-03 and removed from the tree on 2026-09-08. They are in git
+history: `git log --diff-filter=D -- 'docs/archive/legacy-migrations/*'`.
 
 ## Nothing applies these automatically
 

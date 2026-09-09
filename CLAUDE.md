@@ -625,10 +625,11 @@ Auto-deploy: ON for dev services, OFF for prod (CI-triggered only). All backends
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
 - **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md)
-- **Audit Implementation Plan**: [docs/archive/AUDIT_IMPLEMENTATION_PLAN.md](docs/archive/AUDIT_IMPLEMENTATION_PLAN.md) — historical (2026-04)
+- **Audit remediation — what is already fixed**: [docs/remediation-2026-09/CLOSED_FINDINGS.md](docs/remediation-2026-09/CLOSED_FINDINGS.md) — read before changing auth, logging, CI guards or the ratchets
+- **Audit remediation — what is still open**: [docs/remediation-2026-09/OPEN_FINDINGS.md](docs/remediation-2026-09/OPEN_FINDINGS.md)
 - **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)
 - **Brand / colors**: [docs/OPTIO_BRAND_GUIDELINES.md](docs/OPTIO_BRAND_GUIDELINES.md), [docs/COLOR_REFERENCE.md](docs/COLOR_REFERENCE.md)
 - **Play Store release docs**: [docs/play-store/](docs/play-store/)
-- **Archive (point-in-time, unmaintained)**: [docs/archive/](docs/archive/) — moved
-  out of the repo root 2026-09-03. If one of those disagrees with the code, the
-  code is right.
+- **Stale docs awaiting a decision**: [docs/remediation-2026-09/STALE_DOCS.md](docs/remediation-2026-09/STALE_DOCS.md)
+  — point-in-time records that are not wrong so much as finished. If one of
+  those disagrees with the code, the code is right.
