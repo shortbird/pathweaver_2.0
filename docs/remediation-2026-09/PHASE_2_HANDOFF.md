@@ -147,7 +147,7 @@ The token is valid; the launcher environment is the problem.
 and I will write the LaunchAgent plist. The alternative that needs no setup is to
 always start VS Code by running `code .` from a terminal.
 
-### 2. Read the reconciliation and confirm the two schemas I did not touch
+### 2. The two stray schemas — decided, migration written, not applied
 
 Open [`MIGRATION_RECONCILIATION.md`](MIGRATION_RECONCILIATION.md), section
 "Two things found in production that nobody asked about".
@@ -162,8 +162,24 @@ Open [`MIGRATION_RECONCILIATION.md`](MIGRATION_RECONCILIATION.md), section
    requests are somebody's real data sitting outside every RLS policy.
    **Decide: export and drop, or leave.**
 
-I changed neither and the baseline carries neither forward. If you want either
-dropped, that is a migration and it needs its own commit.
+**You chose: drop both, keep a copy.** Done, as of commit `94919301`:
+
+- The 9 rows are exported to `~/optio-backup_schema-export-20260909.sql`,
+  outside the repo on purpose — five of them carry user UUIDs, and a git
+  repository keeps things forever.
+- `supabase/migrations/20260909163208_drop_test_and_backup_schemas.sql` drops
+  both schemas. It opens with a guard that raises if anything outside them has
+  gained a dependency since it was written, because `CASCADE`'s failure mode is
+  dropping a `public` view that read one of these tables and reporting success.
+
+**Correction to what I told you earlier:** I said the 3 subscription requests
+were "somebody's real data sitting outside every RLS policy". The `phone_number`
+and `message` columns are NULL in every row — what is actually there is user
+UUIDs, tier names and statuses, from October 2025. Lower stakes than I made it
+sound, and the export is still worth keeping.
+
+**Not applied.** See step 3 — it goes through the pipeline after the
+reconciliation, which is the point.
 
 ### 3. Decide when to run the reconciliation — and rehearse it first
 
@@ -188,11 +204,26 @@ If you want it on production now anyway:
 4. If either number is wrong, run
    [`reconcile_schema_migrations_rollback.sql`](reconcile_schema_migrations_rollback.sql)
    and stop. It prints **0** and **96**.
-5. Once it is applied, run `migrate-prod.yml` in **`plan`** mode. It should
-   report **0 pending**. That is the proof the reconciliation worked, and it is
-   the first time that workflow will have told you anything true.
+5. Once it is applied, run `migrate-prod.yml` in **`plan`** mode. What it should
+   report depends on which branch you dispatch it against:
 
-**Do not run `apply` mode until `plan` reports 0 pending.**
+   | Ref | Expect | Why |
+   |---|---|---|
+   | `main` | **0 pending** | The reconciliation covers every migration on `main` |
+   | this branch | **1 pending** | `20260909163208_drop_test_and_backup_schemas` — genuinely not applied |
+
+   Either answer is the proof the reconciliation worked, and it is the first
+   time that workflow will have told you anything true.
+
+**Do not run `apply` mode until `plan` reports the number above for the ref you
+are on.** If it reports 60-odd, the reconciliation did not take; run the
+rollback and tell me.
+
+The drop migration is deliberately **not** in the reconciliation's 67. It has
+never been applied, so it *should* be pending — it is the first honest pending
+migration this repo has had, and at 1 it sits comfortably under `max_pending`'s
+limit of 3. Applying it is how you find out whether the pipeline works, on a
+change whose blast radius is two schemas nothing reads.
 
 ### 4. Fund the staging project (OPS-01) — still your call, still blocking
 
