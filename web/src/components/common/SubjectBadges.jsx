@@ -13,17 +13,17 @@ import { TRANSCRIPT_SUBJECT_NAMES } from '@shared/credits';
 // here rather than in the shared vocabulary -- a hex and an emoji are not
 // properties of a school subject.
 const SUBJECT_STYLE = {
-  language_arts: { color: '#8B5CF6', icon: '\u{1F4D6}' },
-  math: { color: '#3B82F6', icon: '\u{1F522}' },
-  science: { color: '#10B981', icon: '\u{1F52C}' },
-  social_studies: { color: '#F59E0B', icon: '\u{1F30D}' },
-  financial_literacy: { color: '#059669', icon: '\u{1F4B0}' },
-  health: { color: '#EF4444', icon: '\u{2764}\u{FE0F}' },
-  pe: { color: '#F97316', icon: '\u{1F3C3}' },
-  fine_arts: { color: '#EC4899', icon: '\u{1F3A8}' },
-  cte: { color: '#6366F1', icon: '\u{1F527}' },
-  digital_literacy: { color: '#0EA5E9', icon: '\u{1F4BB}' },
-  electives: { color: '#A855F7', icon: '\u{2728}' },
+  language_arts: { color: '#8B5CF6', icon: '📖' },
+  math: { color: '#3B82F6', icon: '🔢' },
+  science: { color: '#10B981', icon: '🔬' },
+  social_studies: { color: '#F59E0B', icon: '🌍' },
+  financial_literacy: { color: '#059669', icon: '💰' },
+  health: { color: '#EF4444', icon: '❤️' },
+  pe: { color: '#F97316', icon: '🏃' },
+  fine_arts: { color: '#EC4899', icon: '🎨' },
+  cte: { color: '#6366F1', icon: '🔧' },
+  digital_literacy: { color: '#0EA5E9', icon: '💻' },
+  electives: { color: '#A855F7', icon: '✨' },
 };
 
 // A subject reaches this component as a key ('cte'), a picker name ('CTE') or a
@@ -33,7 +33,13 @@ const SUBJECT_STYLE = {
 // remembering all three or getting a grey fallback badge.
 const SUBJECT_CONFIG = Object.fromEntries(
   SHARED_SUBJECTS.flatMap((s) => {
-    const config = { label: s.name, ...SUBJECT_STYLE[s.key] };
+    // A subject with no style defined here is left OUT of the map on purpose, so
+    // it falls through to the grey default below -- which is what happened
+    // before, when a subject simply had no entry. Emitting a config with an
+    // undefined colour would render a badge with no colour instead.
+    const style = SUBJECT_STYLE[s.key];
+    if (!style) return [];
+    const config = { label: s.name, ...style };
     const spellings = new Set([s.key, s.name, TRANSCRIPT_SUBJECT_NAMES[s.key] || s.name]);
     return [...spellings].map((spelling) => [spelling, config]);
   })

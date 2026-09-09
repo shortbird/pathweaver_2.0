@@ -485,23 +485,42 @@ prospective family sees.
 
 ---
 
+## Follow-ups done since the handoff was first written
+
+- **The transcript vocabulary is one map.** It turned out to be EIGHT copies on
+  the web, not five, and three of them disagreed about the same subject:
+  `'Career & Technical Education'` in the transcript views, `'Career &
+  Technical'` in the demo, `'Career & Tech Ed'` on two portfolio cards. All
+  eight read `@shared/credits` now. The two normalisation tables
+  (`EvidenceMasonryGallery`, `SubjectBadges`) keep their four genuinely local
+  aliases — `Arts`, `Music`, `Business`, `Technology` — explicit, because what
+  is local should look local. Guarded by a check that no file under `web/src`
+  spells any of the three CTE variants outside a comment.
+- **The dead validator is gone.** `utils/quest_validation.py` lost 561 lines: a
+  `QuestValidator` class doing reading-level estimation and XP scoring that was
+  never instantiated anywhere. 666 lines → 112. Its stale `valid_pillars` list
+  went with it.
+- **`SubjectBadges` has tests now**, which it did not before. The derivation
+  that replaced its twenty-five hand-written entries was checked once by hand
+  against the literal — and a one-off check that is then deleted is the exact
+  pattern this directory records four defects from. It is a test instead.
+
 ## Still open, for a later pass
 
-Small, recorded rather than done, because none was in this phase's scope:
-
-- **The transcript-name map has about five more copies on the web side**
-  (`TranscriptSection.jsx`, `PublicTranscriptPage.jsx`, `TransferCreditForm.jsx`,
-  `transcriptGenerator/subjectOptions.js`, and reverse maps in
-  `EvidenceMasonryGallery.jsx` / `TaskDetailModal.jsx` / `SubjectBadges.jsx`).
-  They all currently agree with the shared map — checked — so this is
-  duplication, not drift. `@shared/credits` now exports the map they each need.
-- **B4** — `utils/quest_validation.py` scores quests against a stale legacy
-  pillar list inside a class nothing constructs. Dead code; delete it.
+- **B4** — resolved above (the dead validator is deleted).
 - **B5** — seven display fallbacks still render `'Arts & Creativity'` when a task
   has no pillar (`routes/quest/completion.py`, `services/portfolio_service.py`).
-  Response values, not writes.
-- **B3** — `prompts/components.SCHOOL_SUBJECT_DISPLAY_NAMES` is a third,
-  hybrid subject vocabulary. May be deliberate; nothing says so.
+  Response values, not writes, so a portfolio can still show a name the product
+  retired in 2025.
+- **B3** — `prompts/components.SCHOOL_SUBJECT_DISPLAY_NAMES` is a third, hybrid
+  subject vocabulary: picker names for most subjects, transcript names for `pe`
+  and `cte`. May be deliberate; nothing says so.
+- **`SubjectDistributionEditor.jsx`** uses subject keys that are not in the
+  `school_subject` enum at all — `english`, `arts`, `physical_education`,
+  `other`. It is live (TeacherVerificationPage → VerificationModal), so whatever
+  distribution it writes is keyed on values nothing else recognises. Found while
+  removing the transcript copies; not investigated, because it is a data-shape
+  question rather than a duplication one.
 - The five backend modules that declare their own pillar **display order** could
   take the canonical one, if you would rather `/api/pillars` and the treehouse
-  agree on ordering. That is a product call, not a refactor.
+  agree on ordering. A product call, not a refactor.
