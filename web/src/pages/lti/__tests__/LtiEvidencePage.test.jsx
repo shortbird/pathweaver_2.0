@@ -1,5 +1,5 @@
 /**
- * Teacher SpeedGrader evidence page (v1) — token gating + quest-scoped
+ * Teacher SpeedGrader evidence page (web) — token gating + quest-scoped
  * render. Direct fetch (not the api instance), mocked here.
  */
 

@@ -4,7 +4,7 @@ OEA Diploma Plan pathways.
 The three OEA diploma pathways are FIXED definitions (PRD V2 section 4.2), so they
 live here as constants rather than in the database. Only a student's *selection*
 is persisted (oea_enrollments.pathway_key). The /api/oea/pathways endpoint serves
-these straight to the v2 frontend so the comparison UX has a single source of truth.
+these straight to the mobile app so the comparison UX has a single source of truth.
 
 Every pathway requires 24 total credits (1 credit = 1 completed course). Each
 requirement is a slot the student fills with credits in oea_credits. `subject_key`

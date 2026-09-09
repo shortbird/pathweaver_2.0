@@ -1,5 +1,5 @@
 /**
- * Teacher evidence review — Canvas SpeedGrader target (v1).
+ * Teacher evidence review — Canvas SpeedGrader target (web).
  *
  * Opened unauthenticated by the grading teacher. The only credential is
  * the signed `lti_token` in the URL (minted by grade-sync, scoped to one

@@ -6,7 +6,7 @@ type ButtonVariant = 'solid' | 'outline' | 'link';
 type ButtonAction = 'primary' | 'secondary' | 'positive' | 'negative';
 type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
-// V1-style brand gradient on web for primary solid buttons; on native, fall back
+// Web-app-style brand gradient on web for primary solid buttons; on native, fall back
 // to the solid optio-purple plus a soft warm shadow (no expo-linear-gradient dep).
 const brandGradientStyle = Platform.OS === 'web'
   ? {

@@ -1,5 +1,5 @@
 /**
- * Generic error UX inside the iframe (v1). We never link out — the parent
+ * Generic error UX inside the iframe (web). We never link out — the parent
  * is Canvas and clicking "go to optio.com" inside an iframe is a worse UX
  * than just telling the teacher/student to relaunch from Canvas.
  */

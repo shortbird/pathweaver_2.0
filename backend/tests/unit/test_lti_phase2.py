@@ -394,7 +394,7 @@ def test_decode_evidence_token_returns_uid_qid(monkeypatch):
 def test_lti_frontend_url_defaults_to_frontend_url(monkeypatch):
     """Staged Phase-4 plumbing: _frontend_url() must be a no-op until
     LTI_FRONTEND_URL is set in prod env (then it moves only the LTI iframe
-    to the v2 host, no code change)."""
+    to the mobile host, no code change)."""
     from routes.lti.launch import _frontend_url
 
     # No LTI override → falls back to FRONTEND_URL (current prod behaviour).
@@ -402,6 +402,6 @@ def test_lti_frontend_url_defaults_to_frontend_url(monkeypatch):
     monkeypatch.setattr("app_config.Config.FRONTEND_URL", "https://www.optioeducation.com")
     assert _frontend_url() == "https://www.optioeducation.com"
 
-    # LTI override set → LTI redirects use the v2 host; rest of app untouched.
+    # LTI override set → LTI redirects use the mobile host; rest of app untouched.
     monkeypatch.setattr("app_config.Config.LTI_FRONTEND_URL", "https://v2.optioeducation.com/")
     assert _frontend_url() == "https://v2.optioeducation.com"

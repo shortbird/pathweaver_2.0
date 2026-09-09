@@ -1,5 +1,5 @@
 /**
- * Deep Linking 2.0 teacher form (v1).
+ * Deep Linking 2.0 teacher form (web).
  *
  * Reached after /lti/launch resolved an LtiDeepLinkingRequest and the
  * iframe exchanged its auth code. The teacher provides a title and

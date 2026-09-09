@@ -3,8 +3,8 @@
  *
  * This is the SINGLE SOURCE OF TRUTH for the Terms of Service and Privacy
  * Policy text. It is consumed by BOTH frontends:
- *   - v1 web  (web/)        -> rendered with HTML via LegalDocument.jsx
- *   - v2 mobile (mobile/)   -> rendered with RN components via LegalDocument.tsx
+ *   - web    (web/)     -> rendered with HTML via LegalDocument.jsx
+ *   - mobile (mobile/)  -> rendered with RN components via LegalDocument.tsx
  *
  * Content is structured data (not markdown / not JSX) so each platform can
  * render it with its own components and styling while the words stay identical.

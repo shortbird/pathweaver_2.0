@@ -21,8 +21,8 @@ import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 // Q5: canonical Optio logo is the Supabase-hosted gradient_fav.svg — same asset
-// used by v1 (web/index.html, TopNavbar.jsx, manifest.json) and by other
-// v2 screens (onboarding.tsx, feed.tsx). Keep these in lockstep.
+// used by the web app (web/index.html, TopNavbar.jsx, manifest.json) and by
+// other mobile screens (onboarding.tsx, feed.tsx). Keep these in lockstep.
 const LOGO_URI =
   'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg';
 

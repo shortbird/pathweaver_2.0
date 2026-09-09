@@ -10,8 +10,8 @@
  * Read-only. Renders inside LtiShell so it sizes the Canvas iframe and
  * stays width-constrained in the cramped SpeedGrader pane.
  *
- * NOTE: not yet wired to AGS. grade-sync keeps pointing at the v1
- * /public/diploma URL until the staged v2-as-LTI-host cutover (Phase 4).
+ * NOTE: not yet wired to AGS. grade-sync keeps pointing at the web app's
+ * /public/diploma URL until the staged mobile-as-LTI-host cutover (Phase 4).
  */
 
 import { useEffect, useState } from 'react';

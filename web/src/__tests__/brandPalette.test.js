@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 /**
- * Ratchet: hard-coded colours in v1 may shrink, never grow (QF-07).
+ * Ratchet: hard-coded colours in the web app may shrink, never grow (QF-07).
  *
  * CLAUDE.md rule 5 says use `optio-purple` / `optio-pink`, not raw hex. The
  * measurement behind this test, taken 2026-09-03:

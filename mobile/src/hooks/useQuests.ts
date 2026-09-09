@@ -46,7 +46,7 @@ export interface QuestTopic {
   count: number;
 }
 
-// Topic taxonomy with subtopics (matches v1 QuestDiscovery)
+// Topic taxonomy with subtopics (matches the web app's QuestDiscovery)
 export const TOPIC_TAXONOMY: Record<string, string[]> = {
   Creative: ['Music', 'Art', 'Design', 'Animation', 'Film', 'Writing', 'Photography', 'Crafts'],
   Science: ['Biology', 'Chemistry', 'Physics', 'Technology', 'Research', 'Astronomy', 'Environment'],

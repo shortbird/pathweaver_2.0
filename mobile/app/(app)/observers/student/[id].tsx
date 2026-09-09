@@ -1,7 +1,7 @@
 /**
  * Observer per-student overview - read-only view of one linked student.
  *
- * Mirrors the V1 ObserverStudentOverviewPage in spirit: feed scoped to the
+ * Mirrors the web ObserverStudentOverviewPage in spirit: feed scoped to the
  * student, recent activity, and a "back to students" affordance.
  */
 

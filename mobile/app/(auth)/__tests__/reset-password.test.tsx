@@ -2,7 +2,7 @@
  * Reset password screen tests - token handling, password validation,
  * success/error states.
  *
- * Covers issues found during v2 launch readiness audit:
+ * Covers issues found during the mobile launch readiness audit:
  * - Reset password page was missing entirely
  * - Email link pointed to wrong port (localhost:3000 vs 8081)
  * - API field name mismatch (password vs new_password)

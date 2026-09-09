@@ -297,7 +297,7 @@ describe('authStore', () => {
     });
   });
 
-  // ── Register Error Object Handling (v2 launch audit fix) ──
+  // ── Register Error Object Handling (mobile launch audit fix) ──
 
   describe('register error handling', () => {
     it('extracts message string from error object {code, message, ...}', async () => {
@@ -363,7 +363,7 @@ describe('authStore', () => {
     });
   });
 
-  // ── Forgot Password (v2 launch audit addition) ──
+  // ── Forgot Password (mobile launch audit addition) ──
 
   describe('forgotPassword', () => {
     it('calls authAPI.forgotPassword and returns success message', async () => {

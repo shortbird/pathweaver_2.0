@@ -1,7 +1,7 @@
 """Who gets a copy of their session tokens in the response body.
 
 Every login-shaped endpoint used to return `app_access_token` and
-`app_refresh_token` in the JSON, unconditionally, and the v1 web client stored
+`app_refresh_token` in the JSON, unconditionally, and the web client stored
 both in the JS heap for every visitor. That was written for one real problem --
 Safari/iOS and Firefox drop our cross-site cookies, so those browsers genuinely
 cannot authenticate any way but the `Authorization` header -- and then applied to
@@ -27,7 +27,7 @@ The four cases, in the order they are checked:
      in web/src/utils/browserDetection.js draws the same line client-side.
   3. A browser on some other origin -- mobile's web target, which keeps the
      access token in memory and refreshes from the cookie (ADR-001).
-  4. Everything else: a cookie-capable browser on the v1 web app. Cookies are
+  4. Everything else: a cookie-capable browser on the web app. Cookies are
      already set on the same response; it gets nothing in the body.
 
 Case 4 is the whole population this exists to change, and it is the majority of
@@ -46,10 +46,10 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Origins that are NOT the v1 web app, matched as substrings of the Origin
+# Origins that are NOT the web app, matched as substrings of the Origin
 # header. mobile's web target is a separate surface with its own storage
-# model and must keep receiving tokens (ADR-001, "v2 web").
-_NON_V1_ORIGIN_HINTS = (
+# model and must keep receiving tokens (ADR-001, "mobile web").
+_NON_WEB_APP_ORIGIN_HINTS = (
     'optio-dev-v2-frontend',   # Render dev service for mobile web
     'localhost:8081',          # Expo dev server
     '127.0.0.1:8081',
@@ -87,12 +87,12 @@ def _blocks_our_cookies(ua: str) -> bool:
 
 def _v1_web_origin(origin: str) -> bool:
     if not origin:
-        # A browser that sent no Origin is not the v1 web app talking to the API:
+        # A browser that sent no Origin is not the web app talking to the API:
         # that call is cross-origin in every environment we run (www -> api in
         # prod, :3000 -> :5001 in dev), so the browser always attaches one. Treat
         # the unknown caller as needing tokens rather than break it.
         return False
-    if any(hint in origin for hint in _NON_V1_ORIGIN_HINTS):
+    if any(hint in origin for hint in _NON_WEB_APP_ORIGIN_HINTS):
         return False
     return origin in (Config.ALLOWED_ORIGINS or [])
 
@@ -101,7 +101,7 @@ def client_declined_body_tokens() -> bool:
     """True when the client has said it authenticates by cookie.
 
     Safe to trust because it can only ever REMOVE a credential from the
-    response. v1 sends this from `shouldUseAuthHeaders()`, which knows things the
+    response. The web app sends this from `shouldUseAuthHeaders()`, which knows things the
     server does not -- a previous cookie test in this tab, for instance.
     """
     header = (request.headers.get(AUTH_MODE_HEADER) or '').strip().lower()
@@ -185,7 +185,7 @@ def masquerade_body_tokens(access_token: str, refresh_token: str) -> Dict[str, s
     This one lives outside routes/auth/, which is why it kept handing both
     tokens to every caller long after login stopped. The response already sets
     the httpOnly `masquerade_token` cookie, and get_effective_user_id() reads
-    it, so a cookie-capable browser needs nothing in the body -- v1 reloads the
+    it, so a cookie-capable browser needs nothing in the body -- the web app reloads the
     page immediately after starting a masquerade anyway, which throws away
     whatever it had in memory.
     """

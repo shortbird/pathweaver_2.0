@@ -5,7 +5,7 @@ import path from 'path'
 /**
  * Ratchet: pages that fetch by hand may shrink, never grow (QF-03).
  *
- * Two data-fetching paradigms live in v1. `hooks/api/` (react-query) is the one
+ * Two data-fetching paradigms live in the web app. `hooks/api/` (react-query) is the one
  * the codebase decided on; calling `api.get()` inside a `useEffect` is the one
  * most pages actually do. Measured 2026-09-03 across 174 pages:
  *

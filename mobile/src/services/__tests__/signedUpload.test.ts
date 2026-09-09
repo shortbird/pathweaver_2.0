@@ -1,5 +1,5 @@
 /**
- * Tests for the v2 signed-upload helper.
+ * Tests for the mobile signed-upload helper.
  *
  * Mocks the api client + XMLHttpRequest so we can drive the full flow
  * synchronously without a real network.
@@ -66,7 +66,7 @@ function makeWebFile(name = 'photo.png', size = 2048, type = 'image/png') {
   }
 }
 
-describe('uploadViaSignedUrl (v2)', () => {
+describe('uploadViaSignedUrl (mobile)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

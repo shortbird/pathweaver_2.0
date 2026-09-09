@@ -2,7 +2,7 @@
  * Course Edit - Superadmin-only course editing page.
  *
  * Allows editing title, description, status, and visibility.
- * Mirrors the core editing functionality from v1 CourseBuilder's details modal.
+ * Mirrors the core editing functionality from the web CourseBuilder's details modal.
  */
 
 import React, { useState, useEffect } from 'react';

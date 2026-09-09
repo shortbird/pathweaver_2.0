@@ -45,10 +45,10 @@ PROD = [
 ]
 
 DEV = [
-    ("http://localhost:3000/auth/callback", "v1 local dev"),
-    ("http://localhost:8081/auth/callback", "v2 local dev / Expo web"),
-    ("https://optio-dev-frontend-r3v8.onrender.com/auth/callback", "dev v1 on Render"),
-    ("https://optio-dev-v2-frontend-x1dk.onrender.com/auth/callback", "dev v2 on Render"),
+    ("http://localhost:3000/auth/callback", "web local dev"),
+    ("http://localhost:8081/auth/callback", "mobile local dev / Expo web"),
+    ("https://optio-dev-frontend-r3v8.onrender.com/auth/callback", "dev web on Render"),
+    ("https://optio-dev-v2-frontend-x1dk.onrender.com/auth/callback", "dev mobile web on Render"),
 ]
 
 

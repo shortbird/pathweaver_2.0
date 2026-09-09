@@ -57,7 +57,7 @@ interface TaskCreationWizardProps {
   defaultChallengeLevel?: string | null;
   /** Optional suggested/template tasks to browse. When provided, a third "Browse Suggestions" option appears. */
   suggestedTasks?: any[];
-  /** When true, the AI step shows an interest-chip multi-select (matching v1 web)
+  /** When true, the AI step shows an interest-chip multi-select (matching the web app)
    *  instead of free-text + pillar focus. The class subject is auto-applied
    *  server-side, so we skip the pillar selector entirely. */
   isClassQuest?: boolean;
@@ -120,7 +120,7 @@ export function TaskCreationWizard({
   // AI fields
   const [interests, setInterests] = useState('');
   const [selectedPillar, setSelectedPillar] = useState<string | null>(null);
-  // Class-quest mode: chip multi-select of interest categories (v1-style)
+  // Class-quest mode: chip multi-select of interest categories (web-app style)
   const [selectedInterestChips, setSelectedInterestChips] = useState<Set<string>>(new Set());
   const [extraIdeas, setExtraIdeas] = useState('');
   const [generating, setGenerating] = useState(false);

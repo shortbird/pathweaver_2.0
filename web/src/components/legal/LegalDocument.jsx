@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 /**
  * Renders a shared LegalDocument (from shared/legal) as HTML.
  *
- * The document content is the single source of truth shared with the v2 mobile
+ * The document content is the single source of truth shared with the mobile
  * app; this component only handles web presentation. See shared/legal/types.ts.
  */
 

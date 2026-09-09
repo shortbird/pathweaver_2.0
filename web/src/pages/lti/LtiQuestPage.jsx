@@ -1,10 +1,10 @@
 /**
- * Iframe quest detail (v1).
+ * Iframe quest detail (web).
  *
  * Reached after a student clicks an Optio assignment in Canvas. The launch
  * handler resolves the quest_id, mints tokens, and redirects here. We
  * auto-enroll the student if not enrolled, then open the SAME
- * `QuestPersonalizationWizard` v1's QuestDetail page uses (single source of
+ * `QuestPersonalizationWizard` the web QuestDetail page uses (single source of
  * truth — see web/src/components/quests/QuestPersonalizationWizard.jsx).
  *
  * Quest auto-completes when all required tasks are done — the backend's
@@ -18,7 +18,7 @@ import LtiShell from '../../components/lti/LtiShell'
 import LtiEvidenceEditor from '../../components/lti/LtiEvidenceEditor'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
-// Reuse v1's wizard. Lazy-loaded so the iframe payload stays small.
+// Reuse the web app's wizard. Lazy-loaded so the iframe payload stays small.
 const QuestPersonalizationWizard = lazy(() =>
   import('../../components/quests/QuestPersonalizationWizard'),
 )
@@ -73,7 +73,7 @@ export default function LtiQuestPage() {
   }, [quest, enrollAttempted, questId, fetchQuest])
 
   // Auto-open the personalization wizard the first time a student lands on
-  // an enrolled-but-empty quest. Mirrors v1 QuestDetail's first-run UX.
+  // an enrolled-but-empty quest. Mirrors the web QuestDetail's first-run UX.
   // Guarded by autoOpenedRef so closing the wizard never re-triggers it.
   useEffect(() => {
     if (!quest || autoOpenedRef.current) return
@@ -117,7 +117,7 @@ export default function LtiQuestPage() {
   }
 
   const removeTask = async (taskId) => {
-    // Same endpoint v1's wizard uses (useQuestDetail.deleteTask). Removing
+    // Same endpoint the web wizard uses (useQuestDetail.deleteTask). Removing
     // a completed task also drops its XP from the threshold calculation,
     // which is intentional — students can prune AI suggestions they don't
     // want without keeping artificial XP credit.
@@ -131,7 +131,7 @@ export default function LtiQuestPage() {
     setSubmitGradeError(null)
     setSubmittingForGrade(true)
     try {
-      // /end is the canonical "I'm done with this quest" endpoint v1 also
+      // /end is the canonical "I'm done with this quest" endpoint the web app also
       // uses. Marks user_quests.completed_at + is_active=false, fires the
       // LTI grade-sync hook which posts an AGS Score to Canvas/saLTIre.
       await api.post(`/api/quests/${questId}/end`, {})
@@ -191,7 +191,7 @@ export default function LtiQuestPage() {
   const canSubmit = xpMet
 
   // The API sets BOTH user_enrollment AND completed_enrollment when the quest
-  // has no active enrollment (back-compat for v1). So `completed_enrollment`
+  // has no active enrollment (back-compat for the web app). So `completed_enrollment`
   // alone is the signal that the student has submitted/finished.
   const submitted = !!quest.completed_enrollment
 

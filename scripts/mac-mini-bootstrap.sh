@@ -198,7 +198,7 @@ pip install -r "$REPO_DIR/backend/requirements.txt" --quiet 2>/dev/null || {
   warn "Some backend dependencies failed. Backend testing may be limited."
 }
 
-# Frontend v2
+# Mobile app
 echo "  Installing mobile npm packages..."
 cd "$REPO_DIR/mobile"
 npm ci --legacy-peer-deps 2>/dev/null || npm install --legacy-peer-deps 2>/dev/null

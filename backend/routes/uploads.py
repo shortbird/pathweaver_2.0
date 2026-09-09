@@ -146,7 +146,7 @@ def upload_evidence_base64(user_id):
 
 
 # --- Signed upload (direct-to-Supabase) for all authenticated users ---
-# These endpoints back the v2 bounty/capture upload flows and any other
+# These endpoints back the mobile bounty/capture upload flows and any other
 # caller that needs to upload files larger than Render's per-request memory
 # budget. The client uploads directly to Supabase via the returned signed URL,
 # avoiding backend memory pressure entirely.

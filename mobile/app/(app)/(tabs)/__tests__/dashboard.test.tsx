@@ -2,7 +2,7 @@
  * Dashboard screen tests - welcome header, quest grid, enrolled courses,
  * navigation buttons.
  *
- * Covers issues found during v2 launch readiness audit:
+ * Covers issues found during the mobile launch readiness audit:
  * - Enrolled courses were fetched but not rendered
  * - Browse All / Browse Quests buttons had no onPress handlers
  */

@@ -2,7 +2,7 @@
 Regression tests for per-user rate limiting and 429 observability.
 
 Context: a student reported "Upload failed: Too many requests" on the mobile
-v1 web app. Root cause: the rate limiter keyed every request by client IP, so
+web app. Root cause: the rate limiter keyed every request by client IP, so
 students sharing a public IP (mobile carrier CGNAT, school/library NAT)
 shared a single upload bucket and locked each other out. Separately, the 429
 was returned as a plain JSON response (not an exception or logger.error), so

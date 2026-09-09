@@ -238,7 +238,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     // Pass existing task titles so AI avoids suggesting duplicates
     const existingTitles = (quest?.quest_tasks || []).map((t) => t.title);
     // Split comma-separated interests into a proper list so the AI sees them
-    // as distinct items (matches v1 web behavior).
+    // as distinct items (matches web app behavior).
     const interestList = interests
       ? interests.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
@@ -358,7 +358,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
 }
 
 // Derived from src/config/pillars rather than re-listed (QF-01). This was the
-// third copy of the five pillars in v2 alone; the other two had already drifted
+// third copy of the five pillars in this app alone; the other two had already drifted
 // apart on labels and colours.
 export const PILLARS = ['stem', 'art', 'communication', 'civics', 'wellness']
   .map((key) => ({ key, label: pillarConfig[key].label }));

@@ -14,7 +14,7 @@ Optio runs three measurement systems, each with a distinct job:
 
 | System | What it's for | Where | Gating |
 |---|---|---|---|
-| **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `web/src/services/posthog.js`, `posthog-react-native` in v2 | `VITE_POSTHOG_KEY` — off in local dev |
+| **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `web/src/services/posthog.js`, `posthog-react-native` in the mobile app | `VITE_POSTHOG_KEY` — off in local dev |
 | **Google Analytics 4** | Acquisition funnel + Google Ads attribution (marketing site, logged-out) | `web/src/services/googleAnalytics.js` + `components/GaTracker.jsx` | **prod host only**, logged-out only |
 | **Meta Pixel** | Ad audiences / conversions (marketing site, logged-out) | `web/src/utils/metaPixel.js` + `components/MetaPixelTracker.jsx` | **prod host only**, logged-out only |
 

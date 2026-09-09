@@ -67,7 +67,7 @@ _INTERP = re.compile(r'\$\{[^}]*\}')
 #     accepting an observer invitation on a phone 404'd every time and the
 #     screen reported it as "the code may be invalid or expired". Now posts to
 #     /api/observers/accept/<code>.
-#   /api/tasks, /api/users/xp, /api/users/badges were dead exports in v2's
+#   /api/tasks, /api/users/xp, /api/users/badges were dead exports in the mobile app's
 #     services/api.ts (taskAPI.create, userAPI.xp, userAPI.badges). Nothing
 #     called them; they are deleted rather than pointed somewhere.
 KNOWN_DEAD = {

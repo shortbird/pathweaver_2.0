@@ -1,7 +1,7 @@
 /**
  * Privacy Policy - Public page, no auth required.
  *
- * Content lives in shared/legal (single source of truth shared with the v1 web
+ * Content lives in shared/legal (single source of truth shared with the web
  * app). This screen only renders it. See shared/legal/types.ts.
  */
 import React from 'react';

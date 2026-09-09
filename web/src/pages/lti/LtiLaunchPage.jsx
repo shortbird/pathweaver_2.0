@@ -1,5 +1,5 @@
 /**
- * LTI launch handoff (v1).
+ * LTI launch handoff (web).
  *
  * Canvas → backend /lti/launch verifies the id_token and redirects the
  * iframe here with `?code=<one-time>&mode=<deep_link|pending>?`. We

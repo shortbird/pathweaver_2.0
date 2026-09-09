@@ -5,7 +5,7 @@
  * and a short-lived tos_acceptance_token instead of a session; the account is
  * only created once the user actually accepts. The store parks that token in
  * pendingTosToken and routes here (previously the app auto-accepted on the
- * user's behalf, which defeated the gate). Mirrors the v1 web TOS modal.
+ * user's behalf, which defeated the gate). Mirrors the web app's TOS modal.
  */
 import React from 'react';
 import { Platform, View } from 'react-native';

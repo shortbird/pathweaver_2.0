@@ -1,7 +1,7 @@
 import type { LegalDocument } from './types';
 
 /**
- * Privacy Policy — canonical content shared by v1 web and v2 mobile.
+ * Privacy Policy — canonical content shared by the web and mobile apps.
  *
  * v1.1 (2026-06-16): Added explicit disclosure that we may share contact
  * information (e.g. a hashed email address) with advertising platforms such as

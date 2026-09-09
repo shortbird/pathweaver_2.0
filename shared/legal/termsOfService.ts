@@ -1,7 +1,7 @@
 import type { LegalDocument } from './types';
 
 /**
- * Terms of Service — canonical content shared by v1 web and v2 mobile.
+ * Terms of Service — canonical content shared by the web and mobile apps.
  * Keep `version` in sync with CURRENT_TOS_VERSION in backend/legal_versions.py.
  *
  * v1.1 (2026-08-01): Portfolios are private by default and parents control

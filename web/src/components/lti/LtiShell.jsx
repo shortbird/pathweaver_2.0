@@ -1,9 +1,9 @@
 /**
- * LtiShell (v1) — shared iframe-aware layout for every LTI page.
+ * LtiShell (web) — shared iframe-aware layout for every LTI page.
  *
- * Mirrors the v2 design (docs/LTI_FRONTEND_REDESIGN.md) but ported to v1's
+ * Mirrors the mobile design (docs/LTI_FRONTEND_REDESIGN.md) but ported to the web app's
  * React-DOM + Tailwind stack so LTI can stay on the existing
- * www.optioeducation.com host — no separate v2 deploy needed.
+ * www.optioeducation.com host — no separate mobile deploy needed.
  *
  * Responsibilities:
  *   - Width-constrained single column that works in narrow Canvas iframes

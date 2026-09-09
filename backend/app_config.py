@@ -104,9 +104,9 @@ class Config:
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
     # LTI-only frontend base. Defaults to FRONTEND_URL so this is a no-op
-    # until the v2-as-LTI-host cutover (docs/LTI_FRONTEND_REDESIGN.md §8):
-    # at cutover, set LTI_FRONTEND_URL=<v2 host> in prod env to move ONLY
-    # the LTI iframe to mobile, leaving the rest of the app on v1.
+    # until the mobile-app-as-LTI-host cutover (docs/LTI_FRONTEND_REDESIGN.md §8):
+    # at cutover, set LTI_FRONTEND_URL=<mobile host> in prod env to move ONLY
+    # the LTI iframe to the mobile app, leaving the rest on the web app.
     # Used by the LTI launch/token redirects; the AGS evidence URL repoint
     # is a separate, coordinated cutover step (see runbook).
     LTI_FRONTEND_URL = os.getenv('LTI_FRONTEND_URL') or FRONTEND_URL

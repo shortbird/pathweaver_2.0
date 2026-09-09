@@ -20,7 +20,7 @@ const GOOGLE_ICON_URI =
 
 const EMAIL_REGEX = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
-/** Given a user object, return the best post-login route for v2. */
+/** Given a user object, return the best post-login route on mobile. */
 function getRedirectForRole(user: User): string {
   const role = user.org_role && user.role === 'org_managed' ? user.org_role : user.role;
 

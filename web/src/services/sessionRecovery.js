@@ -1,5 +1,5 @@
 /**
- * Session recovery helpers for the v1 response interceptor.
+ * Session recovery helpers for the web app's response interceptor.
  *
  * Why this exists: the interceptor used to treat *every* failed
  * /api/auth/refresh as "your session is over" — it cleared the in-memory
@@ -14,9 +14,9 @@
  * one school NAT is one IP), the client threw away a session the backend would
  * still have honoured for weeks, and bounced the user to /login.
  *
- * v2 already solved this (E4 + isUnrecoverableAuthFailure in
- * mobile/src/services/api.ts and refreshRetry.ts); v1 never got the fix.
- * These two helpers are the v1 port, kept in their own module so they are
+ * The mobile app already solved this (E4 + isUnrecoverableAuthFailure in
+ * mobile/src/services/api.ts and refreshRetry.ts); the web app never got the
+ * fix. These two helpers are the web port, kept in their own module so they are
  * unit-testable without standing up the whole axios instance.
  */
 

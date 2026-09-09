@@ -1,6 +1,6 @@
 /**
  * UserConnectionsTab - view & manage a user's advisor / parent-child / observer
- * connections from the mobile admin panel. Mirrors the v1 web
+ * connections from the mobile admin panel. Mirrors the web
  * UserConnectionsTab (web/src/components/admin/UserConnectionsTab.jsx) and
  * calls the same admin endpoints.
  *

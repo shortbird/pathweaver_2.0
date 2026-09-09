@@ -3,7 +3,7 @@
  * app has.
  *
  * It stopped being the single source of truth on 2026-09-03 (QF-01). Keys,
- * labels, short labels and colours now come from `@shared/pillars`, which v1
+ * labels, short labels and colours now come from `@shared/pillars`, which the web app
  * reads too -- a pillar's name and colour are the same fact on both surfaces,
  * and keeping two copies is how the web app and this one ended up disagreeing
  * about which of civics and wellness is orange (see shared/pillars.json).

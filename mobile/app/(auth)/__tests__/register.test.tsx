@@ -2,7 +2,7 @@
  * Register screen tests - form fields, validation, password strength,
  * terms acceptance, COPPA age check, error handling.
  *
- * Covers issues found during v2 launch readiness audit:
+ * Covers issues found during the mobile launch readiness audit:
  * - Password strength validation (12 chars, upper, lower, number, special)
  * - Confirm password matching
  * - Terms of Service / Privacy Policy checkbox required

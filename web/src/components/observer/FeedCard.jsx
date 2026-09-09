@@ -338,10 +338,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
 
   // Grouped task evidence: the shared backend returns evidence.type ===
   // 'document_blocks' with the files in evidence.blocks[] (the same shape the
-  // mobile app renders). v1 previously only handled learning-moment media and a
+  // mobile app renders). The web app previously only handled learning-moment media and a
   // single evidence.url, so these task cards showed no image. Render the blocks
   // through MediaCarousel (it reads {type, url, title}). Backend + mobile are
-  // untouched — this is a v1-only read of an existing field.
+  // untouched — this is a web-only read of an existing field.
   const evidenceBlocks = (localItem.evidence?.blocks || []).filter(b => b && b.url);
   const hasEvidenceBlocks = evidenceBlocks.length > 0;
 

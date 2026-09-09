@@ -1,5 +1,5 @@
 /**
- * LtiEvidenceEditor (v1) — multi-format gating + payload shape.
+ * LtiEvidenceEditor (web) — multi-format gating + payload shape.
  *
  * The upload helper is mocked; we don't drive a real file picker, we feed
  * the hidden <input type=file> via fireEvent.change with a File object.

@@ -26,7 +26,7 @@ import { useConfirm } from '../contexts/ConfirmContext'
  * the write target swapped to the child (POST /api/family/quests/:id/tasks,
  * which persists through the shared persist_accepted_task helper so a
  * parent-added task is byte-for-byte what a student self-accepted task is).
- * Mirrors how v2 mobile reuses its TaskCreationWizard on the parent screen.
+ * Mirrors how the mobile app reuses its TaskCreationWizard on the parent screen.
  */
 const ParentQuestView = () => {
   const confirm = useConfirm()

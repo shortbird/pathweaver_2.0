@@ -72,7 +72,7 @@ class TestCookieCapableBrowsersGetNothing:
         """The same response sets the httpOnly masquerade_token cookie, and
         get_effective_user_id() reads it. Putting the impersonation JWT in the
         body as well only widened what an XSS on an admin's session could take
-        -- and v1 reloads the page immediately afterwards, so it never used the
+        -- and the web app reloads the page immediately afterwards, so it never used the
         copy it was given."""
         from routes.auth import token_delivery
         with ctx(ua=CHROME, origin=_v1_origin()):
@@ -116,10 +116,10 @@ class TestClientsThatCannotUseCookiesStillWork:
             tokens = token_delivery.body_tokens('a', 'r')
         assert tokens == {'app_access_token': 'a', 'app_refresh_token': 'r'}
 
-    def test_the_v2_web_target_keeps_working(self, ctx):
+    def test_the_mobile_web_target_keeps_working(self, ctx):
         """mobile's web build runs in an ordinary browser but keeps its
         access token in memory and refreshes from the cookie; it is told apart
-        from the v1 app by its Origin."""
+        from the web app by its Origin."""
         from routes.auth import token_delivery
         with ctx(ua=CHROME, origin='http://localhost:8081'):
             assert token_delivery.body_tokens('a', 'r')
@@ -136,7 +136,7 @@ class TestClientsThatCannotUseCookiesStillWork:
                           'masquerade_refresh_token': 'mqr'}
 
     def test_an_unknown_caller_is_not_broken(self, ctx):
-        """No Origin means not the v1 web app: that call is cross-origin in
+        """No Origin means not the web app: that call is cross-origin in
         every environment we run, so the browser always attaches one. Anything
         else keeps today's behaviour rather than losing its session to a
         classification we got wrong."""

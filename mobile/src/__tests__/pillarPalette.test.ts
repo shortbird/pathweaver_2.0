@@ -66,7 +66,7 @@ describe('the shared pillar palette', () => {
   });
 });
 
-describe("v2 derives from it rather than copying it", () => {
+describe("mobile derives from it rather than copying it", () => {
   it('takes label and colour from shared, for every pillar', () => {
     for (const p of PILLARS) {
       expect(pillars[p.key].color).toBe(p.color);
@@ -131,7 +131,7 @@ describe('every surface now agrees with shared/pillars.json', () => {
       .toEqual({ civics: CANONICAL.civics, wellness: CANONICAL.wellness });
   });
 
-  it("v1's light and dark shades sit on the right base", () => {
+  it("the web app's light and dark shades sit on the right base", () => {
     // The shades are web-only, so shared/pillars.json cannot carry them -- and
     // they are the half that gets flipped back, because they are picked by eye.
     // Wellness is the red family, civics the orange family.
@@ -142,7 +142,7 @@ describe('every surface now agrees with shared/pillars.json', () => {
     expect(tw).toContain("'pillar-civics-dark': '#E67A1A'");
   });
 
-  it("v1's pillarMappings tailwind classes agree with its own hex", () => {
+  it("the web app's pillarMappings tailwind classes agree with its own hex", () => {
     // This is the contradiction that identified which side was wrong: civics
     // carried color '#E65C5C' (red) beside bg-orange-50/text-orange-700. If the
     // two halves ever disagree again, the same bug is back.

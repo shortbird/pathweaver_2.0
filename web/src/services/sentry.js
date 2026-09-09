@@ -1,5 +1,5 @@
 /**
- * Sentry wiring for the web app (v1).
+ * Sentry wiring for the web app.
  *
  * Initialized once from main.jsx. No-op unless VITE_SENTRY_DSN is set, so local
  * dev and any build without the env var stay silent. Mirrors the mobile setup:

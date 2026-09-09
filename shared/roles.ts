@@ -18,7 +18,7 @@
  * reads it.
  *
  * Not handled here, on purpose: the backend's `apply_role_view` narrowing (a
- * superadmin viewing the app as another role) and v2's `previewRoleStore`.
+ * superadmin viewing the app as another role) and the mobile `previewRoleStore`.
  * Both are layered on top by their own callers.
  */
 

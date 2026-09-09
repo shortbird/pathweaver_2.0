@@ -826,7 +826,7 @@ class EmailService(BaseService):
     def send_bug_report_admin_email(self, report: Dict[str, Any]) -> bool:
         """Notify the admin inbox that a new in-app feedback / bug report landed.
 
-        Covers every surface that posts to /api/bug-reports (v2 mobile shake-to-
+        Covers every surface that posts to /api/bug-reports (mobile shake-to-
         report AND the web-SIS feedback button). Best-effort — the caller must
         never let a failure here fail the report submission itself.
 

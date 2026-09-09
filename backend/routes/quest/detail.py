@@ -204,12 +204,18 @@ def get_quest_detail(user_id: str, quest_id: str):
                         pillar_key = 'art'  # Default fallback
                     task['pillar'] = pillar_key  # Send key, not display name
 
-            # Q2: legacy response key — frontend v1 reads `quest.quest_tasks`.
+            # Q2: legacy response key — the web app reads `quest.quest_tasks`.
             # The DB table is `user_quest_tasks`; the `quest_tasks` table was
-            # archived. Keep the response key alive until the v1→v2 migration
-            # retires v1 and v2 can switch to `user_quest_tasks`.
-            # This key is deliberately kept: v1 reads `quest.quest_tasks` in
-            # useQuestDetailData, QuestDetail, DashboardPage and QuestCardSimple.
+            # archived. Keep the response key alive for as long as the web app
+            # reads it.
+            # This used to say "until the v1->v2 migration retires v1 and v2 can
+            # switch to user_quest_tasks", which described a plan rather than a
+            # fact. Web and mobile are permanent siblings, so nothing retires
+            # this key on its own -- dropping it means changing the four web
+            # call sites first.
+            # This key is deliberately kept: the web app reads
+            # `quest.quest_tasks` in useQuestDetailData, QuestDetail,
+            # DashboardPage and QuestCardSimple.
             # (The old citation here named 'AUDIT_IMPLEMENTATION_PLAN.md Q2', a
             #  section that never existed -- it was H3, and that file is now only
             #  in git history.)

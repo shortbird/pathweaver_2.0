@@ -1,7 +1,7 @@
 /**
  * Renders a shared LegalDocument (from shared/legal) with React Native
  * components. The document content is the single source of truth shared with
- * the v1 web app; this component only handles mobile presentation.
+ * the web app; this component only handles mobile presentation.
  * See shared/legal/types.ts.
  */
 import React from 'react';

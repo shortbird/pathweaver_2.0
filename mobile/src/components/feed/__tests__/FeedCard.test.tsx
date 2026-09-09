@@ -1,7 +1,7 @@
 /**
  * FeedCard tests - share button, visibility toggle, views display.
  *
- * Covers issues found during v2 launch readiness audit:
+ * Covers issues found during the mobile launch readiness audit:
  * - Share button was non-functional placeholder
  * - No public/private toggle for students
  * - Confidential posts should block sharing

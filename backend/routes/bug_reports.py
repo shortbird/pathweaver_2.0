@@ -1,6 +1,6 @@
 """Beta bug-report endpoints.
 
-In-app "shake to report a bug" flow for the v2 mobile app. A POST carries a
+In-app "shake to report a bug" flow for the mobile app. A POST carries a
 structured diagnostics blob (current route, recent API calls, console errors,
 device/build) plus an optional screenshot, so reports are machine-actionable —
 Claude reads new rows via the Supabase MCP and goes straight to the failing

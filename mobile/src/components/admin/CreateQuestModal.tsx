@@ -102,7 +102,7 @@ function balanceSubjectXP(subjects: string[], taskXP: number): Record<string, nu
   return dist;
 }
 
-// ── Pillar mapping: V2 keys -> backend values ──
+// ── Pillar mapping: mobile keys -> backend values ──
 
 const PILLAR_DB_VALUES: Record<string, string> = {
   stem: 'STEM & Logic',

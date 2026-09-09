@@ -30,8 +30,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-const V2 = join(__dirname, '..', '..');
-const REPO = join(V2, '..');
+const MOBILE = join(__dirname, '..', '..');
+const REPO = join(MOBILE, '..');
 
 const read = (rel: string) => readFileSync(join(REPO, rel), 'utf8');
 
@@ -76,7 +76,7 @@ describe('the @shared alias', () => {
     }
   });
 
-  it("is declared in v1's vitest.config.mjs, which does NOT read vite.config.js", () => {
+  it("is declared in the web app's vitest.config.mjs, which does NOT read vite.config.js", () => {
     const vitest = read('web/vitest.config.mjs');
     if (!vitest.includes("'@shared'")) {
       throw new Error(
@@ -86,7 +86,7 @@ describe('the @shared alias', () => {
     }
   });
 
-  it("is declared in v1's vite.config.js", () => {
+  it("is declared in the web app's vite.config.js", () => {
     const vite = read('web/vite.config.js');
     if (!vite.includes("'@shared'")) {
       throw new Error("web/vite.config.js lost the '@shared' alias. The web build breaks, but only the web build.");

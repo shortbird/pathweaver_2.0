@@ -1,5 +1,5 @@
 /**
- * LtiEvidenceEditor (v1) — multi-format evidence capture for one task in
+ * LtiEvidenceEditor (web) — multi-format evidence capture for one task in
  * the Canvas iframe.
  *
  * Before this, the LTI quest flow could only submit a single text block.
@@ -8,7 +8,7 @@
  * POST /api/evidence/documents/<task_id> already accepts an arbitrary
  * blocks[] array — this is purely the missing frontend.
  *
- * Upload path uses the proven uploadViaSignedUrl helper from v1's
+ * Upload path uses the proven uploadViaSignedUrl helper from the web app's
  * services/signedUpload.js (init → direct-to-Supabase PUT → finalize),
  * never routing the file through the backend. Text/link are inline blocks
  * with no upload.

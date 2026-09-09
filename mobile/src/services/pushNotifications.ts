@@ -4,7 +4,7 @@
  * Mobile: Uses expo-notifications to register for push tokens and handle
  * foreground/background notifications. Tokens are sent to backend for storage.
  *
- * Web: No-op for now -- V1 handles web push via service worker.
+ * Web: No-op for now -- the web app handles web push via service worker.
  */
 
 import { Platform } from 'react-native';

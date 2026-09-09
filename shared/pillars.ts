@@ -21,7 +21,7 @@ export interface Pillar {
   label: string;
   /** For cramped spaces — radar axes, mobile filter chips. Often identical. */
   shortLabel: string;
-  /** Hex. The single source; see the note in pillars.json about v1. */
+  /** Hex. The single source; see the note in pillars.json about the web app. */
   color: string;
   description: string;
 }

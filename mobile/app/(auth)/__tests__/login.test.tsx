@@ -1,7 +1,7 @@
 /**
  * Login screen tests - form rendering, validation, forgot password, role-based redirect.
  *
- * Covers issues found during v2 launch readiness audit:
+ * Covers issues found during the mobile launch readiness audit:
  * - Email regex validation
  * - Field-level error messages
  * - Forgot password modal flow

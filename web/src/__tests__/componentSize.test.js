@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 /**
- * Ratchet: the biggest v1 components may shrink, never grow (QF-02).
+ * Ratchet: the biggest web-app components may shrink, never grow (QF-02).
  *
  * The backend has had this fence since Q1 (`test_route_file_sizes.py`) and it
  * works -- it caught `dependents.py` crossing 1400 lines earlier today, on a

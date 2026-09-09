@@ -1,5 +1,5 @@
 /**
- * Signed-upload helper (v2) — universal (web + native mobile).
+ * Signed-upload helper for the mobile app — universal (web + native).
  *
  * Flow:
  *   1. POST {initPath} with { filename, file_size, content_type?, block_type? }

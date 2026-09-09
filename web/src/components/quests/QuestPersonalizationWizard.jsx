@@ -52,7 +52,7 @@ import ChoosePathStep from './personalizationWizard/ChoosePathStep';
  *   an accepted task is handed to this callback INSTEAD of being POSTed to
  *   /personalization/accept-task. This is how a parent runs the same wizard
  *   for their child: the UI and the AI steps are identical, only the write
- *   target changes (see ParentQuestView). Mirrors how v2 mobile reuses its
+ *   target changes (see ParentQuestView). Mirrors how the mobile app reuses its
  *   TaskCreationWizard via onAcceptTask.
  * @param onManualTasksOverride Optional async (tasks[]) => Promise, the same
  *   substitution for the hand-written path (see ManualTaskCreator.onSubmitOverride).
@@ -217,7 +217,7 @@ export default function QuestPersonalizationWizard({
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects,
         strict_subjects: strictSubjects,
-        // Parity with v2 mobile: tell the AI which tasks already exist so it
+        // Parity with the mobile app: tell the AI which tasks already exist so it
         // doesn't re-suggest them. The backend also merges in the student's
         // persisted quest tasks server-side, so this covers any accepted this
         // session before a re-generate.
