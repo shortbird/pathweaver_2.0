@@ -17,7 +17,12 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-VALID_PILLARS = ('stem', 'art', 'communication', 'civics', 'wellness')
+from generated.pillars import PILLAR_KEYS
+
+# Order is part of a prompt: bounty_ai_service imports this and joins it into
+# the text a model reads. It happens to equal the canonical order, so it can be
+# taken directly -- but that equality is now checked rather than assumed.
+VALID_PILLARS = PILLAR_KEYS
 VALID_BOUNTY_TYPES = ('open', 'challenge', 'family', 'org', 'sponsored')
 MIN_XP_REWARD = 25
 MAX_XP_REWARD = 200

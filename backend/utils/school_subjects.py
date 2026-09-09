@@ -2,40 +2,20 @@
 School subjects utilities for the quest system.
 Handles validation and mapping of school subjects separate from XP pillars.
 """
+from generated.subjects import SUBJECT_KEYS, SUBJECT_NAMES
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-# School subjects enum matching database type
-SCHOOL_SUBJECTS = [
-    'language_arts',
-    'math',
-    'science', 
-    'social_studies',
-    'financial_literacy',
-    'health',
-    'pe',
-    'fine_arts',
-    'cte',
-    'digital_literacy',
-    'electives'
-]
+# School subjects enum matching database type. The list and the display names
+# come from generated/subjects.py, emitted from shared/data/subjects.json, so
+# the picker on the web, the picker on mobile and this enum cannot disagree
+# about how many subjects exist. The order is the transcript order.
+SCHOOL_SUBJECTS = list(SUBJECT_KEYS)
 
-# Display names for school subjects
-SCHOOL_SUBJECT_DISPLAY_NAMES = {
-    'language_arts': 'Language Arts',
-    'math': 'Math',
-    'science': 'Science',
-    'social_studies': 'Social Studies',
-    'financial_literacy': 'Financial Literacy',
-    'health': 'Health',
-    'pe': 'PE',
-    'fine_arts': 'Fine Arts',
-    'cte': 'CTE',
-    'digital_literacy': 'Digital Literacy',
-    'electives': 'Electives'
-}
+# Display names for school subjects -- what a transcript line says.
+SCHOOL_SUBJECT_DISPLAY_NAMES = dict(SUBJECT_NAMES)
 
 # Subject descriptions for quest creators
 SCHOOL_SUBJECT_DESCRIPTIONS = {

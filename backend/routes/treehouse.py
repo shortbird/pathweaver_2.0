@@ -39,14 +39,22 @@ bp = Blueprint('treehouse', __name__, url_prefix='/api/treehouse')
 # Blocks P4: the slug comes from the program registry, not a local constant.
 from programs.registry import primary_org_slug
 TREEHOUSE_SLUG = primary_org_slug('treehouse')
+from generated.pillars import PILLAR_LABELS as PILLAR_LABELS_CANONICAL
+
+# Order reaches the student: the category list below is built by iterating this,
+# so it is the order the treehouse renders. Declared here for that reason;
+# tests/unit/test_pillar_constants_generated.py asserts it is a permutation of
+# the canonical keys, so it cannot add, drop or misspell one.
 PILLARS = ['art', 'stem', 'wellness', 'communication', 'civics']
-# Student-facing category labels for the five pillars.
+# Student-facing category labels. Only 'art' differs from the platform label,
+# and that difference is the point -- 'Creative Expression' is this screen's
+# wording, which is why these are not the generated PILLAR_LABELS.
 PILLAR_LABELS = {
     'art': 'Creative Expression',
-    'stem': 'STEM',
-    'wellness': 'Wellness',
-    'communication': 'Communication',
-    'civics': 'Civics',
+    'stem': PILLAR_LABELS_CANONICAL['stem'],
+    'wellness': PILLAR_LABELS_CANONICAL['wellness'],
+    'communication': PILLAR_LABELS_CANONICAL['communication'],
+    'civics': PILLAR_LABELS_CANONICAL['civics'],
 }
 
 _notifications = NotificationService()

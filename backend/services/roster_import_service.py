@@ -64,8 +64,14 @@ FIELD_ALIASES = {
 # parent-managed dependent profile, provided it carries a parent email.
 REQUIRED_FIELDS = ('student_first', 'student_last')
 
-PILLARS = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-           'Language & Communication', 'Society & Culture']
+from generated.pillars import PILLAR_LEGACY_DISPLAY_NAMES
+
+# BUG, recorded rather than fixed here because this pass is structural: these
+# are the pre-2025 DISPLAY names, and _init_skill_xp writes them straight into
+# user_skill_xp.pillar, where every other writer puts a key ('art', 'stem').
+# See docs/remediation-2026-09/PHASE_2_SHARED_HANDOFF.md.
+_PILLAR_ORDER = ('art', 'stem', 'wellness', 'communication', 'civics')
+PILLARS = [PILLAR_LEGACY_DISPLAY_NAMES[key] for key in _PILLAR_ORDER]
 
 
 def _normalize_header(raw: str) -> str:

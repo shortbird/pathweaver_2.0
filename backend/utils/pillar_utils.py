@@ -2,124 +2,123 @@
 Utility functions for handling the pillar system.
 Updated January 2025: Simplified to single-word pillar names
 Consolidated from pillar_utils.py and pillar_mapping.py
+
+The vocabulary itself is NOT declared here any more. Keys, display names and
+the legacy spellings come from generated/pillars.py, which is emitted from
+shared/data/pillars.json -- the file the web app and the mobile app also read.
+A TypeScript module could never have been canonical for this process, which is
+why the same five pillars were spelled out in seven backend modules and two of
+them disagreed. What stays here is what is true of the pillars only for the
+BACKEND: the quest-creator-facing descriptions, the subcategory lists and the
+mastery-level curve.
 """
+from generated.pillars import (
+    PILLAR_KEYS as _CANONICAL_PILLAR_KEYS,
+    PILLAR_COLORS as _PILLAR_COLORS,
+    PILLAR_LABELS as _PILLAR_LABELS,
+    PILLAR_LEGACY_ALIASES as _PILLAR_LEGACY_ALIASES,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 # Pillar keys (lowercase for database storage)
-PILLAR_KEYS = ['art', 'stem', 'communication', 'civics', 'wellness']
+PILLAR_KEYS = list(_CANONICAL_PILLAR_KEYS)
 
 # Display names (capitalized for frontend)
-PILLAR_DISPLAY_NAMES = {
-    'art': 'Art',
-    'stem': 'STEM',
-    'communication': 'Communication',
-    'civics': 'Civics',
-    'wellness': 'Wellness'
+PILLAR_DISPLAY_NAMES = dict(_PILLAR_LABELS)
+
+# Mapping from old pillar names to new (for backward compatibility during
+# transition). Covers the underscore keys, the shortened keys AND the old '&'
+# display names, because callers hand this whatever a row happens to hold.
+LEGACY_PILLAR_MAPPINGS = dict(_PILLAR_LEGACY_ALIASES)
+
+
+# Backend-only pillar metadata. These descriptions are written for quest
+# creators and are NOT the ones the clients render -- config/pillars.py serves
+# those, from the same generated module. Two audiences, two texts, one
+# vocabulary.
+_DESCRIPTIONS = {
+    'art': 'Original creation, artistic expression, innovation',
+    'stem': 'Analysis, problem-solving, technical skills, research',
+    'communication': 'Expression, connection, teaching, sharing ideas',
+    'civics': 'Understanding context, community impact, global awareness',
+    'wellness': 'Physical activity, practical skills, personal development',
 }
 
-# Mapping from old pillar names to new (for backward compatibility during transition)
-LEGACY_PILLAR_MAPPINGS = {
-    # Old underscore format
-    'stem_logic': 'stem',
-    'arts_creativity': 'art',
-    'language_communication': 'communication',
-    'society_culture': 'civics',
-    'life_wellness': 'wellness',
-
-    # Old shortened format
-    'creativity': 'art',
-    'critical_thinking': 'stem',
-    'practical_skills': 'wellness',
-    'cultural_literacy': 'civics',
-
-    # Old display names
-    'STEM & Logic': 'stem',
-    'Arts & Creativity': 'art',
-    'Language & Communication': 'communication',
-    'Society & Culture': 'civics',
-    'Life & Wellness': 'wellness',
+# Icon names in this module are lucide-style; config/pillars.py carries the
+# Heroicons names the web app uses. An icon is a property of a surface.
+_ICONS = {
+    'art': 'palette',
+    'stem': 'flask',
+    'communication': 'message-circle',
+    'civics': 'globe',
+    'wellness': 'heart',
 }
 
+_SUBCATEGORIES = {
+    'art': [
+        'Visual Arts',
+        'Music',
+        'Drama & Theater',
+        'Creative Writing',
+        'Digital Media',
+        'Design'
+    ],
+    'stem': [
+        'Mathematics',
+        'Biology',
+        'Chemistry',
+        'Physics',
+        'Computer Science',
+        'Engineering',
+        'Data Science'
+    ],
+    'communication': [
+        'English',
+        'Foreign Languages',
+        'Journalism',
+        'Public Speaking',
+        'Digital Communication',
+        'Literature'
+    ],
+    'civics': [
+        'History',
+        'Geography',
+        'Social Studies',
+        'World Cultures',
+        'Civics & Government',
+        'Psychology',
+        'Sociology'
+    ],
+    'wellness': [
+        'Physical Education',
+        'Health & Nutrition',
+        'Personal Finance',
+        'Life Skills',
+        'Mental Wellness',
+        'Outdoor Education',
+        'Sports & Athletics'
+    ],
+}
 
-# Full pillar definitions with metadata
+# Full pillar definitions with metadata. Built rather than typed out: the name
+# and the colour come from the generated module, so this dict cannot be the
+# place a pillar gets renamed or recoloured for the backend alone. That is what
+# happened before 2026-09-04, when civics and wellness were each rendered in
+# the other's colour on the web while this file was right.
 PILLARS = {
-    'art': {
-        'name': 'Art',
-        'description': 'Original creation, artistic expression, innovation',
-        'color': '#AF56E5',  # Purple
-        'icon': 'palette',
-        'subcategories': [
-            'Visual Arts',
-            'Music',
-            'Drama & Theater',
-            'Creative Writing',
-            'Digital Media',
-            'Design'
-        ]
-    },
-    'stem': {
-        'name': 'STEM',
-        'description': 'Analysis, problem-solving, technical skills, research',
-        'color': '#2469D1',  # Blue
-        'icon': 'flask',
-        'subcategories': [
-            'Mathematics',
-            'Biology',
-            'Chemistry',
-            'Physics',
-            'Computer Science',
-            'Engineering',
-            'Data Science'
-        ]
-    },
-    'communication': {
-        'name': 'Communication',
-        'description': 'Expression, connection, teaching, sharing ideas',
-        'color': '#3DA24A',  # Green
-        'icon': 'message-circle',
-        'subcategories': [
-            'English',
-            'Foreign Languages',
-            'Journalism',
-            'Public Speaking',
-            'Digital Communication',
-            'Literature'
-        ]
-    },
-    'civics': {
-        'name': 'Civics',
-        'description': 'Understanding context, community impact, global awareness',
-        'color': '#FF9028',  # Orange
-        'icon': 'globe',
-        'subcategories': [
-            'History',
-            'Geography',
-            'Social Studies',
-            'World Cultures',
-            'Civics & Government',
-            'Psychology',
-            'Sociology'
-        ]
-    },
-    'wellness': {
-        'name': 'Wellness',
-        'description': 'Physical activity, practical skills, personal development',
-        'color': '#E65C5C',  # Red
-        'icon': 'heart',
-        'subcategories': [
-            'Physical Education',
-            'Health & Nutrition',
-            'Personal Finance',
-            'Life Skills',
-            'Mental Wellness',
-            'Outdoor Education',
-            'Sports & Athletics'
-        ]
+    key: {
+        'name': PILLAR_DISPLAY_NAMES[key],
+        'description': _DESCRIPTIONS[key],
+        'color': _PILLAR_COLORS[key],
+        'icon': _ICONS[key],
+        'subcategories': _SUBCATEGORIES[key],
     }
+    for key in PILLAR_KEYS
 }
+
 
 def get_pillar_info(pillar_key):
     """Get full pillar information."""

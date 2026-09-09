@@ -19,29 +19,27 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+from generated.pillars import (
+    PILLAR_KEYS,
+    PILLAR_LEGACY_ALIASES,
+    PILLAR_LEGACY_DISPLAY_NAMES,
+)
+
+
 class LearningAIService(BaseAIService):
     """AI service for learning moment features."""
 
-    # New simplified pillar names (updated January 2025)
-    VALID_PILLARS = [
-        'art',
-        'stem',
-        'wellness',
-        'communication',
-        'civics'
-    ]
+    # Membership only (`if p in self.VALID_PILLARS`), so the canonical order.
+    VALID_PILLARS = list(PILLAR_KEYS)
 
-    # Legacy pillar names for backward compatibility
+    # Legacy pillar names for backward compatibility. This was a hand-kept copy
+    # of the nine old KEYS -- the same nine utils/pillar_utils.py mapped, minus
+    # the '&' display names, which a model never sends. Derived now, so a tenth
+    # spelling cannot be accepted in one module and rejected in the other.
     LEGACY_PILLAR_MAP = {
-        'arts_creativity': 'art',
-        'creativity': 'art',
-        'stem_logic': 'stem',
-        'critical_thinking': 'stem',
-        'language_communication': 'communication',
-        'society_culture': 'civics',
-        'cultural_literacy': 'civics',
-        'life_wellness': 'wellness',
-        'practical_skills': 'wellness'
+        alias: key
+        for alias, key in PILLAR_LEGACY_ALIASES.items()
+        if alias not in set(PILLAR_LEGACY_DISPLAY_NAMES.values())
     }
 
     PILLAR_DESCRIPTIONS = {

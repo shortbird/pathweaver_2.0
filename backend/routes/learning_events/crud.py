@@ -8,7 +8,11 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-VALID_PILLARS = ('art', 'stem', 'wellness', 'communication', 'civics')
+from generated.pillars import PILLAR_KEYS
+
+# Membership only -- the two call sites below ask `p not in VALID_PILLARS`.
+# Nothing here renders an order, so this takes the canonical one.
+VALID_PILLARS = PILLAR_KEYS
 
 
 def _validate_topics(topics):

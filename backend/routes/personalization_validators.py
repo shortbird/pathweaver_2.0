@@ -14,13 +14,15 @@ VALID_CHALLENGE_LEVELS = ['easier', 'standard', 'challenge']
 
 VALID_ADJUST_DIRECTIONS = ['easier', 'harder']
 
-VALID_PILLARS = [
-    'STEM & Logic',
-    'Life & Wellness',
-    'Language & Communication',
-    'Society & Culture',
-    'Arts & Creativity'
-]
+from generated.pillars import PILLAR_LEGACY_DISPLAY_NAMES
+
+# The pre-2025 '&' display names, which this endpoint's clients still send.
+# Order is observable: the 400 body below joins the list into a sentence, so it
+# is declared here and taken from the generated vocabulary rather than typed
+# out. tests/unit/test_pillar_constants_generated.py asserts it is a
+# permutation of the five.
+_PILLAR_ORDER = ('stem', 'wellness', 'communication', 'civics', 'art')
+VALID_PILLARS = [PILLAR_LEGACY_DISPLAY_NAMES[key] for key in _PILLAR_ORDER]
 
 
 def validate_generate_tasks_request(data: Dict[str, Any]) -> tuple[bool, Optional[str]]:

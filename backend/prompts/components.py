@@ -129,16 +129,27 @@ ENCOURAGED_WORDS = [
 # =============================================================================
 
 # Single-word keys used in database
-VALID_PILLARS = ['stem', 'wellness', 'communication', 'civics', 'art']
+from generated.pillars import (
+    PILLAR_LEGACY_DISPLAY_NAMES as _PILLAR_LEGACY_DISPLAY_NAMES,
+)
 
-# Display names for UI
-PILLAR_DISPLAY_NAMES = {
-    'stem': 'STEM & Logic',
-    'wellness': 'Life & Wellness',
-    'communication': 'Language & Communication',
-    'civics': 'Society & Culture',
-    'art': 'Arts & Creativity'
-}
+_PROMPT_PILLAR_ORDER = ('stem', 'wellness', 'communication', 'civics', 'art')
+
+# Order is part of a PROMPT here, not of a screen: bounty_ai_service joins this
+# list into the text a model reads, so reordering it changes what we send. It
+# stays declared, and tests/unit/test_pillar_constants_generated.py asserts it
+# is a permutation of the canonical keys.
+VALID_PILLARS = list(_PROMPT_PILLAR_ORDER)
+
+# Display names for UI.
+#
+# NOTE: this is the OTHER PILLAR_DISPLAY_NAMES. utils/pillar_utils.py exports a
+# map of the same name giving 'STEM'; this one gives 'STEM & Logic'. Both are
+# real -- the prompts were written against the pre-2025 wording and a model
+# reads them -- and having two maps with one name is how a reader ends up with
+# whichever they happened to open first. They now come from one generated
+# module, so at least they cannot each drift.
+PILLAR_DISPLAY_NAMES = dict(_PILLAR_LEGACY_DISPLAY_NAMES)
 
 # Brief definitions for prompts
 PILLAR_DEFINITIONS = """

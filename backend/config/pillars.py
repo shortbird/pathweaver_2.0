@@ -1,51 +1,68 @@
 """
-Pillar Definitions - Single Source of Truth
+Pillar Definitions - the client-facing view.
 
-All pillar names, colors, icons, and metadata defined here.
-Import this module instead of hardcoding pillar data.
+The vocabulary -- keys, display names, colours, descriptions -- comes from
+generated/pillars.py, emitted from shared/data/pillars.json, which the web app
+and the mobile app read too. What is declared here is only what belongs to a
+SCREEN rather than to a pillar: the Tailwind gradient string, the Heroicons
+name, and the four subcategories the pickers offer.
+
+This module and utils/pillar_utils.py are both real and both needed: they carry
+different descriptions for different audiences. What they must never again do
+is carry different COLOURS, which they did until 2026-09-04 -- civics and
+wellness were swapped on the web relative to everywhere else.
 """
 
+from generated.pillars import (
+    PILLAR_COLORS as _COLORS,
+    PILLAR_DESCRIPTIONS as _DESCRIPTIONS,
+    PILLAR_LABELS as _LABELS,
+)
+
+# The order below is NOT decoration. GET /api/pillars returns it as `keys`, a
+# JSON array, so it is part of the response rather than an implementation
+# detail. tests/unit/test_pillar_constants_generated.py asserts it is a
+# permutation of the canonical keys, which is the property that matters: this
+# list cannot add, drop or misspell a pillar, but it may order them.
+_DISPLAY_ORDER = ('stem', 'wellness', 'communication', 'civics', 'art')
+
+# Web-only presentation. A gradient is a Tailwind class string and an icon name
+# is Heroicons; neither is true of the pillar on mobile or in the database, so
+# neither belongs in the shared JSON.
+_GRADIENTS = {
+    'stem': 'from-[#2469D1] to-[#1B4FA3]',
+    'wellness': 'from-[#E65C5C] to-[#D43F3F]',
+    'communication': 'from-[#3DA24A] to-[#2E8A3A]',
+    'civics': 'from-[#FF9028] to-[#E67A1A]',
+    'art': 'from-[#AF56E5] to-[#9945D1]',
+}
+
+_ICONS = {
+    'stem': 'BeakerIcon',
+    'wellness': 'HeartIcon',
+    'communication': 'ChatBubbleLeftRightIcon',
+    'civics': 'UserGroupIcon',
+    'art': 'PaintBrushIcon',
+}
+
+_SUBCATEGORIES = {
+    'stem': ['Science', 'Technology', 'Engineering', 'Mathematics'],
+    'wellness': ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
+    'communication': ['Writing', 'Speaking', 'Listening', 'Collaboration'],
+    'civics': ['Community', 'Leadership', 'Civic Action', 'Democracy'],
+    'art': ['Visual Arts', 'Music', 'Performance', 'Design'],
+}
+
 PILLARS = {
-    'stem': {
-        'display_name': 'STEM',
-        'description': 'Science, Technology, Engineering, and Mathematics',
-        'color': '#2469D1',
-        'gradient': 'from-[#2469D1] to-[#1B4FA3]',
-        'icon': 'BeakerIcon',
-        'subcategories': ['Science', 'Technology', 'Engineering', 'Mathematics'],
-    },
-    'wellness': {
-        'display_name': 'Wellness',
-        'description': 'Physical and mental health, mindfulness, and self-care',
-        'color': '#E65C5C',
-        'gradient': 'from-[#E65C5C] to-[#D43F3F]',
-        'icon': 'HeartIcon',
-        'subcategories': ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
-    },
-    'communication': {
-        'display_name': 'Communication',
-        'description': 'Writing, speaking, listening, and interpersonal skills',
-        'color': '#3DA24A',
-        'gradient': 'from-[#3DA24A] to-[#2E8A3A]',
-        'icon': 'ChatBubbleLeftRightIcon',
-        'subcategories': ['Writing', 'Speaking', 'Listening', 'Collaboration'],
-    },
-    'civics': {
-        'display_name': 'Civics',
-        'description': 'Community engagement, leadership, and civic responsibility',
-        'color': '#FF9028',
-        'gradient': 'from-[#FF9028] to-[#E67A1A]',
-        'icon': 'UserGroupIcon',
-        'subcategories': ['Community', 'Leadership', 'Civic Action', 'Democracy'],
-    },
-    'art': {
-        'display_name': 'Art',
-        'description': 'Creative expression through visual arts, music, and performance',
-        'color': '#AF56E5',
-        'gradient': 'from-[#AF56E5] to-[#9945D1]',
-        'icon': 'PaintBrushIcon',
-        'subcategories': ['Visual Arts', 'Music', 'Performance', 'Design'],
-    },
+    key: {
+        'display_name': _LABELS[key],
+        'description': _DESCRIPTIONS[key],
+        'color': _COLORS[key],
+        'gradient': _GRADIENTS[key],
+        'icon': _ICONS[key],
+        'subcategories': _SUBCATEGORIES[key],
+    }
+    for key in _DISPLAY_ORDER
 }
 
 # Helper functions
