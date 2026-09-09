@@ -86,6 +86,73 @@ def test_the_detector_agrees_with_the_rule(spec, bounded):
     assert _is_bounded(spec) is bounded
 
 
+def _contradictions(deployed: dict, other) -> list:
+    """Packages `other` pins at a version the deployed manifest pins differently."""
+    out = []
+    for name, spec in other:
+        pinned = deployed.get(name.lower())
+        if pinned and '==' in spec and '==' in pinned and spec != pinned:
+            out.append(f'{name}{spec} vs requirements.txt {name}{pinned}')
+    return out
+
+
+def test_the_contradiction_detector_fires_on_the_shape_it_bans():
+    """Proven against the real file this rule was written for.
+
+    backend/requirements-test.txt, as it stood before deletion.
+    """
+    deployed = {'pytest': '==9.0.3', 'pytest-cov': '==7.1.0'}
+    was = [('pytest', '==7.4.3'), ('pytest-cov', '==4.1.0'), ('faker', '==20.1.0')]
+    assert _contradictions(deployed, was) == [
+        'pytest==7.4.3 vs requirements.txt pytest==9.0.3',
+        'pytest-cov==4.1.0 vs requirements.txt pytest-cov==7.1.0',
+    ]
+    # Agreeing, and not-mentioned, are both fine.
+    assert _contradictions(deployed, [('pytest', '==9.0.3'), ('faker', '==20.1.0')]) == []
+    # A range is not a contradiction: pip can still resolve it.
+    assert _contradictions(deployed, [('pytest', '>=7,<10')]) == []
+
+
+def test_no_second_manifest_contradicts_the_deployed_one():
+    """No other requirements file may pin a package at a different version.
+
+    `backend/requirements-test.txt` pinned pytest 7.4.3, pytest-cov 4.1.0 and
+    pytest-mock 3.12.0 against the root file's pytest 9.0.3 and pytest-cov
+    7.1.0, so `pip install -r requirements.txt -r backend/requirements-test.txt`
+    -- the obvious thing to type -- failed to resolve. It was deleted on
+    2026-09-09: nothing installed it (no workflow, no script, no doc referenced
+    it), and three of its five test plugins were used by no test in the suite.
+
+    This is the same failure as AUDIT.md L1, one directory down: a manifest that
+    is documented, divergent and installed by nobody. The rule is not "one
+    file"; it is that any additional file must AGREE with the deployed one
+    wherever they overlap.
+    """
+    deployed = {name.lower(): spec for name, spec in _requirements(DEPLOYED)}
+    contradictions = []
+    skip = {'node_modules', 'venv', '.venv', 'dist', 'build'}
+    for other in sorted(REPO_ROOT.glob('**/requirements*.txt')):
+        # Dot-directories are other checkouts, not this one: .claude/worktrees/
+        # holds sibling worktrees with their own (older) manifests, and a guard
+        # that fails on somebody else's branch is a guard people learn to skip.
+        if other == DEPLOYED or skip & set(other.parts):
+            continue
+        if any(part.startswith('.') for part in other.relative_to(REPO_ROOT).parts):
+            continue
+        if other.parts[-2:] == ('backend', 'requirements.txt'):
+            # Deliberately divergent and labelled as such -- see the test below.
+            continue
+        rel = other.relative_to(REPO_ROOT)
+        contradictions += [
+            f'{rel}: {c}' for c in _contradictions(deployed, _requirements(other))
+        ]
+
+    assert not contradictions, (
+        'A second requirements file pins a package the deployed file already '
+        'pins, at a different version. Installing both fails pip resolution:\n  '
+        + '\n  '.join(contradictions))
+
+
 def test_the_undeployed_manifest_says_it_is_undeployed():
     """backend/requirements.txt is installed by nobody and must say so.
 
