@@ -13,8 +13,8 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap).
 
 | ID | Status | One line |
 |---|---|---|
-| [OPS-01](#ops-01--no-staging-database) | NEEDS-USER | dev, local and E2E all hit the production database |
-| [OPS-03](#ops-03--nothing-applies-supabasemigrations-to-production) | NEEDS-USER | migrations reach prod by hand; workflow written, ships inert |
+| ~~OPS-01~~ | **RESOLVED 2026-09-09** | staging project created; dev repointed. Local + E2E still on prod — see below |
+| ~~OPS-03~~ | **CLOSED 2026-09-09** | history reconciled, parser fixed, `db push` ran end to end |
 | [SEC-18](#sec-18--csrf-exemption-list-is-a-hand-edited-name-list) | WONTFIX | confirm or reverse |
 | [OPS-05](#ops-05--no-branch-protection--pr-gate-on-main) | WONTFIX | confirm or reverse |
 
@@ -27,7 +27,23 @@ blobs across 3,664 tracked text files. It is in CLOSED_FINDINGS.md §1.
 
 ## OPS-01 — No staging database
 
-**Status: NEEDS-USER. The 2026-08-31 audit's top structural risk.**
+**Status: RESOLVED for dev, 2026-09-09. Partially open for local and E2E.**
+
+Staging project `kltoyqefmcgolbplplsa` exists (Shortbird org, us-west-1,
+$10/mo). The baseline built it — after four bugs that only surfaced by running
+it — and it is seeded with synthetic data at production scale. All three dev
+Render services now read staging, so a developer on dev no longer sees real
+student records.
+
+**Still open:** `backend/.env` (local development) and `mobile-e2e.yml` (the E2E
+suite) both still point at production. E2E was deferred deliberately so that an
+E2E failure could not be confused with a baseline failure. Also unaddressed: dev
+still carries production Brevo, Stripe and Gemini keys — staging fixed the
+database and nothing else.
+
+Runbook and evidence: [STAGING_RUNBOOK.md](STAGING_RUNBOOK.md).
+
+### The original finding, for the record
 
 Dev, local development and the E2E suite all point at the production Supabase
 project (`vvfgxcykxjybtvpfzwyx`). Consequences the audit named:
@@ -50,7 +66,22 @@ the env plumbing, and the docs. None of it is worth doing before the decision.
 
 ## OPS-03 — Nothing applies `supabase/migrations/` to production
 
-**Status: NEEDS-USER. The workflow is written and ships inert.**
+**Status: CLOSED 2026-09-09.**
+
+The history was reconciled in two parts — a row added for every file, then the
+91 apply-time orphans removed — and `migrate-prod.yml` applied a real migration
+end to end. `max_pending` stays at 3; reconciling is what made it correct rather
+than raising it.
+
+Two things were found on the way, both of which had been true since the file was
+written: the workflow's `pending` count returned 0 for any input (backticks in
+the CLI output), which made `apply` unreachable and the `max_pending` tripwire
+dead code; and the claim that the CLI ignores 8-digit stamps is false.
+
+Evidence: [MIGRATION_RECONCILIATION.md](MIGRATION_RECONCILIATION.md),
+[DB_PUSH_BLOCKER.md](DB_PUSH_BLOCKER.md).
+
+### The original finding, for the record
 
 Migrations reach production by hand, through the Supabase MCP or the dashboard.
 The daily exposure-audit workflow exists precisely because of this — it is the

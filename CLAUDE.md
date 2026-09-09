@@ -164,6 +164,11 @@ would destroy them.
 | Prod | https://www.optioeducation.com | `main` |
 | API | https://api.optioeducation.com | `main` |
 
+> **Dev points at staging, not production** (since 2026-09-09). The dev Render
+> services read Supabase project `kltoyqefmcgolbplplsa`, which holds synthetic
+> data only — no real student records. Local `backend/.env` and the E2E suite
+> still point at production; those are the remaining half of OPS-01.
+
 ### Tech Stack
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
 - **Web**: React 18.3 + Vite + TailwindCSS (in `web/`) — the production web app
@@ -318,7 +323,9 @@ If you genuinely cannot tell which changes are yours, ask rather than guess.
 users                    - id, email, role, display_name, total_xp, organization_id, is_dependent, managed_by_parent_id
 quests                   - id, title, quest_type, lms_course_id, is_active, organization_id
 user_quest_tasks         - id, user_id, quest_id, title, pillar, xp_value, approval_status
-quest_task_completions   - id, user_id, quest_id, task_id, xp_awarded, completed_at
+quest_task_completions   - id, user_id, quest_id, task_id, completed_at, evidence_text, evidence_url
+                           (NO xp_awarded column -- this line used to claim one. XP lives on
+                            user_quest_tasks.xp_value and in user_skill_xp.)
 user_skill_xp            - user_id, pillar, xp_amount
 badges                   - id, name, pillar_primary, min_quests, min_xp, image_url
 organizations            - id, name, slug, quest_visibility_policy, is_active
@@ -579,10 +586,17 @@ mobile/                 # Mobile iOS/Android app (Expo)
 
 Setup, connection details, and troubleshooting: [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
-### Supabase projects (same org "Optio", one connection reaches all — pass `project_id` per call)
+### Supabase projects (one connection reaches all — pass `project_id` per call)
+
+> The Optio project is in the **Shortbird** org (`zrailajwqifqtvyxgznq`), not the
+> org named "Optio" (`ewldvvivnnnxtyeaxmoz`, which holds only `momentum`). This
+> heading used to say they shared one org; they do not, and it matters because a
+> new project's cost differs per org.
+
 | Project | ref / project_id | What it is |
 |---------|------------------|------------|
-| **Optio** | `vvfgxcykxjybtvpfzwyx` | This repo (pathweaver_2.0) — the prod DB. Default for anything in this codebase. |
+| **Optio** | `vvfgxcykxjybtvpfzwyx` | This repo (pathweaver_2.0) — the **prod** DB. Default for anything in this codebase. |
+| **optio-staging** | `kltoyqefmcgolbplplsa` | Staging (created 2026-09-09). What dev Render points at. Synthetic data only — see [STAGING_RUNBOOK.md](docs/remediation-2026-09/STAGING_RUNBOOK.md). |
 | chamberlin | `cpuvzobtymgjdoqfalfg` | Separate app (Chamberlin Music). |
 | praxis | `qsnbrspowgvcehkcxekm` | Separate app (fitness/nutrition). |
 
