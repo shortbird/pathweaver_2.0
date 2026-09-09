@@ -187,25 +187,36 @@ def sanitize_success_criteria(raw: Any, max_items: int = 5, max_len: int = 200) 
     return cleaned
 
 
-def normalize_diploma_subjects(diploma_subjects: Any, total_xp: int) -> Dict[str, int]:
+def normalize_diploma_subjects(diploma_subjects: Any, total_xp: int,
+                               pillar: str = None) -> Dict[str, int]:
     """
     Normalize diploma_subjects to dict format.
 
     Args:
         diploma_subjects: Raw diploma subjects (list or dict)
         total_xp: Total XP value
+        pillar: The task's pillar, used when no subjects were supplied
 
     Returns:
         Normalized dict mapping subject -> XP
+
+    The empty case used to return {'Electives': total_xp}. That is the same
+    default the two task tables carry, and it is wrong for the same reason:
+    a personalized task the model returned no subjects for is not an elective,
+    it is a task nobody classified. Gryffin's learners had history, art and
+    science tasks sitting in Electives from this branch alone (2026-09-09).
+    A pillar is always present, so it is a better answer than a constant.
     """
-    if isinstance(diploma_subjects, list):
+    if isinstance(diploma_subjects, list) and diploma_subjects:
         xp_per = (total_xp // len(diploma_subjects) // 25) * 25
         remainder = total_xp - (xp_per * len(diploma_subjects))
         return {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
-    elif isinstance(diploma_subjects, dict):
+    elif isinstance(diploma_subjects, dict) and diploma_subjects:
         return diploma_subjects
     else:
-        return {'Electives': total_xp}
+        from utils.school_subjects import default_subjects_for_pillar
+
+        return {default_subjects_for_pillar(pillar)[0]: total_xp}
 
 
 def get_or_create_enrollment(user_id: str, quest_id: str) -> str:

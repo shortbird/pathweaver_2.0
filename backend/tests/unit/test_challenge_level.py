@@ -288,9 +288,18 @@ class TestRescaleDiplomaSubjects:
         assert out['Science'] > out['Math']
         assert all(v % 25 == 0 for v in out.values())
 
-    def test_empty_subjects_fall_back_to_electives(self):
-        assert PersonalizationService._rescale_diploma_subjects({}, 125) == {'Electives': 125}
-        assert PersonalizationService._rescale_diploma_subjects(None, 75) == {'Electives': 75}
+    def test_empty_subjects_fall_back_to_the_pillar(self):
+        """Electives was the unconditional fallback until 2026-09-09, which is
+        how personalized history and science tasks ended up filed as electives
+        (Gryffin). A pillar is a better answer than a constant."""
+        assert PersonalizationService._rescale_diploma_subjects(
+            {}, 125, 'civics') == {'social_studies': 125}
+        assert PersonalizationService._rescale_diploma_subjects(
+            None, 75, 'communication') == {'language_arts': 75}
+
+    def test_empty_subjects_with_no_pillar_still_land_somewhere(self):
+        """Nothing to derive from is the one case Electives is still right for."""
+        assert PersonalizationService._rescale_diploma_subjects({}, 125) == {'electives': 125}
 
     def test_list_format_normalized_then_rescaled(self):
         out = PersonalizationService._rescale_diploma_subjects(['Math', 'Science'], 100)

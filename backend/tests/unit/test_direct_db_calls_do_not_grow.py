@@ -180,8 +180,17 @@ BACKEND = Path(__file__).resolve().parents[2]
 # copy of an authorization check (iCreate 0a10f2ae). No repository owns `users`
 # at this granularity, and the neighbouring caller_is_admin reads it the same
 # way three lines below.
+# routes/ 2340 -> 2342 on 2026-09-09. The two SIS preset-task PATCH routes
+# (class_quests, curriculum) now read the task before writing it. The diploma
+# subject split is stored as XP AMOUNTS, so recomputing it needs the XP and the
+# pillar the task will hold AFTER the patch -- and those are usually columns the
+# patch is not touching. Taking them from the request instead would let a
+# partial patch from any other caller rescale the split against values it never
+# sent, which is the class of silence this whole change exists to end: the
+# editors wrote no subject at all, so every task a school typed in kept the
+# column default of ['Electives'].
 BASELINES = {
-    'routes': 2340,
+    'routes': 2342,
     'services': 1828,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
@@ -255,7 +264,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2340 + 1828
+UPPER_TOTAL_BASELINE = 2342 + 1828
 
 
 def test_the_upper_layers_do_not_grow_in_total():

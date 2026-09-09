@@ -51,9 +51,18 @@ def _parser():
 
 
 def _drafter():
-    """A QuestAIService with no Gemini client and no Supabase lookups."""
+    """A QuestAIService with no Gemini client and no Supabase lookups.
+
+    The subject vocabulary is real, not stubbed: the draft prompt lists the
+    diploma subjects a task can earn credit toward, and the normalizer validates
+    what comes back against the same list.
+    """
+    from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
+
     svc = QuestAIService.__new__(QuestAIService)
     svc.valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
+    svc.school_subjects = SCHOOL_SUBJECTS
+    svc.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
     return svc
 
 

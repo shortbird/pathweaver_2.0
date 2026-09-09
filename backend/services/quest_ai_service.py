@@ -344,6 +344,7 @@ Return ONLY valid JSON (no markdown code blocks):
 
         target_task_count = max(2, min(8, target_task_count))
         pillars = ', '.join(self.valid_pillars)
+        subjects = ', '.join(self.school_subjects)
         # The teacher's own instructions go LAST, after the house style, and say
         # so. They used to sit above it, and the specific rules underneath simply
         # won: "make the first task read part 1 and 2 of the handbook" came back
@@ -385,6 +386,11 @@ Produce ONE quest:
       5-8 words, ONE idea.
     - description: 1-2 sentences, plain words, suggesting how they might do it.
     - pillar: one of [{pillars}]
+    - school_subjects: 1-3 of [{subjects}] — the school subjects this
+      particular task earns credit toward, most important first. Judge the task,
+      not the unit: a unit can be history while the essay task inside it is
+      history AND language arts. Name a second or third subject only when the
+      task genuinely does that work too.
     - xp_value: 25-150, a multiple of 25, scaled to real effort. 25 is a hard
       floor — a smaller number is not storable, so use 25 when asked for less.
     - is_required: true for the core of the unit, false for extensions. Set it
@@ -469,6 +475,13 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
                 'description': str(raw.get('description') or '').strip()[:1000],
                 'pillar': pillar,
                 'xp_value': xp,
+                # The credit the task earns, which the form now shows and the
+                # teacher can correct. Left out until 2026-09-09, so a generated
+                # quest reached the DB with no subjects and took the column
+                # default of Electives -- a US History unit filed as an elective
+                # with nothing on screen admitting it (Gryffin).
+                'diploma_subjects': self._validate_school_subjects(
+                    raw.get('school_subjects'), pillar)[:3],
                 # Absent means the model did not say. Defaulting that to True is what
 # turned "make the FIRST task required" into an all-required quest
 # (iCreate, 2026-08-18) — an unstated requirement is not one.

@@ -136,5 +136,22 @@ class TestTheAiDraftIsForcedIntoTheFormsShape:
 
 
 class _FakeService:
-    """Just the attribute _normalize_quest_draft reads, without booting Gemini."""
+    """Just what _normalize_quest_draft reads, without booting Gemini.
+
+    The subject validator is the real one, borrowed off the class: since
+    2026-09-09 a normalized draft carries the diploma subjects each task earns
+    credit toward, and stubbing that out would let the draft go back to
+    reaching the DB with none -- which is how a US History unit ended up filed
+    under Electives in the first place.
+    """
     valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
+
+    def __init__(self):
+        from services.quest_ai_service import QuestAIService
+        from utils.school_subjects import (
+            SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES)
+        self.school_subjects = SCHOOL_SUBJECTS
+        self.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
+        self._validate_school_subjects = (
+            lambda subjects, pillar=None:
+            QuestAIService._validate_school_subjects(self, subjects, pillar))

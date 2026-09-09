@@ -83,6 +83,38 @@ def pillar_for_subject(subject, default='stem'):
     return SUBJECT_TO_PILLAR.get(key, default)
 
 
+# The single subject a task falls back to when its author named none.
+#
+# PILLAR_TO_SUBJECTS answers "which subjects could this pillar be", and for stem
+# and wellness that is two answers. A default has to be one, so those two name
+# the broader half of the pair.
+PILLAR_DEFAULT_SUBJECT = {
+    'art': 'fine_arts',
+    'stem': 'science',
+    'communication': 'language_arts',
+    'wellness': 'health',
+    'civics': 'social_studies',
+}
+
+
+def default_subjects_for_pillar(pillar):
+    """[subject_key] for a task whose author chose no subject.
+
+    'Electives' is the column DEFAULT on quest_template_tasks.diploma_subjects
+    and user_quest_tasks.diploma_subjects, so for years every task written
+    without an explicit subject was credited as an elective no matter what it
+    actually was. Gryffin found it on 2026-09-09: a US History unit, a Latin
+    unit and an Earth Science unit were all sitting in Electives, because the
+    SIS screens that wrote those tasks never set the column at all.
+
+    A pillar is always there to derive from (NOT NULL on both tables), so it is
+    a better answer than a constant. It is still only a fallback -- the SIS task
+    editors now write the subject explicitly.
+    """
+    key = PILLAR_DEFAULT_SUBJECT.get((pillar or '').strip().lower())
+    return [key] if key else ['electives']
+
+
 def validate_school_subjects(subjects):
     """
     Validate that all provided school subjects are valid.

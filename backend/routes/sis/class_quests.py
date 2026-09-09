@@ -43,6 +43,7 @@ from services.sis_quest_authoring import (
     create_org_quest,
     duplicate_template_task as _duplicate_template_task,
     norm_pillar as _norm_pillar,
+    subject_updates as _subject_updates,
 )
 from services.sis_curriculum_sync import assignable_quest_ids
 from services.class_quest_enrollment import (
@@ -135,6 +136,11 @@ def _serialize_task(t):
         'xp_value': t.get('xp_value'),
         'is_required': bool(t.get('is_required')),
         'order_index': t.get('order_index', 0),
+        # The diploma credit the task earns. Read-only here until 2026-09-09:
+        # the editor had no subject field, so every task a school typed in kept
+        # the column default of Electives whatever the work was.
+        'diploma_subjects': t.get('diploma_subjects') or [],
+        'subject_xp_distribution': t.get('subject_xp_distribution') or {},
     }
 
 
@@ -762,8 +768,18 @@ def update_preset_task(user_id, class_id, quest_id, task_id):
         updates['xp_value'] = max(0, xp)
     if 'is_required' in data:
         updates['is_required'] = bool(data.get('is_required'))
-    if not updates:
+    if not updates and 'diploma_subjects' not in data and 'subject_xp_distribution' not in data:
         return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    # Read before write: the subject split is stored as XP amounts, so working
+    # out the new one needs the XP and pillar the task will hold AFTER this
+    # patch, and those may be columns the patch is not touching.
+    current = (admin.table('quest_template_tasks')
+               .select('xp_value, pillar, diploma_subjects, subject_xp_distribution')
+               .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
+    if not current:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+    updates.update(_subject_updates(current[0], data, updates))
 
     row = (admin.table('quest_template_tasks').update(updates)
            .eq('id', task_id).eq('quest_id', quest_id).execute()).data

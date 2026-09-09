@@ -47,6 +47,7 @@ from services.sis_quest_authoring import (
     duplicate_template_task as _duplicate_template_task,
     clean_task as _clean_task,
     norm_pillar as _norm_pillar,
+    subject_updates as _subject_updates,
 )
 from services.sis_curriculum_sync import push_curriculum_quests_safe
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
@@ -595,6 +596,10 @@ def _serialize_template_task(t):
         'xp_value': t.get('xp_value'),
         'is_required': bool(t.get('is_required')),
         'order_index': t.get('order_index', 0),
+        # Same shape the class task editor returns -- one PresetTaskManager
+        # renders both.
+        'diploma_subjects': t.get('diploma_subjects') or [],
+        'subject_xp_distribution': t.get('subject_xp_distribution') or {},
     }
 
 
@@ -918,8 +923,18 @@ def update_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):
         updates['xp_value'] = max(0, xp)
     if 'is_required' in data:
         updates['is_required'] = bool(data.get('is_required'))
-    if not updates:
+    if not updates and 'diploma_subjects' not in data and 'subject_xp_distribution' not in data:
         return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
+
+    # Read before write, for the same reason the class task editor does it: the
+    # split is stored as XP amounts, so it depends on the XP and pillar the task
+    # will hold after this patch.
+    current = (_admin().table('quest_template_tasks')
+               .select('xp_value, pillar, diploma_subjects, subject_xp_distribution')
+               .eq('id', task_id).eq('quest_id', quest_id).limit(1).execute()).data
+    if not current:
+        return jsonify({'success': False, 'error': 'Task not found.'}), 404
+    updates.update(_subject_updates(current[0], data, updates))
 
     row = (_admin().table('quest_template_tasks').update(updates)
            .eq('id', task_id).eq('quest_id', quest_id).execute()).data
