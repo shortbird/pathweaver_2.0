@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { XP_PER_CREDIT } from '../../../utils/creditRequirements'
 import inputClass from './inputClass'
 import parseCourseText from './parseCourseText'
 import courseTotal from './courseTotal'
@@ -72,7 +73,7 @@ const TranscriptStep = ({ record, suggestion, busy, onSubmit }) => {
       <p className="text-xs text-gray-600">
         {Object.entries(awarded).map(([s, c]) => `${c} ${s}`).join(' · ')}
         {' — '}
-        {Object.values(awarded).reduce((a, b) => a + Number(b), 0) * 2000} XP
+        {Object.values(awarded).reduce((a, b) => a + Number(b), 0) * XP_PER_CREDIT} XP
       </p>
 
       <div>

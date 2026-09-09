@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { XP_PER_CREDIT } from '../../utils/creditRequirements';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
@@ -293,7 +294,7 @@ const PortfolioSection = ({
     const sortedSubjects = Object.entries(subjectXp)
       .filter(([, xp]) => xp > 0)
       .sort((a, b) => b[1] - a[1]);
-    const totalXp = tc.total_xp || Math.round(tc.total_credits * 2000);
+    const totalXp = tc.total_xp || Math.round(tc.total_credits * XP_PER_CREDIT);
 
     return (
       <div className="rounded-xl border border-gray-200 overflow-hidden bg-white flex flex-col mb-4 break-inside-avoid">

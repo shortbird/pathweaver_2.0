@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { XP_PER_CREDIT } from '../utils/creditRequirements';
 
 const DemoContext = createContext();
 
@@ -292,7 +293,7 @@ export const DemoProvider = ({ children }) => {
   // Calculate total credits earned (XP to credits conversion: 2000 XP = 1 credit)
   const calculateCreditsEarned = useCallback(() => {
     const totalXP = Object.values(demoState.demoCredits).reduce((sum, xp) => sum + xp, 0);
-    return (totalXP / 2000).toFixed(2);
+    return (totalXP / XP_PER_CREDIT).toFixed(2);
   }, [demoState.demoCredits]);
 
   // Get top subjects by XP
@@ -307,7 +308,7 @@ export const DemoProvider = ({ children }) => {
       name: SUBJECT_NAMES[subject],
       xp,
       color: SUBJECT_COLORS[subject],
-      credits: (xp / 2000).toFixed(2)
+      credits: (xp / XP_PER_CREDIT).toFixed(2)
     }));
   }, [demoState.demoCredits]);
 

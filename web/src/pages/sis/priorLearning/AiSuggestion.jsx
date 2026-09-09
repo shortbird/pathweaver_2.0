@@ -3,6 +3,7 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
+import { XP_PER_CREDIT } from '../../../utils/creditRequirements'
 import LOW_CONFIDENCE from './LOW_CONFIDENCE'
 import transcriptRows from './transcriptRows'
 import TERM_LABELS from './TERM_LABELS'
@@ -76,7 +77,7 @@ const AiSuggestion = ({ suggestion, busy, onUnlock, onUse }) => {
                   {Math.round(totalCredits * 100) / 100}
                 </td>
                 <td className="px-3 py-1.5 text-right text-gray-500 tabular-nums">
-                  {Math.round(totalCredits * 2000)} XP
+                  {Math.round(totalCredits * XP_PER_CREDIT)} XP
                 </td>
               </tr>
             </tfoot>

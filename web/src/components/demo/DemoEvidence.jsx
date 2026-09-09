@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
+import { XP_PER_CREDIT } from '../../utils/creditRequirements';
 import {
   CameraIcon,
   LinkIcon,
@@ -91,7 +92,7 @@ const CreditProgressBar = ({ subject, xp, maxXp = 500, animate = false, delay = 
   const [width, setWidth] = useState(0);
   const colors = subjectColors[subject] || subjectColors.electives;
   const percentage = Math.min((xp / maxXp) * 100, 100);
-  const credits = (xp / 2000).toFixed(2);
+  const credits = (xp / XP_PER_CREDIT).toFixed(2);
 
   useEffect(() => {
     if (animate) {

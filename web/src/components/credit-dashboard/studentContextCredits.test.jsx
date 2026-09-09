@@ -99,6 +99,32 @@ describe('one requirement table', () => {
     expect(shim).toMatch(/from '@shared\/credits'/)
   })
 
+  it('is the only place under web/src that spells the XP-per-credit rate', () => {
+    // The backend had SIX copies of this number and the ratchet in
+    // backend/tests/unit/test_credit_constants_generated.py found the last two.
+    // The web app had five of its own, in the demo, the portfolio and the prior-
+    // learning wizard -- every one of them dividing or multiplying XP by a bare
+    // 2000. A rate that is typed out is a rate that can be changed in four
+    // places and missed in the fifth.
+    //
+    // Matched as arithmetic (`/ 2000`, `* 2000`) rather than as the bare number,
+    // and then two shapes are excluded by hand because they are the same
+    // characters meaning something else entirely: `{message.length}/2000` is a
+    // character counter rendered as text, and `w3.org/2000/svg` is a namespace.
+    // A check that flags those gets switched off, which is worse than no check.
+    const src = join(process.cwd(), 'src')
+    const ARITHMETIC = /[*/]\s*2000\b/
+    const NOT_ARITHMETIC = [/w3\.org/, /\}\s*\/\s*2000/]
+    const offenders = walk(src)
+      .filter((path) => !/\.test\.jsx?$/.test(path))
+      .flatMap((path) => readFileSync(path, 'utf8').split('\n')
+        .map((line, i) => ({ path, i, line }))
+        .filter(({ line }) => ARITHMETIC.test(line) && !NOT_ARITHMETIC.some((r) => r.test(line)))
+        .map(({ path, i, line }) => `${path.replace(src, 'src')}:${i + 1}: ${line.trim()}`))
+
+    expect(offenders).toEqual([])
+  })
+
   it('agrees with the canonical JSON the backend also reads', () => {
     const canonical = JSON.parse(
       readFileSync(join(process.cwd(), '..', 'shared', 'data', 'credits.json'), 'utf8'),
