@@ -98,7 +98,7 @@ def _linked_resolver(table, eq, in_):
 @pytest.mark.unit
 class TestRegisterableStudents:
     def test_household_student_is_registerable_when_sis_enabled(self):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             students = parent.registerable_students('g1')
@@ -108,19 +108,19 @@ class TestRegisterableStudents:
         assert students[0]['name'] == 'Stu One'
 
     def test_excluded_when_org_not_sis_enabled(self):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=False):
             assert parent.registerable_students('g1') == []
 
     def test_non_guardian_has_no_students(self):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             assert parent.registerable_students('stranger') == []
 
     def test_approved_link_makes_a_guardian_without_a_household(self):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_linked_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             students = parent.registerable_students('g2')
@@ -136,13 +136,13 @@ class TestRegisterableStudents:
                 return []
             return _linked_resolver(table, eq, in_)
 
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(pending)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             assert parent.registerable_students('g2') == []
 
     def test_context_groups_students_by_org(self):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(_resolver)), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             ctx = parent.context('g1')
@@ -319,7 +319,7 @@ class TestContextCarriesEffectiveModules:
         return resolve
 
     def _context(self, flags):
-        with patch('services.sis_parent_service.get_supabase_admin_client',
+        with patch('services.sis_parent_service._admin',
                    return_value=_fake_admin(self._resolver_with_flags(flags))), \
              patch('services.sis_parent_service.org_has_feature', return_value=True):
             return parent.context('g1')

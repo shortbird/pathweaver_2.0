@@ -16,7 +16,6 @@ sis_parent_service, staff role on the /api/sis routes).
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
@@ -29,11 +28,10 @@ REQUEST_STATUSES = ('pending', 'approved', 'declined')
 MAX_MESSAGE_LEN = 2000
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _display_name(u: Dict[str, Any]) -> str:

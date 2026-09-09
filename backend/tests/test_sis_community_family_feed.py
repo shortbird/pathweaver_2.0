@@ -193,7 +193,7 @@ class TestWhichSchoolsBoard:
     def _resolve(self, ctx, client):
         from services import sis_service
         with patch('services.sis_service.get_user_org_context', return_value=ctx), \
-             patch('services.sis_service.get_supabase_admin_client', return_value=client):
+             patch('services.sis_service._admin', return_value=client):
             return sis_service.member_org_id('user-1')
 
     def test_an_org_member_uses_their_own_organization(self):

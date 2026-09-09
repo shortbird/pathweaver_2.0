@@ -210,7 +210,7 @@ def _hr_admin(spy, org='org-1'):
     with patch('database.get_supabase_admin_client',
                return_value=_admin_client_for_role('org_admin')), \
          patch('routes.sis.secure_documents.get_supabase_admin_client', return_value=spy), \
-         patch('services.sis_secure_docs_service.get_supabase_admin_client', return_value=spy), \
+         patch('services.sis_secure_docs_service._admin', return_value=spy), \
          patch('services.sis_service.resolve_org_id', return_value=org), \
          patch('routes.sis.secure_documents.sis_notifications.notify') as notify:
         yield notify

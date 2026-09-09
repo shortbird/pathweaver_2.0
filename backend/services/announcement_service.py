@@ -20,7 +20,6 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 
 from flask import current_app
 
-from database import get_supabase_admin_client
 from utils import rich_text
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
@@ -38,10 +37,9 @@ RECIPIENT_SNAPSHOT_CHUNK = 500
 NUDGE_COOLDOWN_HOURS = 24
 
 
-def _admin():
-    # admin client justified: publishing fans a message out to every recipient
-    #   in the school, which is by definition rows the author cannot see under RLS
-    return get_supabase_admin_client()
+# admin client justified: publishing fans a message out to every recipient
+#   in the school, which is by definition rows the author cannot see under RLS
+from utils.admin_client import admin_client as _admin
 
 
 def normalize_audiences(audiences: Any, fallback: Any = None) -> List[str]:

@@ -27,7 +27,6 @@ teachers, whichever page the admin happens to be on.
 
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.fk_errors import fk_blocker, fk_blocker_label
 from utils.logger import get_logger
 from utils import person_name
@@ -37,11 +36,10 @@ logger = get_logger(__name__)
 STAFF_ROLES = ('org_admin', 'campus_coordinator', 'advisor')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402

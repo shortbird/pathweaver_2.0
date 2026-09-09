@@ -35,7 +35,6 @@ best-effort via the existing sis_notifications pipeline.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from services import sis_notifications
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
@@ -48,11 +47,10 @@ ALERT_UNFINISHED = 'unfinished_next_released'
 ALERT_INACTIVE = 'inactive_two_weeks'
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import utcnow as _now  # noqa: E402

@@ -49,7 +49,6 @@ from services.sis_quest_authoring import (
     norm_pillar as _norm_pillar,
 )
 from services.sis_curriculum_sync import push_curriculum_quests_safe
-from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
@@ -61,11 +60,10 @@ _MAX_TITLE = 200
 _MAX_URL = 2000
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _org_or_error(user_id):

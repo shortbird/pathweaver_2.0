@@ -42,7 +42,7 @@ class TestCreateTeacherOnboarding:
     def test_assigns_onboarding_template_when_provided(self):
         from services import sis_service
         client, table = _create_client([[], []])  # dup-email check, profile insert
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None), \
              patch('services.sis_service.send_staff_invite', return_value=True), \
              patch('services.sis_onboarding_service.assign',
@@ -58,7 +58,7 @@ class TestCreateTeacherOnboarding:
     def test_no_template_skips_onboarding(self):
         from services import sis_service
         client, table = _create_client([[], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None), \
              patch('services.sis_service.send_staff_invite', return_value=True), \
              patch('services.sis_onboarding_service.assign') as assign:
@@ -71,7 +71,7 @@ class TestCreateTeacherOnboarding:
     def test_onboarding_assign_failure_does_not_fail_creation(self):
         from services import sis_service
         client, table = _create_client([[], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None), \
              patch('services.sis_service.send_staff_invite', return_value=True), \
              patch('services.sis_onboarding_service.assign',
@@ -90,7 +90,7 @@ class TestCreateTeacherPlaceholderGuard:
         from services import sis_service
         match = {'id': 'ph-1', 'name': 'Jane Doe', 'class_count': 5}
         client, table = _create_client([[], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=match), \
              patch('services.sis_service.send_staff_invite') as invite:
             result = sis_service.create_org_teacher(
@@ -103,7 +103,7 @@ class TestCreateTeacherPlaceholderGuard:
     def test_force_new_bypasses_placeholder_check(self):
         from services import sis_service
         client, table = _create_client([[], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match') as finder, \
              patch('services.sis_service.send_staff_invite', return_value=True):
             result = sis_service.create_org_teacher(
@@ -125,7 +125,7 @@ class TestFindPlaceholderMatch:
         rows = [{'id': 'ph-1', 'first_name': 'Jane', 'last_name': 'Doe',
                  'display_name': 'Jane Doe', 'email': PH_EMAIL,
                  'org_role': 'advisor', 'org_roles': ['advisor']}]
-        with patch('services.sis_service.get_supabase_admin_client',
+        with patch('services.sis_service._admin',
                    return_value=self._rows_client(rows)), \
              patch('services.sis_service.advisor_class_ids', return_value=['c1', 'c2']):
             match = sis_service.find_placeholder_match(ORG, 'jane', 'DOE')
@@ -136,7 +136,7 @@ class TestFindPlaceholderMatch:
         rows = [{'id': 'u-1', 'first_name': 'Jane', 'last_name': 'Doe',
                  'display_name': 'Jane Doe', 'email': 'jane@gmail.com',
                  'org_role': 'advisor', 'org_roles': ['advisor']}]
-        with patch('services.sis_service.get_supabase_admin_client',
+        with patch('services.sis_service._admin',
                    return_value=self._rows_client(rows)):
             assert sis_service.find_placeholder_match(ORG, 'Jane', 'Doe') is None
 
@@ -145,7 +145,7 @@ class TestFindPlaceholderMatch:
         rows = [{'id': 'ph-1', 'first_name': 'Liz', 'last_name': 'Smith',
                  'display_name': 'Liz Smith', 'email': PH_EMAIL,
                  'org_role': 'advisor', 'org_roles': ['advisor']}]
-        with patch('services.sis_service.get_supabase_admin_client',
+        with patch('services.sis_service._admin',
                    return_value=self._rows_client(rows)):
             assert sis_service.find_placeholder_match(ORG, 'Jane', 'Doe') is None
 
@@ -164,7 +164,7 @@ class TestAddTeacherWhoAlreadyHasAnAccount:
     def test_existing_parent_is_offered_instead_of_an_error(self):
         from services import sis_service
         client, _ = _create_client([[self.PARENT]])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None):
             result = sis_service.create_org_teacher(
                 ORG, {'first_name': 'Mo', 'last_name': 'Parent', 'email': 'mom@real.com'})
@@ -177,7 +177,7 @@ class TestAddTeacherWhoAlreadyHasAnAccount:
         from services import sis_service
         student = {**self.PARENT, 'org_role': 'student', 'org_roles': ['student']}
         client, _ = _create_client([[student]])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None):
             result = sis_service.create_org_teacher(
                 ORG, {'first_name': 'Kid', 'last_name': 'One', 'email': 'mom@real.com'})
@@ -187,7 +187,7 @@ class TestAddTeacherWhoAlreadyHasAnAccount:
         from services import sis_service
         other = {**self.PARENT, 'organization_id': 'org-2'}
         client, _ = _create_client([[other]])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.find_placeholder_match', return_value=None):
             result = sis_service.create_org_teacher(
                 ORG, {'email': 'mom@real.com'})
@@ -196,7 +196,7 @@ class TestAddTeacherWhoAlreadyHasAnAccount:
     def test_grant_keeps_the_roles_they_already_had(self):
         from services import sis_service
         client, table = _admin_with([[self.PARENT], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service._org_name', return_value='iCreate'), \
              patch('services.email_service.email_service.send_staff_access_added_email',
                    return_value=True):
@@ -213,7 +213,7 @@ class TestAddTeacherWhoAlreadyHasAnAccount:
         from services import sis_service
         teacher = {**self.PARENT, 'org_role': 'advisor', 'org_roles': ['advisor']}
         client, _ = _admin_with([[teacher]])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_service._admin', return_value=client):
             result = sis_service.grant_teacher_role(ORG, 'u-9', {})
         assert 'already a teacher' in result['error']
 
@@ -232,7 +232,7 @@ class TestChecklistAudience:
         client, table = _admin_with([[template],
                                      [{'id': 'u-9', 'organization_id': ORG}],
                                      [{'id': 'a1'}]])
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=client), \
              patch('services.sis_notifications.notify'):
             onboarding.assign(ORG, 't1', 'u-9', assigned_by='admin-1')
@@ -241,7 +241,7 @@ class TestChecklistAudience:
     def test_list_filters_by_audience(self):
         from services import sis_onboarding_service as onboarding
         client, table = _admin_with([[], []])
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=client):
             onboarding.list_assignments(ORG, user_id='u-9', audience='family')
         filters = [c[0] for c in table.eq.call_args_list]
@@ -250,7 +250,7 @@ class TestChecklistAudience:
     def test_admin_rollup_is_not_filtered(self):
         from services import sis_onboarding_service as onboarding
         client, table = _admin_with([[], []])
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=client):
             onboarding.list_assignments(ORG)
         assert not any(c[0][0] == 'audience' for c in table.eq.call_args_list)
@@ -269,7 +269,7 @@ class TestOnboardingRecipientsExcludePlaceholders:
              'org_role': 'advisor', 'role': 'org_managed'},
         ]
         client, _ = _admin_with([rows])
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=client):
             people = onboarding.list_recipients(ORG, 'staff')
         ids = [p['id'] for p in people]

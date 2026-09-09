@@ -33,12 +33,10 @@ CONVERSION_EXIT_REASONS = {
 }
 
 
-def _db():
-    from database import get_supabase_admin_client
-    # admin client justified: CRM tables are service-role only (RLS, no
-    # policies) and these hooks run in unauthenticated/service contexts
-    # (contact form, cron, OAuth callback).
-    return get_supabase_admin_client()
+# admin client justified: CRM tables are service-role only (RLS, no
+# policies) and these hooks run in unauthenticated/service contexts
+# (contact form, cron, OAuth callback).
+from utils.admin_client import admin_client as _db
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402
@@ -291,10 +289,9 @@ def _is_under_13(email):
     way is a ten-year-old's name and email sitting in a marketing database.
     """
     try:
-        from database import get_supabase_admin_client
         # admin client justified: marketing-sync age gate resolves the
         # RECIPIENT's own user row by email; runs in service context.
-        db = get_supabase_admin_client()
+        db = _db()
         rows = (db.table('users')
                 .select('requires_parental_consent, date_of_birth')
                 .ilike('email', email).limit(1).execute()).data or []

@@ -32,7 +32,6 @@ that portfolio becoming public to anyone else.
 from datetime import date, datetime
 from typing import Any, Dict, Optional, Tuple
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
 
@@ -50,13 +49,12 @@ ORG_APPROVER_ROLES = ('org_admin', 'advisor')
 from config.constants import GUARDIAN_RELATIONSHIPS  # noqa: E402
 
 
-def _admin():
-    # admin client justified: every function here answers a cross-user
-    # authorization question (is this caller that student's parent?) and must
-    # read rows the caller cannot see under RLS. Nothing here returns student
-    # data -- these are boolean/identifier answers consumed by callers that do
-    # their own gating.
-    return get_supabase_admin_client()
+# admin client justified: every function here answers a cross-user
+# authorization question (is this caller that student's parent?) and must
+# read rows the caller cannot see under RLS. Nothing here returns student
+# data -- these are boolean/identifier answers consumed by callers that do
+# their own gating.
+from utils.admin_client import admin_client as _admin
 
 
 def _fetch_user(user_id: str, columns: str) -> Optional[Dict[str, Any]]:

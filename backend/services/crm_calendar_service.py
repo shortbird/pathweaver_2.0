@@ -40,11 +40,9 @@ RESYNC_WINDOW_DAYS = 7
 SYNC_TOKEN_KEY = 'calendar_sync_token'
 
 
-def _db():
-    from database import get_supabase_admin_client
-    # admin client justified: CRM tables are service-role only; the poll runs
-    # from cron with no user session.
-    return get_supabase_admin_client()
+# admin client justified: CRM tables are service-role only; the poll runs
+# from cron with no user session.
+from utils.admin_client import admin_client as _db
 
 
 def _access_token() -> Optional[str]:

@@ -15,7 +15,6 @@ Modeled directly on services/sis_attendance_sweep_service.py.
 from datetime import date
 from typing import Any, Dict, List
 
-from database import get_supabase_admin_client
 from services import sis_notifications
 from services import oea_compliance_service as compliance
 from utils import oea_rules
@@ -24,10 +23,9 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: an admin compliance sweep across every OEA student
-    #   in the org; no single caller can see that set under RLS
-    return get_supabase_admin_client()
+# admin client justified: an admin compliance sweep across every OEA student
+#   in the org; no single caller can see that set under RLS
+from utils.admin_client import admin_client as _admin
 
 
 def _oea_org_ids() -> List[str]:

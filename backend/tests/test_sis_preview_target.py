@@ -35,7 +35,7 @@ def _run(requested, *, is_admin=True, target_org=ORG, target_exists=True):
     client.table.return_value = lookup
 
     with patch.object(sp, 'caller_is_admin', return_value=is_admin), \
-         patch.object(sp, 'get_supabase_admin_client', return_value=client):
+         patch.object(sp, '_admin', return_value=client):
         return sp.resolve_preview_target(ADMIN, ORG, requested)
 
 
@@ -70,7 +70,7 @@ class TestItCostsNothingWhenNobodyIsPreviewing:
         # not add a users lookup to the ordinary path.
         client = Mock()
         with patch.object(sp, 'caller_is_admin') as is_admin, \
-             patch.object(sp, 'get_supabase_admin_client', return_value=client):
+             patch.object(sp, '_admin', return_value=client):
             assert sp.resolve_preview_target(ADMIN, ORG, None) is None
         client.table.assert_not_called()
         is_admin.assert_not_called()

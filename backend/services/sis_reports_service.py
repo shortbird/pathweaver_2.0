@@ -8,7 +8,6 @@ it doesn't move it. See SIS_IMPLEMENTATION_PLAN.md (M7).
 
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from services import sis_attendance_service as attendance
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
@@ -16,11 +15,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 # ── Pure aggregators (unit-tested) ───────────────────────────────────────────

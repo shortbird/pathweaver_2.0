@@ -9,7 +9,6 @@ backend-only, same justification as sis_service.py.
 
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from repositories.sis_class_repository import SisClassRepository
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place, sign_stored_url
@@ -39,11 +38,10 @@ REGISTRATION_STATUSES = ('open', 'closed')
 STAFF_ONLY_FIELDS = ('internal_notes', 'supply_budget_per_student')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _classes_repo() -> SisClassRepository:

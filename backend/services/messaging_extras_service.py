@@ -13,7 +13,6 @@ import requests
 from typing import Any, Dict, List, Optional
 
 from app_config import Config
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.storage_urls import parse_object_ref, public_object_url, sign_stored_urls
 
@@ -26,11 +25,10 @@ MAX_ATTACHMENTS = 5
 MAX_ATTACHMENT_MB = 25
 
 
-def _admin():
-    # admin client justified: messaging spans both sides of a conversation, and
-    #   a sender cannot read the recipient's rows under RLS; membership is checked
-    #   before every use
-    return get_supabase_admin_client()
+# admin client justified: messaging spans both sides of a conversation, and
+#   a sender cannot read the recipient's rows under RLS; membership is checked
+#   before every use
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402

@@ -20,17 +20,15 @@ import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: messaging spans both sides of a conversation, and
-    #   a sender cannot read the recipient's rows under RLS; membership is checked
-    #   before every use
-    return get_supabase_admin_client()
+# admin client justified: messaging spans both sides of a conversation, and
+#   a sender cannot read the recipient's rows under RLS; membership is checked
+#   before every use
+from utils.admin_client import admin_client as _admin
 
 
 def get_org(org_id: str) -> Optional[Dict[str, Any]]:

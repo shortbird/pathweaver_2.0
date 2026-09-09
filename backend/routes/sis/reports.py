@@ -17,7 +17,6 @@ import io
 
 from flask import Blueprint, request, jsonify, Response
 
-from database import get_supabase_admin_client
 from utils.registration_config import get_registration_config
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
@@ -262,11 +261,10 @@ def block_rosters(user_id):
 
 # ── Information reports (registration data) ──────────────────────────────────
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _csv_response(filename, header, rows):

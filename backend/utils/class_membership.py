@@ -27,7 +27,6 @@ and logs, so a messaging query can never break the caller.
 
 from typing import Any, Dict, Iterable, List, Optional, Set
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,10 +36,9 @@ logger = get_logger(__name__)
 _CHUNK = 100
 
 
-def _admin():
-    # admin client justified: answers a cross-user authorization question and
-    #   must read rows the caller cannot see; returns booleans/ids, not user data
-    return get_supabase_admin_client()
+# admin client justified: answers a cross-user authorization question and
+#   must read rows the caller cannot see; returns booleans/ids, not user data
+from utils.admin_client import admin_client as _admin
 
 
 def _chunks(items: List[str], size: int = _CHUNK) -> Iterable[List[str]]:

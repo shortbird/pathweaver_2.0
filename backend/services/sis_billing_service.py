@@ -11,7 +11,6 @@ from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Any, Optional
 
 from app_config import Config
-from database import get_supabase_admin_client
 from services import sis_pricing as pricing
 from utils.db_fetch import fetch_all_rows
 from utils.validation import validate_uuid
@@ -35,11 +34,10 @@ OPEN_INVOICE_STATUSES = ('sent', 'partial', 'overdue')
 UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402

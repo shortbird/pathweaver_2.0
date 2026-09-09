@@ -47,7 +47,7 @@ def _school_context(user_id, guardian_orgs=(), member_org=None, sis_enabled=True
                       return_value={'orgs': list(guardian_orgs)}), \
          patch('services.sis_service.member_org_id', return_value=member_org), \
          patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
-         patch.object(parent, 'get_supabase_admin_client',
+         patch.object(parent, '_admin',
                       return_value=_admin_returning(list(org_rows))):
         return parent.school_context(user_id)
 
@@ -221,7 +221,7 @@ class TestSchoolWideReadsOpenToEveryMember:
         client = Mock()
         client.table.side_effect = lambda name: _table_returning(rows.get(name, []))
         with patch.object(parent, '_is_org_member', return_value=is_member), \
-             patch.object(parent, 'get_supabase_admin_client', return_value=client):
+             patch.object(parent, '_admin', return_value=client):
             return fn('viewer-1', 'org-1')
 
     def test_resources_open_to_a_non_guardian_member(self):
@@ -257,7 +257,7 @@ class TestSuperadminPreviewListing:
                 'feature_flags': {'sis_enabled': True}}
 
     def _preview(self, org_rows):
-        with patch.object(parent, 'get_supabase_admin_client',
+        with patch.object(parent, '_admin',
                           return_value=_admin_returning(list(org_rows))):
             return parent.school_preview_orgs()
 
@@ -383,7 +383,7 @@ class TestGuardianOnlySurfacesDidNotWiden:
 
     def test_directory_opt_in_is_still_household_scoped(self):
         client = _admin_returning([])
-        with patch.object(parent, 'get_supabase_admin_client', return_value=client):
+        with patch.object(parent, '_admin', return_value=client):
             assert parent.set_directory_opt_in('student-1', 'org-1', True).get('error')
 
     def test_open_classes_still_authorizes_on_guardianship(self):

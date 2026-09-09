@@ -709,7 +709,17 @@ class TestHelpVideoTracking:
         views = [{'user_id': 'p1', 'first_opened_at': '2026-08-20T00:00:00Z',
                   'last_opened_at': '2026-08-21T00:00:00Z', 'open_count': 2}]
         settings = dict(oea_rules.build_oea_settings(None), help_video_url='https://v/1')
+        # Two before-request gates sit in front of this route and are not what
+        # it is testing. Both read through the admin client, and until
+        # 2026-09-09 both bound get_supabase_admin_client at import -- so
+        # patching `database.…` did not reach them, their lookups hit the real
+        # client, and each failed closed to "not blocked". They now go through
+        # utils/admin_client, which resolves the factory at call time, so the
+        # patch DOES reach them and they would silently eat entries from the
+        # queue above. Stub them to the answer they always gave here.
         with _authenticated_as(self.ADMIN), \
+             patch('utils.signature_hold.is_blocked', return_value=False), \
+             patch('utils.phone_verification_hold.is_blocked', return_value=False), \
              patch('database.get_supabase_admin_client', return_value=fake), \
              patch('routes.oea.get_supabase_admin_client', return_value=fake), \
              patch('utils.db_fetch.fetch_all_rows', side_effect=[parents, views]), \

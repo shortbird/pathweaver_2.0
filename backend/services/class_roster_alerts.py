@@ -15,7 +15,6 @@ enrolls a student on their own class page is not told about it.
 
 from typing import Optional
 
-from database import get_supabase_admin_client
 from repositories.sis_class_repository import SisClassRepository
 from repositories.user_repository import UserRepository
 from services import sis_notifications
@@ -26,11 +25,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: reads the class row and the joining student's name
-    #   to address a notification to that class's teachers; reached only from
-    #   enrollment write paths that have already authorized the enrollment
-    return get_supabase_admin_client()
+# admin client justified: reads the class row and the joining student's name
+#   to address a notification to that class's teachers; reached only from
+#   enrollment write paths that have already authorized the enrollment
+from utils.admin_client import admin_client as _admin
 
 
 def notify_teachers_of_new_student(class_id: str, student_id: str,

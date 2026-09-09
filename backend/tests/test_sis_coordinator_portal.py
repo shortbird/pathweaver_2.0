@@ -115,7 +115,7 @@ class TestUnaccountedAlerts:
             alerts_created.extend(student_ids)
             return len(student_ids)
 
-        with patch('services.sis_attendance_service.get_supabase_admin_client',
+        with patch('services.sis_attendance_service._admin',
                    return_value=client), \
              patch('services.sis_planned_absence_service.for_class_date',
                    return_value=planned_covered), \
@@ -165,7 +165,7 @@ class TestAlertResolution:
         from services import sis_attendance_service as att
         client, table = _stub_client(responses if responses is not None
                                      else [[self.ALERT], [dict(self.ALERT, status='resolved')], [{}]])
-        with patch('services.sis_attendance_service.get_supabase_admin_client',
+        with patch('services.sis_attendance_service._admin',
                    return_value=client):
             result = att.resolve_alert(ORG, 'a1', resolution, 'note', actor_id='cc1')
         return result, table
@@ -229,7 +229,7 @@ class TestTaskSystem:
                'form_type': 'maintenance', 'title': 'Printer in Room 3', 'status': 'submitted'}
         client, _ = _stub_client([[row], [dict(row, assigned_to='cc1')]])
         notified = []
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client), \
              patch('services.sis_notifications.notify',
                    side_effect=lambda uid, *a, **k: notified.append(uid)):
@@ -240,7 +240,7 @@ class TestTaskSystem:
         from services import sis_forms_service as forms
         row = {'id': 'f1', 'organization_id': ORG, 'submitted_by': 't1', 'status': 'submitted'}
         client, _ = _stub_client([[row]])
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client):
             result = forms.update_status(ORG, 'f1', {'priority': 'bananas'}, actor_id='a1')
         assert result.get('error')
@@ -250,7 +250,7 @@ class TestTaskSystem:
         created = {'id': 'f2', 'title': 'Check broken printer', 'assigned_to': 'cc1'}
         client, table = _stub_client([[created]])
         notified = []
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client), \
              patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_forms_service.sis_service') as svc, \
@@ -274,7 +274,7 @@ class TestTaskSystem:
         with assigned_to smuggled in must not set it."""
         from services import sis_forms_service as forms
         client, table = _stub_client([[{'id': 'f3'}]])
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client), \
              patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_forms_service.sis_service') as svc, \
@@ -295,7 +295,7 @@ class TestTaskSystem:
             [{'id': 'cm1', 'body': 'On it'}],          # insert
         ])
         notified = []
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client), \
              patch('services.sis_notifications.notify',
                    side_effect=lambda uid, *a, **k: notified.append(uid)):
@@ -313,7 +313,7 @@ class TestTaskSystem:
         from services import sis_forms_service as forms
         client, table = _stub_client([[{'id': 'f1', 'status': 'in_progress',
                                         'submitted_by': 'a1', 'assigned_to': 'me'}]])
-        with patch('services.sis_forms_service.get_supabase_admin_client',
+        with patch('services.sis_forms_service._admin',
                    return_value=client):
             forms.list_assigned(ORG, 'me')
         # The query filters on assignee and excludes resolved rows.

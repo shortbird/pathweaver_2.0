@@ -238,28 +238,27 @@ def _capture_to_sentry(record, created, user_id, message):
         logger.warning(f"[BugReport] sentry capture skipped: {e}")
 
 
-def _triage_client():
-    """The client the superadmin triage endpoints read and write reports with.
-
-    It must be the admin client. `bug_reports` has RLS enabled and ZERO
-    policies, which is deny-all: a user-scoped client sees no rows no matter
-    who is holding it, so the triage list came back empty while looking
-    healthy -- 200, `count: 0`, nothing in the logs. Superadmin is not an
-    exception to a policy that does not exist.
-
-    Authorization for these endpoints is @require_role('superadmin') at the
-    route, above. RLS was never what gated them; it was only ever able to
-    silence them.
-
-    Fixing this with a policy instead was considered and rejected. Reports
-    carry the reporter's email, role and a diagnostics blob, and nothing but
-    the Flask backend reads this table -- both frontends use the Supabase
-    client for OAuth only. A policy would open a PostgREST path to that data
-    that no caller needs.
-    """
-    # admin client justified: bug_reports is deny-all RLS (0 policies), so a user
-    # client reads nothing; these endpoints are superadmin-gated at the route
-    return get_supabase_admin_client()
+# The client the superadmin triage endpoints read and write reports with.
+#
+# It must be the admin client. `bug_reports` has RLS enabled and ZERO
+# policies, which is deny-all: a user-scoped client sees no rows no matter
+# who is holding it, so the triage list came back empty while looking
+# healthy -- 200, `count: 0`, nothing in the logs. Superadmin is not an
+# exception to a policy that does not exist.
+#
+# Authorization for these endpoints is @require_role('superadmin') at the
+# route, above. RLS was never what gated them; it was only ever able to
+# silence them.
+#
+# Fixing this with a policy instead was considered and rejected. Reports
+# carry the reporter's email, role and a diagnostics blob, and nothing but
+# the Flask backend reads this table -- both frontends use the Supabase
+# client for OAuth only. A policy would open a PostgREST path to that data
+# that no caller needs.
+#
+# admin client justified: bug_reports is deny-all RLS (0 policies), so a user
+# client reads nothing; these endpoints are superadmin-gated at the route
+from utils.admin_client import admin_client as _triage_client
 
 
 @bp.route('', methods=['GET'])

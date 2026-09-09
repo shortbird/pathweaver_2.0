@@ -24,7 +24,6 @@ import time
 from datetime import date, datetime
 from typing import Any, Dict, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,10 +33,9 @@ logger = get_logger(__name__)
 INVITE_EXPIRY_DAYS = 14
 
 
-def _admin():
-    # admin client justified: creates an auth user + profile for a teen on behalf
-    # of their verified parent; no user session exists for the child being made.
-    return get_supabase_admin_client()
+# admin client justified: creates an auth user + profile for a teen on behalf
+# of their verified parent; no user session exists for the child being made.
+from utils.admin_client import admin_client as _admin
 
 
 def calculate_age(dob: date, today: Optional[date] = None) -> int:

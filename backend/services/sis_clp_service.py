@@ -17,7 +17,6 @@ SIS tables are RLS-locked to backend-only and this is a cross-table read.
 from datetime import date, datetime, timezone
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_catalog_service as catalog
 from utils.logger import get_logger
@@ -33,11 +32,10 @@ CLP_RECORD_TABLE = 'sis_clp_records'
 MAX_NOTES_LEN = 10000
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _org_private_school_name(org_id: str) -> Optional[str]:

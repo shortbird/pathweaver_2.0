@@ -16,7 +16,6 @@ sis_parent_service, staff role on the /api/sis routes).
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,11 +28,10 @@ CHOICE_LABELS = {
 }
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def get_selection(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:

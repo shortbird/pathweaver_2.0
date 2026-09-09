@@ -29,11 +29,9 @@ VALID_CONTACT_TYPES = ['demo', 'sales', 'general', 'families', 'philosophy',
                        'academy', 'claim_free_class', 'course_purchase']
 
 
-def _db():
-    from database import get_supabase_admin_client
-    # admin client justified: CRM tables are service-role only; every route
-    # here is behind require_superadmin.
-    return get_supabase_admin_client()
+# admin client justified: CRM tables are service-role only; every route
+# here is behind require_superadmin.
+from utils.admin_client import admin_client as _db
 
 
 def _repo():

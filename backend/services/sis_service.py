@@ -10,7 +10,6 @@ RLS policies for a single org-admin read (same justification the /me endpoint us
 
 from typing import Callable, Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
@@ -28,11 +27,10 @@ ENROLLMENT_STATUSES = ('applicant', 'enrolled', 'withdrawn', 'graduated')
 INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def is_student(user: Dict[str, Any]) -> bool:
@@ -960,7 +958,7 @@ def resolve_preview_target(caller_id: str, org_id: str, requested_id):
         return None
     # admin client justified: cross-user read to confirm the previewed staff
     # member belongs to the caller's org; only reached after caller_is_admin.
-    row = (get_supabase_admin_client().table('users').select('id, organization_id')
+    row = (_admin().table('users').select('id, organization_id')
            .eq('id', requested_id).limit(1).execute()).data
     if row and row[0].get('organization_id') == org_id:
         return requested_id

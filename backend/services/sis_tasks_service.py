@@ -21,7 +21,6 @@ show "under review" rather than "in progress".
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from database import get_supabase_admin_client
 from services import sis_forms_service as forms
 from services import sis_onboarding_service as onboarding
 from services import sis_service
@@ -47,11 +46,10 @@ _FORM_STATUS_MAP = {
 _ORDER = {'todo': 0, 'in_progress': 1, 'waiting_on_admin': 2, 'done': 3}
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _today() -> str:

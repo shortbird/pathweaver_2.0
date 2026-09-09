@@ -18,7 +18,6 @@ from datetime import date, datetime
 from typing import Dict, List, Any, Optional, Set
 from zoneinfo import ZoneInfo
 
-from database import get_supabase_admin_client
 from services import sis_attendance_sweep as rules
 from services import sis_notifications
 from utils.db_fetch import fetch_all_rows
@@ -37,10 +36,9 @@ DEFAULT_SCHOOL_END_HOUR = 18
 CLASS_REMINDER_WINDOW_MINUTES = 10
 
 
-def _admin():
-    # admin client justified: a scheduled sweep with no request behind it —
-    #   there is no caller session for RLS to scope to
-    return get_supabase_admin_client()
+# admin client justified: a scheduled sweep with no request behind it —
+#   there is no caller session for RLS to scope to
+from utils.admin_client import admin_client as _admin
 
 
 def _org_row(org_id: str) -> Dict[str, Any]:

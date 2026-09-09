@@ -60,19 +60,19 @@ KNOWN_SECRETS = frozenset({STRIPE_SECRET_KEY, CALENDAR_FEED_TOKEN,
                            CALENDAR_FEED_TOKEN_FAMILY})
 
 
-def _admin():
-    # admin client justified: organization_secrets is deny-all under RLS by
-    # design; the service-role client is the only way to reach it. Callers have
-    # already been authorized (org_admin/superadmin routes, or a server-side
-    # payment path that never returns the value).
-    #
-    # Imported lazily so the pure helpers below (strip_secrets_from_feature_flags,
-    # secret_shaped_keys) can be imported and tested without database config --
-    # they are the ones CI enforces on every push.
-    from database import get_supabase_admin_client
-    # admin client justified: org credentials are deliberately unreadable by any
-    #   client — that is the point of the table
-    return get_supabase_admin_client()
+# admin client justified: organization_secrets is deny-all under RLS by
+# design; the service-role client is the only way to reach it. Callers have
+# already been authorized (org_admin/superadmin routes, or a server-side
+# payment path that never returns the value).
+#
+# The database import stays lazy -- utils.admin_client does it inside its
+# accessor and imports nothing at module scope. That is what keeps the pure
+# helpers below (strip_secrets_from_feature_flags, secret_shaped_keys)
+# importable and testable without database config; they are the ones CI
+# enforces on every push.
+# admin client justified: org credentials are deliberately unreadable by any
+#   client — that is the point of the table
+from utils.admin_client import admin_client as _admin
 
 
 #: Envelope prefix. Versioned so a key id can be added later without having to

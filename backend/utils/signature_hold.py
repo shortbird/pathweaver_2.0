@@ -53,7 +53,6 @@ who has just signed, which is the one failure mode that must not happen.
 import time
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -71,10 +70,9 @@ _STAFF_ROLES = frozenset({'org_admin', 'campus_coordinator', 'advisor',
 _clear_until: Dict[str, float] = {}
 
 
-def _admin():
-    # admin client justified: access-control utility -- reads the assignments
-    # that decide the caller's own access, before any role context exists.
-    return get_supabase_admin_client()
+# admin client justified: access-control utility -- reads the assignments
+# that decide the caller's own access, before any role context exists.
+from utils.admin_client import admin_client as _admin
 
 
 def clear_cache(user_id: Optional[str] = None) -> None:

@@ -58,11 +58,9 @@ _TOKEN_RE = {
 }
 
 
-def _db():
-    from database import get_supabase_admin_client
-    # admin client justified: CRM tables are service-role only; the sweep runs
-    # from cron with no user session.
-    return get_supabase_admin_client()
+# admin client justified: CRM tables are service-role only; the sweep runs
+# from cron with no user session.
+from utils.admin_client import admin_client as _db
 
 
 def _settings(db) -> Dict[str, Any]:

@@ -83,7 +83,7 @@ def _school_quests(rows, is_member=True):
     client = Mock()
     client.table.side_effect = tables
     with patch.object(parent, '_is_org_member', return_value=is_member), \
-         patch.object(parent, 'get_supabase_admin_client', return_value=client):
+         patch.object(parent, '_admin', return_value=client):
         return parent.school_quests(GUARDIAN, ORG), tables
 
 

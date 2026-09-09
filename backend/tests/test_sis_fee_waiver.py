@@ -45,7 +45,7 @@ def _waive(responses):
     from services import sis_service
     client, table = _admin_with(responses)
     finish = Mock(return_value={'success': True})
-    with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+    with patch('services.sis_service._admin', return_value=client):
         result = sis_service.waive_registration_fee(ORG, 'hh-1', actor_id='admin-1',
                                                     finish_registration=finish)
     return result, table, finish
@@ -95,7 +95,7 @@ class TestWaiveRegistrationFee:
     def test_rejects_a_household_from_another_org(self):
         from services import sis_service
         client, _ = _admin_with([[{**HOUSEHOLD, 'organization_id': 'org-2'}]])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_service._admin', return_value=client):
             result = sis_service.waive_registration_fee(ORG, 'hh-1')
         assert result['error'] == 'Family not found'
 

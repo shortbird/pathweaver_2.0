@@ -176,13 +176,14 @@ def canonical_stored_url(value: Optional[str]) -> Optional[str]:
 
 # ── reading: the short-lived capability ──────────────────────────────────────
 
-def _admin():
-    # Imported lazily: database imports Config, and utils are imported from
-    # inside Config-consuming modules.
-    from database import get_supabase_admin_client
-    # admin client justified: signs URLs for private buckets; the signing
-    #   identity is the service role by construction
-    return get_supabase_admin_client()
+# The database import stays lazy -- it happens inside utils.admin_client's
+# accessor, not here. `database` imports Config, and this module is imported
+# from inside Config-consuming modules, so a module-scope import of it would
+# close a cycle. Importing utils.admin_client is always safe: it imports
+# nothing at module scope.
+# admin client justified: signs URLs for private buckets; the signing
+#   identity is the service role by construction
+from utils.admin_client import admin_client as _admin
 
 
 def signed_url(

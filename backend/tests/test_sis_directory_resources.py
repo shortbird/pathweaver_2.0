@@ -119,7 +119,7 @@ class TestOrgResources:
     def test_lists_resources_for_family(self):
         client, _ = _fake_admin(_resolver)
         with patch('services.sis_parent_service._is_org_member', return_value=True), \
-             patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+             patch('services.sis_parent_service._admin', return_value=client):
             rows = parent.org_resources('g1', 'org1')
         assert rows[0]['title'] == 'Family Guidebook'
 
@@ -133,7 +133,7 @@ class TestFamilyDirectory:
     def test_lists_only_opted_in_households_with_guardians_and_kid_first_names(self):
         client, _ = _fake_admin(_resolver)
         with patch('services.sis_parent_service._is_org_member', return_value=True), \
-             patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+             patch('services.sis_parent_service._admin', return_value=client):
             families = parent.family_directory('g1', 'org1')
         # Opt-in school: only h1 chose to be listed.
         assert len(families) == 1
@@ -153,14 +153,14 @@ class TestFamilyDirectory:
         setting is listed; one that explicitly opted out stays hidden."""
         client, _ = _fake_admin(_make_resolver(default_in=True))
         with patch('services.sis_parent_service._has_org_access', return_value=True), \
-             patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+             patch('services.sis_parent_service._admin', return_value=client):
             families = parent.family_directory('g1', 'org1')
         names = {f['family_name'] for f in families}
         assert names == {'One Family', 'Two Family'}  # h3 opted out
 
     def test_opt_in_updates_only_own_households(self):
         client, captured = _fake_admin(_resolver)
-        with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_parent_service._admin', return_value=client):
             result = parent.set_directory_opt_in('g1', 'org1', True)
         assert result['opted_in'] is True
         assert result['default_in'] is False
@@ -175,7 +175,7 @@ class TestFamilyDirectory:
         default-listed school, a stored `directory_opt_in = false` alone would
         put the family straight back in the directory."""
         client, captured = _fake_admin(_resolver)
-        with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_parent_service._admin', return_value=client):
             parent.set_directory_opt_in('g1', 'org1', False)
         assert captured['update']['fields'] == {
             'directory_opt_in': False, 'directory_opted_out': True,
@@ -183,7 +183,7 @@ class TestFamilyDirectory:
 
     def test_carpool_interest_is_saved(self):
         client, captured = _fake_admin(_resolver)
-        with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_parent_service._admin', return_value=client):
             result = parent.set_directory_opt_in('g1', 'org1', True,
                                                  shares={'carpool_interest': True})
         assert result['carpool_interest'] is True
@@ -191,12 +191,12 @@ class TestFamilyDirectory:
 
     def test_opt_in_errors_without_a_household(self):
         client, _ = _fake_admin(lambda *_: [])
-        with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_parent_service._admin', return_value=client):
             assert parent.set_directory_opt_in('nobody', 'org1', True).get('error')
 
     def test_status_reflects_household_flag(self):
         client, _ = _fake_admin(_resolver)
-        with patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_parent_service._admin', return_value=client):
             status = parent.directory_opt_in_status('g1', 'org1')
         assert status['opted_in'] is True
         assert status['default_in'] is False
@@ -213,7 +213,7 @@ class TestFamilyDirectory:
         client, _ = _fake_admin(_make_resolver(default_in=True))
         with patch('services.sis_parent_service._guardian_households',
                    return_value=[_HOUSEHOLDS[1]]), \
-             patch('services.sis_parent_service.get_supabase_admin_client', return_value=client):
+             patch('services.sis_parent_service._admin', return_value=client):
             status = parent.directory_opt_in_status('g2', 'org1')
         assert status['opted_in'] is True
         assert status['default_in'] is True

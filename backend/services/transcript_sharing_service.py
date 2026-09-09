@@ -20,7 +20,6 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,11 +29,10 @@ logger = get_logger(__name__)
 DEFAULT_TTL_DAYS = 180
 
 
-def _admin():
-    # admin client justified: share tokens are consumed by unauthenticated
-    # callers (the receiving school), so the token itself is the auth surface;
-    # issuance is gated by can_manage_privacy at the route layer.
-    return get_supabase_admin_client()
+# admin client justified: share tokens are consumed by unauthenticated
+# callers (the receiving school), so the token itself is the auth surface;
+# issuance is gated by can_manage_privacy at the route layer.
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import utcnow as _now  # noqa: E402

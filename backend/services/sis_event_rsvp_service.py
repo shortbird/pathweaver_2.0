@@ -22,7 +22,6 @@ double the pizza.
 
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.timestamps import now_iso as _now
@@ -32,11 +31,10 @@ logger = get_logger(__name__)
 MAX_PARTY_SIZE = 50
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def get_event(org_id: str, event_id: str) -> Optional[Dict[str, Any]]:

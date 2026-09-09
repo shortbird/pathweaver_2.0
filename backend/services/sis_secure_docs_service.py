@@ -18,7 +18,6 @@ that leaks.
 import uuid as _uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -50,10 +49,9 @@ def clean_title(value: Any, fallback: Any) -> str:
     return title[:MAX_TITLE_LEN]
 
 
-def _admin():
-    # admin client justified: the private sis-secure-documents bucket and its
-    # service-role-only table; every caller is role-gated and pins organization_id.
-    return get_supabase_admin_client()
+# admin client justified: the private sis-secure-documents bucket and its
+# service-role-only table; every caller is role-gated and pins organization_id.
+from utils.admin_client import admin_client as _admin
 
 
 # What the bytes are actually allowed to be, per extension. The extension in

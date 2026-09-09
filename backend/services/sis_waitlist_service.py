@@ -10,7 +10,6 @@ unit-testable without a DB; the rest composes admin-client reads/writes.
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
@@ -29,11 +28,10 @@ WAITLIST_STATUSES = ('waiting', 'offered', 'accepted', 'expired', 'declined', 'p
 OFFERABLE_STATUSES = ('waiting', 'offered', 'expired', 'declined')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def live_offer_count(class_id: str, exclude_student_id: Optional[str] = None) -> int:

@@ -47,7 +47,7 @@ def _link(responses, email='real@example.com'):
     # these three tests delivered live mail to real@example.com on every run
     # (2026-08-06). The conftest guard now catches this class of mistake; this
     # patch is what makes the tests correct rather than merely blocked.
-    with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+    with patch('services.sis_service._admin', return_value=client), \
          patch('services.email_service.email_service.send_staff_access_added_email',
                return_value=True), \
          patch('services.class_group_sync_service.sync_class_group') as sync:
@@ -64,7 +64,7 @@ class TestLinkStaffAccountClaim:
             [],                    # no account with the real email
             [],                    # users email update
         ])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.send_staff_invite', return_value=True) as invite:
             result = sis_service.link_staff_account(ORG, PH_ID, 'real@example.com')
         assert result == {'linked': 'invited', 'staff_id': PH_ID, 'email_sent': True}
@@ -78,7 +78,7 @@ class TestLinkStaffAccountClaim:
     def test_failed_invite_email_is_reported_not_fatal(self):
         from services import sis_service
         client, table = _admin_with([[_placeholder_row()], [], []])
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_service._admin', return_value=client), \
              patch('services.sis_service.send_staff_invite', return_value=False):
             result = sis_service.link_staff_account(ORG, PH_ID, 'real@example.com')
         assert result['linked'] == 'invited'
@@ -88,7 +88,7 @@ class TestLinkStaffAccountClaim:
         client, table = _admin_with([[_placeholder_row()], []])
         client.auth.admin.update_user_by_id.side_effect = Exception('email taken')
         from services import sis_service
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_service._admin', return_value=client):
             result = sis_service.link_staff_account(ORG, PH_ID, 'real@example.com')
         assert 'error' in result
 

@@ -27,7 +27,6 @@ authorization is the FINANCE_ROLES gate on the /api/sis/tuition routes.
 import uuid
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
@@ -48,11 +47,10 @@ UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
 _PLAN_PRICING_KEY = {'ufa_academy': 'ufa'}
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _full_name(u: Dict[str, Any]) -> str:

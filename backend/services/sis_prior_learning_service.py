@@ -34,7 +34,6 @@ rather than in a parallel document system that the portfolio can't see.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.school_subjects import SCHOOL_SUBJECTS
 from utils.storage_urls import parse_object_ref, sign_in_place
@@ -64,12 +63,11 @@ MAX_EVIDENCE_PER_RECORD = 25
 MAX_CREDITS_PER_SUBJECT = 12
 
 
-def _admin():
-    # admin client justified: prior_learning_* have RLS on with no policies
-    # (service-role only, the SIS convention). Every caller is either role-gated
-    # (staff) or relationship-gated (family) before reaching this module, and
-    # every query below pins organization_id.
-    return get_supabase_admin_client()
+# admin client justified: prior_learning_* have RLS on with no policies
+# (service-role only, the SIS convention). Every caller is either role-gated
+# (staff) or relationship-gated (family) before reaching this module, and
+# every query below pins organization_id.
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402

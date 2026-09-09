@@ -48,6 +48,15 @@ JUSTIFICATION_MARKER = 'admin client justified'
 NEARBY_LINES = 3
 TARGET = 'get_supabase_admin_client'
 
+# The second way a module reaches the RLS-bypassing client. Sixty-one modules
+# used to define their own three-line `_admin()` wrapper around TARGET, each
+# with its reason in the body; on 2026-09-09 the wrapper was consolidated into
+# utils/admin_client.py and those modules now import it. Without this, that
+# refactor would have silently emptied this test of sixty-one of its subjects
+# -- the code moved, and the obligation to say WHY has to move with it.
+ACCESSOR_MODULE = 'utils.admin_client'
+DEFINES_ACCESSOR = 'utils/admin_client.py'
+
 
 def _called_name(node: ast.Call):
     fn = node.func
@@ -87,7 +96,8 @@ def _iter_call_sites():
             if py.name in SKIP_BASENAMES:
                 continue
             text = py.read_text(encoding='utf-8')
-            if TARGET not in text:
+            rel_is_accessor = path.endswith(DEFINES_ACCESSOR)
+            if TARGET not in text and ACCESSOR_MODULE not in text:
                 continue
             try:
                 tree = ast.parse(text)
@@ -112,6 +122,25 @@ def _iter_call_sites():
                 #     supabase = get_supabase_admin_client()
                 block += lines[max(0, stmt_line - 1 - NEARBY_LINES):stmt_line - 1]
                 block.append(lines[node.lineno - 1])   # trailing same-line marker
+                justified = any(JUSTIFICATION_MARKER in l for l in block)
+                rel = path.split('/backend/')[-1]
+                yield rel, node.lineno, lines[node.lineno - 1].strip(), justified
+
+            # `from utils.admin_client import admin_client as _admin` reaches
+            # exactly as far as calling the factory does, so it carries exactly
+            # the same obligation. Same comment-block rule, so a module keeps
+            # its reason where the reader is.
+            if rel_is_accessor:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom) or node.module != ACCESSOR_MODULE:
+                    continue
+                block, i = [], node.lineno - 2
+                while i >= 0 and lines[i].strip().startswith('#'):
+                    block.append(lines[i])
+                    i -= 1
+                block += lines[max(0, node.lineno - 1 - NEARBY_LINES):node.lineno - 1]
+                block.append(lines[node.lineno - 1])
                 justified = any(JUSTIFICATION_MARKER in l for l in block)
                 rel = path.split('/backend/')[-1]
                 yield rel, node.lineno, lines[node.lineno - 1].strip(), justified

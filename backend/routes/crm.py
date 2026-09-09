@@ -78,11 +78,9 @@ def _is_uuid(value: str) -> bool:
         return False
 
 
-def _admin_db():
-    from database import get_supabase_admin_client
-    # admin client justified: CRM tables are service-role only; these routes
-    # serve anonymous recipients (unsubscribe) and cron (sweeps/webhooks).
-    return get_supabase_admin_client()
+# admin client justified: CRM tables are service-role only; these routes
+# serve anonymous recipients (unsubscribe) and cron (sweeps/webhooks).
+from utils.admin_client import admin_client as _admin_db
 
 
 def _cron_or_superadmin():

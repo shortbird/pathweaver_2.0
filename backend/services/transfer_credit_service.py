@@ -26,7 +26,6 @@ The three facts worth knowing before changing anything here:
 
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from generated.credits import XP_PER_CREDIT as _XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.school_subjects import SCHOOL_SUBJECTS
@@ -60,10 +59,9 @@ XP_PER_CREDIT = _XP_PER_CREDIT
 MAX_CREDITS_PER_SUBJECT = 10
 
 
-def _admin():
-    # admin client justified: transfer_credits and the XP tables are
-    # service-role only; every caller has already authorized an admin.
-    return get_supabase_admin_client()
+# admin client justified: transfer_credits and the XP tables are
+# service-role only; every caller has already authorized an admin.
+from utils.admin_client import admin_client as _admin
 
 
 def credits_to_xp(credits: float) -> int:

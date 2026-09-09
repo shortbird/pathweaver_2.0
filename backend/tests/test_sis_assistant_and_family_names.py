@@ -57,7 +57,7 @@ def _class_query_client(primary=(), assisting=(), advisors=()):
 class TestAssistantsReachTheirPortal:
     def _ids(self, **kw):
         client = _class_query_client(**kw)
-        with patch('services.sis_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_service._admin', return_value=client):
             return sis_service.advisor_class_ids('kate', 'org-1')
 
     def test_a_class_you_assist_counts_as_yours(self):

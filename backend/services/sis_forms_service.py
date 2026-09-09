@@ -11,7 +11,6 @@ submitted → under_review → in_progress → waiting → resolved.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from services import sis_notifications
 from services import sis_service
 from utils.logger import get_logger
@@ -114,11 +113,10 @@ def kind_of(form_type: Any) -> str:
     return 'request' if form_type in REQUEST_TYPES else 'form'
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 # Label lookup spanning staff + parent form types (a submission of either kind

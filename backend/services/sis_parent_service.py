@@ -13,7 +13,6 @@ authorization is enforced here in code, never by passing through a caller's role
 
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from utils.registration_config import get_registration_config
 from services import sis_registration_service as regs
 from services import sis_catalog_service as catalog
@@ -37,11 +36,10 @@ logger = get_logger(__name__)
 from config.constants import GUARDIAN_RELATIONSHIPS  # noqa: E402,F401
 
 
-def _admin():
-    # admin client justified: a guardian registers a child, so every read and
-    #   write targets the STUDENT's rows rather than the caller's; _can_register()
-    #   proves the household link first
-    return get_supabase_admin_client()
+# admin client justified: a guardian registers a child, so every read and
+#   write targets the STUDENT's rows rather than the caller's; _can_register()
+#   proves the household link first
+from utils.admin_client import admin_client as _admin
 
 
 def _student_name(u: Dict[str, Any]) -> str:

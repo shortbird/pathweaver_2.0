@@ -179,15 +179,13 @@ SHAPE_UNKNOWN_JTI = 'unknown_jti'
 SHAPE_USER_MISMATCH = 'user_mismatch'
 
 
-def _admin():
-    # admin client justified: refresh_token_families is a service-role-only
-    # credential table (RLS deny-by-default), read and written from the
-    # pre-session token-refresh path.
-    from database import get_supabase_admin_client
-    # admin client justified: token-family rows are keyed to sessions, not to
-    #   the caller, and reuse detection must read families the presenter cannot
-    #   see
-    return get_supabase_admin_client()
+# admin client justified: refresh_token_families is a service-role-only
+# credential table (RLS deny-by-default), read and written from the
+# pre-session token-refresh path.
+# admin client justified: token-family rows are keyed to sessions, not to
+#   the caller, and reuse detection must read families the presenter cannot
+#   see
+from utils.admin_client import admin_client as _admin
 
 
 def _uuid_or_none(value) -> Optional[str]:

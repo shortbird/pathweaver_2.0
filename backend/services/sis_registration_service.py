@@ -13,7 +13,6 @@ same justification as sis_service.py.
 
 from typing import Dict, List, Any, Optional
 
-from database import get_supabase_admin_client
 from repositories.sis_class_repository import SisClassRepository
 from services import sis_eligibility as elig
 from utils.db_fetch import fetch_all_rows
@@ -27,11 +26,10 @@ REGISTRATION_STATUSES = ('draft', 'in_progress', 'submitted', 'completed', 'canc
 ITEM_STATUSES = ('selected', 'enrolled', 'waitlisted', 'dropped')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402

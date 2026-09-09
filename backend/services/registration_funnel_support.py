@@ -25,7 +25,6 @@ from datetime import datetime
 
 from flask import jsonify
 
-from database import get_supabase_admin_client
 from utils.validation import validate_uuid
 from utils.registration_config import get_registration_config
 from utils.logger import get_logger
@@ -38,10 +37,9 @@ EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 LINK_PLACEHOLDER_SUFFIX = '@pending.optio.local'
 
 
-def _admin():
-    # admin client justified: the registration funnel runs pre-session — the
-    #   family has no account yet, so there is no caller for RLS to scope to
-    return get_supabase_admin_client()
+# admin client justified: the registration funnel runs pre-session — the
+#   family has no account yet, so there is no caller for RLS to scope to
+from utils.admin_client import admin_client as _admin
 
 
 def _valid_email(v):

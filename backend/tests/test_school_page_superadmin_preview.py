@@ -48,7 +48,7 @@ ICREATE_ROW = {'id': 'org-1', 'name': 'iCreate',
 @pytest.mark.unit
 class TestSchoolContextForOrg:
     def _ctx(self, org_rows, as_guardian=False):
-        with patch.object(parent, 'get_supabase_admin_client',
+        with patch.object(parent, '_admin',
                           return_value=_admin_returning(list(org_rows))):
             return parent.school_context_for_org('org-1', as_guardian=as_guardian)
 

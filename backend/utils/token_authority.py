@@ -27,11 +27,9 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: auth utility — reads user identity/permissions to
-    # make the access-control decision itself.
-    from database import get_supabase_admin_client
-    return get_supabase_admin_client()
+# admin client justified: auth utility — reads user identity/permissions to
+# make the access-control decision itself.
+from utils.admin_client import admin_client as _admin
 
 
 def session_revoked_since(user_id: str, issued_at: Optional[datetime]) -> bool:

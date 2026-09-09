@@ -33,18 +33,16 @@ teacher visit to the Messages tab.
 
 from typing import Any, Dict, Optional, Set, Tuple
 
-from database import get_supabase_admin_client
 from utils import class_membership as membership
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-def _admin():
-    # admin client justified: messaging spans both sides of a conversation, and
-    #   a sender cannot read the recipient's rows under RLS; membership is checked
-    #   before every use
-    return get_supabase_admin_client()
+# admin client justified: messaging spans both sides of a conversation, and
+#   a sender cannot read the recipient's rows under RLS; membership is checked
+#   before every use
+from utils.admin_client import admin_client as _admin
 
 
 def sync_class_groups(class_id: str, actor_id: Optional[str] = None) -> Dict[str, Optional[str]]:

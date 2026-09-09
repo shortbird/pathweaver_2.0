@@ -28,7 +28,6 @@ are handled for installment plans: staff follow up, software does not nag.
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from services import sis_service
 from services import sis_billing_service as billing
 from utils.db_fetch import fetch_all_rows
@@ -44,11 +43,10 @@ MIN_DAY_OF_MONTH = 1
 MAX_DAY_OF_MONTH = 28
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402

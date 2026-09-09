@@ -17,7 +17,6 @@ above it).
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from database import get_supabase_admin_client
 from utils import rich_text
 from utils.logger import get_logger
 from utils import person_name
@@ -49,11 +48,10 @@ LOST_FOUND_BUCKET = 'community-images'
 RECOGNITION_TYPES = ('shout_out', 'student_spotlight', 'volunteer', 'weekly_win', 'thank_you')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402

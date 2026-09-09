@@ -22,7 +22,6 @@ correcting a school name, must not create a second row.
 
 import re
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation import sanitize_input
 
@@ -45,10 +44,9 @@ _DESTINATION_TEXT_FIELDS = {
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
-def _admin():
-    # admin client justified: enrolling a student and routing their records
-    #   writes rows for the STUDENT and their receiving school, not the caller
-    return get_supabase_admin_client()
+# admin client justified: enrolling a student and routing their records
+#   writes rows for the STUDENT and their receiving school, not the caller
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402

@@ -37,7 +37,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.org_features import org_has_feature
 
@@ -62,12 +61,11 @@ MAX_NOTE_LEN = 280
 SETTER_ROLES = ('student', 'parent', 'advisor', 'org_admin', 'superadmin')
 
 
-def _admin():
-    # admin client justified: reads a student's completions and org row on
-    # behalf of a parent or teacher who cannot see those rows under RLS. Every
-    # caller has already passed the relationship check in can_view_goal /
-    # can_set_goal, and student_weekly_xp_goals is service-role only by design.
-    return get_supabase_admin_client()
+# admin client justified: reads a student's completions and org row on
+# behalf of a parent or teacher who cannot see those rows under RLS. Every
+# caller has already passed the relationship check in can_view_goal /
+# can_set_goal, and student_weekly_xp_goals is service-role only by design.
+from utils.admin_client import admin_client as _admin
 
 
 # ---------------------------------------------------------------------------

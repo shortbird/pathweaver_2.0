@@ -46,7 +46,7 @@ def _list(users, classes=(), org='org-1'):
 
     client = Mock()
     client.table.side_effect = table
-    with patch('services.sis_service.get_supabase_admin_client', return_value=client), \
+    with patch('services.sis_service._admin', return_value=client), \
          patch('services.sis_service.org_messaging_email', return_value='school@x.io'), \
          patch('services.sis_service._archived_staff_ids', return_value=set()):
         return sis_service.list_org_staff(org)

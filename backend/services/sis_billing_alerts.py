@@ -28,7 +28,6 @@ runs, so nothing in here may raise into a money path.
 from typing import Any, Dict, List, Optional
 
 from app_config import Config
-from database import get_supabase_admin_client
 from utils import person_name
 from utils.logger import get_logger
 
@@ -37,12 +36,11 @@ logger = get_logger(__name__)
 SIS_URL = 'https://sis.optioeducation.com'
 
 
-def _admin():
-    # admin client justified: composes an office notification from rows owned by
-    #   a family (their household, saved payment method and recurring plan); runs
-    #   from a Stripe webhook and a billing write path, neither of which has a
-    #   caller whose RLS could see them
-    return get_supabase_admin_client()
+# admin client justified: composes an office notification from rows owned by
+#   a family (their household, saved payment method and recurring plan); runs
+#   from a Stripe webhook and a billing write path, neither of which has a
+#   caller whose RLS could see them
+from utils.admin_client import admin_client as _admin
 
 
 def _money(cents: Optional[int]) -> str:

@@ -32,7 +32,6 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 import secrets
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
 from utils import portfolio_access as pa
@@ -65,11 +64,10 @@ class PeerConnectionError(Exception):
     """A rule in this module said no. The message is user-facing."""
 
 
-def _admin():
-    # admin client justified: a connection joins two students in different
-    #   families, so every rule here reads rows on both sides that neither caller
-    #   can see
-    return get_supabase_admin_client()
+# admin client justified: a connection joins two students in different
+#   families, so every rule here reads rows on both sides that neither caller
+#   can see
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import utcnow as _now  # noqa: E402

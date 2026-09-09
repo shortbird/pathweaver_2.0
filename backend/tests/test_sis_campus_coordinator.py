@@ -256,7 +256,7 @@ class TestOnboardingOffersCoordinators:
             {'id': 'cc-1', 'display_name': 'Kate', 'email': 'kate@icreate.com',
              'org_role': 'campus_coordinator', 'role': 'org_managed', 'org_roles': None},
         ]
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=self._client_with(rows)):
             people = onboarding.list_recipients('org-1', 'staff')
         assert [p['id'] for p in people] == ['cc-1']
@@ -273,7 +273,7 @@ class TestOnboardingOffersCoordinators:
             {'id': 'p-1', 'display_name': 'A Parent', 'email': 'p@x.com',
              'org_role': None, 'role': 'org_managed', 'org_roles': ['parent']},
         ]
-        with patch('services.sis_onboarding_service.get_supabase_admin_client',
+        with patch('services.sis_onboarding_service._admin',
                    return_value=self._client_with(rows)):
             people = onboarding.list_recipients('org-1', 'staff')
         assert [p['id'] for p in people] == ['cc-2']

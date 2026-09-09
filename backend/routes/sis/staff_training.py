@@ -34,7 +34,6 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_training_service
-from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 
 logger = get_logger(__name__)
@@ -42,11 +41,10 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_staff_training', __name__, url_prefix='/api/sis')
 
 
-def _admin():
-    # admin client justified: the SIS console acts for the whole school — this
-    #   reads/writes rows belonging to every family in the org, which no single
-    #   caller can see under RLS; the route's role+org gate is the authorization
-    return get_supabase_admin_client()
+# admin client justified: the SIS console acts for the whole school — this
+#   reads/writes rows belonging to every family in the org, which no single
+#   caller can see under RLS; the route's role+org gate is the authorization
+from utils.admin_client import admin_client as _admin
 
 
 def _org_or_error(user_id):

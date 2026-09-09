@@ -120,7 +120,7 @@ class TestTeacherPreview:
 
     def test_admin_preview_returns_targets_data(self, client, auth_headers, mock_verify_token):
         with as_role('org_managed', org_role='org_admin', org_roles=['org_admin']), \
-             patch('services.sis_service.get_supabase_admin_client',
+             patch('services.sis_service._admin',
                    return_value=self._org_user_lookup()), \
              patch('services.sis_service.caller_is_admin', return_value=True), \
              patch('services.sis_staff_service.teacher_classes', return_value=[]) as tc:
@@ -143,7 +143,7 @@ class TestTeacherPreview:
         lookup.table.return_value.execute.return_value = Mock(
             data=[{'id': 'teach-1', 'organization_id': 'org-OTHER'}])
         with as_role('org_managed', org_role='org_admin', org_roles=['org_admin']), \
-             patch('services.sis_service.get_supabase_admin_client', return_value=lookup), \
+             patch('services.sis_service._admin', return_value=lookup), \
              patch('services.sis_service.caller_is_admin', return_value=True), \
              patch('services.sis_staff_service.teacher_classes', return_value=[]) as tc:
             client.get('/api/sis/teacher/classes?organization_id=org-1&teacher_id=teach-1',
@@ -167,7 +167,7 @@ class TestTimeClockService:
     def test_clock_in_refused_without_time_clock(self):
         from services import sis_staff_service as staff
         client = self._client_with([[{'user_id': 'u1', 'uses_time_clock': False}]])
-        with patch('services.sis_staff_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_staff_service._admin', return_value=client):
             result = staff.clock_in('org-1', 'u1')
         assert 'error' in result
 
@@ -177,7 +177,7 @@ class TestTimeClockService:
             [{'user_id': 'u1', 'uses_time_clock': True}],   # profile
             [{'id': 'e1', 'clock_in': '2026-07-22T15:00:00+00:00'}],  # open entry
         ])
-        with patch('services.sis_staff_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_staff_service._admin', return_value=client):
             result = staff.clock_in('org-1', 'u1')
         assert 'already clocked in' in result['error']
 
@@ -187,7 +187,7 @@ class TestTimeClockService:
             [{'id': 'e1', 'clock_in': '2026-07-22T15:00:00+00:00'}],  # open entry
             [{'id': 'e1', 'status': 'submitted'}],                    # update result
         ])
-        with patch('services.sis_staff_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_staff_service._admin', return_value=client):
             result = staff.clock_out('org-1', 'u1')
         assert result['entry']['status'] == 'submitted'
 
@@ -220,7 +220,7 @@ class TestTimeClockService:
     def test_edit_requires_reason_for_time_changes(self):
         from services import sis_staff_service as staff
         client = self._client_with([[{'id': 'e1', 'organization_id': 'org-1', 'user_id': 'u1'}]])
-        with patch('services.sis_staff_service.get_supabase_admin_client', return_value=client):
+        with patch('services.sis_staff_service._admin', return_value=client):
             result = staff.update_time_entry('org-1', 'e1', {'clock_out': '2026-07-22T18:00:00Z'},
                                             edited_by='admin-1')
         assert 'reason' in result['error']
@@ -254,7 +254,7 @@ class TestFormsService:
             getattr(table, chained).return_value = table
         table.execute.side_effect = [Mock(data=[{'feature_flags': {}}]),
                                      Mock(data=[{'id': 'f1', 'title': 'Broken sink'}])]
-        with patch('services.sis_forms_service.get_supabase_admin_client', return_value=client), \
+        with patch('services.sis_forms_service._admin', return_value=client), \
              patch('services.sis_form_template_service.get_template', return_value=None), \
              patch('services.sis_service.org_admin_ids', return_value=['a1', 'a2']), \
              patch('services.sis_forms_service.sis_notifications.notify') as notify:

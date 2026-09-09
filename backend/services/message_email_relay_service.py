@@ -54,12 +54,10 @@ _ADDRESS_RE = re.compile(r'reply\+([A-Za-z0-9_-]{20,})@', re.IGNORECASE)
 _FROM_RE = re.compile(r'<([^<>@\s]+@[^<>@\s]+)>|([^<>@\s]+@[^<>@\s]+)')
 
 
-def _admin():
-    from database import get_supabase_admin_client
-    # admin client justified: relay rows are service-role only (a token is a
-    # write capability into a superadmin's messages), and the inbound handler
-    # runs with no user session at all.
-    return get_supabase_admin_client()
+# admin client justified: relay rows are service-role only (a token is a
+# write capability into a superadmin's messages), and the inbound handler
+# runs with no user session at all.
+from utils.admin_client import admin_client as _admin
 
 
 # ─────────────────────────── configuration ───────────────────────────

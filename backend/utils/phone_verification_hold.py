@@ -37,7 +37,6 @@ phone number; no bug in it may take the platform down for anybody.
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from database import get_supabase_admin_client
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -58,10 +57,9 @@ _clear_until: Dict[str, float] = {}
 _org_flag: Dict[str, Tuple[bool, float]] = {}
 
 
-def _admin():
-    # admin client justified: access-control utility -- reads the rows that
-    # decide the caller's own access, before any role context exists.
-    return get_supabase_admin_client()
+# admin client justified: access-control utility -- reads the rows that
+# decide the caller's own access, before any role context exists.
+from utils.admin_client import admin_client as _admin
 
 
 def clear_cache(user_id: Optional[str] = None) -> None:

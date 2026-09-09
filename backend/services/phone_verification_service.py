@@ -26,7 +26,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
 from app_config import Config
-from database import get_supabase_admin_client
 from services import sms_service
 from utils import phone_verification_hold
 from utils.logger import get_logger
@@ -46,10 +45,9 @@ MAX_SENDS_PER_HOUR = 5
 TWILIO_MARKER = 'twilio_verify'
 
 
-def _admin():
-    # admin client justified: verification writes the caller's own users row
-    # and a backend-only codes table (RLS deny-all).
-    return get_supabase_admin_client()
+# admin client justified: verification writes the caller's own users row
+# and a backend-only codes table (RLS deny-all).
+from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import utcnow as _now  # noqa: E402
