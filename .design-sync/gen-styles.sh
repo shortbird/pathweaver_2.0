@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate the brand stylesheet that cfg.cssEntry (frontend/.ds-styles.css) points at.
+# Regenerate the brand stylesheet that cfg.cssEntry (web/.ds-styles.css) points at.
 # RUN THIS BEFORE package-build.mjs on every (re)sync — the output is gitignored.
 #
 # Why: pathweaver's frontend is a Vite APP, not a packaged DS, so it ships no
@@ -7,7 +7,7 @@
 # the ui components, plus a brand-token safelist (pillars/gradients the 15
 # components don't all use but the design agent should be able to build with).
 set -euo pipefail
-cd "$(dirname "$0")/../frontend"
+cd "$(dirname "$0")/../web"
 
 # 1. brand-token safelist (so Tailwind emits the full Optio palette)
 node -e '
@@ -30,4 +30,4 @@ node_modules/.bin/tailwindcss -c tailwind.config.js -i src/index.css -o .ds-styl
 printf "%s\n" "@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');" > .ds-styles.css
 cat .ds-styles.gen.css >> .ds-styles.css
 rm -f .ds-styles.gen.css
-echo "wrote frontend/.ds-styles.css ($(wc -c < .ds-styles.css) bytes)"
+echo "wrote web/.ds-styles.css ($(wc -c < .ds-styles.css) bytes)"

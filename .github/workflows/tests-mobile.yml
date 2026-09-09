@@ -1,4 +1,4 @@
-name: Mobile (v2) Tests (reusable)
+name: Mobile Tests (reusable)
 
 # See tests-backend.yml for why the test jobs are reusable workflows rather
 # than copies: one definition, called by both the pre-merge gate (ci.yml) and
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   mobile:
-    name: Mobile (v2) Tests
+    name: Mobile Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -23,9 +23,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend-v2/package-lock.json
+          cache-dependency-path: mobile/package-lock.json
       - name: Install dependencies
-        working-directory: frontend-v2
+        working-directory: mobile
         run: |
           npm config set fetch-retries 5
           npm config set fetch-retry-mintimeout 20000
@@ -37,12 +37,12 @@ jobs:
           exit 1
       - name: npm audit (high/critical only)
         # Same high/critical bar as before, but advisories with no published fix
-        # can be accepted individually in frontend-v2/audit-allowlist.json, with
+        # can be accepted individually in mobile/audit-allowlist.json, with
         # a reason and an expiry date, instead of the whole gate being lowered.
         # See scripts/audit-gate.mjs.
-        run: node scripts/audit-gate.mjs --dir frontend-v2
+        run: node scripts/audit-gate.mjs --dir mobile
       - name: TypeScript check
-        working-directory: frontend-v2
+        working-directory: mobile
         # Gating since 2026-08-18. It ran with continue-on-error for as long as
         # there was a backlog of pre-existing errors, which meant it could see a
         # real break and not stop it: a wrong-cased import ("../Text" against
@@ -57,7 +57,7 @@ jobs:
         # early return. Keep this at zero rather than letting it drift back.
         run: npm run typecheck
       - name: Run tests + coverage gate
-        working-directory: frontend-v2
+        working-directory: mobile
         # Was `npm run test:run`, which is `jest` WITHOUT --coverage. jest.config.js
         # has carried a coverageThreshold since it was written, but because CI
         # never collected coverage the threshold never evaluated -- and the real

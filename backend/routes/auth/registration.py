@@ -150,7 +150,7 @@ def register():
         # the under-13 block below skippable rather than merely gameable: omit the
         # field and you registered as an adult with no age on file at all. Both
         # signup forms (frontend RegisterPage.jsx / OrganizationSignup.jsx and
-        # frontend-v2 app/(auth)/register.tsx) already mark it required, so this
+        # mobile/app/(auth)/register.tsx) already mark it required, so this
         # only closes the direct-to-API path. Org-admin-created, invited and
         # bulk-imported accounts use other routes and are unaffected.
         date_of_birth = data.get('date_of_birth')

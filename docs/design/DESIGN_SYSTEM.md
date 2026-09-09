@@ -1,14 +1,14 @@
 # Optio Web Design System
 
 **Status**: Canonical as of 2026-08-10. This document is the single source of truth
-for how the v1 web app (`frontend/`) looks. When a page and this document
+for how the v1 web app (`web/`) looks. When a page and this document
 disagree, the page is wrong.
 
 Scope: the web platform (marketing + signed-in app). Explicitly OUT of scope:
 the SIS console (`sis.optioeducation.com` — its own self-consistent surface),
 print artifacts (PublicTranscriptPage, the transcript generator's printable
 template, billing receipt HTML), emails, and MobileDemoPage's iframe chrome.
-The mobile app (`frontend-v2/`) has its own token file.
+The mobile app (`mobile/`) has its own token file.
 
 Companion spec: [LIQUID_GLASS.md](LIQUID_GLASS.md) — the glass selection
 treatment. This document defers to it for glass rules.
@@ -17,7 +17,7 @@ treatment. This document defers to it for glass rules.
 
 ## 1. Color
 
-All brand color comes from tokens in `frontend/tailwind.config.js`. Raw Tailwind
+All brand color comes from tokens in `web/tailwind.config.js`. Raw Tailwind
 palette hues standing in for brand (`purple-600`, `pink-500`, `indigo-*`,
 `blue-600` as a primary action, `from-purple-50 to-pink-50` washes) are defects.
 
@@ -95,7 +95,7 @@ reserved for identity pages (SchoolPage, Diploma). Full-bleed gradient hero
 banners are a marketing/public-portfolio idiom — don't add new ones inside the
 app shell.
 
-## 4. Buttons (`frontend/src/index.css`)
+## 4. Buttons (`web/src/index.css`)
 
 One primary action per view. Everything else is quiet.
 

@@ -1,7 +1,7 @@
 # LTI Frontend Redesign — Design Doc
 
 **Status:** Draft for review · **Author:** Claude + Tanner · **Date:** 2026-05-19
-**Decision:** Target **frontend-v2** (LTI is the first surface fully cut over to the universal app)
+**Decision:** Target **mobile** (LTI is the first surface fully cut over to the universal app)
 **Not urgent:** the current LTI works; Williamsburg students start August. Design-then-build.
 
 ---
@@ -34,20 +34,20 @@ These share one root cause: there is no purpose-built LTI frontend.
   evidence) and **teachers** (review/grade one quest's evidence).
 - Also embeds in the Canvas **mobile app** → touch-friendly, not just narrow-web.
 
-## 3. Decision: target frontend-v2
+## 3. Decision: target mobile
 
 LTI becomes the first surface fully cut over to the universal app. Rationale:
 no throwaway work (v1 is being retired), v2 already has an `(lti)` route group
 and the upload machinery, and a contained surface is a good first full cutover.
 
 **Accepted risk — the cutover sub-project.** Prod LTI today redirects to
-`www.optioeducation.com` (v1, `frontend/`). Moving to v2 means repointing the
+`www.optioeducation.com` (v1, `web/`). Moving to v2 means repointing the
 LTI host and proving v2 renders correctly inside real Canvas *before* August.
 De-risking plan in §8.
 
 ## 4. Current-state inventory
 
-### v1 (`frontend/src/pages/lti/`) — live in prod
+### v1 (`web/src/pages/lti/`) — live in prod
 | Page | State |
 |---|---|
 | `LtiLaunchPage` | code→token handoff; minimal; fine conceptually |
@@ -56,7 +56,7 @@ De-risking plan in §8.
 | `LtiErrorPage` | error states |
 | *(teacher evidence review)* | **none** — reuses full `DiplomaPage` |
 
-### v2 (`frontend-v2/app/(lti)/`) — exists, NOT the live host
+### v2 (`mobile/app/(lti)/`) — exists, NOT the live host
 - `lti-launch.tsx`, `deep-link.tsx`, `error.tsx`, `quest/[id].tsx` (267 lines,
   text-only evidence via `completeTask(taskId,[{type:'text',content:{text}}])`).
 - **No** `src/components/evidence/` in v2 — multi-format editor must be built.
@@ -80,7 +80,7 @@ De-risking plan in §8.
 ## 5. Architecture
 
 ### 5.1 Shared `LtiShell`
-New `frontend-v2/src/components/lti/LtiShell.tsx`:
+New `mobile/src/components/lti/LtiShell.tsx`:
 - Width-breakpoint-aware single column (handles ~320px SpeedGrader → wide).
 - No nav/footer/marketing; compact header (context/quest title only).
 - Unified loading + error boundary.
@@ -102,7 +102,7 @@ sizes. Lives alongside the v2 `ui/` library.
 | **Quest evidence review (NEW)** | teacher | **only this quest's** tasks + evidence + earned XP, read-only |
 
 ### 5.4 Multi-format evidence in the student LTI quest (the new requirement)
-- Build `frontend-v2/src/components/lti/LtiEvidenceEditor.tsx` supporting
+- Build `mobile/src/components/lti/LtiEvidenceEditor.tsx` supporting
   **text, link, file, image, video** — emitting the same `blocks[]` shape the
   backend already accepts.
 - Reuse, don't reinvent: lift the capture/upload pattern from `CaptureSheet` +
@@ -226,7 +226,7 @@ Wording correction to §9.1: the endpoint shipped as **`/lti/evidence`**
 
 **Preconditions**
 - PRs #27–#29 on `main` and deployed (done).
-- frontend-v2 reachable at an HTTPS host Canvas can iframe (the v2 web
+- mobile reachable at an HTTPS host Canvas can iframe (the v2 web
   deploy URL). Call it `<V2_HOST>`.
 
 **Step A — verify v2 in real Canvas BEFORE flipping anything.**

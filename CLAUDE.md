@@ -118,7 +118,7 @@ Rules when adding SIS routes or fields:
 - Pay data on an otherwise-operational record is **redacted per-field**, not
   hidden by withholding the endpoint (see `sis_staff_service.PAY_FIELDS` /
   `redact_pay`). Adding a new pay column? Add it to `PAY_FIELDS` or it leaks.
-- Frontend mirrors this in [sisRole.js](frontend/src/pages/sis/sisRole.js):
+- Frontend mirrors this in [sisRole.js](web/src/pages/sis/sisRole.js):
   `isSisAdmin` (chrome), `canSeeFinance` (money). Chrome only — the backend is the gate.
 
 ---
@@ -166,14 +166,14 @@ would destroy them.
 
 ### Tech Stack
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
-- **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `frontend/`) — the production web app
-- **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `frontend-v2/`, dev builds via EAS — iOS/Android app
+- **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `web/`) — the production web app
+- **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `mobile/`, dev builds via EAS — iOS/Android app
 - **AI**: Gemini `gemini-3.7-flash` for **every** AI call. `Config.GEMINI_MODEL` in `app_config.py` is the single source of truth — change that one line (or set `GEMINI_MODEL`) to swap models platform-wide. Never hardcode a model name elsewhere; `tests/unit/test_single_model_source.py` fails the build if you do. Outage fallbacks: `GEMINI_FALLBACK_MODELS` (`gemini-3.6-flash` → `gemini-3.5-flash`). `GEMINI_CURRICULUM_MODEL` optionally pins the curriculum pipeline to a heavier model; it follows `GEMINI_MODEL` by default.
 - **Host**: Render
 
 > **Surface names:** say **web platform** and **mobile app** ("learning app" is
 > ambiguous — never use it). The SIS console (`sis.optioeducation.com`) is its own
-> surface. v1 = web app (`frontend/`); v2 = mobile app (`frontend-v2/`, a universal
+> surface. v1 = web app (`web/`); v2 = mobile app (`mobile/`, a universal
 > Expo project whose web target is dev-only). Web users stay on v1 indefinitely.
 
 ### Frontend V2 (Mobile App)
@@ -249,7 +249,7 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN                                          # vite
 cd ~/pathweaver_2.0 && source venv/bin/activate && python backend/app.py
 
 # Frontend (Vite on :3000)
-cd ~/pathweaver_2.0/frontend && npm run dev
+cd ~/pathweaver_2.0/web && npm run dev
 ```
 From Claude Code, run each with `run_in_background` instead of backgrounding with `&`.
 
@@ -466,7 +466,7 @@ While iterating: `npx vitest run <affected test files>`.
 
 **Before production merge (run once):**
 ```bash
-cd frontend && npm run test:run    # Must be 95%+ pass rate
+cd web && npm run test:run    # Must be 95%+ pass rate
 npm run test:coverage              # Must be 60%+ coverage
 ```
 
@@ -516,13 +516,13 @@ for a production clone in CI. Use the local stack.
   and is deliberately not gated.
 - The mobile job's `npm audit` runs through [scripts/audit-gate.mjs](scripts/audit-gate.mjs):
   advisories with no published fix can be accepted in
-  [frontend-v2/audit-allowlist.json](frontend-v2/audit-allowlist.json) with a reason
+  [mobile/audit-allowlist.json](mobile/audit-allowlist.json) with a reason
   and `recheck_after` date. Verify a fix genuinely doesn't exist before allowlisting
   (compare against `npm view <pkg> versions` — npm's "fix available" sometimes
   proposes a downgrade).
 - Prod Render deploys fire from `release.yml`'s `deploy` job only on green tests.
 
-**Full testing guide:** [frontend/TESTING.md](frontend/TESTING.md)
+**Full testing guide:** [web/TESTING.md](web/TESTING.md)
 
 ---
 
@@ -554,12 +554,12 @@ backend/
 ├── services/         # Business logic (22 services)
 └── middleware/       # CSRF, rate limiting
 
-frontend/src/           # V1: web app (React + Vite) — the production web surface
+web/src/           # V1: web app (React + Vite) — the production web surface
 ├── pages/              # Route components
 ├── components/         # UI components
 └── services/           # API + auth
 
-frontend-v2/            # V2: mobile iOS/Android app (Expo)
+mobile/            # V2: mobile iOS/Android app (Expo)
 ├── app/                # Expo Router pages (file-based routing)
 ├── src/                # components/ui, config/navigation.ts, hooks, services, stores
 ├── tailwind.config.js  # Brand tokens (must be .js, not .ts)
@@ -616,7 +616,7 @@ Auto-deploy: ON for dev services, OFF for prod (CI-triggered only). All backends
 ## Extended Documentation (read on demand)
 
 - **Local Development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
-- **Testing Guide**: [frontend/TESTING.md](frontend/TESTING.md)
+- **Testing Guide**: [web/TESTING.md](web/TESTING.md)
 - **MCP Setup & Troubleshooting**: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)
 - **Supabase Branching**: [docs/SUPABASE_BRANCHING.md](docs/SUPABASE_BRANCHING.md)
 - **Ops History (deploy flow, hosting, migrations)**: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md)

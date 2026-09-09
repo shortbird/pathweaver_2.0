@@ -69,7 +69,7 @@ prose in a queue.
    It must validate required fields, option membership, and reject unknown keys. This is
    the server-side gate; the builder's UI hints are not.
 2. **Rendering** — the queue hardcodes `payload.body` and `payload.location`
-   ([StaffFormsPage.jsx:332](../../frontend/src/pages/sis/StaffFormsPage.jsx#L332)). It
+   ([StaffFormsPage.jsx:332](../../web/src/pages/sis/StaffFormsPage.jsx#L332)). It
    needs to walk the template's field list, falling back to body/location for pre-builder rows.
 3. **Labels** — `form_type_label` is computed at *read* time from `ALL_FORM_TYPES`
    ([sis_forms_service.py:147](../../backend/services/sis_forms_service.py#L147)). Once
@@ -109,7 +109,7 @@ force-override.
 
 Roughly: migration + template CRUD service and routes (small — it is `save_template` with
 different columns); a field-builder UI (the largest single piece, comparable to
-`TemplateEditor` in [OnboardingPage.jsx:202](../../frontend/src/pages/sis/OnboardingPage.jsx#L202));
+`TemplateEditor` in [OnboardingPage.jsx:202](../../web/src/pages/sis/OnboardingPage.jsx#L202));
 a dynamic renderer for submit and for the queue; validation; and the seed migration.
 
 The dependency worth calling out: **the label denormalization should land first and

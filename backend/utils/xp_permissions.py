@@ -47,8 +47,8 @@ XP_LOCK_FLAG = 'lock_xp_editing'
 # them away, so the fix is the server widening rather than the client narrowing.
 #
 # THIS SET IS MIRRORED IN BOTH CLIENTS and each has a test that parses it out of
-# this file: frontend/src/hooks/__tests__/useCanEditXp.roles.test.jsx and
-# frontend-v2/src/hooks/__tests__/useCanEditXp.roles.test.ts. Changing it here
+# this file: web/src/hooks/__tests__/useCanEditXp.roles.test.jsx and
+# mobile/src/hooks/__tests__/useCanEditXp.roles.test.ts. Changing it here
 # fails both until they are updated, which is the point.
 XP_GUIDE_ROLES = frozenset({'superadmin', 'org_admin', 'campus_coordinator', 'advisor'})
 

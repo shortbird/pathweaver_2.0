@@ -35,7 +35,7 @@ lsof -nP -iTCP:3000 -sTCP:LISTEN                                          # vite
 cd ~/pathweaver_2.0 && source venv/bin/activate && python backend/app.py
 
 # Frontend (Vite on :3000)
-cd ~/pathweaver_2.0/frontend && npm run dev
+cd ~/pathweaver_2.0/web && npm run dev
 ```
 
 From Claude Code, run each with `run_in_background` rather than backgrounding
@@ -90,7 +90,7 @@ python -m pyflakes backend | grep -E 'undefined name|invalid syntax'
 Web (v1):
 
 ```bash
-cd ~/pathweaver_2.0/frontend
+cd ~/pathweaver_2.0/web
 npx vitest run <specific files>   # while iterating
 npm run test:run                  # once, before pushing
 ```
@@ -103,7 +103,7 @@ npm run test:run                  # once, before pushing
 ## Gotchas worth knowing before they cost you an afternoon
 
 - **Mobile API URLs.** Do not set `EXPO_PUBLIC_API_URL` in `.env` — it breaks
-  the mobile app. `Platform.select` in `frontend-v2/src/services/api.ts` already
+  the mobile app. `Platform.select` in `mobile/src/services/api.ts` already
   routes web to localhost, the iOS simulator to the LAN IP, and Android to
   `10.0.2.2` (the emulator cannot reach the host's LAN IP).
 - **Line endings.** Many tracked files are CRLF. Rewriting one wholesale in

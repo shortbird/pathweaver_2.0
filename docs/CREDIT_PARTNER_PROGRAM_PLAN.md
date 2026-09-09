@@ -39,7 +39,7 @@ Every piece of POE is spelled with the letters P, O, E:
 | `poe_cohorts`, `poe_signups`, `poe_participants` tables | [20260601_create_poe_cohorts.sql](../supabase/migrations-archive/20260601_create_poe_cohorts.sql) |
 | The class title, big idea, subject, pillar, logo, hero image, credit XP | [backend/routes/admin/poe.py](../backend/routes/admin/poe.py) |
 | The five day-by-day tasks | `POE_DAILY_TASKS`, same file |
-| The public interest page | [frontend/src/programs/poe/PoePage.jsx](../frontend/src/programs/poe/PoePage.jsx) |
+| The public interest page | [web/src/programs/poe/PoePage.jsx](../web/src/programs/poe/PoePage.jsx) |
 | Linking a registered user to the program | `POST /api/admin/poe/link-participant`, superadmin, one at a time |
 | Awarding the credit | `POST /api/admin/poe/award-credit` |
 | The school-of-record columns | `poe_signups` / `poe_participants` only |
@@ -179,7 +179,7 @@ family a one-click "send it to my school" button.
 Wire it in three places:
 - a step in the registration funnel (§5.5)
 - prefill `TransferToSchoolModal`
-  ([frontend/src/components/transcript/TransferToSchoolModal.jsx](../frontend/src/components/transcript/TransferToSchoolModal.jsx))
+  ([web/src/components/transcript/TransferToSchoolModal.jsx](../web/src/components/transcript/TransferToSchoolModal.jsx))
   instead of typing the school by hand
 - the bulk roster send (§5.6)
 
@@ -299,10 +299,10 @@ Migration
 | `POST /api/registration/registrations/<id>/records` | [backend/routes/registration_funnel.py](../backend/routes/registration_funnel.py) |
 | Completion enrolls each student in Optio Academy | `academy_enrollment_service.enroll_registration_kids`, called from `_finish_fee_step` |
 | Saved answers returned on resume | `academy_enrollment_service.destinations_for_kids` |
-| The School records funnel step | [frontend/src/pages/RegisterFunnelPage.jsx](../frontend/src/pages/RegisterFunnelPage.jsx) |
-| Admin switches for both behaviors | [frontend/src/components/sis/RegistrationSetupTab.jsx](../frontend/src/components/sis/RegistrationSetupTab.jsx) |
-| Send form pre-fills from the stored destination | [frontend/src/components/transcript/TransferToSchoolModal.jsx](../frontend/src/components/transcript/TransferToSchoolModal.jsx) |
-| Tests | [backend/tests/test_academy_enrollment.py](../backend/tests/test_academy_enrollment.py) (22), [frontend/src/pages/registrationRecordsStep.test.jsx](../frontend/src/pages/registrationRecordsStep.test.jsx) (7), 6 added to `registrationSetupTab.test.jsx` |
+| The School records funnel step | [web/src/pages/RegisterFunnelPage.jsx](../web/src/pages/RegisterFunnelPage.jsx) |
+| Admin switches for both behaviors | [web/src/components/sis/RegistrationSetupTab.jsx](../web/src/components/sis/RegistrationSetupTab.jsx) |
+| Send form pre-fills from the stored destination | [web/src/components/transcript/TransferToSchoolModal.jsx](../web/src/components/transcript/TransferToSchoolModal.jsx) |
+| Tests | [backend/tests/test_academy_enrollment.py](../backend/tests/test_academy_enrollment.py) (22), [web/src/pages/registrationRecordsStep.test.jsx](../web/src/pages/registrationRecordsStep.test.jsx) (7), 6 added to `registrationSetupTab.test.jsx` |
 
 **Turning a partner on** (superadmin, no code):
 
@@ -337,7 +337,7 @@ Already in production and load-bearing:
 - Transcript render, PDF, public verification page, registrar email, transfer
   audit log — 13 real sends
 - WASC display and compliance constants
-  ([frontend/src/constants/accreditation.js](../frontend/src/constants/accreditation.js))
+  ([web/src/constants/accreditation.js](../web/src/constants/accreditation.js))
 - Org branding, org admin roles, invitations
 - The mobile app journal and evidence capture
 

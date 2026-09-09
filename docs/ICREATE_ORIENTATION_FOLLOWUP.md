@@ -188,7 +188,7 @@ anything else. Some of this resolves itself as iCreate's families install it.
 #### Separate, real, and worth fixing anyway: `releaseStatus: "draft"`
 
 While checking the above I found the Android production submit profile uploads
-as a draft ([frontend-v2/eas.json](../frontend-v2/eas.json)):
+as a draft ([mobile/eas.json](../mobile/eas.json)):
 
 ```json
 "android": { "track": "production", "releaseStatus": "draft" }
@@ -214,8 +214,8 @@ The route is not registered anywhere in the app. `app.url_map` has
 `/api/observers/family-invite`, but no `/api/observers/invite`. Two clients
 POST to it:
 
-- [frontend/src/services/api.js:446](../frontend/src/services/api.js#L446)
-- [frontend-v2/app/(app)/(tabs)/profile.tsx:120](../frontend-v2/app/(app)/(tabs)/profile.tsx#L120)
+- [web/src/services/api.js:446](../web/src/services/api.js#L446)
+- [mobile/app/(app)/(tabs)/profile.tsx:120](../mobile/app/(app)/(tabs)/profile.tsx#L120)
 
 Both must be 404ing. It is documented as real in `API_DOCUMENTATION.md` and
 `api_specs/complete_api_spec.yml`, which is probably how it survived. Decide
@@ -361,7 +361,7 @@ and it is measurable rather than a matter of taste.
 
 #### What the scale is now
 
-`UIText` maps to Tailwind sizes ([src/components/ui/Text.tsx](../frontend-v2/src/components/ui/Text.tsx)):
+`UIText` maps to Tailwind sizes ([src/components/ui/Text.tsx](../mobile/src/components/ui/Text.tsx)):
 
 | prop | rendered | uses across `app/` + `src/` |
 |---|---|---|
@@ -373,7 +373,7 @@ and it is measurable rather than a matter of taste.
 **1,392 of 1,811 sized calls — 77% — render at 12px or 14px.** Only 23% reach
 16px. On top of that there are **25 hardcoded `fontSize: 8–11` overrides** that
 go *below* the `xs` scale, including tab-bar labels at 10px
-([app/(app)/(tabs)/_layout.tsx](../frontend-v2/app/(app)/(tabs)/_layout.tsx))
+([app/(app)/(tabs)/_layout.tsx](../mobile/app/(app)/(tabs)/_layout.tsx))
 and several badge labels.
 
 For reference: iOS's default body text is 17px and Apple's HIG treats 11pt as a
@@ -423,7 +423,7 @@ Worth doing as one deliberate pass with screenshots, not piecemeal.
 
 Adding a second parent is: invite as observer → **Family Settings → "Make a
 parent"**. That second step exists only on web
-([FamilySettingsModal.jsx:187](../frontend/src/components/parent/FamilySettingsModal.jsx#L187)
+([FamilySettingsModal.jsx:187](../web/src/components/parent/FamilySettingsModal.jsx#L187)
 → `POST /api/parents/promote-observer`). Mobile has the observer invite but no
 promote, so a parent starting on their phone gets stuck halfway.
 
@@ -442,7 +442,7 @@ move Messages to the top, and possibly move the school button down.
 #### Where it stands
 
 Tab orders live in
-[frontend-v2/src/config/navigation.ts](../frontend-v2/src/config/navigation.ts):
+[mobile/src/config/navigation.ts](../mobile/src/config/navigation.ts):
 
 | shell | tabs (centre `capture` is the modal trigger) |
 |---|---|
@@ -457,7 +457,7 @@ Four real slots plus the centre button. So:
   where a child's learning actually gets captured and reviewed.
 - **Messages is a parent tab but a header icon for students.**
   `PageHeader` sets `showMessages = !isParent && !isObserver`
-  ([MobileHeader.tsx:425](../frontend-v2/src/components/layouts/MobileHeader.tsx#L425)),
+  ([MobileHeader.tsx:425](../mobile/src/components/layouts/MobileHeader.tsx#L425)),
   with a comment stating the invariant deliberately: *the icon is present iff
   Messages left the bar.* Any change here is a coordinated two-file edit —
   `navigation.ts` and `MobileHeader.tsx` — or the icon and the tab both show,
@@ -510,7 +510,7 @@ One of the 15 tasks on the iCreate Exploration Quest reads:
 > **Resources section** or ask an iCreate staff member if you don't already know
 > the answers."*
 
-There is no Resources section in the mobile app. `frontend-v2` contains **no
+There is no Resources section in the mobile app. `mobile` contains **no
 reference to resources at all** — no screen, no hook, no API call. Families
 doing that task on a phone had nowhere to go, which is very likely why the
 task's fallback ("or ask an iCreate staff member") got exercised so much.
@@ -535,7 +535,7 @@ in place and populated:
   The two the quest names by title — Family Guidebook and Student Behavior
   Agreement — are both there.
 - The web SIS already renders this
-  ([frontend/src/pages/sis/ResourcesPage.jsx](../frontend/src/pages/sis/ResourcesPage.jsx)),
+  ([web/src/pages/sis/ResourcesPage.jsx](../web/src/pages/sis/ResourcesPage.jsx)),
   so the shape of the payload and the audience rules are settled.
 
 #### Build notes

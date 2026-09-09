@@ -4,7 +4,7 @@
 
 ## 1. Audit of the current page
 
-The admin "School Dashboard" ([SisDashboard.jsx](../frontend/src/pages/sis/SisDashboard.jsx),
+The admin "School Dashboard" ([SisDashboard.jsx](../web/src/pages/sis/SisDashboard.jsx),
 backed by `GET /api/sis/dashboard` → `sis_service.get_dashboard`,
 [sis_service.py:327](../backend/services/sis_service.py)) shows:
 
@@ -20,7 +20,7 @@ backed by `GET /api/sis/dashboard` → `sis_service.get_dashboard`,
    students awaiting tuition approval, new submissions. All of those queues exist in
    the backend already — the dashboard just doesn't ask.
 2. **No "today" view.** The coordinator dashboard
-   ([CoordinatorDashboard.jsx](../frontend/src/pages/sis/CoordinatorDashboard.jsx),
+   ([CoordinatorDashboard.jsx](../web/src/pages/sis/CoordinatorDashboard.jsx),
    `sis_coordinator_service.get_dashboard`) already computes today's schedule and an
    attendance board; the admin — who is a superset of the coordinator — sees none of it.
 3. **No finance signal.** Overdue invoices (`sis_billing_service.outstanding_invoices`)
@@ -33,7 +33,7 @@ backed by `GET /api/sis/dashboard` → `sis_service.get_dashboard`,
    *can* call it even though the UI routes them elsewhere. Any finance data added to
    this payload must be gated server-side per caller, not hidden by the frontend.
 6. **Module blindness.** Orgs can hide modules
-   (`feature_flags.sis_settings.hidden_modules`, [sisModules.js](../frontend/src/pages/sis/sisModules.js));
+   (`feature_flags.sis_settings.hidden_modules`, [sisModules.js](../web/src/pages/sis/sisModules.js));
    a redesigned dashboard must not show tiles for modules the org has turned off, and
    prior learning is opt-in (`prior_learning_enabled`, enforced server-side).
 
@@ -130,11 +130,11 @@ the frontend in the same change (no other consumers of this endpoint exist).
 
 ### Phase 2 — Frontend rebuild
 
-**[SisDashboard.jsx](../frontend/src/pages/sis/SisDashboard.jsx)** (admin branch only;
+**[SisDashboard.jsx](../web/src/pages/sis/SisDashboard.jsx)** (admin branch only;
 teacher/coordinator branches untouched):
 
 - `ActionTile` component: count + label + `Link`; renders nothing at count 0.
-  Extract to `frontend/src/components/sis/dashboard/` if the file gets long.
+  Extract to `web/src/components/sis/dashboard/` if the file gets long.
 - Tile→module mapping reuses `SIS_MODULE_BY_PATH` + `getHiddenModules(organization)`
   from `sisModules.js` (the org object is already available via `useSisOrg`).
 - Finance card guarded by `canSeeFinance(user)` from `sisRole.js` **and** by the
@@ -156,13 +156,13 @@ Backend (`backend/tests/test_sis_admin_dashboard.py`):
 - One source raising → that section null, rest of payload intact, 200.
 - Empty org → all-zero counts, no errors.
 
-Frontend (`frontend/src/pages/sis/sisDashboard.test.jsx`):
+Frontend (`web/src/pages/sis/sisDashboard.test.jsx`):
 - Tiles render with counts and hide at 0; "All caught up" empty state.
 - Hidden module (e.g. `attendance` in `hidden_modules`) removes its tile.
 - Finance card hidden without `data.finance`.
 - Existing snapshot stats still render.
 
-While iterating run only the touched files (`npx vitest run frontend/src/pages/sis/sisDashboard.test.jsx`,
+While iterating run only the touched files (`npx vitest run web/src/pages/sis/sisDashboard.test.jsx`,
 `pytest backend/tests/test_sis_admin_dashboard.py`); full suites once before commit.
 
 ### Phase 4 — Verify and ship
@@ -192,9 +192,9 @@ Built 2026-08-14. Files:
 - [backend/services/sis_dashboard_service.py](../backend/services/sis_dashboard_service.py) — the aggregator
 - [backend/routes/sis/__init__.py](../backend/routes/sis/__init__.py) — `GET /api/sis/dashboard` now delegates to it
 - [backend/services/sis_tuition_service.py](../backend/services/sis_tuition_service.py) — added `pending_count()`
-- [frontend/src/pages/sis/SisDashboard.jsx](../frontend/src/pages/sis/SisDashboard.jsx) — rebuilt admin branch
+- [web/src/pages/sis/SisDashboard.jsx](../web/src/pages/sis/SisDashboard.jsx) — rebuilt admin branch
 - [backend/tests/test_sis_admin_dashboard.py](../backend/tests/test_sis_admin_dashboard.py) (20 tests),
-  [frontend/src/pages/sis/schoolDashboard.test.jsx](../frontend/src/pages/sis/schoolDashboard.test.jsx) (8 tests)
+  [web/src/pages/sis/schoolDashboard.test.jsx](../web/src/pages/sis/schoolDashboard.test.jsx) (8 tests)
 
 ### Deviations from the plan, and why
 

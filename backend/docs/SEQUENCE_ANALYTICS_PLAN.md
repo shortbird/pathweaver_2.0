@@ -157,7 +157,7 @@ def get_all_sequences_analytics(user_id):
 
 ### 1. Update Sequence Card Component
 
-**File: `frontend/src/components/admin/crm/SequenceCard.jsx`** (or similar)
+**File: `web/src/components/admin/crm/SequenceCard.jsx`** (or similar)
 
 ```jsx
 // Add execution count badge to sequence card

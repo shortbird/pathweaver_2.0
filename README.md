@@ -41,7 +41,7 @@ optio/
 │   ├── middleware/    # Security, error handling
 │   ├── utils/         # Auth, validation, helpers
 │   └── docs/          # Technical documentation
-├── frontend/          # React SPA
+├── web/          # React SPA
 │   ├── src/pages/     # Page components
 │   ├── src/components/ # Reusable components
 │   ├── src/services/  # API client
@@ -99,7 +99,7 @@ The API will be available at `http://localhost:5000`
 
 1. Navigate to frontend directory:
 ```bash
-cd frontend
+cd web
 ```
 
 2. Install dependencies:

@@ -24,8 +24,8 @@ The four cases, in the order they are checked:
      anything else without a cookie jar. Tokens are the only auth it has.
   2. A browser that blocks our cookies -- Safari, any iOS browser, Firefox.
      This is the case the fallback was built for, and `shouldUseAuthHeaders()`
-     in frontend/src/utils/browserDetection.js draws the same line client-side.
-  3. A browser on some other origin -- frontend-v2's web target, which keeps the
+     in web/src/utils/browserDetection.js draws the same line client-side.
+  3. A browser on some other origin -- mobile's web target, which keeps the
      access token in memory and refreshes from the cookie (ADR-001).
   4. Everything else: a cookie-capable browser on the v1 web app. Cookies are
      already set on the same response; it gets nothing in the body.
@@ -47,10 +47,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Origins that are NOT the v1 web app, matched as substrings of the Origin
-# header. frontend-v2's web target is a separate surface with its own storage
+# header. mobile's web target is a separate surface with its own storage
 # model and must keep receiving tokens (ADR-001, "v2 web").
 _NON_V1_ORIGIN_HINTS = (
-    'optio-dev-v2-frontend',   # Render dev service for frontend-v2 web
+    'optio-dev-v2-frontend',   # Render dev service for mobile web
     'localhost:8081',          # Expo dev server
     '127.0.0.1:8081',
 )

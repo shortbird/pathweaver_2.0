@@ -14,9 +14,9 @@ Optio runs three measurement systems, each with a distinct job:
 
 | System | What it's for | Where | Gating |
 |---|---|---|---|
-| **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `frontend/src/services/posthog.js`, `posthog-react-native` in v2 | `VITE_POSTHOG_KEY` — off in local dev |
-| **Google Analytics 4** | Acquisition funnel + Google Ads attribution (marketing site, logged-out) | `frontend/src/services/googleAnalytics.js` + `components/GaTracker.jsx` | **prod host only**, logged-out only |
-| **Meta Pixel** | Ad audiences / conversions (marketing site, logged-out) | `frontend/src/utils/metaPixel.js` + `components/MetaPixelTracker.jsx` | **prod host only**, logged-out only |
+| **PostHog** | Product analytics + session replay (the source of truth for logged-in behaviour, web **and** mobile) | `web/src/services/posthog.js`, `posthog-react-native` in v2 | `VITE_POSTHOG_KEY` — off in local dev |
+| **Google Analytics 4** | Acquisition funnel + Google Ads attribution (marketing site, logged-out) | `web/src/services/googleAnalytics.js` + `components/GaTracker.jsx` | **prod host only**, logged-out only |
+| **Meta Pixel** | Ad audiences / conversions (marketing site, logged-out) | `web/src/utils/metaPixel.js` + `components/MetaPixelTracker.jsx` | **prod host only**, logged-out only |
 
 > Google Tag Manager (`GTM-P9TZN8P3`) was removed 2026-08-05 — the container held
 > no tags and GA4/Meta/PostHog all load directly, so it was dead weight. If you

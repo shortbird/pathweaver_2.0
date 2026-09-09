@@ -36,9 +36,9 @@ from app import app
 REPO = Path(__file__).resolve().parents[2]
 
 CLIENT_ROOTS = [
-    REPO / 'frontend' / 'src',
-    REPO / 'frontend-v2' / 'app',
-    REPO / 'frontend-v2' / 'src',
+    REPO / 'web' / 'src',
+    REPO / 'mobile' / 'app',
+    REPO / 'mobile' / 'src',
 ]
 
 SUFFIXES = {'.js', '.jsx', '.ts', '.tsx'}

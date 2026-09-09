@@ -5,7 +5,7 @@ Single source of the platform's custom programs. Core code (registration today;
 cron dispatch and blueprint wiring next) consults this registry instead of
 importing a specific program's module — so adding a program is a registry entry,
 not a core edit. Mirrors the frontend registry
-(frontend/src/programs/registry.jsx). See docs/ARCHITECTURE_CORE_AND_PROGRAMS.md.
+(web/src/programs/registry.jsx). See docs/ARCHITECTURE_CORE_AND_PROGRAMS.md.
 
 Note: this declares each program's identity + hooks; a program's own routes,
 services, and rules still live in its module (routes/oea.py, routes/treehouse.py,

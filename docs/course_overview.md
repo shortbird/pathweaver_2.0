@@ -99,24 +99,24 @@ PUT /api/courses/:id/projects/reorder - Reorder projects
 POST /api/courses/:id/enroll - Student enrollment
 GET /api/courses/:id/progress - Student progress
 Phase 2: Designer UI (Course Builder)
-Create CourseBuilder frontend/src/pages/courses/CourseBuilder.jsx
+Create CourseBuilder web/src/pages/courses/CourseBuilder.jsx
 
 Two-column layout (project list + editor)
 Course metadata editor (title, description, intro)
 Project list with drag-drop reordering
 Add project modal (select from org quests)
 Publish button (creates badge)
-Create CourseCard frontend/src/components/courses/CourseCard.jsx
+Create CourseCard web/src/components/courses/CourseCard.jsx
 
 Display course with project count
 Progress indicator for enrolled students
 Phase 3: Student UI
-Update BadgesPage frontend/src/pages/BadgesPage.jsx
+Update BadgesPage web/src/pages/BadgesPage.jsx
 
 Add "Available Courses" section at top
 Course cards with enrollment CTA
 Existing badge sections below
-Create CourseDetailPage frontend/src/pages/courses/CourseDetailPage.jsx
+Create CourseDetailPage web/src/pages/courses/CourseDetailPage.jsx
 
 Course intro and project list
 Project completion status
@@ -144,14 +144,14 @@ backend/routes/__init__.py - Register course routes
 backend/services/badge_service.py - Course badge logic
 Frontend (New):
 
-frontend/src/pages/courses/CourseBuilder.jsx
-frontend/src/pages/courses/CourseDetailPage.jsx
-frontend/src/components/courses/CourseCard.jsx
-frontend/src/services/courseService.js
+web/src/pages/courses/CourseBuilder.jsx
+web/src/pages/courses/CourseDetailPage.jsx
+web/src/components/courses/CourseCard.jsx
+web/src/services/courseService.js
 Frontend (Modify):
 
-frontend/src/pages/BadgesPage.jsx - Add courses section
-frontend/src/App.jsx - Add course routes
+web/src/pages/BadgesPage.jsx - Add courses section
+web/src/App.jsx - Add course routes
 Leverages Existing Code
 Curriculum lessons: Quest lessons become project content (no changes)
 Badge system: Extend with course_completion type, reuse claiming

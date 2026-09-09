@@ -190,7 +190,7 @@ optioeducation.com  TXT  v=spf1 include:_spf.google.com ~all
 
 ### Files to Update
 
-**1. Privacy Policy** (`frontend/src/pages/PrivacyPolicy.jsx`):
+**1. Privacy Policy** (`web/src/pages/PrivacyPolicy.jsx`):
 
 Find the contact section and update:
 ```jsx
@@ -203,7 +203,7 @@ Find the contact section and update:
 </p>
 ```
 
-**2. Terms of Service** (`frontend/src/pages/TermsOfService.jsx`):
+**2. Terms of Service** (`web/src/pages/TermsOfService.jsx`):
 
 Update contact section:
 ```jsx

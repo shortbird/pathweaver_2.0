@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Analytics: GA4 is initialized in-app (services/googleAnalytics.js,
+         prod-host only). Meta Pixel loads below. PostHog inits in App.jsx. The
+         old Google Tag Manager container (GTM-P9TZN8P3) was removed 2026-08-05 —
+         it held no tags and everything loads directly, so it was dead weight. -->
+
+
+    <!-- ✅ SECURITY HEADERS (Phase 1 Security Fix - January 2025) -->
+    <!-- Content Security Policy: Prevents XSS, clickjacking, and other injection attacks -->
+    <!-- NOTE: the document scanner's OpenCV.js needs wasm + eval, which this
+         policy deliberately does NOT allow. It runs in a dedicated same-origin
+         Web Worker instead (workers get their policy from their own response
+         headers, not this meta tag) - see workers/documentScanner.worker.js. -->
+    <!-- NOTE: every third-party the browser TALKS to must be in connect-src, not
+         just script-src. Sentry was missing from it between 2026-06-12 and
+         2026-08-31: the SDK initialized fine and the DSN was valid, but Chrome
+         refused every envelope, so web error reporting was silently dead for
+         2.5 months (0 events received) while the console showed the block.
+         web/src/services/sentry.csp.test.js guards this. -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com https://connect.facebook.net https://us-assets.i.posthog.com https://perch.shortbird.dev;
+      worker-src 'self' blob:;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https: blob:;
+      media-src 'self' blob: https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com;
+      connect-src 'self' http://localhost:5001 http://localhost:5002 ws://localhost:3000 https://www.google-analytics.com https://www.google.com/g/ https://optio-dev-backend-5flj.onrender.com https://optio-prod-backend-966k.onrender.com https://api.optioeducation.com https://vvfgxcykxjybtvpfzwyx.supabase.co wss://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com https://us.i.posthog.com https://us-assets.i.posthog.com https://www.facebook.com https://connect.facebook.net https://ewdgdrhvdwantdgqkpvd.supabase.co https://*.ingest.us.sentry.io;
+
+      frame-src https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com https://drive.google.com https://docs.google.com https://www.slideshare.net https://www.loom.com https://loom.com https://www.googletagmanager.com https://vvfgxcykxjybtvpfzwyx.supabase.co https://auth.optioeducation.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self' https://saltire.lti.app https://lti.tools https://*.instructure.com https://sso.canvaslms.com;
+      upgrade-insecure-requests;
+    ">
+
+    <!-- X-Content-Type-Options: Prevents MIME sniffing -->
+    <!-- NOTE: X-Frame-Options set by backend (cannot be set via meta tag) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+
+    <!-- Referrer Policy: Controls referrer information -->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+
+    <!-- Permissions Policy: Disable unnecessary browser features.
+         NOTE: browsers only honor Permissions-Policy as an HTTP header, so this
+         meta tag is inert - kept as documentation of intent. camera=(self)
+         because the document scanner and Treehouse capture use getUserMedia. -->
+    <meta http-equiv="Permissions-Policy" content="
+      geolocation=(),
+      microphone=(),
+      camera=(self),
+      payment=(),
+      usb=(),
+      magnetometer=(),
+      gyroscope=(),
+      accelerometer=()
+    ">
+
+    <!-- GA4 is loaded + configured in-app by services/googleAnalytics.js:
+         prod-host only, Consent Mode (ad usage denied), SPA page_view tracking
+         via components/GaTracker.jsx, no user PII. The old always-on gtag
+         snippet was removed so dev/localhost/preview no longer hit the prod
+         property and client-side navigation is actually measured. -->
+
+    <!-- Favicons and App Icons -->
+    <link rel="icon" type="image/svg+xml" href="https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- iOS and Mobile Web App Support -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Optio" />
+
+    <!-- Theme Color for Browser Chrome -->
+    <meta name="theme-color" content="#6D469B" />
+
+    <!-- Web App Manifest for PWA Support -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Meta Pixel Code (production host only: keeps localhost/dev/preview
+         traffic out of the prod pixel so audiences + event counts stay clean).
+
+         DEFERRED ON PURPOSE (privacy, Aug 2026). This snippet only DEFINES the
+         loader; it loads nothing and fires nothing on its own. The pixel is a
+         marketing tool and this platform's signed-in users are largely minors,
+         so the SPA trackers only ever fire for unauthenticated browsing
+         (components/MetaPixelTracker.jsx, components/GaTracker.jsx). The base
+         pixel used to run here on every hard page load, which meant a logged-in
+         student's page load still pinged facebook.com carrying their cookie and
+         IP before the app had any idea who they were - exactly the thing the
+         SPA policy exists to prevent.
+
+         MetaPixelTracker calls window.__optioLoadMetaPixel() once auth state is
+         settled AND the visitor is confirmed signed out; that call loads the
+         script, inits, and fires the initial PageView. It returns true when it
+         actually did the load so the caller knows the PageView is accounted for
+         (and false on every later call, and on non-production hosts where this
+         is a no-op). Nothing else in the app may call it. -->
+    <script>
+    (function(){
+      var h = window.location.hostname;
+      if (h !== 'www.optioeducation.com' && h !== 'optioeducation.com') {
+        window.__optioLoadMetaPixel = function(){ return false; };
+        return;
+      }
+      var loaded = false;
+      window.__optioLoadMetaPixel = function(){
+        if (loaded) return false;
+        loaded = true;
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '621857460806836');
+        fbq('track', 'PageView');
+        return true;
+      };
+    })();
+    </script>
+    <!-- End Meta Pixel Code -->
+    
+    <title>Optio</title>
+
+    <!-- DEFAULT SOCIAL TAGS.
+         This SPA renders client-side, so react-helmet-async's per-page tags
+         (DiplomaPage, PublicCoursePage, ...) only exist once React boots.
+         Googlebot runs JS and sees them; NO social scraper does. Facebook,
+         LinkedIn, X, Slack, iMessage and WhatsApp read raw HTML only, so every
+         shared link -- including student portfolios, whose entire purpose is
+         being shared -- previews with no image at all.
+
+         DELIBERATELY NARROW. Helmet APPENDS, it does not replace: with a
+         static og:title here and DiplomaPage's og:title added later, the head
+         ends up holding both, and OG parsers and Google take the FIRST. A full
+         set of defaults would therefore shadow every per-page title and
+         description with the generic one -- worse than having none. So this
+         block carries only:
+           - tags no page sets, where there is nothing to shadow (og:image,
+             its dimensions, twitter:image), and
+           - tags whose per-page value is identical anyway (og:site_name,
+             twitter:card).
+         og:title, og:description, description, og:type, twitter:title and
+         twitter:description are owned by Helmet and must NOT be added here.
+         web/src/utils/ogDefaults.test.js enforces that.
+
+         Known trade-off: PublicCoursePage sets og:image when a course has a
+         cover, and this default now precedes it, so Google sees the generic
+         card there. Scrapers could never see the cover anyway (it is
+         Helmet-injected), so this costs one JS-capable consumer a nicer image
+         and buys every other page a branded card instead of a blank one.
+
+         The real fix is server-rendered HTML per portfolio, which a Render
+         static site cannot do. This is the floor, not the ceiling.
+
+         Image lives on the marketing site; this host ships no 1200x630 asset. -->
+    <meta property="og:site_name" content="Optio" />
+    <meta property="og:image" content="https://www.optioeducation.com/images/og/default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://www.optioeducation.com/images/og/default.png" />
+  </head>
+  <body>
+    <!-- The Meta Pixel <noscript> fallback img was removed (Aug 2026). It
+         cannot be gated: without JavaScript there is no auth state to check, so
+         it fired a facebook.com PageView with the visitor's cookie and IP for
+         every page load including signed-in students'. This is an SPA that
+         renders nothing without JavaScript, so the fallback measured almost
+         nothing while being the one pixel call no policy could hold back. -->
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

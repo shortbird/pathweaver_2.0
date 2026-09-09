@@ -1,7 +1,7 @@
 """Guardian-delegated reads: one gate for "may this adult look at this kid's quest".
 
 A parent opening a child's quest in the mobile app sees the child's own quest
-screen, pointed at the child (frontend-v2 `app/(app)/parent/quest/...`). Rather
+screen, pointed at the child (mobile `app/(app)/parent/quest/...`). Rather
 than keep a parallel set of parent-shaped read endpoints whose payloads drift
 from the student's — which is what `/api/parent/quest/<sid>/<qid>` had become:
 no `big_idea`, no journal moments, no class credit ring — the student-scoped GET

@@ -149,7 +149,7 @@ testable — the pool query gains one `not in` against that person's claimed doc
 
 **Confirmed by reading the control.** In the queue, the due-date input PATCHes on every
 keystroke: `onChange={(e) => update(f.id, { due_date: e.target.value || null })}`
-([StaffFormsPage.jsx:365](../../frontend/src/pages/sis/StaffFormsPage.jsx#L365)). A native
+([StaffFormsPage.jsx:365](../../web/src/pages/sis/StaffFormsPage.jsx#L365)). A native
 date input reports an empty value until the whole date is valid, so typing `08/20/…` fires a
 save of `null`, the row reloads, and the year she was halfway through typing is wiped. The
 calendar picker works because it only ever emits a complete date.

@@ -40,7 +40,7 @@ Pure, exhaustively-tested logic modules: `sis_eligibility`, `sis_pricing`,
 **Parent self-service (shipped 2026-06-30, commit `41ed74c0`):** parent-facing
 registration wizard is now wired — `/api/sis/parent/*` ([backend/routes/sis/parent.py](../backend/routes/sis/parent.py),
 [backend/services/sis_parent_service.py](../backend/services/sis_parent_service.py))
-+ [frontend/src/pages/ClassRegistrationPage.jsx](../frontend/src/pages/ClassRegistrationPage.jsx).
++ [web/src/pages/ClassRegistrationPage.jsx](../web/src/pages/ClassRegistrationPage.jsx).
 Guardian registers → submits → staff invoices → **full payment auto-completes the
 registration** (`_maybe_autocomplete_registration` in `sis_billing_service`).
 Same commit added roster filters/sort, program+class management editing, and the

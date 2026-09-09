@@ -17,7 +17,7 @@ Two properties make the fix hold rather than just move the problem:
     not by remembering to write a correct policy.
   * `feature_flags` stays a plain, fully-serializable config blob. The org
     settings UI does a read-modify-write of that whole object
-    (frontend/src/components/sis/*.jsx), so anything stored in it must be safe to
+    (web/src/components/sis/*.jsx), so anything stored in it must be safe to
     round-trip through a browser. Keeping secrets out means a future serializer
     cannot leak one by forgetting to strip a field, and the settings UI cannot
     wipe one by PUTting back a blob it never received.
@@ -228,7 +228,7 @@ def strip_secrets_from_feature_flags(feature_flags: Optional[dict]) -> dict:
     """Remove the known credential paths from a feature_flags blob.
 
     The org settings UI read-modify-writes the whole `feature_flags` object
-    (frontend/src/components/sis/*.jsx), so a stale browser tab -- or any client
+    (web/src/components/sis/*.jsx), so a stale browser tab -- or any client
     loaded before this change -- can still PUT a blob carrying the old nested
     secret. Accepting it would silently re-open C1.
 

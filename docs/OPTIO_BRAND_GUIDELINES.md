@@ -463,7 +463,7 @@ Before shipping any new feature or page, verify:
 ## Resources
 
 ### Tailwind Config Location
-`frontend/tailwind.config.js`
+`web/tailwind.config.js`
 
 ### Color Definitions
 ```javascript

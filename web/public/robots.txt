@@ -1,0 +1,86 @@
+# Optio - robots.txt for the APPLICATION hosts.
+#
+# This file ships with the web/ SPA build, which serves
+# app.optioeducation.com and sis.optioeducation.com. It has NOT served
+# www.optioeducation.com since the 2026-09-01 cutover: www is the Astro
+# marketing site in marketing/ and carries its own robots.txt. The version of
+# this file that stood here until now was still written as if the app were www
+# - it advertised a sitemap at www.optioeducation.com/sitemap.xml, which has
+# returned 404 since the cutover, and it allowed /how-it-works and friends,
+# which now live on www.
+#
+# POLICY: default-deny. This is an application host, so the public surface is a
+# short allowlist and everything else is closed. That direction is the one
+# already chosen in marketing/DEPLOYMENT.md ("Post-cutover cleanup"), and it
+# fails safe: a newly added authenticated route is closed until someone opens
+# it on purpose. The opposite shape - allow-all plus a Disallow per private
+# route - fails open, and the redirect table in DEPLOYMENT.md is the local
+# proof that per-route allowlists rot (it went stale twice in two days).
+#
+# Google resolves conflicts by LONGEST MATCHING RULE, not by order, so the
+# specific Allow lines below beat the catch-all Disallow regardless of where
+# they sit. They are listed first for readability, and because some other
+# crawlers do read in order.
+
+User-agent: *
+
+# --- Rendering assets -------------------------------------------------------
+# This is a client-rendered SPA. If Googlebot cannot fetch the JS and CSS it
+# cannot render a page, and every page allowed below would be indexed as an
+# empty shell with no title, no description and no content. These allowances
+# are load-bearing, not housekeeping.
+Allow: /assets/
+Allow: /images/
+Allow: /email-assets/
+Allow: /manifest.json
+Allow: /sw.js
+Allow: /pdf.worker.min.mjs
+Allow: /favicon.ico
+Allow: /favicon-
+Allow: /apple-touch-icon.png
+Allow: /poe-
+
+# --- Public pages this host canonically owns --------------------------------
+
+# Student portfolios, the public product. Served only when diplomas.is_public
+# is true, and the consent a student (or their guardian, when under 18) accepts
+# to get there says in as many words that public includes "search engines,
+# which may index your public content" - components/diploma/PublicConsentModal.jsx.
+# Indexing these is consented, not incidental. If that consent copy ever
+# narrows, narrow this with it.
+Allow: /portfolio/
+Allow: /public/diploma/
+Allow: /public/transcript/
+
+# Course catalog and public course pages.
+Allow: /catalog
+Allow: /course/
+
+# Entry points and legal documents. www 301s /login, /register, /terms and
+# /privacy to this host, so this host is their real home and they have to stay
+# crawlable or the redirect lands Google on a blocked page.
+Allow: /login
+Allow: /register
+Allow: /terms
+Allow: /privacy
+Allow: /support
+Allow: /docs
+Allow: /academy-agreement
+Allow: /academy-handbook
+
+# --- Everything else --------------------------------------------------------
+# Closes, in one line: every authenticated page (/dashboard, /profile,
+# /messages, /admin, /quests, ...); one-shot token links (/auth/*,
+# /invitation/*, /reset-password, /shared/*, /report/*); embeds and kiosks,
+# which are framed or device-local and never a useful search result; the whole
+# SIS console on sis.optioeducation.com; and the stale marketing pages that
+# still route in this SPA after moving to www (/academy, /how-it-works,
+# /philosophy, /for-families, /for-schools, /classes). Those last ones are
+# duplicates of live www pages and would compete with them - deleting the
+# routes is the tracked cleanup item in marketing/DEPLOYMENT.md.
+Disallow: /
+
+# No Sitemap directive on purpose. This host has no sitemap of its own; the
+# marketing site publishes the real one at
+# https://www.optioeducation.com/sitemap-index.xml and advertises it from its
+# own robots.txt. A pointer here to a 404 was worse than no pointer at all.

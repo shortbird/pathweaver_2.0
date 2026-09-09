@@ -252,7 +252,7 @@ pytest tests/unit/ -v
 
 ## Related Documentation
 
-- [Frontend Testing Guide](../../frontend/TESTING.md) - Frontend test organization
+- [Frontend Testing Guide](../../web/TESTING.md) - Frontend test organization
 - [E2E Testing Plan](../../tests/e2e/TEST_PLAN.md) - Playwright E2E tests
 - [Repository Pattern Guide](../docs/REPOSITORY_PATTERN.md) - Repository architecture
 - [Exception Handling Guide](../docs/EXCEPTION_HANDLING_GUIDE.md) - Custom exceptions

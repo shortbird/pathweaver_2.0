@@ -23,7 +23,7 @@ so we build the thin missing layer instead of a parallel system.
 ## Where teachers stand today
 
 - A teacher is a `users` row with `role='org_managed'`, `org_role='advisor'`. The SIS
-  Staff page (`frontend/src/pages/sis/StaffPage.jsx`) creates them with a set-password
+  Staff page (`web/src/pages/sis/StaffPage.jsx`) creates them with a set-password
   email (`sis_service.create_org_teacher`).
 - iCreate's schedule import created ~20 **placeholder** teachers with synthetic
   `*@icreate-staff.placeholder.optioeducation.com` emails; 121 classes point at them via

@@ -99,6 +99,6 @@ This is the wide banner at the top of your Play Store listing — 1024×500. Mak
 
 ## App icon
 
-- **Source**: `frontend-v2/assets/images/icon.png` (you have this, 1024×1024)
+- **Source**: `mobile/assets/images/icon.png` (you have this, 1024×1024)
 - **Required output**: 512×512 PNG, < 1 MB
 - Resize with any image tool — `sips -z 512 512 icon.png --out icon-512.png` on macOS, Photoshop on Windows

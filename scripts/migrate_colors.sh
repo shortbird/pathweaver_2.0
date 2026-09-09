@@ -6,8 +6,8 @@
 
 echo "🎨 Starting comprehensive color migration..."
 
-# Find all JSX/JS files in frontend/src
-FILES=$(find frontend/src -type f \( -name "*.jsx" -o -name "*.js" \) ! -path "*/node_modules/*")
+# Find all JSX/JS files in web/src
+FILES=$(find web/src -type f \( -name "*.jsx" -o -name "*.js" \) ! -path "*/node_modules/*")
 
 TOTAL_FILES=$(echo "$FILES" | wc -l)
 echo "📁 Found $TOTAL_FILES files to process"
@@ -110,6 +110,6 @@ echo "✅ Migration complete!"
 echo "📊 Changed $CHANGED_FILES out of $TOTAL_FILES files"
 echo ""
 echo "🔍 Remaining hex colors:"
-find frontend/src -type f \( -name "*.jsx" -o -name "*.js" \) ! -path "*/node_modules/*" -exec grep -l "#[0-9A-Fa-f]\{6\}" {} \; | wc -l
+find web/src -type f \( -name "*.jsx" -o -name "*.js" \) ! -path "*/node_modules/*" -exec grep -l "#[0-9A-Fa-f]\{6\}" {} \; | wc -l
 echo ""
 echo "💡 Run 'git diff' to review changes before committing"

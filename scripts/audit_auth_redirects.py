@@ -41,7 +41,7 @@ PROD = [
     (f"{APP}/auth/callback?provider=apple", "web Apple sign-in (authService.signInWithApple)"),
     (f"{APP}/login", "email confirmation (registration.py, {FRONTEND_URL}/login)"),
     (f"{APP}/reset-password", "password recovery"),
-    ("optio://auth/callback", "mobile native OAuth (frontend-v2 authStore)"),
+    ("optio://auth/callback", "mobile native OAuth (mobile authStore)"),
 ]
 
 DEV = [

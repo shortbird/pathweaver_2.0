@@ -39,7 +39,7 @@ document live — under the email-driven model this is ops, not a build deadline
 ## 1. Current state of the software
 
 ### Live in production (Phase 1 — interest capture) ✅
-- **`/poe` landing page** (`frontend/src/pages/poe/PoePage.jsx`) — hidden public
+- **`/poe` landing page** (`web/src/pages/poe/PoePage.jsx`) — hidden public
   page, not in nav. Hero, benefits, how-it-works, interest form.
 - **Interest form** — site picker (all 4 cohorts), student name/email/DOB,
   age-gating (blocks <13 COPPA), conditional parent block for minors,
@@ -63,7 +63,7 @@ What's left:
    signup, create the per-student Fine Arts class quest + enrollment + journal
    topic + `poe_participants` row. Small. *Only pre-camp build.* (§10.2)
 2. **Verify mobile journal** works for a self-registered POE student (no build,
-   just confirm — frontend-v2 has no POE-specific code and needs none).
+   just confirm — mobile has no POE-specific code and needs none).
 3. **Post-camp award step** — attendance → `class_review_status='credit_awarded'`.
    Small. *Not needed until late June.* (§10.3)
 4. **School-of-record / counselor notification** — *post-camp.*

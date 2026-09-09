@@ -1,5 +1,5 @@
 /**
- * Brand tokens copied from frontend/tailwind.config.js so the marketing site
+ * Brand tokens copied from web/tailwind.config.js so the marketing site
  * and the app read as one product. If a token changes there, change it here.
  * (The two projects build independently; a shared preset would couple their
  * dependency trees for six lines of color.)

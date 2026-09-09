@@ -7,7 +7,7 @@ Phases 0–5 inverted the *programs* (OEA, Treehouse, Gryffin, POE) out of core.
 document does the same for the *SIS and the school-management surface*: core exposes
 **modules**; each school runs the set it needs. The marketing page already sells this
 ("Every block can be switched on or off… the ones you turn off disappear completely"
-— [ForSchoolsPage.jsx](../frontend/src/pages/marketing/ForSchoolsPage.jsx)); this doc
+— [ForSchoolsPage.jsx](../web/src/pages/marketing/ForSchoolsPage.jsx)); this doc
 makes the code able to keep that promise.
 
 **Decisions baked in (2026-08-18):**
@@ -162,7 +162,7 @@ both live in `community`. Acceptable; split later only if a real school asks.
 |---|---|---|
 | `backend/routes/sis/` — 37 modules, 36 blueprints, **378 routes** | 37 | 13,674 |
 | `backend/services/sis_*.py` | 41 | 18,224 |
-| `frontend/src/pages/sis/` + `components/sis/` + `sis/SisRoutes.jsx` | 90 | 26,761 |
+| `web/src/pages/sis/` + `components/sis/` + `sis/SisRoutes.jsx` | 90 | 26,761 |
 | Other backend SIS (sis_roles, repos, gates, jobs) | 6 | 745 |
 | **SIS production subtotal** | **~173** | **~59,400** |
 | SIS tests (63 backend + 67 frontend files) | 130 | 23,409 |
@@ -203,7 +203,7 @@ price_cents, billing_*, registration_status, waitlist, ages) and its own routes 
 the same rows. LMS class routes: `backend/routes/classes/{crud,students,quests,advisors,messaging}.py`;
 UI shared by the teacher surface (`/org-classes`, no create button) and the org-admin
 surface (`/organization?tab=classes`, with create). All the modal/tab components in
-`frontend/src/components/classes/` are reusable as-is.
+`web/src/components/classes/` are reusable as-is.
 
 **The gap for a teacher on an LMS-only org:**
 
@@ -221,7 +221,7 @@ progress view that is **not mounted anywhere**; `AdminPage.jsx` contains an
 unreachable org_admin/advisor "Teacher Panel" tab shell; several
 `components/organization/` tabs are exported but never rendered.
 
-### 3.4 Mobile (frontend-v2)
+### 3.4 Mobile (mobile)
 
 A student/parent/observer product. Every role-gated nav item is `platforms:['web']`;
 the advisor caseload panel and admin users panel are desktop-web-only; a native
@@ -235,11 +235,11 @@ management on mobile. Note the naming trap: mobile `CreateClassSheet.tsx` (and w
 
 All per-org gating lives on `organizations.feature_flags` (jsonb), read by
 `backend/utils/org_features.py` (`org_has_feature`: top-level keys, absent = off,
-fail-closed) and `frontend/src/contexts/OrganizationContext.jsx` (`useOrgFeature`).
+fail-closed) and `web/src/contexts/OrganizationContext.jsx` (`useOrgFeature`).
 Roughly 30 gates in three inconsistent shapes:
 
 1. **Flat flags**: `sis_enabled`, `kiosk`, `xp_goals`, `scheduled_publish`, `due_dates`, `lock_xp_editing`, `hide_public_bounties`, `step_printing`, `email_reply_to`, `registration`/`icreate_registration` (dual-key).
-2. **`sis_settings` blob**: `hidden_modules` (opt-out array over 14 keys — see [sisModules.js](../frontend/src/pages/sis/sisModules.js)), `community_enabled` + `prior_learning_enabled` (opt-in booleans), `post_registration_flow` (enum mode), plus ~25 operational settings (rooms, time blocks, age gates, pricing, school year, …).
+2. **`sis_settings` blob**: `hidden_modules` (opt-out array over 14 keys — see [sisModules.js](../web/src/pages/sis/sisModules.js)), `community_enabled` + `prior_learning_enabled` (opt-in booleans), `post_registration_flow` (enum mode), plus ~25 operational settings (rooms, time blocks, age gates, pricing, school year, …).
 3. **Dedicated columns**: `ai_features_enabled` + 3 granular AI booleans, `quest_visibility_policy`, `course_visibility_policy`, `timezone`, `accreditation_source`.
 
 **`hidden_modules` is nav-only by design** ("the backend endpoints stay available").
@@ -256,7 +256,7 @@ staff; `backend/tests/test_secret_exposure_guard.py` scans every route.
 ### 3.6 Org-specific hardcoding (severity order)
 
 1. ~~**`icreate_registrations`**~~ — **DONE 2026-08-25.** Renamed to `registrations` (expand/contract, compat view behind it); `routes/icreate_registration.py` → `routes/registration_funnel.py`, blueprint `registration`, served at `/api/registration/*` with `/api/icreate/*` as a deprecated alias. `routes/sis/__init__.py` still imports `_finish_fee_step`/`_org_config` **from another route module** — now `routes.registration_funnel`. That route→route import is the remaining smell here.
-2. **`frontend/src/config/optioAcademy.js`** — a hardcoded org UUID consumed by `postLoginPath.js`, `FamilyHome.jsx`, `SchoolPage.jsx`. Its own comment says "promote to feature_flags if a second school wants this shape."
+2. **`web/src/config/optioAcademy.js`** — a hardcoded org UUID consumed by `postLoginPath.js`, `FamilyHome.jsx`, `SchoolPage.jsx`. Its own comment says "promote to feature_flags if a second school wants this shape."
 3. **`registration_config.py`** dual-key: reads `registration` with fallback to `icreate_registration`, writes both.
 4. **URL naming**: `/api/icreate/*`; `register/icreate/*` — Gryffin's live registration link is literally `register/icreate/gryffin-family-2026`.
 5. One-off slug/ID switches: `partnerOrgs.js` (OnFire simplified dashboard), `utils/treehouse.py`, `email_service.py` support-copy exclude list, slug checks in `QuestsTab.jsx` / `AcceptInvitationPage.jsx` / `RosterImportPage.jsx`.
@@ -300,9 +300,9 @@ comfortably with test-guarded mirrors).
 | `backend/modules/registry.py` | canonical `ModuleDef` dataclasses + `MODULES` dict (mirrors the `programs/registry.py` style) |
 | `backend/modules/enabled.py` | evaluation: raw flag → effective; request-scoped cache; `enabled_set(org_id)` |
 | `backend/modules/gate.py` | `module_guard(bp, key)` + `@require_module(*keys)` |
-| `frontend/src/modules/moduleKeys.json` | machine-readable `{key: {default, parent, requires}}` — imported by the JS registry, asserted against Python by the parity test |
-| `frontend/src/modules/registry.js` | display metadata: name, category, blocks, description, icon, nav paths |
-| `frontend/src/modules/useModule.js` | `useModule(key)` hook + pure `moduleEnabled(flags, key)` |
+| `web/src/modules/moduleKeys.json` | machine-readable `{key: {default, parent, requires}}` — imported by the JS registry, asserted against Python by the parity test |
+| `web/src/modules/registry.js` | display metadata: name, category, blocks, description, icon, nav paths |
+| `web/src/modules/useModule.js` | `useModule(key)` hook + pure `moduleEnabled(flags, key)` |
 | `backend/tests/test_module_registry.py` | Python ⇔ JSON parity; every `requires` target exists; every SIS module has `parent: sis`; each gated blueprint's role tier matches its registry `min_tier` |
 
 ```python
@@ -426,10 +426,10 @@ LMS-core happy path. The legacy `routes/classes/*` role tuples migrate to
 registry-driven `<ModuleGate module="key">`; the Finance/HR role wrappers stay —
 roles are not modules.
 
-**Settings unification.** New `frontend/src/settings/settingsRegistry.js`: every
+**Settings unification.** New `web/src/settings/settingsRegistry.js`: every
 card declares `{key, module, minTier, Component}` and physically moves from
 `SisOrgSettings.jsx` (332 LOC) and `SettingsTab.jsx` (615 LOC) into
-`frontend/src/settings/cards/`. Both `pages/sis/SettingsPage.jsx` and the legacy
+`web/src/settings/cards/`. Both `pages/sis/SettingsPage.jsx` and the legacy
 tab become thin renderers of the same registry filtered by surface × enabled
 modules × caller tier — a disabled module's settings cards disappear with it.
 Target write path: one `PATCH .../settings` doing a **server-side merge**, killing
@@ -448,7 +448,7 @@ gate now agree **by construction**: same `enabled_set`.
 
 - **`SisSidebar.jsx`**: each `NAV_SECTIONS` item gains `module: '<key>'`, replacing the path-map lookup and the `communityMode`/`priorLearningMode`/`goalsMode` one-offs. Filter = module enabled ∧ tier flags.
 - **Main `Sidebar.jsx`**: items for journal, courses, bounties, credits, the school hub, and the new advisor section declare module keys via `useModule(key)`.
-- **Mobile `frontend-v2/src/config/navigation.ts`**: `NavItem` gains `module?: string`; the tab layout filters with `moduleEnabled(authStore.organization?.feature_flags, key)` from a small `frontend-v2/src/config/modules.ts` mirror (keys + defaults only, for the keys mobile consumes).
+- **Mobile `mobile/src/config/navigation.ts`**: `NavItem` gains `module?: string`; the tab layout filters with `moduleEnabled(authStore.organization?.feature_flags, key)` from a small `mobile/src/config/modules.ts` mirror (keys + defaults only, for the keys mobile consumes).
 - `postLoginPath.js` swaps its `sis_enabled` read for the shared `moduleEnabled(flags, 'sis')`.
 
 ### 4.6 Roles
@@ -478,7 +478,7 @@ pattern).
 ### 4.8 Mobile
 
 Flags already arrive via `/api/auth/me → organization.feature_flags` in
-`authStore`. Add `frontend-v2/src/config/modules.ts` (`moduleEnabled(flags, key)`
+`authStore`. Add `mobile/src/config/modules.ts` (`moduleEnabled(flags, key)`
 with embedded defaults for the keys mobile consumes: journal, bounties, courses,
 community, calendar, attendance, billing, observer, sis); nav items and school-hub
 cards key off it; parent screens additionally consume the `modules` list from

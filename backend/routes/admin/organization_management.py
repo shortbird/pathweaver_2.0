@@ -164,7 +164,7 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
                     return jsonify({'error': f"Another organization already uses the slug '{new_slug}'"}), 400
 
                 # Programs are wired to a member org by slug (backend/programs/registry.py
-                # and frontend/src/programs/registry.jsx). Renaming out from under the
+                # and web/src/programs/registry.jsx). Renaming out from under the
                 # registry would silently turn the program's tab and rules off.
                 from programs.registry import program_for_org_slug
                 program = program_for_org_slug(current_slug)
@@ -172,7 +172,7 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
                     return jsonify({'error': (
                         f"'{current_slug}' is wired to the {program.name} program by slug. "
                         f"Update org_slugs in backend/programs/registry.py and "
-                        f"frontend/src/programs/registry.jsx first, then rename."
+                        f"web/src/programs/registry.jsx first, then rename."
                     )}), 400
 
                 update_data['slug'] = new_slug

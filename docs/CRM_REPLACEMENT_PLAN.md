@@ -88,7 +88,7 @@
   (migration 20260822090000_crm_core_tables.sql applied via MCP), engine + routes +
   trigger repoint + admin console all in. Funnels seeded from the Brevo HTML archive
   (scripts/seed_crm_funnels.py — 5 funnels, 21 steps, images rehosted to
-  frontend/public/email-assets/) and sitting PAUSED. From this deploy, new marketing
+  web/public/email-assets/) and sitting PAUSED. From this deploy, new marketing
   leads land in crm_leads and Brevo receives nothing new; no nurture sends happen
   until funnels are activated, and the sweep refuses to send while
   crm_settings.postal_address is empty. Suites: backend 3730 passed, web 2086 passed;
@@ -160,7 +160,7 @@ video-chat trigger via Google Calendar polling · fix the live course_purchase b
 - Brevo cannot export per-contact automation position via API — approximate from
   LEAD_DATE, biased to skip (never double-send).
 - Admin house patterns: superadmin tab = entry in `superadminTabs` + lazy Route in
-  [AdminPage.jsx](frontend/src/pages/AdminPage.jsx); list views clone AdminUsers.jsx
+  [AdminPage.jsx](web/src/pages/AdminPage.jsx); list views clone AdminUsers.jsx
   (debounce/filters/server pagination/plain axios, no react-query); guards:
   tests/unit/test_no_duplicate_routes.py + backend/tests/test_client_api_paths_exist.py
   (every frontend '/api/...' literal must be a real Flask rule).
@@ -285,7 +285,7 @@ one-liners): quest/enrollment.py ~:578 when quest_type=='class' →
 crm_service.record_class_start(user_id); course_enrollment_service.py ~:131 on
 enrolled/reactivated.
 
-### Admin console (frontend/src/pages/admin/crm/)
+### Admin console (web/src/pages/admin/crm/)
 
 Mount: AdminPage.jsx — `{path:'crm', label:'CRM'}` first in superadminTabs + lazy
 CrmConsole + `<Route path="crm/*">`. Superadmin gating free from App.jsx:663; active-tab

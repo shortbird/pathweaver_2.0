@@ -281,7 +281,7 @@ def init_csrf(app):
                     # Split by kind so the benign case cannot bury the alarming
                     # one. An `expired` token is a tab left open past
                     # WTF_CSRF_TIME_LIMIT; the axios interceptor refetches and
-                    # retries (frontend/src/services/api.js), so the user never
+                    # retries (web/src/services/api.js), so the user never
                     # sees it — that is a rate to watch, not an incident.
                     # `missing`, `mismatch` and `invalid` are the shapes a real
                     # forgery attempt makes, and they stay at warning.

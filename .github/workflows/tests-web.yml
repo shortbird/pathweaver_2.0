@@ -1,4 +1,4 @@
-name: Web (v1) Tests (reusable)
+name: Web Tests (reusable)
 
 # See tests-backend.yml for why the test jobs are reusable workflows rather
 # than copies: one definition, called by both the pre-merge gate (ci.yml) and
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   web:
-    name: Web (v1) Tests
+    name: Web Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -29,9 +29,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Install dependencies
-        working-directory: frontend
+        working-directory: web
         run: |
           npm config set fetch-retries 5
           npm config set fetch-retry-mintimeout 20000
@@ -42,10 +42,10 @@ jobs:
           done
           exit 1
       - name: npm audit (high/critical only)
-        working-directory: frontend
+        working-directory: web
         run: npm audit --omit=dev --audit-level=high
       - name: Run tests + coverage gate
-        working-directory: frontend
+        working-directory: web
         # Single run is both the pass/fail gate (pipefail) and the coverage gate.
         #
         # The floor was 44 while actual coverage was 54.44 -- ten points of slack,

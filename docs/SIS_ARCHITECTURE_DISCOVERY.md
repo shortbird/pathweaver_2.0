@@ -7,7 +7,7 @@ implementation** — the full SIS has since been built and shipped to prod; see
 point, not today.
 **Branch:** `claude/optio-sis-implementation-u314sk` (merged to `main`)
 **Source spec:** iCreate "Create Student Information System (SIS) — Architecture & Discovery Document" (Draft v1.0)
-**Audit date:** 2026-06-26 | **Scope:** web v1 (`frontend/` + `backend/`). Mobile v2 out of scope.
+**Audit date:** 2026-06-26 | **Scope:** web v1 (`web/` + `backend/`). Mobile v2 out of scope.
 
 This document maps the iCreate SIS spec against what already exists in the Optio
 web v1 codebase, draws a hard line between **LMS** and **SIS** responsibilities,
@@ -270,16 +270,16 @@ class model (unify onto `org_classes`, transcript "class" → backend "credit").
 
 **SIS (existing):** `backend/routes/sis/__init__.py`, `backend/services/sis_service.py`,
 `backend/repositories/household_repository.py`, `supabase/migrations/20260623_sis_mvp_tables.sql`,
-`frontend/src/sis/SisRoutes.jsx`, `frontend/src/pages/sis/*`, `frontend/src/components/sis/*`,
-`frontend/src/utils/appSurface.js` (`docs/SIS_MVP.md` described the original
+`web/src/sis/SisRoutes.jsx`, `web/src/pages/sis/*`, `web/src/components/sis/*`,
+`web/src/utils/appSurface.js` (`docs/SIS_MVP.md` described the original
 4-table MVP and was deleted 2026-09-08; it is in git history).
 
 **Reusable platform:** `backend/utils/roles.py`, `backend/utils/auth/decorators.py`,
 `backend/routes/parent/*`, `backend/routes/observer/*`, `backend/routes/advisor/*`,
 `backend/routes/admin/organization_management.py`, `backend/services/notification_service.py`,
 `backend/routes/announcements.py`, `backend/services/email_service.py`,
-`backend/services/push_notification_service.py`, `frontend/src/components/navigation/Sidebar.jsx`,
-`frontend/src/components/PrivateRoute.jsx`, `frontend/src/contexts/AuthContext.jsx`.
+`backend/services/push_notification_service.py`, `web/src/components/navigation/Sidebar.jsx`,
+`web/src/components/PrivateRoute.jsx`, `web/src/contexts/AuthContext.jsx`.
 
 **LMS (keep separate):** `backend/routes/courses/*`, `backend/routes/quest/*`,
 `backend/routes/curriculum/*`, `backend/routes/tasks/*`, `backend/routes/portfolio.py`,

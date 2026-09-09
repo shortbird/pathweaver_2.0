@@ -2,7 +2,7 @@
 Registry invariants + the Python <-> moduleKeys.json parity tripwire.
 
 The registry (backend/modules/registry.py) is the single source of truth for
-the building blocks; frontend/src/modules/moduleKeys.json mirrors its gating
+the building blocks; web/src/modules/moduleKeys.json mirrors its gating
 fields for the JS fallback evaluator. These tests hold the two in lockstep and
 pin the promises the registry makes to existing org configs.
 """
@@ -25,7 +25,7 @@ HIDDEN_MODULES_KEYS = {
 
 MODULE_KEYS_JSON = os.path.join(
     os.path.dirname(__file__), '..', '..', '..',
-    'frontend', 'src', 'modules', 'moduleKeys.json',
+    'web', 'src', 'modules', 'moduleKeys.json',
 )
 
 

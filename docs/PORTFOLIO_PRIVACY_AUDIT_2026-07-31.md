@@ -83,7 +83,7 @@ No auth, no `is_public` check, no parent consent check. The only gate is "a `tra
 
 Returns (lines 388-412): first name, last name, **date of birth**, enrollment date, organization name, every earned/class/transfer/planned credit, course names, and `transcript_url` links to uploaded transcript documents from prior schools.
 
-The URL is handed out as a shareable link from the admin transcript generator (`frontend/src/pages/admin/TranscriptGeneratorPage.jsx:564`) and the route is unauthenticated by design (`frontend/src/services/api.js:310` explicitly whitelists `/public/transcript/` from the auth redirect). So this is intentional-but-unbounded: intended for "send this to a college", actually readable by anyone who has or guesses the UUID, forever, with no way for a parent to switch it off.
+The URL is handed out as a shareable link from the admin transcript generator (`web/src/pages/admin/TranscriptGeneratorPage.jsx:564`) and the route is unauthenticated by design (`web/src/services/api.js:310` explicitly whitelists `/public/transcript/` from the auth redirect). So this is intentional-but-unbounded: intended for "send this to a college", actually readable by anyone who has or guesses the UUID, forever, with no way for a parent to switch it off.
 
 DOB plus full name plus school is a child-identity-theft payload, and it is the single most sensitive field on the endpoint.
 
@@ -111,7 +111,7 @@ It then fetches all `learning_event_evidence_blocks` for each event (line 696), 
 
 This is worse than P1: the student *used the privacy control the product gave them*, and this endpoint ignores it.
 
-Called from `frontend/src/pages/DiplomaPage.jsx:656` when viewing a diploma the caller doesn't own. Fixing it means gating on the same rule as the diploma itself.
+Called from `web/src/pages/DiplomaPage.jsx:656` when viewing a diploma the caller doesn't own. Fixing it means gating on the same rule as the diploma itself.
 
 **Required**: require the diploma gate to pass before returning anything, and filter `is_confidential=false` / `is_private=false` at minimum. Under the new policy this endpoint should not exist in unauthenticated form at all.
 
@@ -131,7 +131,7 @@ This is the only write path for portfolio visibility. Consequences under the new
 
 - A parent **cannot** make a public portfolio private. Not for a dependent, not for a linked 13+ student. If a parent changes their mind after approving, there is no endpoint that lets them undo it — `make_portfolio_private` is unreachable for them.
 - A parent **cannot** proactively publish or configure visibility on behalf of a child who hasn't asked.
-- The only workaround is masquerade / "act as dependent" (`effectiveUser` in `frontend/src/pages/DiplomaPage.jsx`), which works only for dependents (`is_dependent=true`), not for linked 13+ students, and is a superadmin-flavoured mechanism being used as a parenting tool.
+- The only workaround is masquerade / "act as dependent" (`effectiveUser` in `web/src/pages/DiplomaPage.jsx`), which works only for dependents (`is_dependent=true`), not for linked 13+ students, and is a superadmin-flavoured mechanism being used as a parenting tool.
 
 The denial path is also asymmetric in the wrong direction: a denial imposes a 30-day cooldown on the child (`portfolio_service.py:866-883`), but an approval is permanent and unrevocable.
 
@@ -173,7 +173,7 @@ A student (any age, including a dependent minor) mints a link valid for 7 days. 
 
 This is the largest practical hole in "parents control who sees their kid's learning": the child holds an unlimited, self-service grant power over exactly that.
 
-**Required**: for any minor (and, per P4, any student of unknown age), student-initiated observer links must land in a parent approval queue before the link becomes usable — or be removed in favour of parent-initiated invites only. The mobile app already has a parent-side invite flow (`frontend-v2/src/components/parent/InviteObserverSheet.tsx`) that could become the only path.
+**Required**: for any minor (and, per P4, any student of unknown age), student-initiated observer links must land in a parent approval queue before the link becomes usable — or be removed in favour of parent-initiated invites only. The mobile app already has a parent-side invite flow (`mobile/src/components/parent/InviteObserverSheet.tsx`) that could become the only path.
 
 ---
 
@@ -240,7 +240,7 @@ Two independent fatal bugs:
 
 So the one endpoint designed to serve a portfolio to a verified observer has never worked.
 
-The architectural consequence is the important part. `get_diploma_data` grants access only to the owner (`portfolio_service.py:1019`), so **a parent, advisor, or observer cannot view a private portfolio at all**. The advisor UI links to `/public/diploma/<studentId>` (`frontend/src/components/advisor/AdvisorStudentOverviewContent.jsx:56`), which 404s for every private student.
+The architectural consequence is the important part. `get_diploma_data` grants access only to the owner (`portfolio_service.py:1019`), so **a parent, advisor, or observer cannot view a private portfolio at all**. The advisor UI links to `/public/diploma/<studentId>` (`web/src/components/advisor/AdvisorStudentOverviewContent.jsx:56`), which 404s for every private student.
 
 The product therefore pushes families toward the exact outcome the new policy forbids: to let *anyone* see the portfolio, you must let *everyone* see it.
 

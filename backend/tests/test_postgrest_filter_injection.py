@@ -20,7 +20,7 @@ call to one of the `pgrst_*` helpers in utils/validation/sanitizers.py, or be
 named in ALLOWED_NAMES below with a reason.
 
 Written in the spirit of tests/test_secret_exposure_guard.py and
-frontend/src/utils/__tests__/dangerouslySetInnerHTML.lint.test.js: pure static
+web/src/utils/__tests__/dangerouslySetInnerHTML.lint.test.js: pure static
 analysis over the source tree, no database, no Flask app, no network.
 """
 

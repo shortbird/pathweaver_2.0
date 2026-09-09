@@ -2,8 +2,8 @@
   "_comment": [
     "One rule, three implementations. 'What role is this user, really' is decided",
     "in backend/utils/roles.py (get_effective_role / get_effective_roles), in",
-    "frontend/src/utils/userRoles.js for the web app, and in",
-    "frontend-v2/src/utils/effectiveRole.ts for mobile. Both client copies say in",
+    "web/src/utils/userRoles.js for the web app, and in",
+    "mobile/src/utils/effectiveRole.ts for mobile. Both client copies say in",
     "their own docstrings that they mirror the others.",
     "",
     "They did not. On 2026-09-07 the mobile effectiveRoleOf read ONLY the legacy",

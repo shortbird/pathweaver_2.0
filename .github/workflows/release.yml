@@ -174,14 +174,14 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend-v2/package-lock.json
+          cache-dependency-path: mobile/package-lock.json
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Install dependencies
-        working-directory: frontend-v2
+        working-directory: mobile
         run: |
           npm config set fetch-retries 5
           npm config set fetch-retry-mintimeout 20000
@@ -196,10 +196,10 @@ jobs:
       # so without it the Android runtimeVersion diverges and the published OTA
       # targets a runtime no installed build has — Android OTAs then silently never
       # arrive. iOS is unaffected (its fingerprint doesn't include this file). The
-      # secret is base64 of frontend-v2/google-services.json; its CONTENT must match
+      # secret is base64 of mobile/google-services.json; its CONTENT must match
       # the file EAS injects at build time (fingerprint hashes contents, not path).
       - name: Materialize google-services.json (Android OTA fingerprint parity)
-        working-directory: frontend-v2
+        working-directory: mobile
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
@@ -210,7 +210,7 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > google-services.json
           echo "Wrote google-services.json ($(wc -c < google-services.json) bytes)"
       - name: Publish production OTA
-        working-directory: frontend-v2
+        working-directory: mobile
         env:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}

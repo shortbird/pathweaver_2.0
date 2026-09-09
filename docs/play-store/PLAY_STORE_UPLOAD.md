@@ -53,12 +53,12 @@ Slightly more setup, but afterwards every release is one command.
 1. Go to https://console.cloud.google.com/iam-admin/serviceaccounts (select your Optio project, or create one)
 2. **Create Service Account** → name: `eas-submit` → role: leave blank → **Done**
 3. Click the new service account → **Keys** tab → **Add Key → Create new key → JSON**
-4. Save the JSON file. Don't commit it. Suggested path: `frontend-v2/google-play-service-account.json` and add to `.gitignore`
+4. Save the JSON file. Don't commit it. Suggested path: `mobile/google-play-service-account.json` and add to `.gitignore`
 5. Go to https://play.google.com/console → **Setup → API access** → link your Google Cloud project → grant the service account the **Release manager** role for the Optio app
 
 ### Wire up eas.json
 
-Edit [frontend-v2/eas.json](frontend-v2/eas.json):
+Edit [mobile/eas.json](mobile/eas.json):
 
 ```json
 "submit": {
@@ -77,7 +77,7 @@ Edit [frontend-v2/eas.json](frontend-v2/eas.json):
 ### Then to submit any future build
 
 ```bash
-cd frontend-v2
+cd mobile
 eas submit --platform android --latest
 ```
 

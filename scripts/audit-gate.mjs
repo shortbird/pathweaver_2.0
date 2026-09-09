@@ -16,7 +16,7 @@
  * an accepted risk that nobody looks at again is just an unaccepted one with
  * better paperwork.
  *
- *   node scripts/audit-gate.mjs --dir frontend-v2
+ *   node scripts/audit-gate.mjs --dir mobile
  *
  * Options:
  *   --dir <path>        package directory to audit (default: cwd)

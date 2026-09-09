@@ -24,7 +24,7 @@ The IMSCC import feature allows admins to upload Canvas course export files (.im
 
 ### Frontend Components
 
-1. **CourseImport Component** ([frontend/src/components/admin/CourseImport.jsx](../../frontend/src/components/admin/CourseImport.jsx))
+1. **CourseImport Component** ([web/src/components/admin/CourseImport.jsx](../../web/src/components/admin/CourseImport.jsx))
    - Drag-and-drop file upload
    - File validation (type, size)
    - Preview display with badge and quest details
@@ -294,8 +294,8 @@ The parser handles these error cases:
 
 - Parser Service: [backend/services/imscc_parser_service.py](../services/imscc_parser_service.py)
 - API Routes: [backend/routes/admin/course_import.py](../routes/admin/course_import.py)
-- Frontend Component: [frontend/src/components/admin/CourseImport.jsx](../../frontend/src/components/admin/CourseImport.jsx)
-- Admin Page: [frontend/src/pages/AdminPage.jsx](../../frontend/src/pages/AdminPage.jsx)
+- Frontend Component: [web/src/components/admin/CourseImport.jsx](../../web/src/components/admin/CourseImport.jsx)
+- Admin Page: [web/src/pages/AdminPage.jsx](../../web/src/pages/AdminPage.jsx)
 - App Registration: [backend/app.py](../app.py) (line 129)
 
 ## Contact

@@ -21,7 +21,7 @@ on:
   push:
     branches: [develop]
     paths:
-      - 'frontend-v2/**'
+      - 'mobile/**'
       - '.github/workflows/eas-update.yml'
 
 # One publish per branch at a time; newer pushes supersede in-flight ones.
@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend-v2/package-lock.json
+          cache-dependency-path: mobile/package-lock.json
 
       - name: Setup EAS
         uses: expo/expo-github-action@v8
@@ -55,7 +55,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
-        working-directory: frontend-v2
+        working-directory: mobile
         run: |
           npm config set fetch-retries 5
           npm config set fetch-retry-mintimeout 20000
@@ -71,7 +71,7 @@ jobs:
       # must be present so the Android OTA fingerprint matches the build, or the
       # update never reaches Android devices. Same secret as the production job.
       - name: Materialize google-services.json (Android OTA fingerprint parity)
-        working-directory: frontend-v2
+        working-directory: mobile
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
@@ -82,7 +82,7 @@ jobs:
           echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > google-services.json
           echo "Wrote google-services.json ($(wc -c < google-services.json) bytes)"
       - name: Publish preview OTA
-        working-directory: frontend-v2
+        working-directory: mobile
         env:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}

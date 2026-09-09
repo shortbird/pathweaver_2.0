@@ -43,7 +43,7 @@ import utils  # noqa: E402,F401 -- fully init the package first; importing
 from database import get_supabase_admin_client  # noqa: E402
 
 # The 14 opt-out module keys -- mirrors SIS_MODULE_BY_PATH's value set in
-# frontend/src/pages/sis/sisModules.js. A key listed in hidden_modules turns
+# web/src/pages/sis/sisModules.js. A key listed in hidden_modules turns
 # that module's nav/routes off; anything else is on (when the SIS itself is).
 OPT_OUT_MODULES = (
     'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',

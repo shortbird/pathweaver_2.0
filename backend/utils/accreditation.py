@@ -24,7 +24,7 @@ student. Every organization in prod carries accreditation_source='none' today,
 Optio Academy's own org included, so there was no org-level value to inherit
 either.
 
-The frontend owns the display copy (frontend/src/constants/accreditation.js);
+The frontend owns the display copy (web/src/constants/accreditation.js);
 this module only returns the source decision so the DB is the source of truth
 for WHO is covered.
 """

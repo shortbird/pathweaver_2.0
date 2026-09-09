@@ -44,13 +44,13 @@ land in `sis_learning_day_selections.answers` when the document arrives).
 
 - **UFA flat tuition** is already modeled: students carry
   `users.sis_tuition_plan = 'ufa_academy'` (staff checkbox in
-  `frontend/src/pages/sis/StudentDetailModal.jsx`), and the org's
+  `web/src/pages/sis/StudentDetailModal.jsx`), and the org's
   `feature_flags.sis_settings.block_pricing.ufa = { year_cents: 475000, min_blocks: 5 }`
   drives a flat-price override plus a "must schedule at least 5 blocks" banner in
-  `frontend/src/pages/ScheduleBuilderPage.jsx` (see `ufa` / `ufaShortfall`).
+  `web/src/pages/ScheduleBuilderPage.jsx` (see `ufa` / `ufaShortfall`).
 - **Supply fees** exist per class (`supply_fee`); the CLP page already renders
   per-day supply totals in its schedule grid (`supplyByDay` in
-  `frontend/src/pages/sis/ClpPage.jsx`); the Schedule Builder only shows a
+  `web/src/pages/sis/ClpPage.jsx`); the Schedule Builder only shows a
   lump-sum "Includes $X in supply fees."
 - **Funding intent** ("Utah Fits All", "Self-Pay", "OpenED"…) is a registration
   question answer surfaced on CLP as `family.payment_intent`

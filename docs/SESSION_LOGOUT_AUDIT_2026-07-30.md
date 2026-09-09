@@ -35,7 +35,7 @@ request of the day is the one that wakes a spun-down Render worker.
 
 ### 1. v1 web — any failed refresh logged the user out (primary)
 
-`frontend/src/services/api.js`. The 401 interceptor's catch ran
+`web/src/services/api.js`. The 401 interceptor's catch ran
 `tokenStore.clearTokens()` and `window.location.href = '/login'` on **every**
 refresh failure. A 502 from a cold worker, a timeout, a dropped connection, or a
 429 from the per-IP refresh throttle all discarded a refresh cookie the backend
@@ -45,12 +45,12 @@ would still have accepted for weeks. There was also no retry on the refresh POST
 v2 fixed this in April (`isUnrecoverableAuthFailure` + `postRefreshWithRetry`,
 audit items E4/E5). **v1 never got the port**, and v1 is the production web app.
 
-Fix: `frontend/src/services/sessionRecovery.js` — one jittered retry on
+Fix: `web/src/services/sessionRecovery.js` — one jittered retry on
 network/5xx, and only a 401/403 from `/api/auth/refresh` ends the session.
 
 ### 2. v1 web — the boot session check had the same flaw
 
-`frontend/src/contexts/AuthContext.jsx`. `checkSession()` calls `/api/auth/me` on
+`web/src/contexts/AuthContext.jsx`. `checkSession()` calls `/api/auth/me` on
 every page load and cleared tokens in its catch regardless of cause. Worse for
 *perception*: `PrivateRoute` redirects to `/login` the instant `isAuthenticated`
 goes false, so a transient boot failure looked exactly like a logout even when
@@ -62,7 +62,7 @@ reaches `/login` on the first response, with no added delay.
 
 ### 3. v2 native — an unreadable keychain destroyed the session permanently
 
-`frontend-v2/src/services/tokenStore.ts` + `src/stores/authStore.ts`. Two
+`mobile/src/services/tokenStore.ts` + `src/stores/authStore.ts`. Two
 compounding problems:
 
 - `SecureStore.getItemAsync` was called with no options, so the keychain item
@@ -111,20 +111,20 @@ only bumped 24h → 30d recently.
 
 ## Known remaining trap (not fixed — dead code)
 
-`authService.refreshSession()` (`frontend/src/services/authService.js:456`) has
+`authService.refreshSession()` (`web/src/services/authService.js:456`) has
 the original defect: its catch clears tokens on any error. It has **no live
 callers**, so it was left alone rather than changed blind — but anyone wiring it
 up would reintroduce the bug.
 
 ## Tests
 
-- `frontend/src/services/sessionRecovery.test.js` — 16 tests on the two helpers.
-- `frontend/src/services/api.refreshLogout.test.js` — 8 interceptor-level tests.
+- `web/src/services/sessionRecovery.test.js` — 16 tests on the two helpers.
+- `web/src/services/api.refreshLogout.test.js` — 8 interceptor-level tests.
   Verified these **fail on the pre-fix code** (4 of 8) and pass after; the 4
   genuine-logout tests pass on both, confirming that behaviour is unchanged.
-- `frontend-v2/src/services/__tests__/tokenStore.unavailable.test.ts` — keychain
+- `mobile/src/services/__tests__/tokenStore.unavailable.test.ts` — keychain
   failure is distinguishable from an empty store, and never clears.
-- `frontend-v2/src/stores/__tests__/authStore.test.ts` — added 5xx, local-throw,
+- `mobile/src/stores/__tests__/authStore.test.ts` — added 5xx, local-throw,
   and unreadable-keychain cases.
 
 Full suites green: v1 943 passed, v2 455 passed / 3 skipped.

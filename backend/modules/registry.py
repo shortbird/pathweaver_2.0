@@ -8,7 +8,7 @@ grew out of. Everything else derives from this table:
 
   - backend/modules/enabled.py evaluates an org's effective module set,
   - backend/modules/gate.py enforces it per-request (P1 ships log-only),
-  - frontend/src/modules/moduleKeys.json mirrors the gating fields for the JS
+  - web/src/modules/moduleKeys.json mirrors the gating fields for the JS
     side (tests/unit/test_module_registry.py holds the two in lockstep),
   - the superadmin Blocks panel reads names/blocks/requires for its rows.
 

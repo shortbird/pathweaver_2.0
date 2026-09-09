@@ -4,7 +4,7 @@
 **Owner/facilitator:** Jennie Jones — `thetreehouse.alc@gmail.com` (user `420b85d6-3bdd-46e6-9f7d-11865c1b601e`)
 **Date:** 2026-06-10
 **Source docs:** [student.txt](student.txt), [teacher.txt](teacher.txt)
-**Scope:** v1 web platform (`frontend/`, `backend/`), built as a program-specific tab
+**Scope:** v1 web platform (`web/`, `backend/`), built as a program-specific tab
 gated to Treehouse users — the same pattern used for OpenEd Academy (OEA).
 
 > Naming: user-facing copy says **"The Treehouse"**. Internal identifiers use org
@@ -52,15 +52,15 @@ The Treehouse gets its own program surface, visible only to Treehouse users, exa
 - **Org-based gating.** Create an organization with `slug = 'treehouse'`. Treehouse
   students/facilitators get `organization_id` pointing to it. The sidebar already keys program
   tabs off org slug: `ORG_PROGRAM_TABS` in
-  [Sidebar.jsx:16-27](../../frontend/src/components/navigation/Sidebar.jsx#L16-L27), conditionally
-  pushed at [Sidebar.jsx:222-230](../../frontend/src/components/navigation/Sidebar.jsx#L222-L230).
+  [Sidebar.jsx:16-27](../../web/src/components/navigation/Sidebar.jsx#L16-L27), conditionally
+  pushed at [Sidebar.jsx:222-230](../../web/src/components/navigation/Sidebar.jsx#L222-L230).
   Add a `treehouse:` entry → tab appears only for Treehouse org members.
 - **Backend membership helper.** Copy `_is_oea_student()` / `_verify_manages_student()` from
   [backend/routes/oea.py:32-109](../../backend/routes/oea.py#L32-L109) → a `routes/treehouse.py`
   blueprint with `_is_treehouse_user()`. Always include `superadmin` in checks (CLAUDE.md rule 7).
-- **Pages + routes.** New `frontend/src/pages/treehouse/` directory, routes in
-  [App.jsx](../../frontend/src/App.jsx), API client block in
-  [services/api.js:716-744](../../frontend/src/services/api.js#L716-L744) (mirror `oeaAPI`).
+- **Pages + routes.** New `web/src/pages/treehouse/` directory, routes in
+  [App.jsx](../../web/src/App.jsx), API client block in
+  [services/api.js:716-744](../../web/src/services/api.js#L716-L744) (mirror `oeaAPI`).
 - **Tables + RLS.** New `treehouse_*` tables, RLS enabled, admin-client access only (Flask uses
   service-role, not `auth.uid()`).
 
@@ -161,8 +161,8 @@ Teacher 3.2.)
 
 | Ask | Status today | Effort | Notes |
 |-----|--------------|--------|-------|
-| **2.1 Browse quests by visual category** (Art/STEM/Wellness/Communication/Civics) | **REUSE.** [QuestDiscovery.jsx](../../frontend/src/pages/QuestDiscovery.jsx) does topic/pillar browse w/ color chips + icons. Her 5 categories ≈ our 5 pillars. | **REUSE → LIGHT** | Re-skin into big touch cards; surface her "(5-7)" Path quests here. |
-| **"Custom Quest" option** | **REUSE.** [CreateQuestModal.jsx](../../frontend/src/components/CreateQuestModal.jsx). | REUSE | |
+| **2.1 Browse quests by visual category** (Art/STEM/Wellness/Communication/Civics) | **REUSE.** [QuestDiscovery.jsx](../../web/src/pages/QuestDiscovery.jsx) does topic/pillar browse w/ color chips + icons. Her 5 categories ≈ our 5 pillars. | **REUSE → LIGHT** | Re-skin into big touch cards; surface her "(5-7)" Path quests here. |
+| **"Custom Quest" option** | **REUSE.** [CreateQuestModal.jsx](../../web/src/components/CreateQuestModal.jsx). | REUSE | |
 | **2.2 Select → auto-adds to board, auto-saves, multiple active** | **REUSE.** Enrollment ([quest/enrollment.py](../../backend/routes/quest/enrollment.py)). | REUSE | |
 | **2.3 Age-appropriate AI task lists** | **REUSE core / LIGHT tuning.** AI gen exists ([quest_personalization.py](../../backend/routes/quest_personalization.py), [quest_ai_service.py](../../backend/services/quest_ai_service.py)). Her 6yo "How Light Works" tasks came out too advanced — gap is proven. | **LIGHT** | Feed age-cohort / reading-level / "small chunks, quick wins" into the prompt. Audio read-aloud → DEFER. |
 | Any-order tasks / switch projects | **REUSE.** `order_index`, no sequential lock; her quests already use `is_required=false`. | REUSE | |
@@ -198,16 +198,16 @@ Teacher 3.2.)
 | **6.3 AI reflection prompts for facilitators** | **PARTIAL.** Snap-to-Learn returns prompts; AI suggests pillars/titles. | **LIGHT** | Add her kid-friendly prompt set. Keep tone simple/kind (`feedback_ai_review_tone`). |
 | **6.4 AI portfolio context — skill tags + growth traits** | **PARTIAL.** AI infers pillars, not specific skill tags / growth traits. | **MEDIUM** | Extend [learning_ai_service.py](../../backend/services/learning_ai_service.py) w/ growth-trait classification + accept/reject UI. |
 | **6.1(teacher) Social-style post tagging MULTIPLE students** | **MISSING.** Learning events are 1:1. | **MEDIUM** | Fan-out: one capture → N `learning_events` (one per tagged student). Cheaper & lower-risk than a new junction; each student gets a real portfolio entry. |
-| **6.4(teacher) Portfolio growth tracking** | **REUSE (partial).** Portfolio aggregates quests/XP/evidence ([portfolio.py](../../backend/routes/portfolio.py), [DiplomaPage.jsx](../../frontend/src/pages/DiplomaPage.jsx)). | **LIGHT–MEDIUM** | "Trends over time" is presentation over existing data. |
+| **6.4(teacher) Portfolio growth tracking** | **REUSE (partial).** Portfolio aggregates quests/XP/evidence ([portfolio.py](../../backend/routes/portfolio.py), [DiplomaPage.jsx](../../web/src/pages/DiplomaPage.jsx)). | **LIGHT–MEDIUM** | "Trends over time" is presentation over existing data. |
 | **6.5(teacher) AI quarterly summaries / highlight reels / next-quest ideas** | **MISSING.** | **MEDIUM** | New AI summarization endpoint over existing events/completions. Good phase-2. |
 
 ### TEACHER — Epic 1: Quest Planning & Management
 
 | Ask | Status today | Effort | Notes |
 |-----|--------------|--------|-------|
-| **1.1 Facilitator creates/edits personalized quests; AI suggest, accept/reject/regenerate/custom** | **REUSE.** AI gen + accept/edit/regenerate exists; advisors manage student tasks ([advisor/main.py](../../backend/routes/advisor/main.py), [StudentTasksPanel.jsx](../../frontend/src/components/advisor/StudentTasksPanel.jsx)). She's already doing this. | **REUSE → LIGHT** | Optional small facilitator form for student interests/goals/supports. |
+| **1.1 Facilitator creates/edits personalized quests; AI suggest, accept/reject/regenerate/custom** | **REUSE.** AI gen + accept/edit/regenerate exists; advisors manage student tasks ([advisor/main.py](../../backend/routes/advisor/main.py), [StudentTasksPanel.jsx](../../web/src/components/advisor/StudentTasksPanel.jsx)). She's already doing this. | **REUSE → LIGHT** | Optional small facilitator form for student interests/goals/supports. |
 | **1.2 Differentiate AI by developmental needs** | **LIGHT.** Same as Student 2.3. | **LIGHT** | |
-| **1.3 Multiple active/paused/completed + dashboard (active/paused/%/last activity)** | **REUSE.** Pickup/setdown ([quest_lifecycle.py](../../backend/routes/quest_lifecycle.py)) + advisor dashboard with rhythm/last check-in/progress ([AdvisorDashboard.jsx](../../frontend/src/pages/AdvisorDashboard.jsx)). | REUSE | |
+| **1.3 Multiple active/paused/completed + dashboard (active/paused/%/last activity)** | **REUSE.** Pickup/setdown ([quest_lifecycle.py](../../backend/routes/quest_lifecycle.py)) + advisor dashboard with rhythm/last check-in/progress ([AdvisorDashboard.jsx](../../web/src/pages/AdvisorDashboard.jsx)). | REUSE | |
 
 ### TEACHER — Epic 2: Badge & Pin System
 
@@ -221,7 +221,7 @@ Teacher 3.2.)
 
 | Ask | Status today | Effort | Notes |
 |-----|--------------|--------|-------|
-| **3.1 High-level dashboard + filters** | **REUSE (strong).** [AdvisorDashboard.jsx](../../frontend/src/pages/AdvisorDashboard.jsx) shows roster, rhythm, last check-in, activity, active quests. | **REUSE → LIGHT** | Missing only cohort filter + showcase progress. |
+| **3.1 High-level dashboard + filters** | **REUSE (strong).** [AdvisorDashboard.jsx](../../web/src/pages/AdvisorDashboard.jsx) shows roster, rhythm, last check-in, activity, active quests. | **REUSE → LIGHT** | Missing only cohort filter + showcase progress. |
 | **3.2 Task completion notifications** | **MISSING.** | **MEDIUM** | Same advisor-notification work as Student 4.2. |
 | **3.3 Quest completion notif + auto-move + pin queue + celebration reminder** | **PARTIAL.** Completion/portfolio move exist; advisor notif + pin queue new. | **MEDIUM** | |
 

@@ -147,7 +147,7 @@ def login():
 **Frontend MUST detect Safari/iOS and use appropriate auth method.**
 
 ```javascript
-// frontend/src/utils/browserDetection.js
+// web/src/utils/browserDetection.js
 export function isSafari() {
     const ua = navigator.userAgent.toLowerCase()
     return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('edgios')
@@ -163,7 +163,7 @@ export function needsTokenFallback() {
 ```
 
 ```javascript
-// frontend/src/contexts/AuthContext.jsx
+// web/src/contexts/AuthContext.jsx
 import { needsTokenFallback } from '../utils/browserDetection'
 
 async function login(email, password) {
@@ -304,7 +304,7 @@ class SessionManager:
 ### Frontend Authorization Interceptor
 
 ```javascript
-// frontend/src/services/api.js
+// web/src/services/api.js
 import axios from 'axios'
 import { needsTokenFallback } from '../utils/browserDetection'
 
@@ -534,7 +534,7 @@ response.set_cookie(
 - Safari ITP: https://webkit.org/blog/7675/intelligent-tracking-prevention/
 - CHIPS Spec: https://developer.chrome.com/docs/privacy-sandbox/chips/
 - MDN Cookies: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
-- Original implementation: `backend/services/session_manager.py`, `frontend/src/utils/browserDetection.js`
+- Original implementation: `backend/services/session_manager.py`, `web/src/utils/browserDetection.js`
 
 ---
 

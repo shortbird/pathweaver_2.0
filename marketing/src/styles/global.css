@@ -40,7 +40,7 @@
 }
 
 @layer components {
-  /* Button system ported from frontend/src/index.css (docs/design/DESIGN_SYSTEM.md section 4).
+  /* Button system ported from web/src/index.css (docs/design/DESIGN_SYSTEM.md section 4).
      One primary action per view; everything else is quiet. */
   .btn-base {
     @apply inline-flex items-center justify-center gap-2 font-semibold

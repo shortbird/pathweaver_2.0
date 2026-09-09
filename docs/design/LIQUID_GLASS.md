@@ -5,7 +5,7 @@ a translucent Optio-gradient tint under a frosted blur, wrapped in a hairline
 light border with a top sheen and a soft brand-purple shadow. It reads as a
 pane of tinted glass resting on the page — not a painted background.
 
-Implementation lives in `frontend/src/index.css` (`.optio-glass` and friends).
+Implementation lives in `web/src/index.css` (`.optio-glass` and friends).
 First shipped on the web sidebar's active-item lens (Aug 2026).
 
 ## The lens metaphor (three parts)

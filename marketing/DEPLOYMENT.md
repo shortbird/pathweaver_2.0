@@ -63,7 +63,7 @@ ever dead.
 4. The redirect rules are ALREADY LOADED on the marketing static site (120
    rules, added via the Render API on 2026-09-01). Verify with the spot-check
    in "Redirect rules" below rather than re-entering them.
-5. Mobile app (`frontend-v2`) needs no change: its hardcoded
+5. Mobile app (`mobile`) needs no change: its hardcoded
    `www.optioeducation.com` links (`/terms`, `/privacy`, `/verify-phone`,
    `/portfolio/:slug`) are covered by the redirect table.
 6. Update the PWA/start_url expectations: users with the installed PWA pinned
@@ -75,7 +75,7 @@ ever dead.
 > Live service: `optio-marketing` (`srv-dab249vavr4c73einci0`, Shortbird
 > workspace), 120 rules loaded. The table below lists the marketing-owned moves
 > and a representative sample of the app moves; the service is the source of
-> truth. Every top-level route in `frontend/src/App.jsx` has both an exact and a
+> truth. Every top-level route in `web/src/App.jsx` has both an exact and a
 > `/*` rule pointing at `https://app.optioeducation.com`.
 
 Marketing-owned moves (301):
@@ -175,7 +175,7 @@ Notes:
   Cause of (2), and the two traps the script now handles:
 
   - **Program routes are NOT in `App.jsx`.** They live in
-    `frontend/src/programs/registry.jsx` (`PROGRAM_ROUTES`), spliced in by
+    `web/src/programs/registry.jsx` (`PROGRAM_ROUTES`), spliced in by
     `getProgramRoutes()`. The old audit grepped only `App.jsx`, so every program
     route was invisible to it. Adding a program = adding public URLs; add the
     rules in the same change.
@@ -240,7 +240,7 @@ marketing pages, so www serves exactly what it did before.
 
 ## Post-cutover cleanup (separate, later)
 
-- Remove the now-dead marketing pages/routes from `frontend/` (they were left
+- Remove the now-dead marketing pages/routes from `web/` (they were left
   untouched on purpose during this refactor).
 - Point the app's `robots.txt` at disallow-all except `/portfolio/*` and
   `/public/*`, or keep indexing there; decide SEO ownership of portfolios

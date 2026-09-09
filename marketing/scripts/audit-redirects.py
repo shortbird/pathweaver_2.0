@@ -34,8 +34,8 @@ REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 
 # Route sources. Program routes are NOT in App.jsx -- see the module docstring.
 SOURCES = [
-    ("frontend/src/App.jsx", r'<Route\s+path="([^"]+)"'),
-    ("frontend/src/programs/registry.jsx", r"path:\s*'([^']+)'"),
+    ("web/src/App.jsx", r'<Route\s+path="([^"]+)"'),
+    ("web/src/programs/registry.jsx", r"path:\s*'([^']+)'"),
 ]
 
 # Segments the marketing site serves itself (marketing/src/pages/*.astro) or

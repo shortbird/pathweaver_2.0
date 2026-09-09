@@ -199,8 +199,8 @@ pip install -r "$REPO_DIR/backend/requirements.txt" --quiet 2>/dev/null || {
 }
 
 # Frontend v2
-echo "  Installing frontend-v2 npm packages..."
-cd "$REPO_DIR/frontend-v2"
+echo "  Installing mobile npm packages..."
+cd "$REPO_DIR/mobile"
 npm ci --legacy-peer-deps 2>/dev/null || npm install --legacy-peer-deps 2>/dev/null
 
 cd "$REPO_DIR"

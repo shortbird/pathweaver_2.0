@@ -226,7 +226,7 @@ Note: Full pytest execution not performed locally per CLAUDE.md guidelines (test
 ## Related Work
 
 - [P2-TEST-1] E2E Testing Infrastructure (COMPLETE - Dec 19, 2025)
-- [Frontend Testing Guide](../../frontend/TESTING.md) (COMPLETE - Dec 19, 2025)
+- [Frontend Testing Guide](../../web/TESTING.md) (COMPLETE - Dec 19, 2025)
 - [Comprehensive Codebase Review](../../COMPREHENSIVE_CODEBASE_REVIEW.md)
 
 ---

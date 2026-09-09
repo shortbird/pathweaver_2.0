@@ -17,7 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-MAESTRO_DIR="$PROJECT_DIR/frontend-v2/maestro"
+MAESTRO_DIR="$PROJECT_DIR/mobile/maestro"
 SUITE="${1:-smoke}"
 
 export PATH="$PATH:$HOME/.maestro/bin"
@@ -66,8 +66,8 @@ python backend/app.py > /tmp/optio-backend.log 2>&1 &
 BACKEND_PID=$!
 
 # ── Start frontend (web) ──
-echo "[e2e] Starting frontend-v2 web on :8081..."
-cd "$PROJECT_DIR/frontend-v2"
+echo "[e2e] Starting mobile web on :8081..."
+cd "$PROJECT_DIR/mobile"
 npx expo start --web --port 8081 --non-interactive > /tmp/optio-frontend.log 2>&1 &
 FRONTEND_PID=$!
 

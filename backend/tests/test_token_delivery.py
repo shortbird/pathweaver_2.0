@@ -109,7 +109,7 @@ class TestClientsThatCannotUseCookiesStillWork:
 
     @pytest.mark.parametrize('ua', [EXPO_ANDROID, EXPO_IOS, ''])
     def test_the_mobile_app_keeps_both_tokens(self, ctx, ua):
-        """frontend-v2 native has no cookie jar at all; the tokens live in
+        """mobile native has no cookie jar at all; the tokens live in
         expo-secure-store and are the entire session (ADR-001)."""
         from routes.auth import token_delivery
         with ctx(ua=ua):
@@ -117,7 +117,7 @@ class TestClientsThatCannotUseCookiesStillWork:
         assert tokens == {'app_access_token': 'a', 'app_refresh_token': 'r'}
 
     def test_the_v2_web_target_keeps_working(self, ctx):
-        """frontend-v2's web build runs in an ordinary browser but keeps its
+        """mobile's web build runs in an ordinary browser but keeps its
         access token in memory and refreshes from the cookie; it is told apart
         from the v1 app by its Origin."""
         from routes.auth import token_delivery
@@ -228,7 +228,7 @@ class TestTheServerAndClientAgree:
         import re
         from pathlib import Path
         source = (Path(__file__).resolve().parents[2]
-                  / 'frontend/src/utils/browserDetection.js').read_text()
+                  / 'web/src/utils/browserDetection.js').read_text()
         clause = re.search(r'shouldUseAuthHeaders\s*=\s*\(\)\s*=>\s*\{(.*?)\n\}',
                            source, re.S)
         assert clause, 'shouldUseAuthHeaders() not found in browserDetection.js'

@@ -5,11 +5,11 @@ Optio Academy (Optio's own full-time online private school) is accredited by the
 (ACS WASC)**, approved ~July 2026.
 
 ## What shipped in code
-- **Logo asset:** `frontend/public/images/wasc-accredited.png` (unaltered ACS WASC
+- **Logo asset:** `web/public/images/wasc-accredited.png` (unaltered ACS WASC
   "Accredited by" artwork — do NOT recolor/crop/distort per the guidelines).
-- **Display copy single source:** `frontend/src/constants/accreditation.js`
+- **Display copy single source:** `web/src/constants/accreditation.js`
   (phrase, school name, commission identity block, `ACCREDITATION_ACTIVE` kill-switch).
-- **Reusable mark:** `frontend/src/components/accreditation/WascBadge.jsx`
+- **Reusable mark:** `web/src/components/accreditation/WascBadge.jsx`
   (`card` / `inline` / `transcript` variants).
 - **Official transcript:** `PublicTranscriptPage` shows the WASC logo + phrase +
   commission block, but ONLY when the backend says the transcript is issued under
@@ -29,7 +29,7 @@ Optio Academy (Optio's own full-time online private school) is accredited by the
 3. **Confirm "Optio Academy" students** are platform-direct (organization_id IS
    NULL). If Optio Academy is instead its own org row, set that org to `optio`.
 4. **If accreditation ever lapses:** set `ACCREDITATION_ACTIVE = false` in BOTH
-   `frontend/src/constants/accreditation.js` and `backend/utils/accreditation.py`.
+   `web/src/constants/accreditation.js` and `backend/utils/accreditation.py`.
 
 ## Compliance rules (ACS WASC "Accredited" Logo Use Guidelines, 2/2021)
 - Do not alter the logo artwork; no stamps/embossers made from it.

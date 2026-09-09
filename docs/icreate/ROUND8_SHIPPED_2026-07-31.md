@@ -471,7 +471,7 @@ The editor was the easy half. A body stops being plain text everywhere it is
 
 Two matching helpers do the work and are the only place this logic lives:
 `backend/utils/rich_text.py` (`sanitize` / `to_text` / `preview`) and
-`frontend/src/utils/richText.js` (`isHtml` / `htmlToText` / `isBlank`). Storage
+`web/src/utils/richText.js` (`isHtml` / `htmlToText` / `isBlank`). Storage
 is sanitized on the way in — an allow-list of the tags the editor can produce, no
 `style`, no `img`, no `javascript:` links — so a renderer that forgets to
 sanitize is a formatting bug rather than a hole.

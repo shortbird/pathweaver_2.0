@@ -1,6 +1,6 @@
 /**
  * WASC accreditation constants, ported verbatim from
- * frontend/src/constants/accreditation.js. Compliance rules baked in
+ * web/src/constants/accreditation.js. Compliance rules baked in
  * (ACS WASC "Accredited" Logo Use Guidelines):
  * - The logo artwork must NOT be altered (do not recolor/crop/distort the PNG).
  * - Any public accreditation claim must appear alongside the full commission

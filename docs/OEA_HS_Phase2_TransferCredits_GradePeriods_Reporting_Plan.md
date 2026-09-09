@@ -32,13 +32,13 @@ The OEA HS diploma layer is built and in production:
 | Self-attested course credits with A–F grade + honors/AP/IB weighting | `oea_credits`, [backend/routes/oea.py](backend/routes/oea.py) |
 | GPA (unweighted + weighted) + pathway progress + `is_complete` | [backend/utils/oea_grades.py](backend/utils/oea_grades.py) |
 | Per-credit evidence (text/link/file) | `oea_credit_evidence`, [backend/repositories/oea_repository.py](backend/repositories/oea_repository.py) |
-| Parent credit dashboard (add course, grade, progress, GPA) — **v1 web** | [frontend/src/pages/oea/](frontend/src/pages/oea/), `oeaAPI` in [frontend/src/services/api.js](frontend/src/services/api.js) |
-| Admin transcript generator with print-to-PDF (`window.print` + print CSS) — **web only** | [frontend/src/pages/admin/TranscriptGeneratorPage.jsx](frontend/src/pages/admin/TranscriptGeneratorPage.jsx) |
+| Parent credit dashboard (add course, grade, progress, GPA) — **v1 web** | [web/src/pages/oea/](web/src/pages/oea/), `oeaAPI` in [web/src/services/api.js](web/src/services/api.js) |
+| Admin transcript generator with print-to-PDF (`window.print` + print CSS) — **web only** | [web/src/pages/admin/TranscriptGeneratorPage.jsx](web/src/pages/admin/TranscriptGeneratorPage.jsx) |
 | Scheduled-job pattern (dispatcher + secured cron endpoint + dedup alerts + notifications) | `jobs/cron_dispatch.py`, [backend/services/sis_checkin_sweep_service.py](backend/services/sis_checkin_sweep_service.py), [backend/services/sis_notifications.py](backend/services/sis_notifications.py) |
 
-**Platform decision:** All new parent-facing UI lands in **v1 web** (`frontend/`), where the
+**Platform decision:** All new parent-facing UI lands in **v1 web** (`web/`), where the
 diploma dashboard and transcript already live. The v2 mobile OEA companion views
-([frontend-v2/app/(app)/oea/](frontend-v2/app/(app)/oea/)) are **out of scope for Phase 2**;
+([mobile/app/(app)/oea/](mobile/app/(app)/oea/)) are **out of scope for Phase 2**;
 they remain read-only and will be brought to parity in a later pass.
 
 ### Confirmed product decisions (from review)
@@ -299,7 +299,7 @@ notification path flag staff. A full application/review workflow is a separable 
 
 ### 5.1 Credit dashboard — source + weighting + caps
 
-In [frontend/src/pages/oea/OEACreditsView.jsx](frontend/src/pages/oea/OEACreditsView.jsx) and the add/edit credit modal:
+In [web/src/pages/oea/OEACreditsView.jsx](web/src/pages/oea/OEACreditsView.jsx) and the add/edit credit modal:
 - Add a **course type** selector: Direct / Transfer credit / Credit earned elsewhere.
 - Show a credit-value input and the honors/AP/IB checkbox (already exists for `is_weighted`).
 - Surface cap usage ("Transfer: 4 / 6", "Outside credit: 11 / 18") and disable the option when capped, with an admin-override note.
@@ -309,7 +309,7 @@ In [frontend/src/pages/oea/OEACreditsView.jsx](frontend/src/pages/oea/OEACredits
 
 - A per-course **grade-periods panel**: enter quarter grade + summary; enter semester / annual grade (with the block message if uploads are short).
 - **Quarterly progress report (printable)** — clone the proven approach in
-  [frontend/src/pages/admin/TranscriptGeneratorPage.jsx](frontend/src/pages/admin/TranscriptGeneratorPage.jsx): `window.print()` + print CSS, reuse the `EditableField` component and the `#printable-*` visibility pattern. New route e.g. `/opened-academy/student/:studentId/progress-report?term=Q2`. This is the coach-facing report card.
+  [web/src/pages/admin/TranscriptGeneratorPage.jsx](web/src/pages/admin/TranscriptGeneratorPage.jsx): `window.print()` + print CSS, reuse the `EditableField` component and the `#printable-*` visibility pattern. New route e.g. `/opened-academy/student/:studentId/progress-report?term=Q2`. This is the coach-facing report card.
 
 ### 5.3 OEA-branded transcript (decision #4)
 

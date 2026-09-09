@@ -4,8 +4,8 @@
 
 echo "Fixing brand color inconsistencies in frontend..."
 
-# Find all JSX files in frontend/src
-find frontend/src -name "*.jsx" -type f | while read file; do
+# Find all JSX files in web/src
+find web/src -name "*.jsx" -type f | while read file; do
     # Check if file contains color issues
     if grep -q "purple-600\|pink-600" "$file"; then
         echo "Fixing: $file"
@@ -40,7 +40,7 @@ find frontend/src -name "*.jsx" -type f | while read file; do
 done
 
 # Clean up backups
-find frontend/src -name "*.jsx.bak" -delete
+find web/src -name "*.jsx.bak" -delete
 
 echo "Brand color fixes complete!"
-echo "Verify changes with: git diff frontend/src"
+echo "Verify changes with: git diff web/src"

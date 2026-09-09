@@ -10,7 +10,7 @@
 ## December 27, 2025 Update
 
 **Changes**:
-- **RESOLVED**: frontend/src/pages/ConnectionsPage.jsx:163 - Observer fetching implemented
+- **RESOLVED**: web/src/pages/ConnectionsPage.jsx:163 - Observer fetching implemented
 - **NEW**: 6 additional TODOs found in versioning, deprecation, quest listing, and auth routes
 - **Updated Total**: 18 code TODOs (was 13) + 8 documentation TODOs = 26 total (was 21)
 
@@ -217,7 +217,7 @@
 - **Recommended Action**: Create GitHub issue, implement with logging infrastructure
 
 #### 24. [LOW/WON'T FIX] Send task flag to backend during personalization
-- **File**: [frontend/src/components/quests/QuestPersonalizationWizard.jsx:207](frontend/src/components/quests/QuestPersonalizationWizard.jsx#L207)
+- **File**: [web/src/components/quests/QuestPersonalizationWizard.jsx:207](web/src/components/quests/QuestPersonalizationWizard.jsx#L207)
 - **Issue**: Users can't flag inappropriate tasks during personalization wizard
 - **Impact**: Low - tasks aren't in library yet, so flagging doesn't make sense
 - **Status**: Feature limitation - tasks only get IDs when saved to library after user accepts them
@@ -228,7 +228,7 @@
 ## Resolved TODOs (December 27, 2025)
 
 #### RESOLVED: Observer fetching in ConnectionsPage
-- **File**: ~~frontend/src/pages/ConnectionsPage.jsx:163~~
+- **File**: ~~web/src/pages/ConnectionsPage.jsx:163~~
 - **Issue**: Observer list was hardcoded empty array
 - **Resolution**: Implemented useQuery hook to fetch observers from backend API
 - **Impact**: Users can now see their linked observers in the Connections page

@@ -99,7 +99,7 @@ Two cohorts already exist: **Littles (5-7)** — set to the simplified UI — an
 ---
 
 ## Automated tests
-- Frontend: `cd frontend && npx vitest run` — new tests for the signal bar, idle
+- Frontend: `cd web && npx vitest run` — new tests for the signal bar, idle
   timeout, and archive card pass; the only failures are the pre-existing
   local-only `localStorage` jsdom quirk (they pass in CI).
 - Backend: `cd backend && python -m pytest tests/test_treehouse_helpers.py -q` —

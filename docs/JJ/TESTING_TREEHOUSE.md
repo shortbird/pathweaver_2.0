@@ -135,7 +135,7 @@ cd /Users/optio/pathweaver_2.0/backend
 lsof -ti:5001 | xargs kill -9 2>/dev/null
 nohup ../venv/bin/python3 app.py > /tmp/treehouse_backend.log 2>&1 &
 ```
-Frontend: already on :3000 (`npm run dev` in `frontend/`). Logs: `/tmp/treehouse_frontend.log`.
+Frontend: already on :3000 (`npm run dev` in `web/`). Logs: `/tmp/treehouse_frontend.log`.
 
 ## Undoing Phase 0 (if needed)
 Org/account/quest changes are reversible: set Jennie back to `role='student'`, `organization_id=NULL`;

@@ -38,7 +38,7 @@ lerna-debug.log*
 *.env
 !.env.example
 !backend/.env.example
-!frontend/.env.example
+!web/.env.example
 
 # IDE
 .vscode/
@@ -110,8 +110,8 @@ credentials/
 # Application specific
 backend/instance/
 backend/cache/
-frontend/dist/
-frontend/build/
+web/dist/
+web/build/
 *.pyc
 
 # Supabase
@@ -143,7 +143,7 @@ site/
 !Pipfile.lock
 !poetry.lock
 
-# Mobile app (Expo / React Native) — frontend-v2 builds for native too
+# Mobile app (Expo / React Native) — mobile/ builds for native too
 *.apk
 *.aab
 *.ipa
@@ -153,7 +153,7 @@ site/
 test_video.mp4
 
 # Android bug-report artifacts (never commit)
-frontend-v2/bugreport-*.zip
+mobile/bugreport-*.zip
 
 # Marketing PII export — never commit
 facebook_custom_audience.csv
@@ -165,14 +165,14 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
-frontend/.ds-styles.css
-frontend/.ds-brand-safelist.html
+web/.ds-styles.css
+web/.ds-brand-safelist.html
 
 # Saved third-party registration pages used as porting reference (contain account-session artifacts)
 OSH Form/
 
 # Build/debug output that was committed once and kept coming back (HYG-01).
-# frontend/test-output.txt was 226KB of a vitest run from a machine nobody has;
+# web/test-output.txt was 226KB of a vitest run from a machine nobody has;
 # .debug-sessions/ is a local scratchpad.
-frontend/test-output.txt
+web/test-output.txt
 .debug-sessions/

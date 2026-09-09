@@ -1,6 +1,6 @@
 """Shared helper to attach parent/advisor relationship flags to a user dict.
 
-The app's role-shell detection (useIsParent / useIsObserver in frontend-v2)
+The app's role-shell detection (useIsParent / useIsObserver in mobile)
 relies on `has_dependents`, `has_linked_students`, and `has_advisor_assignments`.
 Email login and /api/auth/me compute these inline, but the OAuth callbacks
 (Google/Apple) historically returned the raw users row without them — so right

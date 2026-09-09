@@ -203,7 +203,7 @@ them.</p>
 </tr>
 <tr>
   <td>The public interest page</td>
-  <td><code>frontend/src/programs/poe/PoePage.jsx</code></td>
+  <td><code>web/src/programs/poe/PoePage.jsx</code></td>
 </tr>
 <tr>
   <td>Linking a registered user to the program</td>
@@ -328,7 +328,7 @@ family a one-click &quot;send it to my school&quot; button.</p>
 <ul>
 <li>a step in the registration funnel (§5.5)</li>
 <li>prefill <code>TransferToSchoolModal</code>
-(<code>frontend/src/components/transcript/TransferToSchoolModal.jsx</code>)
+(<code>web/src/components/transcript/TransferToSchoolModal.jsx</code>)
 instead of typing the school by hand</li>
 <li>the bulk roster send (§5.6)</li>
 </ul>
@@ -483,19 +483,19 @@ makes it a program rather than a favor.</p>
 </tr>
 <tr>
   <td>The School records funnel step</td>
-  <td><code>frontend/src/pages/RegisterFunnelPage.jsx</code></td>
+  <td><code>web/src/pages/RegisterFunnelPage.jsx</code></td>
 </tr>
 <tr>
   <td>Admin switches for both behaviors</td>
-  <td><code>frontend/src/components/sis/RegistrationSetupTab.jsx</code></td>
+  <td><code>web/src/components/sis/RegistrationSetupTab.jsx</code></td>
 </tr>
 <tr>
   <td>Send form pre-fills from the stored destination</td>
-  <td><code>frontend/src/components/transcript/TransferToSchoolModal.jsx</code></td>
+  <td><code>web/src/components/transcript/TransferToSchoolModal.jsx</code></td>
 </tr>
 <tr>
   <td>Tests</td>
-  <td><code>backend/tests/test_academy_enrollment.py</code> (22), <code>frontend/src/pages/registrationRecordsStep.test.jsx</code> (7), 6 added to <code>registrationSetupTab.test.jsx</code></td>
+  <td><code>backend/tests/test_academy_enrollment.py</code> (22), <code>web/src/pages/registrationRecordsStep.test.jsx</code> (7), 6 added to <code>registrationSetupTab.test.jsx</code></td>
 </tr>
 </tbody>
 </table>
@@ -530,7 +530,7 @@ submit-for-review, <code>credit_awarded</code></li>
 <li>Transcript render, PDF, public verification page, registrar email, transfer
 audit log — 13 real sends</li>
 <li>WASC display and compliance constants
-(<code>frontend/src/constants/accreditation.js</code>)</li>
+(<code>web/src/constants/accreditation.js</code>)</li>
 <li>Org branding, org admin roles, invitations</li>
 <li>The mobile app journal and evidence capture</li>
 </ul>

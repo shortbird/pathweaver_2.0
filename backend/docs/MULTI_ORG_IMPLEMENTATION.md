@@ -189,8 +189,8 @@ lms_integrations (MODIFIED)
 - Quest library management with add/remove functionality
 
 **Integration:**
-- Added OrganizationProvider to [App.jsx](frontend/src/App.jsx)
-- Added /admin/organizations routes to [AdminPage.jsx](frontend/src/pages/AdminPage.jsx)
+- Added OrganizationProvider to [App.jsx](web/src/App.jsx)
+- Added /admin/organizations routes to [AdminPage.jsx](web/src/pages/AdminPage.jsx)
 - Added Organizations tab to admin navigation
 - Quest filtering transparent to frontend (handled server-side)
 

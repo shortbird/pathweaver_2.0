@@ -51,12 +51,12 @@ asks with almost no engine work.
 
 ### 1.1 Program tab scaffold (Bucket 1)
 - [ ] Add `treehouse:` entry to `ORG_PROGRAM_TABS` in
-      [Sidebar.jsx:16-27](../../frontend/src/components/navigation/Sidebar.jsx#L16-L27).
-- [ ] Create `frontend/src/pages/treehouse/` + register routes in
-      [App.jsx](../../frontend/src/App.jsx) (`/treehouse`, `/treehouse/...`).
+      [Sidebar.jsx:16-27](../../web/src/components/navigation/Sidebar.jsx#L16-L27).
+- [ ] Create `web/src/pages/treehouse/` + register routes in
+      [App.jsx](../../web/src/App.jsx) (`/treehouse`, `/treehouse/...`).
 - [ ] Create `backend/routes/treehouse.py` with `_is_treehouse_user()` + `_verify_*` helpers
       copied from [oea.py:32-109](../../backend/routes/oea.py#L32-L109). Register blueprint.
-- [ ] Add a `treehouseAPI` block in [services/api.js](../../frontend/src/services/api.js)
+- [ ] Add a `treehouseAPI` block in [services/api.js](../../web/src/services/api.js)
       (mirror `oeaAPI`, lines 716-744).
 - [ ] Verify the tab shows ONLY for Treehouse org members and superadmin.
 
@@ -66,14 +66,14 @@ asks with almost no engine work.
       task" surfaced at top (simple query on `user_quest_tasks` + last activity).
 
 ### 1.3 Visual quest/badge browse (Student 2.1, Teacher 2.1/2.2) — REUSE → LIGHT
-- [ ] Reuse [QuestDiscovery.jsx](../../frontend/src/pages/QuestDiscovery.jsx); present Treehouse
+- [ ] Reuse [QuestDiscovery.jsx](../../web/src/pages/QuestDiscovery.jsx); present Treehouse
       quests as large category cards (5 pillars = her 5 categories). Surface the "(5-7)" Paths.
 - [ ] Add nullable `recommended_age` to `quests` (additive) and show an age chip.
 
 ### 1.4 Surface existing reuse features
 - [ ] Confirm enrollment / multiple-active / pickup-setdown / custom-quest / one-tap-with-evidence
       all work for a Treehouse student inside the tab.
-- [ ] Point facilitators at the existing [AdvisorDashboard.jsx](../../frontend/src/pages/AdvisorDashboard.jsx)
+- [ ] Point facilitators at the existing [AdvisorDashboard.jsx](../../web/src/pages/AdvisorDashboard.jsx)
       (roster, rhythm, last check-in, progress) — Teacher 1.3 / 3.1 mostly done.
 - [ ] Confirm bounty board ("School Jobs") works for the org; create a sample bounty.
 

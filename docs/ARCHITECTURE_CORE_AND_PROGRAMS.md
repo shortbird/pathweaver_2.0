@@ -143,9 +143,9 @@ backend/programs/{icreate,treehouse,oea,gryffin,poe}/   config + unique surfaces
 **Frontend v1 (web)** — SIS is already well-isolated (`sis/`, `pages/sis/`,
 `components/sis/`); do the same for programs:
 ```
-frontend/src/core/lms/ · core/sis/ · core/capabilities/
-frontend/src/programs/registry.ts
-frontend/src/programs/{icreate,treehouse,oea,gryffin,poe}/
+web/src/core/lms/ · core/sis/ · core/capabilities/
+web/src/programs/registry.ts
+web/src/programs/{icreate,treehouse,oea,gryffin,poe}/
 ```
 The shell (Sidebar, router) consumes the registry; the slug ladder is deleted.
 
@@ -210,13 +210,13 @@ separate, tracked migration — not done in this pass.
 - **Phase 1 — advisor→teacher UI relabel** ✅ *done* — display only; stored role
   value stays `advisor`.
 - **Phase 2 — Extension registry** ✅ *done* — program registry on both tiers
-  (`frontend/src/programs/registry.jsx`, `backend/programs/registry.py`). Sidebar,
+  (`web/src/programs/registry.jsx`, `backend/programs/registry.py`). Sidebar,
   registration, and cron-dispatch now consult the registry; **no core file names a
   program**. Adding a program = a registry entry. Capability flags already existed
   (backend `utils/org_features.py`, frontend `useOrgFeature`) — the JSONB
   `feature_flags` substrate that gates `sis_enabled`.
 - **Phase 3 — Invert OEA** ✅ *done* — OEA's diploma panel + choose-pathway UI moved
-  to `frontend/src/programs/oea/DiplomaWidget.jsx`; core `SkillsGrowth` renders the
+  to `web/src/programs/oea/DiplomaWidget.jsx`; core `SkillsGrowth` renders the
   registry's diploma widget (`renderDiplomaWidget`) or its Optio-credits default.
   The OEA data fetch moved behind the registry's `fetchProgramDiploma` too, so core
   overview hooks no longer import `oeaAPI`. Core now carries zero OEA rendering or

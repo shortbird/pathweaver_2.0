@@ -213,14 +213,14 @@ deactivate
 echo "  Backend deps installed."
 
 # Frontend v2 deps
-echo "  Installing frontend-v2 npm packages..."
-cd "$PROJECT_DIR/frontend-v2"
+echo "  Installing mobile npm packages..."
+cd "$PROJECT_DIR/mobile"
 npm install
 echo "  Frontend deps installed."
 
 # Frontend v1 deps (for running tests)
 echo "  Installing frontend v1 npm packages..."
-cd "$PROJECT_DIR/frontend"
+cd "$PROJECT_DIR/web"
 npm install
 echo "  Frontend v1 deps installed."
 
@@ -243,16 +243,16 @@ echo "  source venv/bin/activate"
 echo "  python backend/app.py"
 echo ""
 echo "Run frontend v2 (web):"
-echo "  cd frontend-v2 && npx expo start --web"
+echo "  cd mobile && npx expo start --web"
 echo ""
 echo "Run frontend v2 (mobile dev client):"
-echo "  cd frontend-v2 && npx expo start --dev-client"
+echo "  cd mobile && npx expo start --dev-client"
 echo ""
 echo "Remaining manual steps:"
 echo "  1. Copy backend/.env from Windows machine (has API keys)"
 echo "  2. Open Android Studio once for first-run SDK setup"
-echo "  3. Run: cd frontend-v2 && ./maestro/setup-mac.sh"
-echo "  4. Fill in passwords in frontend-v2/maestro/.env.maestro"
+echo "  3. Run: cd mobile && ./maestro/setup-mac.sh"
+echo "  4. Fill in passwords in mobile/maestro/.env.maestro"
 echo ""
 echo "GitHub auth (first push/pull will prompt):"
 echo "  Git Credential Manager handles this automatically."

@@ -8,7 +8,7 @@ the web picker and the mobile picker quietly disagree about how many subjects
 exist.
 
 Written 2026-09-07 (QF-01), replacing a comment in
-frontend/src/constants/subjects.js that asked whoever edited it to keep the
+web/src/constants/subjects.js that asked whoever edited it to keep the
 backend enum and the mobile metadata in step by hand. They had already drifted.
 """
 

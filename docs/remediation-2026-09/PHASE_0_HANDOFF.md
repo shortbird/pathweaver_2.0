@@ -67,7 +67,7 @@ commit. **Identical both times, zero failures.**
 Also run: `pyflakes` on both edited Python files (clean), and a link check
 asserting every markdown link in `CLAUDE.md` and the three new docs resolves.
 
-> **One thing to know about the mobile suite.** `npm test` in `frontend-v2` is
+> **One thing to know about the mobile suite.** `npm test` in `mobile` is
 > `jest --watchAll`, which never exits — it is not usable non-interactively.
 > The correct command is `npm run test:run` (`jest --ci --forceExit`). The
 > instruction for this phase said `npm test`; that would hang forever.
@@ -124,7 +124,7 @@ Found while updating references; each is a comment-only fix.
    There is no Q2. It was H3, and H3 says the **opposite** of a retirement plan:
    the `quest_tasks` response key is deliberately kept because four v1
    components read it.
-3. `frontend-v2/src/__tests__/pillarPalette.test.ts`'s docblock still explained
+3. `mobile/src/__tests__/pillarPalette.test.ts`'s docblock still explained
    why civics and wellness disagreed between web and mobile and sent the reader
    to the plan's Open Questions. That was resolved 2026-09-04; the assertions
    below it already pin the agreement. Prose only.

@@ -19,7 +19,7 @@ class CreditMappingService(BaseService):
 
     # Standard diploma requirements (24 credits total)
     # Keys must match SCHOOL_SUBJECTS from utils/school_subjects.py
-    # Aligned with frontend/src/utils/creditRequirements.js
+    # Aligned with web/src/utils/creditRequirements.js
     DIPLOMA_REQUIREMENTS = {
         'language_arts': 4.0,
         'math': 3.0,

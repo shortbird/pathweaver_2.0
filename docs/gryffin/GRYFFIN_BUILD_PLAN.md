@@ -19,7 +19,7 @@
 ## 1. Goal & guiding principle
 
 Gryffin is a microschool joining the platform next school year. They will use the v1
-web app (`frontend/`). They have asked for five capabilities that don't fully exist
+web app (`web/`). They have asked for five capabilities that don't fully exist
 today. We want to **build these for Gryffin now, but architect them so any future
 microschool can turn them on without new code** — and without making them global/default
 features yet.
@@ -54,7 +54,7 @@ The only net-new part is **scheduled** auto-publish on a date.
 ## 2. Architecture: the feature-flag layer (Phase 0 — do this first)
 
 Today there is **no generic per-org feature flag**. Programs are gated by hardcoded slug
-checks (`frontend/src/components/navigation/Sidebar.jsx:240`, `backend/routes/treehouse.py:33`),
+checks (`web/src/components/navigation/Sidebar.jsx:240`, `backend/routes/treehouse.py:33`),
 and the only per-org toggles are four AI booleans on `organizations`. We add a generic
 jsonb flag store that every later phase depends on.
 
@@ -126,13 +126,13 @@ one place slug-gating is fine.
   `org_role` set appropriately.
 
 ### 3.2 Frontend
-- Pages: `frontend/src/pages/gryffin/GryffinPage.jsx` (role-branching hub: student vs.
+- Pages: `web/src/pages/gryffin/GryffinPage.jsx` (role-branching hub: student vs.
   facilitator/teacher), plus child views as needed (e.g. `GryffinAgendaPage.jsx` for the
   calendar in Phase 2, `GryffinAnnouncementsPage.jsx` for Phase 4).
-- Routing: add lazy imports + routes in `frontend/src/App.jsx` (mirror the Treehouse
+- Routing: add lazy imports + routes in `web/src/App.jsx` (mirror the Treehouse
   block at `App.jsx:63-68` and routes near `:510`). Path base `/gryffin`.
 - Sidebar tab: add a `gryffin` entry to `ORG_PROGRAM_TABS` in
-  `frontend/src/components/navigation/Sidebar.jsx:16`. The existing visibility logic at
+  `web/src/components/navigation/Sidebar.jsx:16`. The existing visibility logic at
   `Sidebar.jsx:240-247` already keys on `organization.slug`, so adding the key is enough.
 
 ### 3.3 Backend
@@ -192,7 +192,7 @@ ALTER TABLE curriculum_lessons  ADD COLUMN IF NOT EXISTS due_date timestamptz;
 
 ### 4.4 Tests
 - Backend: agenda endpoint sorting/status, flag gating (off → 403, superadmin bypass).
-- Frontend (`frontend/`): badge renders only when flag on; agenda groups/sorts correctly.
+- Frontend (`web/`): badge renders only when flag on; agenda groups/sorts correctly.
 
 **Effort:** ~3-4 days (agenda UI is the bulk).
 
@@ -246,7 +246,7 @@ ALTER TABLE assignment_comments ENABLE ROW LEVEL SECURITY;  -- backend uses admi
 ### 5.3 Frontend
 - A `<AssignmentThread completionId=… />` component rendered **inline** on the assignment/
   evidence detail and the Credit Review item detail
-  (`frontend/src/components/credit-dashboard/ItemDetail.jsx`), shown only when the flag is on.
+  (`web/src/components/credit-dashboard/ItemDetail.jsx`), shown only when the flag is on.
 - Student sees and replies from their task/evidence view; teacher from the review view.
 
 ### 5.4 Tests
@@ -313,7 +313,7 @@ and no UI**. This phase ships the dormant feature. (Group *chat* does exist — 
 ## 7. Phase 5 — Roster-based group messaging (flag: `roster_groups`)
 
 Direct messaging and group chat already ship fully (`backend/routes/group_messages.py`,
-`frontend/src/pages/CommunicationPage.jsx`). A teacher can already hand-create a "History"
+`web/src/pages/CommunicationPage.jsx`). A teacher can already hand-create a "History"
 group and add members. The gap Christina feels is **manual curation**. The `org_classes`
 roster system also already exists (`org_classes`, `class_enrollments`, `class_advisors`,
 `class_quests` — `backend/migrations/20260209_create_organization_classes.sql`). This phase
@@ -342,7 +342,7 @@ ALTER TABLE group_conversations
 
 ### 7.4 Prerequisite check — RESOLVED (2026-06-15)
 - **Verified: `org_classes` has a complete, working frontend.** Class creation
-  (`frontend/src/components/classes/CreateClassModal.jsx`), roster add/remove
+  (`web/src/components/classes/CreateClassModal.jsx`), roster add/remove
   (`ClassStudentsTab.jsx` + `AddStudentsModal.jsx`), advisor assignment
   (`ClassAdvisorsTab.jsx`), and quest assignment (`ClassQuestsTab.jsx`) all exist, reachable
   at `/org-classes` via `classService.js`. No roster UI needs to be built.
@@ -455,21 +455,21 @@ project at a time / publish when ready" pain with the least new code.
 - `backend/routes/gryffin.py`
 - `backend/routes/announcements.py`
 - `backend/routes/assignment_comments.py` (or fold into `gryffin.py`)
-- `frontend/src/pages/gryffin/GryffinPage.jsx` (+ `GryffinAgendaPage.jsx`, `GryffinAnnouncementsPage.jsx`, facilitator views)
-- `frontend/src/components/AssignmentThread.jsx`
+- `web/src/pages/gryffin/GryffinPage.jsx` (+ `GryffinAgendaPage.jsx`, `GryffinAnnouncementsPage.jsx`, facilitator views)
+- `web/src/components/AssignmentThread.jsx`
 - `backend/tests/test_gryffin_routes.py` (+ per-feature tests)
 - `docs/gryffin/GRYFFIN_STATUS.md` (status/testing guide, mirror `docs/JJ/TREEHOUSE_STATUS.md`)
 
 **Modified files**
-- `frontend/src/components/navigation/Sidebar.jsx` — add `gryffin` to `ORG_PROGRAM_TABS` (~line 16)
-- `frontend/src/App.jsx` — lazy imports + routes for `/gryffin*` (mirror Treehouse ~lines 63-68, 510)
-- `frontend/src/services/api.js` — `gryffinAPI`, agenda/announcements/comments endpoints
+- `web/src/components/navigation/Sidebar.jsx` — add `gryffin` to `ORG_PROGRAM_TABS` (~line 16)
+- `web/src/App.jsx` — lazy imports + routes for `/gryffin*` (mirror Treehouse ~lines 63-68, 510)
+- `web/src/services/api.js` — `gryffinAPI`, agenda/announcements/comments endpoints
 - auth/org context — expose `organization.feature_flags` + `useOrgFeature` hook
 - `backend/routes/__init__.py` — register `gryffin`, `announcements`, comments blueprints (~line 289)
 - `backend/repositories/course_quest_repository.py` — persist `due_date`/`publish_at`, read-time publish predicate
 - `backend/repositories/curriculum_lesson_repository.py` — same
 - Course Builder editor components — date pickers (flag-gated)
-- `frontend/src/components/credit-dashboard/ItemDetail.jsx` — mount `<AssignmentThread>`
+- `web/src/components/credit-dashboard/ItemDetail.jsx` — mount `<AssignmentThread>`
 
 **Reused as-is (no change)**
 - `announcements` / `announcement_recipients` tables

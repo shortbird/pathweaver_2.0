@@ -4,8 +4,8 @@ A message body is turned into readable text in three places, and all three
 docstrings claim to mirror each other:
 
     backend/utils/rich_text.py            email, notification previews, search
-    frontend/src/utils/richText.js        the web app, via the DOM
-    frontend-v2/src/utils/richText.ts     mobile, via regex (native has no DOM)
+    web/src/utils/richText.js        the web app, via the DOM
+    mobile/src/utils/richText.ts     mobile, via regex (native has no DOM)
 
 Two of them did not. On 2026-09-03 the mobile one was decoding thirteen named
 entities and passing the rest through, so an announcement containing

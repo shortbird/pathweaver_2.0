@@ -4,7 +4,7 @@ The public marketing site for optioeducation.com: a fully static Astro build.
 Every page renders complete HTML with no JavaScript required to read it; the
 only client-side JS is the mobile nav toggle, form submission, and analytics.
 
-The app (the React SPA in `frontend/`) is a separate deploy. This site links to
+The app (the React SPA in `web/`) is a separate deploy. This site links to
 it via `PUBLIC_APP_URL`. See [DEPLOYMENT.md](DEPLOYMENT.md) for the cutover
 plan, DNS changes, and the full redirect map.
 

@@ -1,6 +1,6 @@
 /**
  * Real voices, migrated verbatim from the existing site
- * (frontend/src/pages/marketing/AcademyPage.jsx, ClassesPage.jsx,
+ * (web/src/pages/marketing/AcademyPage.jsx, ClassesPage.jsx,
  * ForFamiliesPage.jsx). Do not edit quotes; do not invent new ones.
  */
 export interface Testimonial {

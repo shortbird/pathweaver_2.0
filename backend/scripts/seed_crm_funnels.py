@@ -4,7 +4,7 @@ Seed the CRM funnels from the archived Brevo nurture content (CRM plan PR3/PR6).
 Reads docs/marketing/brevo_email_html/*.html, normalizes Brevo template tokens
 to the CRM's ({{ contact.FIRSTNAME | default : "there" }} -> {{first_name}},
 {{ unsubscribe }} -> {{unsubscribe_url}}), rewrites the two Brevo-hosted badge
-images to self-hosted copies (frontend/public/email-assets/, deployed at
+images to self-hosted copies (web/public/email-assets/, deployed at
 app.optioeducation.com/email-assets/), and upserts funnels + steps.
 
 Idempotent: funnels upsert on key, steps on (funnel key, step_order); step

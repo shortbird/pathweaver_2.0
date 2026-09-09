@@ -11,7 +11,7 @@
 # assumption — the last-modified timestamps match the services exactly):
 #
 #   www.optioeducation.com   -> optio-marketing      (static, rootDir marketing)
-#   app.optioeducation.com   -> optio-prod-frontend  (static, the v1 web app)
+#   app.optioeducation.com   -> optio-prod-frontend  (static, the web app)
 #   api.optioeducation.com   -> optio-prod-backend   (web service)
 #
 # www redirects /login and friends to app.optioeducation.com. If you are looking
@@ -92,7 +92,7 @@ services:
     # readiness-gated zero-downtime deploys, removing the deploy-cutover 502/504s.
     healthCheckPath: /api/health
     # Only redeploy the backend when something it depends on changes (most pushes
-    # are frontend/mobile-only). Paths are repo-root relative.
+    # are web/mobile-only). Paths are repo-root relative.
     buildFilter:
       paths:
         - backend/**
@@ -155,6 +155,16 @@ services:
   # "cd frontend && npm install && npm run build", publishPath "frontend/dist"
   # — none of which match the values below. This file is therefore NOT in
   # effect for this service, and editing the headers here does NOT ship them.
+  #
+  # !! THE LIVE BUILD COMMAND STILL SAYS `frontend`, AND THAT DIRECTORY NO
+  # LONGER EXISTS. It was renamed to `web/` (frontend-v2 -> mobile/) so the two
+  # apps read as permanent platform siblings rather than as versions. The
+  # values below are the post-rename ones. Because this file is not synced,
+  # renaming the directory does NOT update the dashboard: the prod and dev web
+  # builds will fail with "cd: frontend: No such file or directory" on the
+  # first deploy after this branch merges. The dashboard build command and
+  # publish path must be edited BEFORE the merge. Steps are in
+  # docs/remediation-2026-09/PHASE_1_HANDOFF.md, "NEEDS TANNER".
   # They must also be entered under Settings -> Headers in the Render dashboard
   # (or the Blueprint must be synced). Kept truthful here so a future sync
   # produces the intended config rather than reverting it.
@@ -168,11 +178,11 @@ services:
   # Two CSP headers on purpose:
   #   * Content-Security-Policy (ENFORCING) carries `frame-ancestors` only. That
   #     directive is ignored in a <meta> tag, so it is the one part of the policy
-  #     frontend/index.html physically cannot deliver, and it is the actual
+  #     web/index.html physically cannot deliver, and it is the actual
   #     clickjacking fix. A single-directive policy constrains nothing else, so
   #     it cannot break the SPA.
   #   * Content-Security-Policy-Report-Only carries the FULL policy, mirroring
-  #     the <meta> policy in frontend/index.html plus frame-ancestors. It is
+  #     the <meta> policy in web/index.html plus frame-ancestors. It is
   #     report-only because the document already enforces the same rules via the
   #     meta tag; shipping a second enforcing copy would mean any drift between
   #     the two silently breaks the app (the browser intersects them). Watch the
@@ -188,9 +198,11 @@ services:
     # LIVE VALUES (2026-09-03): the service builds from the repo ROOT and
     # publishes frontend/dist. This file used to say rootDir: frontend with
     # ./dist, which is a different thing that happens to look similar.
+    # The two values below are the POST-RENAME ones and are not live until
+    # somebody edits them in the dashboard -- see the header.
     rootDir: ""
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    buildCommand: cd web && npm install && npm run build
+    staticPublishPath: web/dist
     headers:
       - path: /*
         name: Cache-Control
@@ -252,10 +264,11 @@ services:
   - type: static
     name: optio-dev-frontend
     branch: develop
-    # LIVE VALUES (2026-09-03), same shape as prod.
+    # LIVE VALUES (2026-09-03), same shape as prod -- including the stale
+    # `cd frontend`. Post-rename values below; edit the dashboard too.
     rootDir: ""
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    buildCommand: cd web && npm install && npm run build
+    staticPublishPath: web/dist
     headers:
       - path: /*
         name: Cache-Control
@@ -332,12 +345,19 @@ services:
         name: Content-Security-Policy
         value: "frame-ancestors 'none'"
 
-  # Dev v2 (mobile) web target. Dev-only: the v2 web build exists so a browser
+  # Dev web target of the MOBILE app. Dev-only: this build exists so a browser
   # can exercise the mobile app; users are never sent here. Also absent from
   # this file until 2026-09-03.
+  #
+  # !! The live service's rootDir is still `frontend-v2`, a directory that no
+  # longer exists (renamed to `mobile/`). Same problem as the two web services
+  # above: this file is not synced, so the rename does not reach the dashboard
+  # and the next dev deploy of this service fails. The service NAME still says
+  # v2 as well; renaming it in the dashboard changes its .onrender.com URL, so
+  # that one is a separate decision -- see PHASE_1_HANDOFF.md.
   - type: static
     name: optio-dev-v2-frontend
     branch: develop
-    rootDir: frontend-v2
+    rootDir: mobile
     buildCommand: npm install --legacy-peer-deps && npx expo export --platform web
     staticPublishPath: dist

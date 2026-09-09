@@ -2,8 +2,8 @@
   "_comment": [
     "One corpus, three implementations. A message body is turned into readable text",
     "in three places -- backend/utils/rich_text.py for email and notification",
-    "previews, frontend/src/utils/richText.js for the web app (via the DOM), and",
-    "frontend-v2/src/utils/richText.ts for mobile (via regex, because native has no",
+    "previews, web/src/utils/richText.js for the web app (via the DOM), and",
+    "mobile/src/utils/richText.ts for mobile (via regex, because native has no",
     "DOM). All three docstrings claim to mirror each other. Two of them did not.",
     "",
     "On 2026-09-03 the mobile one was found leaving uncommon named entities",

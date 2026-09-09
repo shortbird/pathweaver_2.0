@@ -239,7 +239,7 @@ These are the things the Play Console listing won't accept text for. You'll need
 
 ### App icon (REQUIRED)
 - **Size**: 512 × 512 PNG, 32-bit, < 1024 KB
-- **Source**: you have `frontend-v2/assets/images/icon.png` (already 1024x1024). Resize/export at 512x512. Tools: Photoshop, Figma, GIMP, or `npx sharp-cli resize 512 512 icon.png icon-512.png`.
+- **Source**: you have `mobile/assets/images/icon.png` (already 1024x1024). Resize/export at 512x512. Tools: Photoshop, Figma, GIMP, or `npx sharp-cli resize 512 512 icon.png icon-512.png`.
 
 ### Feature graphic (REQUIRED)
 - **Size**: 1024 × 500 PNG or JPG, < 1 MB

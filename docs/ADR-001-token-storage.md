@@ -11,10 +11,10 @@ Three different token-storage strategies, one per client surface. The right answ
 
 | Surface                  | Access token              | Refresh token              | Persistence across reload                          |
 | ------------------------ | ------------------------- | -------------------------- | -------------------------------------------------- |
-| `frontend/` (v1, web)    | httpOnly cookie           | httpOnly cookie            | Cookie survives reload; refresh interceptor renews |
-| `frontend/` (v1, Safari/iOS/Firefox) | In-memory + `Authorization` header | In-memory (tab lifetime) | Nothing survives reload; re-login |
-| `frontend-v2/` (web)     | In-memory only            | httpOnly refresh cookie    | Cookie sent cross-origin via `withCredentials`; access token re-minted on boot via `/api/auth/refresh` |
-| `frontend-v2/` (native)  | `expo-secure-store` (Bearer header) | `expo-secure-store`        | SecureStore (encrypted keychain/keystore) survives app launches |
+| `web/` (v1, web)    | httpOnly cookie           | httpOnly cookie            | Cookie survives reload; refresh interceptor renews |
+| `web/` (v1, Safari/iOS/Firefox) | In-memory + `Authorization` header | In-memory (tab lifetime) | Nothing survives reload; re-login |
+| `mobile/` (web)     | In-memory only            | httpOnly refresh cookie    | Cookie sent cross-origin via `withCredentials`; access token re-minted on boot via `/api/auth/refresh` |
+| `mobile/` (native)  | `expo-secure-store` (Bearer header) | `expo-secure-store`        | SecureStore (encrypted keychain/keystore) survives app launches |
 
 **The server decides which row a caller is in.** Until 2026-08-15 every
 login-shaped endpoint returned `app_access_token` and `app_refresh_token` in the
@@ -63,7 +63,7 @@ Rotation is orthogonal to storage, and it is what limits the damage when storage
 
 ## What we explicitly rejected
 
-1. **localStorage tokens anywhere.** Every persistent storage write of `access_token`/`refresh_token` is XSS-stealable. ESLint bans these key names in `frontend/`.
+1. **localStorage tokens anywhere.** Every persistent storage write of `access_token`/`refresh_token` is XSS-stealable. ESLint bans these key names in `web/`.
 2. **Trusting the client's `shouldUseAuthHeaders()` to decide delivery.** The client knows things the server doesn't (a cookie test in this tab), so it may *decline* tokens. It may not request them: an XSS payload can set any flag the app can.
 3. **Cookie-only on v2 web.** Would require mixing cookie auth and Bearer auth in the same axios instance, plus per-route CSRF middleware. Hybrid is cleaner.
 4. **httpOnly cookies on native.** Not actually possible — React Native fetch/axios don't have a true cookie jar; trying to fake it would lose the SecureStore encryption guarantee.
@@ -86,5 +86,5 @@ Rotation is orthogonal to storage, and it is what limits the damage when storage
 - [backend/utils/session_manager.py](../backend/utils/session_manager.py) — token issue/verify/refresh.
 - [backend/utils/refresh_families.py](../backend/utils/refresh_families.py) — rotation and reuse detection.
 - [backend/routes/auth/token_delivery.py](../backend/routes/auth/token_delivery.py) — who receives body tokens.
-- [frontend-v2/src/services/tokenStore.ts](../frontend-v2/src/services/tokenStore.ts) — platform-aware abstraction.
-- [frontend/src/services/api.js](../frontend/src/services/api.js) — v1 axios with Safari header fallback.
+- [mobile/src/services/tokenStore.ts](../mobile/src/services/tokenStore.ts) — platform-aware abstraction.
+- [web/src/services/api.js](../web/src/services/api.js) — v1 axios with Safari header fallback.
