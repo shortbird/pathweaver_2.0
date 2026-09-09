@@ -16,6 +16,7 @@ the "One route, one owner" note in CLAUDE.md for why that matters.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_org_admin
 from database import get_supabase_admin_client
+from generated.pillars import PILLAR_KEYS
 from utils.logger import get_logger
 from datetime import datetime, date
 from urllib.parse import quote
@@ -30,10 +31,8 @@ bp = Blueprint('organization_courses', __name__)
 EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
 # Pillars used to initialize a new student's skill XP rows
-SKILL_PILLARS = [
-    'Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-    'Language & Communication', 'Society & Culture'
-]
+# The pillar KEYS, which is what user_skill_xp.pillar holds.
+SKILL_PILLARS = list(PILLAR_KEYS)
 
 
 def generate_unusable_password(length=32):
@@ -240,9 +239,12 @@ def register_student_for_course(current_user_id, current_org_id, is_superadmin, 
 
             # Initialize skill XP rows (best-effort)
             try:
+                # ignore_duplicates: these rows carry xp_amount 0 and a plain
+                # upsert OVERWRITES on conflict, so a re-run would zero a real
+                # balance. See routes/auth/login/security.py for the full note.
                 client.table('user_skill_xp').upsert(
                     [{'user_id': user_id, 'pillar': pillar, 'xp_amount': 0} for pillar in SKILL_PILLARS],
-                    on_conflict='user_id,pillar'
+                    on_conflict='user_id,pillar', ignore_duplicates=True
                 ).execute()
             except Exception as skill_error:
                 logger.warning(f"Failed to initialize skill XP for {user_id}: {skill_error}")

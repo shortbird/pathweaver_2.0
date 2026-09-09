@@ -115,13 +115,18 @@ def test_prompt_display_names_are_the_generated_legacy_names():
     assert prompt_components.PILLAR_DISPLAY_NAMES == PILLAR_LEGACY_DISPLAY_NAMES
 
 
-def test_validator_and_roster_vocabularies_are_the_generated_legacy_names():
-    import routes.personalization_validators as validators
-    import services.roster_import_service as roster
+def test_the_validator_vocabulary_is_the_generated_legacy_names():
+    """This endpoint's clients still send the pre-2025 '&' names, so it accepts them.
 
-    legacy_names = set(PILLAR_LEGACY_DISPLAY_NAMES.values())
-    assert set(validators.VALID_PILLARS) == legacy_names
-    assert set(roster.PILLARS) == legacy_names
+    roster_import_service used to be asserted here too. It should never have
+    been: it was writing those display names into user_skill_xp.pillar, which
+    holds keys. Fixed 2026-09-09 -- see
+    tests/unit/test_skill_xp_seeded_with_pillar_keys.py, which now owns that
+    module's half of this rule.
+    """
+    import routes.personalization_validators as validators
+
+    assert set(validators.VALID_PILLARS) == set(PILLAR_LEGACY_DISPLAY_NAMES.values())
 
 
 # --- normalisation still resolves every old spelling -----------------------

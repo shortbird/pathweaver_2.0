@@ -64,14 +64,22 @@ FIELD_ALIASES = {
 # parent-managed dependent profile, provided it carries a parent email.
 REQUIRED_FIELDS = ('student_first', 'student_last')
 
-from generated.pillars import PILLAR_LEGACY_DISPLAY_NAMES
+from generated.pillars import PILLAR_KEYS
 
-# BUG, recorded rather than fixed here because this pass is structural: these
-# are the pre-2025 DISPLAY names, and _init_skill_xp writes them straight into
-# user_skill_xp.pillar, where every other writer puts a key ('art', 'stem').
-# See docs/remediation-2026-09/PHASE_2_SHARED_HANDOFF.md.
-_PILLAR_ORDER = ('art', 'stem', 'wellness', 'communication', 'civics')
-PILLARS = [PILLAR_LEGACY_DISPLAY_NAMES[key] for key in _PILLAR_ORDER]
+# The five pillar KEYS, which is what user_skill_xp.pillar holds.
+#
+# This was the pre-2025 DISPLAY names ('Arts & Creativity', 'STEM & Logic')
+# until 2026-09-09, and _init_skill_xp below wrote them straight into
+# user_skill_xp.pillar, where every other writer in the codebase puts a key.
+# There is no CHECK constraint on that column, so the write succeeded silently
+# and nothing ever read the rows back: 2,850 dead rows across 570 students, more
+# wrong-shaped rows than right-shaped ones in the whole table. No XP was lost --
+# every one of them was seeded at xp_amount 0, which is why it went unnoticed
+# for as long as it did. The seeding simply never did its job.
+#
+# See docs/remediation-2026-09/PHASE_2_SHARED_HANDOFF.md (B1) for the cleanup of
+# the existing rows, which is a separate, data-side decision.
+PILLARS = list(PILLAR_KEYS)
 
 
 def _normalize_header(raw: str) -> str:
@@ -478,9 +486,12 @@ def _create_account(admin, email: str, first_name: str, last_name: str,
 
 def _init_skill_xp(admin, user_id: str) -> None:
     try:
+        # ignore_duplicates: these rows carry xp_amount 0 and a plain upsert
+        # OVERWRITES on conflict, so a re-import would zero a real balance.
+        # See routes/auth/login/security.py for the full note.
         admin.table('user_skill_xp').upsert(
             [{'user_id': user_id, 'pillar': p, 'xp_amount': 0} for p in PILLARS],
-            on_conflict='user_id,pillar').execute()
+            on_conflict='user_id,pillar', ignore_duplicates=True).execute()
     except Exception as e:  # noqa: BLE001 -- cosmetic setup, never fail the create
         logger.warning(f'roster_import: skill init failed for {user_id[:8]}: {e}')
 

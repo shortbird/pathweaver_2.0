@@ -7,6 +7,7 @@ Allows microschools to quickly onboard multiple students/staff.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from generated.pillars import PILLAR_KEYS
 from utils.auth.decorators import require_org_admin
 from utils.validation import sanitize_input
 from utils.logger import get_logger
@@ -366,8 +367,7 @@ def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, o
             users_to_insert.append(build_username_user_record(
                 user_id, entry['username'], entry['first_name'], entry['last_name'], org_role, org_id
             ))
-            for pillar in ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-                           'Language & Communication', 'Society & Culture']:
+            for pillar in PILLAR_KEYS:
                 skills_to_insert.append({'user_id': user_id, 'pillar': pillar, 'xp_amount': 0})
 
             results.append({
@@ -400,7 +400,16 @@ def bulk_create_username_users(current_user_id, current_org_id, is_superadmin, o
 
     if skills_to_insert:
         try:
-            supabase.table('user_skill_xp').upsert(skills_to_insert, on_conflict='user_id,pillar').execute()
+            # ignore_duplicates is load-bearing, not tidiness: these records
+            # carry xp_amount 0, and a plain upsert OVERWRITES on conflict. This
+            # function runs on every login (routes/auth/login/core.py), so
+            # without it the row for a student with 5,000 XP would be reset to
+            # zero the next time they signed in. It was only ever safe because
+            # the pillar names here were the pre-2025 display names, which never
+            # collided with the real key rows -- so correcting those names
+            # (2026-09-09) is exactly what would have armed it.
+            supabase.table('user_skill_xp').upsert(skills_to_insert, on_conflict='user_id,pillar',
+                                                   ignore_duplicates=True).execute()
         except Exception as skill_error:
             logger.warning(f"Batch skill insert failed: {skill_error}")
 
@@ -584,8 +593,8 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
             ))
 
             # Prepare skill records for batch insert
-            skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-                               'Language & Communication', 'Society & Culture']
+            # The pillar KEYS -- see the note in generated/pillars.py.
+            skill_categories = PILLAR_KEYS
             for pillar in skill_categories:
                 skills_to_insert.append({
                     'user_id': user_id,
@@ -640,7 +649,16 @@ def bulk_import_users(current_user_id, current_org_id, is_superadmin, org_id):
     # Batch insert skills
     if skills_to_insert:
         try:
-            supabase.table('user_skill_xp').upsert(skills_to_insert, on_conflict='user_id,pillar').execute()
+            # ignore_duplicates is load-bearing, not tidiness: these records
+            # carry xp_amount 0, and a plain upsert OVERWRITES on conflict. This
+            # function runs on every login (routes/auth/login/core.py), so
+            # without it the row for a student with 5,000 XP would be reset to
+            # zero the next time they signed in. It was only ever safe because
+            # the pillar names here were the pre-2025 display names, which never
+            # collided with the real key rows -- so correcting those names
+            # (2026-09-09) is exactly what would have armed it.
+            supabase.table('user_skill_xp').upsert(skills_to_insert, on_conflict='user_id,pillar',
+                                                   ignore_duplicates=True).execute()
             logger.info(f"Bulk import: Batch inserted {len(skills_to_insert)} skill records")
         except Exception as skill_error:
             logger.warning(f"Batch skill insert failed: {skill_error}")

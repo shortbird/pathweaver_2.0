@@ -5,6 +5,7 @@ Account lockout, timing protection, and user initialization.
 """
 
 from database import get_supabase_admin_client
+from generated.pillars import PILLAR_KEYS
 from utils.log_scrubber import mask_email
 from datetime import datetime, timedelta
 import time
@@ -200,8 +201,10 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                         break
 
         # Batch insert all skill categories at once instead of checking each one
-        skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-                           'Language & Communication', 'Society & Culture']
+        # The pillar KEYS, which is what user_skill_xp.pillar holds. This was
+        # the pre-2025 display names until 2026-09-09; see PILLAR_KEYS' module
+        # for why there is one list now.
+        skill_categories = PILLAR_KEYS
 
         # Build all skill records to insert
         skill_records = [
@@ -215,7 +218,16 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 
         # Try to insert all at once, ignore conflicts (if they already exist)
         try:
-            supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar').execute()
+            # ignore_duplicates is load-bearing, not tidiness: these records
+            # carry xp_amount 0, and a plain upsert OVERWRITES on conflict. This
+            # function runs on every login (routes/auth/login/core.py), so
+            # without it the row for a student with 5,000 XP would be reset to
+            # zero the next time they signed in. It was only ever safe because
+            # the pillar names here were the pre-2025 display names, which never
+            # collided with the real key rows -- so correcting those names
+            # (2026-09-09) is exactly what would have armed it.
+            supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar',
+                                                   ignore_duplicates=True).execute()
         except Exception as skill_error:
             # If batch insert fails, fall back to individual inserts
             logger.error(f"Batch skill insert failed: {str(skill_error)}, trying individual inserts")

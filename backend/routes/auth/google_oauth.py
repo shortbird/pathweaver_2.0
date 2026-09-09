@@ -9,6 +9,7 @@ Handles:
 
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_admin_client
+from generated.pillars import PILLAR_KEYS
 from utils.parent_flags import attach_relationship_flags
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
@@ -125,15 +126,26 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                         break
 
         # Initialize skill categories
-        skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness',
-                           'Language & Communication', 'Society & Culture']
+        # The pillar KEYS, which is what user_skill_xp.pillar holds. This was
+        # the pre-2025 display names until 2026-09-09; see PILLAR_KEYS' module
+        # for why there is one list now.
+        skill_categories = PILLAR_KEYS
         skill_records = [
             {'user_id': user_id, 'pillar': pillar, 'xp_amount': 0}
             for pillar in skill_categories
         ]
 
         try:
-            supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar').execute()
+            # ignore_duplicates is load-bearing, not tidiness: these records
+            # carry xp_amount 0, and a plain upsert OVERWRITES on conflict. This
+            # function runs on every login (routes/auth/login/core.py), so
+            # without it the row for a student with 5,000 XP would be reset to
+            # zero the next time they signed in. It was only ever safe because
+            # the pillar names here were the pre-2025 display names, which never
+            # collided with the real key rows -- so correcting those names
+            # (2026-09-09) is exactly what would have armed it.
+            supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar',
+                                                   ignore_duplicates=True).execute()
         except Exception as skill_error:
             logger.error(f"Batch skill insert failed: {str(skill_error)}")
             for record in skill_records:
