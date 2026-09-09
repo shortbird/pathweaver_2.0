@@ -55,8 +55,19 @@ jobs:
           done
           exit 1
       - name: npm audit (high/critical only)
-        working-directory: web
-        run: npm audit --omit=dev --audit-level=high
+        # Through the same gate the mobile job uses, and WITHOUT
+        # --omit=dev. That flag is why five high advisories -- postcss
+        # path traversal, browserslist OOM, nanoid, brace-expansion,
+        # sharp/libvips -- sat here unreported until 2026-09-09. They do
+        # not ship to a browser, but they run on every CI machine and
+        # every developer laptop that builds this app, which is where the
+        # credentials are. All five are fixed; the count is zero today.
+        #
+        # --omit=dev was also all-or-nothing in the other direction: one
+        # unfixable advisory and the only green build is one that waives
+        # every high. audit-gate.mjs takes them one at a time, each with a
+        # reason and an expiry date. See scripts/audit-gate.mjs.
+        run: node scripts/audit-gate.mjs --dir web
       - name: Run tests + coverage gate
         working-directory: web
         # Single run is both the pass/fail gate (pipefail) and the coverage gate.
