@@ -1,11 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  useCommunityHighlights, useCommunityAnnouncements, useCommunityLostFound,
+  useCommunityRecognition, useCommunityMembers, useCommunityEvents,
+  sisCommunityApi, invalidateCommunity,
+} from '../../hooks/api/useSisCommunity'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
-import { useSisOrg, withOrg } from './useSisOrg'
+import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
@@ -124,18 +129,11 @@ const SectionCard = ({ title, children, action }) => (
 )
 
 const HighlightsTab = ({ orgId, onNavigate }) => {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data, isPending, isError } = useCommunityHighlights(orgId)
 
-  useEffect(() => {
-    setLoading(true)
-    api.get(withOrg('/api/sis/community/highlights', orgId))
-      .then((r) => setData(r.data?.highlights || {}))
-      .catch(() => toast.error('Failed to load highlights'))
-      .finally(() => setLoading(false))
-  }, [orgId])
+  useEffect(() => { if (isError) toast.error('Failed to load highlights') }, [isError])
 
-  if (loading) return <p className="text-neutral-500">Loading…</p>
+  if (isPending) return <p className="text-neutral-500">Loading…</p>
   if (!data) return null
 
   const { announcements = [], events = [], lost_found = [], recognition = [], birthdays = [] } = data
@@ -248,23 +246,19 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
 // ── Announcements ─────────────────────────────────────────────────────────────
 const AnnouncementsTab = ({ orgId, admin }) => {
   const confirm = useConfirm()
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [editing, setEditing] = useState(null) // row | 'new' | null
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.get(withOrg('/api/sis/community/announcements', orgId))
-      .then((r) => setItems(r.data?.announcements || []))
-      .catch(() => toast.error('Failed to load announcements'))
-      .finally(() => setLoading(false))
-  }, [orgId])
-  useEffect(() => { load() }, [load])
+  const { data: items = [], isPending: loading, isError } = useCommunityAnnouncements(orgId)
+  useEffect(() => { if (isError) toast.error('Failed to load announcements') }, [isError])
+  const load = useCallback(
+    () => invalidateCommunity(queryClient, orgId), [queryClient, orgId],
+  )
 
   const remove = async (a) => {
     if (!(await confirm(`Delete "${a.title}"?`))) return
     try {
-      await api.delete(`/api/sis/community/announcements/${a.id}?organization_id=${orgId}`)
+      await sisCommunityApi.deleteAnnouncement(a.id, orgId)
       toast.success('Announcement deleted')
       load()
     } catch { toast.error('Could not delete') }
@@ -358,9 +352,9 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       notify_audiences: f.notify,
     }
     try {
-      if (announcement) await api.patch(`/api/sis/community/announcements/${announcement.id}`, payload)
+      if (announcement) await sisCommunityApi.saveAnnouncement(announcement.id, payload)
       else {
-        const { data } = await api.post('/api/sis/community/announcements', payload)
+        const { data } = await sisCommunityApi.saveAnnouncement(null, payload)
         if (data?.notify_error) toast.error(data.notify_error)
         else if (data?.notified?.sent) {
           toast.success(`Posted and sent to ${data.notified.sent} ${data.notified.sent === 1 ? 'person' : 'people'}`)
@@ -464,29 +458,25 @@ const lfStatusPill = (s) => ({
 
 const LostFoundTab = ({ orgId, admin }) => {
   const confirm = useConfirm()
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [editing, setEditing] = useState(null) // row | 'new' | null
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.get(withOrg('/api/sis/community/lost-found', orgId))
-      .then((r) => setItems(r.data?.items || []))
-      .catch(() => toast.error('Failed to load lost & found'))
-      .finally(() => setLoading(false))
-  }, [orgId])
-  useEffect(() => { load() }, [load])
+  const { data: items = [], isPending: loading, isError } = useCommunityLostFound(orgId)
+  useEffect(() => { if (isError) toast.error('Failed to load lost & found') }, [isError])
+  const load = useCallback(
+    () => invalidateCommunity(queryClient, orgId), [queryClient, orgId],
+  )
 
   const setStatus = async (item, status) => {
     try {
-      await api.patch(`/api/sis/community/lost-found/${item.id}`, { organization_id: orgId, status })
+      await sisCommunityApi.setLostFoundStatus(item.id, orgId, status)
       load()
     } catch { toast.error('Could not update') }
   }
   const remove = async (item) => {
     if (!(await confirm('Delete this item?'))) return
     try {
-      await api.delete(`/api/sis/community/lost-found/${item.id}?organization_id=${orgId}`)
+      await sisCommunityApi.deleteLostFound(item.id, orgId)
       toast.success('Item deleted')
       load()
     } catch { toast.error('Could not delete') }
@@ -494,7 +484,7 @@ const LostFoundTab = ({ orgId, admin }) => {
   const markExpired = async () => {
     if (!(await confirm('Mark every unclaimed item past its 14-day deadline as donated?'))) return
     try {
-      const r = await api.post('/api/sis/community/lost-found/mark-expired', { organization_id: orgId })
+      const r = await sisCommunityApi.markLostFoundExpired(orgId)
       toast.success(`${r.data?.donated || 0} item(s) marked for donation`)
       load()
     } catch { toast.error('Could not process') }
@@ -582,10 +572,8 @@ const LostFoundForm = ({ orgId, item, onDone, onCancel }) => {
   const upload = async (file) => {
     if (!file) return
     setUploading(true)
-    const form = new FormData()
-    form.append('file', file)
     try {
-      const r = await api.post(`/api/sis/community/lost-found/upload?organization_id=${orgId}`, form)
+      const r = await sisCommunityApi.uploadLostFoundPhoto(orgId, file)
       set('image_url', r.data?.url || '')
       toast.success('Photo uploaded — save to publish')
     } catch (e) { toast.error(e?.response?.data?.error || 'Upload failed') }
@@ -597,8 +585,7 @@ const LostFoundForm = ({ orgId, item, onDone, onCancel }) => {
     setSaving(true)
     const payload = { ...f, organization_id: orgId }
     try {
-      if (item) await api.patch(`/api/sis/community/lost-found/${item.id}`, payload)
-      else await api.post('/api/sis/community/lost-found', payload)
+      await sisCommunityApi.saveLostFound(item?.id || null, payload)
       toast.success(item ? 'Item updated' : 'Item added')
       onDone()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
@@ -651,23 +638,19 @@ const LostFoundForm = ({ orgId, item, onDone, onCancel }) => {
 // ── Recognition ───────────────────────────────────────────────────────────────
 const RecognitionTab = ({ orgId }) => {
   const confirm = useConfirm()
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
   const [posting, setPosting] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    api.get(withOrg('/api/sis/community/recognition', orgId))
-      .then((r) => setItems(r.data?.recognition || []))
-      .catch(() => toast.error('Failed to load recognition'))
-      .finally(() => setLoading(false))
-  }, [orgId])
-  useEffect(() => { load() }, [load])
+  const { data: items = [], isPending: loading, isError } = useCommunityRecognition(orgId)
+  useEffect(() => { if (isError) toast.error('Failed to load recognition') }, [isError])
+  const load = useCallback(
+    () => invalidateCommunity(queryClient, orgId), [queryClient, orgId],
+  )
 
   const remove = async (r) => {
     if (!(await confirm('Delete this recognition?'))) return
     try {
-      await api.delete(`/api/sis/community/recognition/${r.id}?organization_id=${orgId}`)
+      await sisCommunityApi.deleteRecognition(r.id, orgId)
       load()
     } catch { toast.error('Could not delete') }
   }
@@ -719,13 +702,12 @@ const ShoutOutComments = ({ orgId, recognition }) => {
   const [comments, setComments] = useState(null)
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const base = `/api/sis/community/recognition/${recognition.id}/comments`
 
   const load = useCallback(() => {
-    api.get(withOrg(base, orgId))
+    sisCommunityApi.listComments(recognition.id, orgId)
       .then((r) => setComments(r.data?.comments || []))
       .catch(() => setComments([]))
-  }, [base, orgId])
+  }, [recognition.id, orgId])
 
   useEffect(() => { if (open && comments === null) load() }, [open, comments, load])
 
@@ -733,7 +715,7 @@ const ShoutOutComments = ({ orgId, recognition }) => {
     if (!draft.trim()) return
     setBusy(true)
     try {
-      const { data } = await api.post(withOrg(base, orgId), { body: draft.trim() })
+      const { data } = await sisCommunityApi.postComment(recognition.id, orgId, draft.trim())
       setComments((prev) => [...(prev || []), data.comment])
       setDraft('')
     } catch (err) {
@@ -743,7 +725,7 @@ const ShoutOutComments = ({ orgId, recognition }) => {
 
   const remove = async (c) => {
     try {
-      await api.delete(withOrg(`/api/sis/community/recognition/comments/${c.id}`, orgId))
+      await sisCommunityApi.deleteComment(c.id, orgId)
       setComments((prev) => (prev || []).filter((x) => x.id !== c.id))
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not remove that')
@@ -792,15 +774,10 @@ const ShoutOutComments = ({ orgId, recognition }) => {
 
 const RecognitionModal = ({ orgId, onDone, onClose }) => {
   const [f, setF] = useState({ type: 'shout_out', recipient_name: '', recipient_user_id: '', message: '' })
-  const [members, setMembers] = useState([])
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
 
-  useEffect(() => {
-    api.get(withOrg('/api/sis/community/members', orgId))
-      .then((r) => setMembers(r.data?.members || []))
-      .catch(() => setMembers([]))
-  }, [orgId])
+  const { data: members = [] } = useCommunityMembers(orgId)
 
   const save = async () => {
     if (!f.message.trim()) return toast.error('Write a message')
@@ -815,7 +792,7 @@ const RecognitionModal = ({ orgId, onDone, onClose }) => {
       message: f.message,
     }
     try {
-      await api.post('/api/sis/community/recognition', payload)
+      await sisCommunityApi.postRecognition(payload)
       toast.success('Recognition posted')
       onDone()
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not post') }
@@ -864,17 +841,9 @@ const RecognitionModal = ({ orgId, onDone, onClose }) => {
 
 // ── Events (thin — reuses the existing sis_events + Calendar page) ────────────
 const EventsTab = ({ orgId }) => {
-  const [events, setEvents] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { data: events = [], isPending: loading, isError } = useCommunityEvents(orgId)
 
-  useEffect(() => {
-    const from = new Date().toISOString()
-    setLoading(true)
-    api.get(withOrg(`/api/sis/events?from=${from}`, orgId))
-      .then((r) => setEvents(r.data?.events || []))
-      .catch(() => toast.error('Failed to load events'))
-      .finally(() => setLoading(false))
-  }, [orgId])
+  useEffect(() => { if (isError) toast.error('Failed to load events') }, [isError])
 
   return (
     <div>

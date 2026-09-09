@@ -74,6 +74,18 @@ export const queryKeys = {
       [...queryKeys.sis.all, 'myOnboarding', orgId, previewUserId],
     onboardingAssignments: (orgId) => [...queryKeys.sis.all, 'onboardingAssignments', orgId],
     onboardingTemplates: (orgId) => [...queryKeys.sis.all, 'onboardingTemplates', orgId],
+    // Community console. `community(orgId)` is the PREFIX every tab's key
+    // starts with, so one invalidate after a mutation reaches all of them --
+    // which matters because /highlights is a server-side digest of the other
+    // four, and posting an announcement has to refresh both the tab and the
+    // digest or they disagree on screen.
+    community: (orgId) => [...queryKeys.sis.all, 'community', orgId],
+    communityHighlights: (orgId) => [...queryKeys.sis.community(orgId), 'highlights'],
+    communityAnnouncements: (orgId) => [...queryKeys.sis.community(orgId), 'announcements'],
+    communityLostFound: (orgId) => [...queryKeys.sis.community(orgId), 'lostFound'],
+    communityRecognition: (orgId) => [...queryKeys.sis.community(orgId), 'recognition'],
+    communityMembers: (orgId) => [...queryKeys.sis.community(orgId), 'members'],
+    communityEvents: (orgId) => [...queryKeys.sis.community(orgId), 'events'],
   },
 
   // Evidence

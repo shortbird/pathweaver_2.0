@@ -40,6 +40,7 @@ import path from 'path'
  */
 
 const PAGES = path.resolve(__dirname, '../pages')
+const COMPONENTS = path.resolve(__dirname, '../components')
 
 /**
  * Measured 2026-09-04. Ratchet DOWN as pages migrate.
@@ -105,6 +106,14 @@ const PAGES = path.resolve(__dirname, '../pages')
  * existing hand-rolled page is migrated only when something else brings a
  * session into it. Nobody is behind on anything.
  *
+ * REOPENED ONCE, on 2026-09-09, on the owner's instruction: one more batch and
+ * a wider census. The disposition above still stands for the tail -- what
+ * changed is that the tail was being measured in one directory out of two, and
+ * that the largest single hand-rolled surface left (CommunityPage, 20 call
+ * sites) turned out to be hiding a staleness bug. See the entry below the
+ * baseline. "Declined" means nobody is behind on the remainder; it does not
+ * mean the file is closed to a batch somebody decides is worth it.
+ *
  * The case against finishing, recorded so it is not re-argued from scratch:
  * the two batches that ARE done took the pages where the missing cache cost
  * something -- the highest-churn page in the console (44 commits in six
@@ -119,18 +128,59 @@ const PAGES = path.resolve(__dirname, '../pages')
 // has eight hand-rolled calls already and is not on the migrated list, so
 // hooking this one would leave a single page fetching two ways -- the same
 // judgement the entries above record.
-const CALL_SITE_BASELINE = 470
+//
+// ── 2026-09-09: THE CENSUS NOW COVERS components/ AS WELL ────────────────────
+//
+// It always should have. pages/ was 465 call sites on this date and
+// components/ was 536 -- more than half the hand-rolled fetching in the app was
+// outside the only directory being measured, and a page could get greener by
+// moving a fetch one directory sideways. QF-02 does exactly that kind of move
+// for a living: fifteen components over 1,000 lines were split into
+// thirty-one, and several of those splits pushed fetches from pages/ into
+// components/.
+//
+// The two halves are reported separately and gated together. Together, because
+// which directory a fetch sits in is not the quantity anyone cares about;
+// separately, because when this does go red the first question is which half
+// moved.
+//
+// 1001 -> 981 on 2026-09-09. sis/CommunityPage.jsx, 20 call sites across seven
+// components -- the largest hand-rolled surface left. Its hook module is
+// hooks/api/useSisCommunity. Migrating it turned up a real staleness bug that
+// neither file could show on its own: the Highlights tab is a server-side
+// DIGEST of the other four tabs (/api/sis/community/highlights returns the same
+// announcements, events, lost & found and shout-outs), and posting an
+// announcement refreshed the Announcements tab's useState and nothing else. Go
+// back to Highlights and it still showed the old digest. Every community
+// mutation now invalidates the whole community subtree, so the digest and the
+// tab that feeds it cannot disagree.
+//
+// One thing deliberately NOT migrated inside that page: the comment thread
+// under a shout-out. It is collapsed until opened, and once open the page shows
+// a live local list so a comment just posted is counted without a refetch.
+// Under a query that becomes invalidate-and-refetch on every post -- a round
+// trip in place of an instant append, on the interaction people repeat most.
+//
+// A NOTE ON THE RAW NUMBER. A census of every `api.*` in pages/ and components/
+// -- .js files included, and files that already read through hooks/api included
+// -- gives a larger figure (1,095 on 2026-09-09, before this migration). This
+// ratchet deliberately counts neither: a module of nothing but endpoint path
+// literals (pages/admin/crm/crmApi.js, 23 of them, checked against the Flask
+// url_map by backend/tests/test_client_api_paths_exist.py) is the thing
+// hooks/api CALLS, not a page fetching by hand, and a page that has migrated is
+// not made hand-rolled again by one imperative call left in a modal.
+const CALL_SITE_BASELINE = 981
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/
 const CALLS_API = /\bapi\.(get|post|put|patch|delete)\s*\(/
 
-function pageFiles(dir, acc = []) {
+function sourceFiles(dir, acc = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       if (entry.name === 'node_modules' || entry.name === '__tests__') continue
-      pageFiles(full, acc)
+      sourceFiles(full, acc)
     } else if (/\.jsx$/.test(entry.name) && !/\.test\.jsx$/.test(entry.name)) {
       acc.push(full)
     }
@@ -140,44 +190,71 @@ function pageFiles(dir, acc = []) {
 
 const CALLS_API_ALL = /\bapi\.(get|post|put|patch|delete)\s*\(/g
 
-function census() {
+function census(dir) {
   let hooked = 0
   let callSites = 0
   const handRolled = []
-  for (const file of pageFiles(PAGES)) {
+  for (const file of sourceFiles(dir)) {
     const body = fs.readFileSync(file, 'utf8')
     if (USES_HOOK.test(body)) hooked += 1
-    else if (CALLS_API.test(body)) handRolled.push(path.relative(PAGES, file))
+    else if (CALLS_API.test(body)) handRolled.push(path.relative(dir, file))
     if (!USES_HOOK.test(body)) callSites += (body.match(CALLS_API_ALL) || []).length
   }
   return { hooked, handRolled, callSites }
 }
 
+/** pages/ and components/ together -- see the header for why both. */
+function total() {
+  const pages = census(PAGES)
+  const components = census(COMPONENTS)
+  return {
+    pages,
+    components,
+    callSites: pages.callSites + components.callSites,
+    files: pages.handRolled.length + components.handRolled.length,
+  }
+}
+
 describe('data-fetching paradigm', () => {
-  it('is looking at real pages', () => {
-    expect(pageFiles(PAGES).length).toBeGreaterThan(100)
+  it('is looking at real files', () => {
+    // This shape of test regresses by globbing nothing and passing forever.
+    expect(sourceFiles(PAGES).length).toBeGreaterThan(100)
+    expect(sourceFiles(COMPONENTS).length).toBeGreaterThan(300)
   })
 
   it('hand-rolled fetches do not multiply', () => {
-    const { callSites, handRolled } = census()
+    const { callSites, files, pages, components } = total()
     expect(
       callSites,
-      `${callSites} hand-rolled api.* call sites across ${handRolled.length} pages, `
-      + `baseline ${CALL_SITE_BASELINE}. New and rewritten pages belong in `
-      + 'hooks/api/ -- the hand-rolled style has no request dedupe, no cache, '
-      + 'no shared retry, and reinvents loading and error state every time.\n\n'
-      + 'Splitting a page does NOT move this number: the same calls in more '
-      + 'files count the same. If this went up, a fetch was added.',
+      `${callSites} hand-rolled api.* call sites across ${files} files `
+      + `(pages ${pages.callSites}, components ${components.callSites}), `
+      + `baseline ${CALL_SITE_BASELINE}. New and rewritten pages and components `
+      + 'belong in hooks/api/ -- the hand-rolled style has no request dedupe, no '
+      + 'cache, no shared retry, and reinvents loading and error state every '
+      + 'time.\n\n'
+      + 'Splitting a file does NOT move this number, and neither does moving a '
+      + 'fetch between pages/ and components/: the same calls in more files '
+      + 'count the same. If this went up, a fetch was added.',
     ).toBeLessThanOrEqual(CALL_SITE_BASELINE)
   })
 
   it('has a baseline that still means something', () => {
-    const { callSites } = census()
+    const { callSites } = total()
     expect(
       callSites,
       `Only ${callSites} hand-rolled call sites against a baseline of `
       + `${CALL_SITE_BASELINE}. Lower CALL_SITE_BASELINE to ${callSites}.`,
     ).toBeGreaterThan(CALL_SITE_BASELINE - SLACK)
+  })
+
+  it('counts both halves, not just pages', () => {
+    // The census covered only pages/ until 2026-09-09, which meant more than
+    // half the hand-rolled fetching in the app was unmeasured AND that moving a
+    // fetch one directory sideways read as an improvement. If components/ ever
+    // drops out of the count again, this says so instead of the number quietly
+    // halving and looking like progress.
+    const { components } = total()
+    expect(components.callSites).toBeGreaterThan(100)
   })
 
   it('the hooks/api directory it points people at still exists', () => {
