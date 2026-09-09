@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import FormBuilder from './FormBuilder'
-import { ChecklistTemplatesManager } from '../../../pages/sis/OnboardingPage'
+import { ChecklistTemplatesManager } from './ChecklistTemplatesManager'
 
 /**
  * PaperworkTemplatesManager — unified authoring for request forms and onboarding checklists.

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { DIVIDER_STYLES } from './index'
+import { DIVIDER_STYLES } from './blockConfig'
 
 /**
  * DividerBlockEditor - Simple divider with multiple style options

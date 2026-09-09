@@ -10,7 +10,7 @@
  * derivation in `useIsParent` (org_managed users carry their real role in
  * `org_role`), minus the superadmin preview shell, which doesn't apply at launch.
  */
-import type { User } from '@/src/stores/authStore';
+import type { User } from '@/src/types/user';
 import { userHasRole } from '@/src/utils/effectiveRole';
 
 export function isParentUser(user: User | null | undefined): boolean {

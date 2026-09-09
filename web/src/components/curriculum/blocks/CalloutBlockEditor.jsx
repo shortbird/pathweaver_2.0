@@ -5,7 +5,7 @@ import {
   ExclamationTriangleIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline'
-import { CALLOUT_VARIANTS } from './index'
+import { CALLOUT_VARIANTS } from './blockConfig'
 
 const VARIANT_ICONS = {
   info: InformationCircleIcon,
