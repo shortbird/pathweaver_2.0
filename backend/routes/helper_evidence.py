@@ -34,71 +34,72 @@ logger = get_logger(__name__)
 bp = Blueprint('helper_evidence', __name__, url_prefix='/api/evidence/helper')
 
 
-def verify_advisor_access(advisor_user_id, student_user_id):
-    """Verify advisor has access to student.
+def has_parent_claim(user_id, student_user_id) -> bool:
+    """Does this caller hold a guardian claim on this student? Role-blind.
 
-    Superadmins are granted universal access (matches the read-side checks
-    used elsewhere). Without this bypass, a superadmin demo account hits the
-    advisor branch of `_verify_helper_can_upload_for_task` and fails the
-    advisor_student_assignments lookup even when the same account could
-    successfully read the kid's quest.
+    The relationship half of `verify_parent_access`, with the role gate removed.
+    Kept separate because the two questions are genuinely different: "is this
+    account a parent account" and "is this person this child's parent" only look
+    like the same question until somebody is both a teacher and a mother.
     """
-    # Admin client: Cross-user access verification (ADR-002, Rule 5)
-    user_repo = UserRepository()
-    advisor_repo = AdvisorRepository()
-
-    # Verify advisor role (A2: get_effective_role resolves org_managed → real role)
-    user = user_repo.find_by_id(advisor_user_id)
-    if not user:
-        raise AuthorizationError("User not found")
-
-    user_role = get_effective_role(user)
-    if user_role not in ['advisor', 'org_admin', 'superadmin']:
-        raise AuthorizationError("Only advisors can access this endpoint")
-
-    # Superadmin: universal access, no link check needed.
-    if user_role == 'superadmin':
-        return True
-
-    # Verify advisor-student link using repository
-    if not advisor_repo.verify_student_access(advisor_user_id, student_user_id):
-        raise AuthorizationError("You do not have access to this student's data")
-
-    return True
+    # admin client justified: parent-access verification helper; reads
+    # parent_student_links + users.managed_by_parent_id to validate cross-user access
+    parent_repo = ParentRepository(client=get_supabase_admin_client())
+    return bool(parent_repo.is_linked(user_id, student_user_id))
 
 
-def verify_parent_access(parent_user_id, student_user_id):
-    """Verify parent has active access to student.
+def has_advisor_claim(user_id, student_user_id) -> bool:
+    """Is this student assigned to this advisor? Role-blind, like its sibling."""
+    return bool(AdvisorRepository().verify_student_access(user_id, student_user_id))
 
-    Superadmins are granted universal access (matches the read-side check in
-    `routes/parent/dashboard_overview.py:verify_parent_access`). Without this
-    bypass, superadmin demo accounts can read a kid's quest but can't attach
-    evidence — the two sides of the same flow diverge.
+
+def resolve_helper_role(user_id, student_user_id) -> str:
+    """Return the helper role whose relationship actually grants access.
+
+    A person is not one role at a time. At a co-op school the staff enroll their
+    own children, so the advisor teaching third period is also the mother of
+    three students -- and her claim on THOSE students is `managed_by_parent_id`,
+    not a row in advisor_student_assignments.
+
+    This used to be `if advisor/org_admin/superadmin: ... elif parent: ...` on
+    the platform role alone. Anyone holding a staff role was therefore only ever
+    measured against advisor assignments, and their own children came back
+    "You do not have access to this student's data" -- the check never asked the
+    question that would have said yes. At the time of the fix that was 6 staff
+    across 2 orgs, locked out of 15 children's evidence (Perch dcc5f65c: a
+    teacher could not upload her own kids' work).
+
+    The read side never had the bug, which is what made it so confusing to
+    report: `@require_relationship_to(allow=('advisor', 'parent'))` tries each
+    relationship in turn, so she could SEE her children's tasks on the very
+    screen whose upload button refused her.
+
+    So: try every claim the caller could hold, and return the one that let them
+    in. The answer is not cosmetic -- it becomes `uploaded_by_role`, which
+    decides who may delete the block afterwards.
     """
-    # admin client justified: parent-access verification helper; reads users + parent_student_links to validate cross-user access
-    user_repo = UserRepository()
-    supabase = get_supabase_admin_client()
-    parent_repo = ParentRepository(client=supabase)
-
-    # Verify parent role (A2: get_effective_role resolves org_managed → real role)
-    user = user_repo.find_by_id(parent_user_id)
+    user = UserRepository().find_by_id(user_id)
     if not user:
-        raise AuthorizationError("User not found")
+        raise NotFoundError("User not found")
 
-    user_role = get_effective_role(user)
-    if user_role not in ['parent', 'superadmin']:
-        raise AuthorizationError("Only parents can access this endpoint")
+    user_role = get_effective_role(user)  # A2: resolves org_managed -> real role
 
-    # Superadmin: universal access, no link check needed.
+    # Superadmin keeps the universal access both verify_* helpers grant.
     if user_role == 'superadmin':
-        return True
+        return 'advisor'
 
-    # Verify parent-student link
-    is_linked = parent_repo.is_linked(parent_user_id, student_user_id)
-    if not is_linked:
-        raise AuthorizationError("You do not have access to this student's data")
+    is_staff = user_role in ('advisor', 'org_admin')
+    if not is_staff and user_role != 'parent':
+        raise AuthorizationError("Only advisors and parents can upload evidence for students")
 
-    return True
+    if is_staff and has_advisor_claim(user_id, student_user_id):
+        return 'advisor'
+
+    # Checked for staff too. This line is the fix.
+    if has_parent_claim(user_id, student_user_id):
+        return 'parent'
+
+    raise AuthorizationError("You do not have access to this student's data")
 
 
 def get_or_create_evidence_document(student_user_id, task_id, quest_id):
@@ -153,22 +154,9 @@ def upload_evidence_for_student(user_id):
         if block_type not in ['text', 'link', 'image', 'video', 'document']:
             raise ValidationError("Invalid block_type")
 
-        # Get user role to determine access type
-        user = user_repo.find_by_id(user_id)
-        if not user:
-            raise NotFoundError("User not found")
-
-        user_role = get_effective_role(user)  # A2: resolves org_managed → real role
-
-        # Verify access based on role
-        if user_role in ['advisor', 'org_admin', 'superadmin']:
-            verify_advisor_access(user_id, student_id)
-            uploader_role = 'advisor'
-        elif user_role == 'parent':
-            verify_parent_access(user_id, student_id)
-            uploader_role = 'parent'
-        else:
-            raise AuthorizationError("Only advisors and parents can upload evidence for students")
+        # Whichever claim actually grants access — a staff member may be
+        # standing here as a parent of this particular child.
+        uploader_role = resolve_helper_role(user_id, student_id)
 
         # Verify task exists and belongs to student
         # Note: Using direct query for now as task_repo doesn't have a method to verify task ownership with quest details
@@ -273,9 +261,8 @@ def upload_evidence_batch(user_id):
     }
     """
     try:
-        # admin client justified: helper (parent/advisor) writes evidence blocks onto another user's (the student's) task; gated below by verify_advisor_access / verify_parent_access + task-ownership check
+        # admin client justified: helper (parent/advisor) writes evidence blocks onto another user's (the student's) task; gated below by resolve_helper_role + task-ownership check
         supabase = get_supabase_admin_client()
-        user_repo = UserRepository()
 
         data = request.get_json() or {}
         student_id = data.get('student_id')
@@ -301,18 +288,7 @@ def upload_evidence_batch(user_id):
 
         # Role + relationship check ONCE (was per-block in the single-shot
         # endpoint — N round trips on a 5-block save).
-        user = user_repo.find_by_id(user_id)
-        if not user:
-            raise NotFoundError("User not found")
-        user_role = get_effective_role(user)
-        if user_role in ['advisor', 'org_admin', 'superadmin']:
-            verify_advisor_access(user_id, student_id)
-            uploader_role = 'advisor'
-        elif user_role == 'parent':
-            verify_parent_access(user_id, student_id)
-            uploader_role = 'parent'
-        else:
-            raise AuthorizationError("Only advisors and parents can upload evidence for students")
+        uploader_role = resolve_helper_role(user_id, student_id)
 
         task_response = supabase.table('user_quest_tasks') \
             .select('id, quest_id, title, user_id') \
@@ -459,7 +435,7 @@ def delete_helper_evidence_block(user_id, block_id):
 
     Authorization: caller must be the original uploader (uploaded_by_user_id == user_id)
     AND the block must have been uploaded as a parent (uploaded_by_role == 'parent').
-    Parent->student relationship is re-verified to defend against stale links.
+    The parent->student claim is re-verified to defend against stale links.
 
     Cleans up associated storage files and the parent document if it becomes empty.
     """
@@ -492,8 +468,12 @@ def delete_helper_evidence_block(user_id, block_id):
 
         student_id = doc_result.data[0]['user_id']
 
-        # Re-verify parent role + parent->student link (defense in depth)
-        verify_parent_access(user_id, student_id)
+        # Re-verify the guardian claim (defense in depth against a stale link).
+        # The CLAIM, not the account's platform role: a staff member who is also
+        # this child's parent uploads with uploaded_by_role='parent', so gating
+        # the delete on role would let her attach evidence she could not remove.
+        if not has_parent_claim(user_id, student_id):
+            raise AuthorizationError("You do not have access to this student's data")
 
         # Best-effort storage cleanup; reuse helpers from evidence_documents to avoid drift
         from routes.evidence_documents import _collect_file_urls_from_content, _delete_storage_file
@@ -538,11 +518,14 @@ def delete_helper_evidence_block(user_id, block_id):
 
 @bp.route('/student-tasks/<student_id>', methods=['GET'])
 @require_auth
-# ('advisor', 'parent'), NOT org_staff: this module's own
-# verify_advisor_access requires an advisor_student_assignments row even
-# for an org_admin, unlike the shared helper of the same name in
-# routes/advisor/student_overview.py. Declaring org_staff here would
-# describe a permission the view does not grant.
+# ('advisor', 'parent'), NOT org_staff: this module's own resolve_helper_role
+# requires an advisor_student_assignments row even for an org_admin, unlike the
+# shared helper in routes/advisor/student_overview.py. Declaring org_staff here
+# would describe a permission the view does not grant.
+#
+# Both relationships, and the gate tries each in turn — which is why this read
+# kept working for a teacher-who-is-also-a-parent while the upload button on the
+# same screen refused her. See resolve_helper_role.
 @require_relationship_to('student_id', allow=('advisor', 'parent'), discloses='tasks')
 def get_student_tasks_for_evidence(user_id, student_id):
     """
@@ -553,22 +536,8 @@ def get_student_tasks_for_evidence(user_id, student_id):
         # Admin client: Parent/advisor cross-user access (ADR-002, Rule 5)
         # admin client justified: advisor/parent uploads evidence onto student tasks; cross-user writes gated by helper relationship verification (advisor_student_assignments / parent->child)
         supabase = get_supabase_admin_client()
-        user_repo = UserRepository()
 
-        # Get user role using repository
-        user = user_repo.find_by_id(user_id)
-        if not user:
-            raise NotFoundError("User not found")
-
-        user_role = get_effective_role(user)  # A2: resolves org_managed → real role
-
-        # Verify access based on role
-        if user_role in ['advisor', 'org_admin', 'superadmin']:
-            verify_advisor_access(user_id, student_id)
-        elif user_role == 'parent':
-            verify_parent_access(user_id, student_id)
-        else:
-            raise AuthorizationError("Only advisors and parents can access this endpoint")
+        resolve_helper_role(user_id, student_id)
 
         # Get active quests
         active_quests = supabase.table('user_quests').select('''
@@ -641,18 +610,7 @@ def _verify_helper_can_upload_for_task(user_id: str, student_id: str, task_id: s
     contract as the block-creation route. Raises on failure; returns the
     user_role string on success.
     """
-    user_repo = UserRepository()
-    user = user_repo.find_by_id(user_id)
-    if not user:
-        raise NotFoundError("User not found")
-    user_role = get_effective_role(user)
-
-    if user_role in ['advisor', 'org_admin', 'superadmin']:
-        verify_advisor_access(user_id, student_id)
-    elif user_role == 'parent':
-        verify_parent_access(user_id, student_id)
-    else:
-        raise AuthorizationError("Only advisors and parents can upload evidence for students")
+    user_role = resolve_helper_role(user_id, student_id)
 
     # Confirm the task belongs to the named student so a parent can't smuggle
     # files into another kid's evidence document via a forged task_id.
