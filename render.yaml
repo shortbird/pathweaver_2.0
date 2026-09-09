@@ -150,21 +150,24 @@ services:
 
   # Production Frontend
   #
-  # !! DASHBOARD-MANAGED, like the two backends above. Verified 2026-08-15 via
-  # the Render API: the LIVE service has rootDir "", buildCommand
-  # "cd frontend && npm install && npm run build", publishPath "frontend/dist"
-  # — none of which match the values below. This file is therefore NOT in
-  # effect for this service, and editing the headers here does NOT ship them.
+  # !! DASHBOARD-MANAGED, like the two backends above. This file is NOT in
+  # effect for this service, so editing the headers here does NOT ship them.
   #
-  # !! THE LIVE BUILD COMMAND STILL SAYS `frontend`, AND THAT DIRECTORY NO
-  # LONGER EXISTS. It was renamed to `web/` (frontend-v2 -> mobile/) so the two
-  # apps read as permanent platform siblings rather than as versions. The
-  # values below are the post-rename ones. Because this file is not synced,
-  # renaming the directory does NOT update the dashboard: the prod and dev web
-  # builds will fail with "cd: frontend: No such file or directory" on the
-  # first deploy after this branch merges. The dashboard build command and
-  # publish path must be edited BEFORE the merge. Steps are in
-  # docs/remediation-2026-09/PHASE_1_HANDOFF.md, "NEEDS TANNER".
+  # The build command and publish path below DO match the live service as of
+  # 2026-09-09 (re-read from the Render API, not assumed). The headers below
+  # still do not — those remain aspirational until somebody enters them under
+  # Settings -> Headers, or a Blueprint is synced.
+  #
+  # RENAME NOTE (2026-09-09): `frontend/` became `web/` and `frontend-v2/`
+  # became `mobile/`, so the two apps read as permanent platform siblings
+  # rather than as versions. Because this file is not synced, the rename could
+  # not reach the dashboard on its own — the live build command was edited by
+  # hand FIRST, then the code was merged. Doing it in the other order fails the
+  # build with "cd: frontend: No such file or directory", and neither the
+  # release workflow's deploy job (it only checks that Render accepted the API
+  # call) nor its smoke job (it probes www, the marketing site) would notice.
+  # The record of that ship is in
+  # docs/remediation-2026-09/PHASE_1_HANDOFF.md §7.
   # They must also be entered under Settings -> Headers in the Render dashboard
   # (or the Blueprint must be synced). Kept truthful here so a future sync
   # produces the intended config rather than reverting it.
@@ -195,11 +198,10 @@ services:
   - type: static
     name: optio-prod-frontend
     branch: main
-    # LIVE VALUES (2026-09-03): the service builds from the repo ROOT and
-    # publishes frontend/dist. This file used to say rootDir: frontend with
-    # ./dist, which is a different thing that happens to look similar.
-    # The two values below are the POST-RENAME ones and are not live until
-    # somebody edits them in the dashboard -- see the header.
+    # LIVE VALUES (verified against the Render API 2026-09-09): builds from the
+    # repo ROOT and publishes web/dist. Note rootDir is EMPTY and the build
+    # cd's into web/ -- `rootDir: web` with `./dist` is a different thing that
+    # happens to look similar, and this file claimed it for a while.
     rootDir: ""
     buildCommand: cd web && npm install && npm run build
     staticPublishPath: web/dist
@@ -264,8 +266,8 @@ services:
   - type: static
     name: optio-dev-frontend
     branch: develop
-    # LIVE VALUES (2026-09-03), same shape as prod -- including the stale
-    # `cd frontend`. Post-rename values below; edit the dashboard too.
+    # LIVE VALUES (verified against the Render API 2026-09-09), same shape as
+    # prod.
     rootDir: ""
     buildCommand: cd web && npm install && npm run build
     staticPublishPath: web/dist
@@ -349,12 +351,16 @@ services:
   # can exercise the mobile app; users are never sent here. Also absent from
   # this file until 2026-09-03.
   #
-  # !! The live service's rootDir is still `frontend-v2`, a directory that no
-  # longer exists (renamed to `mobile/`). Same problem as the two web services
-  # above: this file is not synced, so the rename does not reach the dashboard
-  # and the next dev deploy of this service fails. The service NAME still says
-  # v2 as well; renaming it in the dashboard changes its .onrender.com URL, so
-  # that one is a separate decision -- see PHASE_1_HANDOFF.md.
+  # rootDir below matches the live service (verified 2026-09-09); it was
+  # `frontend-v2` until the rename and was edited in the dashboard by hand.
+  #
+  # The service NAME still says v2. Renaming it is cosmetic and deliberately
+  # NOT done: the string `optio-dev-v2-frontend` is a load-bearing origin hint
+  # in backend/routes/auth/token_delivery.py, and the hostname it produces
+  # appears in six other files. Render derives the URL from the immutable
+  # `slug`, not the name, so a rename most likely leaves the URL alone -- but
+  # "most likely" is a poor bet when the failure mode is dev login breaking.
+  # See PHASE_1_HANDOFF.md, NEEDS TANNER 3.
   - type: static
     name: optio-dev-v2-frontend
     branch: develop

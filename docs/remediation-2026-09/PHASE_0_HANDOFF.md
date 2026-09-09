@@ -1,6 +1,8 @@
 # Phase 0 handoff — retire the August 2026 audit remediation plan
 
-**Branch:** `docs/remediation-2026-09-phase0` (4 commits, not merged, not pushed)
+**Branch:** `docs/remediation-2026-09-phase0` (4 commits) — **shipped to `main`
+2026-09-09**, carried up underneath Phase 1, which branched from this one. The
+status line here said "not merged, not pushed" until then.
 **Date:** 2026-09-08
 **Scope:** documentation and references only. **No behaviour changed.**
 
