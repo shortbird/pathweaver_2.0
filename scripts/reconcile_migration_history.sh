@@ -3,11 +3,24 @@
 #
 # WHY THIS IS NEEDED. Migrations reach production by hand, and hand-application
 # stamps the history row at APPLY time while the filename was written earlier.
-# So the two disagree: measured 2026-09-05, of 66 well-named files only 5 have a
-# history row whose version equals the filename stamp. `supabase db push` decides
-# what is pending by comparing FILE VERSION against schema_migrations.version, so
-# it would today attempt 61 migrations that are already applied. Many are
-# IF NOT EXISTS-guarded. Not all are.
+# So the two disagree. Re-measured 2026-09-09 against production: of 72 files,
+# 5 have a history row at their exact version, 64 are recorded under a drifted
+# stamp, and 3 have no row at all. `supabase db push` compares FILE VERSION
+# against schema_migrations.version and nothing else, so it would today attempt
+# 67 migrations that are already applied. Many are IF NOT EXISTS-guarded. Not
+# all are.
+#
+# The full file-by-file evidence -- including the seven whose recorded SQL could
+# not settle it and were checked against the live schema instead -- is
+# docs/remediation-2026-09/MIGRATION_RECONCILIATION.md.
+#
+# TWO WAYS TO DO THE SAME REPAIR. This script needs the CLI, a `supabase link`
+# and SUPABASE_DB_PASSWORD. If you do not have those,
+# docs/remediation-2026-09/reconcile_schema_migrations.sql is the identical set
+# as a single INSERT you can paste into the SQL editor, and it ships with a
+# rollback. THE TWO LISTS MUST AGREE: both are generated from the same
+# measurement, and if you edit one, regenerate the other. A pair of hand-kept
+# lists that must match is the bug this whole exercise exists to fix.
 #
 # WHAT THIS DOES. `migration repair --status applied <V>` inserts a history row at
 # version V. Nothing is executed against the schema -- this is bookkeeping only,
@@ -16,7 +29,7 @@
 # WHY NOT JUST RENAME THE FILES to their recorded versions, which would be
 # tidier? Because Perch stages a ticket by applying the migration files its PR
 # INTRODUCES to a database cloned from production, and the same list to
-# production on merge. 58 renames inside a PR read as 58 new migrations. A direct
+# production on merge. 64 renames inside a PR read as 64 new migrations. A direct
 # push to main is invisible to that scan, so renaming is only ever safe pushed
 # straight to main -- a landmine to leave lying around for whoever opens the next
 # PR. Repairing the history touches no files and Perch never sees it.
@@ -24,7 +37,7 @@
 # REQUIRES: supabase CLI, `supabase link --project-ref vvfgxcykxjybtvpfzwyx`,
 # and SUPABASE_DB_PASSWORD -- the same secrets OPS-03 is waiting on.
 #
-# THE LIST BELOW IS A MEASUREMENT, NOT A CONSTANT. It was correct on 2026-09-05.
+# THE LIST BELOW IS A MEASUREMENT, NOT A CONSTANT. It was correct on 2026-09-09.
 # Every migration applied by hand since then adds another drifted row. Re-derive
 # with `supabase migration list --linked` before trusting it.
 set -euo pipefail
@@ -91,6 +104,12 @@ VERSIONS=(
   20260903210000   # drop_dead_get_human_quest_performance
   20260904120000   # class_parent_chat_rename
   20260904160000   # optio_academy_credit_review_by_optio
+  20260905120000   # sis_recognition_comments
+  20260907180000   # org_kiosk_devices_token
+  20260908120000   # message_email_relays
+  20260908130000   # device_tokens_one_account_per_device
+  20260908150000   # parent_weekly_digest_sends
+  20260909144435   # baseline_20260909
 )
 
 if [[ "${1:-}" != "--apply" ]]; then
