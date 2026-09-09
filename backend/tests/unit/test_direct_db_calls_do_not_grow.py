@@ -193,11 +193,16 @@ BASELINES = {
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
     'repositories': 439,
+    # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
+    # of parents_of_students: which of a guardian's children sit in each of a
+    # set of classes. It answers "whose class chat is this?" for the messaging
+    # list, and it belongs beside the rest of "who belongs to a class" rather
+    # than in a repository nothing else would call.
     # 2026-09-07: 134 -> 135. Not growth -- pending_subjects_for_completion
     # moved here from routes/tasks/xp_helpers.py with its one query, because
     # PersonalizationService needs it and services must not import from
     # routes (test_import_layers.py). routes/ dropped by the same one.
-    'utils': 135,
+    'utils': 136,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

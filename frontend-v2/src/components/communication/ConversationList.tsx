@@ -19,6 +19,7 @@ import { UIText, Heading, Avatar, AvatarFallbackText, AvatarImage } from '@/src/
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import type { Contact, Group } from '@/src/hooks/useMessages';
+import { groupsByChild, classMeetingLabel, studentName } from '@/src/utils/groupsByChild';
 
 interface SelectedConversation {
   id: string;
@@ -209,6 +210,33 @@ interface GroupRowProps {
   onPress: (group: Group) => void;
 }
 
+/** Same reasoning as contactRowEqual: the 30s poll rebuilds every group object,
+ *  so identity comparison repaints the whole list — and a parent of three has
+ *  37 class chats in it. Compares only what the row paints. */
+function groupRowEqual(a: GroupRowProps, b: GroupRowProps) {
+  const x = a.group;
+  const y = b.group;
+  return (
+    a.isSelected === b.isSelected &&
+    a.isMobile === b.isMobile &&
+    a.iconMuted === b.iconMuted &&
+    a.onPress === b.onPress &&
+    x.id === y.id &&
+    x.name === y.name &&
+    x.member_count === y.member_count &&
+    x.unread_count === y.unread_count &&
+    x.last_message_at === y.last_message_at &&
+    x.last_message_preview === y.last_message_preview &&
+    groupChipsKey(x) === groupChipsKey(y)
+  );
+}
+
+/** The two chips flattened to a string, so the comparator above can diff them
+ *  without walking a rebuilt for_students array field by field. */
+function groupChipsKey(g: Group) {
+  return `${classMeetingLabel(g.class_meeting)}|${(g.for_students || []).map((s) => s?.id).join(',')}`;
+}
+
 const GroupRow = React.memo(function GroupRow({
   group,
   isSelected,
@@ -217,6 +245,15 @@ const GroupRow = React.memo(function GroupRow({
   onPress,
 }: GroupRowProps) {
   const c = useThemeColors();
+  // Both chips earn their space only when the name alone is ambiguous: the
+  // meeting time separates same-named chats (a parent had three "Peak Play PE
+  // Parent Chat" rows, one per section), and the child names flag a class that
+  // more than one of her children is in, which appears under each of their
+  // sections. With one child in the class the section header already says who.
+  const meeting = classMeetingLabel(group.class_meeting);
+  const kids = group.for_students || [];
+  const sharedKids = kids.length > 1 ? kids.map(studentName).filter(Boolean).join(', ') : '';
+
   return (
     <Pressable
       onPress={() => onPress(group)}
@@ -233,7 +270,7 @@ const GroupRow = React.memo(function GroupRow({
         <View className="flex-row items-center justify-between">
           <UIText
             size="sm"
-            className={`font-poppins-semibold ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
+            className={`font-poppins-semibold flex-1 ${group.unread_count ? 'text-typo dark:text-dark-typo' : 'text-typo-700 dark:text-dark-typo-700'}`}
             numberOfLines={1}
           >
             {group.name}
@@ -244,6 +281,24 @@ const GroupRow = React.memo(function GroupRow({
             </UIText>
           )}
         </View>
+        {(meeting || sharedKids) && (
+          <View className="flex-row items-center gap-1.5 mt-0.5">
+            {!!meeting && (
+              <View
+                style={{ backgroundColor: `${c.brand}15`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 }}
+              >
+                <UIText size="xs" style={{ color: c.brand, fontFamily: 'Poppins_500Medium' }}>
+                  {meeting}
+                </UIText>
+              </View>
+            )}
+            {!!sharedKids && (
+              <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500 flex-1" numberOfLines={1}>
+                {sharedKids}
+              </UIText>
+            )}
+          </View>
+        )}
         <UIText
           size="xs"
           className={`mt-0.5 ${group.unread_count ? 'text-typo-700 dark:text-dark-typo-700 font-poppins-medium' : 'text-typo-400 dark:text-dark-typo-400'}`}
@@ -264,7 +319,7 @@ const GroupRow = React.memo(function GroupRow({
       )}
     </Pressable>
   );
-});
+}, groupRowEqual);
 
 export function ConversationList({
   contacts,
@@ -391,8 +446,19 @@ export function ConversationList({
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
     const q = search.toLowerCase().trim();
-    return groups.filter((g) => g.name?.toLowerCase().includes(q));
+    // Search a class chat by the child it is about as well as by its name — a
+    // parent looking for "Rivers" wants Rivers's classes, and the class names
+    // themselves never contain a child's name.
+    return groups.filter((g) =>
+      g.name?.toLowerCase().includes(q)
+      || (g.for_students || []).some((st) => studentName(st).toLowerCase().includes(q))
+    );
   }, [groups, search]);
+
+  // Guardians of two or more children get the group list split by child; anyone
+  // else keeps the single flat list they had.
+  const { sections: groupSections } = useMemo(
+    () => groupsByChild(filteredGroups), [filteredGroups]);
 
   const renderContact = useCallback(({ item }: { item: any }) => (
     <ContactRow
@@ -405,8 +471,12 @@ export function ConversationList({
   ), [isMobile, selected?.type, selected?.id, c.iconMuted, handleSelectContact]);
 
   // Groups, the child-messages entry and the DM section label scroll with the
-  // list, so they ride along as the FlatList header. Group counts stay small
-  // (they are org/class chats), so they don't need virtualizing themselves.
+  // list, so they ride along as the FlatList header — which means the group
+  // rows are NOT virtualized. That was written when group counts were assumed
+  // small; a guardian of three has ~37 class chats, so the rows are memoized on
+  // what they paint (groupRowEqual) to keep the 30s poll from repainting all of
+  // them. If a family ever carries enough chats to make the mount itself slow,
+  // the fix is a SectionList over groups + DMs, not a bigger header.
   const listHeader = (
     <>
       {/* Group Chats Section */}
@@ -425,15 +495,29 @@ export function ConversationList({
               </Pressable>
             )}
           </View>
-          {filteredGroups.map((group) => (
-            <GroupRow
-              key={group.id}
-              group={group}
-              isSelected={!isMobile && selected?.type === 'group' && selected?.id === group.id}
-              isMobile={isMobile}
-              iconMuted={c.iconMuted}
-              onPress={handleSelectGroup}
-            />
+          {groupSections.map((section) => (
+            <View key={section.key}>
+              {!!section.label && (
+                <View className="px-4 py-1.5 bg-surface-50 dark:bg-dark-surface-50 border-b border-surface-200 dark:border-dark-surface-300">
+                  <UIText size="xs" className="font-poppins-semibold text-optio-purple uppercase tracking-wider">
+                    {section.label}
+                  </UIText>
+                </View>
+              )}
+              {section.groups.map((group) => (
+                // A class two children share is listed under each of their
+                // sections, so the key has to carry the section as well as the
+                // group — the same conversation, reachable from either child.
+                <GroupRow
+                  key={`${section.key}:${group.id}`}
+                  group={group}
+                  isSelected={!isMobile && selected?.type === 'group' && selected?.id === group.id}
+                  isMobile={isMobile}
+                  iconMuted={c.iconMuted}
+                  onPress={handleSelectGroup}
+                />
+              ))}
+            </View>
           ))}
         </View>
       )}

@@ -393,16 +393,120 @@ class GroupMessageService(BaseService):
                 ['avatar_url'],
             )
 
+            # Same guardian context as the list. A parent reaching this thread
+            # from a push notification sees only the class name in the header,
+            # and the whole point of the report was that the class name alone
+            # does not say which child: "I would have to look it up before I
+            # can even respond."
+            context = self._guardian_class_context(user_id, [group.data])
+
             return {
                 **group.data,
                 'members': member_list,
                 'member_count': len(member_list),
-                'pinned_message': pinned
+                'pinned_message': pinned,
+                **context.get(group_id, {}),
             }
 
         except Exception as e:
             logger.error(f"Error getting group: {str(e)}")
             raise
+
+    def _guardian_class_context(
+        self, user_id: str, groups: List[Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """{group_id: {'for_students': [...], 'class_meeting': {...}}} for a
+        guardian's class chats.
+
+        A class chat is one group per class per audience, named after the class
+        and nothing else. A parent of three sits in one "<Class> Parent Chat"
+        for every class every child takes -- 37 of them in the iCreate family
+        that reported this on 2026-09-09 -- in a single flat list, and several
+        of those rows carry the SAME name because two children take the same
+        course in different sections ("Elementary Microschool (Wednesday) Parent
+        Chat" appeared three times, once per child). There was no way to tell
+        from the list which child, or which section, a chat belonged to: "I do
+        not know which message applies to which one of my children/which
+        classes, so I would have to look it up before I can even respond."
+
+        So stamp each class-sourced group with the caller's children in that
+        class, and with when the class meets. The client groups the list by
+        child and shows the meeting time, which is what separates two chats
+        that share a name.
+
+        Costs nothing for a caller with no children: children_in_classes short
+        circuits and this returns {}. Best-effort throughout -- the messaging
+        list must still render if any of it fails.
+        """
+        class_by_group = {
+            g['id']: g['source_class_id']
+            for g in groups if g.get('source_class_id')
+        }
+        if not class_by_group:
+            return {}
+
+        try:
+            from utils.class_membership import children_in_classes
+            children_by_class = children_in_classes(
+                user_id, set(class_by_group.values())
+            )
+            if not children_by_class:
+                return {}
+
+            supabase = self._get_client()
+
+            # Both reads go through their repositories rather than another
+            # direct .table() call in this service (REPOSITORY_PATTERN.md; the
+            # layer guard in tests/unit/test_direct_db_calls_do_not_grow.py).
+            from repositories.user_repository import UserRepository
+            from repositories.sis_class_repository import SisClassRepository
+
+            child_ids = sorted({cid for s in children_by_class.values() for cid in s})
+            children = UserRepository(client=supabase).find_by_ids(
+                child_ids, select_fields='id, first_name, last_name, display_name')
+
+            # When the class meets, so two same-named chats are tellable apart.
+            # One meeting per class is enough for a list row; the client formats
+            # it (dayName/formatTime in useClassSchedule) so both surfaces agree.
+            class_ids = sorted({cid for cid in children_by_class})
+            meeting_rows = SisClassRepository(client=supabase).meetings_for_classes(class_ids)
+            meetings: Dict[str, Dict[str, Any]] = {}
+            for m in sorted(
+                meeting_rows,
+                key=lambda r: (r.get('day_of_week') if r.get('day_of_week') is not None else 99,
+                               r.get('start_time') or ''),
+            ):
+                meetings.setdefault(m['class_id'], m)
+
+            out: Dict[str, Dict[str, Any]] = {}
+            for group_id, class_id in class_by_group.items():
+                kids = children_by_class.get(class_id)
+                if not kids:
+                    continue
+                roster = [children[k] for k in sorted(kids) if k in children]
+                roster.sort(key=lambda r: (r.get('first_name') or r.get('display_name') or ''))
+                meeting = meetings.get(class_id)
+                out[group_id] = {
+                    'for_students': [{
+                        'id': r['id'],
+                        'first_name': r.get('first_name'),
+                        'last_name': r.get('last_name'),
+                        'display_name': r.get('display_name'),
+                    } for r in roster],
+                    # Narrowed deliberately: meetings_for_classes selects '*',
+                    # and a list row has no use for the rest of the SIS meeting
+                    # record (room ids, internal notes).
+                    'class_meeting': {
+                        'day_of_week': meeting.get('day_of_week'),
+                        'start_time': meeting.get('start_time'),
+                        'end_time': meeting.get('end_time'),
+                    } if meeting else None,
+                }
+            return out
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Could not attach guardian class context for {user_id}: {e}")
+            return {}
 
     def get_user_groups(self, user_id: str) -> List[Dict[str, Any]]:
         """
@@ -456,6 +560,8 @@ class GroupMessageService(BaseService):
                 if gid:
                     member_counts[gid] = member_counts.get(gid, 0) + 1
 
+            child_context = self._guardian_class_context(user_id, rows)
+
             result = []
             for group in rows:
                 last_read_at = last_read_by_group.get(group['id'])
@@ -480,7 +586,8 @@ class GroupMessageService(BaseService):
                 result.append({
                     **group,
                     'member_count': member_counts.get(group['id'], 0),
-                    'unread_count': unread_count
+                    'unread_count': unread_count,
+                    **child_context.get(group['id'], {}),
                 })
 
             return result

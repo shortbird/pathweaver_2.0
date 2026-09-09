@@ -51,6 +51,7 @@ import {
   COMPOSER_MIN_BOTTOM_PAD,
   COMPOSER_KEYBOARD_GAP,
 } from './MessageParts';
+import { classMeetingLabel, studentName } from '@/src/utils/groupsByChild';
 import MessageText from './MessageText';
 import { MessageActionsSheet } from './MessageActionsSheet';
 
@@ -178,6 +179,14 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
   const isSuperadmin = user?.role === 'superadmin';
   const { messages, loading, setMessages } = useGroupMessages(group.id);
   const { group: groupDetail, loading: detailLoading } = useGroupDetail(group.id);
+  // "Zayah · Tue 9:30 AM" for a guardian's class chat, empty for everyone else.
+  // The list row passed in `group` already carries this; groupDetail refreshes
+  // it, so prefer whichever has arrived.
+  const childContext = React.useMemo(() => {
+    const src: Group = groupDetail?.for_students ? groupDetail : group;
+    const kids = (src.for_students || []).map(studentName).filter(Boolean).join(', ');
+    return [kids, classMeetingLabel(src.class_meeting)].filter(Boolean).join(' \u00b7 ');
+  }, [group, groupDetail]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
@@ -488,6 +497,16 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
         </View>
         <View className="ml-3 flex-1">
           <Heading size="sm" numberOfLines={1}>{group.name}</Heading>
+          {/* A class chat is named after its class and nothing else, so a
+              guardian arriving from a push notification could not tell whose
+              class it was without leaving the thread to look it up. Name the
+              child (and when the class meets, which is what separates two
+              chats sharing a name) right under the title. */}
+          {!!childContext && (
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
+              {childContext}
+            </UIText>
+          )}
           <Pressable onPress={() => setShowMembers((v) => !v)}>
             <UIText size="xs" className="text-optio-purple">
               {group.member_count || 0} members
