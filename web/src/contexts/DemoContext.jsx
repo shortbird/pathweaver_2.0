@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { XP_PER_CREDIT } from '../utils/creditRequirements';
+import { TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT } from '../utils/creditRequirements';
 
 const DemoContext = createContext();
 
@@ -100,20 +100,14 @@ const initialCredits = {
   electives: 0
 };
 
-// Subject display names
-const SUBJECT_NAMES = {
-  science: 'Science',
-  math: 'Mathematics',
-  language_arts: 'Language Arts',
-  fine_arts: 'Fine Arts',
-  digital_literacy: 'Digital Literacy',
-  pe: 'Physical Education',
-  health: 'Health',
-  social_studies: 'Social Studies',
-  financial_literacy: 'Financial Literacy',
-  cte: 'Career & Technical',
-  electives: 'Electives'
-};
+// Subject display names -- the transcript vocabulary, shared with the two
+// transcript routes and the credit table rather than kept here.
+//
+// This was an eleventh-entry copy of that map, and it had drifted: it showed
+// CTE as 'Career & Technical' where every other surface says 'Career &
+// Technical Education'. A demo is the first thing a prospective family reads,
+// so it was the one surface where the wrong name was most visible.
+const SUBJECT_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 // Subject colors for UI
 const SUBJECT_COLORS = {

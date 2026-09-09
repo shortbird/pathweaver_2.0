@@ -1,5 +1,13 @@
 -- Remove the mis-keyed user_skill_xp rows (handoff B1).
 --
+-- APPLIED TO PRODUCTION 2026-09-09. Kept as the record of what was run and as
+-- the thing the rollback undoes. Do not run it again -- it is idempotent (there
+-- is nothing left to match) but it would DROP AND REBUILD the backup table,
+-- which is the only copy of the removed rows.
+--
+-- Result: 2,850 rows backed up and deleted, 570 students touched, 795 correctly
+-- keyed rows and all 376,407 XP left exactly as they were.
+--
 -- WHAT THESE ROWS ARE. Six account-creation paths seeded a new student's five
 -- pillar rows using the pre-2025 DISPLAY names ('Arts & Creativity',
 -- 'STEM & Logic') where user_skill_xp.pillar holds a key ('art', 'stem').

@@ -51,6 +51,20 @@ export const CREDIT_REQUIREMENTS: Record<string, SubjectCredit> =
     ]),
   );
 
+/**
+ * What an official transcript prints, keyed by subject. The LONG form --
+ * 'Mathematics', not 'Math'; shared/data/subjects.json carries the short names
+ * the pickers show, and its comment explains why the two lists differ.
+ *
+ * Mirrors TRANSCRIPT_SUBJECT_NAMES in backend/generated/credits.py, which the
+ * two transcript routes read. Exported because the web app had a third copy of
+ * this map in DemoContext, and that copy had drifted: it said CTE was 'Career &
+ * Technical' where every other surface said 'Career & Technical Education'.
+ */
+export const TRANSCRIPT_SUBJECT_NAMES: Record<string, string> = Object.fromEntries(
+  CREDIT_REQUIREMENTS_DATA.map((c: CreditRequirement) => [c.key, c.transcriptName]),
+);
+
 /** Total XP that satisfies every requirement. */
 export const TOTAL_XP_REQUIRED = TOTAL_CREDITS_REQUIRED * XP_PER_CREDIT;
 

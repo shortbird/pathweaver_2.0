@@ -4,7 +4,7 @@
 cross-platform contracts.** Completed 2026-09-09.
 
 Branch: `refactor/remediation-2026-09-phase2`.
-Eight commits, `1062bbe0` … `6014ede9`, on top of `e2beced5`.
+Ten commits, `1062bbe0` … `HEAD`, on top of `e2beced5`.
 
 The last two (`0cd91cf5`, `6014ede9`) came after the first handoff, from
 following up the bugs it recorded — see [B1](#b1-six-paths-seeded-user_skill_xppillar-with-display-names--fixed-in-0cd91cf5).
@@ -271,9 +271,11 @@ follow-up.
 
 ---
 
-## Bugs found — recorded, not fixed
+## Bugs found
 
-Per the ground rule that this pass is structural.
+The phase's ground rule was to record bugs rather than fix them inline. B1 was
+followed up afterwards, on the user's instruction, and is now fixed end to end —
+code, data and constraint. The rest are recorded only.
 
 ### B1. Six paths seeded `user_skill_xp.pillar` with display names — **fixed in `0cd91cf5`**
 
@@ -332,16 +334,17 @@ guard test distinguishes them by the literal zero.
 `tests/unit/test_skill_xp_seeded_with_pillar_keys.py` holds both rules, plus a
 floor so the scan cannot pass by finding nothing.
 
-#### The data — ready to run, waiting on you
+#### The data — cleaned up 2026-09-09
 
-Three scripts in this directory, **all executed end to end against staging**
-(synthetic data only) rather than reviewed on paper:
+Three scripts, each executed end to end against staging (synthetic data only)
+before going anywhere near production, then **run against production on
+2026-09-09**:
 
 | Script | What it does |
 |---|---|
 | [`cleanup_skill_xp_legacy_pillars.sql`](cleanup_skill_xp_legacy_pillars.sql) | Backs up then deletes the 2,850 rows. Two tripwires abort it if anything is not as expected. |
 | [`cleanup_skill_xp_legacy_pillars_rollback.sql`](cleanup_skill_xp_legacy_pillars_rollback.sql) | Restores them from the backup table. |
-| [`add_skill_xp_pillar_check.sql`](add_skill_xp_pillar_check.sql) | The CHECK constraint that stops a seventh path. Must run *after* the cleanup. |
+| [`20260909205019_user_skill_xp_pillar_is_a_key.sql`](../../supabase/migrations/20260909205019_user_skill_xp_pillar_is_a_key.sql) | The CHECK constraint that stops a seventh path. Applied as a recorded migration. |
 
 Verified on staging: the cleanup deleted exactly the 15 seeded legacy rows and
 left all 3,905 real rows untouched with their balances intact; the rollback
@@ -430,110 +433,75 @@ not belong in `shared/`. A backend-internal consolidation for a later phase.
 
 ---
 
-## NEEDS TANNER
+## NEEDS TANNER — all three resolved 2026-09-09
 
-### 1. Decide whether `web/`, `mobile/` and `marketing/` become workspace members
+Kept as the record of what was decided and what was done.
 
-**Why it stopped here.** Adding them requires editing build commands in the Render
-dashboard, which I cannot reach, and `render.yaml` is inert for static sites — the
-dashboard is authoritative. I read the live values through the Render API to be
-sure rather than guessing:
+### 1. npm workspaces for `web/`, `mobile/`, `marketing/` — **declined**
 
-| Service | rootDir | Live build command | Under workspaces |
-|---|---|---|---|
-| `optio-prod-frontend` | `""` | `cd web && npm install && npm run build` | Installs the **whole** monorepo; `npm run build` breaks — it hardcodes `node_modules/vite/bin/vite.js`, which hoists to the root |
-| `optio-dev-frontend` | `""` | same | same |
-| `optio-marketing` | `marketing` | `npm ci && npm run build` | **Fails outright.** `npm ci` needs a lockfile in the working directory; workspaces put one lockfile at the root |
-| `optio-dev-v2-frontend` | `mobile` | `npm install --legacy-peer-deps && npx expo export --platform web` | Applies `--legacy-peer-deps` to the web app's tree as well |
+Asked and answered: no. `shared/` stays the only workspace member, the apps keep
+reaching it through the `@shared` alias, and the three Render build commands are
+untouched. Nothing to do; if this is ever reopened, the analysis and the
+numbered dashboard steps are in git history for this file.
 
-`optio-marketing` serves **www.optioeducation.com** and auto-deploys on every
-commit to `main`. A static-site build failure leaves the previous deploy serving,
-so this is "deploys stop working until the dashboard is updated", not "the site
-goes down" — but it is still a production pipeline breaking on merge.
+### 2. The mis-keyed rows — **cleaned up, and the door is shut**
 
-There is a second, quieter cost: under workspaces every frontend build installs
-every other app's dependencies. `web/vite.config.js` already carries a comment
-that its build "runs close enough to the heap limit on Render's builder that it
-has OOM'd there while passing locally", and all four services are on the `starter`
-build plan.
+Run against production (`vvfgxcykxjybtvpfzwyx`) on 2026-09-09:
 
-**What you get for it:** `web/` and `mobile/` could depend on `@optio/shared` as a
-package instead of through the five-config `@shared` alias. The alias works today
-and `sharedAlias.test.ts` guards all five declarations, so this is tidiness, not
-capability. `shared/` is already a real workspace package either way, which is what
-the phase was for.
+| Step | Result |
+|---|---|
+| `cleanup_skill_xp_legacy_pillars.sql` | 2,850 rows backed up to `user_skill_xp_legacy_backup_20260909`, then deleted. 570 students. |
+| Verification | 795 rows remain, exactly five keys, **376,407 XP unchanged** |
+| CHECK constraint | Applied as migration `20260909205019_user_skill_xp_pillar_is_a_key` |
 
-**My recommendation: don't, unless you want it for its own sake.** If you do:
+The constraint was verified by trying the exact write that caused the bug —
+inserting `'Arts & Creativity'` — and production refused it.
 
-1. Open the Render dashboard → `optio-marketing` → Settings → Build Command.
-   Change `npm ci && npm run build` to `npm ci --workspaces --include-workspace-root && npm run build`,
-   or set the service's rootDir to `""` and use `cd marketing && …`.
-2. Same page for `optio-prod-frontend` and `optio-dev-frontend`: no command change
-   needed, but `web/package.json`'s `build` script must first change from
-   `node --max-old-space-size=4096 node_modules/vite/bin/vite.js build` to
-   `NODE_OPTIONS=--max-old-space-size=4096 vite build` (a repo change; say the word
-   and I'll make it).
-3. `optio-dev-v2-frontend`: confirm `npm install --legacy-peer-deps` at the
-   workspace root is acceptable for the web app's dependency tree too, or split the
-   command.
-4. Then, in the repo: add `"web"`, `"mobile"`, `"marketing"` to the root
-   `workspaces` array, delete the three per-app `package-lock.json` files, run
-   `npm install` at the root once, and update the three CI workflows
-   (`tests-web.yml`, `tests-mobile.yml`) — each does `npm ci` in a
-   `working-directory` and caches on a per-app lockfile path.
-5. Verify with a real `npx expo export`, not a test run, before merging.
+It went in **as a recorded migration**, not by hand: the SQL is committed at
+`supabase/migrations/20260909205019_user_skill_xp_pillar_is_a_key.sql` and
+`supabase_migrations.schema_migrations` holds a row at that same version, so the
+directory and the history still agree. Applying DDL through the SQL editor is
+exactly the habit that produced the drift OPS-03 closed a day earlier, and this
+was not the moment to reopen it.
 
-Steps 4 and 5 are mine to do once you have done 1–3. **Tell me which way you want
-it.**
+**The backup table is still there** and is the only copy of those 2,850 rows.
+`cleanup_skill_xp_legacy_pillars_rollback.sql` restores them. Drop it when you
+are satisfied:
 
-### 2. Run three SQL scripts against production, in order
+```sql
+DROP TABLE public.user_skill_xp_legacy_backup_20260909;
+```
 
-The code is fixed and merged. This is the data half, and it is the one thing
-that still needs a human at a keyboard, because it deletes 2,850 rows belonging
-to 570 real students. Each script has been executed end to end on staging.
+### 3. The demo's CTE label — **fixed, by deleting the copy**
 
-Open the Supabase SQL editor for project **`vvfgxcykxjybtvpfzwyx`** (Optio,
-production) and run these **in this order**:
+`'Career & Technical'` → `'Career & Technical Education'`.
 
-1. **`docs/remediation-2026-09/cleanup_skill_xp_legacy_pillars.sql`**
-   Backs the rows up into `user_skill_xp_legacy_backup_20260909`, then deletes
-   them. It prints `Deleting 2850 legacy row(s); keeping 795 correctly-keyed
-   row(s).` If it raises `ABORTED:` anything, stop and send me the message —
-   that means production no longer looks the way it did on 2026-09-09.
+Rather than retyping the string, the whole eleven-entry map went: with the CTE
+value corrected it was character-for-character the transcript vocabulary the
+backend already publishes, so `DemoContext` now reads
+`TRANSCRIPT_SUBJECT_NAMES` from `@shared/credits`. One fewer copy is one fewer
+place to drift, and this copy had already drifted — on the first screen a
+prospective family sees.
 
-2. **Check it did what you expect:**
-   ```sql
-   SELECT pillar, count(*) FROM public.user_skill_xp GROUP BY pillar ORDER BY 1;
-   ```
-   Five rows, five keys, nothing else.
+---
 
-3. **`docs/remediation-2026-09/add_skill_xp_pillar_check.sql`**
-   Adds the constraint that makes a seventh path impossible. It will fail if
-   step 1 was skipped, which is intentional.
+## Still open, for a later pass
 
-   Note this one is DDL and I have deliberately not placed it in
-   `supabase/migrations/` — that directory was out of scope for this phase and
-   has its own reconciliation story. Ideally whoever owns migrations stamps it
-   into a migration file and applies it through `migrate-prod.yml`. Running it
-   in the SQL editor works, but it is the same by-hand path OPS-03 closed.
+Small, recorded rather than done, because none was in this phase's scope:
 
-If anything looks wrong afterwards,
-`cleanup_skill_xp_legacy_pillars_rollback.sql` puts every row back.
-
-The backup table can be dropped once you are satisfied — the retention note is
-at the bottom of the rollback script.
-
-### 3. One-line answer: is the demo's short CTE label deliberate?
-
-`web/src/contexts/DemoContext.jsx:113` shows CTE as `'Career & Technical'`.
-Everywhere else says `'Career & Technical Education'`.
-
-I did not change it, because it renders in a tight two-column row
-(`DemoPortfolio.jsx` — subject name left, XP right) where the long form may well
-wrap, and it is what a prospective family sees.
-
-- **"It's a typo"** → I point it at the shared map, one line.
-- **"It's short on purpose"** → I add a comment saying so, so the next person to
-  notice does not re-open it.
-
-Either answer takes me a minute. The only bad outcome is leaving it unlabelled.
+- **The transcript-name map has about five more copies on the web side**
+  (`TranscriptSection.jsx`, `PublicTranscriptPage.jsx`, `TransferCreditForm.jsx`,
+  `transcriptGenerator/subjectOptions.js`, and reverse maps in
+  `EvidenceMasonryGallery.jsx` / `TaskDetailModal.jsx` / `SubjectBadges.jsx`).
+  They all currently agree with the shared map — checked — so this is
+  duplication, not drift. `@shared/credits` now exports the map they each need.
+- **B4** — `utils/quest_validation.py` scores quests against a stale legacy
+  pillar list inside a class nothing constructs. Dead code; delete it.
+- **B5** — seven display fallbacks still render `'Arts & Creativity'` when a task
+  has no pillar (`routes/quest/completion.py`, `services/portfolio_service.py`).
+  Response values, not writes.
+- **B3** — `prompts/components.SCHOOL_SUBJECT_DISPLAY_NAMES` is a third,
+  hybrid subject vocabulary. May be deliberate; nothing says so.
+- The five backend modules that declare their own pillar **display order** could
+  take the canonical one, if you would rather `/api/pillars` and the treehouse
+  agree on ordering. That is a product call, not a refactor.
