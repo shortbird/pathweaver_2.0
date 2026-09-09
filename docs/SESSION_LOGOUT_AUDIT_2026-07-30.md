@@ -33,7 +33,7 @@ request of the day is the one that wakes a spun-down Render worker.
 
 ## The three defects
 
-### 1. v1 web — any failed refresh logged the user out (primary)
+### 1. Web app — any failed refresh logged the user out (primary)
 
 `web/src/services/api.js`. The 401 interceptor's catch ran
 `tokenStore.clearTokens()` and `window.location.href = '/login'` on **every**
@@ -42,13 +42,13 @@ refresh failure. A 502 from a cold worker, a timeout, a dropped connection, or a
 would still have accepted for weeks. There was also no retry on the refresh POST
 — one attempt, and the session was gone.
 
-v2 fixed this in April (`isUnrecoverableAuthFailure` + `postRefreshWithRetry`,
-audit items E4/E5). **v1 never got the port**, and v1 is the production web app.
+The mobile app fixed this in April (`isUnrecoverableAuthFailure` + `postRefreshWithRetry`,
+audit items E4/E5). **The web app never got the port**, and the web app is what production users load.
 
 Fix: `web/src/services/sessionRecovery.js` — one jittered retry on
 network/5xx, and only a 401/403 from `/api/auth/refresh` ends the session.
 
-### 2. v1 web — the boot session check had the same flaw
+### 2. Web app — the boot session check had the same flaw
 
 `web/src/contexts/AuthContext.jsx`. `checkSession()` calls `/api/auth/me` on
 every page load and cleared tokens in its catch regardless of cause. Worse for
@@ -60,7 +60,7 @@ Fix: retry `/me` once after 600ms on a non-auth failure, and never clear cookies
 unless the backend actually answered 401/403. A genuinely logged-out user still
 reaches `/login` on the first response, with no added delay.
 
-### 3. v2 native — an unreadable keychain destroyed the session permanently
+### 3. Mobile native — an unreadable keychain destroyed the session permanently
 
 `mobile/src/services/tokenStore.ts` + `src/stores/authStore.ts`. Two
 compounding problems:
@@ -104,7 +104,7 @@ only bumped 24h → 30d recently.
 - The refresh throttle is 300/5min per IP — already re-tuned for school NATs.
 - Device fingerprinting (`dfp`) is log-only; it rejects nothing.
 - `authService.checkTokenHealth()` already fails *open*.
-- v2's route ErrorBoundary and notification-tap handling already avoid
+- The mobile app's route ErrorBoundary and notification-tap handling already avoid
   bouncing to login.
 - Cookie `SameSite`/domain handling for `www.` + `api.optioeducation.com`
   (same-site → `Lax`, not partitioned).
@@ -127,7 +127,7 @@ up would reintroduce the bug.
 - `mobile/src/stores/__tests__/authStore.test.ts` — added 5xx, local-throw,
   and unreadable-keychain cases.
 
-Full suites green: v1 943 passed, v2 455 passed / 3 skipped.
+Full suites green: web 943 passed, mobile 455 passed / 3 skipped.
 
 The backend change could not be exercised here — this container's `cryptography`
 build is broken, so `import jwt` fails and the backend suite won't run. The file

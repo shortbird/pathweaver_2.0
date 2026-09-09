@@ -1,4 +1,4 @@
-# Frontend-V2 Audit Implementation Plan
+# Mobile App Audit Implementation Plan
 
 Generated from comprehensive audit on 2026-04-14. Overall grade: **C+**.
 Scope: `mobile/` mobile app (Expo 55 universal).

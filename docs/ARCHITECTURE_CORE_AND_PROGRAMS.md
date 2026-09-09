@@ -140,7 +140,7 @@ backend/core/extension/      registry · capability flags · hook APIs
 backend/programs/{icreate,treehouse,oea,gryffin,poe}/   config + unique surfaces only
 ```
 
-**Frontend v1 (web)** — SIS is already well-isolated (`sis/`, `pages/sis/`,
+**Web app** — SIS is already well-isolated (`sis/`, `pages/sis/`,
 `components/sis/`); do the same for programs:
 ```
 web/src/core/lms/ · core/sis/ · core/capabilities/
@@ -149,7 +149,7 @@ web/src/programs/{icreate,treehouse,oea,gryffin,poe}/
 ```
 The shell (Sidebar, router) consumes the registry; the slug ladder is deleted.
 
-**Frontend v2 (mobile)** — already LMS-only and clean. No structural change;
+**Mobile app** — already LMS-only and clean. No structural change;
 consume the same capability flags.
 
 The physical directory move (§5) is the *last* phase. The logical boundary

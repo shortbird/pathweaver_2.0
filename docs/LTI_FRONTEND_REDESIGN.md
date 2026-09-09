@@ -36,18 +36,28 @@ These share one root cause: there is no purpose-built LTI frontend.
 
 ## 3. Decision: target mobile
 
-LTI becomes the first surface fully cut over to the universal app. Rationale:
-no throwaway work (v1 is being retired), v2 already has an `(lti)` route group
-and the upload machinery, and a contained surface is a good first full cutover.
+LTI moves from the web app to the mobile app. Rationale as written in 2026-05:
+no throwaway work (v1 is being retired), the mobile app already has an `(lti)`
+route group and the upload machinery, and a contained surface is a good first
+full cutover.
+
+> **The first half of that rationale no longer holds (2026-09-08).** The web
+> app is not being retired -- web and mobile are permanent platform siblings.
+> Work left on the LTI pages in `web/` is therefore not throwaway work, which
+> removes one of the two reasons this cutover was chosen. The other two
+> reasons (the mobile app already has the route group and the upload
+> machinery; LTI is a contained surface) are unaffected. **Whether to still do
+> the cutover is a product call and is deliberately not made here** -- see
+> PHASE_1_HANDOFF.md, NEEDS TANNER.
 
 **Accepted risk — the cutover sub-project.** Prod LTI today redirects to
-`www.optioeducation.com` (v1, `web/`). Moving to v2 means repointing the
-LTI host and proving v2 renders correctly inside real Canvas *before* August.
+`www.optioeducation.com` (the web app, `web/`). Moving to the mobile app means repointing the
+LTI host and proving the mobile app renders correctly inside real Canvas *before* August.
 De-risking plan in §8.
 
 ## 4. Current-state inventory
 
-### v1 (`web/src/pages/lti/`) — live in prod
+### Web app (`web/src/pages/lti/`) — live in prod
 | Page | State |
 |---|---|
 | `LtiLaunchPage` | code→token handoff; minimal; fine conceptually |
@@ -56,18 +66,18 @@ De-risking plan in §8.
 | `LtiErrorPage` | error states |
 | *(teacher evidence review)* | **none** — reuses full `DiplomaPage` |
 
-### v2 (`mobile/app/(lti)/`) — exists, NOT the live host
+### Mobile app (`mobile/app/(lti)/`) — exists, NOT the live host
 - `lti-launch.tsx`, `deep-link.tsx`, `error.tsx`, `quest/[id].tsx` (267 lines,
   text-only evidence via `completeTask(taskId,[{type:'text',content:{text}}])`).
-- **No** `src/components/evidence/` in v2 — multi-format editor must be built.
-- Reusable v2 infra already present:
+- **No** `src/components/evidence/` in the mobile app — multi-format editor must be built.
+- Reusable mobile infra already present:
   - `src/components/capture/CaptureSheet.tsx` — `expo-image-picker`, multi-media
     capture, the proven pattern for image/video.
   - `src/services/signedUpload.ts` — signed direct-to-Supabase upload (videos to
     500MB).
   - `src/components/ui/bottom-sheet.tsx` — built for evidence-upload UX.
   - `src/services/api.ts`, `tokenStore.ts` — Bearer auth (LTI-compatible).
-- v2 `ui/` design system is small (button, card, input, text, vstack, …) — an
+- the mobile `ui/` design system is small (button, card, input, text, vstack, …) — an
   `LtiShell` slots in cleanly.
 
 ### Backend — already multi-format ready
@@ -90,7 +100,7 @@ New `mobile/src/components/lti/LtiShell.tsx`:
 
 ### 5.2 LTI design tokens
 Constrained max-width, compact spacing/typography scale that holds at small
-sizes. Lives alongside the v2 `ui/` library.
+sizes. Lives alongside the the mobile `ui/` library.
 
 ### 5.3 Pages (all on `LtiShell`)
 | Page | Audience | Notes |
@@ -159,20 +169,20 @@ TEACHER — DEEP LINK CREATE            BOTH — LAUNCH HANDOFF / ERROR
 
 ## 7. Phased delivery
 0. **This doc** + layout sign-off.
-1. **`LtiShell` + tokens**; shell-ify launch/error in v2 (low risk).
+1. **`LtiShell` + tokens**; shell-ify launch/error in the mobile app (low risk).
 2. **Teacher quest-scoped evidence page + backend endpoint + repoint AGS**
    (highest value; fixes the thing just hit). Token reused.
 3. **Student quest page on shell + `LtiEvidenceEditor`** (multi-format) +
    deep-link create page.
-4. **v2-as-LTI-host cutover** (see §8).
+4. **mobile-as-LTI-host cutover** (see §8).
 Each phase: gated PR + tests.
 
-## 8. v2-as-LTI-host cutover (the main risk)
-LTI must keep working on v1 until v2 is proven in real Canvas:
-- Build/verify phases 1–3 in v2 behind a non-prod path first.
-- Stand up v2 at an LTI-reachable host; verify a real Canvas launch
+## 8. mobile-as-LTI-host cutover (the main risk)
+LTI must keep working on the web app until the mobile app is proven in real Canvas:
+- Build/verify phases 1-3 in the mobile app behind a non-prod path first.
+- Stand up the mobile app at an LTI-reachable host; verify a real Canvas launch
   (resource-link + deep-link + SpeedGrader) end-to-end against a test course.
-- Flip `Config.LTI_FRONTEND_URL` (new, LTI-only — decision §9.3) to the v2
+- Flip `Config.LTI_FRONTEND_URL` (new, LTI-only — decision §9.3) to the mobile
   host only after green E2E in real Canvas. `FRONTEND_URL` is untouched, so the
   rest of the app is unaffected and rollback is a one-env-var revert.
 - Do the flip well before August; never during an active Williamsburg session.
@@ -187,7 +197,7 @@ LTI must keep working on v1 until v2 is proven in real Canvas:
    during Phase 1.
 3. **LTI-specific base URL.** New `Config.LTI_FRONTEND_URL` (defaults to
    `FRONTEND_URL`), used only by launch/token/grade-sync. The LTI cutover is
-   fully decoupled from the broader v1→v2 migration and reversible via one env
+   fully decoupled from the broader question of which surface hosts what and reversible via one env
    var. Whole-`FRONTEND_URL` repoint is rejected (blast radius, August risk).
 4. **Keep 500MB video ceiling + soft UX warning above ~100MB.** Signed-upload
    is direct-to-Supabase (no server risk); no LTI-only hard cap. The editor
@@ -201,8 +211,8 @@ LTI must keep working on v1 until v2 is proven in real Canvas:
 ## 11. Implementation status (2026-05-19)
 
 Phases 1–3 built, tested, merged to `main`, deployed. **No live-behaviour
-change** — `LTI_FRONTEND_URL` defaults to `FRONTEND_URL` (v1), so prod LTI
-still serves v1 and the AGS link still points at the working
+change** — `LTI_FRONTEND_URL` defaults to `FRONTEND_URL` (the web app), so prod LTI
+still serves the web app and the AGS link still points at the working
 `/public/diploma` URL.
 
 | Phase | Shipped | PR |
@@ -226,12 +236,12 @@ Wording correction to §9.1: the endpoint shipped as **`/lti/evidence`**
 
 **Preconditions**
 - PRs #27–#29 on `main` and deployed (done).
-- mobile reachable at an HTTPS host Canvas can iframe (the v2 web
-  deploy URL). Call it `<V2_HOST>`.
+- mobile reachable at an HTTPS host Canvas can iframe (the mobile web
+  deploy URL). Call it `<MOBILE_HOST>`.
 
-**Step A — verify v2 in real Canvas BEFORE flipping anything.**
-Temporarily point a *test* Canvas course's tool at `<V2_HOST>` (or set
-`LTI_FRONTEND_URL=<V2_HOST>` on the **dev** backend) and run, against the
+**Step A — verify the mobile app in real Canvas BEFORE flipping anything.**
+Temporarily point a *test* Canvas course's tool at `<MOBILE_HOST>` (or set
+`LTI_FRONTEND_URL=<MOBILE_HOST>` on the **dev** backend) and run, against the
 Williamsburg test course:
 1. Resource-link launch (course nav) → quest page renders in-iframe, no
    clipping (frameResize working) in: course nav, assignment, SpeedGrader.
@@ -253,12 +263,12 @@ return f"{base}/lti-evidence?lti_token={token}"
 ```
 (Currently it returns `{FRONTEND_URL}/public/diploma/<uid>?...&lti_token=`.)
 Ship via the normal develop→PR→green→merge flow. This is safe to merge
-**before** the env flip *only if* `<V2_HOST>` already serves `/lti-evidence`
+**before** the env flip *only if* `<MOBILE_HOST>` already serves `/lti-evidence`
 for everyone — otherwise sequence B after A's env flip. Recommended: do the
 env flip (Step C) first in the same maintenance window, then merge B.
 
-**Step C — flip the host.** Set `LTI_FRONTEND_URL=<V2_HOST>` in the **prod
-backend** Render env and let it redeploy. Launch/token redirects move to v2
+**Step C — flip the host.** Set `LTI_FRONTEND_URL=<MOBILE_HOST>` in the **prod
+backend** Render env and let it redeploy. Launch/token redirects move to the mobile app
 automatically (no code change — `_frontend_url()` already reads it).
 
 **Step D — confirm + watch.** Re-run Step A's checklist against prod. Watch
@@ -267,7 +277,7 @@ shows the quest-scoped page.
 
 **Rollback (either direction, ~1 min):**
 - Unset/blank `LTI_FRONTEND_URL` in prod env → redeploy → LTI instantly
-  back on v1.
+  back on the web app.
 - Revert the Step B PR → AGS link back to `/public/diploma` (already
   proven working).
-Both are independent and reversible; v1 LTI stays fully intact throughout.
+Both are independent and reversible; the web app's LTI stays fully intact throughout.

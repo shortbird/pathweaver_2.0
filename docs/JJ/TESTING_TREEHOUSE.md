@@ -1,7 +1,7 @@
 # The Treehouse — Testing Guide
 
 **Servers are running locally:**
-- Web (v1): http://localhost:3000
+- Web: http://localhost:3000
 - Backend API: http://localhost:5001
 
 **Test data created in production DB (Phase 0):**

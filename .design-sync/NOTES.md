@@ -1,7 +1,7 @@
-# design-sync notes — Optio Design System (v1 web UI)
+# design-sync notes — Optio Design System (web UI)
 
 Project: **Optio Design System** (`555f6160-6060-498a-bbea-959f54e5b042`)
-Scope: the v1 web component library at `web/src/components/ui/` (React DOM + Tailwind). 15 components, all authored + graded good.
+Scope: the web component library at `web/src/components/ui/` (React DOM + Tailwind). 15 components, all authored + graded good.
 
 ## Repo-specific gotchas (read before re-syncing)
 

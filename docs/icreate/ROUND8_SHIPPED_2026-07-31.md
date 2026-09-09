@@ -522,7 +522,7 @@ org of their own, and are members through their child. That resolution
 announcements archive, and `/api/auth/me`, which is what lets the web platform
 decide whether this user has a school at all.
 
-Not on the **mobile app** yet: v2 has no announcements or community surface
+Not on the **mobile app** yet: it has no announcements or community surface
 today, only the notification bell. Worth its own pass.
 
 ---

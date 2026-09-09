@@ -1,6 +1,6 @@
 # Gryffin Learning Center — Build Plan
 
-**Status:** In progress | **Created:** 2026-06-15 | **Partner:** Gryffin Learning Center (microschool, v1 web)
+**Status:** In progress | **Created:** 2026-06-15 | **Partner:** Gryffin Learning Center (microschool, web)
 **Contact:** Christina Hullinger
 
 **Build progress:**
@@ -18,7 +18,7 @@
 
 ## 1. Goal & guiding principle
 
-Gryffin is a microschool joining the platform next school year. They will use the v1
+Gryffin is a microschool joining the platform next school year. They will use the
 web app (`web/`). They have asked for five capabilities that don't fully exist
 today. We want to **build these for Gryffin now, but architect them so any future
 microschool can turn them on without new code** — and without making them global/default
@@ -416,7 +416,7 @@ the class. Simpler and lower-latency than the course approach.
 - **Schema verification:** confirm live columns via Supabase MCP before writing queries.
 - **Data API grants:** new `public` tables inherit grants via the existing default-privileges
   migration — no per-table GRANT needed.
-- **Testing gates (must stay green to ship to `main`):** v1 web 95%+ pass / 40%+ line
+- **Testing gates (must stay green to ship to `main`):** web 95%+ pass / 40%+ line
   coverage; backend `test` job. Add tests per phase.
 - **Verification:** never commit until verified locally at http://localhost:3000 and the
   user confirms.

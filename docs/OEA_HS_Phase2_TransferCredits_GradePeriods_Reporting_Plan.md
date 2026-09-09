@@ -6,8 +6,8 @@
 **Date:** June 30, 2026
 **Status:** ✅ Implemented & shipped to production (commit `bd346cc4`). Migrations
 `20260630_oea_credit_source`, `_oea_cap_overrides`, `_create_oea_credit_grade_periods`,
-`_create_oea_compliance_alerts` are all applied to prod. v2 mobile parity remains a
-later pass (Phase 2 UI is v1 web only, as scoped below).
+`_create_oea_compliance_alerts` are all applied to prod. mobile parity remains a
+later pass (Phase 2 UI is web only, as scoped below).
 **Source:** Teresa King (OpenEd) requirements, June 19 + post-June-meeting email
 
 ---
@@ -32,12 +32,12 @@ The OEA HS diploma layer is built and in production:
 | Self-attested course credits with A–F grade + honors/AP/IB weighting | `oea_credits`, [backend/routes/oea.py](backend/routes/oea.py) |
 | GPA (unweighted + weighted) + pathway progress + `is_complete` | [backend/utils/oea_grades.py](backend/utils/oea_grades.py) |
 | Per-credit evidence (text/link/file) | `oea_credit_evidence`, [backend/repositories/oea_repository.py](backend/repositories/oea_repository.py) |
-| Parent credit dashboard (add course, grade, progress, GPA) — **v1 web** | [web/src/pages/oea/](web/src/pages/oea/), `oeaAPI` in [web/src/services/api.js](web/src/services/api.js) |
+| Parent credit dashboard (add course, grade, progress, GPA) — **web** | [web/src/pages/oea/](web/src/pages/oea/), `oeaAPI` in [web/src/services/api.js](web/src/services/api.js) |
 | Admin transcript generator with print-to-PDF (`window.print` + print CSS) — **web only** | [web/src/pages/admin/TranscriptGeneratorPage.jsx](web/src/pages/admin/TranscriptGeneratorPage.jsx) |
 | Scheduled-job pattern (dispatcher + secured cron endpoint + dedup alerts + notifications) | `jobs/cron_dispatch.py`, [backend/services/sis_checkin_sweep_service.py](backend/services/sis_checkin_sweep_service.py), [backend/services/sis_notifications.py](backend/services/sis_notifications.py) |
 
-**Platform decision:** All new parent-facing UI lands in **v1 web** (`web/`), where the
-diploma dashboard and transcript already live. The v2 mobile OEA companion views
+**Platform decision:** All new parent-facing UI lands in **web** (`web/`), where the
+diploma dashboard and transcript already live. The mobile OEA companion views
 ([mobile/app/(app)/oea/](mobile/app/(app)/oea/)) are **out of scope for Phase 2**;
 they remain read-only and will be brought to parity in a later pass.
 
@@ -295,7 +295,7 @@ notification path flag staff. A full application/review workflow is a separable 
 
 ---
 
-## 5. Frontend work (v1 web)
+## 5. Frontend work (web)
 
 ### 5.1 Credit dashboard — source + weighting + caps
 
@@ -368,7 +368,7 @@ is the main novelty risk.
   against fixture logs/artifacts/summaries.
 - **Route tests** mirroring [backend/tests/test_oea_routes.py](backend/tests/test_oea_routes.py)
   for the new endpoints (auth, validation, cap 422s, block 422s).
-- **v1 web Vitest** for the dashboard source selector and the print scaffolds (the coverage
+- **web Vitest** for the dashboard source selector and the print scaffolds (the coverage
   gate is enforced on PRs to `main`).
 
 ---
@@ -379,7 +379,7 @@ is the main novelty risk.
   transcript* tool ([backend/routes/admin/transfer_credits.py](backend/routes/admin/transfer_credits.py)).
   The diploma-plan transfer concept here is a `credit_source` enum on `oea_credits` — keep them
   distinct in code and copy to avoid confusion.
-- **v2 mobile drift:** parents on mobile will see the older OEA views until a parity pass. If OEA
+- **mobile drift:** parents on mobile will see the older OEA views until a parity pass. If OEA
   expects HS parents to do transfer-credit / grade-period work on mobile, that's added scope.
 - **Diploma application workflow** (PRD §4.8) is still unbuilt; this phase surfaces eligibility
   but does not add the apply→review→issue flow.
@@ -391,7 +391,7 @@ is the main novelty risk.
 ## 10. Out of scope for Phase 2 (call out in quote)
 
 - Full diploma application / staff review / issuance workflow.
-- v2 mobile parity for transfer credits, grade periods, and reports.
+- mobile parity for transfer credits, grade periods, and reports.
 - Auto-import of external grades; bulk credit import.
 - A dedicated OEA staff oversight dashboard (the read-only enrolled-families console) — the
   compliance sweep notifies admins, but a full console UI is separate.

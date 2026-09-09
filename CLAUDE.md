@@ -1,6 +1,6 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: August 11, 2026 | **Local Dev**: Enabled
+**Last Updated**: September 8, 2026 | **Local Dev**: Enabled
 
 ---
 
@@ -157,26 +157,32 @@ would destroy them.
 ### Environments
 | Env | URL | Branch |
 |-----|-----|--------|
-| Local (v1 web) | http://localhost:3000 | any |
-| Local (v2 mobile, web preview) | http://localhost:8081 | any |
-| Local (v2 mobile, native) | exp://192.168.86.20:8081 | any |
+| Local (web) | http://localhost:3000 | any |
+| Local (mobile, web preview) | http://localhost:8081 | any |
+| Local (mobile, native) | exp://192.168.86.20:8081 | any |
 | Dev | https://optio-dev-frontend-r3v8.onrender.com | `develop` |
 | Prod | https://www.optioeducation.com | `main` |
 | API | https://api.optioeducation.com | `main` |
 
 ### Tech Stack
 - **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
-- **Web (v1)**: React 18.3 + Vite + TailwindCSS (in `web/`) — the production web app
-- **Mobile (v2)**: Expo SDK 55 + Expo Router + NativeWind in `mobile/`, dev builds via EAS — iOS/Android app
+- **Web**: React 18.3 + Vite + TailwindCSS (in `web/`) — the production web app
+- **Mobile**: Expo SDK 55 + Expo Router + NativeWind in `mobile/`, dev builds via EAS — iOS/Android app
 - **AI**: Gemini `gemini-3.7-flash` for **every** AI call. `Config.GEMINI_MODEL` in `app_config.py` is the single source of truth — change that one line (or set `GEMINI_MODEL`) to swap models platform-wide. Never hardcode a model name elsewhere; `tests/unit/test_single_model_source.py` fails the build if you do. Outage fallbacks: `GEMINI_FALLBACK_MODELS` (`gemini-3.6-flash` → `gemini-3.5-flash`). `GEMINI_CURRICULUM_MODEL` optionally pins the curriculum pipeline to a heavier model; it follows `GEMINI_MODEL` by default.
 - **Host**: Render
 
 > **Surface names:** say **web platform** and **mobile app** ("learning app" is
 > ambiguous — never use it). The SIS console (`sis.optioeducation.com`) is its own
-> surface. v1 = web app (`web/`); v2 = mobile app (`mobile/`, a universal
-> Expo project whose web target is dev-only). Web users stay on v1 indefinitely.
+> surface. The two apps are `web/` (React + Vite) and `mobile/` (a universal Expo
+> project whose web target is dev-only).
+>
+> **They are permanent siblings, not successive versions.** Web users stay on
+> the web app indefinitely; the mobile app is the iOS/Android surface, not a
+> replacement. The directories were called `frontend/` and `frontend-v2/` until
+> 2026-09-08 and the docs said "v1" and "v2", which read as a migration in
+> progress and is why this note exists. Do not reintroduce v1/v2 for these two.
 
-### Frontend V2 (Mobile App)
+### Mobile App (`mobile/`)
 Key files:
 - `src/config/navigation.ts` - Single source of truth for all nav items (sidebar + tabs)
 - `src/services/api.ts` - API client with Bearer auth (Platform.select for web vs mobile URLs)
@@ -280,7 +286,7 @@ git push origin main
 ```
 
 `.github/workflows/release.yml` runs on push to `main`:
-- jobs `backend`, `web` (v1 + coverage gate), `mobile` (v2) run in parallel
+- jobs `backend`, `web` (+ coverage gate), `mobile` run in parallel
 - job `deploy` (`needs: [backend, web]`) triggers the prod Render deploys via the
   Render API, pinned to the pushed SHA
 - job `ota` (`needs: [backend, web, mobile]`) publishes the production OTA
@@ -492,8 +498,8 @@ regression fails and normal churn doesn't:
 | Suite | Floor | Measured (2026-08-13) |
 |---|---|---|
 | Backend | 41% | 42.08% |
-| Web (v1) | 53% | 54.44% |
-| Mobile (v2) | 31/24/32/23 (stmt/br/line/fn), in `jest.config.js` | 31.37/24.42/32.63/23.75 |
+| Web | 53% | 54.44% |
+| Mobile | 31/24/32/23 (stmt/br/line/fn), in `jest.config.js` | 31.37/24.42/32.63/23.75 |
 
 **Integration tests are enforcing and green.** 133 of them run against a
 throwaway local Supabase stack on every PR, and a failure blocks the merge. This
@@ -554,12 +560,13 @@ backend/
 ├── services/         # Business logic (22 services)
 └── middleware/       # CSRF, rate limiting
 
-web/src/           # V1: web app (React + Vite) — the production web surface
-├── pages/              # Route components
-├── components/         # UI components
-└── services/           # API + auth
+web/                    # Web app (React + Vite) — the production web surface
+└── src/
+    ├── pages/          # Route components
+    ├── components/     # UI components
+    └── services/       # API + auth
 
-mobile/            # V2: mobile iOS/Android app (Expo)
+mobile/                 # Mobile iOS/Android app (Expo)
 ├── app/                # Expo Router pages (file-based routing)
 ├── src/                # components/ui, config/navigation.ts, hooks, services, stores
 ├── tailwind.config.js  # Brand tokens (must be .js, not .ts)
@@ -588,7 +595,7 @@ Useful tools: `list_tables`, `execute_sql` (read-only), `get_schemas`.
 |-------------|---------|-----|--------|
 | Dev | Backend | `srv-d9sjl22fngtc73ffenl0` | `develop` |
 | Dev | Frontend | `srv-d9sjl3n10e5c73a14b2g` | `develop` |
-| Dev | v2 Frontend | `srv-d9sjl42fngtc73fff1d0` | `develop` |
+| Dev | Mobile web target | `srv-d9sjl42fngtc73fff1d0` | `develop` |
 | Prod | Backend | `srv-d9sjl1f10e5c73a14610` | `main` |
 | Prod | Frontend | `srv-d9sjl2qjnfac739k091g` | `main` |
 | Prod | Cron (dispatch) | `crn-d9sjl4tbedkc73dmb010` | `main` |
@@ -621,7 +628,7 @@ Auto-deploy: ON for dev services, OFF for prod (CI-triggered only). All backends
 - **Supabase Branching**: [docs/SUPABASE_BRANCHING.md](docs/SUPABASE_BRANCHING.md)
 - **Ops History (deploy flow, hosting, migrations)**: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md)
 - **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
-- **Design System (web v1)**: [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) — when a page and this doc disagree, the page is wrong
+- **Design System (web)**: [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) — when a page and this doc disagree, the page is wrong
 - **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
 - **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
 - **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md)

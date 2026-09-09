@@ -11,8 +11,8 @@ Three different token-storage strategies, one per client surface. The right answ
 
 | Surface                  | Access token              | Refresh token              | Persistence across reload                          |
 | ------------------------ | ------------------------- | -------------------------- | -------------------------------------------------- |
-| `web/` (v1, web)    | httpOnly cookie           | httpOnly cookie            | Cookie survives reload; refresh interceptor renews |
-| `web/` (v1, Safari/iOS/Firefox) | In-memory + `Authorization` header | In-memory (tab lifetime) | Nothing survives reload; re-login |
+| `web/` (default browsers) | httpOnly cookie           | httpOnly cookie            | Cookie survives reload; refresh interceptor renews |
+| `web/` (Safari/iOS/Firefox) | In-memory + `Authorization` header | In-memory (tab lifetime) | Nothing survives reload; re-login |
 | `mobile/` (web)     | In-memory only            | httpOnly refresh cookie    | Cookie sent cross-origin via `withCredentials`; access token re-minted on boot via `/api/auth/refresh` |
 | `mobile/` (native)  | `expo-secure-store` (Bearer header) | `expo-secure-store`        | SecureStore (encrypted keychain/keystore) survives app launches |
 
@@ -30,7 +30,7 @@ and is made from the User-Agent and Origin, server-side. A client may send
 
 Each surface has different threat models and platform constraints.
 
-### v1 web — cookies only
+### Web app — cookies only
 
 - Pure browser app on `optioeducation.com`. Same-site to `api.optioeducation.com` in prod, so httpOnly cookies work first-party.
 - On a cookie-capable browser the login response body carries **no tokens at all**, so there is nothing in the JS heap for an XSS payload to steal, and nothing for it to obtain by POSTing `/api/auth/refresh` either. That endpoint answers to the refresh cookie, which is exactly why returning the new refresh token in its body was the sharpest edge of the old model: a script needed no credential of its own, only a fetch.
@@ -38,13 +38,13 @@ Each surface has different threat models and platform constraints.
 - For those browsers the tokens live in module memory for the tab's lifetime only. Never `localStorage` (C2 enforced this with an ESLint ban).
 - Trade-off: CSRF protection required (Flask-WTF, mandatory in prod per C4). Acceptable cost since the alternative (Authorization headers everywhere) loses defense-in-depth on CSRF. The gate triggers on `access_token`, `refresh_token` **or** `masquerade_token` — the last was added 2026-08-15, having been missed even though `get_current_user_id()` authenticates from it alone.
 
-### v2 web — hybrid (memory access + httpOnly refresh cookie)
+### Mobile web target — hybrid (memory access + httpOnly refresh cookie)
 
-- Universal Expo app where the same `tokenStore` interface has to work on web *and* native. On web, dropping persistent localStorage matches v1's XSS posture (H2 fix).
+- Universal Expo app where the same `tokenStore` interface has to work on web *and* native. On web, dropping persistent localStorage matches the web app's XSS posture (H2 fix).
 - On reload, memory is empty — `authStore.loadUser` calls `POST /api/auth/refresh` with `withCredentials: true`; backend reads the cookie, returns a fresh access token, and we stash it in memory.
-- Told apart from v1 by its `Origin` (`localhost:8081` in dev, the v2 Render service otherwise), which is how it keeps receiving body tokens while v1 stops.
+- Told apart from the web app by its `Origin` (`localhost:8081` in dev, the mobile Render service otherwise), which is how it keeps receiving body tokens while the web app stops.
 
-### v2 native — SecureStore + Bearer header
+### Mobile native — SecureStore + Bearer header
 
 - Mobile apps don't have httpOnly cookies in any meaningful sense. Persistent encrypted storage *is* the secure path; SecureStore wraps Keychain (iOS) and EncryptedSharedPreferences/Keystore (Android).
 - Recognised server-side by having no `Mozilla/` product token in its User-Agent (okhttp on Android, CFNetwork/Darwin on iOS) — it has no cookie jar at all, so it always receives both tokens.
@@ -65,26 +65,26 @@ Rotation is orthogonal to storage, and it is what limits the damage when storage
 
 1. **localStorage tokens anywhere.** Every persistent storage write of `access_token`/`refresh_token` is XSS-stealable. ESLint bans these key names in `web/`.
 2. **Trusting the client's `shouldUseAuthHeaders()` to decide delivery.** The client knows things the server doesn't (a cookie test in this tab), so it may *decline* tokens. It may not request them: an XSS payload can set any flag the app can.
-3. **Cookie-only on v2 web.** Would require mixing cookie auth and Bearer auth in the same axios instance, plus per-route CSRF middleware. Hybrid is cleaner.
+3. **Cookie-only on the mobile web target.** Would require mixing cookie auth and Bearer auth in the same axios instance, plus per-route CSRF middleware. Hybrid is cleaner.
 4. **httpOnly cookies on native.** Not actually possible — React Native fetch/axios don't have a true cookie jar; trying to fake it would lose the SecureStore encryption guarantee.
-5. **One global token model.** Was the original v2 design. It forced a least-common-denominator that was either insecure on web (localStorage) or unworkable on native (cookies).
+5. **One global token model.** Was the original mobile design. It forced a least-common-denominator that was either insecure on web (localStorage) or unworkable on native (cookies).
 6. **A denylist of individual refresh tokens.** Unbounded, and it answers the wrong question. A family with one live `jti` gives revocation *and* reuse detection from one row.
 
 ## Consequences
 
-- Three code paths to maintain. Mitigated by the `tokenStore` abstraction in v2 — callers don't see the platform difference; only `tokenStore.ts` does.
-- Backend has to support both Bearer-header auth (v2 native + v2 web post-refresh + v1 Safari fallback) and cookie auth (v1 default). Already in place via `session_manager` reading both sources.
+- Three code paths to maintain. Mitigated by the `tokenStore` abstraction in the mobile app — callers don't see the platform difference; only `tokenStore.ts` does.
+- Backend has to support both Bearer-header auth (mobile native + the mobile web target post-refresh + the web app's Safari fallback) and cookie auth (the web app's default). Already in place via `session_manager` reading both sources.
 - **The browser-detection split is duplicated** between `browserDetection.js` and `token_delivery.py`. If they drift, a browser asks for header auth and finds no token, i.e. it cannot stay signed in. `test_token_delivery.py` asserts the client's three predicates are still the three the server mirrors.
-- Refresh failure on v2 web leaves the user logged out on next reload, even if their refresh cookie was technically still valid. Acceptable trade-off — the user can log in again.
+- Refresh failure on the mobile web target leaves the user logged out on next reload, even if their refresh cookie was technically still valid. Acceptable trade-off — the user can log in again.
 - Reuse detection **fails open** on a database error: a Supabase blip must not sign out the platform. It is a layer on top of `last_logout_at`, not underneath it.
 - New surfaces (e.g. a CLI client) need an explicit storage decision *and* an entry in `token_delivery.py`, or they will be classified as a cookie-capable browser and receive nothing.
 
 ## References
 
-- C2 (audit): removed access/refresh tokens from v1 localStorage.
-- H2 (audit): removed access/refresh tokens from v2 web localStorage; added cookie-driven refresh on boot.
+- C2 (audit): removed access/refresh tokens from the web app's localStorage.
+- H2 (audit): removed access/refresh tokens from the mobile web target's localStorage; added cookie-driven refresh on boot.
 - [backend/utils/session_manager.py](../backend/utils/session_manager.py) — token issue/verify/refresh.
 - [backend/utils/refresh_families.py](../backend/utils/refresh_families.py) — rotation and reuse detection.
 - [backend/routes/auth/token_delivery.py](../backend/routes/auth/token_delivery.py) — who receives body tokens.
 - [mobile/src/services/tokenStore.ts](../mobile/src/services/tokenStore.ts) — platform-aware abstraction.
-- [web/src/services/api.js](../web/src/services/api.js) — v1 axios with Safari header fallback.
+- [web/src/services/api.js](../web/src/services/api.js) — the web axios client with its Safari header fallback.

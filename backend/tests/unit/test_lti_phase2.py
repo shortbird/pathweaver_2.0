@@ -403,5 +403,5 @@ def test_lti_frontend_url_defaults_to_frontend_url(monkeypatch):
     assert _frontend_url() == "https://www.optioeducation.com"
 
     # LTI override set → LTI redirects use the mobile host; rest of app untouched.
-    monkeypatch.setattr("app_config.Config.LTI_FRONTEND_URL", "https://v2.optioeducation.com/")
-    assert _frontend_url() == "https://v2.optioeducation.com"
+    monkeypatch.setattr("app_config.Config.LTI_FRONTEND_URL", "https://mobile.optioeducation.com/")
+    assert _frontend_url() == "https://mobile.optioeducation.com"

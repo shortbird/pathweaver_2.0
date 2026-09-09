@@ -212,17 +212,17 @@ pip install -q -r "$PROJECT_DIR/requirements.txt"
 deactivate
 echo "  Backend deps installed."
 
-# Frontend v2 deps
+# Mobile app deps
 echo "  Installing mobile npm packages..."
 cd "$PROJECT_DIR/mobile"
 npm install
 echo "  Frontend deps installed."
 
-# Frontend v1 deps (for running tests)
-echo "  Installing frontend v1 npm packages..."
+# Web app deps (for running tests)
+echo "  Installing web app npm packages..."
 cd "$PROJECT_DIR/web"
 npm install
-echo "  Frontend v1 deps installed."
+echo "  Web app deps installed."
 
 cd "$PROJECT_DIR"
 
@@ -242,10 +242,10 @@ echo "Run backend:"
 echo "  source venv/bin/activate"
 echo "  python backend/app.py"
 echo ""
-echo "Run frontend v2 (web):"
+echo "Run the mobile app (web preview):"
 echo "  cd mobile && npx expo start --web"
 echo ""
-echo "Run frontend v2 (mobile dev client):"
+echo "Run the mobile app (native dev client):"
 echo "  cd mobile && npx expo start --dev-client"
 echo ""
 echo "Remaining manual steps:"

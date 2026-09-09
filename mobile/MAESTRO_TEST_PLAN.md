@@ -1,7 +1,7 @@
 # Maestro E2E Test Plan
 
 **Created**: 2026-03-31
-**Purpose**: Comprehensive end-to-end test coverage for Optio v2 (web + mobile)
+**Purpose**: Comprehensive end-to-end test coverage for the Optio mobile app (web preview + native)
 **Status**: Planning
 
 ---

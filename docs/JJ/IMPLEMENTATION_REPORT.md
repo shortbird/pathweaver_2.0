@@ -1,10 +1,10 @@
-# The Treehouse — Optio v1 Implementation Effort Report
+# The Treehouse — Optio web platform Implementation Effort Report
 
 **Program:** The Treehouse (an Agile Learning Center microschool, ages ~5–13)
 **Owner/facilitator:** Jennie Jones — `thetreehouse.alc@gmail.com` (user `420b85d6-3bdd-46e6-9f7d-11865c1b601e`)
 **Date:** 2026-06-10
 **Source docs:** [student.txt](student.txt), [teacher.txt](teacher.txt)
-**Scope:** v1 web platform (`web/`, `backend/`), built as a program-specific tab
+**Scope:** web platform (`web/`, `backend/`), built as a program-specific tab
 gated to Treehouse users — the same pattern used for OpenEd Academy (OEA).
 
 > Naming: user-facing copy says **"The Treehouse"**. Internal identifiers use org

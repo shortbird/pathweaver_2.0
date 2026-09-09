@@ -39,7 +39,7 @@ const nativeWindConfig = withNativeWind(config, { input: './global.css' });
 // the prefix explicitly and is not subject to that scope-parsing quirk.
 //
 // FOUR CONFIGS DEFINE THIS ALIAS -- here, tsconfig.json, jest.config.js and
-// v1's vite.config.js -- and none of them can see the other three.
+// the web app's vite.config.js -- and none of them can see the other three.
 // src/__tests__/sharedAlias.test.ts fails if they stop agreeing.
 const ALIAS_PREFIX = '@shared/';
 const upstreamResolveRequest = nativeWindConfig.resolver.resolveRequest;

@@ -7,7 +7,7 @@ hitting them.
 Development happens on **macOS**. Repo at `~/pathweaver_2.0`, backend venv at
 `~/pathweaver_2.0/venv` (Python 3.13 via Homebrew), Node 22 from Homebrew.
 
-> Node 25 breaks the v1 vitest run. CI uses Node 22; match it.
+> Node 25 breaks the web vitest run. CI uses Node 22; match it.
 
 ---
 
@@ -16,8 +16,8 @@ Development happens on **macOS**. Repo at `~/pathweaver_2.0`, backend venv at
 | Service | Port | Notes |
 |---|---|---|
 | Backend (Flask) | 5001 | `/api/health` returns 200 when up |
-| Web v1 (Vite) | 3000 | the production web app |
-| Mobile v2 (Expo web preview) | 8081 | dev-only target |
+| Web (Vite) | 3000 | the production web app |
+| Mobile (Expo web preview) | 8081 | dev-only target |
 
 ## Are the servers already running?
 
@@ -87,7 +87,7 @@ mypy --config-file backend/mypy.ini backend
 python -m pyflakes backend | grep -E 'undefined name|invalid syntax'
 ```
 
-Web (v1):
+Web:
 
 ```bash
 cd ~/pathweaver_2.0/web

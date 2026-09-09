@@ -216,7 +216,7 @@ Onboarding funnel for organic registrations, which previously created no Brevo c
 **UTMs**: `utm_campaign=new_account_welcome&utm_content=e1…e3`.
 
 ### Related cleanup (same change set)
-Dead promo-capture code deleted: v1 `pages/HomePage.jsx` (old unrouted homepage), `pages/PromoStudentPage.jsx`, `components/landing/*`, backend `routes/promo.py` (`POST /api/promo/interest`). The `promo_interest` table keeps its historical rows. The `philosophy` contact type still stores to `contact_submissions` but doesn't sync to Brevo — accepted, low priority (no live page submits it heavily; revisit if `/philosophy` lead volume appears).
+Dead promo-capture code deleted: the web app's `pages/HomePage.jsx` (old unrouted homepage), `pages/PromoStudentPage.jsx`, `components/landing/*`, backend `routes/promo.py` (`POST /api/promo/interest`). The `promo_interest` table keeps its historical rows. The `philosophy` contact type still stores to `contact_submissions` but doesn't sync to Brevo — accepted, low priority (no live page submits it heavily; revisit if `/philosophy` lead volume appears).
 
 ---
 

@@ -122,7 +122,7 @@ The record-only billing model is exactly what Katie describes ("do I just track 
 Confirmed use case: **a class iPad; students tap their name, scan their paper assignment, and it attaches to a quest.** The base flow is the Treehouse kiosk (`routes/treehouse.py`: device provisioning, token-gated roster, passwordless student login), but it is slug-hardcoded (`TREEHOUSE_SLUG`, `treehouse_kiosk_devices`).
 
 - Generalize: move kiosk endpoints to an org-generic module (`routes/sis/kiosk.py` or `routes/kiosk.py`), key on a `kiosk` feature flag, rename/generalize the device table (or add `organization_id` and keep it). Treehouse keeps working via the same generic path.
-- **Scan step:** the kiosk is v1 web on the iPad, so "scan" = camera capture (`<input capture>` / getUserMedia) with multi-page support, attached as evidence to the selected quest/task. Keep it simpler than the v2 native ML Kit scanner — photo capture with a crop/confirm step is enough for paper worksheets. After upload, auto-return to the tap-your-name screen for the next student.
+- **Scan step:** the kiosk is web on the iPad, so "scan" = camera capture (`<input capture>` / getUserMedia) with multi-page support, attached as evidence to the selected quest/task. Keep it simpler than the native mobile ML Kit scanner — photo capture with a crop/confirm step is enough for paper worksheets. After upload, auto-return to the tap-your-name screen for the next student.
 - **Do students need email? No (CONFIG):** dependents (`is_dependent`, `managed_by_parent_id`) exist without email; parents manage them, kiosk gives them on-site login, and `add-login`/`promote` upgrades them later. K-6 students should be created as dependents; 13+ can have real accounts.
 
 ### 8. Parent access — SMALL + NEW

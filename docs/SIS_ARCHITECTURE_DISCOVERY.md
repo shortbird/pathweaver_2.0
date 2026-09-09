@@ -7,10 +7,10 @@ implementation** — the full SIS has since been built and shipped to prod; see
 point, not today.
 **Branch:** `claude/optio-sis-implementation-u314sk` (merged to `main`)
 **Source spec:** iCreate "Create Student Information System (SIS) — Architecture & Discovery Document" (Draft v1.0)
-**Audit date:** 2026-06-26 | **Scope:** web v1 (`web/` + `backend/`). Mobile v2 out of scope.
+**Audit date:** 2026-06-26 | **Scope:** web (`web/` + `backend/`). Mobile out of scope.
 
 This document maps the iCreate SIS spec against what already exists in the Optio
-web v1 codebase, draws a hard line between **LMS** and **SIS** responsibilities,
+web codebase, draws a hard line between **LMS** and **SIS** responsibilities,
 and lists what we reuse vs. build. It ends with the open questions that gate
 implementation.
 

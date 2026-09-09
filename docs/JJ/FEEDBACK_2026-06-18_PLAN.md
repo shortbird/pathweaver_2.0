@@ -3,7 +3,7 @@
 **Date:** 2026-06-18
 **Source:** Jennie Jones (Treehouse org_admin/facilitator) hands-on test notes
 **Companion to:** [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), [TREEHOUSE_STATUS.md](TREEHOUSE_STATUS.md)
-**Scope:** v1 web (`web/`) + Flask backend. All changes org-gated to `slug='treehouse'` and additive (CLAUDE.md rule 7: include `superadmin` in every role check).
+**Scope:** web (`web/`) + Flask backend. All changes org-gated to `slug='treehouse'` and additive (CLAUDE.md rule 7: include `superadmin` in every role check).
 
 This is round-2 feedback after Jennie tested the built program. Most of it is
 refinement of shipped features plus a few net-new asks. Items are grouped by

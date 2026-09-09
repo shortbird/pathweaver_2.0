@@ -1,4 +1,4 @@
-# Test Coverage Audit - Frontend V2
+# Test Coverage Audit - Mobile App
 
 **Date:** 2026-03-25
 **Total tests:** 113 (all passing)

@@ -86,7 +86,7 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: {
       // Shared cross-app code: the Terms/Privacy single source of truth and
-      // the pillar palette, both also read by the v2 mobile app. Lives outside
+      // the pillar palette, both also read by the mobile app. Lives outside
       // the frontend root. Was '@legal' -> shared/legal until 2026-09-03;
       // widened to the whole folder so anything else can be shared at all.
       '@shared': join(process.cwd(), '..', 'shared'),

@@ -1,7 +1,7 @@
 # Optio Web Design System
 
 **Status**: Canonical as of 2026-08-10. This document is the single source of truth
-for how the v1 web app (`web/`) looks. When a page and this document
+for how the web app (`web/`) looks. When a page and this document
 disagree, the page is wrong.
 
 Scope: the web platform (marketing + signed-in app). Explicitly OUT of scope:

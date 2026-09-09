@@ -1,16 +1,20 @@
-# V2 Launch Readiness - Page-by-Page Verification
+# Mobile Launch Readiness - Page-by-Page Verification
 
 **Created**: 2026-03-27
 **Updated**: 2026-03-31
-**Purpose**: Systematic comparison of v1 vs v2 web functionality for v2 launch
+**Purpose**: Systematic comparison of web vs mobile functionality for the mobile launch
 **Status**: In Progress - Auth fixed, bounties fixed, journal/capture updated, courses redesigned (task-first), quest detail/dashboard/profile/public pages improved, notifications added with mobile push
 
+> Point-in-time snapshot. "V1"/"V2" throughout this file were renamed to
+> "web"/"mobile" on 2026-09-08; the observations themselves are as of the
+> creation date and have not been re-verified.
+
 Legend:
-- [x] = Verified working in v2
+- [x] = Verified working on mobile
 - [ ] = Not yet verified
-- MISSING = Feature does not exist in v2 yet
-- PARTIAL = Exists but incomplete vs v1
-- OK = Feature parity with v1
+- MISSING = Feature does not exist on mobile yet
+- PARTIAL = Exists but incomplete vs web
+- OK = Feature parity with web
 
 ---
 
@@ -20,7 +24,7 @@ Legend:
 
 #### Item 1: Login (`/(auth)/login`) -- FIXED 2026-03-27
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Email/password fields | Yes | Yes | OK |
 | Email regex validation | Yes (client-side) | Yes | **FIXED** |
@@ -40,7 +44,7 @@ Legend:
 
 #### Item 2: Registration (`/(auth)/register`) -- FIXED 2026-03-27
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | First/Last name fields | Yes | Yes | OK |
 | Email field | Yes | Yes | OK |
@@ -64,7 +68,7 @@ Legend:
 
 #### Item 3: Org Login (`/(auth)/org-login/:slug`) -- ADDED 2026-03-31
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Fetch org by slug | Yes | Yes (`GET /api/organizations/join/:slug`) | OK |
 | Org branding (logo, name) | Yes | Yes (logo or first-letter avatar) | OK |
@@ -80,7 +84,7 @@ Legend:
 
 #### Item 5: Reset Password (`/(auth)/reset-password`) -- FIXED 2026-03-27
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Token from URL query param | Yes | Yes | OK |
 | New password field | Yes | Yes | OK |
@@ -93,7 +97,7 @@ Legend:
 **Tests**: 9 unit tests in `app/(auth)/__tests__/reset-password.test.tsx` -- token handling, validation, API call, success/error
 
 #### Item 6: OAuth Callback (`/auth/callback`)
-**Status**: Exists in v2. Handles Google redirect and token exchange.
+**Status**: Exists on mobile. Handles Google redirect and token exchange.
 
 #### Item 7: Email Verification (`/(auth)/verify-email`) -- ADDED 2026-03-31
 **Status**: **FIXED**. Standalone page with instructions (check email, click link, return to login). Accessible via `?email=` param.
@@ -110,7 +114,7 @@ Legend:
 
 #### Item 8: Student Dashboard (`/(app)/(tabs)/dashboard`) -- UPDATED 2026-03-28 (batch 2)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Welcome card with greeting | Yes (new user vs returning) | Yes (always "Welcome back") | PARTIAL - no new user variant |
 | User stats (XP, quests, tasks) | Yes | Yes (3 stats in welcome card) | OK |
@@ -126,14 +130,14 @@ Legend:
 | Browse All button | Yes | Yes (wired to quests page) | **FIXED** |
 | Auto-refresh on focus | Yes (30s interval) | Yes (useFocusEffect refetch on tab focus) | **FIXED** |
 | Acting as dependent (parent view) | Yes (ActingAsContext) | Yes (actingAsStore + banner) | **FIXED** |
-| Mini heatmap on quest cards | No | Yes | V2 improvement |
-| RhythmBadge on quest cards | No | Yes | V2 improvement |
+| Mini heatmap on quest cards | No | Yes | Mobile improvement |
+| RhythmBadge on quest cards | No | Yes | Mobile improvement |
 
 **Tests**: 17 unit tests in `app/(app)/(tabs)/__tests__/dashboard.test.tsx` -- welcome header, stats, quest cards, enrolled courses, navigation, empty states, Next Up panel
 
 #### Item 9: Activity Feed (`/(app)/(tabs)/feed`) - FIXED 2026-03-27
 
-| Feature | V2 Status | Notes |
+| Feature | Mobile status | Notes |
 |---------|-----------|-------|
 | Learning moment cards | Yes | Title, description, evidence, pillars |
 | Task completion cards | Yes | Task title, quest, pillar, XP |
@@ -160,7 +164,7 @@ Legend:
 
 #### Item 10: Quest Discovery (`/(app)/(tabs)/quests`) - Web Only -- PARTIAL FIX 2026-03-27
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Search bar | Yes (debounced 500ms) | Yes (debounced 500ms) | **FIXED** |
 | Topic filter chips | Yes (9 topics with counts) | Yes (topics with counts) | OK |
@@ -177,7 +181,7 @@ Legend:
 
 #### Item 11: Quest Detail (`/(app)/quests/[id]`) - Web Only -- UPDATED 2026-03-28
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Hero image | Yes | Yes (full-bleed 272-384px) | OK |
 | Quest title + description | Yes | Yes | OK |
@@ -201,10 +205,10 @@ Legend:
 | Restart quest modal (409 conflict) | Yes (load previous or start fresh) | Yes (modal on 409, Continue/Start Fresh/Cancel) | **FIXED** |
 | Role-based features (advisor/admin) | Yes | No | MISSING |
 | Lazy-loaded components | Yes (6 components) | No (all eager) | MISSING |
-| Engagement widgets (heatmap, rhythm) | No | Yes (MiniHeatmap, RhythmBadge) | V2 improvement |
+| Engagement widgets (heatmap, rhythm) | No | Yes (MiniHeatmap, RhythmBadge) | Mobile improvement |
 
 #### Items 12-13: Quest Curriculum, Task Library
-**Status**: Both MISSING from v2. No pages exist.
+**Status**: Both MISSING from mobile. No pages exist.
 
 ---
 
@@ -214,7 +218,7 @@ Legend:
 
 NOTE: This tab shows **enrolled courses only** (admin-enrolled). The public `/catalog` page is for browsing all courses. Students do NOT self-enroll.
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Search enrolled courses | Yes | Yes | OK |
 | Status filter (All/Published/Drafts) | Yes (superadmin) | Yes (superadmin, admin_all filter) | **FIXED** |
@@ -225,22 +229,22 @@ NOTE: This tab shows **enrolled courses only** (admin-enrolled). The public `/ca
 | Card: title + description | Yes | Yes | OK |
 | Card: status badges | Yes (Draft/Archived/Public) | Yes (superadmin sees Draft/Archived/Published) | **FIXED** |
 | Card: project count | Yes | Yes | **FIXED** |
-| Card: estimated hours, age range | No | Yes | V2 improvement |
-| Card: guidance level badge | No | Yes | V2 improvement |
+| Card: estimated hours, age range | No | Yes | Mobile improvement |
+| Card: guidance level badge | No | Yes | Mobile improvement |
 | Skeleton loading | Yes | Yes | OK |
 | Empty state | Yes | Yes | OK |
 
 #### Item 15: Course Detail (`/(app)/courses/[id]`) -- REDESIGNED 2026-03-27
 
-NOTE: V2 uses a new task-first design that is intentionally different from v1. Courses are decoupled from quest pages. Students interact with tasks, evidence, and lessons entirely within the course page.
+NOTE: Mobile uses a task-first design that is intentionally different from web. Courses are decoupled from quest pages. Students interact with tasks, evidence, and lessons entirely within the course page.
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Hero image | Yes | Yes (full-bleed) | OK |
 | Title + description | Yes | Yes | OK |
 | Course progress (XP + bar) | Yes | Yes (progress bar + XP earned/total) | **FIXED** |
 | Projects as collapsible cards | Yes (sidebar) | Yes (cards with image, progress bar, XP) | **REDESIGNED** |
-| Project image in header | No | Yes (thumbnail in collapsed row) | V2 improvement |
+| Project image in header | No | Yes (thumbnail in collapsed row) | Mobile improvement |
 | Lesson viewing | Yes (CurriculumView) | Yes (horizontal lesson cards, inline LessonViewer with step nav) | **FIXED** |
 | Lesson step-by-step navigation | Yes | Yes (LessonViewer with prev/next/done) | **FIXED** |
 | Lesson completion tracking | Yes | Yes (marks complete on "Done", green checkmark) | **FIXED** |
@@ -249,16 +253,16 @@ NOTE: V2 uses a new task-first design that is intentionally different from v1. C
 | Task evidence upload | Yes (quest page) | Yes (inline: attach files, notes; capture-style) | **FIXED** |
 | Task completion with evidence | Yes | Yes (requires at least 1 evidence block) | **FIXED** |
 | Task XP applied to project | Yes | Yes (local + server-side) | **FIXED** |
-| Suggested tasks library | No (template tasks) | Yes (quest_template_tasks, carousel with Add buttons) | V2 improvement |
-| Suggested task detail modal | No | Yes (tap card to see full description, Add button) | V2 improvement |
+| Suggested tasks library | No (template tasks) | Yes (quest_template_tasks, carousel with Add buttons) | Mobile improvement |
+| Suggested task detail modal | No | Yes (tap card to see full description, Add button) | Mobile improvement |
 | AI task generation | Yes (quest page) | Yes (shared TaskCreationWizard modal) | **FIXED** |
 | Manual task creation | Yes (quest page) | Yes (shared TaskCreationWizard modal) | **FIXED** |
-| Browse suggested tasks in wizard | No | Yes (Browse Ideas option when suggestions available) | V2 improvement |
-| Remove task from project | No explicit | Yes (trash icon in task header) | V2 improvement |
-| Delete uploaded evidence | No explicit | Yes (X button on each evidence block) | V2 improvement |
-| Course label in portfolio | No | Yes (school icon + course name on quest groups) | V2 improvement |
+| Browse suggested tasks in wizard | No | Yes (Browse Ideas option when suggestions available) | Mobile improvement |
+| Remove task from project | No explicit | Yes (trash icon in task header) | Mobile improvement |
+| Delete uploaded evidence | No explicit | Yes (X button on each evidence block) | Mobile improvement |
+| Course label in portfolio | No | Yes (school icon + course name on quest groups) | Mobile improvement |
 | Superadmin: View/Edit on catalog | Yes | Yes (buttons on course cards) | **FIXED** |
-| Superadmin: Reset progress | No | Yes (text link next to course title) | V2 improvement |
+| Superadmin: Reset progress | No | Yes (text link next to course title) | Mobile improvement |
 | Enrollment button | Admin-initiated | Yes (enrollment CTA for non-enrolled) | OK |
 | Sidebar navigation | Yes (desktop + mobile drawer) | No | NOT REQUIRED (task-first redesign) |
 | Deep linking (URL params) | Yes (quest=, lesson=, step=) | No | NOT REQUIRED (task-first redesign) |
@@ -272,7 +276,7 @@ NOTE: V2 uses a new task-first design that is intentionally different from v1. C
 
 #### Item 16: Learning Journal (`/(app)/(tabs)/journal`) -- UPDATED 2026-03-28
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Topic sidebar (desktop) | Yes (always visible) | Yes (at 768px+) | OK |
 | Mobile topic/detail toggle | Yes | Yes | OK |
@@ -307,7 +311,7 @@ NOTE: V2 uses a new task-first design that is intentionally different from v1. C
 
 NOTE: Quick capture is intentionally minimal -- capture media fast, add details later via journal edit.
 
-| Feature | V2 Status | V1 Equivalent | Gap vs V1 |
+| Feature | Mobile status | Web equivalent | Gap vs web |
 |---------|-----------|---------------|-----------|
 | Description textarea | Yes | Yes (LearningEventModal) | OK |
 | Multiple file upload | Yes (multi-select picker, shared /api/uploads/evidence) | Yes (multiple blocks) | **FIXED** |
@@ -332,7 +336,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 17: Bounty Board (`/(app)/(tabs)/bounties`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Three tabs (Browse/Claims/Posted) | Yes | Yes (with count badges) | OK |
 | Browse: pillar filter | Yes (grid buttons) | Yes (horizontal scroll) | OK |
@@ -346,16 +350,16 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Posted: edit button | Yes | Yes (pencil icon) | OK |
 | Posted: delete button | Yes | Yes | OK |
 | Posted: "awaiting review" badge | Yes | Yes | OK |
-| Posted: post bounty button | No | Yes | V2 improvement |
-| Superadmin: see all bounties in Posted | N/A | Yes | V2 improvement |
+| Posted: post bounty button | No | Yes | Mobile improvement |
+| Superadmin: see all bounties in Posted | N/A | Yes | Mobile improvement |
 
 #### Item 18: Bounty Detail (`/(app)/bounties/[id]`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Bounty info (title, desc, rewards) | Yes | Yes | OK |
 | Deliverables list with status | Yes | Yes | OK |
-| Progress bar (when claimed) | No | Yes | V2 improvement |
+| Progress bar (when claimed) | No | Yes | Mobile improvement |
 | Claim bounty button | Yes | Yes | OK |
 | Evidence upload per deliverable | Yes (modal) | Yes (bottom sheet) | OK (different UI) |
 | Evidence viewing inline | Yes (viewer modal) | Yes (inline per deliverable) | OK |
@@ -367,13 +371,13 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 19: Create Bounty (`/(app)/bounties/create`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Title + description | Yes | Yes | OK |
 | Dynamic deliverables list | Yes | Yes | OK |
 | XP rewards with pillar | Yes (25-200) | Yes (0-200, custom-only allowed) | OK |
 | Custom rewards | Yes | Yes | OK |
-| Bounty pillar selector | Implicit (from XP reward) | Yes (explicit pill selector) | V2 improvement |
+| Bounty pillar selector | Implicit (from XP reward) | Yes (explicit pill selector) | Mobile improvement |
 | Visibility (public/family/org) | Yes (3 options) | Yes (2 options, no org) | PARTIAL |
 | Kid selector (family visibility) | Yes | Yes (pill selector) | OK |
 | Max claims field | Yes (0=unlimited) | Yes (numeric input, 0=unlimited) | **FIXED** |
@@ -383,10 +387,10 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 20: Bounty Review (`/(app)/bounties/review/[id]`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Submitted claims list | Yes (inline on detail) | Yes (separate page) | OK (restructured) |
-| Student identification | ID only | Avatar + name | V2 improvement |
+| Student identification | ID only | Avatar + name | Mobile improvement |
 | Evidence preview per deliverable | Yes (images, video, text, links, docs) | Yes (inline images, text, video links, docs) | OK |
 | Deliverable labels in review | Yes | Yes (mapped from bounty data) | OK |
 | Fullscreen image modal | Yes | Yes (tap to expand) | OK |
@@ -394,9 +398,9 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Approve button | Yes | Yes | OK |
 | Request Revision button | Yes | Yes | OK |
 | Reject button | Yes | Yes | OK |
-| All claims section | No | Yes (grouped view) | V2 improvement |
-| Edit bounty link from review | No | Yes | V2 improvement |
-| Superadmin full access | No | Yes (view/edit/review any bounty) | V2 improvement |
+| All claims section | No | Yes (grouped view) | Mobile improvement |
+| Edit bounty link from review | No | Yes | Mobile improvement |
+| Superadmin full access | No | Yes (view/edit/review any bounty) | Mobile improvement |
 
 ---
 
@@ -404,7 +408,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 21: Buddy (`/(app)/(tabs)/buddy`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Pet SVG display + animations | Yes | Yes | OK |
 | Feed interaction (daily limit) | Yes | Yes | OK |
@@ -424,7 +428,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 22: Profile (`/(app)/(tabs)/profile`)
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Hero section (avatar, name, stats) | Yes | Yes (card-based) | OK |
 | Total XP, quest count, task count | Yes | Yes | OK |
@@ -432,8 +436,8 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Edit profile (name fields) | Yes (inline collapsible) | Yes (modal) | OK (different UI) |
 | Bio / Learning Vision editing | Yes | Yes (modal textarea, displays on profile) | **FIXED** |
 | Pillar radar chart | Yes (SkillsRadarChart) | Yes (PillarRadar) | OK |
-| Engagement calendar (heatmap) | Implicit in snapshot | Yes (EngagementCalendar) | V2 improvement |
-| RhythmBadge | No | Yes | V2 improvement |
+| Engagement calendar (heatmap) | Implicit in snapshot | Yes (EngagementCalendar) | Mobile improvement |
+| RhythmBadge | No | Yes | Mobile improvement |
 | Portfolio section | Yes (achievements, evidence, sharing) | Yes (collapsed, share button, public/private toggle) | **FIXED** |
 | Portfolio sharing / QR code | Yes | Yes (copy link, public/private toggle via FERPA API) | **FIXED** |
 | Subject credits display | Yes (with progress bars) | Yes (progress bars, pending XP indicator) | **FIXED** |
@@ -445,13 +449,13 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Privacy / visibility toggle | Yes (make public/private) | Yes (Make Public button + API, status indicator) | **FIXED** |
 | FERPA consent modal | Yes | Yes (checkbox consent, minor warning, visibility explanation) | **FIXED** |
 | Observer list management | Yes (list + remove) | Yes (viewers list + remove observers) | **FIXED** |
-| Invite observer modal | No | Yes (bottom sheet) | V2 addition |
-| Family dashboard link (mobile) | No | Yes (parent/superadmin) | V2 addition |
+| Invite observer modal | No | Yes (bottom sheet) | mobile addition |
+| Family dashboard link (mobile) | No | Yes (parent/superadmin) | mobile addition |
 | Sign out button | Yes (in settings) | Yes (bottom of page) | OK |
 | Account deletion | Yes | Yes (30-day soft delete + cancel) | **FIXED** |
 
 #### Items 23-25: Constellation, Credit Tracker, Transcript
-**Status**: All MISSING from v2. No pages exist.
+**Status**: All MISSING from mobile. No pages exist.
 
 ---
 
@@ -459,7 +463,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 26: Messaging (`/(app)/(tabs)/messages`) -- VERIFIED 2026-03-31
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Conversation list | Yes | Yes (ConversationList component) | OK |
 | Direct messages | Yes | Yes (ChatWindow component) | OK |
@@ -473,7 +477,7 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 
 #### Item 27: Notifications (`/(app)/notifications`) -- ADDED 2026-03-31
 
-| Feature | V1 | V2 | Gap |
+| Feature | Web | Mobile | Gap |
 |---------|----|----|-----|
 | Notification list | Yes | Yes (cards with type icons, time ago) | OK |
 | Unread count badge | Yes (bell in nav) | Yes (bell in MobileHeader + Sidebar) | OK |
@@ -485,12 +489,12 @@ NOTE: Quick capture is intentionally minimal -- capture media fast, add details 
 | Navigate to link on tap | Yes | Yes (deep-link) | OK |
 | Real-time updates | Yes (Supabase Broadcast) | Yes (Supabase Broadcast) | OK |
 | Type-specific icons | Yes (emoji) | Yes (Ionicons with colors) | OK |
-| Pull-to-refresh | No | Yes | V2 improvement |
+| Pull-to-refresh | No | Yes | Mobile improvement |
 | Back navigation | N/A (tab) | Yes (back button, mobile + desktop) | OK |
 | Send notification (admin) | Yes (modal) | Yes (broadcast modal with audience selector) | **FIXED** |
 | Broadcast notification (admin) | Yes (modal) | Yes (title, message, audience pills) | **FIXED** |
-| Mobile push notifications | No | Yes (Expo Push, token registration, foreground display) | V2 improvement |
-| Push notification tap -> deep link | No | Yes (navigates to notification link) | V2 improvement |
+| Mobile push notifications | No | Yes (Expo Push, token registration, foreground display) | Mobile improvement |
+| Push notification tap -> deep link | No | Yes (navigates to notification link) | Mobile improvement |
 | Empty state | Yes | Yes | OK |
 
 **Backend**: Expo push service added (`expo_push_service.py`), token registration endpoints (`POST/DELETE /api/push/expo-token`), integrated into `notification_service.py` for 10 notification types.
@@ -606,7 +610,7 @@ All 5 sharing pages MISSING (evidence reports, shared feed post, public evidence
 | 37 | Delete user 500 (stale promo_codes reference) | `backend/routes/admin_core.py` | **FIXED** |
 | 38 | Register error renders object instead of string | `authStore.ts` register catch | **FIXED** |
 | 39 | Reset password API sends wrong field name | `api.ts` resetPassword | **FIXED** |
-| 40 | FRONTEND_URL points to v1 (port 3000) | `backend/.env` | **FIXED** |
+| 40 | FRONTEND_URL points to web (port 3000) | `backend/.env` | **FIXED** |
 | 41 | Reset password page missing entirely | `app/(auth)/reset-password.tsx` | **FIXED** (created) |
 | 42 | Google sign-up button missing on register | `app/(auth)/register.tsx` | **FIXED** |
 | 43 | CaptureSheet/CaptureModal file upload broken (FormData to JSON endpoint) | `src/components/capture/` | **FIXED** (JSON create + shared /api/uploads/evidence) |
@@ -675,7 +679,7 @@ All tests are unit tests with mocked data (no live backend). E2E tests via Maest
 | Messaging | 7 | 7 | 0 | 0 | **100%** |
 | **TOTAL** | **296** | **271 (92%)** | **6 (2%)** | **14 (5%)** | **93%** |
 
-**V2 is at approximately 93% effective feature parity with v1 for Priority 1 pages. All 7 critical, all 10 high, and 18 of 19 medium issues resolved. Multiple gaps reclassified as not required (task reorder, approach examples, course sidebar/deep-linking/unenroll/journey map, AI topic suggestions).**
+**mobile is at approximately 93% effective feature parity with web for Priority 1 pages. All 7 critical, all 10 high, and 18 of 19 medium issues resolved. Multiple gaps reclassified as not required (task reorder, approach examples, course sidebar/deep-linking/unenroll/journey map, AI topic suggestions).**
 
 **Batch 2 (other agent):** Rhythm explainer modal, Quick Capture FAB, course status badges, evidence blocks in capture (text+link), topic icon/color picker, journal section collapse, subject credit progress bars.
 
@@ -683,4 +687,4 @@ All tests are unit tests with mocked data (no live backend). E2E tests via Maest
 
 **Batch 4 (this session):** Hero gradient banner on quest discovery, URL param persistence for search/topic/subtopic, journal refresh buttons, bounty claims deliverables checklist + turn-in from board.
 
-**Batch 5 (2026-03-31):** V1 course homepage task-first redesign, notification system (page + bell + hooks + real-time + admin broadcast modal), Expo mobile push notification support (token registration, push delivery, deep-link tap handling), org login page (username auth with org branding), accept invitation page (registration + existing account join + parent linking), messaging verified as fully functional, email verification page, observer invitation code auto-accept, FERPA consent modal on profile, approach examples removed from quest detail, bounty max claims field, parent journal/quest view via acting-as, AI topic suggestion and multiple quest detail gaps reclassified as not required.
+**Batch 5 (2026-03-31):** web course homepage task-first redesign, notification system (page + bell + hooks + real-time + admin broadcast modal), Expo mobile push notification support (token registration, push delivery, deep-link tap handling), org login page (username auth with org branding), accept invitation page (registration + existing account join + parent linking), messaging verified as fully functional, email verification page, observer invitation code auto-accept, FERPA consent modal on profile, approach examples removed from quest detail, bounty max claims field, parent journal/quest view via acting-as, AI topic suggestion and multiple quest detail gaps reclassified as not required.
