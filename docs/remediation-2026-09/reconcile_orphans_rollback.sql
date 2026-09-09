@@ -1,0 +1,27 @@
+--
+-- Rollback for reconcile_orphans.sql.
+--
+-- The 91 deleted rows carried content -- `statements`, and for some a
+-- `rollback` array -- that cannot be reconstructed from anything in this
+-- repository. So this file does not hold the data; it points at the export that
+-- does:
+--
+--     ~/optio-schema_migrations-orphans-20260909.sql
+--
+-- Run that file. Every statement in it is an INSERT ... ON CONFLICT DO NOTHING
+-- with the exact values read from production on 2026-09-09 before the delete,
+-- so running it is safe even if some rows have since returned by other means.
+--
+-- Verify after: SELECT count(*) FROM supabase_migrations.schema_migrations;
+--   expect 162 (71 remaining + 91 restored)
+--
+-- IF THAT EXPORT IS GONE, THIS IS NOT RECOVERABLE. The rows are not in git and
+-- not in the migration files. The daily pg_dump in backup-db.yml does include
+-- --schema=supabase_migrations, so a backup taken before 2026-09-09 18:00 UTC
+-- holds them -- see backend/docs/BACKUP_RESTORE.md.
+--
+-- Restoring these rows puts `supabase db push` back to refusing with
+-- "Remote migration versions not found in local migrations directory", which is
+-- the state this script existed to leave behind. That is the intended effect of
+-- a rollback here, not a bug.
+--
