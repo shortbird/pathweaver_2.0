@@ -71,6 +71,17 @@ export interface QuarterCompliance {
   is_compliant: boolean;
 }
 
+// A course quest still active on the student's dashboard that no credit points
+// at — the leftover of a credit deleted before the delete removed its quest too.
+export interface UnlinkedCourseQuest {
+  quest_id: string;
+  title: string;
+  created_at?: string;
+  tasks: number;
+  completions: number;
+  has_work: boolean;
+}
+
 export type EvidenceBlockType = 'text' | 'link' | 'file';
 
 export interface OEACreditEvidence {

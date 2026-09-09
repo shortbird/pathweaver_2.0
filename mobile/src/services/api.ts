@@ -499,6 +499,13 @@ export const oeaAPI = {
   // Ensure a credit has a linked student quest (creates one if missing); returns quest_id.
   ensureCreditQuest: (creditId: string) =>
     api.post(`/api/oea/credits/${creditId}/quest`, {}),
+  // Course quests left on the dashboard by a credit deleted before the delete
+  // cleaned up after itself. Empty for anyone who never hit that.
+  unlinkedCourseQuests: (studentId: string) =>
+    api.get(`/api/oea/students/${studentId}/course-quests/unlinked`),
+  // Remove one of those leftovers.
+  removeCourseQuest: (studentId: string, questId: string) =>
+    api.delete(`/api/oea/students/${studentId}/course-quests/${questId}`),
   // Record that the parent opened the getting-started video. External link, so
   // this is a click and not playback — fire and forget.
   markHelpVideoOpened: () => api.post('/api/oea/help-video/opened', {}),

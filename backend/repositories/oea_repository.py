@@ -21,6 +21,22 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+#: Every course quest's description opens with this line, and nothing else in
+#: the quests table does. It is the only way back from a quest to "this was a
+#: course", because the link is stored one way -- oea_credits.quest_id -- so a
+#: deleted credit takes the sole reference to its quest with it and leaves a
+#: quest nothing points at. Recognizing those leftovers is what lets a parent
+#: clear them (see find_unlinked_course_quests).
+COURSE_QUEST_DESCRIPTION_PREFIX = 'Hearthwood Academy course:'
+
+
+def _course_quest_description(course_name: str, subject_label: Optional[str]) -> str:
+    """The description every OEA course quest carries. See the prefix constant."""
+    description = f"{COURSE_QUEST_DESCRIPTION_PREFIX} {course_name}"
+    if subject_label:
+        description += f" ({subject_label})"
+    return description
+
 
 class OEARepository:
     """Repository for OEA enrollment and credit operations (admin client)."""
@@ -251,9 +267,7 @@ class OEARepository:
         # Falls back to NULL (default gradient) when the org has no logo.
         header_image_url = self._org_logo_url(org_id)
 
-        description = f"Hearthwood Academy course: {course_name}"
-        if subject_label:
-            description += f" ({subject_label})"
+        description = _course_quest_description(course_name, subject_label)
 
         quest_repo = QuestRepository()
         quest = quest_repo.create_quest({
@@ -296,6 +310,117 @@ class OEARepository:
             .eq('user_id', student_id) \
             .eq('quest_id', quest_id) \
             .execute()
+
+    def rename_course_quest(self, quest_id: str, course_name: str,
+                            subject_label: Optional[str] = None) -> None:
+        """
+        Retitle a course quest to match its credit's new course name.
+
+        A parent who fixes a typo on the transcript expects the course on their
+        student's dashboard to change with it. Before this, the rename stopped at
+        oea_credits and the quest kept its original title forever -- a live
+        Hearthwood student had a credit reading "Language Arts 10" whose quest
+        still said "Edmentum - Algebra I, Part A", which is not a typo a parent
+        can talk themselves past.
+        """
+        self.client.table('quests') \
+            .update({
+                'title': course_name,
+                'description': _course_quest_description(course_name, subject_label),
+            }) \
+            .eq('id', quest_id) \
+            .execute()
+
+    def course_quest_work(self, student_id: str, quest_id: str) -> Dict[str, int]:
+        """
+        Count what would be destroyed by deleting a course quest: the student's
+        tasks and completed tasks in it, plus how many people are enrolled.
+
+        Counted in Postgres (count='exact'), not by measuring a fetched list --
+        a Data API read stops at 1000 rows and says nothing about it.
+        """
+        tasks = self.client.table('user_quest_tasks') \
+            .select('id', count='exact') \
+            .eq('quest_id', quest_id).eq('user_id', student_id).execute()
+        completions = self.client.table('quest_task_completions') \
+            .select('id', count='exact') \
+            .eq('quest_id', quest_id).eq('user_id', student_id).execute()
+        enrollees = self.client.table('user_quests') \
+            .select('id', count='exact').eq('quest_id', quest_id).execute()
+        return {
+            'tasks': tasks.count or 0,
+            'completions': completions.count or 0,
+            'enrollees': enrollees.count or 0,
+        }
+
+    def find_unlinked_course_quests(self, student_id: str) -> List[Dict[str, Any]]:
+        """
+        Return the student's active course quests that no credit points at.
+
+        These are the leftovers of a deleted credit: the course is gone from the
+        transcript and still sits on the dashboard. Each row carries the work
+        counts so the caller can say whether removing it would discard anything.
+        """
+        enrollments = self.client.table('user_quests') \
+            .select('quest_id') \
+            .eq('user_id', student_id).eq('is_active', True).execute()
+        quest_ids = [r['quest_id'] for r in (enrollments.data or []) if r.get('quest_id')]
+        if not quest_ids:
+            return []
+
+        linked = self.client.table('oea_credits') \
+            .select('quest_id').eq('student_id', student_id).execute()
+        linked_ids = {r['quest_id'] for r in (linked.data or []) if r.get('quest_id')}
+
+        candidates = [qid for qid in quest_ids if qid not in linked_ids]
+        if not candidates:
+            return []
+
+        quests = self.client.table('quests') \
+            .select('id, title, created_at') \
+            .in_('id', candidates) \
+            .like('description', f'{COURSE_QUEST_DESCRIPTION_PREFIX}%') \
+            .execute()
+
+        leftovers = []
+        for quest in (quests.data or []):
+            work = self.course_quest_work(student_id, quest['id'])
+            leftovers.append({
+                'quest_id': quest['id'],
+                'title': quest.get('title'),
+                'created_at': quest.get('created_at'),
+                'tasks': work['tasks'],
+                'completions': work['completions'],
+                'has_work': work['tasks'] > 0 or work['completions'] > 0,
+            })
+        return leftovers
+
+    def remove_course_quest(self, student_id: str, quest_id: str) -> str:
+        """
+        Take a course quest off the student's dashboard. Returns what happened:
+        'deleted' (the quest is gone) or 'archived' (the work is kept).
+
+        An empty course quest -- no tasks, no completions, nobody else enrolled --
+        is deleted outright, because that is what a parent removing a course they
+        entered by mistake means. A quest the student has actually worked in is
+        only unenrolled: the tasks, evidence and XP stay where the portfolio can
+        still reach them. Deciding this here rather than in the route means the
+        delete-a-credit path and the clear-a-leftover path cannot disagree.
+        """
+        work = self.course_quest_work(student_id, quest_id)
+        if work['tasks'] == 0 and work['completions'] == 0 and work['enrollees'] <= 1:
+            from repositories.quest_repository import QuestRepository
+            QuestRepository().delete_quest_cascade(quest_id, student_id)
+            logger.info(f"Deleted empty OEA course quest {quest_id} for student {student_id}")
+            return 'deleted'
+
+        self.client.table('user_quests') \
+            .update({'is_active': False}) \
+            .eq('user_id', student_id) \
+            .eq('quest_id', quest_id) \
+            .execute()
+        logger.info(f"Archived worked-in OEA course quest {quest_id} for student {student_id}")
+        return 'archived'
 
     def _org_logo_url(self, org_id: Optional[str]) -> Optional[str]:
         """Return the organization's logo (branding_config.logo_url), or None."""

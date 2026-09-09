@@ -208,7 +208,14 @@ BASELINES = {
     # 2026-09-07: 417 -> 418. A new EmergencyContactRepository owning the one
     # bulk read behind the printable emergency contact sheet (iCreate 41c838c5).
     # The query is new, and it is in the layer that is allowed to have it.
-    'repositories': 442,
+    # 2026-09-09: 442 -> 450. OEARepository grows the reads and writes behind
+    # removing a course quest: the three counts that say whether removing it
+    # would destroy student work, the enrollment/credit/quest reads that find
+    # the course quests no credit points at any more, the rename that keeps a
+    # quest's title matching its credit, and the unenroll. All of it is data
+    # access for one relationship this repository already owns (oea_credits ->
+    # quests), and routes/ did not move: the route calls two repository methods.
+    'repositories': 450,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
