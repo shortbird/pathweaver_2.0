@@ -1,6 +1,6 @@
 # Phase 1 handoff — rename the two frontends to platform siblings
 
-**Branch:** `refactor/remediation-2026-09-phase1` (4 commits, not merged, not pushed)
+**Branch:** `refactor/remediation-2026-09-phase1` (not merged, not pushed)
 **Branched from:** `docs/remediation-2026-09-phase0` @ `b02091a8`, which is 5 commits
 ahead of `main`. Phase 0 is still unmerged, so this branch carries Phase 0's
 commits too.
@@ -26,6 +26,14 @@ mobile are permanent platform siblings.
 | `f746e9a5` | Say web and mobile in code comments, not v1 and v2 | 72 | +126 / -120 |
 | `3d33fbd9` | Say web and mobile in the docs, and flag the two claims the rename invalidates | 27 | +217 / -189 |
 | `62044805` | Two more surface references: the design-sync entry and OPEN_FINDINGS | 2 | +4 / -4 |
+| `af1d0f01` | Phase 1 handoff (this file, first version) | 1 | +496 |
+| `eae0aaae` | LTI is hosted on the web app — write down the decision that was made in May | 4 | +140 / -52 |
+| `b5bd755e` | Fix the e2e workflow's dead Render service ID, and untrack a test artifact | 3 | +14 / -612 |
+
+Plus one more commit updating this file for the decisions in §5 and §6.
+
+> `d2c7d146` also sits on this branch and is **not** part of this work — it is
+> a second session's Messages-badge feature. See §3.
 
 ### `4573b560` — the move, and everything that resolves a path
 
@@ -124,26 +132,28 @@ rule it meant.
 
 ## 2. Test results
 
-Baselines were captured on this tree **before** the move, and the "after" numbers
-come from a **clean worktree** checked out at `62044805` — see §3 for why that
-matters.
+Baselines were captured on this tree **before** the move. The "after" numbers are
+from the working tree at the tip of this branch, with no uncommitted changes.
+(Mid-branch, while a second session had uncommitted work here, the after-numbers
+were taken from a scratch worktree instead — see §3.)
 
 | Suite | Before | After |
 |---|---|---|
-| Backend (`cd backend && pytest`) | 5,528 passed, 160 skipped, **0 failed** | 5,528 passed, 160 skipped, **0 failed** |
-| Web (`npm run test:run`) | 322 files, 2,829 passed, **0 failed** | 323 files, 2,849 passed, **0 failed** |
-| Mobile (`npm run test:run`) | 113 suites, 932 passed, 3 skipped, **0 failed** | 113 suites, 932 passed, 3 skipped, **0 failed** |
+| Backend (`cd backend && pytest`) | 5,528 passed, 160 skipped, **0 failed** | 5,538 passed, 160 skipped, **0 failed** |
+| Web (`npm run test:run`) | 322 files, 2,829 passed, **0 failed** | 323 files, 2,855 passed, **0 failed** |
+| Mobile (`npm run test:run`) | 113 suites, 932 passed, 3 skipped, **0 failed** | 113 suites, 936 passed, 3 skipped, **0 failed** |
 
-The web suite gained one file and 20 tests. **Those are not mine** — they are
-another session's uncommitted work in this shared tree (§3). Nothing this branch
-did adds or removes a web test.
+All three counts grew — backend +10, web +26, mobile +4. **Those additions are
+not mine.** They come from `d2c7d146`, a second session's Messages-badge feature
+that landed on this branch (§3). Nothing in this branch's own commits adds or
+removes a test.
 
-Additional verification, all at `62044805`:
+Additional verification, re-run at the branch tip:
 
 | Check | Result |
 |---|---|
 | `cd mobile && npx tsc --noEmit` | exit 0, no output |
-| `cd web && npm run build` | exit 0, `✓ built in 8.15s`, `version.json` written |
+| `cd web && npm run build` | exit 0, `version.json` written |
 | `cd mobile && npx expo export --platform web` | exit 0, `Exported: dist` |
 
 The web build still prints its pre-existing "chunks larger than 600 kB" warning.
@@ -151,58 +161,34 @@ That is unchanged by this branch.
 
 ---
 
-## 3. Another session is working in this tree — read before you run pytest
+## 3. A second session shares this branch — resolved
 
-`pytest` run **in the main working tree right now reports 2 failures**:
+While this work was in progress another Claude session was building the Messages
+unread-badge feature in the same checkout. **It has since finished and committed**
+as `d2c7d146` ("Group a parent's class chats by child on the web, and fix the
+badge that hid them"), 14 files, on top of this branch. The tree is clean.
 
-```
-FAILED tests/unit/test_direct_db_calls_do_not_grow.py::test_direct_db_calls_do_not_grow[services]
-FAILED tests/unit/test_direct_db_calls_do_not_grow.py::test_the_upper_layers_do_not_grow_in_total
-  Direct `.table(...)` calls in services/ grew from 1828 to 1831.
-```
+Two things that follow from that, neither of them a problem to fix here:
 
-**They are not from this branch.** Another Claude session is mid-feature on the
-Messages unread badge and has uncommitted work in the same checkout:
+1. **Merging this branch also merges their feature.** `d2c7d146` sits on
+   `refactor/remediation-2026-09-phase1`, not on its own branch. It is a real,
+   tested feature with 3 new test files, so this is a packaging question, not a
+   quality one — but a reviewer expecting a pure rename should know it is there.
+   Splitting it out is a rebase decision that belongs to whoever merges.
+2. **The rename moved their files out from under them mid-session.** `git mv`
+   renames the directory on disk, so their in-flight edits ended up at
+   `web/src/components/communication/...` rather than
+   `frontend/src/components/...`. Nothing was lost, and their commit landed
+   cleanly at the new paths.
 
-- modified: `backend/routes/direct_messages.py`,
-  `backend/services/group_message_service.py`,
-  `backend/tests/unit/test_direct_db_calls_do_not_grow.py`,
-  `web/src/components/communication/ConversationList.test.jsx`,
-  `web/src/components/communication/GroupChatWindow.test.jsx`
-- untracked: `backend/repositories/group_repository.py`,
-  `backend/tests/test_messages_unread_badge.py`,
-  `web/src/utils/groupsByChild.test.js`
-
-That list is a snapshot taken while writing this, and it grew during the session
-(`web/src/utils/groupsByChild.js`, `mobile/src/utils/groupsByChild.ts`,
-`mobile/src/stores/prefsStore.ts` and both `ConversationList` implementations
-appeared later). Run `git status` for the current set rather than trusting it.
-The rule that matters is the one this branch followed: `git add <the files you
-touched>`, never `git add -A`.
-
-Attribution, measured rather than assumed: their unstaged diff adds exactly 3
-`.table(` calls (all in `group_message_service.get_unread_total`); this branch's
-diff adds **zero**. Running only `test_direct_db_calls_do_not_grow.py` in a clean
-worktree at this branch's tip passes 10/10.
-
-Their work is mid-flight and internally inconsistent at the moment — they have
-already raised the `repositories` baseline from 439 to 442 for a new
-`GroupRepository`, but the three calls still live in `services/`. That is their
-migration to finish, and **none of their files were staged or touched here.**
-
-**Two consequences for whoever picks this up:**
-
-1. To verify this branch, use a scratch worktree, not the shared tree:
-   ```bash
-   git worktree add /tmp/verify refactor/remediation-2026-09-phase1
-   cp backend/.env /tmp/verify/backend/.env
-   cd /tmp/verify/backend && pytest -q
-   ```
-2. **The rename moved files out from under that session.** Their edits survived —
-   `git mv` renames the directory on disk, so their working-tree changes now sit
-   at `web/src/components/communication/...` instead of
-   `frontend/src/components/...`. Nothing was lost. But their session's idea of
-   where its files are is now wrong, and they will need to be told.
+For the record, while both sessions were live, `pytest` in the shared tree showed
+two failures in `test_direct_db_calls_do_not_grow` — 3 new `.table(` calls in
+their then-uncommitted `group_message_service.get_unread_total`. This branch's
+diff added zero. Their commit raised the `repositories` baseline to 442 and the
+suite is green again. It is recorded here only because the same thing will happen
+to the next person who runs a suite in a shared checkout: **measure attribution
+before assuming the failure is yours**, and stage with `git add <files>`, never
+`git add -A`.
 
 ---
 
@@ -266,54 +252,104 @@ These are the ones a person who was there should decide. **19 sites:**
 
 ---
 
-## 5. Two documents asserted things this rename makes false
+## 5. Two documents asserted things this rename makes false — both now resolved
 
-Neither is mine to decide, so both are marked in place rather than quietly
-reworded.
+Both were flagged for the user rather than quietly reworded. Both came back with
+a decision on 2026-09-08, and both are now settled in the tree.
 
-### 5a. `mobile/README.md` — rewritten
+### 5a. `mobile/README.md` — rewritten, and the rewrite is confirmed
 
 It opened with *"Will replace the v1 Vite frontend page-by-page"* and framed its
-parity checklist as work to do *"until v1 is retired"*. Under the sibling model
-that is not a burndown, it is the standing cost of shipping two surfaces, and the
-README now says so. **If replacing the web app page-by-page is still the intent,
-this rewrite is wrong and the whole rename is the wrong call** — say so and it
-can be reverted as one commit.
+parity checklist as work to do *"until v1 is retired"*. It now says the checklist
+is the standing cost of shipping two surfaces.
 
-### 5b. `docs/LTI_FRONTEND_REDESIGN.md` — flagged, not decided
+**Confirmed by the user: the web app is not being retired.** The rewrite stands.
+Nothing further to do here.
 
-**This is a real product question, not a wording one.** That doc decides to move
-the LTI surface from the web app to the mobile app, and gives three reasons. The
-first is *"no throwaway work (v1 is being retired)"*. That reason is now void:
-the web app is not being retired, so remaining work on `web/src/pages/lti/` is
-not throwaway.
+### 5b. `docs/LTI_FRONTEND_REDESIGN.md` — decision rewritten, and it was already stale
 
-The other two reasons are unaffected — the mobile app already has the `(lti)`
-route group and the upload machinery, and LTI is a contained surface. The
-original rationale is left in place with a note underneath recording that half of
-it no longer holds. **See NEEDS TANNER §2.**
+Asked to decide the cutover, the first step was to find out what had actually
+happened. **The doc had been wrong for almost four months, and not in the way the
+rename made it wrong.**
 
-The rest of that doc was repointed normally: `<V2_HOST>` → `<MOBILE_HOST>`,
-"v2-as-LTI-host cutover" → "mobile-as-LTI-host cutover". The staged cutover plan
-in §8 and §10 is intact and still executable if the answer is "yes, still do it".
+`git log --follow` on `web/src/components/lti/LtiShell.jsx` leads to `0dd805b5`,
+dated **2026-05-20 — one day after the doc was written**:
+
+> *"Per user direction (don't set up a separate v2 deploy yet), the LTI redesign
+> moves into the v1 stack (frontend/) instead of cutting over to frontend-v2.
+> … This collapses the planned Phase 4 v2 cutover into a single PR. No separate
+> v2 host, no DNS, no LTI_FRONTEND_URL env-var flip required; LTI stays on
+> www.optioeducation.com."*
+
+So the cutover was called off the day after it was proposed, the whole redesign
+was rebuilt on the web app, and **nobody updated the doc**. Since then it has
+said Phase 4 is `⛔ USER` — a live action item, on a plan that no longer existed.
+
+The doc now records what happened, and the decision is made rather than deferred:
+
+- **Header** — status `SHIPPED`, decision *"LTI is hosted on the web app"*, and a
+  banner explaining the supersession before anyone reads §3.
+- **§3** rewritten as the decision plus why it is not being revisited. Two of the
+  three original arguments are dead: "no throwaway work because the web app is
+  being retired" is false, and "the mobile app already has the route group" stopped
+  being an advantage the moment the web app got an equivalent one that is in
+  production grading real Williamsburg submissions. Cutting over now would replace
+  working code with a second copy of it and still cost a second HTTPS host, an env
+  flip and a real-Canvas E2E pass.
+- **§4** marked HISTORICAL. It described text-only student evidence and no teacher
+  review page — exactly the gaps `0dd805b5` closed. Read as current state it is
+  simply wrong.
+- **§7, §8, §11, §12** corrected: Phase 4 struck through as superseded, the
+  cutover section relabelled *NOT DONE, NOT PLANNED*, the status table rewritten
+  to show where each phase actually shipped, and the runbook marked *DO NOT RUN*.
+  All kept rather than deleted, because `Config.LTI_FRONTEND_URL` is still in the
+  code and the next person to find it deserves the record.
+
+Three code comments carried the same stale claim and were corrected with it:
+
+| File | Said | Reality |
+|---|---|---|
+| `backend/app_config.py` | `LTI_FRONTEND_URL` is a no-op "until the cutover", and "the AGS evidence URL repoint is a separate, coordinated cutover step" | No cutover pending; the AGS repoint shipped in `0dd805b5` |
+| `backend/routes/lti/launch.py` | `_frontend_url()` is a no-op "until the staged cutover flips `LTI_FRONTEND_URL`" | Same |
+| `mobile/app/(lti)/lti-evidence.tsx` | "not yet wired to AGS. grade-sync keeps pointing at the web app's `/public/diploma` URL" | **Wrong on both counts since 2026-05-20** — AGS points at `/lti-evidence` on the web app. The screen is not reachable in production and never was |
+
+`Config.LTI_FRONTEND_URL` is deliberately **kept**. It is a no-op by default and
+is the one-env-var lever to move only the LTI iframe to another host without a
+code change. A working escape hatch with no plan to use it costs nothing.
+
+**One follow-up this surfaces, not done here:** `mobile/app/(lti)/` and
+`mobile/src/components/lti/` are now unreferenced by any live route. `0dd805b5`
+kept them "as design reference and ready for the eventual broader migration" —
+and that migration is cancelled, so the reason they were kept is gone. They are
+harmless (typechecked and tested like everything else) but nobody should assume
+they run. Deleting them is a code change, not a structural one, so it is left for
+a later phase. See NEEDS TANNER §4.
 
 ---
 
-## 6. Bugs found, not fixed
+## 6. Bugs found — both fixed
 
-Per ground rule 5, these are reported rather than repaired.
+Both were reported first and fixed on the user's instruction.
 
-1. **`.github/workflows/mobile-e2e.yml:64` polls a Render service that does not
-   exist.** It waits on `srv-d76n4bdm5p6s73fac69g`; the Render API returns
-   `404 not found: service` for that ID, and it appears nowhere in the account's
-   service list. The intended service is almost certainly
-   `srv-d9sjl42fngtc73fff1d0` (`optio-dev-v2-frontend`). Every ID beside it in
-   that file is valid, so this is a single stale ID, not a dead workflow. Effect:
-   the "poll until the frontend deploy finishes" step never sees a deploy.
-2. **`mobile/playwright-report.xml` is tracked in git.** It is a test-run
-   artifact, ~12 references to the old path deep, and it was swept along with
-   everything else in `4573b560`. It should probably be `git rm`'d and
-   gitignored, which is a decision about that file, not about this rename.
+1. **`.github/workflows/mobile-e2e.yml` polled a Render service that does not
+   exist.** It waited on `srv-d76n4bdm5p6s73fac69g`; the Render API answers that
+   ID with `404 not found: service` and it appears nowhere in the account. Fixed
+   to `srv-d9sjl42fngtc73fff1d0` (`optio-dev-v2-frontend`) — confirmed correct
+   because the health check four lines below already probes that service's
+   hostname.
+
+   Worth knowing *why it hid*: on a 404 the `jq` filter yields no status, so
+   `DEPLOY_STATUS` is `"unknown"` on all 60 attempts, the loop falls through, and
+   the E2E run proceeds against whatever was deployed before — ten minutes late
+   and green. A missed deploy and a slow deploy looked identical. The comment
+   left in the file says so.
+
+2. **`mobile/playwright-report.xml` was tracked in git.** It is the junit
+   reporter's output (`mobile/playwright.config.ts`, `outputFile:
+   'playwright-report.xml'`), regenerated on every run and already uploaded as a
+   CI artifact — and the committed copy was a frozen record of one 2026-04-01 run
+   *containing 6 failures*. `git rm --cached`'d and added to `.gitignore`, which
+   covered `playwright-report/` (the directory) but not the file.
 
 ---
 
@@ -387,21 +423,11 @@ do dev first, confirm, then prod.
 service has `rootDir: backend`, and `optio-marketing` has `rootDir: marketing`.
 None of them reference either renamed directory.
 
-### 2. Decide the LTI cutover
+### 2. ~~Decide the LTI cutover~~ — RESOLVED 2026-09-08
 
-`docs/LTI_FRONTEND_REDESIGN.md` chose to move LTI from the web app to the mobile
-app, partly because "v1 is being retired". That premise is gone (§5b).
-
-1. Read `docs/LTI_FRONTEND_REDESIGN.md` §3 — the rationale and the note under it.
-2. Decide one of:
-   - **Still do it.** The staged plan in §8/§10 is intact. Nothing to change.
-   - **Don't.** Then `web/src/pages/lti/` is the permanent LTI surface, the
-     `(lti)` route group in `mobile/app/` is dead code, and
-     `Config.LTI_FRONTEND_URL` exists for a cutover that will not happen.
-   - **Undecided.** Fine — but say so in the doc, because right now it reads as
-     a decided plan resting on a reason that no longer exists.
-3. Whatever you pick, a one-line status at the top of that doc saves the next
-   person the same investigation.
+Answered: LTI stays on the web app, and it turned out the cutover had already
+been called off on 2026-05-20. `docs/LTI_FRONTEND_REDESIGN.md` and three stale
+code comments are corrected. Details in §5b. Nothing outstanding.
 
 ### 3. Renaming the Render services themselves — optional, and it has a trap
 
@@ -472,21 +498,36 @@ re-verified. It carries a banner saying so.
 2. If it is still a live checklist, it needs a pass against the current apps —
    which is a real piece of work, not a rename.
 
-### 5. Tell the other session its files moved
+### 5. ~~Tell the other session its files moved~~ — RESOLVED
 
-Another Claude session has uncommitted work on the Messages unread badge in this
-same checkout (§3). Nothing was lost, but its files are now under `web/` and
-`mobile/`. If that session is still open, it will be looking for
-`frontend/src/components/communication/` and not finding it.
+That session finished and committed as `d2c7d146` on this branch. See §3, which
+also flags that merging this branch merges their feature along with it.
+
+### 6. Optional follow-up: the mobile app's LTI route group is now dead code
+
+Not urgent and not a decision you have to make today, but it is new information
+from §5b that nothing else records.
+
+`mobile/app/(lti)/` (7 files) and `mobile/src/components/lti/` (`LtiShell.tsx`,
+`LtiEvidenceEditor.tsx`, `PlatformStorage.ts`) are not reachable from any live
+route. They were built for the cutover, kept in 2026-05 as "design reference …
+ready for the eventual broader migration", and that migration is now cancelled.
+
+1. They cost nothing to keep — they typecheck and their tests pass with the rest
+   of the mobile suite. Leaving them is defensible.
+2. They cost something to *believe* — the next person reading
+   `mobile/app/(lti)/lti-evidence.tsx` may reasonably think it serves Canvas
+   teachers. Its header now says in plain terms that it does not.
+3. If you want them gone, that is a code deletion with its own tests to remove,
+   so it belongs in a later phase rather than in a rename branch.
 
 ---
 
 ## What I could not do, and why
 
-- **Could not run the full backend suite green in the main working tree.** Two
-  ratchet tests fail there because of another session's uncommitted code (§3).
-  Proven not to be this branch's doing, and verified green in a clean worktree.
-  Fixing it would mean editing files that are not mine.
+- **Could not delete the mobile app's now-dead `(lti)` route group.** It is a
+  code deletion with tests attached, and this is a structural branch. Written up
+  in NEEDS TANNER §6 instead.
 - **Did not touch `supabase/migrations-archive/`** (ground rule 7's subject, and
   a record of what already ran). Three stale path comments remain there (§4c).
 - **Did not run the integration suite** (`tests-integration.yml`). It needs a
