@@ -112,8 +112,6 @@ describe('every surface now agrees with shared/data/pillars.json', () => {
     'web/tailwind.config.js',
     'web/src/constants/brandStyles.js',
     'web/src/utils/pillarMappings.js',
-    'backend/config/pillars.py',
-    'backend/utils/pillar_utils.py',
   ];
 
   /** The first civics/wellness hex after the pillar's key, whatever the syntax. */
@@ -129,6 +127,37 @@ describe('every surface now agrees with shared/data/pillars.json', () => {
     const src = read(rel);
     expect({ civics: colourFor(src, 'civics'), wellness: colourFor(src, 'wellness') })
       .toEqual({ civics: CANONICAL.civics, wellness: CANONICAL.wellness });
+  });
+
+  it('backend/utils/pillar_utils.py no longer spells a pillar hex at all', () => {
+    // It was on the list above until 2026-09-09, when it stopped declaring the
+    // palette and started reading backend/generated/pillars.py -- the same
+    // shared/data/pillars.json this file checks. A file that holds no copy
+    // cannot hold a wrong one, so the assertion changes from "its copy agrees"
+    // to "it has no copy", which is the stronger of the two.
+    const src = read('backend/utils/pillar_utils.py');
+    const spelled = (src.match(/#[0-9A-Fa-f]{6}/g) || [])
+      .map((h) => h.toUpperCase())
+      .filter((h) => Object.values(CANONICAL).some((c) => c.toUpperCase() === h));
+    // The only hex left in the file is #999999, the "unknown pillar" fallback
+    // in get_pillar_color. It is not a pillar colour and never was.
+    expect(spelled).toEqual([]);
+  });
+
+  it('backend/config/pillars.py builds every gradient from the canonical base', () => {
+    // This file DOES still spell hexes: the Tailwind gradient strings are
+    // web-only presentation, so they cannot live in the shared JSON. Each one
+    // opens on the pillar's base colour, which is exactly the value that got
+    // flipped in 2026-09-04 -- so check the base rather than trusting that
+    // nobody edits a gradient by eye.
+    const src = read('backend/config/pillars.py');
+    for (const [key, hex] of Object.entries(CANONICAL)) {
+      const gradient = new RegExp(`'${key}':\\s*'from-\\[(#[0-9A-Fa-f]{6})\\]`).exec(src);
+      if (!gradient) {
+        throw new Error(`backend/config/pillars.py has no gradient for ${key}.`);
+      }
+      expect(gradient[1].toUpperCase()).toBe(hex.toUpperCase());
+    }
   });
 
   it("the web app's light and dark shades sit on the right base", () => {

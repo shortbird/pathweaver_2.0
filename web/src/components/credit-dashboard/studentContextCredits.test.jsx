@@ -12,6 +12,7 @@ import { render, screen, within } from '@testing-library/react'
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import StudentContext from './StudentContext'
+import { CREDIT_REQUIREMENTS, TOTAL_CREDITS_REQUIRED, XP_PER_CREDIT } from '../../utils/creditRequirements'
 
 // Finn: CTE over-earned (4500 against 2000) while Electives sits 1500 short.
 const CONTEXT = {
@@ -77,14 +78,36 @@ describe('one requirement table', () => {
     return /\.(js|jsx)$/.test(name) ? [path] : []
   })
 
-  it('is defined in exactly one place', () => {
+  it('is not defined anywhere under web/src', () => {
+    // The definition moved to shared/data/credits.json, which the backend reads
+    // too (backend/generated/credits.py). So the answer here is now zero: any
+    // hit is a NEW copy, which is what the four-copy history above was.
     const src = join(process.cwd(), 'src')
     const definers = walk(src).filter((path) => (
       !/\.test\.jsx?$/.test(path) &&
       /(const|let|var)\s+CREDIT_REQUIREMENTS\s*=\s*\{/.test(readFileSync(path, 'utf8'))
     ))
-    expect(definers.map((p) => p.replace(src, 'src'))).toEqual([
-      join('src', 'utils', 'creditRequirements.js'),
-    ])
+    expect(definers.map((p) => p.replace(src, 'src'))).toEqual([])
+  })
+
+  it('reaches the app from the shared module, not a local table', () => {
+    // Without this, deleting @shared/credits and pasting the table back into
+    // src/utils/creditRequirements.js as a plain object literal would pass the
+    // test above (it looks for `CREDIT_REQUIREMENTS = {`, and a re-export is
+    // not that shape). Assert the import instead of the absence.
+    const shim = readFileSync(join(process.cwd(), 'src', 'utils', 'creditRequirements.js'), 'utf8')
+    expect(shim).toMatch(/from '@shared\/credits'/)
+  })
+
+  it('agrees with the canonical JSON the backend also reads', () => {
+    const canonical = JSON.parse(
+      readFileSync(join(process.cwd(), '..', 'shared', 'data', 'credits.json'), 'utf8'),
+    )
+    expect(XP_PER_CREDIT).toBe(canonical.xpPerCredit)
+    expect(TOTAL_CREDITS_REQUIRED).toBe(canonical.totalCreditsRequired)
+    for (const row of canonical.subjects) {
+      expect(CREDIT_REQUIREMENTS[row.key].credits).toBe(row.credits)
+      expect(CREDIT_REQUIREMENTS[row.key].xpRequired).toBe(row.credits * canonical.xpPerCredit)
+    }
   })
 })

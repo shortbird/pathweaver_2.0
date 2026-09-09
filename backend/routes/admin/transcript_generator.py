@@ -38,6 +38,10 @@ from urllib.parse import quote
 
 from flask import Blueprint, request
 from database import get_supabase_admin_client
+from generated.credits import (
+    TRANSCRIPT_SUBJECT_NAMES,
+    XP_PER_CREDIT as _XP_PER_CREDIT,
+)
 from utils.auth.decorators import require_school_admin
 from utils.auth.org_scope import caller_can_access_user
 from utils.auth.relationships import require_relationship_to
@@ -52,7 +56,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_transcript_generator', __name__, url_prefix='/api/admin/transcript')
 
-XP_PER_CREDIT = 2000
+XP_PER_CREDIT = _XP_PER_CREDIT
 
 
 def build_verification_url(user_id: str, school_name: str, issued_by: str) -> str:
@@ -84,19 +88,10 @@ def build_verification_url(user_id: str, school_name: str, issued_by: str) -> st
 # fixed half credit on the transcript, with an A grade.
 CLASS_CREDIT_VALUE = 0.5
 
-SUBJECT_DISPLAY_NAMES = {
-    'language_arts': 'Language Arts',
-    'math': 'Mathematics',
-    'science': 'Science',
-    'social_studies': 'Social Studies',
-    'financial_literacy': 'Financial Literacy',
-    'health': 'Health',
-    'pe': 'Physical Education',
-    'fine_arts': 'Fine Arts',
-    'cte': 'Career & Technical Education',
-    'digital_literacy': 'Digital Literacy',
-    'electives': 'Electives'
-}
+# The formal names a transcript prints -- 'Mathematics', not 'Math'. Shared
+# with routes/public.py, which renders the same document for a public share
+# link and had its own copy inside the handler, and with the web app.
+SUBJECT_DISPLAY_NAMES = dict(TRANSCRIPT_SUBJECT_NAMES)
 
 VALID_SUBJECTS = list(SUBJECT_DISPLAY_NAMES.keys())
 

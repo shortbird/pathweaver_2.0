@@ -8,6 +8,7 @@ import uuid
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from generated.credits import TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.slug_utils import generate_slug, ensure_unique_slug
 from utils.accreditation import resolve_transcript_accreditation
@@ -277,14 +278,10 @@ def get_public_transcript(user_id):
             academy_enrolled=academy_enrollment.is_academy_student(user_id, client=client),
         )
 
-        XP_PER_CREDIT = 2000
-        SUBJECT_DISPLAY_NAMES = {
-            'language_arts': 'Language Arts', 'math': 'Mathematics', 'science': 'Science',
-            'social_studies': 'Social Studies', 'financial_literacy': 'Financial Literacy',
-            'health': 'Health', 'pe': 'Physical Education', 'fine_arts': 'Fine Arts',
-            'cte': 'Career & Technical Education', 'digital_literacy': 'Digital Literacy',
-            'electives': 'Electives'
-        }
+        # This handler renders the same transcript as
+        # routes/admin/transcript_generator.py, for a public share link, and
+        # held its own copy of both constants.
+        SUBJECT_DISPLAY_NAMES = dict(TRANSCRIPT_SUBJECT_NAMES)
 
         # Transfer credits
         tc_result = client.table('transfer_credits').select('*').eq(

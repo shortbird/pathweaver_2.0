@@ -27,6 +27,7 @@ The three facts worth knowing before changing anything here:
 from typing import Any, Dict, List, Optional
 
 from database import get_supabase_admin_client
+from generated.credits import XP_PER_CREDIT as _XP_PER_CREDIT
 from utils.logger import get_logger
 from utils.school_subjects import SCHOOL_SUBJECTS
 
@@ -51,7 +52,8 @@ SUBJECT_TO_PILLAR = {
     'electives': 'art',
 }
 
-XP_PER_CREDIT = 2000
+# One definition, shared with the web app and the transcript routes.
+XP_PER_CREDIT = _XP_PER_CREDIT
 
 # A year of one subject is 1.0. Ten is already implausible; this is the guard
 # against a typed 100 reaching a transcript.

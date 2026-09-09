@@ -1,0 +1,100 @@
+{
+  "_comment": [
+    "The accredited-diploma credit contract: how much XP is a credit, how many",
+    "credits each subject needs, and what an official transcript calls it.",
+    "",
+    "One definition because it was five. web/src/utils/creditRequirements.js held",
+    "the requirement table; services/credit_mapping_service.py held a second copy",
+    "under a comment reading 'Aligned with web/src/utils/creditRequirements.js',",
+    "which is a request that a person do a job a test should do. XP_PER_CREDIT",
+    "was written out in five backend modules and once on the web. The formal",
+    "transcript names were in three backend modules and the web table.",
+    "",
+    "The web test that guards this (studentContextCredits.test.jsx) records what",
+    "the drift cost last time: two copies said Social Studies was 3.5 against the",
+    "4.0 the other two said, and because two of them were never read, nothing",
+    "caught it.",
+    "",
+    "transcriptName is the LONG form on purpose -- 'Mathematics', not 'Math'.",
+    "shared/data/subjects.json carries the short names the pickers show, and its",
+    "comment explains why the two lists differ. This is the transcript's",
+    "vocabulary; that one is the picker's.",
+    "",
+    "Order follows subjects.json, which is transcript order.",
+    "",
+    "NOT here, because it is not the standard diploma: backend/utils/oea_pathways.py",
+    "defines alternative graduation pathways with their own per-subject credit",
+    "counts. Those are a different product, not a second copy of this one."
+  ],
+  "xpPerCredit": 2000,
+  "totalCreditsRequired": 24,
+  "electiveSubject": "electives",
+  "subjects": [
+    {
+      "key": "language_arts",
+      "credits": 4,
+      "transcriptName": "Language Arts",
+      "description": "English, Literature, Writing, and Reading Comprehension"
+    },
+    {
+      "key": "math",
+      "credits": 3,
+      "transcriptName": "Mathematics",
+      "description": "Algebra, Geometry, Statistics, and Applied Mathematics"
+    },
+    {
+      "key": "science",
+      "credits": 3,
+      "transcriptName": "Science",
+      "description": "Biology, Chemistry, Physics, and Earth Sciences"
+    },
+    {
+      "key": "social_studies",
+      "credits": 4,
+      "transcriptName": "Social Studies",
+      "description": "History, Government, Geography, and Economics"
+    },
+    {
+      "key": "financial_literacy",
+      "credits": 0.5,
+      "transcriptName": "Financial Literacy",
+      "description": "Personal Finance, Economics, and Financial Planning"
+    },
+    {
+      "key": "health",
+      "credits": 0.5,
+      "transcriptName": "Health",
+      "description": "Health Education, Nutrition, and Wellness"
+    },
+    {
+      "key": "pe",
+      "credits": 2,
+      "transcriptName": "Physical Education",
+      "description": "Physical Fitness, Sports, and Exercise Science"
+    },
+    {
+      "key": "fine_arts",
+      "credits": 1.5,
+      "transcriptName": "Fine Arts",
+      "description": "Visual Arts, Music, Theater, and Creative Expression"
+    },
+    {
+      "key": "cte",
+      "credits": 1,
+      "transcriptName": "Career & Technical Education",
+      "description": "Career Preparation, Technical Skills, and Vocational Training"
+    },
+    {
+      "key": "digital_literacy",
+      "credits": 0.5,
+      "transcriptName": "Digital Literacy",
+      "description": "Computer Skills, Digital Citizenship, and Technology"
+    },
+    {
+      "key": "electives",
+      "credits": 4,
+      "transcriptName": "Electives",
+      "description": "Additional courses in areas of student interest and exploration"
+    }
+  ]
+}

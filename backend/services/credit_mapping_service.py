@@ -9,6 +9,10 @@ from datetime import datetime
 from services.base_service import BaseService
 from database import get_supabase_admin_client
 
+from generated.credits import (
+    DIPLOMA_CREDIT_REQUIREMENTS,
+    XP_PER_CREDIT as _XP_PER_CREDIT,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,25 +21,16 @@ logger = get_logger(__name__)
 class CreditMappingService(BaseService):
     """Service for tracking academic credits derived from XP."""
 
-    # Standard diploma requirements (24 credits total)
-    # Keys must match SCHOOL_SUBJECTS from utils/school_subjects.py
-    # Aligned with web/src/utils/creditRequirements.js
-    DIPLOMA_REQUIREMENTS = {
-        'language_arts': 4.0,
-        'math': 3.0,
-        'science': 3.0,
-        'social_studies': 4.0,
-        'financial_literacy': 0.5,
-        'health': 0.5,
-        'pe': 2.0,
-        'fine_arts': 1.5,
-        'cte': 1.0,
-        'digital_literacy': 0.5,
-        'electives': 4.0
-    }
+    # Standard diploma requirements (24 credits total).
+    #
+    # This used to be typed out here under a comment reading "Aligned with
+    # web/src/utils/creditRequirements.js", which is a request that a person do
+    # a job a test should do. It is now the same table the web app reads, from
+    # shared/data/credits.json.
+    DIPLOMA_REQUIREMENTS = dict(DIPLOMA_CREDIT_REQUIREMENTS)
 
     # XP to credit conversion rate
-    XP_PER_CREDIT = 2000
+    XP_PER_CREDIT = _XP_PER_CREDIT
 
     @staticmethod
     def calculate_user_credits(user_id: str) -> Dict:

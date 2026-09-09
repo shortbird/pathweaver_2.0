@@ -14,6 +14,7 @@ import logging
 
 from app_config import Config
 from database import get_supabase_admin_client
+from generated.credits import XP_PER_CREDIT
 from utils.db_fetch import fetch_all_rows
 from utils.storage_urls import canonical_stored_url, sign_stored_url, sign_stored_urls
 
@@ -342,7 +343,6 @@ class PortfolioService:
         if not result.data:
             return None
 
-        XP_PER_CREDIT = 2000
         records = []
 
         for tc in result.data:

@@ -27,6 +27,7 @@ Documenting the week in the app is encouraged but optional (not a credit gate).
 from flask import Blueprint, request
 
 from database import get_supabase_admin_client
+from generated.credits import XP_PER_CREDIT
 from utils.auth.decorators import require_admin
 from utils.api_response_v1 import success_response, error_response
 from utils.logger import get_logger
@@ -52,7 +53,7 @@ POE_PILLAR = 'art'              # SUBJECT_TO_PILLAR['fine_arts'] in transfer_cre
 #     (QuestDetailHeader prefers a real cover photo over the org_logo banner).
 POE_LOGO_URL = '/poe-logo-horizontal.jpg'
 POE_HERO_URL = '/poe-hero.jpg'
-POE_CREDIT_XP = 1000           # 0.5 credit at 2000 XP/credit (CreditMappingService.XP_PER_CREDIT)
+POE_CREDIT_XP = 1000           # 0.5 credit at generated.credits.XP_PER_CREDIT
 
 # One task per day of camp. Students attach learning evidence to each day; the
 # enrolled class quest renders these as its tasks on the web app.
@@ -568,7 +569,7 @@ def award_credit(user_id: str):
             'poe_participant_id': participant['id'],
             'user_id': target_user_id,
             'class_quest_id': class_quest_id,
-            'credit': {'fine_arts': round(POE_CREDIT_XP / 2000, 2)},
+            'credit': {'fine_arts': round(POE_CREDIT_XP / XP_PER_CREDIT, 2)},
         })
 
     except Exception as e:

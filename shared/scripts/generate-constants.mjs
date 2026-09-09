@@ -51,9 +51,17 @@ const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
 const pillars = readJson(join(SHARED, 'data', 'pillars.json')).pillars;
 const subjects = readJson(join(SHARED, 'data', 'subjects.json')).subjects;
+const credits = readJson(join(SHARED, 'data', 'credits.json'));
 
 /** Single-quoted Python string literal. */
 const py = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+/**
+ * Python float literal. Always spells the decimal point: the values these
+ * replace were written 4.0 / 0.5 / 24.0, and JSON gives them back as 4 and 24.
+ * Python would then round(4, 2) -> int, and jsonify would put `4` in a response
+ * where `4.0` used to be. Same number, different bytes on the wire.
+ */
+const pyf = (n) => (Number.isInteger(n) ? `${n}.0` : String(n));
 /** Single-quoted TypeScript string literal. */
 const ts = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 
@@ -216,6 +224,80 @@ ${pyDict(subjects.map((s) => [s.key, s.name]))}
 `;
 }
 
+// ------------------------------------------------------------------- credits
+
+function tsCredits() {
+  const rows = credits.subjects
+    .map(
+      (c) => `  {
+    key: ${ts(c.key)},
+    credits: ${c.credits},
+    transcriptName: ${ts(c.transcriptName)},
+    description: ${ts(c.description)},
+  },`,
+    )
+    .join('\n');
+
+  return `/**
+ * ${BANNER('shared/data/credits.json').split('\n').join('\n * ')}
+ *
+ * The arithmetic over this data is in ../credits.ts. Import that, not this.
+ */
+
+export interface CreditRequirement {
+  key: string;
+  /** Credits this subject must contribute to the 24-credit diploma. */
+  credits: number;
+  /** The LONG form an official transcript prints — 'Mathematics', not 'Math'. */
+  transcriptName: string;
+  description: string;
+}
+
+/** XP that equals one accredited high-school credit. */
+export const XP_PER_CREDIT = ${credits.xpPerCredit};
+
+export const TOTAL_CREDITS_REQUIRED = ${pyf(credits.totalCreditsRequired)};
+
+/** The one bucket defined as "anything", so the only one surplus may flow into. */
+export const ELECTIVE_SUBJECT = ${ts(credits.electiveSubject)};
+
+/** In transcript order. */
+export const CREDIT_REQUIREMENTS_DATA: readonly CreditRequirement[] = [
+${rows}
+];
+`;
+}
+
+function pyCredits() {
+  return `"""${BANNER('shared/data/credits.json')}
+
+The credit requirement table, the XP conversion rate and the formal transcript
+names. Before this these were five separate declarations across backend/ and
+one on the web, kept in step by a comment asking whoever edited one to edit the
+others.
+"""
+
+# XP that equals one accredited high-school credit.
+XP_PER_CREDIT = ${credits.xpPerCredit}
+
+TOTAL_CREDITS_REQUIRED = ${pyf(credits.totalCreditsRequired)}
+
+# The one bucket defined as "anything", so the only one surplus may flow into.
+ELECTIVE_SUBJECT = ${py(credits.electiveSubject)}
+
+# Credits each subject must contribute to the ${credits.totalCreditsRequired}-credit diploma.
+DIPLOMA_CREDIT_REQUIREMENTS = {
+${credits.subjects.map((c) => `    ${py(c.key)}: ${pyf(c.credits)},`).join('\n')}
+}
+
+# What an official transcript prints. The LONG form on purpose -- 'Mathematics',
+# not 'Math'. generated/subjects.py carries the short names the pickers show.
+TRANSCRIPT_SUBJECT_NAMES = {
+${pyDict(credits.subjects.map((c) => [c.key, c.transcriptName]))}
+}
+`;
+}
+
 // --------------------------------------------------------------------- drive
 
 const OUTPUTS = [
@@ -223,6 +305,8 @@ const OUTPUTS = [
   [join(SHARED, 'generated', 'subjects.ts'), tsSubjects()],
   [join(REPO, 'backend', 'generated', 'pillars.py'), pyPillars()],
   [join(REPO, 'backend', 'generated', 'subjects.py'), pySubjects()],
+  [join(SHARED, 'generated', 'credits.ts'), tsCredits()],
+  [join(REPO, 'backend', 'generated', 'credits.py'), pyCredits()],
 ];
 
 const check = process.argv.includes('--check');
