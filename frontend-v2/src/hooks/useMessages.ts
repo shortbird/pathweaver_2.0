@@ -88,12 +88,35 @@ export interface Message {
   isOptimistic?: boolean;
 }
 
+/** A child of the viewing guardian who is in this chat's class. */
+export interface GroupStudent {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+}
+
+/** When the chat's class meets — the only thing that tells two same-named
+ *  class chats apart (a family had three "Peak Play PE Parent Chat" rows). */
+export interface GroupClassMeeting {
+  day_of_week?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+}
+
 export interface Group {
   id: string;
   name: string;
   description: string | null;
   created_by: string;
   member_count: number;
+  /** Class this chat was created from (group_conversations.source_class_id). */
+  source_class_id?: string | null;
+  /** Guardians only: which of the viewer's children this class chat is about.
+   *  Absent for anyone who is not a guardian of a student in the class. */
+  for_students?: GroupStudent[];
+  /** Guardians only: when that class meets. */
+  class_meeting?: GroupClassMeeting | null;
   /** When true, only group admins may post (others see a notice). */
   announcement_only?: boolean;
   pinned_message_id?: string | null;

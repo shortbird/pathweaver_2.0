@@ -283,6 +283,43 @@ def children_of_parent(parent_id: str) -> Set[str]:
     return out
 
 
+def children_in_classes(parent_id: str, class_ids) -> Dict[str, Set[str]]:
+    """{class_id: {child_id, ...}} — which of this guardian's children are
+    ACTIVELY enrolled in each of `class_ids`.
+
+    The inverse of parents_of_students, and the answer a guardian's messaging
+    list needs: a family of three sits in one "<Class> Parent Chat" per class
+    per child, so the chats have to be attributable back to a child to be
+    readable at all (iCreate parent, 2026-09-09: "I do not know which message
+    applies to which one of my children").
+
+    Empty for a caller with no linked children, so any user may call it. One
+    query per chunk of classes, never one per class.
+    """
+    wanted = [cid for cid in set(class_ids or []) if cid]
+    out: Dict[str, Set[str]] = {}
+    if not wanted:
+        return out
+    children = children_of_parent(parent_id)
+    if not children:
+        return out
+    try:
+        admin = _admin()
+        child_ids = list(children)
+        # Bounded by (chunk of classes x this parent's children), so it cannot
+        # approach the 1000-row response cap the way an org-wide read would.
+        for chunk in _chunks(wanted):
+            rows = (admin.table('class_enrollments').select('class_id, student_id')
+                    .in_('class_id', chunk).in_('student_id', child_ids)
+                    .eq('status', 'active').execute()).data or []
+            for r in rows:
+                if r.get('class_id') and r.get('student_id'):
+                    out.setdefault(r['class_id'], set()).add(r['student_id'])
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'children_in_classes failed for {parent_id}: {e}')
+    return out
+
+
 def teaches_child_of(teacher_id: str, guardian_id: str) -> bool:
     """True when any child of `guardian_id` is actively enrolled in a class
     `teacher_id` teaches. Directional (teacher first); callers check both
