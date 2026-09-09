@@ -160,6 +160,17 @@ def _is_oea_student(student_id: str) -> bool:
     return False
 
 
+def _subject_label(repo, credit):
+    """Best-effort subject label for a credit, from the student's pathway."""
+    enrollment = repo.get_enrollment(credit['student_id'])
+    if not enrollment:
+        return None
+    pathway = get_pathway(enrollment.get('pathway_key'))
+    req = next((r for r in (pathway['requirements'] if pathway else [])
+                if r['key'] == credit.get('requirement_key')), None)
+    return req['label'] if req else None
+
+
 def _ensure_course_quest(repo, credit):
     """
     Return the credit's linked quest id, creating + linking a quest the first time.
@@ -171,15 +182,7 @@ def _ensure_course_quest(repo, credit):
     if credit.get('quest_id'):
         return credit['quest_id']
 
-    # Best-effort subject label from the student's pathway requirement.
-    label = None
-    enrollment = repo.get_enrollment(credit['student_id'])
-    if enrollment:
-        pathway = get_pathway(enrollment.get('pathway_key'))
-        req = next((r for r in (pathway['requirements'] if pathway else [])
-                    if r['key'] == credit.get('requirement_key')), None)
-        label = req['label'] if req else None
-
+    label = _subject_label(repo, credit)
     quest_id = repo.create_course_quest(credit['student_id'], credit['course_name'], label)
     repo.update_credit(credit['id'], {'quest_id': quest_id})
     return quest_id
@@ -558,6 +561,16 @@ def update_student_credit(user_id, credit_id):
                 completed=(fields['status'] == 'complete'),
             )
 
+        # ...and with its name. A rename that stops at the transcript leaves the
+        # student looking at the old course title on their dashboard forever.
+        if fields.get('course_name') and existing.get('quest_id') \
+                and fields['course_name'] != existing.get('course_name'):
+            repo.rename_course_quest(
+                existing['quest_id'],
+                fields['course_name'],
+                _subject_label(repo, existing),
+            )
+
         return jsonify({'success': True, 'credit': credit}), 200
     except AuthorizationError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
@@ -574,7 +587,18 @@ def update_student_credit(user_id, credit_id):
 @require_auth
 @validate_uuid_param('credit_id')
 def delete_student_credit(user_id, credit_id):
-    """Delete a credit the acting parent manages."""
+    """
+    Delete a credit the acting parent manages, and take its course quest off the
+    student's dashboard with it.
+
+    The quest used to survive the credit, because oea_credits.quest_id is the
+    only link between them and deleting the row deleted the link. The course then
+    vanished from the transcript and stayed on the dashboard, with nothing left
+    in the product able to remove it -- a Hearthwood parent hit this in September
+    2026, deleted two courses, re-entered them, and ended up asking support to
+    reset her son's account. Removal keeps any work the student already did (see
+    OEARepository.remove_course_quest); the response says which happened.
+    """
     try:
         # admin client justified: cross-user parent -> student credit delete.
         supabase = get_supabase_admin_client()
@@ -586,7 +610,19 @@ def delete_student_credit(user_id, credit_id):
         _verify_manages_student(user_id, existing['student_id'])
 
         repo.delete_credit(credit_id)
-        return jsonify({'success': True}), 200
+
+        quest_outcome = None
+        if existing.get('quest_id'):
+            # Best-effort: the credit is already gone, and failing the request
+            # here would tell the parent the delete failed when it did not.
+            try:
+                quest_outcome = repo.remove_course_quest(
+                    existing['student_id'], existing['quest_id'])
+            except Exception as e:  # noqa: BLE001
+                logger.error(
+                    f"Credit {credit_id} deleted but its quest "
+                    f"{existing['quest_id']} could not be removed: {e}")
+        return jsonify({'success': True, 'quest_outcome': quest_outcome}), 200
     except AuthorizationError as e:
         return jsonify({'success': False, 'error': str(e)}), 403
     except NotFoundError as e:
@@ -625,6 +661,69 @@ def ensure_credit_quest(user_id, credit_id):
     except Exception as e:
         logger.error(f"Error ensuring quest for credit {credit_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
+
+
+@bp.route('/students/<student_id>/course-quests/unlinked', methods=['GET'])
+@require_auth
+@validate_uuid_param('student_id')
+@require_relationship_to('student_id', allow=('parent',))
+def list_unlinked_course_quests(user_id, student_id):
+    """
+    Course quests still on the student's dashboard that no credit points at.
+
+    Every one of these is a course the parent removed from the transcript before
+    deleting the credit also removed its quest. There was no way to clear them
+    from inside the product, which is what made "please reset the account" the
+    only remaining move. Empty for every student who never hit the bug.
+    """
+    try:
+        _verify_manages_student(user_id, student_id)
+
+        # admin client justified: cross-user parent -> student quest reads.
+        repo = OEARepository(client=get_supabase_admin_client())
+        return jsonify({
+            'success': True,
+            'quests': repo.find_unlinked_course_quests(student_id),
+        }), 200
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error listing unlinked course quests for {student_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load leftover courses'}), 500
+
+
+@bp.route('/students/<student_id>/course-quests/<quest_id>', methods=['DELETE'])
+@require_auth
+@validate_uuid_param('student_id', 'quest_id')
+@require_relationship_to('student_id', allow=('parent',))
+def remove_course_quest(user_id, student_id, quest_id):
+    """
+    Take one leftover course quest off the student's dashboard.
+
+    Refuses any quest a credit still points at: that course is on the transcript,
+    and the way to remove it is to delete the credit, which now removes both.
+    Returns outcome 'deleted' (nothing was in it) or 'archived' (the student's
+    work stays in their portfolio).
+    """
+    try:
+        _verify_manages_student(user_id, student_id)
+
+        # admin client justified: cross-user parent -> student quest removal.
+        repo = OEARepository(client=get_supabase_admin_client())
+
+        leftovers = repo.find_unlinked_course_quests(student_id)
+        if not any(q['quest_id'] == quest_id for q in leftovers):
+            raise NotFoundError("That course is not a leftover on this student's dashboard")
+
+        outcome = repo.remove_course_quest(student_id, quest_id)
+        return jsonify({'success': True, 'outcome': outcome}), 200
+    except AuthorizationError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'success': False, 'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error removing course quest {quest_id} for {student_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to remove the course'}), 500
 
 
 # ── Credit evidence (text / link / file proof attached to a credit) ──────────

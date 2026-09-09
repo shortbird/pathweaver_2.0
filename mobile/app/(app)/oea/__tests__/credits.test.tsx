@@ -41,6 +41,10 @@ beforeEach(() => {
   (oeaAPI.credits as jest.Mock).mockResolvedValue({ data: RESPONSE });
   (oeaAPI.addCredit as jest.Mock).mockResolvedValue({ data: { success: true } });
   (oeaAPI.updateCredit as jest.Mock).mockResolvedValue({ data: { success: true } });
+  // clearAllMocks keeps implementations, so a test that stubs leftovers would
+  // otherwise leak them into the next one.
+  (oeaAPI.unlinkedCourseQuests as jest.Mock).mockResolvedValue({ data: { quests: [] } });
+  (oeaAPI.removeCourseQuest as jest.Mock).mockResolvedValue({ data: { outcome: 'deleted' } });
 });
 
 describe('CreditsScreen', () => {
@@ -114,5 +118,26 @@ describe('CreditsScreen', () => {
         status: 'complete', letter_grade: 'A',
       }))
     );
+  });
+
+  // A course whose credit was deleted before the delete removed its quest stayed
+  // on the student's dashboard with nothing in the app able to take it off. That
+  // is what sent a Hearthwood parent to support asking for an account reset.
+  it('offers to remove a course left on the dashboard but not on the transcript', async () => {
+    (oeaAPI.unlinkedCourseQuests as jest.Mock).mockResolvedValue({
+      data: { quests: [{ quest_id: 'q9', title: 'Mythology and Folklore', tasks: 0, completions: 0, has_work: false }] },
+    });
+    const { getByText } = render(<CreditsScreen />);
+
+    await waitFor(() => expect(getByText('Mythology and Folklore')).toBeTruthy());
+    fireEvent.press(getByText('Remove'));
+
+    await waitFor(() => expect(oeaAPI.removeCourseQuest).toHaveBeenCalledWith('stu-1', 'q9'));
+  });
+
+  it('shows no leftovers card for a student with none', async () => {
+    const { getByText, queryByText } = render(<CreditsScreen />);
+    await waitFor(() => expect(getByText('Algebra I')).toBeTruthy());
+    expect(queryByText(/Still on Ada/)).toBeNull();
   });
 });

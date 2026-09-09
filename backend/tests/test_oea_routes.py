@@ -734,3 +734,170 @@ class TestHelpVideoTracking:
         assert body['parents'][0]['opened'] is False
         assert body['parents'][1]['name'] == 'Ada Lovelace'
         assert body['parents'][1]['open_count'] == 2
+
+
+@pytest.mark.unit
+class TestCourseQuestCleanup:
+    """
+    A credit and its course quest live and die together.
+
+    They did not, until 2026-09-09. oea_credits.quest_id is the only link between
+    them, so deleting the credit deleted the link and left the quest enrolled and
+    active on the student's dashboard, unreachable by anything in the product. A
+    Hearthwood parent deleted two courses, re-entered them, watched the originals
+    stay on her son's dashboard, and asked support to reset his account -- there
+    was no other way to fix it. These cover both halves: the delete now cleans up
+    after itself, and the leftovers of the deletes that didn't can be cleared.
+    """
+
+    STU = '44444444-4444-4444-8444-444444444444'
+    CID = '55555555-5555-4555-8555-555555555555'
+    QID = '66666666-6666-4666-8666-666666666666'
+
+    # Both gates in front of these routes: @require_relationship_to asks
+    # utils.portfolio_access.is_parent_of BEFORE the view, _verify_manages_student
+    # is the in-view check. Granting only one leaves the request refused.
+    @contextmanager
+    def _as_parent_of(self, repo):
+        with patch('utils.portfolio_access.is_parent_of', return_value=True), \
+             patch('routes.oea._verify_manages_student', return_value=None), \
+             patch('routes.oea.OEARepository', return_value=repo):
+            yield
+
+    def test_delete_credit_removes_its_quest(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': self.STU, 'quest_id': self.QID}
+        mock_repo.remove_course_quest.return_value = 'deleted'
+        with self._as_parent_of(mock_repo):
+            resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
+        assert resp.status_code == 200
+        mock_repo.remove_course_quest.assert_called_once_with(self.STU, self.QID)
+        assert json.loads(resp.data)['quest_outcome'] == 'deleted'
+
+    def test_delete_credit_without_a_quest_removes_nothing(self, client, auth_headers, mock_verify_token):
+        # Transfer / earned-elsewhere credits never had a quest to clean up.
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {'id': self.CID, 'student_id': self.STU, 'quest_id': None}
+        with self._as_parent_of(mock_repo):
+            resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
+        assert resp.status_code == 200
+        mock_repo.remove_course_quest.assert_not_called()
+        assert json.loads(resp.data)['quest_outcome'] is None
+
+    def test_delete_still_succeeds_when_the_quest_will_not_go(self, client, auth_headers, mock_verify_token):
+        # The credit is already gone by then. Reporting failure would send the
+        # parent back to delete a course that is no longer there.
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': self.STU, 'quest_id': self.QID}
+        mock_repo.remove_course_quest.side_effect = RuntimeError('boom')
+        with self._as_parent_of(mock_repo):
+            resp = client.delete(f'/api/oea/credits/{self.CID}', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['quest_outcome'] is None
+
+    def test_rename_renames_the_quest(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': self.STU, 'quest_id': self.QID,
+            'course_name': 'Algebra I', 'requirement_key': 'math'}
+        mock_repo.update_credit.return_value = {'id': self.CID, 'course_name': 'Algebra II'}
+        with self._as_parent_of(mock_repo), \
+             patch('routes.oea._subject_label', return_value='Math'):
+            resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
+                                json={'course_name': 'Algebra II'})
+        assert resp.status_code == 200
+        mock_repo.rename_course_quest.assert_called_once_with(self.QID, 'Algebra II', 'Math')
+
+    def test_saving_without_changing_the_name_leaves_the_quest_alone(self, client, auth_headers, mock_verify_token):
+        # The edit modal always sends course_name, so "same name" must be a no-op.
+        mock_repo = Mock()
+        mock_repo.get_credit.return_value = {
+            'id': self.CID, 'student_id': self.STU, 'quest_id': self.QID,
+            'course_name': 'Algebra I', 'requirement_key': 'math'}
+        mock_repo.update_credit.return_value = {'id': self.CID, 'course_name': 'Algebra I'}
+        with self._as_parent_of(mock_repo):
+            resp = client.patch(f'/api/oea/credits/{self.CID}', headers=auth_headers,
+                                json={'course_name': 'Algebra I'})
+        assert resp.status_code == 200
+        mock_repo.rename_course_quest.assert_not_called()
+
+    def test_leftovers_are_listed(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.find_unlinked_course_quests.return_value = [
+            {'quest_id': self.QID, 'title': 'Mythology and Folklore (Edmentum)',
+             'tasks': 0, 'completions': 0, 'has_work': False},
+        ]
+        with self._as_parent_of(mock_repo):
+            resp = client.get(
+                f'/api/oea/students/{self.STU}/course-quests/unlinked', headers=auth_headers)
+        assert resp.status_code == 200
+        quests = json.loads(resp.data)['quests']
+        assert len(quests) == 1
+        assert quests[0]['title'] == 'Mythology and Folklore (Edmentum)'
+
+    def test_a_leftover_can_be_removed(self, client, auth_headers, mock_verify_token):
+        mock_repo = Mock()
+        mock_repo.find_unlinked_course_quests.return_value = [
+            {'quest_id': self.QID, 'title': 'Zoology', 'has_work': True},
+        ]
+        mock_repo.remove_course_quest.return_value = 'archived'
+        with self._as_parent_of(mock_repo):
+            resp = client.delete(
+                f'/api/oea/students/{self.STU}/course-quests/{self.QID}', headers=auth_headers)
+        assert resp.status_code == 200
+        assert json.loads(resp.data)['outcome'] == 'archived'
+        mock_repo.remove_course_quest.assert_called_once_with(self.STU, self.QID)
+
+    def test_a_course_still_on_the_transcript_is_not_removable_here(self, client, auth_headers, mock_verify_token):
+        # Deleting the credit is the way to remove a live course, and it now
+        # takes the quest with it. This endpoint only clears orphans, so it
+        # cannot be aimed at a quest a credit still points at.
+        mock_repo = Mock()
+        mock_repo.find_unlinked_course_quests.return_value = []
+        with self._as_parent_of(mock_repo):
+            resp = client.delete(
+                f'/api/oea/students/{self.STU}/course-quests/{self.QID}', headers=auth_headers)
+        assert resp.status_code == 404
+        mock_repo.remove_course_quest.assert_not_called()
+
+
+@pytest.mark.unit
+class TestRemoveCourseQuest:
+    """Removal keeps a student's work: empty quests go, worked-in ones stay."""
+
+    STU = 'stu-1'
+    QID = 'quest-1'
+
+    def _repo(self, work):
+        from repositories.oea_repository import OEARepository
+        repo = OEARepository(client=Mock())
+        repo.course_quest_work = Mock(return_value=work)
+        return repo
+
+    def test_empty_quest_is_deleted(self):
+        repo = self._repo({'tasks': 0, 'completions': 0, 'enrollees': 1})
+        quest_repo = Mock()
+        with patch('repositories.quest_repository.QuestRepository', return_value=quest_repo):
+            assert repo.remove_course_quest(self.STU, self.QID) == 'deleted'
+        quest_repo.delete_quest_cascade.assert_called_once_with(self.QID, self.STU)
+
+    def test_quest_with_work_is_archived_not_deleted(self):
+        repo = self._repo({'tasks': 3, 'completions': 1, 'enrollees': 1})
+        quest_repo = Mock()
+        with patch('repositories.quest_repository.QuestRepository', return_value=quest_repo):
+            assert repo.remove_course_quest(self.STU, self.QID) == 'archived'
+        quest_repo.delete_quest_cascade.assert_not_called()
+        # Only this student's enrollment is switched off.
+        repo.client.table.assert_called_with('user_quests')
+        repo.client.table.return_value.update.assert_called_with({'is_active': False})
+
+    def test_quest_someone_else_is_enrolled_in_is_archived(self):
+        # Course quests are per-student, but deleting a shared one would take
+        # the other student's work with it. Never worth the risk.
+        repo = self._repo({'tasks': 0, 'completions': 0, 'enrollees': 2})
+        quest_repo = Mock()
+        with patch('repositories.quest_repository.QuestRepository', return_value=quest_repo):
+            assert repo.remove_course_quest(self.STU, self.QID) == 'archived'
+        quest_repo.delete_quest_cascade.assert_not_called()

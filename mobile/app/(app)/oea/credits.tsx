@@ -19,6 +19,7 @@ import { oeaAPI } from '@/src/services/api';
 import { extractApiError } from '@/src/services/apiError';
 import type {
   CreditsResponse, OEACredit, RequirementProgress, LetterGrade, QuarterCompliance,
+  UnlinkedCourseQuest,
 } from '@/src/components/oea/types';
 import { safeOpenURL } from '@/src/utils/linking';
 
@@ -134,6 +135,12 @@ export default function CreditsScreen() {
 
   const [openingQuest, setOpeningQuest] = useState(false);
 
+  // Courses still on the student's dashboard that are no longer on the
+  // transcript, left behind by a credit deleted before the delete removed its
+  // quest too. Normally empty; the card renders only when it isn't.
+  const [leftovers, setLeftovers] = useState<UnlinkedCourseQuest[]>([]);
+  const [removing, setRemoving] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (!studentId) { setLoading(false); return; }
     try {
@@ -146,7 +153,33 @@ export default function CreditsScreen() {
     }
   }, [studentId]);
 
+  const loadLeftovers = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      const { data: res } = await oeaAPI.unlinkedCourseQuests(studentId);
+      setLeftovers(res?.quests || []);
+    } catch {
+      // A leftover is a rare repair, not part of this page's job. Failing to
+      // list them must not take the credit dashboard down with it.
+      setLeftovers([]);
+    }
+  }, [studentId]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadLeftovers(); }, [loadLeftovers]);
+
+  const removeLeftover = async (quest: UnlinkedCourseQuest) => {
+    if (removing) return;
+    setRemoving(quest.quest_id);
+    try {
+      await oeaAPI.removeCourseQuest(studentId!, quest.quest_id);
+      await loadLeftovers();
+    } catch (err) {
+      setError(extractApiError(err, 'Could not remove that course.').message);
+    } finally {
+      setRemoving(null);
+    }
+  };
 
   const creditsForReq = (key: string) => (data?.credits || []).filter((c) => c.requirement_key === key);
 
@@ -231,6 +264,7 @@ export default function CreditsScreen() {
       await oeaAPI.deleteCredit(editing.id);
       setEditing(null);
       await load();
+      await loadLeftovers();
     } catch (err) {
       setError(extractApiError(err, 'Could not delete the course.').message);
     } finally {
@@ -342,6 +376,46 @@ export default function CreditsScreen() {
                 )}
               </VStack>
             </Card>
+
+            {/* Courses on the dashboard that are not on the transcript. Only a
+                parent who deleted a course before the delete removed its quest
+                ever sees this card; otherwise the list is empty. */}
+            {leftovers.length > 0 && (
+              <Card variant="outline" size="md" className="border-amber-200 bg-amber-50">
+                <VStack space="sm">
+                  <UIText size="sm" className="font-poppins-semibold text-amber-900">
+                    Still on {studentName || 'your student'}'s dashboard
+                  </UIText>
+                  <UIText size="sm" className="text-amber-800">
+                    {leftovers.length === 1 ? 'This course is' : 'These courses are'} not on
+                    the transcript any more, but {leftovers.length === 1 ? 'it is' : 'they are'}
+                    {' '}still showing as current work. Remove
+                    {leftovers.length === 1 ? ' it' : ' them'} here.
+                  </UIText>
+                  {leftovers.map((quest) => (
+                    <HStack key={quest.quest_id} className="items-center justify-between" space="sm">
+                      <VStack className="flex-1">
+                        <UIText size="sm" className="text-typo dark:text-dark-typo">{quest.title}</UIText>
+                        {quest.has_work && (
+                          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">
+                            Has work logged — it stays in the portfolio
+                          </UIText>
+                        )}
+                      </VStack>
+                      <Pressable
+                        onPress={() => removeLeftover(quest)}
+                        disabled={removing === quest.quest_id}
+                        className="py-2 px-3"
+                      >
+                        <UIText size="sm" className="text-red-600">
+                          {removing === quest.quest_id ? 'Removing…' : 'Remove'}
+                        </UIText>
+                      </Pressable>
+                    </HStack>
+                  ))}
+                </VStack>
+              </Card>
+            )}
 
             {/* Per-requirement breakdown */}
             {progress.requirements.map((req) => {

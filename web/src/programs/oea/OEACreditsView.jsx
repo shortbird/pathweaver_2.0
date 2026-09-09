@@ -146,6 +146,12 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
   const [saving, setSaving] = useState(false)
   const [openingQuest, setOpeningQuest] = useState(false)
 
+  // Courses sitting on the student's dashboard that are not on the transcript,
+  // left behind by a credit deleted before the delete removed its quest too.
+  // Normally an empty list; the card renders only when it isn't.
+  const [leftovers, setLeftovers] = useState([])
+  const [removing, setRemoving] = useState(null)
+
   const load = useCallback(async () => {
     if (!studentId) { setLoading(false); return }
     try {
@@ -158,7 +164,20 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
     }
   }, [studentId])
 
+  const loadLeftovers = useCallback(async () => {
+    if (!studentId || readOnly) return
+    try {
+      const { data: res } = await oeaAPI.unlinkedCourseQuests(studentId)
+      setLeftovers(res?.quests || [])
+    } catch {
+      // A leftover is a rare repair, not part of the page's job. Failing to
+      // list them must not take the credits page down with it.
+      setLeftovers([])
+    }
+  }, [studentId, readOnly])
+
   useEffect(() => { load() }, [load])
+  useEffect(() => { loadLeftovers() }, [loadLeftovers])
 
   const creditsForReq = (key) => (data?.credits || []).filter((c) => c.requirement_key === key)
 
@@ -252,13 +271,35 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
     if (!editing || saving) return
     setSaving(true)
     try {
-      await oeaAPI.deleteCredit(editing.id)
+      const { data: res } = await oeaAPI.deleteCredit(editing.id)
       setEditing(null)
+      // The course is off the dashboard too now. Say so when the student had
+      // already worked in it, because that work is kept rather than deleted.
+      if (res?.quest_outcome === 'archived') {
+        toast.success('Course removed. The work already logged stays in the portfolio.')
+      }
       await load()
+      await loadLeftovers()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not delete the course.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const removeLeftover = async (quest) => {
+    if (removing) return
+    setRemoving(quest.quest_id)
+    try {
+      const { data: res } = await oeaAPI.removeCourseQuest(studentId, quest.quest_id)
+      toast.success(res?.outcome === 'archived'
+        ? `"${quest.title}" is off the dashboard. The work already logged stays in the portfolio.`
+        : `"${quest.title}" is off the dashboard.`)
+      await loadLeftovers()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not remove that course.')
+    } finally {
+      setRemoving(null)
     }
   }
 
@@ -376,6 +417,47 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
               reach out if a course falls short when the quarter ends.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Courses on the dashboard that are not on the transcript. Only a parent
+          who deleted a course before the delete removed its quest ever sees
+          this card; for everyone else the list is empty and it does not render. */}
+      {!readOnly && leftovers.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">
+            Still on {studentName || 'your student'}&apos;s dashboard
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            {leftovers.length === 1 ? 'This course is' : 'These courses are'} not on the
+            transcript any more, but {leftovers.length === 1 ? 'it is' : 'they are'} still
+            showing as current work. Remove {leftovers.length === 1 ? 'it' : 'them'} here.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {leftovers.map((quest) => (
+              <li
+                key={quest.quest_id}
+                className="flex items-center justify-between gap-3 rounded-lg bg-white border border-amber-200 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-neutral-800 truncate">{quest.title}</p>
+                  {quest.has_work && (
+                    <p className="text-xs text-neutral-500">
+                      Has work logged — it stays in the portfolio
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeLeftover(quest)}
+                  disabled={removing === quest.quest_id}
+                  className="min-h-[44px] px-3 text-sm font-medium text-red-600 disabled:opacity-50 shrink-0"
+                >
+                  {removing === quest.quest_id ? 'Removing…' : 'Remove'}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

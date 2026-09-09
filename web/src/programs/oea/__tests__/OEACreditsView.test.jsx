@@ -4,7 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 
 const { toast, oeaAPI } = vi.hoisted(() => ({
   toast: { success: vi.fn(), error: vi.fn() },
-  oeaAPI: { credits: vi.fn(), addCredit: vi.fn(), creditPeriods: vi.fn() },
+  oeaAPI: {
+    credits: vi.fn(), addCredit: vi.fn(), creditPeriods: vi.fn(),
+    unlinkedCourseQuests: vi.fn(), removeCourseQuest: vi.fn(),
+  },
 }))
 vi.mock('react-hot-toast', () => ({ toast }))
 vi.mock('../../../services/api', () => ({ oeaAPI }))
@@ -39,6 +42,7 @@ function renderView() {
 beforeEach(() => {
   vi.clearAllMocks()
   oeaAPI.credits.mockResolvedValue({ data: DATA })
+  oeaAPI.unlinkedCourseQuests.mockResolvedValue({ data: { quests: [] } })
 })
 
 describe('OEACreditsView', () => {
@@ -79,5 +83,35 @@ describe('OEACreditsView', () => {
     fireEvent.click(screen.getByText('Add'))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Choose a grade for this transfer course.'))
     expect(oeaAPI.addCredit).not.toHaveBeenCalled()
+  })
+
+  // A course whose credit was deleted before the delete removed its quest is
+  // the reason this card exists: it stayed on the student's dashboard with
+  // nothing in the product able to take it off. See TestCourseQuestCleanup.
+  it('offers to remove a course left on the dashboard but not on the transcript', async () => {
+    oeaAPI.unlinkedCourseQuests.mockResolvedValue({
+      data: { quests: [{ quest_id: 'q9', title: 'Mythology and Folklore', has_work: false }] },
+    })
+    oeaAPI.removeCourseQuest.mockResolvedValue({ data: { outcome: 'deleted' } })
+    renderView()
+
+    expect(await screen.findByText('Mythology and Folklore')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Remove'))
+
+    await waitFor(() => expect(oeaAPI.removeCourseQuest).toHaveBeenCalledWith('s1', 'q9'))
+  })
+
+  it('says the work is kept when the student already worked in the leftover course', async () => {
+    oeaAPI.unlinkedCourseQuests.mockResolvedValue({
+      data: { quests: [{ quest_id: 'q9', title: 'Zoology', has_work: true }] },
+    })
+    renderView()
+    expect(await screen.findByText('Has work logged — it stays in the portfolio')).toBeInTheDocument()
+  })
+
+  it('shows no leftovers card for a student with none', async () => {
+    renderView()
+    await screen.findByText('Math')
+    expect(screen.queryByText(/Still on Alex/)).not.toBeInTheDocument()
   })
 })
