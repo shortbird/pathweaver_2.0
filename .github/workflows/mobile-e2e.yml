@@ -58,10 +58,17 @@ jobs:
       - name: Wait for Render deploy
         run: |
           echo "Polling Render API for deploy completion..."
-          # Poll the mobile app's dev web service
+          # Poll the mobile app's dev web service (optio-dev-v2-frontend).
+          #
+          # This polled srv-d76n4bdm5p6s73fac69g until 2026-09-08, a service ID
+          # that does not exist in the account -- the Render API answers it with
+          # 404, jq reads no .status, and DEPLOY_STATUS is "unknown" on all 60
+          # attempts. The loop then falls through and the tests run against
+          # whatever was deployed before, ten minutes late. It failed silently
+          # because a missed deploy looks exactly like a slow one here.
           for i in $(seq 1 60); do
             DEPLOY_STATUS=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-              "https://api.render.com/v1/services/srv-d76n4bdm5p6s73fac69g/deploys?limit=1" \
+              "https://api.render.com/v1/services/srv-d9sjl42fngtc73fff1d0/deploys?limit=1" \
               2>/dev/null | jq -r '.[0].deploy.status // "unknown"')
             echo "  Attempt $i: frontend deploy status=$DEPLOY_STATUS"
             if [ "$DEPLOY_STATUS" = "live" ]; then

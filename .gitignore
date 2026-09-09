@@ -121,6 +121,11 @@ web/build/
 # Test outputs
 test-results/
 playwright-report/
+# The junit reporter's output file (mobile/playwright.config.ts writes it on
+# every run). mobile/playwright-report.xml was tracked until 2026-09-08 -- a
+# committed record of one 2026-04-01 run with 6 failures in it, re-diffed by
+# every local e2e run. CI uploads it as an artifact; git does not need it.
+playwright-report.xml
 cypress/videos/
 cypress/screenshots/
 
