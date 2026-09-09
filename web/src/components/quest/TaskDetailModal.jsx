@@ -2,6 +2,16 @@ import React from 'react';
 import { XMarkIcon, TrophyIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
+import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
+import { TRANSCRIPT_SUBJECT_NAMES } from '@shared/credits';
+
+// The API sends a subject by its TRANSCRIPT name; these chips show the short
+// picker name ('Career & Technical Education' -> 'CTE'). Both vocabularies are
+// shared, so the translation between them is derived rather than typed out --
+// it used to be an eleven-entry literal rebuilt on every render.
+const TRANSCRIPT_TO_SHORT = Object.fromEntries(
+  SHARED_SUBJECTS.map((s) => [TRANSCRIPT_SUBJECT_NAMES[s.key] || s.name, s.name])
+);
 
 const TaskDetailModal = ({ task, isOpen, onClose }) => {
   // Before the early return: hooks cannot run conditionally.
@@ -113,20 +123,6 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                     ? Object.entries(task.school_subjects)
                     : task.school_subjects.map(s => [s, null])
                   ).map(([subject, xp]) => {
-                    const subjectNames = {
-                      'Language Arts': 'Language Arts',
-                      'Mathematics': 'Math',
-                      'Science': 'Science',
-                      'Social Studies': 'Social Studies',
-                      'Financial Literacy': 'Financial Literacy',
-                      'Health': 'Health',
-                      'Physical Education': 'PE',
-                      'Fine Arts': 'Fine Arts',
-                      'Career & Technical Education': 'CTE',
-                      'Digital Literacy': 'Digital Literacy',
-                      'Electives': 'Electives'
-                    };
-
                     return (
                       <div
                         key={subject}
@@ -137,7 +133,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                           borderColor: pillarData.color
                         }}
                       >
-                        {subjectNames[subject] || subject}{xp ? ` (${xp} XP)` : ''}
+                        {TRANSCRIPT_TO_SHORT[subject] || subject}{xp ? ` (${xp} XP)` : ''}
                       </div>
                     );
                   })}

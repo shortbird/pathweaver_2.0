@@ -3,20 +3,12 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isSchoolAdminUser } from '../../utils/userRoles';
+import { TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
 
-const SUBJECT_DISPLAY_NAMES = {
-  'language_arts': 'Language Arts',
-  'math': 'Mathematics',
-  'science': 'Science',
-  'social_studies': 'Social Studies',
-  'financial_literacy': 'Financial Literacy',
-  'health': 'Health',
-  'pe': 'Physical Education',
-  'fine_arts': 'Fine Arts',
-  'cte': 'Career & Technical Education',
-  'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
+// What an official transcript prints. Shared with the other transcript
+// surfaces and with the backend, which renders the same document -- three
+// components kept their own identical copy of this until 2026-09-09.
+const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 const TranscriptSection = ({ studentId }) => {
   const { user } = useAuth();

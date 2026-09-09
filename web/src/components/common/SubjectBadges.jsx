@@ -6,35 +6,38 @@
  */
 
 import PropTypes from 'prop-types';
+import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
+import { TRANSCRIPT_SUBJECT_NAMES } from '@shared/credits';
 
-// Subject display names and colors
-const SUBJECT_CONFIG = {
-  'language_arts': { label: 'Language Arts', color: '#8B5CF6', icon: '📖' },
-  'Language Arts': { label: 'Language Arts', color: '#8B5CF6', icon: '📖' },
-  'math': { label: 'Math', color: '#3B82F6', icon: '🔢' },
-  'Math': { label: 'Math', color: '#3B82F6', icon: '🔢' },
-  'Mathematics': { label: 'Math', color: '#3B82F6', icon: '🔢' },
-  'science': { label: 'Science', color: '#10B981', icon: '🔬' },
-  'Science': { label: 'Science', color: '#10B981', icon: '🔬' },
-  'social_studies': { label: 'Social Studies', color: '#F59E0B', icon: '🌍' },
-  'Social Studies': { label: 'Social Studies', color: '#F59E0B', icon: '🌍' },
-  'financial_literacy': { label: 'Financial Literacy', color: '#059669', icon: '💰' },
-  'Financial Literacy': { label: 'Financial Literacy', color: '#059669', icon: '💰' },
-  'health': { label: 'Health', color: '#EF4444', icon: '❤️' },
-  'Health': { label: 'Health', color: '#EF4444', icon: '❤️' },
-  'pe': { label: 'PE', color: '#F97316', icon: '🏃' },
-  'PE': { label: 'PE', color: '#F97316', icon: '🏃' },
-  'Physical Education': { label: 'PE', color: '#F97316', icon: '🏃' },
-  'fine_arts': { label: 'Fine Arts', color: '#EC4899', icon: '🎨' },
-  'Fine Arts': { label: 'Fine Arts', color: '#EC4899', icon: '🎨' },
-  'cte': { label: 'CTE', color: '#6366F1', icon: '🔧' },
-  'CTE': { label: 'CTE', color: '#6366F1', icon: '🔧' },
-  'Career & Technical Education': { label: 'CTE', color: '#6366F1', icon: '🔧' },
-  'digital_literacy': { label: 'Digital Literacy', color: '#0EA5E9', icon: '💻' },
-  'Digital Literacy': { label: 'Digital Literacy', color: '#0EA5E9', icon: '💻' },
-  'electives': { label: 'Electives', color: '#A855F7', icon: '✨' },
-  'Electives': { label: 'Electives', color: '#A855F7', icon: '✨' }
+// The colour and icon each subject wears. Web-only presentation, so it lives
+// here rather than in the shared vocabulary -- a hex and an emoji are not
+// properties of a school subject.
+const SUBJECT_STYLE = {
+  language_arts: { color: '#8B5CF6', icon: '\u{1F4D6}' },
+  math: { color: '#3B82F6', icon: '\u{1F522}' },
+  science: { color: '#10B981', icon: '\u{1F52C}' },
+  social_studies: { color: '#F59E0B', icon: '\u{1F30D}' },
+  financial_literacy: { color: '#059669', icon: '\u{1F4B0}' },
+  health: { color: '#EF4444', icon: '\u{2764}\u{FE0F}' },
+  pe: { color: '#F97316', icon: '\u{1F3C3}' },
+  fine_arts: { color: '#EC4899', icon: '\u{1F3A8}' },
+  cte: { color: '#6366F1', icon: '\u{1F527}' },
+  digital_literacy: { color: '#0EA5E9', icon: '\u{1F4BB}' },
+  electives: { color: '#A855F7', icon: '\u{2728}' },
 };
+
+// A subject reaches this component as a key ('cte'), a picker name ('CTE') or a
+// transcript name ('Career & Technical Education') depending on which endpoint
+// produced it, so the badge has to answer to all three. That was twenty-five
+// hand-written entries, three per subject, and adding a twelfth subject meant
+// remembering all three or getting a grey fallback badge.
+const SUBJECT_CONFIG = Object.fromEntries(
+  SHARED_SUBJECTS.flatMap((s) => {
+    const config = { label: s.name, ...SUBJECT_STYLE[s.key] };
+    const spellings = new Set([s.key, s.name, TRANSCRIPT_SUBJECT_NAMES[s.key] || s.name]);
+    return [...spellings].map((spelling) => [spelling, config]);
+  })
+);
 
 // Get config for a subject, with fallback
 const getSubjectConfig = (subject) => {

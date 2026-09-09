@@ -125,6 +125,43 @@ describe('one requirement table', () => {
     expect(offenders).toEqual([])
   })
 
+  it('is the only place under web/src that spells a transcript subject name', () => {
+    // EIGHT components kept their own copy of the transcript vocabulary, and by
+    // 2026-09-09 three of them disagreed about one subject: 'Career & Technical
+    // Education' in the transcript views, 'Career & Technical' in the demo, and
+    // 'Career & Tech Ed' on two portfolio cards. Three abbreviations of one
+    // subject, in one product, none of them wrong on purpose.
+    //
+    // Only the LONG CTE name is checked, and that is deliberate. 'Science' and
+    // 'Health' are the same word in both vocabularies. 'Mathematics' and
+    // 'Physical Education' read as ordinary English and turn up in prose all over
+    // the app -- a quest description saying 'Mathematics, algebra, geometry', the
+    // handbook expanding STEM. Flagging those makes the check something people
+    // argue with, and a check that gets argued with gets deleted.
+    //
+    // 'Career & Technical Education' is a phrase nobody writes by accident, and
+    // it is precisely the one that drifted into three spellings.
+    //
+    // Comments are stripped first: several of the files below now explain this
+    // history in prose, and flagging their own explanation would make the check
+    // annoying enough to delete.
+    const DISTINCTIVE = ['Career & Technical Education', 'Career & Tech Ed', 'Career & Technical']
+    const stripComments = (src) => src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n')
+
+    const src = join(process.cwd(), 'src')
+    const offenders = walk(src)
+      .filter((path) => !/\.test\.jsx?$/.test(path))
+      .filter((path) => {
+        const code = stripComments(readFileSync(path, 'utf8'))
+        return DISTINCTIVE.some((name) => code.includes(name))
+      })
+      .map((path) => path.replace(src, 'src'))
+
+    expect(offenders).toEqual([])
+  })
+
   it('agrees with the canonical JSON the backend also reads', () => {
     const canonical = JSON.parse(
       readFileSync(join(process.cwd(), '..', 'shared', 'data', 'credits.json'), 'utf8'),

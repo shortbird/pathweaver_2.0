@@ -2,22 +2,17 @@
 // Lifted out of DiplomaPage.jsx by QF-02 -- it was always a separate memoized
 // component, it just lived in the page file.
 import React, { memo, useState } from 'react';
+import { TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
 
 
-// Subject display names for transfer credits
-const SUBJECT_DISPLAY_NAMES = {
-  'language_arts': 'Language Arts',
-  'math': 'Mathematics',
-  'science': 'Science',
-  'social_studies': 'Social Studies',
-  'financial_literacy': 'Financial Literacy',
-  'health': 'Health',
-  'pe': 'Physical Education',
-  'fine_arts': 'Fine Arts',
-  'cte': 'Career & Tech Ed',
-  'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
+// What an official transcript prints. Shared with every other transcript
+// surface and with the backend.
+//
+// This was a local copy that said 'Career & Tech Ed' for CTE -- a THIRD
+// spelling, alongside the 'Career & Technical' the demo used and the
+// 'Career & Technical Education' everywhere else. Three abbreviations of one
+// subject across one product is what a shared vocabulary is for.
+const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 // Transfer Credits Card - displays imported credits from external transcripts
 const TransferCreditsCard = memo(({ transferCredits, className = '' }) => {

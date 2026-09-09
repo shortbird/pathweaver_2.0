@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { XP_PER_CREDIT } from '../../utils/creditRequirements';
+import { TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT } from '../../utils/creditRequirements';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
@@ -8,19 +8,14 @@ import QuestAccordionGallery from './QuestAccordionGallery';
 import EvidenceDetailModal from '../diploma/EvidenceDetailModal';
 import { formatCredits } from '../../utils/creditRequirements';
 
-const SUBJECT_DISPLAY_NAMES = {
-  'language_arts': 'Language Arts',
-  'math': 'Mathematics',
-  'science': 'Science',
-  'social_studies': 'Social Studies',
-  'financial_literacy': 'Financial Literacy',
-  'health': 'Health',
-  'pe': 'Physical Education',
-  'fine_arts': 'Fine Arts',
-  'cte': 'Career & Tech Ed',
-  'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
+// What an official transcript prints. Shared with every other transcript
+// surface and with the backend.
+//
+// This was a local copy that said 'Career & Tech Ed' for CTE -- a THIRD
+// spelling, alongside the 'Career & Technical' the demo used and the
+// 'Career & Technical Education' everywhere else. Three abbreviations of one
+// subject across one product is what a shared vocabulary is for.
+const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 const PortfolioSection = ({
   achievements = [],

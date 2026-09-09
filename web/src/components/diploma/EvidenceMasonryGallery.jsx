@@ -5,29 +5,36 @@ import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay';
 // CollaborationBadge import removed (badge system removal)
 import { getPillarGradient, getPillarDisplayName } from '../../config/pillars';
 import useHidePillars from '../../hooks/useHidePillars';
-import { CREDIT_REQUIREMENTS } from '../../utils/creditRequirements';
+import { CREDIT_REQUIREMENTS, TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
+import { SUBJECTS as SHARED_SUBJECTS } from '@shared/subjects';
 import './EvidenceMasonryGallery.css';
 
-// Map display names to normalized keys for subject filtering
-const SUBJECT_DISPLAY_TO_KEY = {
-  'Language Arts': 'language_arts',
-  'Mathematics': 'math',
-  'Math': 'math',
-  'Science': 'science',
-  'Social Studies': 'social_studies',
-  'Financial Literacy': 'financial_literacy',
-  'Health': 'health',
-  'PE': 'pe',
-  'Physical Education': 'pe',
-  'Fine Arts': 'fine_arts',
+// Every display spelling a subject can arrive as -> its key.
+//
+// The standard spellings are DERIVED: each subject answers to its picker name
+// ('Math') and to its transcript name ('Mathematics'), and both lists are
+// shared. Typing them out meant a new subject silently failed to filter until
+// somebody remembered to add its two or three spellings here.
+//
+// The four below are not derivable -- they are loose spellings that turn up in
+// older evidence rows and in imported data, and they have no home in either
+// shared vocabulary. They stay explicit, which is the point: what is genuinely
+// local should look local.
+const EXTRA_SUBJECT_SPELLINGS = {
   'Arts': 'fine_arts',
   'Music': 'fine_arts',
-  'CTE': 'cte',
-  'Career & Technical Education': 'cte',
   'Business': 'cte',
-  'Digital Literacy': 'digital_literacy',
   'Technology': 'digital_literacy',
-  'Electives': 'electives'
+};
+
+const SUBJECT_DISPLAY_TO_KEY = {
+  ...Object.fromEntries(
+    SHARED_SUBJECTS.flatMap((s) => [
+      [s.name, s.key],
+      [TRANSCRIPT_SUBJECT_NAMES[s.key] || s.name, s.key],
+    ])
+  ),
+  ...EXTRA_SUBJECT_SPELLINGS,
 };
 
 // Get subject display name from key

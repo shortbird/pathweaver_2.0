@@ -72,9 +72,15 @@ describe('a card per previous school', () => {
   })
 
   it('names subjects readably rather than by their database key', () => {
+    // The full transcript name since 2026-09-09. This card already used the
+    // transcript vocabulary for every other subject -- the test above asserts
+    // 'Mathematics', not 'Math' -- and CTE was the single subject it abbreviated
+    // by hand, to 'Career & Tech Ed'. That was a third spelling of one subject
+    // across the product, so it now reads from @shared/credits like every other
+    // transcript surface.
     renderPortfolio([CAVA])
     const card = cardFor(CAVA.school_name)
-    expect(card.getByText('Career & Tech Ed')).toBeInTheDocument()
+    expect(card.getByText('Career & Technical Education')).toBeInTheDocument()
     expect(card.queryByText('cte')).not.toBeInTheDocument()
   })
 

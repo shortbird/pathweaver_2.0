@@ -3,21 +3,13 @@ import { useParams } from 'react-router-dom';
 import { transferCreditsAPI } from '../../services/api';
 import Button from '../../components/ui/Button';
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { TRANSCRIPT_SUBJECT_NAMES } from '../../utils/creditRequirements';
 
 // Subject display names matching the school_subject enum
-const SUBJECT_NAMES = {
-  'language_arts': 'Language Arts',
-  'math': 'Mathematics',
-  'science': 'Science',
-  'social_studies': 'Social Studies',
-  'financial_literacy': 'Financial Literacy',
-  'health': 'Health',
-  'pe': 'Physical Education',
-  'fine_arts': 'Fine Arts',
-  'cte': 'Career & Technical Education',
-  'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
+// What an official transcript prints. Shared with the other transcript
+// surfaces and with the backend, which renders the same document -- three
+// components kept their own identical copy of this until 2026-09-09.
+const SUBJECT_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 // Subject colors for visual distinction
 const SUBJECT_COLORS = {

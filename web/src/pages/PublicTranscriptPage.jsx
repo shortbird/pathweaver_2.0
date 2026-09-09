@@ -10,6 +10,7 @@ import {
   COMMISSION_ADDRESS,
   COMMISSION_WEBSITE,
 } from '../constants/accreditation';
+import { TRANSCRIPT_SUBJECT_NAMES } from '../utils/creditRequirements';
 
 // html2pdf is loaded ON DEMAND, not at module scope (QF-06). It pulls in
 // html2canvas and jsPDF -- a large chunk -- and this page renders long before
@@ -27,13 +28,10 @@ async function loadHtml2Pdf() {
 // nothing consults cannot be right, it can only mislead whoever copies it next.
 // Requirements and elective overflow live in utils/creditRequirements.
 
-const SUBJECT_DISPLAY_NAMES = {
-  'language_arts': 'Language Arts', 'math': 'Mathematics', 'science': 'Science',
-  'social_studies': 'Social Studies', 'financial_literacy': 'Financial Literacy',
-  'health': 'Health', 'pe': 'Physical Education', 'fine_arts': 'Fine Arts',
-  'cte': 'Career & Technical Education', 'digital_literacy': 'Digital Literacy',
-  'electives': 'Electives'
-};
+// What an official transcript prints. Shared with the other transcript
+// surfaces and with the backend, which renders the same document -- three
+// components kept their own identical copy of this until 2026-09-09.
+const SUBJECT_DISPLAY_NAMES = TRANSCRIPT_SUBJECT_NAMES;
 
 const PublicTranscriptPage = () => {
   const { userId } = useParams();
