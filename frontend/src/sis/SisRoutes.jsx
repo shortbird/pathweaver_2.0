@@ -63,6 +63,13 @@ const HrRoute = ({ children }) => {
 // (utils/roles.apply_role_view), so without this guard the view-as feature
 // pointed its own user at a page that cannot load. The backend's ADMIN_ROLES is
 // the real gate.
+//
+// It now wraps EVERY path the sidebar marks adminOnly, not just /tasks. Guarding
+// one of them fixed one issue and left the rest of the class open: a teacher on
+// /curriculum still got the whole editor, filled the form in, pressed Save, and
+// got "Could not save the curriculum" from a 403 on an endpoint only an admin
+// may POST (OPTIO-WEB-K, two schools). sisRoutes.test.jsx pins the two lists
+// together so a new adminOnly page cannot ship unguarded again.
 const AdminRoute = ({ children }) => {
   const { user } = useAuth()
   if (!isSisAdmin(user)) return <Navigate to="/" replace />
@@ -146,33 +153,33 @@ const SisRoutes = () => (
     <Route path="verify-phone" element={<PhoneVerificationPage />} />
     <Route element={<SisLayout />}>
       <Route index element={<SisDashboard />} />
-      <Route path="people" element={<PeoplePage />} />
+      <Route path="people" element={<AdminRoute><PeoplePage /></AdminRoute>} />
       {/* Old People routes now open the matching lens of the unified People page. */}
       <Route path="users" element={<Navigate to="/people" replace />} />
       <Route path="roster" element={<Navigate to="/people" replace />} />
       <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
-      <Route path="classes" element={<ModuleGate path="/classes"><ClassesPage /></ModuleGate>} />
-      <Route path="clp" element={<ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute>} />
+      <Route path="classes" element={<AdminRoute><ModuleGate path="/classes"><ClassesPage /></ModuleGate></AdminRoute>} />
+      <Route path="clp" element={<AdminRoute><ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute></AdminRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
       <Route path="tuition" element={<FinanceRoute><ModuleGate path="/tuition"><TuitionApprovalPage /></ModuleGate></FinanceRoute>} />
-      <Route path="attendance" element={<ModuleGate path="/attendance"><AttendancePage /></ModuleGate>} />
+      <Route path="attendance" element={<AdminRoute><ModuleGate path="/attendance"><AttendancePage /></ModuleGate></AdminRoute>} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
       <Route path="submissions" element={<ModuleGate path="/submissions"><SubmissionsPage /></ModuleGate>} />
-      <Route path="prior-learning" element={<ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate>} />
-      <Route path="reports" element={<ModuleGate path="/reports"><ReportsPage /></ModuleGate>} />
+      <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
+      <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
       <Route path="secure-documents" element={<HrRoute><ModuleGate path="/secure-documents"><SecureDocumentsPage /></ModuleGate></HrRoute>} />
       {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
           working for bookmarks and old notification links. */}
       <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />
       <Route path="inbox" element={<SchoolInboxPage />} />
-      <Route path="registration" element={<ModuleGate path="/registration"><RegistrationPage /></ModuleGate>} />
+      <Route path="registration" element={<AdminRoute><ModuleGate path="/registration"><RegistrationPage /></ModuleGate></AdminRoute>} />
       <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
       <Route path="resources" element={<ModuleGate path="/resources"><ResourcesPage /></ModuleGate>} />
-      <Route path="curriculum" element={<ModuleGate path="/curriculum"><CurriculumPage /></ModuleGate>} />
+      <Route path="curriculum" element={<AdminRoute><ModuleGate path="/curriculum"><CurriculumPage /></ModuleGate></AdminRoute>} />
       <Route path="training" element={<ModuleGate path="/training"><StaffTrainingPage /></ModuleGate>} />
       <Route path="community" element={<ModuleGate path="/community"><CommunityPage /></ModuleGate>} />
-      <Route path="settings" element={<SettingsPage />} />
+      <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
 
       {/* Teacher portal */}
       <Route path="my-classes" element={<ModuleGate path="/my-classes"><MyClassesPage /></ModuleGate>} />

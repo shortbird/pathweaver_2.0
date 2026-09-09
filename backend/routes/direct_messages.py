@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
 from utils import class_membership
+from utils.db_fetch import fetch_all_rows
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
 from utils.validation.validators import validate_string_length
@@ -696,6 +697,13 @@ def email_message_to_me(user_id: str, message_id: str):
                               error_code='internal_error')
 
 
+def _display_key(user: dict) -> str:
+    """Sort key matching the `.order('display_name')` these lists used to ask
+    PostgREST for. Case-insensitive, and a missing display_name sorts last
+    rather than raising on the None."""
+    return (user.get('display_name') or '\uffff').lower()
+
+
 @bp.route('/contacts', methods=['GET'])
 @require_auth
 def get_contacts(user_id: str):
@@ -724,12 +732,23 @@ def get_contacts(user_id: str):
 
         # SUPERADMIN: Return ALL users on the platform (no organization isolation)
         if user_role == 'superadmin':
-            all_users = supabase.table('users').select(
+            # Paged: this is every account on the platform, so it is the one
+            # read here that is guaranteed to outgrow PostgREST's row cap. A
+            # single request stopped at 1000 and said nothing, which silently
+            # emptied the support inbox's people picker of everyone past the
+            # cut -- the missing contacts simply could not be messaged, with no
+            # error anywhere (Sentry OPTIO-BACKEND-8B).
+            all_users = fetch_all_rows(lambda: supabase.table('users').select(
                 'id, display_name, first_name, last_name, avatar_url, role, org_role, organization_id, email'
-            ).neq('id', user_id).order('display_name').execute()
+            ).neq('id', user_id))
 
-            if all_users.data:
-                for u in all_users.data:
+            # fetch_all_rows pages by id (it must -- paging over a non-unique
+            # order skips rows), so the display ordering the picker expects is
+            # reapplied here rather than asked of PostgREST.
+            all_users.sort(key=_display_key)
+
+            if all_users:
+                for u in all_users:
                     # Determine effective role for display
                     effective_role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
                     org_id = u.pop('organization_id', None)
@@ -745,7 +764,6 @@ def get_contacts(user_id: str):
             org_ids = list({c['organization_id'] for c in contacts if c.get('organization_id')})
             if org_ids:
                 try:
-                    from utils.db_fetch import fetch_all_rows
                     org_rows = fetch_all_rows(lambda: (
                         supabase.table('organizations').select('id, name').in_('id', org_ids)
                     ))
@@ -801,12 +819,17 @@ def get_contacts(user_id: str):
 
         # For org_admins: show ALL users in their organization
         if user_role == 'org_admin' and user_org_id:
-            org_users = supabase.table('users').select(
+            # Paged for the same reason as the superadmin branch above: the row
+            # count is the size of the school, so a large org's admin loses the
+            # tail of their own staff and student list.
+            org_users = fetch_all_rows(lambda: supabase.table('users').select(
                 'id, display_name, first_name, last_name, avatar_url, role, org_role, organization_id'
-            ).eq('organization_id', user_org_id).neq('id', user_id).order('display_name').execute()
+            ).eq('organization_id', user_org_id).neq('id', user_id))
 
-            if org_users.data:
-                for u in org_users.data:
+            org_users.sort(key=_display_key)
+
+            if org_users:
+                for u in org_users:
                     effective_role = u.get('org_role') if u.get('role') == 'org_managed' else u.get('role')
                     u.pop('organization_id', None)
                     u.pop('org_role', None)
