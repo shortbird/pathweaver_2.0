@@ -76,12 +76,11 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    // Things people owe, and the paperwork behind them — two entries, one per
-    // side of the desk. Forms, Onboarding, Secure Documents and My Documents
-    // all used to sit here separately; they are now tabs inside My Tasks (what
-    // I owe, and my documents) and Task Center (what the office asks, and the
-    // secure store). Their own paths still work for deep links and old
-    // notifications.
+    // Things people owe, and the paperwork behind them. Forms, Secure Documents
+    // and My Documents used to sit here separately; they are now tabs inside My
+    // Tasks (what I owe, and my documents) and Task Center (what the office
+    // asks, and the secure store). Their own paths still work for deep links
+    // and old notifications.
     label: 'Tasks & Documents',
     items: [
       // Visible in preview: the page lands a preview on its Documents tab
@@ -89,6 +88,16 @@ export const NAV_SECTIONS = [
       // CALLER's own, routes/sis/tasks.py takes no ?teacher_id= — behind a
       // banner naming whose list it is.
       { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
+      // Onboarding was folded into My Tasks on 2026-08-14 and its nav entry
+      // deleted. That was wrong for the one list people go looking for on
+      // purpose: My Tasks answers "what is outstanding" and hides finished
+      // items behind a checkbox, so a teacher who wanted to re-read her
+      // checklist — which docs are in, which are still owed — found the entry
+      // gone and the items gone with it, and reported onboarding as broken
+      // (iCreate, 2026-09-10). MyChecklists shows every item in one place,
+      // done and not done, which is the question actually being asked. Both
+      // doors stay open; they read the same rows.
+      { name: 'Onboarding', path: '/onboarding', d: ICONS.doc },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
     ],
   },

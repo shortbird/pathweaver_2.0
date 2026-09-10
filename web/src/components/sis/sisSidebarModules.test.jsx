@@ -53,9 +53,12 @@ describe('SisSidebar module gating for the active org', () => {
   it('shows every non-goals module when the active org hides none', () => {
     activeOrg = withHidden([])
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    // Forms and Onboarding are reached through the unified task surfaces now;
-    // their own paths still work, they are just not separate nav items.
+    // Forms is reached through the unified task surfaces now; its own path
+    // still works, it is just not a separate nav item. Onboarding keeps its
+    // entry: it is the one list people open on purpose to read what they have
+    // already done, which My Tasks hides (iCreate, 2026-09-10).
     expect(screen.getByText('My Tasks')).toBeInTheDocument()
+    expect(screen.getByText('Onboarding')).toBeInTheDocument()
     expect(screen.getByText('Task Center')).toBeInTheDocument()
     expect(screen.getByText('Billing')).toBeInTheDocument()
   })

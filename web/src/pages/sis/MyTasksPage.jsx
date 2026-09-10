@@ -359,6 +359,20 @@ const MyTasksPage = () => {
                   orgId={orgId} busy={busyId === t.id} setBusy={setBusyId} onChanged={load} />
               ))}
             </ul>
+            {/* This list drops finished work, which is right for an inbox and
+                wrong for the question people actually bring to it: "which of my
+                documents are in, and which do I still owe?". Answering that
+                needs the whole checklist, ticks and all, so say where it is
+                rather than leaving an empty page to imply there was never
+                anything here (iCreate, 2026-09-10). */}
+            {!loading && !preview && (
+              <p className="text-sm text-neutral-500 mt-3 pt-3 border-t border-gray-100">
+                <Link to="/onboarding" className="text-optio-purple hover:underline">
+                  See your full onboarding checklist
+                </Link>
+                {' '}— every item, including the ones you have already finished.
+              </p>
+            )}
           </div>
 
           {showDone && done.length > 0 && (

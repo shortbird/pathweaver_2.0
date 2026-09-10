@@ -174,3 +174,25 @@ describe('overdue work is unmissable', () => {
     expect(screen.getByText('1 overdue')).toBeInTheDocument()
   })
 })
+
+describe('the finished half of the checklist is still reachable', () => {
+  // An inbox drops what is done, so an empty page says "nothing outstanding"
+  // and reads as "your onboarding is gone" — which is how iCreate's teachers
+  // reported it on 2026-09-10 after the Onboarding nav entry was removed. The
+  // full checklist, ticks and all, lives on /onboarding; say so here.
+  it('points at the full onboarding checklist even when nothing is waiting', async () => {
+    respond([])
+    renderPage()
+    await screen.findByText(/Nothing is waiting on you/i)
+    const link = screen.getByRole('link', { name: /full onboarding checklist/i })
+    expect(link).toHaveAttribute('href', '/onboarding')
+  })
+
+  it('still points at it when there is outstanding work', async () => {
+    respond([SIGNATURE_TASK])
+    renderPage()
+    await screen.findByText('Sign: Employee handbook')
+    expect(screen.getByRole('link', { name: /full onboarding checklist/i }))
+      .toHaveAttribute('href', '/onboarding')
+  })
+})
