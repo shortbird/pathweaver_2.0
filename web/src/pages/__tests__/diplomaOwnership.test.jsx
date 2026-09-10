@@ -371,6 +371,48 @@ describe('DiplomaPage — the two public routes unpack identically', () => {
     expect(await screen.findByText('The circuit that would not close')).toBeInTheDocument()
   })
 
+  // The banner is the reason `isPublicRoute` had to learn about slugs. Until
+  // 2026-09-10 it read only the pathname, so /portfolio/:slug -- the prettier
+  // URL, and the one the app generates for sharing -- was not treated as
+  // public and never carried the notice, while the same portfolio shared by
+  // user id did. (It rendered on neither in practice: the backend had never
+  // sent public_consent_info at all. Both halves are fixed together.)
+  it('shows the FERPA public notice on the SLUG route', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/portfolio/public/')) {
+        return Promise.resolve({
+          data: { ...DIPLOMA_PAYLOAD, public_consent_info: { opted_in: true, with_parent_approval: true } }
+        })
+      }
+      return Promise.resolve({ data: { events: [] } })
+    })
+    renderDiploma('/portfolio/emma-ruiz')
+    expect(await screen.findByTestId('public-notice')).toHaveTextContent('Emma Ruiz')
+  })
+
+  it('shows no notice on the slug route when consent was not given', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/portfolio/public/')) {
+        return Promise.resolve({ data: { ...DIPLOMA_PAYLOAD, public_consent_info: null } })
+      }
+      return Promise.resolve({ data: { events: [] } })
+    })
+    renderDiploma('/portfolio/emma-ruiz')
+    await screen.findByTestId('sidebar')
+    expect(screen.queryByTestId('public-notice')).not.toBeInTheDocument()
+  })
+
+  it('never shows the notice to the owner on their own /diploma', async () => {
+    // The owner's view is not a published page. The banner tells a READER that
+    // what they are looking at was deliberately published; the owner has the
+    // privacy toggle instead.
+    authState = { user: { id: 'me-1', first_name: 'Sam' }, loginTimestamp: 1 }
+    stubOwnerFetches()
+    renderDiploma('/diploma')
+    await screen.findByTestId('share-controls')
+    expect(screen.queryByTestId('public-notice')).not.toBeInTheDocument()
+  })
+
   it('shows the FERPA public notice when the student opted in', async () => {
     api.get.mockImplementation((url) => {
       if (url.startsWith('/api/portfolio/diploma/')) {

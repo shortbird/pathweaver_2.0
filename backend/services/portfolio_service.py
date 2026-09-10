@@ -1167,7 +1167,47 @@ class PortfolioService:
             'total_xp': total_xp,
             'total_quests_completed': len([a for a in achievements if a.get('status') == 'completed']),
             'transfer_credits': transfer_credits,
-            'curated': self.get_curated_completions(user_id)
+            'curated': self.get_curated_completions(user_id),
+            'public_consent_info': self._public_consent_info(diploma, is_public, user_id),
+        }
+
+    @staticmethod
+    def _public_consent_info(
+        diploma: Optional[Dict[str, Any]], is_public: bool, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """The FERPA disclosure notice shown at the top of a public portfolio.
+
+        A page that publishes a student's educational records should say, on the
+        page, that it was published deliberately and by whom. The frontend has
+        had the banner since it was written and this key was never sent, so the
+        condition (`diploma?.public_consent_info?.opted_in`) has been undefined
+        on every route and the notice has never once rendered.
+
+        GATED ON `is_public`, NOT ON CONSENT ALONE. Consent is a durable record
+        and publication is a toggle, so the two come apart: production holds 5
+        diplomas with consent recorded and only 3 that are actually public. A
+        portfolio whose owner consented and then un-published is still readable
+        by the people the family connected to the student (a parent, an
+        advisor), and telling them it 'has been shared publicly' would be false
+        about the one fact the notice exists to state.
+
+        `with_parent_approval` is derived rather than stored: consent granted by
+        somebody other than the student is an approver's consent. It cannot be a
+        minor's self-consent -- trg_publication_consent_provenance refuses that
+        at the database (H5, after 4 of 6 consent records turned out to be
+        self-granted by minors).
+
+        Returns None rather than a false-ish dict when there is nothing to
+        announce, so the absence is unambiguous at the call site.
+        """
+        if not is_public or not diploma or not diploma.get('public_consent_given'):
+            return None
+
+        granted_by = diploma.get('public_consent_given_by')
+        return {
+            'opted_in': True,
+            'with_parent_approval': bool(granted_by) and str(granted_by) != str(user_id),
+            'consent_given_at': diploma.get('public_consent_given_at'),
         }
 
     def _build_achievements(

@@ -47,7 +47,17 @@ const DiplomaPage = () => {
   const effectiveUser = actingAsDependent || user;
 
   // Check if this is explicitly a public route
-  const isPublicRoute = window.location.pathname.startsWith('/public/');
+  // Both public routes, not just one. /public/diploma/:userId is recognised by
+  // its path; /portfolio/:slug is recognised by the presence of a slug, which
+  // is the more reliable signal of the two -- it comes from the router rather
+  // than from window.location, and no other route in the app has one.
+  //
+  // Reading only the pathname meant a portfolio shared by slug -- the prettier
+  // URL, and the one the app actually generates for sharing -- was not treated
+  // as public, so it never carried the FERPA disclosure notice while the same
+  // portfolio shared by user id did. isOwner is unaffected either way: it
+  // already excludes any route with a slug.
+  const isPublicRoute = Boolean(slug) || window.location.pathname.startsWith('/public/');
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
