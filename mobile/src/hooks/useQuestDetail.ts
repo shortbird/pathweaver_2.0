@@ -28,6 +28,15 @@ interface EvidenceBlockInput {
 const statusOf = (err: unknown): number | undefined =>
   (err as { response?: { status?: number } } | null)?.response?.status;
 
+/** A file, link or video a teacher attached to a quest or to one of its tasks. */
+export interface QuestResource {
+  id: string;
+  kind: 'link' | 'file' | 'video';
+  title: string;
+  /** Already signed for uploaded files; the stored URL is a private pointer. */
+  url: string;
+}
+
 export interface QuestTask {
   id: string;
   title: string;
@@ -47,6 +56,8 @@ export interface QuestTask {
   evidence_url?: string;
   evidence_blocks?: any[];
   completed_at?: string;
+  /** What the teacher attached to THIS task — the worksheet for step 3. */
+  resources?: QuestResource[];
 }
 
 /** What a parent may DO on a delegated quest view, per the backend's own write
@@ -75,6 +86,8 @@ export interface QuestDetail {
   class_review_status?: 'submitted_for_review' | 'credit_awarded' | 'rejected' | null;
   approach_examples: any;
   allow_custom_tasks: boolean;
+  /** Attached to the quest as a whole: the syllabus, the reading list. */
+  resources?: QuestResource[];
   is_active: boolean;
   user_enrollment: any | null;
   completed_enrollment: any | null;

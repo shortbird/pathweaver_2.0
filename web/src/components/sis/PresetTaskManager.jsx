@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { PILLARS, PILLAR_LABEL, blankTask, followPillar } from './QuestDraftForm'
 import TaskSubjectPicker from './TaskSubjectPicker'
 import { SUBJECT_LABEL } from '../../constants/diplomaSubjects'
+import QuestResourcesPanel from './QuestResourcesPanel'
 
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -20,7 +21,7 @@ const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm foc
  * `orgId` (optional) is appended as ?organization_id — the curriculum routes
  * need it when a superadmin is viewing another org; class routes don't.
  */
-export default function PresetTaskManager({ base, orgId }) {
+export default function PresetTaskManager({ base, orgId, questId = null }) {
   const q = orgId ? `?organization_id=${orgId}` : ''
   const [tasks, setTasks] = useState([])
   const [editable, setEditable] = useState(false)
@@ -190,6 +191,13 @@ export default function PresetTaskManager({ base, orgId }) {
                     </>
                   )}
                 </div>
+              )}
+              {/* What this particular task needs: the worksheet for step 3, the
+                  demo video for step 5. They used to be pasted into the
+                  description or dropped on the class in one list with no way to
+                  say which task they belonged to. */}
+              {editable && questId && (
+                <QuestResourcesPanel questId={questId} taskId={t.id} compact />
               )}
             </li>
           ))}

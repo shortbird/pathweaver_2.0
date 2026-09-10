@@ -35,7 +35,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuestDetail, subjectNames } from '@/src/hooks/useQuestDetail';
 import { extractApiError } from '@/src/services/apiError';
-import type { QuestViewerContext } from '@/src/hooks/useQuestDetail';
+import type { QuestViewerContext, QuestResource } from '@/src/hooks/useQuestDetail';
 import { useQuestEngagement } from '@/src/hooks/useDashboard';
 import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
@@ -204,6 +204,37 @@ function EvidenceBlockDisplay({ block }: { block: any }) {
   }
 
   return null;
+}
+
+/**
+ * Files, links and videos a teacher attached to a quest or one of its tasks.
+ *
+ * Everything opens externally, video included: safeOpenURL re-checks the scheme
+ * before the OS sees it, and there is no WebView here to embed a player in. A
+ * student tapping a demo video gets it in YouTube, which is where they can
+ * scrub and full-screen it anyway.
+ */
+function ResourceRows({ resources }: { resources?: QuestResource[] }) {
+  const items = resources || [];
+  if (!items.length) return null;
+  const iconFor = (kind: string): keyof typeof Ionicons.glyphMap =>
+    kind === 'video' ? 'play-circle-outline'
+      : kind === 'file' ? 'document-text-outline' : 'link-outline';
+  return (
+    <VStack space="xs">
+      {items.map((r) => (
+        <Pressable key={r.id} onPress={() => safeOpenURL(r.url)}
+          accessibilityRole="link" accessibilityLabel={r.title}>
+          <HStack className="items-center gap-2 p-2 rounded-lg bg-surface-100 dark:bg-dark-surface-200">
+            <Ionicons name={iconFor(r.kind)} size={15} color="#6d469b" />
+            <UIText size="xs" className="text-typo-700 dark:text-dark-typo-700 flex-1" numberOfLines={1}>
+              {r.title}
+            </UIText>
+          </HStack>
+        </Pressable>
+      ))}
+    </VStack>
+  );
 }
 
 function TaskItem({
@@ -551,6 +582,7 @@ function TaskItem({
               {task.description && (
                 <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">{task.description}</UIText>
               )}
+              <ResourceRows resources={task.resources} />
               {/* Success criteria - the checkable "done" bar for this task */}
               {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
                 <VStack space="xs" className="p-2.5 rounded-lg bg-surface-100 dark:bg-dark-surface-200">

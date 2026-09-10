@@ -527,7 +527,8 @@ export default function ClassQuestsManager({ classId }) {
                 </div>
                 {open && (
                   <div className="border-t border-gray-100 px-4 pb-4">
-                    <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`} />
+                    <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`}
+                      questId={q.quest_id} />
                   </div>
                 )}
               </li>

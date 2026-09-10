@@ -3,6 +3,7 @@
 // pillar / XP / subject-credit badges.
 import { TrophyIcon, ExclamationCircleIcon, CheckCircleIcon, SparklesIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import SubjectBadges from '../../common/SubjectBadges';
+import QuestResourceList from '../QuestResourceList';
 
 // optio-purple. Stands in for the pillar colour where pillars are hidden.
 const BRAND_PURPLE = '#6d469b';
@@ -62,6 +63,11 @@ const TaskDetailsSection = ({ canUseTaskGeneration, isDescriptionExpanded, pilla
         )}
       </div>
     )}
+
+    {/* What the teacher attached to THIS task. The point of the feature: a
+        worksheet for step 3 lives on step 3, not in one undifferentiated list
+        on the class where nobody can tell which task it is for. */}
+    <QuestResourceList resources={task.resources} className="mb-5" />
 
     {/* Success criteria - the checkable "done" bar for this task */}
     {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
