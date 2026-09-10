@@ -39,7 +39,9 @@ jobs:
   web:
     uses: ./.github/workflows/tests-web.yml
     with:
-      coverage-floor: 53
+      # 60, measured 61.69% on 2026-09-10 (was 53, measured 54.44% on
+      # 2026-08-13). Ratchet up, never down.
+      coverage-floor: 60
 
   mobile:
     uses: ./.github/workflows/tests-mobile.yml

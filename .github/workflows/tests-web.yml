@@ -10,7 +10,7 @@ on:
       coverage-floor:
         description: 'Minimum line coverage percent. Ratchet up, never down.'
         required: false
-        default: 53
+        default: 60
         type: number
 
 permissions:
@@ -85,7 +85,14 @@ jobs:
         # which meant more than a fifth of the tested surface could be deleted
         # without the gate noticing. A floor below actual coverage does not
         # protect anything; it only records an old number. Ratcheted to 53 on
-        # 2026-08-13 (1 point under measured, for flake tolerance).
+        # 2026-08-13 (1 point under measured, for flake tolerance), and to 60 on
+        # 2026-09-10 against a measurement of 61.69%.
+        #
+        # Note what this column actually is. The awk reads field 2 of the
+        # `All files` row, which v8's text reporter prints as % Stmts, not
+        # % Lines -- lines measured 63.65% in the same run. The name in this
+        # step is wrong and the gate is not; statements is the stricter of the
+        # two here, so leaving it alone is the safe half of the discrepancy.
         env:
           MIN_COVERAGE: ${{ inputs.coverage-floor }}
         run: |
