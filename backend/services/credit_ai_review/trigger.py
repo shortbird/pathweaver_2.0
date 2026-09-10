@@ -81,9 +81,13 @@ def kick_background(review_ids: List[str], admin=None) -> bool:
     app = None
     try:
         from flask import current_app
-        app = current_app._get_current_object()
-    except Exception:  # noqa: BLE001
-        # Called from the cron script or a test, outside a request.
+        # current_app is a LocalProxy; the thread below outlives this request,
+        # so it needs the real app object rather than a proxy that will point at
+        # nothing once the request ends. The ignore is because the accessor
+        # belongs to the proxy and mypy sees the Flask it proxies.
+        app = current_app._get_current_object()  # type: ignore[attr-defined]
+    except (RuntimeError, AttributeError):
+        # No application context: the cron script, or a test.
         app = None
 
     thread = threading.Thread(

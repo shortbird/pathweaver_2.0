@@ -134,8 +134,8 @@ def _normalize_criteria(raw_criteria: Any, criteria: List[str],
         if not isinstance(entry, dict):
             continue
         try:
-            index = int(entry.get('index'))
-        except (TypeError, ValueError):
+            index = int(entry['index'])
+        except (KeyError, TypeError, ValueError):
             continue
         if index < 1 or index > len(criteria):
             flags.append(f'The AI answered about a criterion that does not exist (#{index}).')
@@ -267,8 +267,8 @@ def _normalize_xp(raw: Any, requested_xp: int, flags: List[str]) -> Dict[str, An
     raw = raw if isinstance(raw, dict) else {}
 
     try:
-        recommended = int(round(float(raw.get('recommended'))))
-    except (TypeError, ValueError):
+        recommended = int(round(float(raw['recommended'])))
+    except (KeyError, TypeError, ValueError):
         flags.append('The AI did not give a usable XP figure, so the requested amount stands.')
         recommended = requested
 

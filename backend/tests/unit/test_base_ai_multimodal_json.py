@@ -20,6 +20,7 @@ import pytest
 
 from services.base_ai_service import (
     AICreditsExhaustedError,
+    AIGenerationError,
     AIParsingError,
     AIServiceOverloadedError,
     BaseAIService,
@@ -113,14 +114,21 @@ class TestAskingForLess:
         assert any('could not open the attached files' in n for n in result.notes)
 
     def test_a_text_only_request_does_not_retry_itself_forever(self):
-        """Nothing to drop means nothing to retry differently."""
+        """Nothing to drop means nothing to retry differently.
+
+        A text-only request that hits an invalid-argument 400 has no attachments
+        to strip, so there is nothing to ask for less of. The provider's own
+        error is re-raised unchanged rather than wrapped -- the classified types
+        are for failures we can say something useful about, and this is not one.
+        """
         service = _service()
         with patch.object(BaseAIService, 'generate_with_fallback',
-                          side_effect=Exception('400 invalid argument')), \
+                          side_effect=Exception('400 invalid argument')) as gen, \
              patch.object(BaseAIService, 'model_name', 'primary-model'), \
              patch('time.sleep'):
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match='400 invalid argument'):
                 service.generate_json_multimodal(['just text'], max_retries=1)
+        assert gen.call_count == 1
 
 
 @pytest.mark.unit
@@ -160,5 +168,5 @@ class TestFailures:
         assert result.attempts == 2
 
     def test_empty_parts_are_refused_rather_than_sent(self):
-        with pytest.raises(Exception):
+        with pytest.raises(AIGenerationError):
             _service().generate_json_multimodal([])

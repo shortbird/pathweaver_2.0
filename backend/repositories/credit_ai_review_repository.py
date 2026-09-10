@@ -116,8 +116,14 @@ class CreditAIReviewRepository(BaseRepository):
         inserted = self.client.table(self.table_name).insert(row).execute().data
         return inserted[0] if inserted else dict(row)
 
-    def update(self, review_id: str, update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        rows = self.client.table(self.table_name).update(update).eq(
+    def patch(self, review_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Unconditional update by id.
+
+        Named `patch` rather than `update` on purpose: BaseRepository.update has
+        a different signature, and shadowing it with an incompatible one is the
+        kind of thing that works until somebody calls the base version.
+        """
+        rows = self.client.table(self.table_name).update(changes).eq(
             'id', review_id).execute().data
         return rows[0] if rows else None
 

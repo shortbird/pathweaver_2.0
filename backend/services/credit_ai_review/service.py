@@ -315,7 +315,7 @@ def _resubmission_context(this_round: Dict[str, Any],
     }
 
 
-def _diff_snapshots(before: Any, after: Any):
+def _diff_snapshots(before: Any, after: Any) -> tuple:
     """(added block numbers, changed block numbers, count of removed pieces).
 
     "Added" is a block whose every piece is new. "Changed" is a block that kept
@@ -325,8 +325,8 @@ def _diff_snapshots(before: Any, after: Any):
     """
     from utils.evidence_labels import block_items
 
-    def by_block(snapshot: Any):
-        out = {}
+    def by_block(snapshot: Any) -> Dict[int, set]:
+        out: Dict[int, set] = {}
         if not isinstance(snapshot, list):
             return out
         for index, block in enumerate(snapshot, start=1):
@@ -341,7 +341,8 @@ def _diff_snapshots(before: Any, after: Any):
     old_all = set().union(*old_blocks.values()) if old_blocks else set()
     new_all = set().union(*new_blocks.values()) if new_blocks else set()
 
-    added, changed = [], []
+    added: List[int] = []
+    changed: List[int] = []
     for index, prints in new_blocks.items():
         fresh = prints - old_all
         if not fresh:

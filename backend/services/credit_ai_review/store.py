@@ -94,7 +94,7 @@ def queue_review(admin, *, round_id: str, completion_id: str,
             'skip_reason': None,
             'requested_by': requested_by,
         }
-        return repo.update(existing['id'], update) or {**existing, **update}
+        return repo.patch(existing['id'], update) or {**existing, **update}
 
     return repo.create({
         'round_id': round_id,

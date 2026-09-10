@@ -162,8 +162,12 @@ def _apply_pillar_delta(admin, student_id: str, pillar: Optional[str],
     try:
         from utils.pillar_utils import normalize_pillar_name
         resolved = normalize_pillar_name(resolved) or resolved
-    except Exception:  # noqa: BLE001 - keep the stored value if unmappable
-        pass
+    except (ImportError, ValueError, KeyError) as e:
+        # Keep the stored value if it cannot be mapped. Worth a line either way:
+        # an unmappable pillar means the delta below lands on a row that may not
+        # be the one holding this task's XP.
+        logger.warning(f'Could not normalize pillar {resolved!r} for an XP '
+                       f'adjustment, using it as-is: {e}')
 
     try:
         current = admin.table('user_skill_xp').select('id, xp_amount').eq(

@@ -160,8 +160,11 @@ def fetch_bytes(url: str, *, max_bytes: int,
         try:
             from urllib.parse import urlparse
             final_host = (urlparse(resp.url).hostname or '').lower()
-        except Exception:  # noqa: BLE001
-            pass
+        except (ValueError, AttributeError) as e:
+            # An unparseable final URL only costs us the sign-in detection
+            # below, so the fetch still returns its body -- but say so, because
+            # the alternative reading is "this Google file IS shared".
+            logger.debug(f'Could not read the final host of a fetched link: {e}')
         if any(host in final_host for host in _SHARING_OFF_HOSTS):
             return Fetched(ok=False, reason='the link asks for a sign-in')
 
@@ -183,8 +186,10 @@ def fetch_bytes(url: str, *, max_bytes: int,
     finally:
         try:
             resp.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except OSError as e:
+            # A socket that will not close cleanly leaks one connection, which
+            # matters on a 512MB container running two reviews at once.
+            logger.debug(f'Could not close a fetched response: {e}')
 
 
 def fetch_google_export(source: str, extracted: Dict[str, str], *,

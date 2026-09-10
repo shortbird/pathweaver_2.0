@@ -665,8 +665,10 @@ def _to_jpeg(blob: bytes, filename: str, mime: str) -> Optional[bytes]:
 
     try:
         from PIL import Image, ImageOps
-        img = Image.open(io.BytesIO(blob))
-        img = ImageOps.exif_transpose(img)
+        opened = Image.open(io.BytesIO(blob))
+        # exif_transpose and convert return a new Image, not the ImageFile that
+        # open() gave us, so this cannot be one rebound variable.
+        img: 'Image.Image' = ImageOps.exif_transpose(opened) or opened
         if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
         img.thumbnail((2048, 2048))
