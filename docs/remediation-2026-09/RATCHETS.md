@@ -3,8 +3,8 @@
 **As of 2026-09-10.** Every mechanical control in this repository, in one place,
 with what it protects and what its current ceiling is.
 
-This file exists because the controls were spread across 88 test files, four CI
-workflows and a settings file, and nobody could answer "what actually stops this
+This file exists because the controls were spread across 115 test files,
+workflows and gate scripts, and nobody could answer "what actually stops this
 regressing?" without reading all of them. It is also the file to edit when a
 number legitimately moves — the numbers below are the numbers in the code, and
 if the two disagree, the code is right and this file is stale.
@@ -29,8 +29,9 @@ Four rules, learned the hard way:
    finding call sites — a moved directory, a changed regex — passes forever and
    looks exactly like success. Most of the ones below carry one; the column says
    which do not.
-4. **An exemption carries a written reason.** Two exemption structures are
-   deliberately empty and should stay that way.
+4. **An exemption carries a written reason.** Five exemption structures are
+   deliberately empty (§2b), and an entry appearing in one of those is a
+   regression rather than a decision.
 
 ---
 
@@ -38,7 +39,7 @@ Four rules, learned the hard way:
 
 | Ceiling | Where | Protects |
 |---|---|---|
-| `routes` 2,342 / `services` 1,841 direct `.table()` calls, and their combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix |
+| Direct `.table()` calls per layer: routes 2,342, services 1,847, repositories 465, utils 144, jobs 7, middleware 3, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
 | 449 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
 | 12 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
 | 23 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
@@ -54,6 +55,18 @@ Four rules, learned the hard way:
 | 580 explicit `any` | `mobile/src/__tests__/typeWidening.test.ts` | QF-09 |
 | 1,400 lines per route file | `backend/tests/unit/test_route_file_sizes.py` | QB-04. **`EXEMPTIONS` is empty** |
 | 1,000 lines per web component | `web/src/__tests__/componentSize.test.js` | QF-02. **`EXEMPT` is empty**, and a fourth test fails when a file drops under the cap and its exemption lingers |
+| 55 known-dead client API paths | `backend/tests/test_client_api_paths_exist.py` | Every `/api/...` the web and mobile clients call is a real route. The dead list may only shrink |
+| 72 modals with a raw fixed-inset backdrop | `web/src/tests/modalPortalGuard.test.js` | Modal overlays render through a portal. A separate test fails on a stale entry |
+| Per-file class-scope call floors (attendance 2, catalog 2, submissions 1, engagement 2, staff portal 2, gradebook 6, student records 1) | `backend/tests/unit/test_class_scope_coverage.py` | Teacher-reachable SIS reads apply `class_scope`. Allowlist of 10, each with a reason |
+| 1 definition of the admin client | `backend/tests/unit/test_one_admin_accessor.py` | One place that builds a client which bypasses RLS |
+
+**Two-sided ratchets.** Five of the above also fail when the count drops *too
+far below* the baseline: `eslintRatchet` (slack 60), `brandPalette` (40),
+`dataFetchingParadigm` (40), `typeWidening` (60), and the `utcnow` baseline. The
+reason is worth understanding — a large silent drop is more often a broken scan
+than a cleanup, and slack below the real number is the fraction of a fix that
+can be undone without anything failing. When you legitimately reduce a count,
+lower the baseline in the same commit.
 
 ## 2. Absolute guards
 
@@ -68,6 +81,9 @@ These assert zero, or one, or a structure. No number to raise.
 - `test_id_routes_declare_relationship.py` — every id-bearing route declares
   `@require_relationship_to`, is superadmin-only, or is allowlisted with a
   written reason. SEC-10. Companion tests forbid stale allowlist entries.
+  **Its `REVIEWED_2026_09_03` dict reads as empty and is not** — 23 `_reviewed()`
+  calls populate it at import. Do not mistake it for one of the empty
+  exemption lists in §2b.
 - `test_auth_resolvers_fail_closed.py` — the three user resolvers agree across a
   credential matrix; `get_deescalation_user_id` has exactly two call sites.
 - `test_verify_token_access_only.py` — a refresh token is never an access token.
@@ -85,9 +101,18 @@ These assert zero, or one, or a structure. No number to raise.
 
 **Secrets and disclosure**
 
-- `test_secret_exposure_guard.py` (42 tests, its own CI step) — a migration
+- `test_secret_exposure_guard.py` (42 test cases, its own CI step) — a migration
   cannot create a table without RLS; code cannot read a credential out of
   `feature_flags`; `/me` cannot stop stripping.
+- `test_postgrest_filter_injection.py` — nothing interpolates a raw value into a
+  PostgREST filter string. Four allowlisted names, each with a reason.
+- `test_private_storage_urls.py` — every avatar and evidence read path signs
+  before it serialises. **`_PENDING_REMEDIATION` is empty**, which is the
+  assertion that there is nothing left.
+- `web/src/utils/__tests__/dangerouslySetInnerHTML.lint.test.js` — every such
+  call routes its HTML through `sanitizeHtml`.
+- `web/src/utils/__tests__/metaPixelDeferred.lint.test.js` — the Meta Pixel does
+  not fire on page load.
 - `test_log_pii_scrubbing.py` — the scrubber is installed, including where
   Sentry reads records outside the handler chain. SEC-05.
 - `test_no_config_disclosure_routes.py` — the retired debug routes stay 404.
@@ -142,6 +167,42 @@ Its header records what cannot be guarded from a repository at all, and why.
 **`test_doc03_every_link_in_claude_md_resolves` is the reason a link added to
 CLAUDE.md must point at a file that exists.**
 
+## 2b. Exemption lists that are empty on purpose
+
+An entry appearing in one of these is a regression, not a decision. They are
+listed together because "the list is empty" is the whole assertion.
+
+| Structure | File |
+|---|---|
+| `EXEMPTIONS: dict[str, int] = {}` | `backend/tests/unit/test_route_file_sizes.py` |
+| `UNBOUNDED_ALLOWED: dict = {}` | `backend/tests/unit/test_requirements_are_bounded.py` |
+| `_PENDING_REMEDIATION: dict = {}` | `backend/tests/test_private_storage_urls.py` |
+| `EXEMPT = {}` | `web/src/__tests__/componentSize.test.js` |
+| no `web/audit-allowlist.json` at all | the web app has no accepted advisories |
+
+`mobile/audit-allowlist.json` has two entries, both `image-size`, both with a
+`recheck_after` of 2026-10-08. `audit-gate.mjs` fails on an expired entry, on the
+principle that an accepted risk nobody looks at again is an unaccepted one with
+better paperwork.
+
+## 2c. Guards that do not run in a normal local run
+
+Worth knowing, because a green local run is not the same as a green CI run, and
+because a guard that silently stops running is the failure mode this whole
+inventory exists to prevent.
+
+| What | Why it does not run locally |
+|---|---|
+| `backend/tests/integration/*` — 133 tests including `test_rls_org_isolation.py` | `requires_db`. They need a local Supabase stack, and run enforcing in `tests-integration.yml`. The RLS suite is arguably the most security-relevant file in the repository and it never runs on a laptop without Docker |
+| Two of the three tests in `test_no_config_disclosure_routes.py` | One is `requires_db`; the other two do run |
+| `test_module_registry.py` | `skipif` on a generated JSON file being absent — it vanishes silently if the registry is not generated |
+| Four cases in `test_file_upload_validation.py`, six in `test_curriculum_lesson_service.py` | Carry explicit skip markers |
+
+Historical note, because it is the exact shape to watch for:
+`test_admin_client_justified` was **deselected in CI** while ~195 unjustified
+admin-client calls existed. It read as enforcing and was not. The deselect was
+removed on 2026-09-03 and it gates now.
+
 ## 3. Coverage floors
 
 Ratchet up, never down. Set just under the measured value so a regression fails
@@ -176,7 +237,7 @@ gate nobody can get past is a gate somebody deletes.
 | Gate | Where | What it stops |
 |---|---|---|
 | ruff (F/E9/B/S110/S112) | `tests-backend.yml` | CI-01 |
-| mypy (302 modules exempted by name in `mypy.ini`; the list only shrinks) | `tests-backend.yml` | CI-01 |
+| mypy (292 modules carry `ignore_errors` in `backend/mypy.ini`, out of 302 named sections; the list only shrinks) | `tests-backend.yml` | CI-01 |
 | pyflakes, filtered to undefined names | `tests-backend.yml` | Missing imports, which Python only finds when a request reaches the line. Four were live on 2026-09-02 |
 | pip-audit, **no suppressions** | `tests-backend.yml` | HYG-03. A future ignore needs a dated reason and a re-check date |
 | `npm audit` via `scripts/audit-gate.mjs` | `tests-web.yml`, `tests-mobile.yml` | Advisories, one at a time, each allowlisted with a reason and an expiry |
@@ -184,7 +245,10 @@ gate nobody can get past is a gate somebody deletes.
 | `scripts/audit_db_exposure.py`, daily against production | `db-exposure-audit.yml` | The half no repository check can see: a table made public through the dashboard. It found H6 unprompted |
 | Weekly encrypted storage backup with three safety rails | `backup-storage.yml` | OPS-04 |
 | Preview-branch reaper, daily | `supabase-branch-reaper.yml` | Abandoned Supabase preview branches were 38% of one month's invoice |
-| `max_pending` tripwire | `migrate-prod.yml` | An accidental `db push` against an unreconciled history |
+| `max_pending` tripwire (default 3) | `migrate-prod.yml` | An accidental `db push` against an unreconciled history |
+| Daily database backup, with a dump-size floor of 5MB and a pinned pg_dump 17.x | `backup-db.yml` | A truncated backup that uploads successfully |
+| `generate-constants.mjs --check` | `tests-web.yml` | Editing `shared/data/*.json` without regenerating the constants |
+| `tsc --noEmit`, gating since 2026-08-18 | `tests-mobile.yml` | Type errors in the mobile app. Kept at zero |
 
 **Never point a test suite at a Supabase preview branch.** They cost real money
 and put a service-role key for a production clone in CI. Use the local stack.
