@@ -49,8 +49,23 @@ def test_moment_task_reports_no_completion_instead_of_500(
     assert resp.status_code == 200
     body = resp.get_json()
     assert (body.get("data") or body)["has_completion"] is False
-    # The guard must short-circuit before the query that raised 22P02.
-    mock_portfolio_admin.table.assert_not_called()
+    # The guard must short-circuit before the query that raised 22P02 -- which
+    # is a query against THIS table, with a non-uuid id.
+    #
+    # Named, rather than `table.assert_not_called()`. That was the assertion
+    # here until 2026-09-10 and it was order-dependent: every authenticated
+    # request also passes through middleware that reads the database on a cold
+    # cache -- the phone-verification hold, then the SIS onboarding gate -- and
+    # those reads go through the same get_supabase_admin_client this fixture
+    # patches. So the assertion was measuring the MIDDLEWARE, and passed only
+    # when an earlier test in the run happened to have warmed their caches:
+    # green in a full local run, red in CI, red on its own. Naming the table
+    # measures the route, which is what the test is about, and does not break
+    # the next time something is added to the request path.
+    queried = [c.args[0] for c in mock_portfolio_admin.table.call_args_list if c.args]
+    assert "quest_task_completions" not in queried, (
+        f"the moment-id guard did not short-circuit; tables queried: {queried}"
+    )
 
 
 def test_real_task_id_still_resolves_its_completion(
