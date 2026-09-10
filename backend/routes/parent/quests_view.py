@@ -318,8 +318,10 @@ def get_student_quest_view(user_id, student_id, quest_id):
         # co-parent their child was not a dependent and hid the buttons the
         # first parent had. WHO may act is settled by the relationship gate on
         # this route; this only says WHAT the account is.
-        student_check = supabase.table('users').select('is_dependent').eq('id', student_id).single().execute()
-        is_dependent = bool(student_check.data and student_check.data.get('is_dependent'))
+        student_check = (supabase.table('users').select('is_dependent, first_name')
+                         .eq('id', student_id).single().execute())
+        student_row = student_check.data or {}
+        is_dependent = bool(student_row.get('is_dependent'))
 
         # Get quest details
         quest_response = supabase.table('quests').select('''
@@ -512,6 +514,10 @@ def get_student_quest_view(user_id, student_id, quest_id):
                 'percentage': progress_percentage
             },
             'is_dependent': is_dependent,
+            # For the "Work on this as <name>" hand-over: the acting-as banner
+            # names whose account you are in, and "your child" reads oddly to a
+            # parent of three.
+            'student_name': student_row.get('first_name') or '',
             # Whether this parent may author tasks onto the student's quest via
             # the personalization wizard. Checked against allow_custom_tasks flag.
             'can_add_tasks': quest.get('allow_custom_tasks') is not False,

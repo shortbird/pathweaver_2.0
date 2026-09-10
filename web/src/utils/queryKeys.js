@@ -40,6 +40,9 @@ export const queryKeys = {
     classMaterials: (studentId) => [...queryKeys.family.all, 'classMaterials', studentId],
     // The signed-in student's own, which takes no id -- see useMyClassMaterials.
     myClassMaterials: () => [...queryKeys.family.all, 'myClassMaterials'],
+    // classId narrows to one class; undefined is the whole record.
+    attendance: (studentId, classId) =>
+      [...queryKeys.family.all, 'attendance', studentId, classId || 'all'],
   },
 
   // Social features (friends removed March 2026)

@@ -19,6 +19,7 @@ export {
 export { useAdvisorStudentOverview } from './useAdvisorStudentOverview';
 export { useParentChildOverview } from './useParentChildOverview';
 export { useStudentClassMaterials } from './useStudentClassMaterials';
+export { useStudentAttendance } from './useStudentAttendance';
 export { useMyClassMaterials } from './useMyClassMaterials';
 export { useStudentOverviewData } from './useStudentOverviewData';
 export {
