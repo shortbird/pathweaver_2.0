@@ -26,6 +26,7 @@ from utils.roles import get_effective_role
 from datetime import datetime
 
 from utils.logger import get_logger
+from utils.retry_handler import with_connection_retry
 
 logger = get_logger(__name__)
 
@@ -44,11 +45,26 @@ def approve_credit(user_id: str, completion_id: str):
         admin_supabase = get_supabase_admin_singleton()
         data = request.get_json() or {}
 
-        completion_result = admin_supabase.table('quest_task_completions')\
-            .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at')\
-            .eq('id', completion_id)\
-            .single()\
-            .execute()
+        # Retried, and only the reads are. The singleton client keeps Supabase
+        # connections alive between requests; when the far end closes one it has
+        # already handed out, the next call through the pool dies with
+        # RemoteProtocolError("Server disconnected") before the request is even
+        # sent. That killed a real approval on the first call after an idle
+        # spell -- Sentry OPTIO-BACKEND-8N, which failed here, ahead of every
+        # write, so nothing had partially applied.
+        #
+        # The writes below are deliberately NOT retried. finalize_subject_xp
+        # increments (reads xp_amount, adds, writes back), so replaying it after
+        # a write that did land double-awards the student. A failed approval the
+        # reviewer clicks again is recoverable; silently doubled subject XP is
+        # not.
+        completion_result = with_connection_retry(
+            lambda: admin_supabase.table('quest_task_completions')
+            .select('id, user_id, quest_id, diploma_status, revision_number, user_quest_task_id, credit_requested_at')
+            .eq('id', completion_id)
+            .single()
+            .execute(),
+            operation_name='approve_credit.load_completion')
 
         if not completion_result.data:
             return error_response(code='NOT_FOUND', message='Completion not found', status=404)
@@ -64,11 +80,13 @@ def approve_credit(user_id: str, completion_id: str):
             )
 
         # Get task data for subject distribution
-        task_result = admin_supabase.table('user_quest_tasks')\
-            .select('title, diploma_subjects, subject_xp_distribution, xp_value')\
-            .eq('id', completion_data['user_quest_task_id'])\
-            .single()\
-            .execute()
+        task_result = with_connection_retry(
+            lambda: admin_supabase.table('user_quest_tasks')
+            .select('title, diploma_subjects, subject_xp_distribution, xp_value')
+            .eq('id', completion_data['user_quest_task_id'])
+            .single()
+            .execute(),
+            operation_name='approve_credit.load_task')
 
         task_data = task_result.data or {}
         xp_value = task_data.get('xp_value', 0)
@@ -100,12 +118,14 @@ def approve_credit(user_id: str, completion_id: str):
         now = datetime.utcnow().isoformat()
 
         # Update the latest review round (or create one for legacy requests)
-        latest_round = admin_supabase.table('diploma_review_rounds')\
-            .select('id')\
-            .eq('completion_id', completion_id)\
-            .order('round_number', desc=True)\
-            .limit(1)\
-            .execute()
+        latest_round = with_connection_retry(
+            lambda: admin_supabase.table('diploma_review_rounds')
+            .select('id')
+            .eq('completion_id', completion_id)
+            .order('round_number', desc=True)
+            .limit(1)
+            .execute(),
+            operation_name='approve_credit.load_review_round')
 
         review_data = {
             'reviewer_id': user_id,
