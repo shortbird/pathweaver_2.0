@@ -269,7 +269,9 @@ class GroupMessageService(BaseService):
         user_id: str,
         name: str,
         description: Optional[str] = None,
-        member_ids: Optional[List[str]] = None
+        member_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
+        audience: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new group chat
@@ -279,6 +281,15 @@ class GroupMessageService(BaseService):
             name: Group name
             description: Optional group description
             member_ids: Optional list of member UUIDs to add
+            organization_id: Org the group belongs to. Defaults to the creator's.
+                Pass it explicitly for a superadmin, who has no organization of
+                their own: a group minted with organization_id NULL then fails
+                can_add_member for every teacher in it (no shared org, no
+                explicit relationship), so the superadmin ends up alone in a
+                group they created for a school.
+            audience: 'family' | 'student' | 'staff'. Class chats set the first
+                two; a staff group sets 'staff'. Left unset, the column default
+                ('family') would quietly file a staff group with the parents.
 
         Returns:
             Created group record
@@ -289,12 +300,16 @@ class GroupMessageService(BaseService):
 
             supabase = self._get_client()
 
-            # Get creator's organization
-            creator = supabase.table('users').select('organization_id').eq(
+            creator = supabase.table('users').select('organization_id, role').eq(
                 'id', user_id
             ).single().execute()
+            creator_org = creator.data.get('organization_id') if creator.data else None
 
-            organization_id = creator.data.get('organization_id') if creator.data else None
+            if organization_id and organization_id != creator_org:
+                # Only a superadmin may name an org that is not their own.
+                if not creator.data or creator.data.get('role') != 'superadmin':
+                    raise ValueError("You cannot create a group in another organization")
+            organization_id = organization_id or creator_org
 
             # Create group
             group_id = str(uuid.uuid4())
@@ -308,6 +323,8 @@ class GroupMessageService(BaseService):
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
+            if audience:
+                group['audience'] = audience
 
             result = supabase.table('group_conversations').insert(group).execute()
 

@@ -19,7 +19,7 @@ Three doors to the money, and each is checked here:
   3. The staff roster CSV, which carried Pay Type and Payroll ID columns.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -432,7 +432,6 @@ class TestGroupChats:
     office."""
 
     def _service_seeing(self, user_row):
-        from unittest.mock import Mock
         from services.group_message_service import GroupMessageService
         client = Mock()
         table = Mock()
@@ -489,3 +488,70 @@ class TestGroupChats:
         set must not drift from it."""
         from services.group_message_service import GroupMessageService
         assert GroupMessageService.GROUP_CREATOR_ROLES == frozenset(sis_roles.STAFF_ROLES)
+
+
+@pytest.mark.unit
+class TestCreatingAGroupInAnotherOrg:
+    """Only a superadmin may name an org that is not their own.
+
+    A superadmin has no organization_id, so a group they created for a school
+    was minted with organization_id NULL -- and can_add_member then refused
+    every teacher in it (no shared org, no explicit relationship). The
+    superadmin ended up alone in a group they had made for somebody else.
+    """
+
+    def _service(self, role, org_id):
+        from services.group_message_service import GroupMessageService
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'single', 'insert', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(
+            data={'organization_id': org_id, 'role': role,
+                  'org_role': None, 'org_roles': None})
+        svc = GroupMessageService()
+        svc._get_client = lambda: client
+        svc.can_create_group = lambda _uid: True
+        return svc, table
+
+    def test_a_superadmin_may_name_the_org(self):
+        svc, table = self._service('superadmin', None)
+        table.execute.side_effect = [
+            Mock(data={'organization_id': None, 'role': 'superadmin'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('tanner', 'Tuesday cover', organization_id='org-1',
+                         audience='staff')
+        assert table.insert.call_args_list[0][0][0]['organization_id'] == 'org-1'
+
+    def test_an_admin_may_not_name_another_org(self):
+        svc, _ = self._service('org_managed', 'org-1')
+        with pytest.raises(ValueError, match='another organization'):
+            svc.create_group('kate', 'x', organization_id='org-2')
+
+    def test_a_staff_group_is_filed_as_staff(self):
+        """Left unset the column default is 'family', which would file a staff
+        group with a class's parent chats."""
+        svc, table = self._service('org_managed', 'org-1')
+        table.execute.side_effect = [
+            Mock(data={'organization_id': 'org-1', 'role': 'org_managed'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('kate', 'Tuesday cover', organization_id='org-1',
+                         audience='staff')
+        assert table.insert.call_args_list[0][0][0]['audience'] == 'staff'
+
+    def test_a_group_with_no_audience_does_not_set_the_column(self):
+        """Class chats and the learning app's own group modal pass none; the
+        column default keeps answering for them."""
+        svc, table = self._service('org_managed', 'org-1')
+        table.execute.side_effect = [
+            Mock(data={'organization_id': 'org-1', 'role': 'org_managed'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('kate', 'Book club')
+        assert 'audience' not in table.insert.call_args_list[0][0][0]
