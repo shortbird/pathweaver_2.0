@@ -18,6 +18,14 @@ logger = get_logger(__name__)
 class GroupMessageService(BaseService):
     """Service for group messaging operations"""
 
+    #: Who may start a group chat. Staff only, across both tiers: platform
+    #: advisors and superadmins, and org staff resolved through org_roles.
+    #: Deliberately the STAFF tier and not ADMIN_ROLES -- a teacher starting a
+    #: group for her own class is the original use case.
+    GROUP_CREATOR_ROLES = frozenset({
+        'advisor', 'org_admin', 'campus_coordinator', 'superadmin',
+    })
+
     def __init__(self):
         pass
 
@@ -31,36 +39,35 @@ class GroupMessageService(BaseService):
     # ==================== Permission Checking ====================
 
     def can_create_group(self, user_id: str) -> bool:
-        """
-        Check if user has permission to create groups
-        Only advisors, org_admins, and superadmins can create groups
+        """Whether this person may start a group chat: staff only.
 
-        Args:
-            user_id: UUID of the user
+        Reads EVERY role the person holds, not `org_role` alone. Two bugs came
+        out of the old single-column check:
 
-        Returns:
-            Boolean indicating if user can create groups
+        1. `campus_coordinator` was missing from the list, so a coordinator got
+           "You do not have permission to create groups" from a console where
+           ADMIN_ROLES (utils/sis_roles.py:36) lets her do everything else the
+           front office does. Group chat is not financial and not HR.
+        2. `org_role` is one column but staff hold several roles. At iCreate the
+           teachers are parents too: org_roles ['parent', 'advisor'] with
+           org_role 'parent' failed this check while the same person's
+           @require_role(*STAFF_ROLES) routes all passed (the same shape as
+           Sentry OPTIO-BACKEND-6P, 2026-08-18, in verify_parent_role).
+
+        get_effective_roles resolves org_managed through org_roles/org_role and
+        narrows under an active role view, so viewing as a parent correctly
+        stops you creating staff groups.
         """
         try:
             supabase = self._get_client()
-            user = supabase.table('users').select('role, org_role').eq('id', user_id).single().execute()
+            user = (supabase.table('users').select('role, org_role, org_roles')
+                    .eq('id', user_id).single().execute())
 
             if not user.data:
                 return False
 
-            # Check both platform role and org role
-            role = user.data.get('role')
-            org_role = user.data.get('org_role')
-
-            # Platform users
-            if role in ['advisor', 'superadmin']:
-                return True
-
-            # Org-managed users - check org_role
-            if role == 'org_managed' and org_role in ['advisor', 'org_admin']:
-                return True
-
-            return False
+            from utils.roles import get_effective_roles
+            return bool(set(get_effective_roles(user.data)) & self.GROUP_CREATOR_ROLES)
 
         except Exception as e:
             logger.error(f"Error checking create group permission: {str(e)}")

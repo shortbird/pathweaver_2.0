@@ -401,3 +401,71 @@ class TestClassReportMoneyRedaction:
         runs the class report."""
         keys = {f['key'] for f in self._report(False)['fields']}
         assert {'name', 'teacher', 'room', 'enrolled', 'capacity'} <= keys
+
+
+@pytest.mark.unit
+class TestGroupChats:
+    """Starting a group chat is not financial and not HR, so a coordinator does
+    it. The old check read `org_role` alone against a list that had no
+    coordinator in it at all, so Kate got "You do not have permission to create
+    groups" from a console that lets her run everything else in the front
+    office."""
+
+    def _service_seeing(self, user_row):
+        from unittest.mock import Mock
+        from services.group_message_service import GroupMessageService
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.single.return_value = table
+        table.execute.return_value = Mock(data=user_row)
+        svc = GroupMessageService()
+        svc._get_client = lambda: client
+        return svc
+
+    def test_a_coordinator_can_create_a_group(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'campus_coordinator',
+                                    'org_roles': ['campus_coordinator']})
+        assert svc.can_create_group('kate') is True
+
+    def test_roles_come_from_org_roles_not_org_role_alone(self):
+        """At iCreate the teachers are parents too. org_role carries whichever
+        role happens to lead; the staff role can be anywhere in org_roles."""
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'parent',
+                                    'org_roles': ['parent', 'advisor']})
+        assert svc.can_create_group('teacher-parent') is True
+
+    def test_an_org_admin_still_can(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'org_admin',
+                                    'org_roles': ['org_admin']})
+        assert svc.can_create_group('admin') is True
+
+    def test_a_platform_advisor_still_can(self):
+        svc = self._service_seeing({'role': 'advisor', 'org_role': None, 'org_roles': None})
+        assert svc.can_create_group('advisor') is True
+
+    def test_a_superadmin_still_can(self):
+        svc = self._service_seeing({'role': 'superadmin', 'org_role': None, 'org_roles': None})
+        assert svc.can_create_group('tanner') is True
+
+    def test_a_parent_still_cannot(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'parent',
+                                    'org_roles': ['parent']})
+        assert svc.can_create_group('parent') is False
+
+    def test_a_student_still_cannot(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'student',
+                                    'org_roles': ['student']})
+        assert svc.can_create_group('student') is False
+
+    def test_an_unknown_user_cannot(self):
+        svc = self._service_seeing(None)
+        assert svc.can_create_group('nobody') is False
+
+    def test_the_creator_tier_matches_sis_staff_roles(self):
+        """The tuple in utils/sis_roles.py is the definition of "on staff"; this
+        set must not drift from it."""
+        from services.group_message_service import GroupMessageService
+        assert GroupMessageService.GROUP_CREATOR_ROLES == frozenset(sis_roles.STAFF_ROLES)

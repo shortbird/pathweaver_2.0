@@ -410,8 +410,15 @@ def retract(announcement_id: str) -> None:
     """
     _admin().table('announcements').delete().eq('id', announcement_id).execute()
     try:
+        # The column is `type`, not `notification_type` -- the latter is the
+        # KEYWORD ARGUMENT NotificationService.create_notification takes, which
+        # it writes into 'type' (notification_service.py:90). Filtering on the
+        # argument name asks PostgREST for a column that does not exist, the
+        # request 400s, the except below swallows it, and the sweep this
+        # function exists to perform silently never happens -- the exact failure
+        # the docstring above describes. Same fix in revise_for_source.
         _admin().table('notifications').delete()\
-            .eq('notification_type', 'announcement')\
+            .eq('type', 'announcement')\
             .filter('metadata->>announcement_id', 'eq', announcement_id).execute()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Announcement {announcement_id} deleted but notifications "
@@ -478,7 +485,7 @@ def revise_for_source(source_announcement_id: str, title: Optional[str] = None,
                 patch['message'] = rich_text.preview(fields['message'])
             if patch:
                 (_admin().table('notifications').update(patch)
-                 .eq('notification_type', 'announcement')
+                 .eq('type', 'announcement')  # see the note in retract()
                  .filter('metadata->>announcement_id', 'eq', row['id']).execute())
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Revised announcement {row['id']} but its "
