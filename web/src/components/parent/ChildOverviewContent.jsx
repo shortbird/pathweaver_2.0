@@ -11,6 +11,7 @@ import StudentOverviewSections from '../overview/StudentOverviewSections';
 import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard';
 import ParentConversationsViewer from './ParentConversationsViewer';
 import StudentSchedulePreview from './StudentSchedulePreview';
+import StudentClassMaterials from './StudentClassMaterials';
 
 /**
  * ChildOverviewContent - Displays StudentOverviewPage components for a child in parent view.
@@ -95,6 +96,11 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
 
       {/* Class schedule (SIS families only; renders nothing otherwise) */}
       {!isObserver && <StudentSchedulePreview studentId={studentId} />}
+
+      {/* What the teachers have shared with those classes. Guardians only: the
+          route behind it is gated on the family relationship, so an observer
+          would get a 403 and an empty card. */}
+      {!isObserver && <StudentClassMaterials studentId={studentId} />}
 
       <StudentOverviewSections
         data={data}

@@ -18,6 +18,7 @@ export {
 } from './useNotifications';
 export { useAdvisorStudentOverview } from './useAdvisorStudentOverview';
 export { useParentChildOverview } from './useParentChildOverview';
+export { useStudentClassMaterials } from './useStudentClassMaterials';
 export { useStudentOverviewData } from './useStudentOverviewData';
 export {
   useBounties,

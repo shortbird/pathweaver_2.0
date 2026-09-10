@@ -32,6 +32,14 @@ export const queryKeys = {
     settings: (userId) => [...queryKeys.portfolio.all, 'settings', userId],
   },
 
+  // The family side of a SIS school — what a guardian reads about their own
+  // student. Keyed by student rather than by org: a family's students belong to
+  // one school each, so there is no org to switch between.
+  family: {
+    all: ['family'],
+    classMaterials: (studentId) => [...queryKeys.family.all, 'classMaterials', studentId],
+  },
+
   // Social features (friends removed March 2026)
   social: {
     all: ['social'],

@@ -15,6 +15,11 @@ Python, NOT a role check:
   WRITE (add/upload/delete): the class's teacher(s) or an org_admin/superadmin
                 (the "moderators"); students never write.
 
+A GUARDIAN is none of those and never passes _access. They read the same
+handouts through /parent/students/<student_id>/materials, which is gated on the
+family relationship instead of class participation and is student-visible-only
+by construction. See list_materials_for_student at the foot of this file.
+
 class_id == org_classes.id. The /by-quest/<quest_id> read variant resolves the
 owning class from a quest id, for the student-facing learning-app quest page.
 
@@ -27,12 +32,15 @@ import uuid as _uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import require_relationship_to
+from modules.gate import require_module
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from database import get_supabase_admin_client
 from utils.storage_urls import public_object_url, sign_in_place, sign_stored_url
 from services.sis_curriculum_sync import curriculum_materials_for_class
+from repositories.class_repository import ClassRepository
 
 logger = get_logger(__name__)
 
@@ -182,10 +190,8 @@ def _list_materials(admin, class_id, visible_only=False):
     return (query.order('created_at', desc=True).execute()).data or []
 
 
-def _serialize_many(rows, can_manage, is_admin=False, user_id=None, inherited=()):
-    """Serialize a material list and sign every uploaded file's URL in ONE
-    batched call. A class can carry dozens of handouts; signing per row would be
-    one HTTP round trip each. Plain links are left alone by the signer.
+def _entries(rows, can_manage, is_admin=False, user_id=None, inherited=()):
+    """The class's own materials and its curriculum's, as one unsigned list.
 
     `inherited` are the curriculum's resources (2026-09-02). They join the same
     list because to whoever is reading, a handout is a handout -- but they are
@@ -193,8 +199,10 @@ def _serialize_many(rows, can_manage, is_admin=False, user_id=None, inherited=()
     class would have to mean removing it from every class teaching that
     curriculum. They are pruned in the curriculum screen instead.
 
-    Both go through one sign_in_place so an uploaded curriculum document is
-    signed exactly like an uploaded class one.
+    Signing is left to the caller so a read spanning SEVERAL classes can sign
+    every class's files in one call. Anything reaching a client must go through
+    _sign_entries first -- an unsigned stored pointer is a private-bucket path
+    that 400s in the browser, not a link.
     """
     out = [_serialize(m, can_manage, is_admin, user_id) for m in rows]
     for m in inherited:
@@ -208,10 +216,24 @@ def _serialize_many(rows, can_manage, is_admin=False, user_id=None, inherited=()
             'source': 'curriculum',
             'curriculum_title': m.get('curriculum_title'),
         })
+    return out
+
+
+def _sign_entries(entries):
+    """Sign every uploaded file's URL in ONE batched call. A class can carry
+    dozens of handouts; signing per row would be one HTTP round trip each. Plain
+    links are left alone by the signer, and an uploaded curriculum document is
+    signed exactly like an uploaded class one.
+    """
     # No bucket hint: stored values are full URLs, so the bucket is read out of
     # each one and an external link can never be mistaken for an object path.
-    sign_in_place(out, ['url'])
-    return out
+    sign_in_place(entries, ['url'])
+    return entries
+
+
+def _serialize_many(rows, can_manage, is_admin=False, user_id=None, inherited=()):
+    """One class's materials, serialized and signed."""
+    return _sign_entries(_entries(rows, can_manage, is_admin, user_id, inherited))
 
 
 # ── class-id endpoints (teacher portal) ───────────────────────────────────────
@@ -437,3 +459,74 @@ def list_materials_by_quest(user_id, quest_id):
                     'can_manage': is_moderator,
                     'materials': _serialize_many(rows, is_moderator, is_admin,
                                                  user_id, inherited)})
+
+
+# ── guardian read (family side) ───────────────────────────────────────────────
+
+def _student_class_rows(student_id):
+    """The student's active classes, by name.
+
+    Goes through ClassRepository rather than reaching for .table() here: it
+    already answers exactly this question, in one embedded read instead of two,
+    and new route code is meant to go through a repository
+    (tests/unit/test_direct_db_calls_do_not_grow).
+
+    Bounded by one student, so the 1000-row cap cannot bite. Archived sections
+    are dropped for the same reason the student's own class list drops them:
+    they are last year's, and their handouts are noise on a family page.
+    """
+    rows = ClassRepository().get_student_enrollments(student_id, status='active')
+    classes = [r.get('org_classes') for r in rows]
+    active = [c for c in classes if c and c.get('status') == 'active' and c.get('id')]
+    return sorted(active, key=lambda c: (c.get('name') or '').lower())
+
+
+@bp.route('/parent/students/<student_id>/materials', methods=['GET'])
+@require_auth
+@require_module('classes')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'),
+                         discloses='class_materials')
+def list_materials_for_student(user_id, student_id):
+    """Every handout this student's classes share, grouped by class.
+
+    A guardian is not a class participant, so _access has never let one in and
+    nothing on the family side ever asked. That is fine right up until a teacher
+    posts "the dance videos and music tracks are under class materials" to the
+    PARENT chat, at which point the parent is the one person in the conversation
+    who cannot open them (iCreate, Musical Theater, 2026-09-09).
+
+    Read-only and student-visible-only BY CONSTRUCTION. This route never
+    computes is_moderator and never passes can_manage, so a row a teacher has
+    staged but not switched on is unreachable here even for a guardian who
+    happens to be staff somewhere else. Widening it later means adding an
+    argument, not flipping a boolean that was already being threaded through.
+
+    One request covers the whole family page: a per-class endpoint would be one
+    round trip per class, and the guardian has no class id to ask with anyway --
+    the enrollment is what they have.
+    """
+    if _bad_uuid(student_id):
+        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+    # admin client justified: class_materials/class_enrollments are RLS-deny-all;
+    # the guardian relationship to student_id is enforced by the decorator above
+    admin = get_supabase_admin_client()
+
+    groups = []
+    flat = []
+    for class_row in _student_class_rows(student_id):
+        entries = _entries(
+            _list_materials(admin, class_row['id'], visible_only=True),
+            can_manage=False,
+            inherited=curriculum_materials_for_class(
+                admin, class_row['id'], visible_only=True),
+        )
+        if not entries:
+            continue
+        groups.append({'class_id': class_row['id'],
+                       'class_name': class_row.get('name'),
+                       'materials': entries})
+        flat.extend(entries)
+
+    # Every class's files signed in one call, not one call per class.
+    _sign_entries(flat)
+    return jsonify({'success': True, 'classes': groups})
