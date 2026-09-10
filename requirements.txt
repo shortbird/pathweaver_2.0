@@ -83,7 +83,7 @@ PyMuPDF>=1.23.0,<2  # PDF image stripping for large curriculum files
 # remaining pip-audit suppression (HYG-03). The local venv has run the full
 # suite on 9.0.3 for a while -- 4856 passing -- so the bump is observed rather
 # than hoped for, and 9.0.3 installs cleanly beside pytest-cov 7.1.0.
-pytest==9.0.3
+pytest==9.1.1
 pytest-cov==7.1.0
 # pytest-flask and pytest-mock were dropped 2026-09-03. Neither is used: no
 # test references `mocker` (pytest-mock's only fixture), and conftest defines
