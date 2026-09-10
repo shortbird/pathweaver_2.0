@@ -29,7 +29,7 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | [OPS-01b](#ops-01b--local-development-still-reads-production) | NEEDS-USER | `backend/.env` and dev's third-party keys still point at production |
 | [SEC-18](#sec-18--csrf-exemption-list-stays-a-central-list) | WONTFIX | Confirm or reverse |
 | [OPS-05](#ops-05--main-keeps-direct-push-with-no-branch-protection) | WONTFIX | Confirm or reverse |
-| [BUG-1](#bug-1--eight-referenceerrors-in-the-web-app) | OPEN | Eight `no-undef` findings, one of which throws on every caller |
+| [BUG-1](#bug-1--eight-referenceerrors-in-the-web-app) | FIXED | All ten files fixed 2026-09-10. **Seven were dead code** — read the correction |
 | [BUG-2](#bug-2--33-app-layer-queries-against-dropped-tables) | OPEN | 33 calls to tables production does not have |
 | [BUG-3](#bug-3--rls-findings-from-the-integration-suite) | OPEN | Four findings, asserted in tests, not fixed |
 | [BUG-4](#bug-4--questsquest_type-defaults-to-a-value-its-own-check-rejects) | OPEN | Every `INSERT` omitting the column fails |
@@ -114,6 +114,44 @@ one — it protects against accident, not against intent.
 **Reopen if:** the committer count ever rises above one.
 
 ### BUG-1 — eight ReferenceErrors in the web app
+
+**Status: FIXED 2026-09-10** on branch `fix/web-reference-errors`, commit
+`6b07e27f`. 43 errors across ten files; `npm run lint` errors 292 → 239, with
+`ERROR_BASELINE` lowered in the same commit.
+
+**And the severity in this entry was wrong.** It said "one of which throws on
+every caller". `useScrollAnimation` has no callers. Resolving every relative
+import in `web/src` by path shows that **seven of the ten files are imported by
+nothing at all**: `animations.js`, `PhilosophyCard.jsx`, `ServiceInquiries.jsx`,
+`ConversionPanel.jsx`, `DiplomaHeader.jsx`, `DiplomaStats.jsx` and
+`SkillsBreakdown.jsx`. Not one of them is reachable from a route.
+
+So **no user has ever hit any of these**. The three reachable files carried the
+mild half of the list:
+
+| File | Reached from | What it actually did |
+|---|---|---|
+| `SchoolPage.jsx` | the `/school` route | 9 duplicate `module` keys, each repeating its own value — nothing lost |
+| `SkillsRadarChart.jsx` | `CompactSidebar`, `SkillsGrowth`, `ObserverWelcomePage` | `color: 'text-primary'` **in quotes** — no throw, an invalid CSS colour the browser drops |
+| `AssignedWork.jsx` | `TaskCenterPage` | a sparse array used deliberately as a tuple; `[, 'items'][1]` is `'items'` |
+
+That is worth keeping straight for two reasons. A future audit reading "eight
+ReferenceErrors in the web app" would rank this above things that are actually
+biting users. And it says something about the seven: a component that has been
+broken since it was written, in a way that would throw on first render, is a
+component nobody has ever rendered. **The follow-up worth doing is deleting
+them, not celebrating the fix** — `PhilosophyCard.jsx` even carries its own
+unused `PhilosophySection`, and `ConversionPanel.jsx` was neutered by the Phase
+3 tier refactor and left in the tree.
+
+Verified after the fix: `npm run build` clean; web suite 347 files / 3,194 tests
+green; the app booting in a real browser with zero reference-type console errors
+on every route tried. The two reachable components that have tests
+(`SchoolPage`, `SkillsRadarChart`) render green in 8 test files between them;
+`AssignedWork` has no test, and its change is an identity — both forms evaluate
+to `'items'`.
+
+The original entry follows.
 
 Found by ESLint's first run (Phase 3), reported rather than fixed. Each is an
 identifier read at runtime and never bound.
@@ -310,7 +348,10 @@ failure mode the header warns about. None is urgent; all are decisions.
 3. **`mobile/app/(lti)/` and `mobile/src/components/lti/`** (10 files) are
    unreachable from any live route since the LTI cutover was cancelled. They
    typecheck and their tests pass, so keeping them is defensible; the cost is
-   that the next reader believes they serve Canvas teachers.
+   that the next reader believes they serve Canvas teachers. **The web app has
+   the same problem and worse** — see BUG-1 for seven web components that no
+   route reaches, several of which could never have rendered at all. A deletion
+   pass over both is one decision, not two.
 4. **`mobile/MOBILE_LAUNCH_READINESS.md`** is a 61-row parity comparison from
    March 2026, never re-verified. Either stale-list it or re-run it.
 5. **Renaming the three Render services** that still say v1/v2 or "frontend" is
