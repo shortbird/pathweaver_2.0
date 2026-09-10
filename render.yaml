@@ -115,6 +115,23 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://www.optioeducation.com
+      # What the memory watchdog measures against. Render leaves cgroup v2
+      # memory.max as "max" and enforces a level up, so middleware/memory_monitor
+      # cannot read the real cap and falls back to this. Config's default is 512
+      # -- a starter figure -- and this service has been `pro` (4GB) since
+      # 2026-08, so every "89% of 512MB, nearing OOM" alert to 2026-09-10 was a
+      # healthy ~155MB process measured against a number four plans out of date
+      # (Sentry OPTIO-BACKEND-B, 37 events). Set live on the dashboard 2026-09-10;
+      # recorded here to keep this file truthful.
+      #
+      # KEEP IN STEP WITH THE PLAN. If the plan changes, this changes -- a
+      # watchdog reading a stale cap is worse than no watchdog, because it
+      # teaches you to scroll past the alert that matters.
+      #
+      # optio-dev-backend is `starter` (512MB), where the 512 default is already
+      # right, so it deliberately does NOT set this.
+      - key: MEMORY_LIMIT_MB
+        value: "4096"
 
   # Development Backend
   # Reconciled 2026-06-22 to match the LIVE dashboard-managed service. Dev keeps
