@@ -2,10 +2,11 @@
  * useParent hook tests - children, dashboard, engagement, parent actions.
  */
 
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useMyChildren, useChildDashboard, useChildEngagement } from '../useParent';
 import api from '@/src/services/api';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { useHoldStore, holdLifted } from '@/src/stores/holdStore';
 import { createMockChild13Plus, createMockChildUnder13 } from '@/src/__tests__/utils/mockFactories';
 
 jest.mock('@/src/services/api', () =>
@@ -14,6 +15,7 @@ jest.mock('@/src/services/api', () =>
 
 beforeEach(() => {
   setAuthAsParent();
+  useHoldStore.setState({ epoch: 0 });
   jest.clearAllMocks();
 });
 
@@ -22,6 +24,34 @@ afterEach(() => {
 });
 
 describe('useMyChildren', () => {
+  // The phone/paperwork hold 403s this endpoint, and the hook's catch turns
+  // that into "no children" -- which is the Family tab's full-screen "No
+  // students linked" state, whose only button offers to add a child the
+  // backend then refuses as a duplicate. A parent was stranded there once the
+  // hold overlay dismissed (iCreate, 2026-09-10). Lifting the hold must
+  // refetch; nothing else on this side will.
+  it('refetches after a hold lifts, so a 403-emptied list refills', async () => {
+    (api.get as jest.Mock).mockRejectedValueOnce({
+      response: { status: 403, data: { code: 'phone_verification_required' } },
+    });
+
+    const { result } = renderHook(() => useMyChildren());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    expect(result.current.children).toHaveLength(0);
+
+    (api.get as jest.Mock).mockResolvedValueOnce({
+      data: { dependents: [createMockChildUnder13()] },
+    });
+    act(() => { holdLifted(); });
+
+    await waitFor(() => {
+      expect(result.current.children).toHaveLength(1);
+    });
+  });
+
   it('fetches children from /api/dependents/my-dependents', async () => {
     const children = [createMockChild13Plus(), createMockChildUnder13()];
     (api.get as jest.Mock).mockResolvedValueOnce({ data: { dependents: children } });

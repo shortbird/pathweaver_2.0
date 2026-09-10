@@ -7,6 +7,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
 import { useAddKidStore } from '../stores/addKidStore';
+import { useHoldEpoch } from '../stores/holdStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
 import type { EngagementData } from './useDashboard';
 import type { LearningEvent, UnifiedTopic } from './useJournal';
@@ -46,6 +47,11 @@ export function useMyChildren() {
   const previewRole = usePreviewRoleStore((s) => s.previewRole);
   // Bumped when a kid is created (AddKidSheet) so the list refetches immediately.
   const childrenVersion = useAddKidStore((s) => s.version);
+  // Bumped when a phone/paperwork hold lifts. While held, the call below 403s
+  // and the catch turns that into "no children" -- which is the screen a
+  // parent is left staring at once the hold overlay dismisses, offering only
+  // "Add a Child" for a child who already exists. See stores/holdStore.ts.
+  const holdEpoch = useHoldEpoch();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -126,6 +132,8 @@ export function useMyChildren() {
           }
         } catch {
           // Not a parent / no dependents — empty list is the correct state.
+          // NOT correct for a hold 403, which also lands here; holdEpoch above
+          // is what gets this refetched once the hold lifts.
         }
       }
 
@@ -135,7 +143,7 @@ export function useMyChildren() {
       }
     })();
     return () => { cancelled = true; };
-  }, [isAuthenticated, userId, effectiveRole, childrenVersion]);
+  }, [isAuthenticated, userId, effectiveRole, childrenVersion, holdEpoch]);
 
   return { children, loading };
 }

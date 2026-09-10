@@ -15,6 +15,7 @@ import {
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
+import { useAddKidStore } from '@/src/stores/addKidStore';
 
 interface AddKidSheetProps {
   visible: boolean;
@@ -72,6 +73,24 @@ export function AddKidSheet({ visible, onClose, onCreated }: AddKidSheetProps) {
         || err.response?.data?.error
         || err.response?.data?.message
         || 'Could not add the kid. Please try again.';
+      // The backend refused because this child ALREADY has an account
+      // (routes/dependents.py::_existing_child_match). That refusal is right,
+      // but it used to be a dead end: the only reason a parent is on this form
+      // is that the family list showed them nothing, and the error left them
+      // on a screen that still showed nothing. The child exists, so the list
+      // is what is wrong — refresh it and get out of the way.
+      if (err.response?.status === 409 || err.response?.data?.code === 'duplicate_child') {
+        reset();
+        onClose();
+        useAddKidStore.getState().refreshChildren();
+        showAlert(
+          'Already on your account',
+          `${name.trim()} is already set up here, so we did not add a second profile.`
+          + ' Their profile should be on your Family tab now. If something about it'
+          + ' looks wrong, ask your school to fix that profile.',
+        );
+        return;
+      }
       setError(typeof msg === 'string' ? msg : 'Could not add the kid.');
     } finally {
       setSaving(false);

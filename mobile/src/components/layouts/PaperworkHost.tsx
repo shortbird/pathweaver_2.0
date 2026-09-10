@@ -28,11 +28,12 @@
  * Mounted once in app/_layout.tsx, alongside PhoneVerificationHost.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api, { onSignatureRequired } from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
+import { holdLifted } from '@/src/stores/holdStore';
 import { UIText } from '@/src/components/ui';
 
 // The site root, not a deep link: the web app routes a held guardian to the
@@ -45,11 +46,17 @@ export function PaperworkHost() {
   const logout = useAuthStore((s) => s.logout);
   const [held, setHeld] = useState(false);
   const [checking, setChecking] = useState(false);
+  // Mirrors `held` for check(), which is a stable callback and would otherwise
+  // close over a stale value.
+  const heldRef = useRef(false);
 
   // `held` is per-account: signing out, or switching accounts, must not carry
   // one person's hold onto the next.
   useEffect(() => {
-    if (!isAuthenticated) setHeld(false);
+    if (!isAuthenticated) {
+      heldRef.current = false;
+      setHeld(false);
+    }
   }, [isAuthenticated, userId]);
 
   const check = useCallback(async (): Promise<boolean> => {
@@ -58,6 +65,12 @@ export function PaperworkHost() {
       // everybody — held or not (routes/sis/parent.py, required-documents).
       const { data } = await api.get('/api/sis/parent/required-documents');
       const blocked = !!data?.blocked;
+      // Held -> clear means every screen under this overlay is sitting on the
+      // empty state its 403 produced, with its mount effect already spent.
+      // Tell them to refetch; dismissing alone leaves a stale, empty app
+      // (see stores/holdStore.ts).
+      if (heldRef.current && !blocked) holdLifted();
+      heldRef.current = blocked;
       setHeld(blocked);
       return blocked;
     } catch {
@@ -73,7 +86,10 @@ export function PaperworkHost() {
   }, [isAuthenticated, userId, check]);
 
   // The parent who was already inside the app when the document was sent.
-  useEffect(() => onSignatureRequired(() => setHeld(true)), []);
+  useEffect(() => onSignatureRequired(() => {
+    heldRef.current = true;
+    setHeld(true);
+  }), []);
 
   const recheck = useCallback(async () => {
     setChecking(true);

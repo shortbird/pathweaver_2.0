@@ -17,6 +17,7 @@ import {
 } from '@testing-library/react-native';
 
 import { PhoneVerificationHost } from '../PhoneVerificationHost';
+import { useHoldStore } from '@/src/stores/holdStore';
 
 // Every findBy/waitFor here waits on a Modal-wrapped SafeAreaView render, which
 // is exactly the heavy cold-start jest.config.js raised testTimeout for. That
@@ -190,6 +191,20 @@ describe('entering the code', () => {
     expect(mockPost).toHaveBeenLastCalledWith(
       '/api/phone-verification/verify', { code: '123456' });
     expect(screen.queryByText('Verify your phone number')).toBeNull();
+  });
+
+  // Dismissing the overlay is not enough. Every screen underneath already
+  // fetched, 403'd and resolved to its empty state, and their mount effects
+  // are spent -- so without this bump a parent walks out of verification into
+  // an app that still believes she has no children (iCreate, 2026-09-10).
+  it('tells the starved screens to refetch', async () => {
+    useHoldStore.setState({ epoch: 0 });
+    await reachCodeStep();
+    mockPost.mockResolvedValue({ data: { success: true, verified: true } });
+    await act(async () => {
+      fireEvent.press(screen.getByText('Verify'));
+    });
+    expect(useHoldStore.getState().epoch).toBe(1);
   });
 
   it('keeps them here when the code is wrong', async () => {

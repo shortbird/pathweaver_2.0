@@ -541,6 +541,25 @@ export default function ParentDashboardPage() {
           <Button size="lg" className="mt-6" onPress={() => useAddKidStore.getState().open()}>
             <ButtonText>Add a Child</ButtonText>
           </Button>
+          {/* An exit. This screen is also what a parent sees when the list
+              merely FAILED to load — a phone/paperwork hold 403s it and
+              useMyChildren catches that as "no children" — and then the only
+              button offers to add a child who already exists, which the
+              backend rightly refuses. That left a parent with no way off this
+              screen and no way to her son's dashboard (iCreate, 2026-09-10).
+              Refetching is the fix for the common case; the hold path also
+              refetches itself now (stores/holdStore.ts). */}
+          <Pressable
+            onPress={() => useAddKidStore.getState().refreshChildren()}
+            className="mt-4 py-2 px-4"
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh the family list"
+          >
+            <UIText size="sm" className="text-optio-purple font-poppins-semibold dark:text-optio-purple-light">
+              Refresh
+            </UIText>
+          </Pressable>
           {isOEAParent && (
             <View className="mt-6 w-full max-w-sm">
               <OpenEdAcademyEntry />

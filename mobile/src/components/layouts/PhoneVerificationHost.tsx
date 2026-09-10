@@ -39,6 +39,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api, { onPhoneVerificationRequired } from '@/src/services/api';
+import { holdLifted } from '@/src/stores/holdStore';
 import { useAuthStore } from '@/src/stores/authStore';
 import { UIText, toast } from '@/src/components/ui';
 
@@ -130,7 +131,13 @@ export function PhoneVerificationHost() {
       await api.post('/api/phone-verification/verify', { code });
       toast.success('Phone number verified');
       // The middleware never caches a held answer, so the very next request is
-      // already free — dismissing is all that is left to do.
+      // already free — but nothing on this side MAKES that request. Every
+      // screen under this overlay already fetched, 403'd and resolved to its
+      // empty state, and their mount effects will not run again. Dismissing
+      // alone therefore drops the adult onto a stale, empty app: see
+      // stores/holdStore.ts for the parent it stranded. Bump the epoch first,
+      // then dismiss.
+      holdLifted();
       setHeld(false);
       setStep('phone');
       setCode('');
