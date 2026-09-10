@@ -24,13 +24,13 @@ are in [Bugs found, not fixed](#bugs-found-not-fixed) and in the register.
 Nothing was skipped, xfailed or deleted.
 
 **Read the deltas carefully, because most of them are not mine.** This phase
-added **57 backend tests** and **2 web tests**. The backend suite grew by 90 and
+added **61 backend tests** and **2 web tests**. The backend suite grew by 90 and
 the web suite by 22; the difference is another session working in this tree
 during the phase. Mine, by file:
 
 | File | Tests |
 |---|---|
-| `backend/tests/unit/test_claude_hooks.py` | 46 |
+| `backend/tests/unit/test_claude_hooks.py` | 50 |
 | `backend/tests/unit/test_role_rules_are_enforced.py` | 4 |
 | `backend/tests/unit/test_dropped_tables_are_not_queried.py` | 4 |
 | `backend/tests/unit/test_config_access_ratchet.py` | 3 |
@@ -53,6 +53,9 @@ during the phase. Mine, by file:
 | `16983bac` | Cut CLAUDE.md from 656 lines to 210, rule by rule |
 | `0014506f` | Four skills for the four things this repository does over and over |
 | `4b40524e` | Complete the ratchet inventory against a second sweep |
+| `3ccac999` | Record what Phase 5 did, and the three things it could not prove |
+| `f054d940` | Let the read-only members of two banned git families through |
+| `d43b218b` | Stop the hook tests leaving state files behind |
 
 ---
 
@@ -68,6 +71,7 @@ Refuses, with no override:
 
 - `git reset --hard`, `git checkout -- <path>`, `git checkout .`,
   `git restore <path>`, `git stash`, `git clean`
+  (the read-only members pass: `git stash list`, `git stash show`, `git clean -n`)
 - `killall node`, `pkill node`
 - `git add -A`, `git add .`, `git commit -a`
 - an emoji in a commit message
@@ -125,7 +129,7 @@ a deliberately failing test.
 
 ### They are tested
 
-`backend/tests/unit/test_claude_hooks.py`, 46 cases, driving each hook as a
+`backend/tests/unit/test_claude_hooks.py`, 50 cases, driving each hook as a
 subprocess with real payloads. It covers what must be refused, **what must not
 be refused** (ten ordinary commands, because half the value of a gate is what it
 lets through), the override, a malformed event, and the two heredoc regressions.
@@ -280,6 +284,41 @@ completed in phases 1 through 4 are gone. Eleven remain.
 
 ---
 
+## What an hour of use proved
+
+Added after the handoff was first written, because the answer arrived before the
+session ended. All three hooks fire. The evidence is not a test — it is what
+they did.
+
+**`guard_bash.py` (PreToolUse) blocks.** It refused four of my own commands
+during the phase: two commit messages that quoted banned commands, and later a
+`git stash list`. A blocked call returns the reason and the command does not run.
+
+**`fast_gate.py` (PostToolUse) runs on every edit.** Its own record proves it:
+`.claude/state/<session>.touched` held exactly the files edited since the last
+turn ended, written by the hook itself.
+
+**`related_tests.py` (Stop) runs, and clears state on success.** Same evidence
+read the other way. That file held only the two most recent edits, not the
+fifteen from earlier in the session — the earlier list is gone because the Stop
+hook ran, the mapped tests passed, and it cleared the list. Nothing else deletes
+that file.
+
+**Two false positives, both found by using them, both now fixed with tests**
+(`f054d940`, `d43b218b`):
+
+1. `git stash list` and `git clean -n` are reads and were refused. A gate that
+   refuses a harmless command teaches people to work around the gate, and this
+   one refused a command I needed inside an hour of writing it. Both families
+   now allow their read-only members; the destructive forms are still refused.
+2. The hook tests left `pytest-fast-gate.touched` in the gitignored state
+   directory after every run — invisible litter, which is the worst kind.
+
+What remains unproven is narrow: whether a **failing** PostToolUse gate visibly
+steers the agent, and whether a **failing** Stop gate refuses the stop. Neither
+fired in anger this session because nothing I wrote failed its lint. Both write
+to stderr regardless, so the floor is advisory.
+
 ## Bugs found, not fixed
 
 Per the brief. All three are in the register with full detail.
@@ -337,14 +376,9 @@ for.
 - **Run the integration suite.** 133 tests including the RLS file are
   `requires_db` and need Docker, which this machine does not have. They run
   enforcing in CI.
-- **Verify the hooks in a real Claude Code session end to end.** They were
-  driven as subprocesses with the documented payload shapes and all 46 cases
-  pass, and `guard_bash.py` demonstrably fired on my own commands during this
-  phase. What is *not* proven is the harness contract itself — whether this
-  build treats a PostToolUse exit 2 as feedback to the agent, and whether the
-  Stop hook's exit 2 blocks the stop. Both scripts also write to stderr, which
-  is visible either way, so the worst case is advisory rather than blocking.
-  **The way to find out is to work for an hour with them on.**
+- ~~**Verify the hooks in a real Claude Code session end to end.**~~
+  **Resolved the same day, by working with them on.** See
+  [What an hour of use proved](#what-an-hour-of-use-proved) below.
 - **Remove the stale `sentry-optio` entry.** It is in `~/.claude.json`, outside
   the repository. NEEDS TANNER item 11.
 
