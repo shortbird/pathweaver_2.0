@@ -65,7 +65,10 @@ const QuestDetail = () => {
   // throws without a provider. This page is rendered in plenty of places that
   // do not mount one, and the org here only decides whether to SKIP an
   // optional request — a missing provider must degrade to asking, not crash.
-  const { organization } = React.useContext(OrganizationContext) || {};
+  // `loading` matters as much as `organization`: see the ClassCurriculum gate
+  // below. Undefined when the provider is missing, which still reads as
+  // "not loading" and so still asks -- the degrade-to-asking above.
+  const { organization, loading: orgLoading } = React.useContext(OrganizationContext) || {};
   const { trackTabSwitch, trackButtonClick, trackModalOpen, trackModalClose } = useActivityTracking('QuestDetail');
 
   // Use custom hook for all data management
@@ -734,8 +737,19 @@ const QuestDetail = () => {
             be a real hit makes that rollout harder to judge, and it costs a
             round trip per quest page. moduleKnownOff, not !moduleEnabled: if
             the org payload cannot answer we still ask, because hiding a live
-            class's materials is the worse failure. */}
-        {user?.organization_id && quest.user_enrollment
+            class's materials is the worse failure.
+
+            And `!orgLoading`, because that last rule made this a race rather
+            than a gate. OrganizationContext starts `organization` at null and
+            fills it from /api/auth/me, so on the first render the payload
+            cannot answer yet -- not because the org lacks the data, but
+            because it has not arrived. The probe fired before the answer did.
+            Arete Academy was still logging OPTIO-BACKEND-89 on 2026-09-09
+            against release 79a2db4b, which already CONTAINED this guard; the
+            two orgs whose events stopped had simply not loaded a quest page
+            since. Wait for the load to finish, then apply the rule: a null org
+            after loading still means ask. */}
+        {user?.organization_id && quest.user_enrollment && !orgLoading
           && !moduleKnownOff(organization, 'classes') && (
           <ClassCurriculum questId={quest.id} className="mt-6" />
         )}

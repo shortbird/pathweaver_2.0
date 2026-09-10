@@ -4,6 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import QuestDetail from './QuestDetail'
 import { ConfirmProvider } from '../contexts/ConfirmContext'
+import { OrganizationContext } from '../contexts/OrganizationContext'
 
 const mockNavigate = vi.fn()
 let authState = {}
@@ -129,6 +130,10 @@ vi.mock('../components/quest/QuestCompletionCelebration', () => ({
   default: () => <div data-testid="celebration">Celebration</div>
 }))
 
+vi.mock('../components/discussion/ClassCurriculum', () => ({
+  default: () => <div data-testid="class-curriculum">Class materials</div>
+}))
+
 vi.mock('../components/quest/RestartQuestModal', () => ({
   default: ({ isOpen }) => isOpen ? <div data-testid="restart-modal">Restart Modal</div> : null
 }))
@@ -137,8 +142,8 @@ const mockQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } }
 })
 
-function renderQuestDetail(questId = 'quest-123') {
-  return render(
+function renderQuestDetail(questId = 'quest-123', orgContext) {
+  const tree = (
     <QueryClientProvider client={mockQueryClient}>
       <ConfirmProvider>
         <MemoryRouter initialEntries={[`/quests/${questId}`]}>
@@ -151,6 +156,11 @@ function renderQuestDetail(questId = 'quest-123') {
       </ConfirmProvider>
     </QueryClientProvider>
   )
+  // No provider by default, which is the degrade-to-asking path the page is
+  // written for. Pass a value to test what the org actually says.
+  return render(orgContext
+    ? <OrganizationContext.Provider value={orgContext}>{tree}</OrganizationContext.Provider>
+    : tree)
 }
 
 describe('QuestDetail', () => {
@@ -465,6 +475,61 @@ describe('QuestDetail', () => {
   })
 
   // --- Enrollment ---
+  describe('class materials gate', () => {
+    /**
+     * The probe must wait for the org payload to arrive, not race it.
+     *
+     * OrganizationContext starts `organization` at null and fills it from
+     * /api/auth/me. moduleKnownOff answers "not known off" for a payload that
+     * cannot speak yet -- deliberately, since hiding a live class's materials
+     * is the worse failure -- so on the first render the guard let the probe
+     * through and it fired before the answer arrived. Arete Academy was still
+     * logging OPTIO-BACKEND-89 against a release that already CONTAINED the
+     * guard.
+     */
+    const ENROLLED = {
+      id: 'quest-123',
+      title: 'Test Quest',
+      user_enrollment: { id: 'e-1' },
+      quest_tasks: [],
+      has_template_tasks: false
+    }
+
+    beforeEach(() => {
+      authState = { user: { id: 'user-1', role: 'student', organization_id: 'org-1' } }
+      questDetailData.quest = ENROLLED
+      questDetailData.totalTasks = 0
+    })
+
+    it('does not probe while the org is still loading', () => {
+      renderQuestDetail('quest-123', { organization: null, loading: true })
+      expect(screen.queryByTestId('class-curriculum')).toBeNull()
+    })
+
+    it('does not probe once the org says classes is off', () => {
+      renderQuestDetail('quest-123', {
+        organization: { id: 'org-1', effective_modules: ['quests', 'xp'] },
+        loading: false
+      })
+      expect(screen.queryByTestId('class-curriculum')).toBeNull()
+    })
+
+    it('probes when the org says classes is on', () => {
+      renderQuestDetail('quest-123', {
+        organization: { id: 'org-1', effective_modules: ['quests', 'classes'] },
+        loading: false
+      })
+      expect(screen.getByTestId('class-curriculum')).toBeInTheDocument()
+    })
+
+    it('still probes when the payload cannot answer at all', () => {
+      // A null org AFTER loading is not evidence of absence, so ask. This is
+      // the rule the loading check must not accidentally break.
+      renderQuestDetail('quest-123', { organization: null, loading: false })
+      expect(screen.getByTestId('class-curriculum')).toBeInTheDocument()
+    })
+  })
+
   describe('enrollment', () => {
     it('redirects to login if user not authenticated', () => {
       authState = { user: null }
