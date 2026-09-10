@@ -348,14 +348,23 @@ class TestTheSchoolPageAdmitsCoordinators:
         from routes import announcements
         assert _admits_coordinator(announcements, 'announcements_archive')
 
-    def test_they_can_read_and_send_announcements_at_all(self):
+    def test_they_can_read_announcements_at_all(self):
         """The archive was the ONLY announcements route that named them, so the
-        Messaging page a coordinator is shown could read its history and neither
-        list the current messages nor send one (found 2026-08-18)."""
+        Messaging page a coordinator is shown could read its history and not
+        list the current messages (found 2026-08-18).
+
+        The SEND half of this test went with the targeted-send composer on
+        2026-09-10 -- posting an announcement is now the board route below,
+        which is ADMIN_ROLES and so admits them.
+        """
         from routes import announcements
-        for view in ('create_announcement', 'list_announcements',
-                     'get_announcement_templates', 'put_announcement_templates'):
+        for view in ('list_announcements', 'announcements_archive'):
             assert _admits_coordinator(announcements, view), view
+
+    def test_they_can_post_an_announcement_to_the_board(self):
+        """Where posting an announcement lives now."""
+        from routes.sis import community
+        assert _admits_coordinator(community, 'create_announcement')
 
     def test_the_attendance_kiosks_are_theirs_too(self):
         """Kiosk devices are provisioned from the Settings page a coordinator

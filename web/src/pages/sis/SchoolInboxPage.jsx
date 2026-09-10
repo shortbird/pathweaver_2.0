@@ -12,7 +12,7 @@ import {
 import api from '../../services/api'
 import { AttachmentList } from '../../components/communication/MessageParts'
 import { splitUrls, hostLabel } from '../../components/announcements/AnnouncementBody'
-import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
+import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import SearchSelect from '../../components/ui/SearchSelect'
 import StaffComposeModal from '../../components/sis/StaffComposeModal'
 import { useAuth } from '../../contexts/AuthContext'
@@ -408,7 +408,13 @@ const SchoolInboxPage = () => {
       />
 
       {tab === 'announcements' ? (
-        <AnnouncementComposer />
+        // The same board composer /community mounts. It used to be a second,
+        // different composer here -- a targeted SEND that could pick classes,
+        // teachers and age bands, next to a BOARD post that could not. Two
+        // composers for one act, and the office had to choose between them
+        // before writing anything. Reaching a chosen set of people is what the
+        // messaging tabs beside this one are for now.
+        <BoardAnnouncementsTab orgId={isSuperadmin ? orgId : null} admin={admin} />
       ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}

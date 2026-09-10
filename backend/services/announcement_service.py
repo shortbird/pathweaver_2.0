@@ -33,9 +33,6 @@ ROLE_AUDIENCES = {'students', 'parents', 'advisors'}
 # Rows per insert when snapshotting recipients (well under PostgREST limits).
 RECIPIENT_SNAPSHOT_CHUNK = 500
 
-# A message can be nudged at most once per this window.
-NUDGE_COOLDOWN_HOURS = 24
-
 
 # admin client justified: publishing fans a message out to every recipient
 #   in the school, which is by definition rows the author cannot see under RLS
@@ -51,75 +48,6 @@ def normalize_audiences(audiences: Any, fallback: Any = None) -> List[str]:
     if isinstance(audiences, str):
         audiences = [audiences]
     return [a for a in audiences if a in ROLE_AUDIENCES]
-
-
-def _age_from_dob(dob: Optional[str]) -> Optional[int]:
-    from datetime import date
-    if not dob:
-        return None
-    try:
-        d = date.fromisoformat(str(dob)[:10])
-    except (ValueError, TypeError):
-        return None
-    today = date.today()
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-
-
-def _students_in_classes(class_ids: List[str]) -> Set[str]:
-    """Student ids actively enrolled in any of these classes.
-
-    Paged: a whole-school class selection is one row per enrollment, which is
-    the read that silently truncates at the PostgREST cap — and a truncated
-    recipient list is a family who never gets the message.
-    """
-    if not class_ids:
-        return set()
-    from utils.db_fetch import fetch_all_rows
-    rows = fetch_all_rows(lambda: (
-        _admin().table('class_enrollments').select('id, student_id')
-        .in_('class_id', class_ids).eq('status', 'active')))
-    return {r['student_id'] for r in rows if r.get('student_id')}
-
-
-def targeted_student_ids(org_id: str, class_ids: Optional[List[str]] = None,
-                         teacher_ids: Optional[List[str]] = None,
-                         min_age: Optional[int] = None,
-                         max_age: Optional[int] = None) -> Optional[Set[str]]:
-    """The students a targeted send is aimed at, or None for "the whole school".
-
-    Every filter given is an AND: "the 9-12 year olds in Ms Rogers' classes" is
-    one group, not three. Returning None rather than an empty set for "no
-    filters" keeps "everyone" distinguishable from "nobody matched", which is
-    the difference between a school-wide notice and a silent no-op.
-    """
-    if not any([class_ids, teacher_ids, min_age is not None, max_age is not None]):
-        return None
-
-    ids: Optional[Set[str]] = None
-    if teacher_ids:
-        from utils.db_fetch import fetch_all_rows
-        taught = fetch_all_rows(lambda: (
-            _admin().table('org_classes').select('id, primary_instructor_id')
-            .eq('organization_id', org_id).in_('primary_instructor_id', teacher_ids)))
-        ids = _students_in_classes([c['id'] for c in taught])
-    if class_ids:
-        in_classes = _students_in_classes(class_ids)
-        ids = in_classes if ids is None else (ids & in_classes)
-    if min_age is not None or max_age is not None:
-        rows = (_admin().table('users').select('id, date_of_birth')
-                .eq('organization_id', org_id).execute()).data or []
-        in_range = set()
-        for r in rows:
-            age = _age_from_dob(r.get('date_of_birth'))
-            if age is None:
-                continue
-            if min_age is not None and age < min_age:
-                continue
-            if max_age is not None and age > max_age:
-                continue
-            in_range.add(r['id'])
-        ids = in_range if ids is None else (ids & in_range)
-    return ids or set()
 
 
 def recipients_for(org_id: str, audiences: Iterable[str],
@@ -236,50 +164,6 @@ def _household_guardians_of(student_ids: List[str]) -> Set[str]:
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not resolve household guardians: {e}")
         return set()
-
-
-def targeted_advisor_ids(org_id: str, class_ids: Optional[List[str]] = None,
-                         teacher_ids: Optional[List[str]] = None) -> Optional[Set[str]]:
-    """The advisors a targeted send is aimed at, or None for "all advisors".
-
-    Picking teachers means those teachers; picking classes means the teachers
-    of those classes. Age filters don't narrow teachers — ages describe
-    students. Mirrors targeted_student_ids' None-vs-empty contract."""
-    if not (class_ids or teacher_ids):
-        return None
-    ids: Set[str] = set(teacher_ids or [])
-    if class_ids:
-        from utils import class_membership
-        for cid in class_ids:
-            ids |= class_membership.class_teacher_ids(cid)
-    return ids
-
-
-def target_label(audiences: List[str], class_ids: Optional[List[str]] = None,
-                 teacher_ids: Optional[List[str]] = None,
-                 min_age: Optional[int] = None,
-                 max_age: Optional[int] = None) -> Optional[str]:
-    """What `target_audience` records for a targeted send.
-
-    None means "not targeted", and publish falls back to the role list. The
-    archive is read months later by someone asking who was told; "parents" on a
-    message that went to one class would be a lie of omission.
-    """
-    bits = []
-    if class_ids:
-        bits.append(f'{len(class_ids)} class{"es" if len(class_ids) != 1 else ""}')
-    if teacher_ids:
-        bits.append(f'{len(teacher_ids)} teacher{"s" if len(teacher_ids) != 1 else ""}')
-    if min_age is not None or max_age is not None:
-        if min_age is not None and max_age is not None:
-            bits.append(f'ages {min_age}-{max_age}')
-        elif min_age is not None:
-            bits.append(f'ages {min_age}+')
-        else:
-            bits.append(f'ages up to {max_age}')
-    if not bits:
-        return None
-    return f'{",".join(sorted(audiences))} ({"; ".join(bits)})'
 
 
 def publish(org_id: str, author_id: str, title: str, content: str,
@@ -512,106 +396,6 @@ def _snapshot_recipients(announcement_id: Optional[str],
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Recipient snapshot failed for announcement "
                        f"{announcement_id}: {e}")
-
-
-def nudge(announcement: Dict[str, Any]) -> Dict[str, Any]:
-    """Re-notify everyone this announcement was sent to who hasn't read it.
-
-    `announcement` is the announcements row (id, organization_id, title,
-    message, last_nudged_at) — the route fetches it for its own auth checks and
-    hands it over. Returns {'notified': n} on success, otherwise
-    {'error': msg, 'status': http_code}:
-
-    - 409 when nudged within the last NUDGE_COOLDOWN_HOURS — a reminder that
-      can be spammed stops being a reminder;
-    - 409 when no recipient snapshot exists (messages sent before read
-      receipts): re-resolving recipients now could nudge people the original
-      send never reached.
-
-    In-app only, no email — the nudge is a tap on the shoulder, not a resend.
-    """
-    from datetime import datetime, timedelta, timezone
-    from utils.db_fetch import fetch_all_rows
-
-    announcement_id = announcement['id']
-    org_id = announcement.get('organization_id')
-
-    last = announcement.get('last_nudged_at')
-    if last:
-        try:
-            last_dt = datetime.fromisoformat(str(last).replace('Z', '+00:00'))
-            if last_dt.tzinfo is None:
-                last_dt = last_dt.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) - last_dt < timedelta(hours=NUDGE_COOLDOWN_HOURS):
-                return {'error': 'This message was already nudged in the last '
-                                 '24 hours. Try again tomorrow.',
-                        'status': 409}
-        except ValueError:
-            logger.warning(f"Unparseable last_nudged_at on {announcement_id}: {last!r}")
-
-    # Paged: an org-wide send is one row per recipient, which is exactly the
-    # read that truncates at the PostgREST cap. PK is (announcement_id,
-    # user_id), so user_id is the unique paging key within one announcement.
-    recipients = {r['user_id'] for r in fetch_all_rows(lambda: (
-        _admin().table('announcement_recipients').select('user_id')
-        .eq('announcement_id', announcement_id)), order_by='user_id')}
-    if not recipients:
-        return {'error': 'This message predates read receipts, so there is no '
-                         'record of who it was sent to. Only newer messages '
-                         'can be nudged.',
-                'status': 409}
-
-    readers = {r['user_id'] for r in fetch_all_rows(lambda: (
-        _admin().table('announcement_reads').select('user_id')
-        .eq('announcement_id', announcement_id)), order_by='user_id')}
-    unread = recipients - readers
-
-    org_name = None
-    try:
-        org = _admin().table('organizations').select('name')\
-            .eq('id', org_id).single().execute().data
-        org_name = (org or {}).get('name')
-    except Exception as _exc:  # noqa: BLE001
-        logger.debug("org name lookup failed: %s", _exc, exc_info=True)
-
-    title = announcement.get('title') or ''
-    nudge_title = (f'Reminder from {org_name}: {title}' if org_name
-                   else f'Reminder: {title}')
-    body = announcement.get('message') or ''
-
-    from services.notification_service import NotificationService
-    notifier = NotificationService()
-    notified = 0
-    for uid in unread:
-        try:
-            notifier.create_notification(
-                user_id=uid,
-                # Same type as the original send, so it renders on the bell and
-                # gets mobile push without any frontend change.
-                notification_type='announcement',
-                title=nudge_title,
-                message=rich_text.preview(body),
-                # The message itself lives on the school page's archive — same
-                # link the original notification carried.
-                link='/school',
-                metadata={'announcement_id': announcement_id, 'nudge': True,
-                          'full_content': rich_text.to_text(body)},
-                organization_id=org_id,
-            )
-            notified += 1
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Nudge notify failed for {uid}: {e}")
-
-    try:
-        _admin().table('announcements').update(
-            {'last_nudged_at': datetime.now(timezone.utc).isoformat()}
-        ).eq('id', announcement_id).execute()
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Could not stamp last_nudged_at on {announcement_id}: {e}")
-
-    logger.info(f"Announcement {announcement_id} nudged: {notified} of "
-                f"{len(recipients)} recipients still unread")
-    return {'notified': notified}
 
 
 def _email_fanout(org_id: str, title: str, content: str, recipients: List[str],

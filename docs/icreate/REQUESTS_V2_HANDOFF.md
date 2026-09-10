@@ -1,7 +1,7 @@
 # iCreate requests v2 — what is done, and what needs you
 
-Branch `icreate/requests-v2`, worktree `~/pathweaver-icreate`. 12 commits, nothing
-on `main` or `develop`. Backend 6121 pass, web 3237 pass, mobile 945 pass,
+Branch `icreate/requests-v2`, worktree `~/pathweaver-icreate`. 14 commits, nothing
+on `main` or `develop`. Backend 6089 pass, web 3222 pass, mobile 945 pass,
 pyflakes clean, mobile tsc clean.
 
 Plan: `~/.claude/plans/we-re-going-to-edit-delightful-crane.md`.
@@ -69,12 +69,12 @@ can get one up.
 
 ## Decisions I left for you
 
-1. **The announcement deletions did not happen.** The plan said to retire the
-   targeted push composer. I stopped, because deleting it would leave no way to
-   email one class's parents — messages only replaced *staff-to-staff*
-   communication so far, not family-targeted. The board half is done (year-long
-   expiry, one notify checkbox, family home now sees board posts). Say the word
-   and the deletions are a small commit.
+1. **The old composer is gone** (you asked for this on 2026-09-10). With it
+   went four things: sending to particular classes, teachers or an age band; the
+   nudge that re-notified whoever had not read a send; saved announcement
+   templates; and the staff read-receipt view. Board posts are the record now.
+   `GET /api/announcements` is kept and now has no caller, so a "what we have
+   sent" panel could be re-added cheaply if the office misses it.
 
 2. **`curriculum_materials.py` has no role gate.** A teacher of any class on a
    curriculum can flip `visible_to_students` on materials every section sharing
@@ -112,7 +112,6 @@ can get one up.
 
 ## Not done from the plan
 
-- **N2**: the announcement composer deletions — see decision 1.
 - **N3**: mobile announcement dedupe by `source_announcement_id`.
 - **P5 mobile**: no mobile class-materials screen exists; unchanged.
 - **R3 nav flags**: `hrOnly` / `superadmin` / `hideInPreview` in `SisSidebar` are

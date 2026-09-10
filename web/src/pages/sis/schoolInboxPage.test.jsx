@@ -26,8 +26,8 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
 }))
 
-// The composer drags in TipTap; the tab only has to mount it.
-vi.mock('../../components/sis/AnnouncementComposer', () => ({
+// The board tab drags in TipTap; this page only has to mount it.
+vi.mock('../../components/sis/BoardAnnouncementsTab', () => ({
   default: () => <div>composer-stub</div>,
 }))
 vi.mock('../../components/communication/MessageParts', () => ({

@@ -337,58 +337,9 @@ def _nudge(announcement, recipients, reads, org_name='Hearthwood'):
 ANN = {'id': 'ann-1', 'organization_id': 'org-1', 'title': 'Field trip',
        'message': '<p>Bring boots.</p>', 'last_nudged_at': None}
 
-
-@pytest.mark.unit
-class TestNudge:
-    def test_only_the_unread_are_nudged(self):
-        out, notifier, _ = _nudge(ANN, recipients=['a', 'b', 'c'], reads=['b'])
-        assert out == {'notified': 2}
-        nudged = {c.kwargs['user_id']
-                  for c in notifier.create_notification.call_args_list}
-        assert nudged == {'a', 'c'}
-
-    def test_the_reminder_names_the_school_and_the_message(self):
-        _, notifier, _ = _nudge(ANN, recipients=['a'], reads=[])
-        kwargs = notifier.create_notification.call_args.kwargs
-        assert kwargs['title'] == 'Reminder from Hearthwood: Field trip'
-        assert kwargs['notification_type'] == 'announcement'  # mobile push
-        assert kwargs['link'] == '/school'
-        assert kwargs['metadata']['announcement_id'] == 'ann-1'
-        assert kwargs['metadata']['nudge'] is True
-
-    def test_a_recent_nudge_is_refused(self):
-        recent = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-        out, notifier, _ = _nudge({**ANN, 'last_nudged_at': recent},
-                                  recipients=['a'], reads=[])
-        assert out['status'] == 409
-        notifier.create_notification.assert_not_called()
-
-    def test_a_stale_nudge_stamp_does_not_block(self):
-        old = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
-        out, _, _ = _nudge({**ANN, 'last_nudged_at': old},
-                           recipients=['a'], reads=[])
-        assert out == {'notified': 1}
-
-    def test_no_snapshot_means_no_nudge(self):
-        """Messages sent before read receipts have no recipient record;
-        re-resolving recipients now could nudge people the original send never
-        reached, so refuse instead."""
-        out, notifier, _ = _nudge(ANN, recipients=[], reads=[])
-        assert out['status'] == 409
-        assert 'predates' in out['error']
-        notifier.create_notification.assert_not_called()
-
-    def test_a_successful_nudge_stamps_last_nudged_at(self):
-        _, _, tables = _nudge(ANN, recipients=['a'], reads=[])
-        stamped = tables['announcements'].update.call_args[0][0]
-        assert 'last_nudged_at' in stamped
-
-    def test_everyone_read_it_is_success_with_zero(self):
-        out, notifier, _ = _nudge(ANN, recipients=['a'], reads=['a'])
-        assert out == {'notified': 0}
-        notifier.create_notification.assert_not_called()
-
-
+# The nudge (re-notify whoever has not read it) went with the targeted send
+# composer on 2026-09-10. An announcement is a board post now; it stays up
+# for the school year rather than being re-pushed.
 # ── The nudge route's fences ─────────────────────────────────────────────────
 ANN_ROW = {'id': 'ann-1', 'organization_id': 'org-1', 'author_id': 'author-1',
            'title': 'T', 'message': 'B', 'last_nudged_at': None}
@@ -413,38 +364,6 @@ def _post_nudge(caller, user_id='caller-1', row=ANN_ROW,
         resp = view(user_id, 'ann-1')
     return resp, nudge
 
-
-@pytest.mark.unit
-class TestNudgeRoute:
-    def test_the_admin_tier_nudges_any_send_in_their_org(self):
-        resp, nudge = _post_nudge(ORG_ADMIN)
-        assert _status(resp) == 200
-        assert _json(resp)['notified'] == 5
-        nudge.assert_called_once()
-
-    def test_an_advisor_nudges_only_their_own_sends(self):
-        resp, nudge = _post_nudge(ADVISOR, user_id='someone-else')
-        assert _status(resp) == 403
-        nudge.assert_not_called()
-
-    def test_an_advisor_may_nudge_what_they_sent(self):
-        resp, nudge = _post_nudge(ADVISOR, user_id='author-1')
-        assert _status(resp) == 200
-        nudge.assert_called_once()
-
-    def test_another_orgs_send_is_denied(self):
-        elsewhere = {**ORG_ADMIN, 'organization_id': 'org-2'}
-        resp, nudge = _post_nudge(elsewhere)
-        assert _status(resp) == 403
-        nudge.assert_not_called()
-
-    def test_a_missing_announcement_is_404(self):
-        resp, _ = _post_nudge(ORG_ADMIN, row=None)
-        assert _status(resp) == 404
-
-    def test_a_service_refusal_keeps_its_status(self):
-        resp, _ = _post_nudge(ORG_ADMIN, nudge_result={
-            'error': 'This message was already nudged in the last 24 hours. '
-                     'Try again tomorrow.', 'status': 409})
-        assert _status(resp) == 409
-        assert 'already nudged' in _json(resp)['error']
+# The nudge (re-notify whoever has not read it) went with the targeted send
+# composer on 2026-09-10. An announcement is a board post now; it stays up
+# for the school year rather than being re-pushed.
