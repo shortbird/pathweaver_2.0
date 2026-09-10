@@ -208,20 +208,42 @@ class DependentRepository(BaseRepository):
             logger.error(f"Error fetching dependents for parent {parent_id}: {e}")
             return []
 
-    def get_dependent(self, dependent_id: str, parent_id: str) -> Dict[str, Any]:
+    def get_dependent(self, dependent_id: str, parent_id: str,
+                      owner_only: bool = False) -> Dict[str, Any]:
         """
         Get a specific dependent profile.
+
+        Authorization has two levels, because "may act for this child" and "may
+        change what this account IS" are different questions:
+
+        * default -- any of the child's guardians (utils.portfolio_access
+          .is_parent_of: managed_by_parent_id, an approved parent_student_links
+          row, or a shared household). This is what lets a second guardian act
+          as the child, complete a task, or edit the profile, which they could
+          not do while this checked managed_by_parent_id alone: two parents of
+          the same child had different powers depending on who had clicked
+          "add a child" first.
+        * owner_only=True -- the guardian named in managed_by_parent_id, and
+          only them. For the three actions that end or hand over the account:
+          delete, promote to an independent login, and add credentials. Those
+          are not "acting for the child", and a co-guardian doing one of them
+          silently takes the account away from the guardian who made it.
+
+        The `is_dependent` filter is unchanged and is what keeps a student with
+        their own login non-impersonable, whoever asks.
 
         Args:
             dependent_id: Dependent user ID
             parent_id: Parent user ID (for authorization check)
+            owner_only: Require the managing parent, not any guardian
 
         Returns:
             Dependent profile
 
         Raises:
             NotFoundError: If dependent not found
-            PermissionError: If parent doesn't own this dependent
+            PermissionError: If the caller is not a guardian (or, with
+                owner_only, not the managing parent)
         """
         try:
             result = self.client.table('users')\
@@ -236,9 +258,14 @@ class DependentRepository(BaseRepository):
 
             dependent = result.data
 
-            # Verify parent owns this dependent
-            if dependent.get('managed_by_parent_id') != parent_id:
-                raise PermissionError(f"Parent {parent_id} does not own dependent {dependent_id}")
+            # Verify the caller may act for this dependent (see the docstring
+            # for why owner_only exists).
+            is_owner = dependent.get('managed_by_parent_id') == parent_id
+            if not is_owner:
+                from utils.portfolio_access import is_parent_of
+                if owner_only or not is_parent_of(parent_id, dependent_id):
+                    raise PermissionError(
+                        f"Parent {parent_id} does not own dependent {dependent_id}")
 
             # Add calculated fields
             if dependent.get('date_of_birth'):
@@ -340,7 +367,9 @@ class DependentRepository(BaseRepository):
         """
         # Verify ownership BEFORE anything is deleted — get_dependent enforces
         # managed_by_parent_id, which the purge itself does not re-check.
-        self.get_dependent(dependent_id, parent_id)
+        # owner_only: erasing the account is not "acting for the child", and a
+        # co-guardian must not be able to delete a record another guardian made.
+        self.get_dependent(dependent_id, parent_id, owner_only=True)
 
         from repositories.user_erasure_repository import AccountDeletionError, purge_user
 
@@ -387,8 +416,10 @@ class DependentRepository(BaseRepository):
             PermissionError: If not eligible for promotion
             ValidationError: If promotion fails
         """
-        # Get dependent and verify ownership
-        dependent = self.get_dependent(dependent_id, parent_id)
+        # Get dependent and verify ownership. owner_only: promotion hands the
+        # account to the child permanently and cuts every guardian's management
+        # link, so it stays with the guardian who created it.
+        dependent = self.get_dependent(dependent_id, parent_id, owner_only=True)
 
         # Check promotion eligibility
         promotion_date = datetime.strptime(dependent['promotion_eligible_at'], '%Y-%m-%d').date()

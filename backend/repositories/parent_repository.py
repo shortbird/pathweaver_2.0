@@ -90,9 +90,13 @@ class ParentRepository(BaseRepository):
     def is_linked(self, parent_id: str, student_id: str) -> bool:
         """
         Check if a parent is linked to a student.
-        Checks both:
-        1. parent_student_links table (for 13+ students linked via admin/invitation)
-        2. users table managed_by_parent_id (for dependents under 13)
+
+        Delegates to the one definition (utils.portfolio_access.is_parent_of),
+        which covers all three links: an approved parent_student_links row,
+        users.managed_by_parent_id, and a shared household. This used to inline
+        the first two, so a guardian who registered through the SIS funnel could
+        not attach helper evidence to their own child's work
+        (helper_evidence.has_parent_claim is the caller).
 
         Args:
             parent_id: Parent user ID
@@ -102,26 +106,8 @@ class ParentRepository(BaseRepository):
             True if linked, False otherwise
         """
         try:
-            # Check 1: parent_student_links table (13+ students)
-            result = self.client.table(self.table_name)\
-                .select('id')\
-                .eq('parent_user_id', parent_id)\
-                .eq('student_user_id', student_id)\
-                .eq('status', 'approved')\
-                .execute()
-
-            if result.data:
-                return True
-
-            # Check 2: users table for dependents (under 13)
-            dependent_result = self.client.table('users')\
-                .select('id')\
-                .eq('id', student_id)\
-                .eq('managed_by_parent_id', parent_id)\
-                .eq('is_dependent', True)\
-                .execute()
-
-            return bool(dependent_result.data)
+            from utils.portfolio_access import is_parent_of
+            return is_parent_of(parent_id, student_id)
         except Exception as e:
             logger.error(f"Error checking parent-student link: {e}")
             return False

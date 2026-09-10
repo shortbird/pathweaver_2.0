@@ -88,6 +88,21 @@ def verify_parent_role(user_id: str, check_relationships: bool = False):
         if links.count and links.count > 0:
             return True
 
+        # The third link: a guardian row in a household. The SIS registration
+        # funnel writes org_role='parent' as well, so most such guardians pass
+        # the role check above and never reach here — but a guardian created any
+        # other way holds a real family relationship, and this branch exists to
+        # recognise family relationships whatever the role column says.
+        # GUARDIAN_RELATIONSHIPS is imported, never retyped: the values are
+        # ('guardian', 'other'), and 'other' is the grandparent or aunt the
+        # funnel writes (tests/unit/test_one_definition_of_guardian.py).
+        from config.constants import GUARDIAN_RELATIONSHIPS
+        guardian_rows = (supabase.table('household_members').select('id', count='exact')
+                         .eq('user_id', user_id)
+                         .in_('relationship', list(GUARDIAN_RELATIONSHIPS)).execute())
+        if guardian_rows.count and guardian_rows.count > 0:
+            return True
+
     raise AuthorizationError("Only parent accounts can manage dependent profiles")
 
 
@@ -823,8 +838,11 @@ def add_dependent_login(user_id, dependent_id):
         supabase = get_supabase_admin_client()
         dependent_repo = DependentRepository(client=supabase)
 
-        # Verify parent owns this dependent
-        dependent = dependent_repo.get_dependent(dependent_id, user_id)
+        # Verify parent owns this dependent. owner_only: giving the child a
+        # login sets the credentials they will sign in with from now on. Any
+        # guardian may ACT for a child; only the guardian who created the
+        # account decides it gets one of its own.
+        dependent = dependent_repo.get_dependent(dependent_id, user_id, owner_only=True)
 
         # Check if dependent already has a real email (not placeholder)
         existing_email = dependent.get('email')

@@ -102,66 +102,45 @@ def test_append_support_resilient_when_support_lookup_fails():
 
 # ── Parent -> children id resolution ──
 
-def test_get_parent_child_ids_combines_dependents_and_links():
-    supabase = MagicMock()
+def test_get_parent_child_ids_asks_the_one_definition():
+    """It used to inline two of the three links and miss households, so a
+    guardian who registered through the SIS funnel had no children in their own
+    contact list. class_membership.children_of_parent is the shared answer."""
+    with patch('utils.class_membership.children_of_parent',
+               return_value={'dep-1', 'dep-2', 'link-1'}) as children:
+        ids = _get_parent_child_ids(MagicMock(), 'parent-1')
 
-    def table(name):
-        t = MagicMock()
-        if name == 'users':
-            t.select.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[{'id': 'dep-1'}, {'id': 'dep-2'}]
-            )
-        elif name == 'parent_student_links':
-            t.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=[{'student_user_id': 'link-1'}, {'student_user_id': 'dep-1'}]
-            )
-        return t
-
-    supabase.table.side_effect = table
-    ids = _get_parent_child_ids(supabase, 'parent-1')
-    # Union, de-duplicated.
+    children.assert_called_once_with('parent-1')
     assert set(ids) == {'dep-1', 'dep-2', 'link-1'}
+
+
+def test_get_parent_child_ids_is_empty_for_someone_with_no_children():
+    with patch('utils.class_membership.children_of_parent', return_value=set()):
+        assert _get_parent_child_ids(MagicMock(), 'nobody') == []
 
 
 # ── Parent-history authorization (service) ──
 
-def _service_with_parent_link(managed_by=None, link_rows=None):
-    supabase = MagicMock()
-
-    def table(name):
-        t = MagicMock()
-        if name == 'users':
-            t.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
-                data={'managed_by_parent_id': managed_by}
-            )
-        elif name == 'parent_student_links':
-            t.select.return_value.eq.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-                data=link_rows or []
-            )
-        return t
-
-    supabase.table.side_effect = table
-    return supabase
-
-
-def test_is_parent_of_child_true_via_managed_by():
-    supabase = _service_with_parent_link(managed_by='parent-1')
+def test_is_parent_of_child_asks_the_one_definition():
+    """All three links -- managed_by_parent_id, an approved parent_student_link,
+    and a shared household -- live in portfolio_access.is_parent_of. This used
+    to inline the first two, so a household guardian could not read their own
+    child's conversations."""
     svc = DirectMessageService()
-    with patch.object(svc, '_get_client', return_value=supabase):
+    with patch('utils.portfolio_access.is_parent_of', return_value=True) as gate:
         assert svc.is_parent_of_child('parent-1', 'child-1') is True
-
-
-def test_is_parent_of_child_true_via_approved_link():
-    supabase = _service_with_parent_link(managed_by=None, link_rows=[{'id': 'l1'}])
-    svc = DirectMessageService()
-    with patch.object(svc, '_get_client', return_value=supabase):
-        assert svc.is_parent_of_child('parent-1', 'child-1') is True
+    gate.assert_called_once_with('parent-1', 'child-1')
 
 
 def test_is_parent_of_child_false_when_unrelated():
-    supabase = _service_with_parent_link(managed_by='someone-else', link_rows=[])
     svc = DirectMessageService()
-    with patch.object(svc, '_get_client', return_value=supabase):
+    with patch('utils.portfolio_access.is_parent_of', return_value=False):
+        assert svc.is_parent_of_child('parent-1', 'child-1') is False
+
+
+def test_is_parent_of_child_fails_closed_on_a_lookup_error():
+    svc = DirectMessageService()
+    with patch('utils.portfolio_access.is_parent_of', side_effect=RuntimeError('boom')):
         assert svc.is_parent_of_child('parent-1', 'child-1') is False
 
 

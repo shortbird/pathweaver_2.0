@@ -173,7 +173,32 @@ def minor_reason(user_row: Optional[Dict[str, Any]]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def is_parent_of(caller_id: str, student_id: str) -> bool:
-    """True if caller is the student's parent, by either linking mechanism."""
+    """True if caller is the student's parent, by ANY of the three linking
+    mechanisms the platform has.
+
+    THE one definition. `relationships._parent` delegates here, so every route
+    declaring `allow=('parent', ...)` -- 82 of them -- gets the same answer, and
+    so does everything that calls this directly (can_view_portfolio,
+    can_manage_privacy, and the helpers listed in the module docstring).
+
+    The three links:
+      1. users.managed_by_parent_id  -- a dependent account the parent created.
+      2. parent_student_links        -- an approved link to a student who has
+                                        their own login.
+      3. household_members           -- guardian and student in one household.
+
+    (3) was missing until 2026-09-10, and it is the one the SIS registration
+    funnel writes. Only nine routes named 'household_guardian' explicitly, so a
+    guardian who registered through the funnel -- which at a microschool is
+    nearly every guardian -- could pay their child's tuition and pick their
+    classes but got a 403 from the child's own dashboard. The capability set you
+    had depended on which of three code paths had created the account, which is
+    not a rule anybody could have explained to a parent on the phone.
+
+    Costs one extra query, and only for callers the first two checks already
+    refused. `is_household_guardian` remains public: the nine routes naming both
+    relationships still work, the name is now redundant there.
+    """
     if not caller_id or not student_id or caller_id == student_id:
         return False
 
@@ -184,7 +209,10 @@ def is_parent_of(caller_id: str, student_id: str) -> bool:
     links = _admin().table('parent_student_links').select('id, status') \
         .eq('parent_user_id', caller_id).eq('student_user_id', student_id) \
         .execute().data or []
-    return any(l.get('status') in ACTIVE_LINK_STATUSES for l in links)
+    if any(l.get('status') in ACTIVE_LINK_STATUSES for l in links):
+        return True
+
+    return is_household_guardian(caller_id, student_id)
 
 
 def is_household_guardian(caller_id: str, student_id: str) -> bool:

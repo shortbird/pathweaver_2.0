@@ -27,9 +27,10 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
 
     Access is granted if:
     1. User is superadmin (universal access)
-    2. User has an approved link in parent_student_links to this student
-    3. User manages this student as a dependent (managed_by_parent_id)
-    4. User has an observer link in observer_student_links to this student
+    2. User is the student's parent by ANY of the three links -- an approved
+       parent_student_links row, managed_by_parent_id, or a shared household
+       (utils.portfolio_access.is_parent_of is the one definition)
+    3. User has an observer link in observer_student_links to this student
        -- ONLY when allow_observer=True
 
     Observers are documented as VIEW-ONLY ("can comment on student work"), so
@@ -47,16 +48,8 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
             if user_response and user_response.data and user_response.data.get('role') == 'superadmin':
                 return True
 
-        # Query user with role info AND parent links
-        user_response = supabase.table('users').select('''
-            role,
-            org_role,
-            parent_student_links!parent_student_links_parent_user_id_fkey(
-                id,
-                student_user_id,
-                status
-            )
-        ''').eq('id', parent_user_id).maybe_single().execute()
+        user_response = supabase.table('users').select('role, org_role') \
+            .eq('id', parent_user_id).maybe_single().execute()
 
         if not (user_response and user_response.data):
             raise AuthorizationError("User not found")
@@ -69,23 +62,15 @@ def verify_parent_access(supabase, parent_user_id, student_user_id, allow_observ
         if user_role == 'superadmin':
             return True
 
-        # Check for APPROVED link to this specific student
-        links = user.get('parent_student_links', [])
-        has_active_link = any(
-            link.get('student_user_id') == student_user_id and link.get('status') == 'approved'
-            for link in links
-        )
-
-        if has_active_link:
+        # The parent question, asked once. This used to inline two of the three
+        # links (an approved parent_student_links row via an embedded join, and
+        # managed_by_parent_id) and miss the third, so a guardian linked only
+        # through household_members -- how the SIS registration funnel builds a
+        # family -- was refused their own child's dashboard while the SIS pages
+        # let them pay that child's tuition.
+        from utils.portfolio_access import is_parent_of
+        if is_parent_of(parent_user_id, student_user_id):
             return True
-
-        # Check if student is a dependent managed by this parent
-        student_response = supabase.table('users').select('is_dependent, managed_by_parent_id').eq('id', student_user_id).maybe_single().execute()
-        if student_response and student_response.data:
-            is_dependent = student_response.data.get('is_dependent', False)
-            managed_by = student_response.data.get('managed_by_parent_id')
-            if is_dependent and managed_by == parent_user_id:
-                return True
 
         # Check for observer link to this student (view-only paths only).
         if allow_observer:

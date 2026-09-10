@@ -368,3 +368,100 @@ def test_managing_parent_is_the_approver():
     assert approver['user_id'] == 'p1'
     assert approver['kind'] == 'parent'
     assert approver['first_name'] == 'Dana'
+
+
+# ---------------------------------------------------------------------------
+# is_parent_of -- the one definition of "parent" (2026-09-10)
+# ---------------------------------------------------------------------------
+#
+# A family is linked three ways. Two of them lived here; the third
+# (household_members, which is what the SIS registration funnel writes) was
+# known only to is_household_guardian and named by exactly nine routes. So a
+# guardian's capability set depended on which of three code paths had created
+# the account: the same parent could pay their child's tuition and pick their
+# classes on the SIS pages, and got a 403 from the child's own dashboard.
+#
+# relationships._parent delegates here, so widening this widened all 82
+# `allow=('parent', ...)` tuples at once.
+
+PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+KID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+
+
+def _links_client(link_rows):
+    client = Mock()
+    table = Mock()
+    client.table.return_value = table
+    for chained in ('select', 'eq', 'in_', 'limit'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(data=link_rows)
+    return client
+
+
+def test_is_parent_of_accepts_the_managing_parent():
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': PARENT}):
+        assert portfolio_access.is_parent_of(PARENT, KID) is True
+
+
+def test_is_parent_of_accepts_an_approved_link():
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': None}), \
+            patch.object(portfolio_access, '_admin',
+                         return_value=_links_client([{'id': 'l1', 'status': 'approved'}])):
+        assert portfolio_access.is_parent_of(PARENT, KID) is True
+
+
+def test_is_parent_of_accepts_a_household_guardian():
+    """The third link. Without it, the guardian of a funnel-registered student
+    was refused every route that names 'parent'."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': None}), \
+            patch.object(portfolio_access, '_admin', return_value=_links_client([])), \
+            patch.object(portfolio_access, 'is_household_guardian', return_value=True):
+        assert portfolio_access.is_parent_of(PARENT, KID) is True
+
+
+def test_is_parent_of_refuses_a_stranger():
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': 'someone-else'}), \
+            patch.object(portfolio_access, '_admin', return_value=_links_client([])), \
+            patch.object(portfolio_access, 'is_household_guardian', return_value=False):
+        assert portfolio_access.is_parent_of(PARENT, KID) is False
+
+
+def test_is_parent_of_refuses_a_pending_link():
+    """A link awaiting approval is not a relationship yet."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': None}), \
+            patch.object(portfolio_access, '_admin',
+                         return_value=_links_client([{'id': 'l1', 'status': 'pending'}])), \
+            patch.object(portfolio_access, 'is_household_guardian', return_value=False):
+        assert portfolio_access.is_parent_of(PARENT, KID) is False
+
+
+def test_is_parent_of_refuses_yourself():
+    from utils import portfolio_access
+
+    assert portfolio_access.is_parent_of(KID, KID) is False
+
+
+def test_the_household_check_only_runs_when_the_first_two_fail():
+    """It costs a query, and only for callers already refused twice."""
+    from utils import portfolio_access
+
+    with patch.object(portfolio_access, '_fetch_user',
+                      return_value={'id': KID, 'managed_by_parent_id': PARENT}), \
+            patch.object(portfolio_access, 'is_household_guardian') as household:
+        portfolio_access.is_parent_of(PARENT, KID)
+    household.assert_not_called()

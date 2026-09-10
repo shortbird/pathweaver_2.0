@@ -804,25 +804,17 @@ class DirectMessageService(BaseService):
     # ==================== Parent / Guardian Read Access ====================
 
     def is_parent_of_child(self, parent_id: str, child_id: str) -> bool:
-        """
-        Check whether parent_id is a parent/guardian of child_id via either
-        the dependents mechanism (users.managed_by_parent_id) or an approved
-        parent_student_links row.
+        """Whether parent_id is a parent/guardian of child_id.
+
+        Delegates to the one definition (utils.portfolio_access.is_parent_of),
+        which covers all three links: managed_by_parent_id, an approved
+        parent_student_links row, and a shared household. This used to inline
+        the first two, so a household guardian could not read their own child's
+        conversations from the parent view.
         """
         try:
-            supabase = self._get_client()
-
-            child = supabase.table('users').select('managed_by_parent_id').eq(
-                'id', child_id
-            ).single().execute()
-            if child.data and child.data.get('managed_by_parent_id') == parent_id:
-                return True
-
-            link = supabase.table('parent_student_links').select('id').eq(
-                'parent_user_id', parent_id
-            ).eq('student_user_id', child_id).eq('status', 'approved').execute()
-            return bool(link.data)
-
+            from utils.portfolio_access import is_parent_of
+            return is_parent_of(parent_id, child_id)
         except Exception as e:
             logger.error(f"Error checking parent-child link: {str(e)}")
             return False

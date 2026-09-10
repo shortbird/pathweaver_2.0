@@ -312,9 +312,14 @@ def get_student_quest_view(user_id, student_id, quest_id):
         # admin client justified: parent views child quest progress + calendar; cross-user reads gated by parent->child relationship verification
         supabase = get_supabase_admin_client()
 
-        # Check if student is a dependent (managed by this parent)
-        student_check = supabase.table('users').select('managed_by_parent_id').eq('id', student_id).single().execute()
-        is_dependent = bool(student_check.data and student_check.data.get('managed_by_parent_id') == user_id)
+        # Is this a managed account? Read the student's own flag, not
+        # "managed_by_parent_id == me": a second guardian of the same child is
+        # just as much a guardian, and computing it from the caller told the
+        # co-parent their child was not a dependent and hid the buttons the
+        # first parent had. WHO may act is settled by the relationship gate on
+        # this route; this only says WHAT the account is.
+        student_check = supabase.table('users').select('is_dependent').eq('id', student_id).single().execute()
+        is_dependent = bool(student_check.data and student_check.data.get('is_dependent'))
 
         # Get quest details
         quest_response = supabase.table('quests').select('''

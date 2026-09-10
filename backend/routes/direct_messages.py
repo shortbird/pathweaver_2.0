@@ -79,20 +79,17 @@ def _build_support_contact(support_user):
 
 def _get_parent_child_ids(supabase, parent_id):
     """
-    Return the set of child user-ids a parent is linked to, via either mechanism:
+    Return the child user-ids a parent is linked to, via all three mechanisms:
     - dependents created by the parent (users.managed_by_parent_id)
     - approved parent_student_links (parent_user_id -> student_user_id)
+    - a shared household (the SIS registration funnel's link)
+
+    One definition, in utils.class_membership.children_of_parent -- this used to
+    inline the first two, so a funnel-registered guardian's children never
+    appeared in their own messaging contact list.
     """
-    child_ids = set()
-    deps = supabase.table('users').select('id').eq('managed_by_parent_id', parent_id).execute()
-    if deps.data:
-        child_ids.update(d['id'] for d in deps.data)
-    links = supabase.table('parent_student_links').select('student_user_id').eq(
-        'parent_user_id', parent_id
-    ).eq('status', 'approved').execute()
-    if links.data:
-        child_ids.update(l['student_user_id'] for l in links.data)
-    return list(child_ids)
+    from utils import class_membership
+    return list(class_membership.children_of_parent(parent_id))
 
 
 def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, user_org_id):

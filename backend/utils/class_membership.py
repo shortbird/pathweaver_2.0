@@ -223,17 +223,30 @@ def shares_class(teacher_id: str, student_id: str) -> bool:
 
 
 def guardians_by_student(student_ids) -> Dict[str, Set[str]]:
-    """{student_id: {guardian_id, ...}} for these students, through both link
-    types the platform has: users.managed_by_parent_id (dependent accounts) and
-    an approved parent_student_links row (independent accounts). Best-effort
-    like the rest of this module — a lookup failure returns what was found so
-    far. Two queries per chunk however many students are asked for, so callers
-    that need the mapping never loop children_of_parent."""
+    """{student_id: {guardian_id, ...}} for these students, through all THREE
+    link types the platform has:
+
+        users.managed_by_parent_id   dependent accounts
+        parent_student_links         approved links to students with own logins
+        household_members            guardian and student in one household
+
+    The third was missing until 2026-09-10, and it is the one the SIS
+    registration funnel writes. class_group_sync_service builds each class's
+    "<Class> Parent Chat" from parents_of_students, which composes on this — so
+    a guardian who registered through the funnel was never added to the chat
+    about their own child's class. At a microschool that is most guardians: the
+    chat existed, the teacher posted in it, and the family never saw it.
+
+    Best-effort like the rest of this module — a lookup failure returns what was
+    found so far. Four queries per chunk however many students are asked for, so
+    callers that need the mapping never loop children_of_parent.
+    """
     wanted = [sid for sid in set(student_ids or []) if sid]
     out: Dict[str, Set[str]] = {}
     if not wanted:
         return out
     try:
+        from config.constants import GUARDIAN_RELATIONSHIPS
         admin = _admin()
         for chunk in _chunks(wanted):
             rows = (admin.table('users').select('id, managed_by_parent_id')
@@ -248,6 +261,29 @@ def guardians_by_student(student_ids) -> Dict[str, Set[str]]:
             for l in links:
                 if l.get('parent_user_id') and l.get('student_user_id'):
                     out.setdefault(l['student_user_id'], set()).add(l['parent_user_id'])
+
+            # Households: student rows first, then the guardians of exactly
+            # those households. Two queries rather than one per student.
+            student_rows = (admin.table('household_members')
+                            .select('household_id, user_id')
+                            .in_('user_id', chunk)
+                            .eq('relationship', 'student').execute()).data or []
+            students_by_house: Dict[str, Set[str]] = {}
+            for r in student_rows:
+                if r.get('household_id') and r.get('user_id'):
+                    students_by_house.setdefault(r['household_id'], set()).add(r['user_id'])
+            if not students_by_house:
+                continue
+            for house_chunk in _chunks(list(students_by_house)):
+                guardians = (admin.table('household_members')
+                             .select('household_id, user_id')
+                             .in_('household_id', house_chunk)
+                             .in_('relationship', list(GUARDIAN_RELATIONSHIPS))
+                             .execute()).data or []
+                for g in guardians:
+                    for sid in students_by_house.get(g.get('household_id'), ()):
+                        if g.get('user_id') and g['user_id'] != sid:
+                            out.setdefault(sid, set()).add(g['user_id'])
     except Exception as e:  # noqa: BLE001
         logger.warning(f'guardians_by_student failed: {e}')
     return out
@@ -262,12 +298,14 @@ def parents_of_students(student_ids) -> Set[str]:
 
 
 def children_of_parent(parent_id: str) -> Set[str]:
-    """Every student this guardian is linked to (managed_by_parent_id or an
-    approved parent_student_links row)."""
+    """Every student this guardian is linked to, through all three links:
+    managed_by_parent_id, an approved parent_student_links row, or a shared
+    household (see guardians_by_student for why the third matters)."""
     out: Set[str] = set()
     if not parent_id:
         return out
     try:
+        from config.constants import GUARDIAN_RELATIONSHIPS
         admin = _admin()
         rows = (admin.table('users').select('id')
                 .eq('managed_by_parent_id', parent_id).execute()).data or []
@@ -276,8 +314,19 @@ def children_of_parent(parent_id: str) -> Set[str]:
                  .eq('parent_user_id', parent_id)
                  .eq('status', 'approved').execute()).data or []
         out.update(l['student_user_id'] for l in links if l.get('student_user_id'))
+
+        mine = (admin.table('household_members').select('household_id')
+                .eq('user_id', parent_id)
+                .in_('relationship', list(GUARDIAN_RELATIONSHIPS)).execute()).data or []
+        house_ids = [m['household_id'] for m in mine if m.get('household_id')]
+        for chunk in _chunks(house_ids):
+            kids = (admin.table('household_members').select('user_id')
+                    .in_('household_id', chunk)
+                    .eq('relationship', 'student').execute()).data or []
+            out.update(k['user_id'] for k in kids if k.get('user_id'))
     except Exception as e:  # noqa: BLE001
         logger.warning(f'children_of_parent failed for {parent_id}: {e}')
+    out.discard(parent_id)
     return out
 
 

@@ -250,7 +250,13 @@ BASELINES = {
     # moved here from routes/tasks/xp_helpers.py with its one query, because
     # PersonalizationService needs it and services must not import from
     # routes (test_import_layers.py). routes/ dropped by the same one.
-    'utils': 136,
+    # 2026-09-10: 136 -> 139. The third parent-child link (household_members)
+    # reaching class_membership.guardians_by_student (+2, one for the student
+    # rows and one for their households' guardians) and children_of_parent (+1).
+    # This module IS the shared answer to "who belongs to a class" and owns its
+    # own reads by design -- the whole reason it lives in utils/ is that
+    # repositories need it and may not import services.
+    'utils': 139,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,

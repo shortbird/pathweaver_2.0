@@ -88,14 +88,20 @@ def _reviewed(reason, *endpoints):
 #
 # MIGRATED 2026-09-03: routes/dependents.py (12 routes) declares
 # @require_relationship_to(<param>, allow=('parent',)). Unlike routes/parent/*,
-# the inner checks here were NOT collapsed away, and must not be. Those routes
-# gate on `users.managed_by_parent_id == caller`; the decorator's `parent`
-# predicate is `is_parent_of`, which ALSO accepts an approved
-# parent_student_links row. On production that is not a theoretical difference:
-# 129 of the 131 approved links are for a student whose managed_by_parent_id is
-# somebody else. Collapsing would hand those 129 pairs delete, promote and
-# act-as on a teen who is not their dependent. The decorator is the outer
-# structural gate; the managed_by_parent_id checks stay as the precise one.
+# the inner checks here were NOT collapsed away, and must not be. The
+# decorator's `parent` predicate is `is_parent_of`, which accepts any of the
+# three family links; these routes need something narrower. On production that
+# is not a theoretical difference: 129 of the 131 approved parent_student_links
+# are for a student whose managed_by_parent_id is somebody else, and collapsing
+# would hand those pairs delete, promote and act-as on a teen who is not their
+# dependent.
+#
+# The inner check is DependentRepository.get_dependent. Since 2026-09-10 it
+# draws two lines: `is_dependent = True` always (which is what protects those
+# 129 pairs -- a student with their own login is impersonable by nobody), and
+# `owner_only=True` on delete, promote and add-login (any guardian may act for a
+# child; only the guardian who created the account may end it or give it
+# credentials). See tests/unit/test_acting_as_guardian_parity.py.
 
 # --- advisor -> assigned student --------------------------------------------
 # MIGRATED 2026-09-03: the whole advisor surface, 15 routes across five modules,

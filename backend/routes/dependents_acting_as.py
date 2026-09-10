@@ -49,7 +49,11 @@ def register(bp):
             # register(), so importing at module scope would close the cycle.
             # It also keeps the patch target where existing tests point.
             from routes.dependents import verify_parent_role
-            verify_parent_role(user_id)
+            # check_relationships=True: a guardian holds a real relationship to
+            # this child whatever their role column happens to say. The
+            # per-child gate is get_dependent below; this is only "is this
+            # person a parent at all".
+            verify_parent_role(user_id, check_relationships=True)
 
             # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
             supabase = get_supabase_admin_client()
