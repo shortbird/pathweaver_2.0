@@ -592,9 +592,27 @@ obvious move was the wrong one:
 
 Numbered steps, no codebase knowledge assumed.
 
-### 1. Run the RLS tests once, and tell me what happened
+### 1. ~~Run the RLS tests once~~ — DONE 2026-09-10
 
-They have never executed. Either route works.
+Ran in CI, via the `integration` job on the push to `main`. Three executions:
+
+| Run | Result |
+|---|---|
+| 1st | 33 of 36 passed. Three fixture bugs in the tests, no policy problems. |
+| 2nd | 35 of 36. The last failure narrowed the finding rather than contradicting it. |
+| 3rd | **All 38 passed.** |
+
+What it bought, which is the reason the suite was worth running rather than
+merely writing: finding 0 above -- no `users` row can be updated through the
+Data API, not even your own -- was found by executing this file, not by reading
+the schema. Three tests written blind were wrong, and the mechanism behind the
+third took two runs to pin down.
+
+The original instructions follow, for running them locally.
+
+#### Original: run the RLS tests
+
+Either route works.
 
 **The easy route — let CI do it.** Push this branch and open a pull request
 against `main`. The `Integration Tests (reusable)` job boots a throwaway
@@ -661,7 +679,18 @@ slug route too?** If yes, I will make the change and add the test that is
 currently parked. If no, tell me why and I will write the reason into the code so
 the next person does not re-open it.
 
-### 4. Apply the is_admin() migration to production
+### 4. ~~Apply the is_admin() migration to production~~ — DONE 2026-09-10
+
+Applied via `migrate-prod.yml`: `plan` reported exactly 1 pending
+(`20260910120000`, no remote row), then `apply` succeeded. Verified against
+production afterwards -- 0 policies still call `is_admin()`, both functions are
+gone, `organizations` is down to 2 policies and `site_settings` to 1, and the
+history row is stamped at the **filename** version rather than an apply-time
+one, so the reconciled history stays reconciled.
+
+The original instructions follow, for the next migration.
+
+#### Original: Apply the is_admin() migration to production
 
 `supabase/migrations/20260910120000_remove_the_dead_admin_predicate.sql` is
 committed and has not been applied anywhere. It changes no access -- the
@@ -671,6 +700,9 @@ change and it is yours to run.
 1. Do step 1 first. `supabase start` replays `supabase/migrations/`, so booting
    the local stack is also how this file gets its first execution. A syntax
    error fails the boot; you do not want to find that out against production.
+   (In the event this was done the other way round -- CI ran the migration on
+   the local stack as part of the integration job on the same push, which
+   served the same purpose.)
 2. Run `.github/workflows/migrate-prod.yml` in **`plan`** mode. Expect it to
    report exactly one pending migration. If it reports dozens, stop and read
    MIGRATION_RECONCILIATION.md -- the history drift is back.
