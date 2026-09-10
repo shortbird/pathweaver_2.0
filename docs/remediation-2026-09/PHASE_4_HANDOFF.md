@@ -346,35 +346,49 @@ Two things found while in there, neither of them behaviour changes:
 Per rule 5, these are written down rather than changed. Ordered by how much they
 would cost.
 
-### 0. The RLS suite ran, and found a policy/trigger contradiction
+### 0. No `users` row can be updated through the Data API
 
-**Added 2026-09-10, after the first execution.** 33 of 36 passed on the first
-run; the three failures were fixture bugs in the tests, not policy problems.
-Fixing the third one turned up something real.
+**Added 2026-09-10, after the RLS suite's first two executions.** 33 of 36
+passed the first time; the failures were fixture bugs in the tests, not policy
+problems. Fixing them turned up something real, and the second run showed it was
+broader than the first suggested.
 
-`generate_slug_trigger` on `users` fires BEFORE INSERT OR UPDATE, is **not**
-SECURITY DEFINER, and unconditionally runs
-`INSERT INTO diplomas ... ON CONFLICT (user_id)`. That insert is evaluated as
-the *calling* role against `diplomas_insert`, which requires
-`user_id = auth.uid()`.
+**Every UPDATE of `users` through PostgREST fails** -- including a user editing
+their own row, which `users_update_consolidated` explicitly permits. The policy
+is not what refuses it. Two faults compound:
 
-The consequence: **`users_update_consolidated`'s org-admin clause is
-unreachable through the Data API.** An org admin editing their own school's
-student is permitted by the policy on `users` and then dies at 42501 on
-`diplomas` -- a table they never asked to write to. The error names the wrong
-object, which is the part that would cost an afternoon.
+1. `generate_slug_trigger` on `users` fires BEFORE INSERT OR UPDATE, is **not**
+   SECURITY DEFINER, and unconditionally runs
+   `INSERT INTO diplomas ... ON CONFLICT (user_id) DO UPDATE`. That insert is
+   evaluated as the *calling* role against `diplomas_insert`, which requires
+   `user_id = auth.uid()` -- false for anyone editing somebody else's row,
+   which is the org-admin clause's entire purpose.
+2. `diplomas` has INSERT and UPDATE policies and **no SELECT policy at all**.
+   `ON CONFLICT DO UPDATE` must see the conflicting row to take that branch, and
+   RLS makes it invisible. Postgres will not disclose that a hidden row exists,
+   so rather than resolving the conflict it reports the WITH CHECK failure --
+   which is why even the self-edit case, where (1) is satisfied, still returns
+   42501.
 
-Nothing in production notices, because every application write to `users` goes
-through Flask on the service-role client, which bypasses RLS. So it is a latent
-contradiction between a policy and a trigger, not a live break -- and it
-surfaces the instant anything talks to PostgREST directly.
+The error names `diplomas`, a table the caller never asked to write to. That
+misdirection is the expensive part: it points at the wrong object and says
+nothing about a trigger.
 
-Not fixed here: making the trigger SECURITY DEFINER, or narrowing its insert,
-changes slug machinery that `20260909234412` has already had to repair once
-under concurrency. `test_an_org_admin_cannot_edit_their_own_school_s_student_either`
-asserts the current behaviour and says what to replace it with when it is fixed.
+**Not an incident.** Every application write to `users` goes through Flask on
+the service-role client, which bypasses RLS, so production has never hit this.
+It is a latent contradiction between a policy, a trigger and a missing policy --
+live the instant anything talks to PostgREST directly, invisible until then. It
+also means the org-admin arm of `users_update_consolidated` has never been
+reachable, so nothing can be relying on it.
 
-The other two failures, for the record, because both are traps worth knowing:
+**Asserted, not fixed.** Three candidate fixes exist -- make the trigger
+SECURITY DEFINER, narrow its insert to the INSERT case, or give `diplomas` a
+SELECT policy -- and each changes slug machinery that `20260909234412` has
+already had to repair once under concurrency.
+`test_nobody_can_update_a_users_row_through_the_data_api` pins both cases and
+says what to replace it with once it is fixed.
+
+The other two fixture failures, for the record, because both are traps:
 `check_dependent_no_email` forbids an email on a dependent row while `make_user`
 must write one (the row is FK'd to a GoTrue account), so a dependent has to be
 created and then promoted; and `user_skill_xp_pillar_is_a_key` constrains that

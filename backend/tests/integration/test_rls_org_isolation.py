@@ -272,60 +272,75 @@ def test_an_org_admin_cannot_edit_a_partner_school_s_student(db, north, south, r
         .eq('id', south['student']['id']).single().execute().data
     assert after['first_name'] != 'Tampered'
 
-    # Positive control: the same client and the same statement, on a row this
-    # caller IS allowed to write -- their own. Without it the assertion above
-    # would pass just as well if the token had been rejected outright.
-    #
-    # NOT their own school's student, which is what this used to try. See the
-    # next test for why that raises rather than succeeding.
-    client.table('users').update({'first_name': 'Renamed'}) \
-        .eq('id', north['admin']['id']).execute()
-    own = db.table('users').select('first_name') \
-        .eq('id', north['admin']['id']).single().execute().data
-    assert own['first_name'] == 'Renamed'
+    # Positive control, as a READ rather than a write. No update of `users`
+    # through PostgREST succeeds for anyone -- not even on your own row; see
+    # the next test for the reason. So the control that this token is real and
+    # accepted has to be a statement that can succeed.
+    assert ids(
+        client.table('users').select('id').eq('id', north['admin']['id']).execute().data
+    ) == {north['admin']['id']}
 
 
 @pytest.mark.integration
 @pytest.mark.authorization
-def test_an_org_admin_cannot_edit_their_own_school_s_student_either(
-    db, north, rls_client
-):
+@pytest.mark.parametrize('whose', ['their own row', "their own school's student"])
+def test_nobody_can_update_a_users_row_through_the_data_api(db, north, rls_client, whose):
     """CURRENT BEHAVIOUR, AND A FINDING. Not an endorsement.
 
-    `users_update_consolidated` carries an org-admin clause that plainly
-    intends to let an org admin edit their own school's users. Through the Data
-    API it is unreachable -- and not because of that policy.
+    Every UPDATE of `users` through PostgREST fails -- including a user editing
+    their OWN row, which `users_update_consolidated` explicitly permits. The
+    policy is not what refuses it.
 
-    `generate_slug_trigger` on `users` fires BEFORE INSERT OR UPDATE, is NOT
-    security definer, and unconditionally runs
-    `INSERT INTO diplomas ... ON CONFLICT (user_id)`. That insert is therefore
-    evaluated as the CALLING role against `diplomas_insert`, which requires
-    `user_id = auth.uid()`. An org admin is not the student, so the update dies
-    at 42501 on a table they never asked to write to.
+    THE MECHANISM. `generate_slug_trigger` on `users` fires BEFORE INSERT OR
+    UPDATE, is NOT security definer, and unconditionally runs
+    `INSERT INTO public.diplomas (...) VALUES (...) ON CONFLICT (user_id) DO
+    UPDATE ...`. Two things then go wrong at once:
 
-    Nothing in production notices: every application write to `users` goes
-    through Flask on the service-role client, which bypasses RLS. So this is a
-    latent contradiction between a policy and a trigger rather than a live
-    break -- and it surfaces the moment anything talks to PostgREST directly.
+      1. The insert is evaluated as the CALLING role against `diplomas_insert`,
+         which requires `user_id = auth.uid()`. For anyone editing somebody
+         else's row -- the org-admin clause's whole purpose -- that is false.
 
-    Asserted rather than fixed. Making the trigger SECURITY DEFINER, or
-    narrowing its insert, changes the slug machinery that 20260909234412 has
-    already had to repair once under concurrency.
+      2. `diplomas` has INSERT and UPDATE policies and **no SELECT policy at
+         all**. ON CONFLICT DO UPDATE has to see the conflicting row to take
+         the DO UPDATE branch, and RLS makes it invisible. Postgres will not
+         disclose that a hidden row exists, so instead of resolving the
+         conflict it reports the WITH CHECK failure -- which is why even the
+         self-edit case, where (1) is satisfied, still comes back 42501.
 
-    If you are here because you fixed it, this test should now fail. Replace it
-    with the positive case: the org admin renames their own school's student,
-    and the row changes."""
+    The error names `diplomas`, a table the caller never asked to write to.
+    That misdirection is the expensive part: the message points at the wrong
+    object and says nothing about the trigger.
+
+    WHY THIS IS NOT AN INCIDENT. Every application write to `users` goes
+    through Flask on the service-role client, which bypasses RLS entirely, so
+    nothing in production has ever hit it. It is a latent contradiction between
+    a policy, a trigger and a missing policy -- live the instant anything talks
+    to PostgREST directly, and invisible until then. It also means the
+    org-admin arm of `users_update_consolidated` has never actually been
+    reachable, so nobody can be relying on it.
+
+    ASSERTED RATHER THAN FIXED. There are three candidate fixes -- make the
+    trigger SECURITY DEFINER, narrow its insert to the INSERT case, or give
+    `diplomas` a SELECT policy -- and each is a behaviour change to slug
+    machinery that `20260909234412` has already had to repair once under
+    concurrency. Recorded in PHASE_4_HANDOFF.md.
+
+    If you are here because you fixed it: this test should now fail. Replace it
+    with the positive cases -- a user renames themselves, an org admin renames
+    their own school's student, and both rows change."""
     from postgrest.exceptions import APIError
+
+    target = north['admin']['id'] if whose == 'their own row' else north['student']['id']
 
     with pytest.raises(APIError) as raised:
         rls_client(north['admin']).table('users').update({'first_name': 'Renamed'}) \
-            .eq('id', north['student']['id']).execute()
+            .eq('id', target).execute()
 
     assert raised.value.code == '42501'
     assert 'diplomas' in str(raised.value)
 
     unchanged = db.table('users').select('first_name') \
-        .eq('id', north['student']['id']).single().execute().data
+        .eq('id', target).single().execute().data
     assert unchanged['first_name'] != 'Renamed'
 
 
