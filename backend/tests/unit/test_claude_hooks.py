@@ -274,6 +274,19 @@ def _edit_event(path: Path) -> dict:
     }
 
 
+@pytest.fixture(autouse=True)
+def _clean_hook_state():
+    """Every fast_gate run records a touched file. Do not leave ours behind.
+
+    The state directory is gitignored, so a leftover is invisible in `git
+    status` and accumulates quietly -- and a stale file named after a test run
+    is exactly the sort of thing that costs somebody twenty minutes later.
+    """
+    yield
+    for name in ('pytest-fast-gate', 'pytest-state-probe', 'pytest', 'pytest-empty', 'pytest-loop'):
+        (REPO_ROOT / '.claude' / 'state' / f'{name}.touched').unlink(missing_ok=True)
+
+
 def test_fast_gate_catches_an_undefined_name(tmp_path_factory):
     """The bug class this exists for: Python finds it only when a request lands.
 
