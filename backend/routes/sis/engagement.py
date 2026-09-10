@@ -59,6 +59,10 @@ def adjust_completion_xp(user_id, completion_id):
         (student, task.pillar): apply the delta there (floored at 0, same as
         quest_lifecycle_service reversals), then XPService.update_user_mastery
         recomputes the denormalized users.total_xp from user_skill_xp.
+      - The diploma subject split is deliberately NOT rewritten here. The task
+        row read below omits the subject columns, so the shared adjuster has
+        nothing to rescale, and get_subject_xp_distribution re-derives the split
+        against the current xp_value whenever credit is requested anyway.
     """
     org_id, err = _org_or_error(user_id)
     if err:
@@ -103,60 +107,34 @@ def adjust_completion_xp(user_id, completion_id):
     if scope is not None and not _student_in_scope(admin, student_id, scope):
         return jsonify({'success': False, 'error': 'Completion not found'}), 404
 
-    xp_before = int(task.get('xp_value') or 0)
-    delta = new_xp - xp_before
-
-    admin.table('user_quest_tasks').update({'xp_value': new_xp}).eq('id', task_id).execute()
-
-    if delta != 0:
-        pillar = task.get('pillar') or 'stem'
-        try:
-            from utils.pillar_utils import normalize_pillar_name
-            pillar = normalize_pillar_name(pillar)
-        except Exception:  # noqa: BLE001 — keep the stored value if unmappable
-            # optional import; the fallback below is the answer
-            ...
-        try:
-            current = (
-                admin.table('user_skill_xp').select('id, xp_amount')
-                .eq('user_id', student_id).eq('pillar', pillar).execute()
-            ).data
-            if current:
-                new_amount = max(0, int(current[0].get('xp_amount') or 0) + delta)
-                admin.table('user_skill_xp').update({'xp_amount': new_amount})\
-                    .eq('id', current[0]['id']).execute()
-            elif delta > 0:
-                admin.table('user_skill_xp').insert({
-                    'user_id': student_id, 'pillar': pillar, 'xp_amount': delta,
-                }).execute()
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"XP adjustment: user_skill_xp update failed for "
-                         f"{student_id[:8]}/{pillar}: {e}")
-        # Recompute users.total_xp (+ mastery) from user_skill_xp — the same sync
-        # task completion runs via XPService.award_xp.
-        try:
-            from services.xp_service import XPService
-            XPService().update_user_mastery(student_id)
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"XP adjustment: total_xp sync failed for {student_id[:8]}: {e}")
-
+    # The arithmetic (pillar delta, subject rescale, total_xp resync, audit row)
+    # lives in services/xp_adjustment_service.py, shared with the credit
+    # dashboard. Authorization stays here: a teacher adjusting a student in
+    # their class answers to a different check than a superadmin trimming a
+    # credit request, and only the arithmetic is common.
+    from services.xp_adjustment_service import XPAdjustmentError, adjust_task_xp
     try:
-        admin.table('sis_xp_adjustments').insert({
-            'organization_id': org_id,
-            'student_user_id': student_id,
-            'task_id': task_id,
-            'quest_id': completion.get('quest_id') or task.get('quest_id'),
-            'adjusted_by': user_id,
-            'xp_before': xp_before,
-            'xp_after': new_xp,
-            'reason': reason,
-        }).execute()
-    except Exception as e:  # noqa: BLE001 — the adjustment already happened; log loudly
-        logger.error(f"XP adjustment audit insert failed for completion {completion_id}: {e}")
+        result = adjust_task_xp(
+            admin,
+            task=task,
+            student_id=student_id,
+            new_xp=new_xp,
+            adjusted_by=user_id,
+            reason=reason,
+            organization_id=org_id,
+            source='sis_teacher',
+            completion_id=completion_id,
+            quest_id=completion.get('quest_id') or task.get('quest_id'),
+            # This surface has always let a teacher zero out a task entered by
+            # mistake. The platform floor applies to what a task may be WORTH,
+            # not to a correction.
+            min_xp=0,
+        )
+    except XPAdjustmentError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
-    logger.info(f"XP adjusted by {user_id[:8]}: task {str(task_id)[:8]} "
-                f"{xp_before} -> {new_xp} ({reason[:60]})")
-    return jsonify({'success': True, 'xp_value': new_xp})
+    # adjust_task_xp logs the change itself, including the actor and the reason.
+    return jsonify({'success': True, 'xp_value': result.xp_after})
 
 
 # ── Engagement alerts ────────────────────────────────────────────────────────

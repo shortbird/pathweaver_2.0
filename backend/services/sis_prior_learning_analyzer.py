@@ -67,85 +67,13 @@ ANALYSIS_CONFIG = {
 }
 
 
-def _is_encrypted_pdf(blob: bytes) -> bool:
-    """True for a PDF carrying an /Encrypt dictionary.
-
-    Official transcript exports are routinely encrypted. Gemini refuses those
-    with a bare "400 Request contains an invalid argument" naming no file, so
-    one locked PDF in a family's upload fails the whole analysis and gives a
-    reviewer nothing to go on. (Exactly that happened on the first real record:
-    one of five transcripts was encrypted.)
-    """
-    return blob[:5] == b'%PDF-' and b'/Encrypt' in blob
-
-
-def unlock_pdf(blob: bytes, passwords: Optional[List[str]] = None) -> Optional[bytes]:
-    """A readable copy of an encrypted PDF, or None if it stays locked.
-
-    Two different things get called "locked", and only one of them needs a
-    password from a human:
-
-      Permissions-encrypted — an owner password restricting printing or
-      copying, with an EMPTY user password. Every viewer opens these without
-      asking, which is why a family has no idea theirs is locked at all. The
-      empty-password attempt below handles them with nobody typing anything.
-
-      User-password protected — genuinely sealed. These need the password the
-      school sent the family, which is what the `passwords` argument carries.
-
-    The decrypted copy is re-serialized without encryption, because stripping
-    the /Encrypt dictionary is exactly what makes the file readable to the
-    model. It exists in memory for the length of one analysis and is never
-    written back to storage: the family's stored document stays as they
-    uploaded it, and nothing here persists or logs a password.
-    """
-    try:
-        import fitz  # PyMuPDF, already a platform dependency
-    except ImportError:  # pragma: no cover - PyMuPDF ships in requirements
-        logger.warning('PyMuPDF missing; cannot unlock encrypted PDFs')
-        return None
-
-    try:
-        doc = fitz.open(stream=blob, filetype='pdf')
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'Could not open a PDF to unlock it: {e}')
-        return None
-
-    with doc:
-        if not doc.needs_pass:
-            # Permissions-only encryption: already open, just needs re-saving
-            # without the /Encrypt dictionary.
-            return _clean_bytes(doc)
-        for password in (passwords or []):
-            if password and doc.authenticate(password):
-                return _clean_bytes(doc)
-    return None
-
-
-def _clean_bytes(doc) -> Optional[bytes]:
-    """Re-serialize without encryption, and refuse to hand back anything that
-    doesn't survive the round trip.
-
-    The decrypted copy REPLACES the family's upload, so a re-save that quietly
-    dropped pages would destroy the original with no way back. Checked here
-    rather than at the call site because this is the only place that knows what
-    the document looked like before.
-    """
-    try:
-        import fitz
-        pages_before = doc.page_count
-        clean = doc.tobytes()
-        if not clean:
-            return None
-        with fitz.open(stream=clean, filetype='pdf') as check:
-            if check.needs_pass or check.page_count != pages_before:
-                logger.warning('Decrypted PDF failed its round-trip check '
-                               f'({pages_before} pages in, {check.page_count} out)')
-                return None
-        return clean
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'Could not re-save a decrypted PDF: {e}')
-        return None
+# Moved to utils/pdf_tools.py when the AI credit reviewer needed the same
+# unlock for student evidence. Re-exported here so this module's call sites --
+# and anything importing unlock_pdf from it -- are unchanged.
+from utils.pdf_tools import (  # noqa: E402  (re-export)
+    is_encrypted_pdf as _is_encrypted_pdf,
+    unlock_pdf,
+)
 
 PROMPT = """You are helping a school registrar work out what high-school credit a
 student's prior learning is worth. A family has filed a claim about learning

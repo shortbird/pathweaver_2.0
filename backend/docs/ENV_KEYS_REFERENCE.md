@@ -53,6 +53,13 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `TUTOR_RETENTION_ENABLED` | Enable the AI tutor conversation retention purge | `Config.TUTOR_RETENTION_ENABLED` | Default `false`. **Leave unset unless the purge is genuinely wanted** — `true` deletes real customer data on a timer |
 | `TUTOR_RETENTION_MONTHS` | Retention window for AI tutor chat history | `Config.TUTOR_RETENTION_MONTHS` | Default `12` |
 | `TUTOR_RETENTION_BATCH` | Conversations purged per retention run | `Config.TUTOR_RETENTION_BATCH` | Default `200` |
+| `CREDIT_AI_REVIEW_ENABLED` | The AI credit reviewer, which reads a submission against its Definition of Done and proposes a verdict for a superadmin. Off means no reviews are queued and the dashboard shows nothing new | `Config.CREDIT_AI_REVIEW_ENABLED` | Default `true` |
+| `CREDIT_AI_REVIEW_SWEEP_LIMIT` | Reviews the 10-minute cron picks up per tick. A backlog drains over successive runs | `Config.CREDIT_AI_REVIEW_SWEEP_LIMIT` | Default `5` |
+| `CREDIT_AI_REVIEW_TIMEOUT` | Per-attempt model timeout, seconds. Larger than `AI_ATTEMPT_TIMEOUT` on purpose: these run on a background thread where no request is waiting | `Config.CREDIT_AI_REVIEW_TIMEOUT` | Default `90` |
+| `CREDIT_AI_REVIEW_STALE_MINUTES` | How long a review may claim to be running before the sweep assumes its worker died and requeues it | `Config.CREDIT_AI_REVIEW_STALE_MINUTES` | Default `15`; must exceed the worst-case single review |
+| `CREDIT_AI_REVIEW_MAX_INPROC` | Concurrent reviews per web process. Each holds its evidence bytes in memory against a 512MB container | `Config.CREDIT_AI_REVIEW_MAX_INPROC` | Default `2` |
+| `CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Total attached bytes per model request. Gemini's inline limit is about 20MB including the prompt, and exceeding it fails the whole call | `Config.CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Default `18` |
+| `CREDIT_AI_REVIEW_FILE_API_ENABLED` | Whether video and audio too large to inline may be uploaded to Gemini's File API (deleted immediately after the call). Off means the model is told a video exists and never sees it | `Config.CREDIT_AI_REVIEW_FILE_API_ENABLED` | Default `true` |
 
 ### Email Configuration
 

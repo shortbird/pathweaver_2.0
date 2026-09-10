@@ -11,6 +11,11 @@ Endpoints:
 
 The approve / grow-this endpoints used to live at /api/advisor/credit-queue/* --
 the "advisor" namespace was misleading since only superadmin can call them.
+
+Approve accepts an optional `xp_value`, which is how a reviewer accepts the AI's
+"they asked for more than this is worth" without leaving the queue. It is applied
+BEFORE the subject split is computed, because the split is derived from the task's
+XP and computing it first would credit the old number.
 """
 
 from flask import request
@@ -25,6 +30,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from . import bp
+from .reviewer_xp import apply_reviewer_xp, record_ai_outcome
 
 
 @bp.route('/items/<completion_id>/approve', methods=['POST'])
@@ -67,10 +73,24 @@ def approve_credit(user_id: str, completion_id: str):
         task_data = task_result.data or {}
         xp_value = task_data.get('xp_value', 0)
 
-        # Use superadmin-overridden subjects if provided, otherwise use task suggestion
         from routes.tasks import (get_subject_xp_distribution, finalize_subject_xp,
                                   pending_subjects_for_completion, remove_pending_subject_xp)
         override_subjects = data.get('subjects')
+
+        # An accepted XP change is applied first, so the subject split below is
+        # derived from the new number. The other order credits the old one.
+        xp_result, xp_error = apply_reviewer_xp(
+            admin_supabase, data,
+            completion=completion_data, task=task_data, student_id=student_id,
+            reviewer_id=user_id)
+        if xp_error:
+            return xp_error
+        if xp_result:
+            xp_value = xp_result.xp_after
+            task_data = {**task_data, 'xp_value': xp_value,
+                         'subject_xp_distribution': xp_result.subjects_after}
+
+        # Use superadmin-overridden subjects if provided, otherwise use task suggestion
         if override_subjects and isinstance(override_subjects, dict):
             approved_subjects = override_subjects
         else:
@@ -155,6 +175,8 @@ def approve_credit(user_id: str, completion_id: str):
             )
         except Exception as notify_err:
             logger.warning(f"Failed to notify student of credit approval: {notify_err}")
+
+        record_ai_outcome(admin_supabase, completion_id, data, xp_result)
 
         logger.info(f"Superadmin {user_id[:8]} finalized credit {completion_id[:8]}, {total_xp_finalized} XP finalized")
 
@@ -301,6 +323,8 @@ def grow_this(user_id: str, completion_id: str):
             )
         except Exception as notify_err:
             logger.warning(f"Failed to notify student of grow-this: {notify_err}")
+
+        record_ai_outcome(admin_supabase, completion_id, data, None)
 
         logger.info(f"Superadmin {user_id[:8]} returned credit {completion_id[:8]} with feedback")
 

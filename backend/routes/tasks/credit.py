@@ -156,13 +156,14 @@ def request_diploma_credit(user_id: str, task_id: str):
 
         # Create review round
         now = datetime.utcnow().isoformat()
-        admin_supabase.table('diploma_review_rounds').insert({
+        round_insert = admin_supabase.table('diploma_review_rounds').insert({
             'completion_id': completion_data['id'],
             'round_number': round_number,
             'evidence_snapshot': evidence_snapshot,
             'subject_suggestion': subject_xp if subject_xp else None,
             'submitted_at': now
         }).execute()
+        round_id = (round_insert.data or [{}])[0].get('id')
 
         # Check if student is in an organization (determines approval flow)
         student_user = admin_supabase.table('users')\
@@ -218,6 +219,24 @@ def request_diploma_credit(user_id: str, task_id: str):
                 task_id=task_id,
                 completion_id=completion_data['id'],
             )
+
+        # Queue the AI credit review for this round, and try to run it now.
+        #
+        # Deliberately non-fatal and deliberately after the request has already
+        # landed: the submission is the student's, the review is a convenience
+        # for whoever reads it, and a reviewer with no AI draft is exactly where
+        # they were last month. The 10-minute cron sweep picks up anything this
+        # misses, including a web process recycled a second from now.
+        if round_id:
+            try:
+                from services.credit_ai_review.trigger import queue_and_kick
+                queue_and_kick(round_id=round_id, completion_id=completion_data['id'])
+            except Exception as ai_err:
+                report_error(
+                    ai_err, 'Could not queue the AI credit review',
+                    user_id=user_id, task_id=task_id, round_id=round_id,
+                    completion_id=completion_data['id'],
+                )
 
         # Send notifications
         try:

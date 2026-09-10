@@ -1,5 +1,7 @@
 import React from 'react'
 import FilterBar from './FilterBar'
+import AiBadge from './AiBadge'
+import { aiItemSummary } from './aiReview'
 import StatusTimeline from './StatusTimeline'
 
 const statusColors = {
@@ -20,13 +22,14 @@ const statusLabels = {
 
 const ItemList = ({
   items, selectedItem, selectedItems, onSelect, onToggleSelection,
-  filters, onFiltersChange, loading, total, page, perPage, onPageChange
+  filters, onFiltersChange, loading, total, page, perPage, onPageChange,
+  showAi = false
 }) => {
   const totalPages = Math.ceil(total / perPage)
 
   return (
     <div className="flex flex-col h-full">
-      <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
+      <FilterBar filters={filters} onFiltersChange={onFiltersChange} showAiFilter={showAi} />
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -80,9 +83,10 @@ const ItemList = ({
                       </span>
                     </div>
                     <p className="text-sm md:text-xs text-gray-600 truncate mt-0.5">{item.task_title}</p>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] md:text-[10px] text-gray-400">
+                    <div className="flex items-center gap-2 mt-1 text-[11px] md:text-[10px] text-gray-400 flex-wrap">
                       <span>{item.xp_value} XP</span>
                       <span>{item.evidence_block_count} blocks</span>
+                      {showAi && <AiBadge size="xs" {...aiItemSummary(item)} />}
                     </div>
                   </div>
                 </div>

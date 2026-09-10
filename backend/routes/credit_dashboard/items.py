@@ -6,6 +6,10 @@ Endpoints:
 - GET  /api/credit-dashboard/items/<completion_id>        - Full detail for one item
 - GET  /api/credit-dashboard/stats                        - Aggregate counts
 - GET  /api/credit-dashboard/student-context/<student_id> - Student diploma context
+
+The AI review fields on items and detail are attached for SUPERADMINS ONLY (see
+routes/credit_dashboard/ai_review.py for why). An org admin's response is
+byte-for-byte what it was before the feature existed.
 """
 
 from flask import request
@@ -120,11 +124,25 @@ def get_dashboard_items(user_id: str):
         # except and answer 500.
         page, per_page = get_pagination_params(default_per_page=50, max_per_page=100)
 
+        # AI review data is superadmin-only, filter included.
+        is_superadmin = 'superadmin' in get_effective_roles(user_data)
+        ai_filter = request.args.get('ai') if is_superadmin else None
+
         # Determine which student IDs to scope to
         scope = _scoped_student_ids(admin_supabase, user_id, user_data, org_id_filter)
         student_ids = None if scope is UNRESTRICTED else scope
         if student_ids is not None and not student_ids:
             return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
+
+        # An AI filter narrows to a set of completion ids. Resolved before the
+        # page query rather than after, so page 2 of "AI recommends approve" is
+        # the second page of that filter and not the second page of everything.
+        ai_mode, ai_completion_ids = None, None
+        if ai_filter:
+            ai_mode, ai_completion_ids = _completions_matching_ai(admin_supabase, ai_filter)
+            if ai_mode == 'in' and not ai_completion_ids:
+                return success_response(data={'items': [], 'total': 0, 'page': page,
+                                              'per_page': per_page})
 
         # Built by a factory, not once: fetch_page needs a fresh builder if the
         # requested page turns out to start past the last row.
@@ -144,6 +162,11 @@ def get_dashboard_items(user_id: str):
 
             if student_id_filter:
                 query = query.eq('user_id', student_id_filter)
+
+            if ai_mode == 'in':
+                query = query.in_('id', ai_completion_ids)
+            elif ai_mode == 'not_in' and ai_completion_ids:
+                query = query.not_.in_('id', ai_completion_ids)
 
             if date_from:
                 query = query.gte('credit_requested_at', date_from)
@@ -250,6 +273,10 @@ def get_dashboard_items(user_id: str):
                 'is_org_student': bool(student.get('organization_id'))
             })
 
+        # AI verdicts for this page, in one query. Superadmin only.
+        if is_superadmin:
+            _attach_ai_summaries(admin_supabase, items)
+
         # Private-bucket photos: one batch for the whole review queue.
         sign_in_place(items, ['student_avatar'])
 
@@ -325,18 +352,22 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         # Stated the other way round now: superadmin reviews across orgs,
         # everyone else must share the student's org. A future role added to the
         # decorator is then denied by default rather than admitted silently.
-        if student.data:
-            caller = admin_supabase.table('users') \
-                .select('role, org_role, org_roles, organization_id') \
-                .eq('id', user_id) \
-                .single() \
-                .execute()
-            caller_data = caller.data or {}
-            if 'superadmin' not in get_effective_roles(caller_data):
-                caller_org = caller_data.get('organization_id')
-                student_org = student.data.get('organization_id')
-                if not caller_org or caller_org != student_org:
-                    return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
+        # Read unconditionally: the caller's roles also decide whether the AI
+        # review is attached below, and hiding that lookup inside the org check
+        # made it a variable that existed only on some paths.
+        caller = admin_supabase.table('users') \
+            .select('role, org_role, org_roles, organization_id') \
+            .eq('id', user_id) \
+            .single() \
+            .execute()
+        caller_data = caller.data or {}
+        caller_is_superadmin = 'superadmin' in get_effective_roles(caller_data)
+
+        if student.data and not caller_is_superadmin:
+            caller_org = caller_data.get('organization_id')
+            student_org = student.data.get('organization_id')
+            if not caller_org or caller_org != student_org:
+                return error_response(code='FORBIDDEN', message='Not authorized to view this student', status=403)
 
         # Get evidence blocks
         evidence_blocks_data = []
@@ -383,7 +414,7 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         student_data['display_name'] = resolve_user_name(student_data)
         sign_in_place([student_data], ['avatar_url'])
 
-        return success_response(data={
+        payload = {
             'completion': completion_data,
             'task': task_data,
             'quest': quest_data,
@@ -393,7 +424,14 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
             'suggested_subjects': subjects,
             'student_subject_xp': student_subject_xp.data or [],
             'is_org_student': bool(student_data.get('organization_id'))
-        })
+        }
+
+        # The AI review, for superadmins only. Absent entirely for anyone else,
+        # so an org admin's payload is what it was before the feature existed.
+        if caller_is_superadmin:
+            payload.update(_ai_detail(admin_supabase, completion_id, rounds.data or []))
+
+        return success_response(data=payload)
 
     except Exception as e:
         logger.error(f"Error fetching dashboard item detail: {str(e)}")
@@ -552,3 +590,80 @@ def get_student_context(user_id: str, student_id: str):
     except Exception as e:
         logger.error(f"Error fetching student context: {str(e)}")
         return error_response(code='FETCH_ERROR', message='Failed to fetch student context', status=500)
+
+
+# ── AI review helpers (superadmin only) ──────────────────────────────────────
+
+#: What each value of ?ai= selects. "not_run" deliberately covers failed and
+#: skipped too: from the reviewer's side those are all "there is no verdict here,
+#: read it yourself", and splitting them into four filter options would be three
+#: options nobody picks.
+_AI_FILTERS = {
+    'approve': 'approve',
+    'grow_this': 'grow_this',
+    'needs_human': 'needs_human',
+}
+
+
+def _completions_matching_ai(admin, ai_filter):
+    """(mode, ids) for the ?ai= filter, where mode is 'in' or 'not_in'.
+
+    "not_run" is answered as a NOT IN over the completions that do have a
+    verdict, rather than by enumerating every completion that lacks one. The
+    first is a bounded list; the second is the whole table, and it would be wrong
+    the day it outgrew a page.
+    """
+    from services.credit_ai_review import store
+
+    # Paged, and latest-per-completion: this table gets a row per review round
+    # across the whole platform, so a bare read would outgrow PostgREST's silent
+    # 1000-row cap and quietly drop submissions out of the filter.
+    latest = store.latest_verdicts(admin)
+
+    with_verdict = [
+        cid for cid, row in latest.items()
+        if row.get('status') == 'complete' and (row.get('review') or {}).get('recommendation')
+    ]
+
+    if ai_filter == 'not_run':
+        return 'not_in', with_verdict
+
+    wanted = _AI_FILTERS.get(ai_filter)
+    if not wanted:
+        return 'in', []
+    return 'in', [
+        cid for cid, row in latest.items()
+        if row.get('status') == 'complete'
+        and (row.get('review') or {}).get('recommendation') == wanted
+    ]
+
+
+def _attach_ai_summaries(admin, items):
+    """Add the AI badge fields to each item in one query."""
+    from services.credit_ai_review import store
+    from .ai_review import summarize_review
+
+    latest = store.latest_for_completions(
+        admin, [item['completion_id'] for item in items])
+    for item in items:
+        item.update(summarize_review(latest.get(item['completion_id'])))
+
+
+def _ai_detail(admin, completion_id, review_rounds):
+    """The latest AI review, plus a per-round verdict for the history list."""
+    from services.credit_ai_review import store
+    from .ai_review import serialize_review, summarize_review
+
+    latest = store.latest_for_completions(admin, [completion_id]).get(completion_id)
+    by_round = store.by_round_ids(admin, [r.get('id') for r in review_rounds])
+
+    detail = serialize_review(latest)
+    if latest:
+        detail['round_id'] = latest.get('round_id')
+
+    return {
+        'ai': detail,
+        'ai_by_round': {
+            round_id: summarize_review(row) for round_id, row in by_round.items()
+        },
+    }

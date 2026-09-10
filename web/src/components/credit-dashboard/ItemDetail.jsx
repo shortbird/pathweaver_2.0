@@ -1,265 +1,23 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import api from '../../services/api'
-import { safeHref } from '../../utils/safeHref'
-import { isImageUrl, itemLabel } from '../../utils/evidenceItems'
-import {
-  getVideoEmbedUrl,
-  getVideoAspectClass,
-  isVideoSharingLink,
-  isUploadedVideoUrl,
-} from '../../utils/videoUtils'
-import DocumentPreview, { isPreviewableDocument } from '../evidence/preview/DocumentPreview'
-import VideoLinkPreview from '../evidence/preview/VideoLinkPreview'
+import EvidenceBlockCard from './EvidenceBlockCard'
 import StatusTimeline from './StatusTimeline'
 import CreditFeedbackThread from '../credit/CreditFeedbackThread'
 import { toast } from 'react-hot-toast'
-import {
-  computeEvidenceDiff,
-  summarizeDiff,
-  DIFF_NEW,
-  DIFF_MODIFIED,
-  DIFF_REMOVED,
-} from './evidenceDiff'
+import { computeEvidenceDiff, summarizeDiff, DIFF_REMOVED } from './evidenceDiff'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import AiReviewPanel from './AiReviewPanel'
+import AiCriteriaChecklist from './AiCriteriaChecklist'
+import AiBadge from './AiBadge'
+import {
+  aiItemSummary,
+  evidenceAnchorId,
+  latestAi,
+  rescaleSubjects,
+  resolveEvidenceRef,
+  sumSubjects,
+} from './aiReview'
 
-// Evidence block content can be a string or an object like {text: "..."}
-const getBlockText = (content) => {
-  if (typeof content === 'string') return content
-  if (content && typeof content === 'object') return content.text || content.url || JSON.stringify(content)
-  return String(content ?? '')
-}
-
-// Normalize items from evidence blocks (handles both single-item and multi-item formats)
-const getBlockItems = (content, type) => {
-  if (!content || typeof content !== 'object') return []
-  if (Array.isArray(content.items)) return content.items
-  // Legacy single-item format
-  if (content.url) return [content]
-  return []
-}
-
-// Play the video in the pane rather than sending the reviewer to a new tab.
-// Three kinds arrive here: a file the student uploaded (Supabase storage, served
-// as a signed URL), a link to a service that allows embedding (YouTube, Vimeo,
-// Drive, Loom), and a share link that refuses to embed (Google Photos, iCloud) —
-// only the last still has to be opened elsewhere.
-const renderVideoItem = (item) => {
-  if (!item?.url) return null
-
-  if (isUploadedVideoUrl(item.url)) {
-    return (
-      <video
-        src={item.url}
-        controls
-        preload="metadata"
-        className="w-full max-h-[480px] rounded border bg-black"
-      />
-    )
-  }
-
-  if (isVideoSharingLink(item.url)) {
-    return <VideoLinkPreview url={item.url} title={item.title} />
-  }
-
-  const embedUrl = getVideoEmbedUrl(item.url)
-  if (embedUrl) {
-    return (
-      <div className={`${getVideoAspectClass(item.url)} bg-black rounded border overflow-hidden`}>
-        <iframe
-          src={embedUrl}
-          className="w-full h-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          title={item.title || 'Video evidence'}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <a
-      href={safeHref(item.url)}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-sm text-optio-purple hover:underline flex items-center gap-1 break-all"
-    >
-      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-      </svg>
-      {itemLabel(item, 'Watch video')}
-    </a>
-  )
-}
-
-// Renders just the inner content of a block (text, image, link, etc).
-// Used for both the live block and the "previous version" peek for modified
-// blocks. Stays a plain function so callers can drop it inside any wrapper.
-const renderBlockBody = (block) => {
-  if (!block) return null
-  switch (block.block_type) {
-    case 'text':
-      return (
-        <p className="text-sm text-gray-700 whitespace-pre-wrap">{getBlockText(block.content)}</p>
-      )
-    case 'image':
-      return (
-        <div className="space-y-2">
-          {getBlockItems(block.content, 'image').map((item, j) => (
-            <div key={j}>
-              <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={item.url}
-                  alt={item.alt || 'Evidence'}
-                  className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
-                  loading="lazy"
-                />
-              </a>
-              {item.caption && (
-                <p className="text-xs text-gray-500 mt-1">{item.caption}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )
-    case 'link':
-      return (
-        <div className="space-y-2">
-          {/* A photo pasted into the Link picker is still a photo. Trusting
-              block_type here showed reviewers a 200-character storage URL where
-              the evidence belonged (Gryffin, 2026-09-02). */}
-          {getBlockItems(block.content, 'link').map((item, j) => (
-            isImageUrl(item.url) ? (
-              <div key={j}>
-                <a href={safeHref(item.url)} target="_blank" rel="noopener noreferrer" className="block">
-                  <img
-                    src={item.url}
-                    alt={item.alt || itemLabel(item, 'Evidence')}
-                    className="max-w-full max-h-72 md:max-h-none object-contain rounded border"
-                    loading="lazy"
-                  />
-                </a>
-                {item.caption && <p className="text-xs text-gray-500 mt-1">{item.caption}</p>}
-              </div>
-            ) : getVideoEmbedUrl(item.url) || isVideoSharingLink(item.url) ? (
-              <div key={j}>
-                {renderVideoItem(item)}
-                {item.title && <p className="text-xs text-gray-500 mt-1">{item.title}</p>}
-              </div>
-            ) : (
-              <a
-                key={j}
-                href={safeHref(item.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-optio-purple hover:underline flex items-center gap-1 break-all"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                {itemLabel(item)}
-              </a>
-            )
-          ))}
-        </div>
-      )
-    case 'video':
-      return (
-        <div className="space-y-3">
-          {getBlockItems(block.content, 'video').map((item, j) => (
-            <div key={j}>
-              {renderVideoItem(item)}
-              {item.title && <p className="text-xs text-gray-500 mt-1">{item.title}</p>}
-            </div>
-          ))}
-        </div>
-      )
-    case 'file':
-    case 'document':
-      return (
-        <div className="space-y-3">
-          {getBlockItems(block.content, block.block_type).map((item, j) => (
-            <div key={j}>
-              {/* PDFs page through in place and images render as images; only a
-                  format nothing can display (docx, xlsx) falls back to a
-                  download link -- which names the file itself, so captioning it
-                  here would say the same thing twice. */}
-              <DocumentPreview
-                url={item.url}
-                title={itemLabel(item, 'Document')}
-                variant="inline"
-              />
-              {isPreviewableDocument(item.url, itemLabel(item, 'Document')) && (
-                <p className="text-xs text-gray-500 mt-1">{itemLabel(item, 'Document')}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )
-    default:
-      return null
-  }
-}
-
-const DIFF_BORDER = {
-  [DIFF_NEW]: 'border-emerald-300 bg-emerald-50/40',
-  [DIFF_MODIFIED]: 'border-sky-300 bg-sky-50/40',
-  [DIFF_REMOVED]: 'border-gray-300 bg-gray-50 opacity-75',
-}
-
-const EvidenceBlockCard = ({ block, diffType, previousBlock }) => {
-  const [showPrev, setShowPrev] = useState(false)
-  const borderClass = DIFF_BORDER[diffType] || 'border-gray-200'
-  return (
-    <div className={`border-2 rounded-lg p-3 ${borderClass}`}>
-      {diffType === DIFF_NEW && (
-        <div className="mb-2">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New since last review
-          </span>
-        </div>
-      )}
-      {diffType === DIFF_MODIFIED && (
-        <div className="mb-2 flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-sky-100 text-sky-800">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Modified since last review
-          </span>
-          {previousBlock && (
-            <button
-              type="button"
-              onClick={() => setShowPrev(v => !v)}
-              className="text-xs text-optio-purple hover:text-optio-pink underline"
-            >
-              {showPrev ? 'Hide previous version' : 'View previous version'}
-            </button>
-          )}
-        </div>
-      )}
-      {diffType === DIFF_REMOVED && (
-        <div className="mb-2">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-            </svg>
-            Removed since last review
-          </span>
-        </div>
-      )}
-      {renderBlockBody(block)}
-      {diffType === DIFF_MODIFIED && showPrev && previousBlock && (
-        <div className="mt-3 pt-3 border-t border-dashed border-gray-300">
-          <p className="text-xs text-gray-500 italic mb-2">Previous version:</p>
-          {renderBlockBody(previousBlock)}
-        </div>
-      )}
-    </div>
-  )
-}
 
 const ALL_SUBJECTS = [
   'language_arts', 'math', 'science', 'social_studies',
@@ -273,18 +31,52 @@ const formatSubject = (s) => {
   return s.replace(/_/g, ' ')
 }
 
-const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance, onGrowThis, onFeedbackChange, feedbackTextareaRef }) => {
+const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance, onGrowThis, onFeedbackChange, feedbackTextareaRef, onRerunAi, rerunAiLoading, acceptAiRef }) => {
   const confirm = useConfirm()
   const [feedback, setFeedback] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false)
   const [editedSubjects, setEditedSubjects] = useState({})
+  // The XP figure the reviewer has accepted from the AI, if any. Null means
+  // "the student's claim stands", which is the default and the common case.
+  const [appliedXp, setAppliedXp] = useState(null)
+  const [highlightedEvidence, setHighlightedEvidence] = useState(null)
+  const highlightTimer = useRef(null)
+  // The accept-AI handler needs `detail`, which is not available on the early
+  // return paths below. Every hook has to run on every render, so the parent's
+  // handle is wired here and points at a ref the render body fills in later.
+  const acceptAiImpl = useRef(null)
+
+  /**
+   * Put a draft in the feedback box, asking first if there is something there.
+   *
+   * Shared by the "AI Suggest" button and the two drafts on the review panel.
+   * Losing typed feedback to a stray click is a small thing that costs a
+   * reviewer the sentence they were mid-way through writing.
+   */
+  const applyDraft = async (draft, { silent = false } = {}) => {
+    if (!draft) {
+      if (!silent) toast.error('No suggestion returned')
+      return false
+    }
+    if (feedback.trim() && feedback.trim() !== draft.trim() && !silent) {
+      const ok = await confirm({
+        title: 'Replace what you have written?',
+        body: 'Your current feedback will be replaced with the AI draft.',
+        confirmLabel: 'Replace',
+        cancelLabel: 'Keep mine',
+        destructive: false,
+      })
+      if (!ok) return false
+    }
+    setFeedback(draft)
+    if (onFeedbackChange) onFeedbackChange(draft)
+    feedbackTextareaRef?.current?.focus?.()
+    return true
+  }
 
   const handleAiSuggest = async () => {
     if (!item) return
-    if (feedback.trim() && !(await confirm('Replace your current feedback with an AI draft?'))) {
-      return
-    }
     setAiSuggestLoading(true)
     try {
       const res = await api.post(
@@ -292,12 +84,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
         {}
       )
       const draft = res.data?.data?.suggested_feedback || res.data?.suggested_feedback
-      if (draft) {
-        setFeedback(draft)
-        if (onFeedbackChange) onFeedbackChange(draft)
-      } else {
-        toast.error('No suggestion returned')
-      }
+      await applyDraft(draft)
     } catch (err) {
       toast.error(err.response?.data?.message || 'AI suggestion failed')
     } finally {
@@ -305,10 +92,22 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
     }
   }
 
-  // Sync editedSubjects when detail changes
+  // Keyed on the completion, not on `detail` itself: polling for a running AI
+  // review replaces `detail` every few seconds, and resetting on that would
+  // discard subject edits the reviewer made while they waited.
   useEffect(() => {
     setEditedSubjects(detail?.suggested_subjects || {})
-  }, [detail])
+    setAppliedXp(null)
+    setHighlightedEvidence(null)
+  }, [detail?.completion?.id])
+
+  useEffect(() => () => clearTimeout(highlightTimer.current), [])
+
+  useEffect(() => {
+    if (!acceptAiRef) return undefined
+    acceptAiRef.current = () => acceptAiImpl.current?.()
+    return () => { acceptAiRef.current = null }
+  }, [acceptAiRef])
 
   if (!item) {
     return (
@@ -354,39 +153,133 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
   const canAdvisorAct = isAdvisor && completion.diploma_status === 'pending_review'
   const canEditSubjects = canAdvisorAct || canOrgAdminAct
 
-  const handleOrgApprove = async () => {
-    const completionId = item.completion_id
-    const savedFeedback = feedback
-    const savedSubjects = { ...editedSubjects }
-    for (const [k, v] of Object.entries(savedSubjects)) {
-      if (!v || v <= 0) delete savedSubjects[k]
+  // The AI review is superadmin-only: the backend omits it entirely for anyone
+  // else, so this resolves to a not_run shape and the panel never renders.
+  const ai = latestAi(detail)
+  const aiReview = ai?.status === 'complete' ? ai.review : null
+  const showAi = isSuperadmin && ai?.status && ai.status !== 'not_run'
+  const canApplyXp = isSuperadmin && (canAdvisorAct || canOrgAdminAct)
+  const readableRefs = (aiReview?.evidence || [])
+    .filter(e => e.status === 'read')
+    .map(e => e.index)
+
+  const jumpToEvidence = (refIndex) => {
+    const blockId = resolveEvidenceRef(refIndex, aiReview, evidenceBlocks)
+    if (!blockId) return
+    const el = document.getElementById(evidenceAnchorId(blockId))
+    el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    el?.focus?.({ preventScroll: true })
+    setHighlightedEvidence(blockId)
+    clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => setHighlightedEvidence(null), 1600)
+  }
+
+  /**
+   * Apply the AI's XP figure, or put the student's claim back.
+   *
+   * Rescaling the subject split here rather than on approve means the reviewer
+   * SEES the split they are about to award before they award it. The server
+   * recomputes it anyway; showing one number and crediting another is how the
+   * two drift.
+   */
+  const handleApplyXp = (xp) => {
+    if (xp == null) {
+      setEditedSubjects(detail?.suggested_subjects || {})
+      setAppliedXp(null)
+      return
     }
+    setEditedSubjects(prev => rescaleSubjects(prev, xp))
+    setAppliedXp(xp)
+  }
+
+  /**
+   * The body both approve endpoints take, built once.
+   *
+   * Returns null when the reviewer's own subject edits no longer add up to the
+   * XP they accepted -- the server rejects that too, and catching it here means
+   * they find out before the row optimistically disappears from the queue.
+   */
+  /**
+   * The body both approve endpoints take.
+   *
+   * Everything is passed in rather than read from state, because the
+   * take-the-recommendation path decides the feedback and the XP in the same
+   * tick it submits them. A React state update does not reach the closure that
+   * queued it, so reading state here would have sent an empty note with an
+   * approval the reviewer thought carried the AI's.
+   */
+  const buildApproveBody = ({ note, xp, draftKind, subjects: subjectsIn }) => {
+    const subjects = { ...(subjectsIn || editedSubjects) }
+    for (const [k, v] of Object.entries(subjects)) {
+      if (!v || v <= 0) delete subjects[k]
+    }
+    const hasSubjects = Object.keys(subjects).length > 0
+
+    if (xp != null && hasSubjects && sumSubjects(subjects) !== xp) {
+      toast.error(
+        `The subject split adds up to ${sumSubjects(subjects)} XP, not ${xp}.`)
+      return null
+    }
+
+    return {
+      feedback: note || undefined,
+      subjects: hasSubjects ? subjects : undefined,
+      ...(xp != null && canApplyXp
+        ? {
+            xp_value: xp,
+            xp_reason: aiReview?.xp?.rationale || 'Adjusted during credit review',
+          }
+        : {}),
+      ...(showAi
+        ? { ai_accepted: { feedback: draftKind || null, xp: xp != null } }
+        : {}),
+    }
+  }
+
+  /**
+   * `post` is passed in rather than an endpoint name.
+   *
+   * Building the URL here from a variable would hide it from
+   * test_client_api_paths_exist, the guard that checks every path the client
+   * calls is a route the backend actually serves. Each caller keeps its literal.
+   */
+  const submitApprove = async (post, successMessage, options = {}) => {
+    const body = buildApproveBody({
+      note: options.note !== undefined ? options.note : feedback,
+      xp: options.xp !== undefined ? options.xp : appliedXp,
+      draftKind: options.draftKind,
+      subjects: options.subjects,
+    })
+    if (!body) return
+    const completionId = item.completion_id
     setFeedback('')
     if (onAdvance) onAdvance(completionId)
     try {
-      await api.post(`/api/credit-dashboard/items/${completionId}/org-approve`, {
-        feedback: savedFeedback || undefined,
-        subjects: Object.keys(savedSubjects).length > 0 ? savedSubjects : undefined
-      })
-      toast.success('Approved for Optio review')
+      await post(completionId, body)
+      toast.success(successMessage)
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve')
       onRefresh()
     }
   }
 
-  const handleOrgGrowThis = async () => {
-    if (!feedback.trim()) {
+  const handleOrgApprove = (options) => submitApprove(
+    (id, body) => api.post(`/api/credit-dashboard/items/${id}/org-approve`, body),
+    'Approved for Optio review', options)
+
+  const handleOrgGrowThis = async (note) => {
+    const savedFeedback = typeof note === 'string' ? note : feedback
+    if (!savedFeedback.trim()) {
       toast.error('Feedback is required for Grow This')
       return
     }
     const completionId = item.completion_id
-    const savedFeedback = feedback
     setFeedback('')
     if (onAdvance) onAdvance(completionId)
     try {
       await api.post(`/api/credit-dashboard/items/${completionId}/org-grow-this`, {
-        feedback: savedFeedback
+        feedback: savedFeedback,
+        ...(showAi ? { ai_accepted: { feedback: note ? 'grow_this' : null } } : {}),
       })
       toast.success('Returned to student')
     } catch (err) {
@@ -395,35 +288,17 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
     }
   }
 
-  const handleApprove = async () => {
-    const completionId = item.completion_id
-    const savedFeedback = feedback
-    const savedSubjects = { ...editedSubjects }
-    // Remove zero-XP subjects
-    for (const [k, v] of Object.entries(savedSubjects)) {
-      if (!v || v <= 0) delete savedSubjects[k]
-    }
-    setFeedback('')
-    if (onAdvance) onAdvance(completionId)
-    try {
-      await api.post(`/api/credit-dashboard/items/${completionId}/approve`, {
-        feedback: savedFeedback || undefined,
-        subjects: Object.keys(savedSubjects).length > 0 ? savedSubjects : undefined
-      })
-      toast.success('Credit approved')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to approve')
-      onRefresh()
-    }
-  }
+  const handleApprove = (options) => submitApprove(
+    (id, body) => api.post(`/api/credit-dashboard/items/${id}/approve`, body),
+    'Credit approved', options)
 
-  const handleGrowThis = async () => {
-    if (!feedback.trim()) {
+  const handleGrowThis = async (note) => {
+    const savedFeedback = typeof note === 'string' ? note : feedback
+    if (!savedFeedback.trim()) {
       toast.error('Feedback is required for Grow This')
       return
     }
     const completionId = item.completion_id
-    const savedFeedback = feedback
     setFeedback('')
     if (onGrowThis) {
       onGrowThis(completionId, savedFeedback)
@@ -431,6 +306,79 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
       onAdvance(completionId)
     }
   }
+
+  /**
+   * Take the AI's recommendation as written.
+   *
+   * The one shortcut this feature adds, and it still confirms. It routes to the
+   * same two handlers the buttons use, so there is no second code path that
+   * could approve something the buttons would not -- and no path at all when the
+   * AI declined to judge.
+   */
+  const handleAcceptAi = async () => {
+    if (!aiReview) {
+      toast.error('There is no AI verdict for this one')
+      return
+    }
+    const { recommendation, feedback: drafts, xp } = aiReview
+
+    if (recommendation === 'approve') {
+      if (!(canAdvisorAct || canOrgAdminAct)) return
+      const changingXp = canApplyXp && xp?.changed
+      const ok = await confirm({
+        title: changingXp
+          ? `Approve at ${xp.recommended} XP?`
+          : 'Approve with the AI feedback?',
+        body: drafts?.celebrate || undefined,
+        confirmLabel: 'Approve',
+        destructive: false,
+      })
+      if (!ok) return
+
+      const acceptedXp = changingXp ? xp.recommended : null
+      const subjects = acceptedXp != null
+        ? rescaleSubjects(editedSubjects, acceptedXp)
+        : undefined
+
+      // Reflect the decision on screen as well as in the request, so a failed
+      // approval leaves the reviewer looking at what was attempted.
+      if (drafts?.celebrate) await applyDraft(drafts.celebrate, { silent: true })
+      if (acceptedXp != null) handleApplyXp(acceptedXp)
+
+      const options = {
+        note: drafts?.celebrate || '',
+        xp: acceptedXp,
+        subjects,
+        draftKind: drafts?.celebrate ? 'celebrate' : null,
+      }
+      if (canOrgAdminAct) handleOrgApprove(options)
+      else handleApprove(options)
+      return
+    }
+
+    if (recommendation === 'grow_this') {
+      if (!drafts?.grow_this) {
+        toast.error('The AI did not draft a note to send back')
+        return
+      }
+      const ok = await confirm({
+        title: 'Return this for more?',
+        body: drafts.grow_this,
+        confirmLabel: 'Send it back',
+        destructive: false,
+      })
+      if (!ok) return
+      if (canOrgAdminAct) handleOrgGrowThis(drafts.grow_this)
+      else handleGrowThis(drafts.grow_this)
+      return
+    }
+
+    toast('The AI wants a person to read this one')
+  }
+
+  // A plain assignment, not a hook: this runs below the early returns, where a
+  // hook would change the hook order between an empty pane and a loaded one.
+  acceptAiImpl.current = handleAcceptAi
 
   return (
     // Leave room at the bottom on mobile for the sticky action bar so the
@@ -442,7 +390,17 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           <h2 className="text-base md:text-lg font-semibold text-gray-900 leading-snug break-words">
             {task.title || 'Unknown Task'}
           </h2>
-          <span className="text-sm text-gray-500 shrink-0">{item.xp_value} XP</span>
+          <span className="text-sm text-gray-500 shrink-0">
+            {appliedXp != null && appliedXp !== item.xp_value ? (
+              <>
+                <s className="text-gray-400">{item.xp_value} XP</s>{' '}
+                <span className="text-gray-900 font-medium">{appliedXp} XP</span>
+                <span className="ml-1 text-[10px] text-optio-purple">AI-adjusted</span>
+              </>
+            ) : (
+              `${item.xp_value} XP`
+            )}
+          </span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
           <span>{`${student.first_name || ''} ${student.last_name || ''}`.trim() || student.display_name || 'Student'}</span>
@@ -452,21 +410,12 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
         {task.description && (
           <p className="mt-2 text-sm text-gray-600">{task.description}</p>
         )}
-        {Array.isArray(task.success_criteria) && task.success_criteria.length > 0 && (
-          <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Definition of Done
-            </p>
-            <ul className="space-y-1">
-              {task.success_criteria.map((criterion, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                  <span className="text-green-600 font-bold">✓</span>
-                  <span>{criterion}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <AiCriteriaChecklist
+          criteria={task.success_criteria}
+          aiReview={aiReview}
+          onJumpToEvidence={jumpToEvidence}
+          readableRefs={readableRefs}
+        />
       </div>
 
       {/* Status Timeline */}
@@ -475,6 +424,20 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
         isOrgStudent={isOrgStudent}
         orgReviewerId={completion.org_reviewer_id}
       />
+
+      {showAi && (
+        <AiReviewPanel
+          ai={ai}
+          requestedXp={item.xp_value}
+          canApplyXp={canApplyXp}
+          appliedXp={appliedXp}
+          onApplyXp={handleApplyXp}
+          onUseFeedback={(text) => applyDraft(text)}
+          onRerun={() => onRerunAi?.(item.completion_id)}
+          rerunLoading={rerunAiLoading}
+          onJumpToEvidence={jumpToEvidence}
+        />
+      )}
 
       {/* Subject Distribution */}
       {(Object.keys(editedSubjects).length > 0 || canEditSubjects) && (
@@ -620,6 +583,8 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                 block={block}
                 diffType={diffStatus[block.id]}
                 previousBlock={previousById[block.id]}
+                anchorId={block.id ? evidenceAnchorId(block.id) : undefined}
+                highlighted={highlightedEvidence === block.id}
               />
             ))}
           </div>
@@ -649,9 +614,14 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           <div className="space-y-2">
             {reviewRounds.map((round, i) => (
               <div key={round.id || i} className="text-xs p-2 bg-gray-50 rounded">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center gap-2">
                   <span className="font-medium">Round {round.round_number} - {round.reviewer_action || 'pending'}</span>
-                  <span className="text-gray-400">{round.reviewed_at ? new Date(round.reviewed_at).toLocaleDateString() : ''}</span>
+                  <span className="flex items-center gap-2">
+                    {isSuperadmin && detail?.ai_by_round?.[round.id] && (
+                      <AiBadge size="xs" {...aiItemSummary(detail.ai_by_round[round.id])} />
+                    )}
+                    <span className="text-gray-400">{round.reviewed_at ? new Date(round.reviewed_at).toLocaleDateString() : ''}</span>
+                  </span>
                 </div>
                 {round.reviewer_feedback && (
                   <p className="text-gray-600 mt-1">{round.reviewer_feedback}</p>
@@ -706,7 +676,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           />
           <div className="flex flex-col md:flex-row gap-2">
             <button
-              onClick={handleOrgApprove}
+              onClick={() => handleOrgApprove()}
               disabled={actionLoading}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
@@ -717,7 +687,7 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
                   : 'Approve for Optio Review'}
             </button>
             <button
-              onClick={handleOrgGrowThis}
+              onClick={() => handleOrgGrowThis()}
               disabled={actionLoading || !feedback.trim()}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
@@ -756,14 +726,14 @@ const ItemDetail = ({ item, detail, loading, effectiveRole, onRefresh, onAdvance
           />
           <div className="flex flex-col md:flex-row gap-2">
             <button
-              onClick={handleApprove}
+              onClick={() => handleApprove()}
               disabled={actionLoading}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               {actionLoading ? 'Processing...' : 'Approve'}
             </button>
             <button
-              onClick={handleGrowThis}
+              onClick={() => handleGrowThis()}
               disabled={actionLoading || !feedback.trim()}
               className="w-full md:w-auto px-4 py-3 md:py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-lg hover:bg-orange-200 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >

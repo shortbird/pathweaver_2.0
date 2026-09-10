@@ -152,6 +152,12 @@ DEFAULT_TASK_XP = 25
 DEFAULT_QUEST_XP = 50
 MAX_QUEST_XP = 1000
 
+# The floor. No task is worth less than this, and nothing may set it lower --
+# not a reviewer trimming an over-asked XP value, not an AI recommendation, not
+# an org exception. It is the same number as DEFAULT_TASK_XP by construction:
+# the smallest task we will create is also the smallest task we will pay for.
+MIN_TASK_XP = 25
+
 # Quest Validation
 MIN_QUEST_TITLE_LENGTH = 3
 MAX_QUEST_TITLE_LENGTH = 200

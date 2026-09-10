@@ -27,6 +27,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 import api from '../services/api'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // 100 rows over 50 per page: two pages, so the Next button renders.
 const ITEMS = Array.from({ length: 3 }, (_, i) => ({
@@ -53,7 +54,13 @@ beforeEach(() => {
 
 describe('credit dashboard pagination', () => {
   it('returns to page 1 when a filter changes', async () => {
-    render(<CreditReviewDashboardPage />)
+    render(
+      <QueryClientProvider client={new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      })}>
+        <CreditReviewDashboardPage />
+      </QueryClientProvider>,
+    )
     await waitFor(() => expect(itemsCalls().length).toBeGreaterThan(0))
     expect(itemsCalls().at(-1)[1].params.page).toBe(1)
 

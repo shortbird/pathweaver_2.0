@@ -487,6 +487,36 @@ class Config:
     # larger than 20k characters, and the old value was cautious rather than
     # measured. Raise it here, not at a call site.
     AI_SOURCE_MATERIAL_MAX_CHARS = int(os.getenv('AI_SOURCE_MATERIAL_MAX_CHARS', '120000'))
+    # ── AI credit reviewer (services/credit_ai_review/) ──────────────────────
+    #
+    # Reads a student's submitted evidence against the task's Definition of Done
+    # and PROPOSES a verdict, an XP figure and two feedback drafts for a
+    # superadmin to accept or discard. It never approves anything.
+    CREDIT_AI_REVIEW_ENABLED = os.getenv('CREDIT_AI_REVIEW_ENABLED', 'true').lower() == 'true'
+    # How many queued reviews one 10-minute cron tick claims. The whole backlog
+    # does not need draining in one pass, and a burst of multimodal calls is the
+    # expensive shape.
+    CREDIT_AI_REVIEW_SWEEP_LIMIT = int(os.getenv('CREDIT_AI_REVIEW_SWEEP_LIMIT', '5'))
+    # Per-attempt model timeout. Deliberately larger than AI_ATTEMPT_TIMEOUT:
+    # that number exists to keep an in-REQUEST call under the gunicorn worker
+    # timeout, and these run on a background thread where nobody is waiting.
+    CREDIT_AI_REVIEW_TIMEOUT = int(os.getenv('CREDIT_AI_REVIEW_TIMEOUT', '90'))
+    # A 'running' row older than this is assumed dead (worker restarted,
+    # deploy cut it off) and goes back in the queue. Must exceed the worst-case
+    # single review: ~90s loading + ~120s File API poll + 2 x 90s of model.
+    CREDIT_AI_REVIEW_STALE_MINUTES = int(os.getenv('CREDIT_AI_REVIEW_STALE_MINUTES', '15'))
+    # Concurrent reviews per web process. Each holds its evidence bytes in
+    # memory, and Render gives us 512MB (MEMORY_LIMIT_MB).
+    CREDIT_AI_REVIEW_MAX_INPROC = int(os.getenv('CREDIT_AI_REVIEW_MAX_INPROC', '2'))
+    # Total inline attachment bytes per request. Gemini's inline limit is ~20MB
+    # including the prompt, so leave headroom.
+    CREDIT_AI_REVIEW_INLINE_BUDGET_MB = int(os.getenv('CREDIT_AI_REVIEW_INLINE_BUDGET_MB', '18'))
+    # Whether video and audio too large to inline may be uploaded to Gemini's
+    # File API (deleted immediately after the call). Off means the model is told
+    # a video exists and never sees it, which is the honest fallback.
+    CREDIT_AI_REVIEW_FILE_API_ENABLED = os.getenv(
+        'CREDIT_AI_REVIEW_FILE_API_ENABLED', 'true').lower() == 'true'
+
     PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
 

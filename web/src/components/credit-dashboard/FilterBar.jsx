@@ -15,7 +15,18 @@ const DIPLOMA_STATUSES = [
 const inputClass =
   'w-full text-base md:text-xs rounded border-gray-300 focus:ring-optio-purple focus:border-optio-purple min-h-[44px] md:min-h-0 px-3 md:px-2 py-2 md:py-1.5'
 
-const FilterBar = ({ filters, onFiltersChange }) => {
+// Only superadmins receive AI fields from the API, so only they get the filter.
+// An org admin seeing an empty "AI recommends approve" list would read it as
+// nothing being ready rather than as data they cannot see.
+const AI_RECOMMENDATIONS = [
+  { value: '', label: 'AI: any' },
+  { value: 'approve', label: 'AI recommends approve' },
+  { value: 'grow_this', label: 'AI recommends Grow This' },
+  { value: 'needs_human', label: 'AI: needs a person' },
+  { value: 'not_run', label: 'AI: no verdict yet' },
+]
+
+const FilterBar = ({ filters, onFiltersChange, showAiFilter = false }) => {
   const update = (key, value) => {
     onFiltersChange(prev => ({ ...prev, [key]: value }))
   }
@@ -23,6 +34,7 @@ const FilterBar = ({ filters, onFiltersChange }) => {
   return (
     <div className="p-3 space-y-2 border-b border-gray-200 bg-white">
       <select
+        aria-label="Status"
         value={filters.status}
         onChange={e => update('status', e.target.value)}
         className={inputClass}
@@ -31,6 +43,18 @@ const FilterBar = ({ filters, onFiltersChange }) => {
           <option key={s.value} value={s.value}>{s.label}</option>
         ))}
       </select>
+      {showAiFilter && (
+        <select
+          aria-label="AI recommendation"
+          value={filters.ai || ''}
+          onChange={e => update('ai', e.target.value)}
+          className={inputClass}
+        >
+          {AI_RECOMMENDATIONS.map(a => (
+            <option key={a.value} value={a.value}>{a.label}</option>
+          ))}
+        </select>
+      )}
       <input
         type="text"
         placeholder="Search student..."

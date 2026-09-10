@@ -31,6 +31,7 @@ import json
 import time
 import random
 import hashlib
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Union
 from services.base_service import BaseService
 from app_config import Config
@@ -140,6 +141,28 @@ class _EmptyAIResponseError(AIGenerationError):
     pass
 
 
+@dataclass
+class AIJsonResult:
+    """What one JSON generation actually cost and which model produced it.
+
+    generate_json() returns a bare dict, which is all a caller that only wants
+    the answer needs. A caller that STORES the answer against a row -- and later
+    has to explain a bad one -- needs to record the model, the token counts and
+    how many attempts it took, and none of that survives a bare dict.
+    """
+    data: Union[Dict, List]
+    model_name: str
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    elapsed_ms: int = 0
+    attempts: int = 1
+    schema_used: bool = False
+    # Anything degraded on the way to an answer: a response_schema the model
+    # rejected, file parts it refused. Surfaced rather than swallowed, so a
+    # reviewer reading the result knows it was produced under a fallback.
+    notes: List[str] = field(default_factory=list)
+
+
 class _SafeAIResponse:
     """A Gemini response whose ``.text`` is guaranteed not to raise.
 
@@ -153,15 +176,16 @@ class _SafeAIResponse:
     and delegates every other attribute to the underlying response.
     """
 
-    __slots__ = ('_response', '_text')
+    __slots__ = ('_response', '_text', 'model_name')
 
-    def __init__(self, response, text: str):
+    def __init__(self, response, text: str, model_name: Optional[str] = None):
         self._response = response
         self._text = text
-
-    @property
-    def text(self) -> str:
-        return self._text
+        # Which candidate actually answered. A caller that records what produced
+        # a stored result cannot get this from the response itself -- the SDK
+        # does not put the model on it -- and guessing self.model_name is wrong
+        # the moment a fallback ran.
+        self.model_name = model_name
 
     def __getattr__(self, name):
         # Only called for attributes not found normally, so usage_metadata,
@@ -459,7 +483,7 @@ class BaseAIService(BaseService):
                 )
                 # Wrapped so `.text` is the extracted text -- callers keep using
                 # `.text` and can no longer trip the ValueError above.
-                return _SafeAIResponse(response, text)
+                return _SafeAIResponse(response, text, model_name)
             except Exception as e:
                 last_error = e
                 # An empty/thinking-only response is worth another model for the
@@ -946,6 +970,201 @@ class BaseAIService(BaseService):
         del text
         gc.collect()
         return result
+
+    # ── multimodal ───────────────────────────────────────────────────────────
+    #
+    # generate() and generate_json() take a string. Everything that has ever
+    # sent Gemini an image or a PDF (snap_to_learn, the prior-learning analyzer)
+    # therefore reached past them straight to generate_with_timeout, and gave up
+    # retries, model fallback, thinking-only handling and cost tracking to do
+    # it. This is that path, with all of it back.
+
+    #: Substrings in a 400 that mean "I do not accept this response_schema".
+    #:
+    #: Verified 2026-09-10: gemini-3.7-flash and both configured fallbacks all
+    #: accept response_schema, inline images, inline PDFs and YouTube file_data
+    #: parts. So this path and the file-part one below are belt-and-braces
+    #: today. They stay because the fallback list is an env var: the first time
+    #: somebody adds a model that refuses one of these, the failure would
+    #: otherwise be a 400 naming nothing, on a call that already cost money.
+    _SCHEMA_REJECTED_MARKERS = (
+        'response_schema', 'responseschema', 'response_mime_type',
+        'responsemimetype', 'json schema', 'json_schema',
+    )
+    #: Substrings in a 400 that mean "I cannot fetch that file_uri" -- a private
+    #: YouTube video, or a model on our fallback list that does not take URI
+    #: parts at all.
+    _FILE_PART_REJECTED_MARKERS = (
+        'file_uri', 'fileuri', 'file_data', 'filedata', 'invalid argument',
+        'unsupported file', 'cannot access', 'unable to process input',
+    )
+
+    def generate_json_multimodal(
+        self,
+        parts: List[Any],
+        *,
+        generation_config: Optional[Dict[str, Any]] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
+        max_retries: int = None,
+        retry_delay: float = None,
+        timeout: int = None,
+    ) -> AIJsonResult:
+        """Generate JSON from a mixed prompt: text, inline bytes, uploaded files.
+
+        Args:
+            parts: What to send, in order. Strings, inline
+                ``{'mime_type': str, 'data': bytes}`` dicts, ``genai`` File
+                handles, or ``protos.Part`` values. Passed through to the SDK
+                untouched.
+            generation_config: temperature / max_output_tokens / etc. Note that
+                the stock ``deterministic`` preset caps output at 1024 tokens,
+                which truncates a real structured answer mid-JSON.
+            response_schema: An SDK-dialect schema. When given, the call also
+                sets ``response_mime_type='application/json'``, which is what
+                actually removes the fenced-markdown and truncation failures the
+                repair chain in extract_json exists to survive. Dropped
+                automatically, once, if the model rejects it.
+            max_retries: Attempts before giving up. Defaults to Config.AI_MAX_RETRIES.
+            timeout: Per-attempt seconds.
+
+        Returns:
+            AIJsonResult -- the parsed data plus what it cost and which model answered.
+
+        Raises:
+            AICreditsExhaustedError: the account is out of credit (never retried).
+            AIServiceOverloadedError: every attempt hit a transient error.
+            AIParsingError: the model answered, but never with usable JSON.
+        """
+        if not parts:
+            raise AIGenerationError('generate_json_multimodal called with no parts')
+
+        max_retries = max_retries if max_retries is not None else self.DEFAULT_MAX_RETRIES
+        retry_delay = retry_delay if retry_delay is not None else self.DEFAULT_RETRY_DELAY
+        timeout = timeout or self.AI_REQUEST_TIMEOUT
+
+        config = dict(generation_config or {})
+        use_schema = bool(response_schema)
+        current_parts = list(parts)
+        notes: List[str] = []
+        started = time.time()
+        last_error: Optional[Exception] = None
+        last_text: Optional[str] = None
+
+        for attempt in range(max_retries + 1):
+            call_config = dict(config)
+            if use_schema:
+                call_config['response_mime_type'] = 'application/json'
+                call_config['response_schema'] = response_schema
+
+            try:
+                response = self.generate_with_fallback(
+                    current_parts,
+                    generation_config=call_config or None,
+                    timeout=timeout,
+                )
+            except Exception as e:  # noqa: BLE001
+                last_error = e
+
+                if self._is_credits_exhausted_error(e):
+                    # Account-wide. Every retry and every fallback model fails
+                    # the same way, so stop now rather than burning the budget.
+                    raise AICreditsExhaustedError(str(e)) from e
+
+                # A rejected schema or a rejected file part is not a reason to
+                # give up -- it is a reason to ask for less and try again. Retry
+                # immediately: nothing was wrong with the model's availability,
+                # so the backoff below would only add latency. Neither retry
+                # consumes an attempt, because the request that failed is not
+                # the request we are about to make.
+                if use_schema and self._mentions(e, self._SCHEMA_REJECTED_MARKERS):
+                    logger.warning(f'Model rejected response_schema, retrying without it: {e}')
+                    notes.append('The model would not accept a response schema; '
+                                 'JSON was requested in the prompt instead.')
+                    use_schema = False
+                    continue
+
+                dropped = self._without_file_parts(current_parts)
+                if dropped is not None and self._mentions(e, self._FILE_PART_REJECTED_MARKERS):
+                    # The model refuses some files without saying which (an
+                    # encrypted PDF answers a bare 400 naming no file). An
+                    # answer over what it CAN read, plus an honest note, beats
+                    # an error page and nothing to go on.
+                    logger.warning(f'Model rejected attached files, retrying without them: {e}')
+                    notes.append('The model could not open the attached files; '
+                                 'it answered from the text alone.')
+                    current_parts = dropped
+                    continue
+
+                if self._is_transient_ai_error(e) and attempt < max_retries:
+                    sleep_for = self._retry_sleep_seconds(retry_delay, attempt)
+                    logger.warning(
+                        f'Transient AI error on multimodal attempt {attempt + 1}: {e}. '
+                        f'Retrying in {sleep_for:.1f}s'
+                    )
+                    time.sleep(sleep_for)
+                    continue
+                if self._is_transient_ai_error(e):
+                    raise AIServiceOverloadedError(str(e)) from e
+                raise
+
+            text = getattr(response, 'text', '') or ''
+            last_text = text
+            data = self.extract_json(text)
+            if data is not None:
+                return AIJsonResult(
+                    data=data,
+                    model_name=getattr(response, 'model_name', None) or self.model_name,
+                    input_tokens=self._usage_field(response, 'prompt_token_count'),
+                    output_tokens=self._usage_field(response, 'candidates_token_count'),
+                    elapsed_ms=int((time.time() - started) * 1000),
+                    attempts=attempt + 1,
+                    schema_used=use_schema,
+                    notes=notes,
+                )
+
+            logger.warning(
+                'Multimodal AI response could not be parsed as JSON',
+                extra={'ai_json_parse_failure': {
+                    'attempt': attempt + 1,
+                    'response_chars': len(text),
+                    'open_braces': text.count('{'),
+                    'close_braces': text.count('}'),
+                    'head': text[:600],
+                }},
+            )
+            if attempt < max_retries:
+                time.sleep(self._retry_sleep_seconds(retry_delay, attempt))
+
+        if last_error is not None and not last_text:
+            raise AIGenerationError(str(last_error)) from last_error
+        preview = (last_text or '')[:200].replace('\n', '\\n') or '(empty)'
+        raise AIParsingError(
+            f'Model did not return usable JSON after {max_retries + 1} attempts. '
+            f'Preview: {preview}...'
+        )
+
+    @staticmethod
+    def _mentions(error: Exception, markers) -> bool:
+        msg = str(error).lower()
+        return any(marker in msg for marker in markers)
+
+    @staticmethod
+    def _without_file_parts(parts: List[Any]) -> Optional[List[Any]]:
+        """``parts`` with every non-text entry removed, or None if there are none.
+
+        None means "there is nothing to drop", which is the signal to stop
+        retrying rather than send the identical request again.
+        """
+        text_only = [p for p in parts if isinstance(p, str)]
+        return text_only if len(text_only) != len(parts) and text_only else None
+
+    @staticmethod
+    def _usage_field(response, name: str) -> Optional[int]:
+        usage = getattr(response, 'usage_metadata', None)
+        if not usage:
+            return None
+        value = getattr(usage, name, None)
+        return int(value) if isinstance(value, int) else None
 
     def extract_json(self, text: str) -> Optional[Union[Dict, List]]:
         """

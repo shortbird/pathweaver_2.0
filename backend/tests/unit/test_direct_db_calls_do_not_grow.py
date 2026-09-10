@@ -198,7 +198,21 @@ BASELINES = {
     # to read the same users row the surrounding recheck already reads. Routing
     # two calls through a repository to satisfy the ratchet would have split the
     # erase-or-not decision across two files.
-    'services': 1830,
+    # 2026-09-10: 1830 -> 1841. The AI credit reviewer. Eleven calls in three
+    # places, none of them a table this repository layer already owns:
+    #   - CreditAIReviewService._load_context reads a completion, its rounds, its
+    #     task and its quest to build ONE prompt. Four repositories would answer
+    #     four questions; what the prompt needs is one submission.
+    #   - trigger.queue_orphans finds pending submissions whose latest round has
+    #     no review, which is a join across two tables that exists only to keep
+    #     the queue honest.
+    #   - xp_adjustment_service reconciles user_quest_tasks, user_skill_xp and
+    #     sis_xp_adjustments in one operation. Splitting it across repositories
+    #     would split the reconciliation, and a half-applied XP change is the
+    #     exact failure the service was extracted to prevent.
+    # The genuinely new table, credit_ai_reviews, DID get a repository
+    # (repositories/credit_ai_review_repository.py) and accounts for none of this.
+    'services': 1841,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -222,7 +236,11 @@ BASELINES = {
     # quest's title matching its credit, and the unenroll. All of it is data
     # access for one relationship this repository already owns (oea_credits ->
     # quests), and routes/ did not move: the route calls two repository methods.
-    'repositories': 450,
+    # 2026-09-10: 450 -> 464. CreditAIReviewRepository, owning every query
+    # against credit_ai_reviews: the queue reads, the two conditional writes that
+    # make the claim work, and the paged read behind the dashboard's AI filter.
+    # All new work, all in the layer that is allowed to have it.
+    'repositories': 464,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -278,7 +296,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2342 + 1830
+UPPER_TOTAL_BASELINE = 2342 + 1841
 
 
 def test_the_upper_layers_do_not_grow_in_total():

@@ -12,6 +12,8 @@ import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSection'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
+import useAiReviewPolling from '../hooks/useAiReviewPolling'
+import { useRerunAiReview } from '../hooks/api'
 import GlassTabBar from '../components/ui/GlassTabBar'
 import useIsMobile from '../hooks/useIsMobile'
 
@@ -38,7 +40,9 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     student_id: '',
     subject: '',
     date_from: '',
-    date_to: ''
+    date_to: '',
+    // Only superadmins get AI data back, so only they can filter on it.
+    ai: ''
   }))
   const [filtersInitialized, setFiltersInitialized] = useState(false)
 
@@ -131,6 +135,33 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     fetchStats()
   }, [fetchItems, fetchStats])
 
+  const fetchDetail = useCallback(async (completionId) => {
+    const res = await api.get(`/api/credit-dashboard/items/${completionId}`)
+    return res.data?.data || res.data
+  }, [])
+
+  /**
+   * Keep a queue row's AI badge in step with its detail.
+   *
+   * Without this the list still says "AI reading" after the panel has shown the
+   * verdict, and the reviewer has to reload to trust either one.
+   */
+  const patchItemAi = useCallback((completionId, ai) => {
+    if (!ai) return
+    const review = ai.review || {}
+    setItems(prev => prev.map(item => (
+      item.completion_id === completionId
+        ? {
+            ...item,
+            ai_status: ai.status,
+            ai_recommendation: review.recommendation,
+            ai_confidence: review.confidence,
+            ai_xp_recommended: review.xp?.changed ? review.xp.recommended : null,
+          }
+        : item
+    )))
+  }, [])
+
   // Fetch item detail
   const selectItem = useCallback(async (item) => {
     if (!item) {
@@ -163,6 +194,9 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   const showShortcutsRef = useRef(showShortcuts)
   const feedbackRef = useRef('')
   const feedbackTextareaRef = useRef(null)
+  // ItemDetail registers its accept-AI handler here, so the shortcut and any
+  // future button go through one code path rather than two.
+  const acceptAiRef = useRef(null)
 
   useEffect(() => { itemsRef.current = items }, [items])
   useEffect(() => { selectedItemRef.current = selectedItem; feedbackRef.current = '' }, [selectedItem])
@@ -174,6 +208,31 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     fetchItems()
     fetchStats()
   }, [fetchItems, fetchStats])
+
+  // The 409-is-success case lives in the hook: a review already in flight is
+  // what the reviewer asked for, not a failure to report.
+  const rerunMutation = useRerunAiReview()
+  const rerunAiReview = useCallback(async (completionId) => {
+    if (!completionId) return
+    try {
+      const ai = await rerunMutation.mutateAsync(completionId)
+      setItemDetail(prev => (prev ? { ...prev, ai } : prev))
+      patchItemAi(completionId, ai)
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not start the AI review')
+    }
+  }, [patchItemAi, rerunMutation])
+
+  useAiReviewPolling({
+    completionId: selectedItem?.completion_id,
+    status: itemDetail?.ai?.status,
+    fetchDetail,
+    onUpdate: (detail) => {
+      setItemDetail(detail)
+      patchItemAi(detail?.completion?.id, detail?.ai)
+    },
+    onTimeout: () => toast('The AI review is taking a while. Re-run it if it stays stuck.'),
+  })
 
   // Stable keyboard shortcuts object (never changes identity)
   const shortcuts = useMemo(() => ({
@@ -266,6 +325,9 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
         selectItem(item)
       }
     },
+    // Take the AI's recommendation as written. ItemDetail owns what that means
+    // and still confirms; this is only the key that reaches it.
+    'x': () => acceptAiRef.current?.(),
     't': () => setViewMode(v => v === 'split' ? 'table' : 'split'),
     'm': () => { if (selectedItemsRef.current.length >= 2) setShowMergeModal(true) },
     'Escape': () => {
@@ -414,6 +476,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
             page={page}
             perPage={perPage}
             onPageChange={setPage}
+            showAi={effectiveRole === 'superadmin'}
           />
           <ItemDetail
             item={selectedItem}
@@ -425,6 +488,9 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
             onGrowThis={handleGrowThis}
             onFeedbackChange={(fb) => { feedbackRef.current = fb }}
             feedbackTextareaRef={feedbackTextareaRef}
+            onRerunAi={rerunAiReview}
+            rerunAiLoading={rerunMutation.isPending}
+            acceptAiRef={acceptAiRef}
           />
           {/* Student context sidebar is desktop-only — on a phone it would
               push the detail pane off-screen, and tapping an item already

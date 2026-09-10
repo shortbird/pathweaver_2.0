@@ -32,3 +32,4 @@ export {
   useToggleDeliverable,
   useDeleteBounty,
 } from './useBounties';
+export { useRerunAiReview } from './useRerunAiReview';

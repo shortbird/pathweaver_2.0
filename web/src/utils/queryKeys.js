@@ -163,6 +163,8 @@ export const queryKeys = {
 
 // Helper function to create mutation keys
 export const mutationKeys = {
+  // Credit review: ask for a fresh AI read of one submission.
+  rerunAiReview: 'rerunAiReview',
   // User mutations
   updateProfile: 'updateProfile',
   updateSettings: 'updateSettings',

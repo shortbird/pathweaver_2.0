@@ -9,6 +9,14 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
   const allSameStudent = new Set(selectedItems.map(i => i.student_id)).size === 1
   const canMerge = selectedCount >= 2 && allSameStudent
 
+  // How many of this selection the AI would approve. Shown, never acted on:
+  // bulk approve sends no feedback and no XP change, so it must not be the path
+  // that quietly accepts a recommendation nobody read.
+  const aiApproveCount = selectedItems.filter(
+    i => i.ai_status === 'complete' && i.ai_recommendation === 'approve'
+  ).length
+  const showAiCount = effectiveRole === 'superadmin' && selectedItems.some(i => i.ai_status)
+
   const handleBulkApprove = async () => {
     try {
       setBulkLoading(true)
@@ -35,6 +43,15 @@ const BulkActionBar = ({ selectedCount, items, selectedIds, effectiveRole, onDes
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-xl flex items-center gap-4 z-50">
       <span className="text-sm font-medium">{selectedCount} selected</span>
+
+      {showAiCount && (
+        <span
+          className="text-xs text-gray-300"
+          title="Bulk approve sends no feedback and makes no XP change. Open an item to use the AI's."
+        >
+          {aiApproveCount} AI-approve
+        </span>
+      )}
 
       {(effectiveRole === 'advisor' || effectiveRole === 'superadmin' || effectiveRole === 'org_admin') && (
         <button

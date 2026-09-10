@@ -15,8 +15,16 @@ from typing import Any, Dict, List, Optional
 
 from app_config import Config
 from database import get_supabase_admin_client
+from prompts.credit_review_tone import FORMAT_RULES, GROW_THIS_TONE
 from services.ai_gen import generate_with_timeout
 from services.base_service import BaseService
+from utils.evidence_labels import (
+    describable_ref,
+    describe_item,
+    plain_paragraph,
+    summarize_block_content,
+    truncate,
+)
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -217,32 +225,9 @@ Suggested subject XP distribution: {subjects_str}
 STUDENT'S EVIDENCE SUBMISSION ({len(ctx['evidence_blocks'])} block(s)):
 {evidence_lines}
 {prior_block}
-TONE — read carefully, this matters more than anything else:
-- Simple, kind, and firm. Not warm. Not excited. Not cheerleady. No exclamation points.
-- Think calm older sibling who respects the student enough to be honest, not a teacher
-  trying to sound supportive.
-- Do NOT say "great job", "I love this", "amazing", "awesome", "you're doing great",
-  or anything that sounds like a pep talk. Do not start by complimenting the work.
-- Do NOT use "we" or "let's" — this is about what the STUDENT does. Address them
-  directly ("you", "your"). Never frame it as something you'll do together.
+{GROW_THIS_TONE}
 
-WHAT TO SAY:
-- Somewhere in the response, plainly tell the student they need to add more to this
-  task before it's ready. Say it gently but don't dance around it.
-- Then point at something specific in their evidence and tell them what to add or do
-  next. Be concrete. Reference what's actually there.
-- When it would actually help, suggest they add a photo, a short video, a screenshot,
-  or another piece of evidence that shows what they did. Don't force this if it
-  doesn't fit (e.g. a written reflection probably doesn't need a video) — only mention
-  it when it would make the work clearer.
-
-FORMAT — strict, no exceptions:
-- 3 to 5 short sentences. One paragraph. Plain prose only.
-- Use simple, everyday words. Short sentences. The kind of language a 13-year-old
-  would write. Avoid jargon, formal phrases, or anything that sounds like a teacher.
-- NO markdown. NO bold (no **). NO italics (no *). NO underscores. NO bullets. NO
-  headers. NO line breaks. Just sentences separated by spaces.
-- Do NOT mention "credit", "grading", "approval", or "XP" — talk about the work itself.
+{FORMAT_RULES}
 
 RETURN JSON ONLY (no prose before/after):
 {{
@@ -257,79 +242,27 @@ RETURN JSON ONLY (no prose before/after):
         out: List[str] = []
         for i, block in enumerate(blocks, start=1):
             btype = block.get("block_type", "unknown")
-            content = block.get("content")
-            summary = self._summarize_block_content(btype, content)
+            summary = summarize_block_content(
+                block.get("content"), self.MAX_TEXT_BLOCK_CHARS)
             out.append(f"  [{i}] {btype}: {summary}")
         return "\n".join(out)
 
+    # The item/label/truncation helpers moved to utils/evidence_labels.py when
+    # the AI credit reviewer needed the same "never put a storage URL in a
+    # prompt" rule. Kept as thin delegates so existing tests and any subclass
+    # calling them still work.
     def _summarize_block_content(self, btype: str, content: Any) -> str:
-        if content is None:
-            return "(empty)"
-        if isinstance(content, str):
-            return self._truncate(content)
-        if isinstance(content, dict):
-            # New block shape: {items: [...]} OR legacy single-item {url, ...}
-            if isinstance(content.get("items"), list):
-                items = content["items"]
-                parts = [self._describe_item(it) for it in items if it]
-                return "; ".join(parts) if parts else "(empty)"
-            return self._describe_item(content)
-        return self._truncate(str(content))
+        return summarize_block_content(content, self.MAX_TEXT_BLOCK_CHARS)
 
     def _describe_item(self, item: Any) -> str:
-        if isinstance(item, str):
-            return self._truncate(item)
-        if not isinstance(item, dict):
-            return self._truncate(str(item))
-        # Common fields across image/link/video/file blocks.
-        title = item.get("title") or item.get("caption") or item.get("alt")
-        # A storage URL must NOT go into the prompt. This text is sent to
-        # Gemini, so a `quest-evidence` link here handed a third party a
-        # permanent, unauthenticated pointer to a minor's schoolwork. Signing it
-        # would be strictly worse — that is a live capability leaving the
-        # platform. The model only needs to know a file is attached and what it
-        # is called, so fall back to the filename and drop the URL entirely.
-        url = self._describable_ref(item)
-        text = item.get("text")
-        if text:
-            return self._truncate(text)
-        if title and url:
-            return f"{self._truncate(title, 200)} ({url})"
-        if title:
-            return self._truncate(title, 400)
-        if url:
-            return str(url)
-        return self._truncate(json.dumps({
-            k: v for k, v in item.items() if k not in ("url", "thumbnail_url", "poster_url", "src")
-        }))
+        return describe_item(item, self.MAX_TEXT_BLOCK_CHARS)
 
     @staticmethod
     def _describable_ref(item: dict) -> str:
-        """A human label for an attachment — never a storage URL.
-
-        External links (a YouTube video a student cited) are content and stay;
-        anything resolvable to one of our buckets is reduced to its filename.
-        """
-        from utils.storage_urls import parse_object_ref
-
-        filename = item.get("filename")
-        url = item.get("url")
-        if url and not parse_object_ref(url):
-            return str(url)
-        if filename:
-            return str(filename)
-        if url:
-            # Ours, with no filename recorded: name the object, not the link.
-            ref = parse_object_ref(url)
-            return ref[1].rsplit("/", 1)[-1] if ref else ""
-        return ""
+        return describable_ref(item)
 
     def _truncate(self, s: str, limit: Optional[int] = None) -> str:
-        limit = limit or self.MAX_TEXT_BLOCK_CHARS
-        s = s.strip()
-        if len(s) <= limit:
-            return s
-        return s[:limit] + "… [truncated]"
+        return truncate(s, limit or self.MAX_TEXT_BLOCK_CHARS)
 
     # ----------------------------------------------------------------- parsing
 
@@ -351,34 +284,7 @@ RETURN JSON ONLY (no prose before/after):
             return ""
 
         feedback = parsed.get("feedback") if isinstance(parsed, dict) else None
-        if not isinstance(feedback, str):
-            return ""
-        # Strip any markdown that slipped through despite the prompt rules.
-        # LLMs sometimes ignore "no markdown" instructions and we don't want
-        # raw asterisks/underscores showing up in the textarea.
-        cleaned = self._strip_markdown(feedback)
-        # Collapse any stray newlines — we asked for one paragraph.
-        return " ".join(cleaned.strip().split())
-
-    _MARKDOWN_PATTERNS = [
-        # bold (**text** or __text__) → text
-        (r"\*\*(.+?)\*\*", r"\1"),
-        (r"__(.+?)__", r"\1"),
-        # italics (*text* or _text_) → text  (require non-space on the inside
-        # so multiplication / measurements aren't mangled)
-        (r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)", r"\1"),
-        (r"(?<!_)_(?!\s)(.+?)(?<!\s)_(?!_)", r"\1"),
-        # bullet markers at line start
-        (r"(?m)^[\-\*•]\s+", ""),
-        # numbered list markers at line start
-        (r"(?m)^\d+\.\s+", ""),
-        # markdown headers
-        (r"(?m)^#+\s+", ""),
-    ]
-
-    def _strip_markdown(self, text: str) -> str:
-        import re
-        out = text
-        for pattern, repl in self._MARKDOWN_PATTERNS:
-            out = re.sub(pattern, repl, out)
-        return out
+        # Strip any markdown that slipped through despite the prompt rules, and
+        # collapse stray newlines -- we asked for one paragraph. LLMs ignore
+        # "no markdown" often enough that raw asterisks reached the textarea.
+        return plain_paragraph(feedback, limit=4000) or ""

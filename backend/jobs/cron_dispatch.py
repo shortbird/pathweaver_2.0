@@ -8,6 +8,8 @@ cron service instead of one-per-job:
                                  time-of-day sensitive; each org's school-hours
                                  window + per-day dedupe are enforced server-side,
                                  so off-hours runs no-op cheaply).
+  - AI credit review sweep    -> EVERY run (reviews queued submissions; returns
+                                 before any model call, work happens on a thread).
   - Account deletion sweep    -> once/day (09:00 UTC).
   - Data retention sweep      -> once/day (10:00 UTC), no-op unless enabled.
 
@@ -96,6 +98,13 @@ def main():
     # send window (9-19 Denver), per-lead throttle, and postal-address gate
     # are all enforced server-side, so off-hours runs no-op cheaply.
     _run("crm-funnel-sweep", f"{base}/api/crm/internal/funnel-sweep", cron_secret, failures)
+
+    # Every run: AI credit review sweep. Picks up submissions whose request-time
+    # thread never ran (deploy mid-request, no worker slot) and reviews abandoned
+    # mid-flight. Returns before any model call, so the 120s dispatch timeout is
+    # never in play. Idempotent: a review already running or complete is skipped.
+    _run("credit-ai-review-sweep", f"{base}/api/credit-dashboard/internal/ai-review-sweep",
+         cron_secret, failures)
 
     # Every run: weekly parent digest. The send day and hour belong to each
     # school (in ITS timezone), so the window check has to happen server-side —

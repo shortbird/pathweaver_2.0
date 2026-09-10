@@ -5,6 +5,7 @@ const shortcuts = [
   { key: 'k', description: 'Move up in list' },
   { key: 'a', description: 'Approve' },
   { key: 'g', description: 'Grow This (return with feedback)' },
+  { key: 'x', description: 'Take the AI recommendation (still asks first)' },
   { key: 'm', description: 'Open merge modal (2+ selected)' },
   { key: 't', description: 'Toggle table/split-panel mode' },
   { key: 'Esc', description: 'Close modal / deselect' },

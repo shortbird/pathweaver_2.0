@@ -43,7 +43,7 @@ logger = get_logger(__name__)
 VALID_FEATURES = {'chatbot', 'lesson_helper', 'task_generation'}
 
 
-def check_ai_access(user_id: str, feature: str = None):
+def check_ai_access(user_id: str, feature: str = None, *, strict: bool = False):
     """
     Check if a user has access to AI features.
 
@@ -56,6 +56,17 @@ def check_ai_access(user_id: str, feature: str = None):
         user_id: The user's ID
         feature: Optional feature name ('chatbot', 'lesson_helper', 'task_generation')
                  If None, only checks master toggle
+        strict: What to do when the check itself fails (a database blip, a
+                timeout). Default False keeps the historical fail-OPEN, which is
+                right for a student-triggered feature: a bug in this lookup
+                should not lock a child out of the tutor they are allowed to use.
+
+                Pass True where a denial is about a child's content LEAVING the
+                platform and the caller is not the child -- the AI credit
+                reviewer reads a student's evidence on a background thread, and
+                "we could not tell whether the parent consented" must mean "do
+                not send it", not "send it anyway". Nobody is waiting on the
+                answer there, so failing closed costs a retry, not access.
 
     Returns:
         tuple: (has_access: bool, error_response: dict or None, status_code: int or None)
@@ -149,6 +160,14 @@ def check_ai_access(user_id: str, feature: str = None):
 
     except Exception as e:
         logger.error(f"Error checking AI access for user {user_id}: {e}")
+        if strict:
+            # See the `strict` note above: an unknown answer is a refusal when
+            # the question is whether a child's work may leave the platform.
+            return False, {
+                'error': 'ai_access_unknown',
+                'message': 'Could not confirm AI permissions for this student.',
+                'code': 'AI_ACCESS_CHECK_FAILED'
+            }, 503
         # On error, allow access to avoid blocking users due to a bug
         return True, None, None
 

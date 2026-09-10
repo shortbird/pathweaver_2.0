@@ -21,6 +21,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from . import bp
+from .reviewer_xp import apply_reviewer_xp, record_ai_outcome
 
 
 def verify_org_scope(admin_supabase, reviewer_id, student_id):
@@ -118,6 +119,17 @@ def org_approve_credit(user_id: str, completion_id: str):
             and reviewer_role_check.data.get('role') == 'superadmin'
         )
 
+        # The final XP is Optio's call. A partner org admin approving on the way
+        # through must not change what the work is worth -- the second reviewer
+        # would then be looking at a number they did not set and cannot see the
+        # reason for.
+        if data.get('xp_value') is not None and not is_superadmin:
+            return error_response(
+                code='XP_ADJUST_FORBIDDEN',
+                message='Only Optio sets the final XP for a credit request.',
+                status=403,
+            )
+
         # Update the latest review round. For superadmins we also record the
         # Optio-side action in the same row so the audit trail shows both
         # stages were authorized by the reviewer.
@@ -159,12 +171,27 @@ def org_approve_credit(user_id: str, completion_id: str):
             )
 
             task_result = admin_supabase.table('user_quest_tasks') \
-                .select('title, diploma_subjects, subject_xp_distribution, xp_value') \
+                .select('id, quest_id, pillar, title, diploma_subjects, '
+                        'subject_xp_distribution, xp_value') \
                 .eq('id', completion.data['user_quest_task_id']) \
                 .single() \
                 .execute()
             task_data = task_result.data or {}
             xp_value = task_data.get('xp_value', 0)
+
+            # An accepted XP change lands before the split is computed, for the
+            # same reason as in superadmin_actions: the split is derived from
+            # the task's XP, so computing it first credits the old number.
+            xp_result, xp_error = apply_reviewer_xp(
+                admin_supabase, data,
+                completion=completion.data, task=task_data,
+                student_id=completion.data['user_id'], reviewer_id=user_id)
+            if xp_error:
+                return xp_error
+            if xp_result:
+                xp_value = xp_result.xp_after
+                task_data = {**task_data, 'xp_value': xp_value,
+                             'subject_xp_distribution': xp_result.subjects_after}
 
             approved_subjects = (
                 override_subjects
@@ -195,6 +222,8 @@ def org_approve_credit(user_id: str, completion_id: str):
                     'latest_feedback': feedback if feedback else 'Diploma credit approved!',
                     'feedback_at': now,
                 }).eq('id', completion.data['user_quest_task_id']).execute()
+
+            record_ai_outcome(admin_supabase, completion_id, data, xp_result)
 
             # Notify the student — this IS the final step.
             try:
