@@ -21,6 +21,32 @@ bp = Blueprint('link_preview', __name__)
 _cache = {}
 _CACHE_TTL = 60 * 60 * 24 * 7  # 7 days in seconds
 
+# Bounded, because the key is a URL a student typed. The TTL above was only ever
+# consulted when the SAME url was asked for again, so an entry for a link nobody
+# revisits stayed for the life of the worker -- the dict grew with every distinct
+# link ever previewed, not with the links still worth caching.
+#
+# Found during a leak hunt on the memory watchdog alerts (Sentry OPTIO-BACKEND-B,
+# 2026-09-10). Not the cause of those, and never close to it at these sizes; it
+# is here because "grows without limit on user-supplied keys" is the shape of the
+# leak you do not want to be looking for under pressure.
+_CACHE_MAX_ENTRIES = 1000
+
+
+def _cache_put(url, data, now):
+    """Store a preview, evicting expired entries and capping the total."""
+    _cache[url] = {'data': data, 'fetched_at': now}
+    if len(_cache) <= _CACHE_MAX_ENTRIES:
+        return
+    for key in [k for k, v in _cache.items() if now - v['fetched_at'] >= _CACHE_TTL]:
+        _cache.pop(key, None)
+    # Still full of live entries: drop the oldest. A preview costs one outbound
+    # fetch to rebuild, so the cheap answer is the right one.
+    if len(_cache) > _CACHE_MAX_ENTRIES:
+        for key, _ in sorted(_cache.items(), key=lambda kv: kv[1]['fetched_at'])[
+                :len(_cache) - _CACHE_MAX_ENTRIES]:
+            _cache.pop(key, None)
+
 # Allowed URL schemes
 _ALLOWED_SCHEMES = {'http', 'https'}
 
@@ -201,7 +227,7 @@ def get_link_preview(user_id):
         data = _extract_og_metadata(content, url)
 
         # Cache the result
-        _cache[url] = {'data': data, 'fetched_at': now}
+        _cache_put(url, data, now)
 
         return jsonify(data), 200
 

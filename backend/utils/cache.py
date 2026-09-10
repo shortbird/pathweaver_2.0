@@ -25,6 +25,43 @@ _redis_client: Any = None
 # than nothing in dev / when Redis is unreachable.
 _memory: dict[str, tuple[float, Any]] = {}
 
+# The fallback is BOUNDED, and that is not belt-and-braces. `_get_redis` writes
+# the sentinel `False` on its first failure and never retries for the life of
+# the process, so one Redis blip at startup sends every set() here permanently.
+# Keys on this path are per-user, and expiry was only ever applied by a get() of
+# that same key -- so a user who is cached once and never returns leaves an entry
+# that nothing collects. A worker that survives a Redis blip then grows with the
+# number of DISTINCT users it has ever seen, which is unbounded on a long-lived
+# gunicorn worker.
+#
+# Found during a leak hunt on the memory watchdog alerts (Sentry OPTIO-BACKEND-B,
+# 2026-09-10). It was NOT the cause of those -- the process was at ~155MB RSS and
+# the watchdog was measuring it against a stale 512MB constant -- so this is a
+# real defect that was not yet costing anything. Cheaper to bound now than to
+# rule out again during the next memory scare.
+_MEMORY_MAX_ENTRIES = 5000
+
+
+def _memory_set(key: str, expires: float, value: Any) -> None:
+    """Write to the fallback, dropping expired entries and capping the total.
+
+    Sweeps on write rather than on a timer: there is no scheduler here, and a
+    write is the only moment the dict can grow.
+    """
+    _memory[key] = (expires, value)
+    if len(_memory) <= _MEMORY_MAX_ENTRIES:
+        return
+    now = time.time()
+    for k in [k for k, (exp, _) in _memory.items() if exp <= now]:
+        _memory.pop(k, None)
+    # Still over after dropping the dead ones: evict whatever expires soonest,
+    # back down to the cap. Losing a live entry costs one Supabase read, which
+    # is the trade this whole module exists to make -- unbounded growth is not.
+    if len(_memory) > _MEMORY_MAX_ENTRIES:
+        for k, _ in sorted(_memory.items(), key=lambda kv: kv[1][0])[
+                :len(_memory) - _MEMORY_MAX_ENTRIES]:
+            _memory.pop(k, None)
+
 
 def _get_redis():
     global _redis_client
@@ -74,7 +111,7 @@ def set(key: str, value: Any, ttl: int) -> None:
         except Exception as exc:
             logger.warning(f"cache.set({key}): {exc}")
     # Fallback
-    _memory[key] = (time.time() + ttl, json.loads(payload))
+    _memory_set(key, time.time() + ttl, json.loads(payload))
 
 
 def delete(key: str) -> None:
