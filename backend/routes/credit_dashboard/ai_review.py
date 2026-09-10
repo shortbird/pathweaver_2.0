@@ -51,13 +51,16 @@ def rerun_ai_review(user_id: str, completion_id: str):
 
     rounds = admin.table('diploma_review_rounds').select('id, round_number').eq(
         'completion_id', completion_id).order('round_number', desc=True).limit(1).execute().data
-    if not rounds:
+    # Narrowed, not just truth-tested: a row arrives typed as JSON, so it has to
+    # be a mapping before it can be indexed. Same reason as _is_superadmin below.
+    latest_round = rounds[0] if rounds else None
+    if not isinstance(latest_round, dict):
         return error_response(code='NOT_FOUND',
                               message='This submission has no review round yet.', status=404)
 
     try:
         row = trigger.queue_and_kick(
-            round_id=rounds[0]['id'], completion_id=completion_id,
+            round_id=str(latest_round['id']), completion_id=completion_id,
             requested_by=user_id, force=True, admin=admin)
     except store.AlreadyRunning:
         return error_response(code='AI_REVIEW_RUNNING',
@@ -102,7 +105,12 @@ def _is_superadmin(user_id: str) -> bool:
         # non-superadmin reading their own row would decide their own answer.
         rows = get_supabase_admin_client().table('users').select('role').eq(
             'id', user_id).limit(1).execute().data
-        return bool(rows) and rows[0].get('role') == 'superadmin'
+        # isinstance rather than bool(rows) + rows[0].get: the client types a row
+        # as JSON, so .get is only valid once it is narrowed to a mapping. It
+        # also fails this check closed on a row that came back the wrong shape,
+        # which is the right direction for the predicate that decides superadmin.
+        row = rows[0] if rows else None
+        return isinstance(row, dict) and row.get('role') == 'superadmin'
     except Exception as e:  # noqa: BLE001
         logger.warning(f'Could not check superadmin for the AI review sweep: {e}')
         return False
