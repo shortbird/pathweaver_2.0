@@ -4,6 +4,10 @@ import path from 'path'
 
 import { NAV_SECTIONS } from '../components/sis/SisSidebar'
 
+// The badge polls two unread endpoints through react-query; these tests render
+// the sidebar without a QueryClientProvider and only care about the nav items.
+vi.mock('../../components/sis/InboxUnreadBadge', () => ({ default: () => null }))
+
 /**
  * The sidebar's `adminOnly` flag and SisRoutes' `AdminRoute` wrapper are two
  * halves of one decision, and only the sidebar half was ever enforced.

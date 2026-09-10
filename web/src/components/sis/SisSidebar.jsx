@@ -7,6 +7,7 @@ import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
 import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled, isClpEnabled } from '../../pages/sis/sisModules'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import RoleViewSwitcher from './RoleViewSwitcher'
+import InboxUnreadBadge from './InboxUnreadBadge'
 
 /**
  * SIS console sidebar. Distinct from the web platform's Sidebar — this is the
@@ -238,6 +239,9 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
                   onClick={onNavigate}>
                   <span className="text-neutral-500">{icon(item.d)}</span>
                   {item.name}
+                  {item.path === '/inbox' && (
+                    <InboxUnreadBadge orgId={activeOrg?.id || null} isSuperadmin={isSuperadmin} />
+                  )}
                 </NavLink>
               ))}
             </React.Fragment>
