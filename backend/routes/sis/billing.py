@@ -14,7 +14,7 @@ from services import sis_service
 from services import sis_billing_service as billing
 # Finance tier: this module IS the money (tuition, invoices, Stripe), so it
 # is the one place campus coordinators are kept out of entirely.
-from utils.sis_roles import FINANCE_ROLES as STAFF_ROLES
+from utils.sis_roles import FINANCE_ROLES
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,7 @@ def _org_or_error(user_id):
 
 # ── Discount rules ───────────────────────────────────────────────────────────
 @bp.route('/discount-rules', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def list_rules(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -44,7 +44,7 @@ def list_rules(user_id):
 
 
 @bp.route('/discount-rules', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def create_rule(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -58,7 +58,7 @@ def create_rule(user_id):
 
 
 @bp.route('/discount-rules/<rule_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def update_rule(user_id, rule_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -70,7 +70,7 @@ def update_rule(user_id, rule_id):
 
 
 @bp.route('/discount-rules/<rule_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def delete_rule(user_id, rule_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -81,7 +81,7 @@ def delete_rule(user_id, rule_id):
 
 # ── Quote + invoices ─────────────────────────────────────────────────────────
 @bp.route('/registrations/<reg_id>/quote', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def quote(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -96,7 +96,7 @@ def quote(user_id, reg_id):
 
 
 @bp.route('/registrations/<reg_id>/invoice', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def create_invoice(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -113,7 +113,7 @@ def create_invoice(user_id, reg_id):
 
 
 @bp.route('/invoices', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def list_invoices(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -124,7 +124,7 @@ def list_invoices(user_id):
 
 
 @bp.route('/invoices/<invoice_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def get_invoice(user_id, invoice_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -136,7 +136,7 @@ def get_invoice(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>/document', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def invoice_document(user_id, invoice_id):
     """Branded, itemized invoice payload for print/PDF (org identity, number,
     family, line items, discount, processing fee, funding source, amount due)."""
@@ -150,7 +150,7 @@ def invoice_document(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def update_invoice(user_id, invoice_id):
     """Correct an invoice that was already sent, keeping its number.
 
@@ -183,7 +183,7 @@ def update_invoice(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>/void', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def void_invoice(user_id, invoice_id):
     """Cancel an invoice. It stays on the record and drops off the family portal,
     the outstanding report and the reminder sweep. Refused once a payment has
@@ -200,7 +200,7 @@ def void_invoice(user_id, invoice_id):
 
 
 @bp.route('/billing/detail', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def billing_detail(user_id):
     """Itemized charges + payments for reconciling money that arrives from
     outside Optio (UFA remits an amount, not a statement of what it covers).
@@ -252,7 +252,7 @@ def billing_detail(user_id):
 
 
 @bp.route('/invoices/<invoice_id>/audit', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def invoice_audit(user_id, invoice_id):
     """The audit trail for one invoice (who marked paid / overrode a fee / edited)."""
     org_id, err = _org_or_error(user_id)
@@ -262,7 +262,7 @@ def invoice_audit(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>/processing-fee', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def set_processing_fee(user_id, invoice_id):
     """Admin override of an invoice's processing fee (waive it or set the card rate).
 
@@ -283,7 +283,7 @@ def set_processing_fee(user_id, invoice_id):
 
 # ── Record-only charges + ledger (Gryffin microschool model) ─────────────────
 @bp.route('/billing/charges', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def create_charge(user_id):
     """Create a standalone charge (invoice + one line item), no pricing engine.
     Body: {household_id?, student_user_id?, description, amount_cents, due_date?,
@@ -310,7 +310,7 @@ def create_charge(user_id):
 
 
 @bp.route('/billing/ledger', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def billing_ledger(user_id):
     """Charges ledger for the staff table. Optional ?month=YYYY-MM filters by
     due_date; omitted returns all non-void, non-draft invoices."""
@@ -323,7 +323,7 @@ def billing_ledger(user_id):
 
 # ── Payment plans + payments ─────────────────────────────────────────────────
 @bp.route('/invoices/<invoice_id>/payment-plan', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def create_plan(user_id, invoice_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -343,7 +343,7 @@ def create_plan(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>/payments', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def record_payment(user_id, invoice_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -364,7 +364,7 @@ def record_payment(user_id, invoice_id):
 
 
 @bp.route('/invoices/<invoice_id>/refunds', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def record_refund(user_id, invoice_id):
     """Record money returned to the family, as a reversing entry.
 
@@ -392,7 +392,7 @@ def record_refund(user_id, invoice_id):
 
 
 @bp.route('/payments/<payment_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def correct_payment(user_id, payment_id):
     """Correct how a recorded payment is described — method, reference, note.
 
@@ -412,7 +412,7 @@ def correct_payment(user_id, payment_id):
 
 
 @bp.route('/billing/apply-late-fees', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def apply_late_fees(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -425,7 +425,7 @@ def apply_late_fees(user_id):
 
 
 @bp.route('/households/<household_id>/billing', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def household_billing(user_id, household_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -435,7 +435,7 @@ def household_billing(user_id, household_id):
 
 # ── Outstanding balances + payment reminders ─────────────────────────────────
 @bp.route('/billing/outstanding', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def outstanding_report(user_id):
     """Org-scoped outstanding/overdue invoice report: family name, amount due,
     days overdue, and unpaid installments."""
@@ -446,7 +446,7 @@ def outstanding_report(user_id):
 
 
 @bp.route('/billing/reminders/run', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def run_reminders(user_id):
     """Manual admin trigger: email guardians of past-due invoices in this org.
     Same logic as the cron sweep, scoped to the caller's organization."""

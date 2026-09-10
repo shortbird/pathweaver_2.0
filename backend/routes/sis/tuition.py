@@ -17,7 +17,7 @@ from services import sis_tuition_service as tuition
 from services import sis_recurring_tuition_service as recurring
 # Finance tier: sending tuition invoices IS the money, so campus coordinators are
 # excluded exactly as they are from billing.
-from utils.sis_roles import FINANCE_ROLES as STAFF_ROLES
+from utils.sis_roles import FINANCE_ROLES
 
 logger = get_logger(__name__)
 
@@ -37,7 +37,7 @@ def _org_or_error(user_id):
 
 
 @bp.route('/tuition/queue', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def tuition_queue(user_id):
     """CLP-finished students who still need a tuition invoice."""
     org_id, err = _org_or_error(user_id)
@@ -47,7 +47,7 @@ def tuition_queue(user_id):
 
 
 @bp.route('/tuition/students/<student_id>/preview', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='tuition')
 def tuition_preview(user_id, student_id):
     """One student's tuition previewed for verification (schedule + line items +
@@ -62,7 +62,7 @@ def tuition_preview(user_id, student_id):
 
 
 @bp.route('/tuition/students/<student_id>/invoice', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def send_tuition_invoice(user_id, student_id):
     """Send one tuition invoice for the student from the approver-verified line
@@ -89,7 +89,7 @@ def send_tuition_invoice(user_id, student_id):
 
 
 @bp.route('/tuition/students/<student_id>/invoice-preview.pdf', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='tuition')
 def preview_tuition_invoice(user_id, student_id):
     """The exact PDF the family will receive, built from what the approver is
@@ -157,7 +157,7 @@ def preview_tuition_invoice(user_id, student_id):
 
 
 @bp.route('/tuition/recurring', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def list_recurring_tuition(user_id):
     """Every live monthly schedule in the org, with names and card status."""
     org_id, err = _org_or_error(user_id)
@@ -167,7 +167,7 @@ def list_recurring_tuition(user_id):
 
 
 @bp.route('/tuition/recurring', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def create_recurring_tuition(user_id):
     """Start a monthly schedule. Body: {student_id, monthly_cents, description?,
     day_of_month?}. Billing begins once the family has saved a card."""
@@ -192,7 +192,7 @@ def create_recurring_tuition(user_id):
 
 
 @bp.route('/tuition/recurring/<schedule_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def update_recurring_tuition(user_id, schedule_id):
     """Change the amount, label, or billing day. Takes effect next charge."""
     org_id, err = _org_or_error(user_id)
@@ -210,7 +210,7 @@ def update_recurring_tuition(user_id, schedule_id):
 
 
 @bp.route('/tuition/recurring/<schedule_id>/status', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def set_recurring_tuition_status(user_id, schedule_id):
     """Pause, resume, or end a schedule. Body: {status}."""
     org_id, err = _org_or_error(user_id)
@@ -225,7 +225,7 @@ def set_recurring_tuition_status(user_id, schedule_id):
 
 
 @bp.route('/tuition/recurring/households/<household_id>/setup-link', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*FINANCE_ROLES)
 def send_recurring_setup_link(user_id, household_id):
     """Email the family the no-login link that saves a card and starts billing."""
     org_id, err = _org_or_error(user_id)

@@ -33,6 +33,18 @@ def _user(*org_roles):
     return {'id': 'kate', 'role': 'org_managed', 'org_roles': list(org_roles)}
 
 
+def _tiers_gating(filename):
+    """Every distinct role tuple named by a @require_role in one routes/sis file.
+
+    Reads the source rather than the module attribute so a single widened route
+    is caught, not just a changed import.
+    """
+    import re
+    from pathlib import Path
+    path = (Path(__file__).resolve().parents[1] / 'routes' / 'sis' / filename)
+    return set(re.findall(r'@require_role\(\*(\w+)\)', path.read_text()))
+
+
 @pytest.mark.unit
 class TestTheRoleExists:
     def test_it_is_assignable_as_an_org_role(self):
@@ -194,10 +206,19 @@ class TestTheFinanceModulesAreActuallyGated:
         assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'payroll_csv')
 
     def test_the_whole_billing_module_is_finance_gated(self):
-        """billing.py imports FINANCE_ROLES under the name STAFF_ROLES, so every
-        @require_role(*STAFF_ROLES) in it is a finance gate."""
-        from routes.sis import billing
-        assert billing.STAFF_ROLES == sis_roles.FINANCE_ROLES
+        """Every role gate in billing.py names FINANCE_ROLES.
+
+        This used to assert `billing.STAFF_ROLES == FINANCE_ROLES`, because the
+        module imported the finance tuple under the name STAFF_ROLES. The alias
+        is gone (it made every reader and every grep believe teachers could
+        reach the money), so assert the decorators themselves -- which is the
+        stronger check anyway: it catches ONE route being widened, where the
+        alias identity check could not.
+        """
+        assert _tiers_gating('billing.py') == {'FINANCE_ROLES'}
+
+    def test_the_whole_tuition_module_is_finance_gated(self):
+        assert _tiers_gating('tuition.py') == {'FINANCE_ROLES'}
 
     def test_onboarding_stays_open_to_coordinators(self):
         """The point of splitting staff_admin per-route: the operational half
@@ -227,10 +248,9 @@ class TestTheHrTier:
         assert has_any_role(_user('org_admin'), list(sis_roles.HR_ROLES))
 
     def test_the_whole_secure_documents_module_is_hr_gated(self):
-        """secure_documents.py imports its role tuple under the name STAFF_ROLES,
-        so asserting the alias covers every @require_role in the module."""
-        from routes.sis import secure_documents
-        assert secure_documents.STAFF_ROLES == sis_roles.HR_ROLES
+        """Every role gate in secure_documents.py names HR_ROLES. See the note
+        on the billing equivalent for why this no longer asserts an alias."""
+        assert _tiers_gating('secure_documents.py') == {'HR_ROLES'}
 
 
 @pytest.mark.unit

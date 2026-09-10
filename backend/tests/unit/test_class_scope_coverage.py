@@ -10,6 +10,15 @@ below WITH a reason.
 
 The inventory also pins today's per-file call counts so a refactor that
 silently drops a site fails here instead of shipping an org-wide read.
+
+STAFF_PATTERN below only works because `STAFF_ROLES` in a routes/sis module
+means the staff tier. Until 2026-09-10 seven modules imported a DIFFERENT tier
+under that name (`from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES` and
+the FINANCE / HR equivalents), so this guard read billing.py, tuition.py,
+secure_documents.py, registration.py, waitlist.py, clp.py and reports.py as
+teacher-reachable when no teacher can open any of them -- and any human
+grepping for who may reach a route got the same wrong answer. The aliases are
+gone and test_no_tier_aliases below keeps them gone.
 """
 
 import re
@@ -27,16 +36,15 @@ STAFF_PATTERN = re.compile(r"require_role\(\*STAFF_ROLES\)")
 SCOPE_PATTERN = re.compile(r"class_scope\(")
 
 # Modules that admit teachers and touch class data but scope another way.
+# An admin-only module needs no entry: with the tier aliases gone it simply does
+# not match STAFF_PATTERN. Entries naming schedule_ai.py, schedule_sync.py and
+# waitlist.py were removed with the aliases on 2026-09-10 for that reason, along
+# with class_discussions.py and kiosk.py, whose files no longer exist at all.
 ALLOWLIST = {
-    'class_discussions.py': 'per-class moderator gate on every route (org admin, '
-                            'primary instructor, or class_advisors row)',
-    'class_materials.py': 'per-class moderator gate, same as discussions',
-    'class_quests.py': 'per-class moderator gate, same as discussions',
-    'schedule_ai.py': 'ADMIN_ROLES only — no teacher ever reaches it',
-    'schedule_sync.py': 'ADMIN_ROLES only — no teacher ever reaches it',
-    'waitlist.py': 'ADMIN_ROLES only — no teacher ever reaches it',
+    'class_materials.py': 'per-class moderator gate on every route (org admin, '
+                          'primary instructor, or class_advisors row)',
+    'class_quests.py': 'per-class moderator gate, same as class_materials',
     'community.py': 'community feed is school-wide by design, not class-scoped',
-    'kiosk.py': 'device-token auth; the kiosk is pinned to one class at pairing',
     'curriculum.py': "the STAFF_ROLES routes read the curriculum library "
                      "(org-scoped by _owned); the only class_quests touch is a "
                      "delete cascade on an ADMIN_ROLES route",
@@ -84,4 +92,40 @@ def test_known_scoped_files_keep_their_call_sites():
     assert not problems, (
         'A class_scope call disappeared -- an org-wide read may have shipped:\n  '
         + '\n  '.join(problems)
+    )
+
+
+def test_allowlist_entries_name_files_that_exist():
+    """A stale entry silently exempts nothing and misleads the next reader.
+    class_discussions.py and kiosk.py sat here after their files were deleted."""
+    gone = [name for name in ALLOWLIST if not (SIS_ROUTES / name).exists()]
+    assert not gone, (
+        'These allowlist entries name files that no longer exist -- delete '
+        'them: ' + ', '.join(gone)
+    )
+
+
+ALIAS_PATTERN = re.compile(
+    r'from\s+utils\.sis_roles\s+import\s+(\w+)\s+as\s+(\w+)')
+
+
+def test_no_tier_aliases():
+    """A role tuple must be imported under its own name.
+
+    Seven modules used to do `from utils.sis_roles import ADMIN_ROLES as
+    STAFF_ROLES` (and the FINANCE / HR equivalents). The behaviour was correct
+    -- the decorator got the right tuple -- but every reader was told a lie:
+    `@require_role(*STAFF_ROLES)` in billing.py appeared to admit teachers to
+    the money. It fooled a human reviewing the file, a grep for who can reach a
+    route, and the guard at the top of this module, which counted seven
+    admin-and-finance-only files as teacher-reachable.
+    """
+    offenders = []
+    for path in sorted(SIS_ROUTES.glob('*.py')):
+        for real, alias in ALIAS_PATTERN.findall(path.read_text()):
+            if real != alias:
+                offenders.append(f'{path.name}: {real} as {alias}')
+    assert not offenders, (
+        'Role tuples imported under another tier\'s name -- import them under '
+        'their own:\n  ' + '\n  '.join(offenders)
     )
