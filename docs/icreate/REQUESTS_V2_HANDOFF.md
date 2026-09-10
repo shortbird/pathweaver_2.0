@@ -10,15 +10,16 @@ Plan: `~/.claude/plans/we-re-going-to-edit-delightful-crane.md`.
 
 ## Do this first (15 minutes)
 
+**The servers are already running from this worktree** (backend :5001, Vite
+:3000). To restart them later:
+
 ```bash
 cd ~/pathweaver-icreate
 source ~/pathweaver_2.0/venv/bin/activate && python backend/app.py    # :5001
-cd web && npm install && npm run dev                                  # :3000
+cd web && npm run dev                                                 # :3000
 ```
 
-`npm install` is needed once — the worktree has no `node_modules` of its own.
-
-Then walk these, as an iCreate org_admin at `http://localhost:3000/?app=sis`:
+Walk these, as an iCreate org_admin at `http://localhost:3000/?app=sis`:
 
 1. **Messaging → New message** on the My messages tab. Tick "All teachers",
    write something, send. You should get one group thread. Do it again with
@@ -44,10 +45,11 @@ And at `http://localhost:3000` as an iCreate parent:
 
 ---
 
-## Then: the two migrations
+## Then: the three migrations
 
 I could not run these. There is no Docker, psql or Supabase CLI on this machine,
 so **the SQL has never been executed anywhere.** Read it before you apply it.
+Only the first one carries any risk; the other two are additive.
 
 ```
 supabase/migrations/20260910190000_merge_org_messaging_sender_into_school_inbox.sql
@@ -107,6 +109,8 @@ can get one up.
 | `5a9f62c8` | Resources shown to students and parents; teacher's attach panel; mobile. |
 | `0987f74a` | A parent's children's classes in one place, handouts inside each class. |
 | `06064ae2` | `docs/sis/ROLE_CAPABILITIES.md` + a guard that fails when it drifts from the code. |
+| `d857c169` | This document. |
+| `fd5f13e1` | Removed the old announcement composer. Three composers became one, mounted on both pages. |
 
 ---
 
