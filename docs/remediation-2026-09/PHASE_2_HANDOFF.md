@@ -231,7 +231,7 @@ change whose blast radius is two schemas nothing reads.
 
 ### 4. Fund the staging project (OPS-01) — still your call, still blocking
 
-Unchanged from OPEN_FINDINGS: dev, local and E2E all point at the production
+Unchanged from the register: dev, local and E2E all point at the production
 database, so real student records are what a developer sees on localhost and what
 an automated test run reads and writes. A test run has already sent real emails
 to real families through the production Brevo key.

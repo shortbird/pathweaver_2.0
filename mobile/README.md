@@ -37,4 +37,4 @@ When opening a PR, if you change any of the below, apply it in **both**
 - [ ] **Copy / terminology** — quest vs project, pillar display names, etc.
 - [ ] **Navigation** — new routes should exist on the corresponding mobile surface unless the route is web-only (admin/course-builder).
 
-See [OPEN_FINDINGS.md](../docs/remediation-2026-09/OPEN_FINDINGS.md) for the broader backlog.
+See [REGISTER.md](../docs/remediation-2026-09/REGISTER.md) for the broader backlog.
