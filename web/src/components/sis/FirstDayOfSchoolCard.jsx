@@ -3,14 +3,17 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 
 /**
- * The two dates that bound family self-service in the Schedule Builder
- * (organizations.feature_flags.sis_settings):
+ * The dates that bound the school year (organizations.feature_flags.sis_settings):
  *
  *   first_day_of_school — families add/drop/waitlist themselves until this date;
  *     after it the builder is read-only and staff make schedule changes.
  *   add_drop_deadline — how long the school still accepts add/drop REQUESTS from
  *     families on that read-only page. Each one lands in the Task Center as a
  *     request the office works. Blank = no button, no requests.
+ *   last_day_of_school — when an announcement stops being this year's news. A
+ *     board post with no expiry set defaults to this date, so the calendar and
+ *     the dress code stay up all year and then come down, instead of last
+ *     September's first-day instructions sitting above this week's news forever.
  *
  * Class registration itself opens as soon as a family registers — access is
  * controlled by who has the registration link, not by these dates.
@@ -22,6 +25,7 @@ const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
   const settings = org.feature_flags?.sis_settings || {}
   const [firstDay, setFirstDay] = useState(settings.first_day_of_school || '')
   const [addDrop, setAddDrop] = useState(settings.add_drop_deadline || '')
+  const [lastDay, setLastDay] = useState(settings.last_day_of_school || '')
   const [saving, setSaving] = useState(false)
 
   const save = async (patch, message) => {
@@ -52,6 +56,12 @@ const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
       value ? 'Add/drop deadline saved' : 'Add/drop requests turned off')
   }
 
+  const saveLastDay = (value) => {
+    setLastDay(value)
+    save({ last_day_of_school: value || null },
+      value ? 'Last day of school saved' : 'Last day of school cleared')
+  }
+
   const dateInput = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple disabled:opacity-50'
 
   return (
@@ -67,6 +77,21 @@ const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
         <input
           type="date" value={firstDay} disabled={saving}
           onChange={(e) => saveFirstDay(e.target.value)}
+          className={dateInput}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 border-t border-gray-100 pt-5">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold text-neutral-900">Last day of school</h2>
+          <div className="text-sm text-neutral-500">
+            Announcements posted without an expiry come down on this date, so the board holds this
+            year&apos;s notices and not every year&apos;s. Leave blank and posts stay up until removed.
+          </div>
+        </div>
+        <input
+          type="date" value={lastDay} disabled={saving}
+          onChange={(e) => saveLastDay(e.target.value)}
           className={dateInput}
         />
       </div>

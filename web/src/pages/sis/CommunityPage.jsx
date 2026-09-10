@@ -323,6 +323,8 @@ const AnnouncementsTab = ({ orgId, admin }) => {
 }
 
 const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
+  const { activeOrg } = useSisOrg()
+  const lastDay = activeOrg?.feature_flags?.sis_settings?.last_day_of_school || ''
   const [f, setF] = useState({
     title: announcement?.title || '',
     body: announcement?.body || '',
@@ -331,8 +333,13 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     audience: announcement?.audience || 'school',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
-    // Who to SEND it to, beyond the staff noticeboard. Empty = noticeboard only.
-    notify: [],
+    // Whether to ALSO push it, beyond the board. The board audience above
+    // already says who the notice is for; asking again in a second vocabulary
+    // is how three composers with three different audience models came to
+    // exist. Off by default: a board post is a thing people come and read.
+    notify: false,
+    notify_app: true,
+    notify_email: false,
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
@@ -349,7 +356,9 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
       audience: f.audience,
       publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
       expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
-      notify_audiences: f.notify,
+      notify: f.notify,
+      notify_app: f.notify_app,
+      notify_email: f.notify_email,
     }
     try {
       if (announcement) await sisCommunityApi.saveAnnouncement(announcement.id, payload)
@@ -389,24 +398,33 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           and an email that arrive whether or not anyone opens the board. */}
       {!announcement && (
         <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-            Who sees this
-          </p>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Families and students see the board in the app. Tick a group to also send
-            this to them as an announcement — a notification and an email.
-          </p>
-          <div className="flex flex-wrap gap-3 mt-2">
-            {[['parents', 'Families'], ['students', 'Students'], ['advisors', 'Teachers']].map(([key, label]) => (
-              <label key={key} className="flex items-center gap-1.5 text-sm text-neutral-700">
-                <input type="checkbox" checked={f.notify.includes(key)}
-                  onChange={() => set('notify', f.notify.includes(key)
-                    ? f.notify.filter((x) => x !== key)
-                    : [...f.notify, key])} />
-                {label}
+          <label className="flex items-start gap-2 text-sm text-neutral-700">
+            <input type="checkbox" checked={f.notify} className="mt-0.5"
+              disabled={f.audience === 'admins'}
+              onChange={(e) => set('notify', e.target.checked)} />
+            <span>
+              Also notify people
+              <span className="block text-xs text-neutral-500">
+                {f.audience === 'admins'
+                  ? 'Admin-only posts stay on the board — there is nobody to notify.'
+                  : 'The board is where people come and read. Tick this for something that cannot wait.'}
+              </span>
+            </span>
+          </label>
+          {f.notify && f.audience !== 'admins' && (
+            <div className="flex flex-wrap gap-4 mt-2 pl-6">
+              <label className="flex items-center gap-1.5 text-sm text-neutral-700">
+                <input type="checkbox" checked={f.notify_app}
+                  onChange={(e) => set('notify_app', e.target.checked)} />
+                In the app
               </label>
-            ))}
-          </div>
+              <label className="flex items-center gap-1.5 text-sm text-neutral-700">
+                <input type="checkbox" checked={f.notify_email}
+                  onChange={(e) => set('notify_email', e.target.checked)} />
+                By email
+              </label>
+            </div>
+          )}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-4">
@@ -438,6 +456,14 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
         </label>
         <label className="text-xs text-neutral-500 block">Expires at <span className="text-neutral-400">(optional)</span>
           <input type="datetime-local" value={f.expires_at} onChange={(e) => set('expires_at', e.target.value)} className={field} />
+          {/* Left blank the server uses the end of the school year, so this
+              year's notices stay up and then come down. Saying which date that
+              is beats leaving "optional" to mean "forever" silently. */}
+          <span className="block mt-1 text-neutral-400">
+            {lastDay
+              ? `Blank: comes down at the end of the school year (${lastDay}).`
+              : 'Blank: stays up until you remove it.'}
+          </span>
         </label>
       </div>
       <div className="flex gap-2">
