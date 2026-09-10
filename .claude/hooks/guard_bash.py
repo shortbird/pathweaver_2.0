@@ -69,12 +69,19 @@ DESTRUCTIVE_GIT: list[tuple[re.Pattern, str]] = [
      'git restore discards working-tree changes -- the same loss as '
      'git checkout -- <path>, spelled differently. (git restore --staged only '
      'unstages, and is allowed.)'),
-    (re.compile(r'\bgit\s+stash\b'),
+    # `git stash list` and `git stash show` read; everything else stashes.
+    # Blocking the read-only pair was a false positive found in use: asking
+    # what is stashed is how you find out whether somebody else's work is
+    # sitting in one.
+    (re.compile(r'\bgit\s+stash\b(?!\s+(list|show)\b)'),
      'git stash removes changes from the tree, including other sessions\'. '
-     'A stash made by one agent is invisible to the next one.'),
-    (re.compile(r'\bgit\s+clean\b'),
+     'A stash made by one agent is invisible to the next one. '
+     '(git stash list and git stash show are allowed.)'),
+    # `-n` / `--dry-run` is how you find out what clean WOULD delete.
+    (re.compile(r'\bgit\s+clean\b(?![^|;&]*(-n\b|--dry-run\b))'),
      'git clean deletes untracked files. Untracked new files are the one class '
-     'of work that survived the 2026-08-14 incident.'),
+     'of work that survived the 2026-08-14 incident. '
+     '(git clean -n is allowed; it only lists.)'),
     (re.compile(r'\b(killall|pkill)\b[^|;&]*\bnode\b'),
      'killall/pkill node kills Claude Code itself, and any dev server another '
      'session is mid-verification on. Stop a server by port: '

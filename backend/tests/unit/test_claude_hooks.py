@@ -117,6 +117,14 @@ ALLOWED = [
     'lsof -tnP -iTCP:3000 -sTCP:LISTEN | xargs kill',
     'npm run test:run',
     'cd backend && pytest -q',
+    # Read-only members of two otherwise-banned families. Found by the hook
+    # refusing `git stash list` during the phase that added it: asking what is
+    # stashed is how you discover somebody else's work is sitting in one, and
+    # `git clean -n` only prints what would go.
+    'git stash list',
+    'git stash show -p',
+    'git clean -n',
+    'git clean --dry-run -d',
 ]
 
 
