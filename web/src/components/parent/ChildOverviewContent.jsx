@@ -11,7 +11,7 @@ import StudentOverviewSections from '../overview/StudentOverviewSections';
 import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard';
 import ParentConversationsViewer from './ParentConversationsViewer';
 import StudentSchedulePreview from './StudentSchedulePreview';
-import StudentClassMaterials from './StudentClassMaterials'
+import StudentClasses from './StudentClasses'
 import StudentAttendanceCard from './StudentAttendanceCard';
 
 /**
@@ -98,10 +98,12 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
       {/* Class schedule (SIS families only; renders nothing otherwise) */}
       {!isObserver && <StudentSchedulePreview studentId={studentId} />}
 
-      {/* What the teachers have shared with those classes. Guardians only: the
-          route behind it is gated on the family relationship, so an observer
-          would get a 403 and an empty card. */}
-      {!isObserver && <StudentClassMaterials studentId={studentId} />}
+      {/* The child's classes, each opening to its own handouts. Replaces the
+          flat materials list that grouped by class name further down the page:
+          the class is the thing a parent is looking for, and the handout lives
+          inside it. Guardians only -- the routes behind it are gated on the
+          family relationship, so an observer would get a 403 and an empty card. */}
+      {!isObserver && <StudentClasses studentId={studentId} />}
 
       {/* What the school recorded. Guardians only, same reasoning as the
           materials above: the route is gated on the family relationship. */}

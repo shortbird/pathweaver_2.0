@@ -43,6 +43,8 @@ export const queryKeys = {
     // classId narrows to one class; undefined is the whole record.
     attendance: (studentId, classId) =>
       [...queryKeys.family.all, 'attendance', studentId, classId || 'all'],
+    studentOrg: (studentId) => [...queryKeys.family.all, 'studentOrg', studentId],
+    classes: (studentId) => [...queryKeys.family.all, 'classes', studentId],
   },
 
   // Social features (friends removed March 2026)

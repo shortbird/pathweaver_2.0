@@ -20,6 +20,8 @@ export { useAdvisorStudentOverview } from './useAdvisorStudentOverview';
 export { useParentChildOverview } from './useParentChildOverview';
 export { useStudentClassMaterials } from './useStudentClassMaterials';
 export { useStudentAttendance } from './useStudentAttendance';
+export { useFamilyStudentOrg } from './useFamilyStudentOrg';
+export { useFamilyStudentClasses } from './useFamilyStudentClasses';
 export { useMyClassMaterials } from './useMyClassMaterials';
 export { useStudentOverviewData } from './useStudentOverviewData';
 export {
