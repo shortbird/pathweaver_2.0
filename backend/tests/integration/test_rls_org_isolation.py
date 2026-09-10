@@ -235,11 +235,18 @@ def test_a_superadmin_reads_both_schools(north, south, superadmin, rls_client):
 def test_a_parent_reads_the_child_they_manage(db, make_user, parent, rls_client):
     """A managed dependent is the one case where one user row is readable by
     another outside an org."""
-    dependent = make_user(
-        role='student',
-        is_dependent=True,
-        managed_by_parent_id=parent['id'],
-    )
+    # Two statements, not one. `check_dependent_no_email` is
+    # `is_dependent = false OR (is_dependent = true AND email IS NULL)`, and
+    # make_user must insert an email because the row is FK'd to a GoTrue
+    # account that needs one. So create an ordinary student, then promote them
+    # to a managed dependent and drop the email in the same update -- the only
+    # ordering the constraint accepts.
+    dependent = make_user(role='student')
+    db.table('users').update({
+        'is_dependent': True,
+        'managed_by_parent_id': parent['id'],
+        'email': None,
+    }).eq('id', dependent['id']).execute()
     other = make_user(role='student')
 
     visible = ids(rls_client(parent).table('users').select('id').execute().data)
@@ -265,12 +272,61 @@ def test_an_org_admin_cannot_edit_a_partner_school_s_student(db, north, south, r
         .eq('id', south['student']['id']).single().execute().data
     assert after['first_name'] != 'Tampered'
 
-    # Positive control: the same client, the same statement, their own school.
+    # Positive control: the same client and the same statement, on a row this
+    # caller IS allowed to write -- their own. Without it the assertion above
+    # would pass just as well if the token had been rejected outright.
+    #
+    # NOT their own school's student, which is what this used to try. See the
+    # next test for why that raises rather than succeeding.
     client.table('users').update({'first_name': 'Renamed'}) \
-        .eq('id', north['student']['id']).execute()
+        .eq('id', north['admin']['id']).execute()
     own = db.table('users').select('first_name') \
-        .eq('id', north['student']['id']).single().execute().data
+        .eq('id', north['admin']['id']).single().execute().data
     assert own['first_name'] == 'Renamed'
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_an_org_admin_cannot_edit_their_own_school_s_student_either(
+    db, north, rls_client
+):
+    """CURRENT BEHAVIOUR, AND A FINDING. Not an endorsement.
+
+    `users_update_consolidated` carries an org-admin clause that plainly
+    intends to let an org admin edit their own school's users. Through the Data
+    API it is unreachable -- and not because of that policy.
+
+    `generate_slug_trigger` on `users` fires BEFORE INSERT OR UPDATE, is NOT
+    security definer, and unconditionally runs
+    `INSERT INTO diplomas ... ON CONFLICT (user_id)`. That insert is therefore
+    evaluated as the CALLING role against `diplomas_insert`, which requires
+    `user_id = auth.uid()`. An org admin is not the student, so the update dies
+    at 42501 on a table they never asked to write to.
+
+    Nothing in production notices: every application write to `users` goes
+    through Flask on the service-role client, which bypasses RLS. So this is a
+    latent contradiction between a policy and a trigger rather than a live
+    break -- and it surfaces the moment anything talks to PostgREST directly.
+
+    Asserted rather than fixed. Making the trigger SECURITY DEFINER, or
+    narrowing its insert, changes the slug machinery that 20260909234412 has
+    already had to repair once under concurrency.
+
+    If you are here because you fixed it, this test should now fail. Replace it
+    with the positive case: the org admin renames their own school's student,
+    and the row changes."""
+    from postgrest.exceptions import APIError
+
+    with pytest.raises(APIError) as raised:
+        rls_client(north['admin']).table('users').update({'first_name': 'Renamed'}) \
+            .eq('id', north['student']['id']).execute()
+
+    assert raised.value.code == '42501'
+    assert 'diplomas' in str(raised.value)
+
+    unchanged = db.table('users').select('first_name') \
+        .eq('id', north['student']['id']).single().execute().data
+    assert unchanged['first_name'] != 'Renamed'
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +582,7 @@ def test_the_xp_ledger_is_closed_to_the_data_api(db, north, rls_client, anon_cli
     so that adding a policy to it is a decision someone makes on purpose."""
     db.table('user_skill_xp').insert({
         'user_id': north['student']['id'],
-        'pillar': 'stem_logic',
+        'pillar': 'stem',
         'xp_amount': 250,
     }).execute()
 

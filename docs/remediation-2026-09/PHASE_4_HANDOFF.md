@@ -346,6 +346,41 @@ Two things found while in there, neither of them behaviour changes:
 Per rule 5, these are written down rather than changed. Ordered by how much they
 would cost.
 
+### 0. The RLS suite ran, and found a policy/trigger contradiction
+
+**Added 2026-09-10, after the first execution.** 33 of 36 passed on the first
+run; the three failures were fixture bugs in the tests, not policy problems.
+Fixing the third one turned up something real.
+
+`generate_slug_trigger` on `users` fires BEFORE INSERT OR UPDATE, is **not**
+SECURITY DEFINER, and unconditionally runs
+`INSERT INTO diplomas ... ON CONFLICT (user_id)`. That insert is evaluated as
+the *calling* role against `diplomas_insert`, which requires
+`user_id = auth.uid()`.
+
+The consequence: **`users_update_consolidated`'s org-admin clause is
+unreachable through the Data API.** An org admin editing their own school's
+student is permitted by the policy on `users` and then dies at 42501 on
+`diplomas` -- a table they never asked to write to. The error names the wrong
+object, which is the part that would cost an afternoon.
+
+Nothing in production notices, because every application write to `users` goes
+through Flask on the service-role client, which bypasses RLS. So it is a latent
+contradiction between a policy and a trigger, not a live break -- and it
+surfaces the instant anything talks to PostgREST directly.
+
+Not fixed here: making the trigger SECURITY DEFINER, or narrowing its insert,
+changes slug machinery that `20260909234412` has already had to repair once
+under concurrency. `test_an_org_admin_cannot_edit_their_own_school_s_student_either`
+asserts the current behaviour and says what to replace it with when it is fixed.
+
+The other two failures, for the record, because both are traps worth knowing:
+`check_dependent_no_email` forbids an email on a dependent row while `make_user`
+must write one (the row is FK'd to a GoTrue account), so a dependent has to be
+created and then promoted; and `user_skill_xp_pillar_is_a_key` constrains that
+column to five canonical keys while `user_quest_tasks.pillar` has no constraint
+and holds the long form, so the two tables legitimately disagree.
+
 ### 1. The completions policy has no organization scope
 
 `admin_advisor_access_completions` on `quest_task_completions` is:

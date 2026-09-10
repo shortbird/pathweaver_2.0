@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures"""
 
 import pytest
+import contextlib
 import os
 import sys
 import uuid
@@ -470,11 +471,13 @@ def rls_client(db):
 
     yield _for
 
+    # suppress(), not try/except/pass: ruff's S110 bans the latter outright and
+    # it is right to -- a bare pass hides the next person's real bug. Teardown
+    # genuinely has nothing to do with a failed sign-out, though; the stack is
+    # thrown away after the run.
     for client in clients:
-        try:
+        with contextlib.suppress(Exception):
             client.auth.sign_out()
-        except Exception:  # noqa: BLE001 - teardown must not fail a test
-            pass
 
 
 @pytest.fixture
