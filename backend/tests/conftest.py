@@ -427,6 +427,72 @@ def auth_headers_for(app):
 
 
 @pytest.fixture
+def rls_client(db):
+    """A PostgREST client that RLS is actually evaluated for, as a given user.
+
+    Everything else in this file talks to the database as `service_role`, which
+    BYPASSES row-level security. That is the right tool for seeding and the
+    wrong one for testing policies: a suite that only ever uses `db` can assert
+    nothing at all about the 300-odd policies in the schema.
+
+    This signs in through GoTrue and hands PostgREST the resulting session
+    token, which is exactly what a browser session looks like at the database
+    layer (see `database.get_user_client`, which does the same thing with the
+    app's own JWT).
+
+    IT MUST BE A SEPARATE CLIENT. supabase-py stores the session on whichever
+    client performed the sign-in, so signing in on `db` would silently demote
+    the shared service-role client to `authenticated` for the rest of the test
+    -- the same trap `supabase/config.toml` keeps `enable_confirmations = true`
+    to avoid on the registration path.
+
+    Pass a dict from `make_user` (it carries `email` and `password`).
+    """
+    from app_config import Config
+    from supabase import create_client
+
+    if not Config.SUPABASE_ANON_KEY:
+        pytest.skip('SUPABASE_ANON_KEY is not set; RLS cannot be exercised.')
+
+    clients = []
+
+    def _for(user):
+        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+        result = client.auth.sign_in_with_password({
+            'email': user['email'],
+            'password': user['password'],
+        })
+        token = getattr(getattr(result, 'session', None), 'access_token', None)
+        assert token, f"GoTrue returned no session for {user['email']}"
+        client.postgrest.auth(token)
+        clients.append(client)
+        return client
+
+    yield _for
+
+    for client in clients:
+        try:
+            client.auth.sign_out()
+        except Exception:  # noqa: BLE001 - teardown must not fail a test
+            pass
+
+
+@pytest.fixture
+def anon_client(db):
+    """An unauthenticated PostgREST client, i.e. the public internet.
+
+    `db` is depended on only so this fixture inherits the local-stack guard and
+    the truncate-between-tests reset.
+    """
+    from app_config import Config
+    from supabase import create_client
+
+    if not Config.SUPABASE_ANON_KEY:
+        pytest.skip('SUPABASE_ANON_KEY is not set; RLS cannot be exercised.')
+    return create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+
+
+@pytest.fixture
 def student(make_user):
     """A plain platform student."""
     return make_user(role='student')
