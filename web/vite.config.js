@@ -18,6 +18,17 @@ const BUILD_ID = (() => {
   }
 })()
 
+// The Sentry release. Without one, every web event arrives as `rel=none` and
+// you cannot tell an event from a bundle that predates a fix from a genuine
+// regression -- confirming one fixed issue (OPTIO-WEB-6) meant reading git
+// history instead of a field. The backend already pins RENDER_GIT_COMMIT, so
+// prefer that here too and the two projects' releases line up; fall back to
+// BUILD_ID, which is the same identity /version.json already publishes.
+// Must be the SAME value the SDK reports and the plugin uploads maps under, or
+// the maps belong to a release no event references.
+const SENTRY_RELEASE =
+  process.env.VITE_SENTRY_RELEASE || process.env.RENDER_GIT_COMMIT || BUILD_ID
+
 export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production'
 
@@ -30,6 +41,9 @@ export default defineConfig(({ mode }) => {
   return {
   define: {
     __APP_VERSION__: JSON.stringify(BUILD_ID),
+    // src/services/sentry.js reads this. Injected rather than left to the env
+    // so a build always has one, even when nothing sets VITE_SENTRY_RELEASE.
+    'import.meta.env.VITE_SENTRY_RELEASE': JSON.stringify(SENTRY_RELEASE),
   },
   plugins: [
     react(),
@@ -79,6 +93,7 @@ export default defineConfig(({ mode }) => {
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
+      release: { name: SENTRY_RELEASE },
       sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
       telemetry: false,
     }),
