@@ -686,3 +686,156 @@ def test_a_deactivated_organization_is_visible_only_to_its_own_admin(
     assert closed['id'] not in ids(
         rls_client(outsider).table('organizations').select('id').execute().data
     )
+
+
+# ---------------------------------------------------------------------------
+# The tables that used to carry a dead `is_admin()` clause
+#
+# `is_admin()` tested `role = 'admin'`, which this system does not have, so it
+# was false for every caller. 20260910120000 removes it from eleven policies.
+# These tests assert the access those tables actually give.
+#
+# They are written so that they pass on BOTH sides of that migration, which is
+# how the "no behaviour change" claim becomes checkable. Note what a single run
+# proves, though: `supabase start` replays supabase/migrations/, so an ordinary
+# run exercises the POST-migration schema only. To see the other half, move
+# 20260910120000_remove_the_dead_admin_predicate.sql out of the directory,
+# `supabase db reset`, and run this file again -- it should be identically
+# green. Until someone does that, the no-change claim rests on the argument in
+# the migration header (a permissive `OR false` arm contributes nothing) and on
+# the production policy dump it was written from, not on this file.
+#
+# They have a second job. The alternative to deleting the dead clause was
+# repointing it at `superadmin`, which would have granted platform staff
+# RLS-level read of private correspondence and consent records. That was
+# declined as a grant rather than a fix. If someone makes it later, these fail
+# and say so -- which is the right way for a decision like that to be noticed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def correspondence(db, make_user):
+    """A private two-party conversation, and a third user outside it."""
+    alice = make_user(role='student')
+    bob = make_user(role='student')
+
+    conversation_id = str(uuid.uuid4())
+    db.table('message_conversations').insert({
+        'id': conversation_id,
+        'participant_1_id': alice['id'],
+        'participant_2_id': bob['id'],
+    }).execute()
+
+    message_id = str(uuid.uuid4())
+    db.table('direct_messages').insert({
+        'id': message_id,
+        'conversation_id': conversation_id,
+        'sender_id': alice['id'],
+        'recipient_id': bob['id'],
+        'message_content': 'Private, between the two of us.',
+    }).execute()
+
+    return {'alice': alice, 'bob': bob,
+            'conversation': conversation_id, 'message': message_id}
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_a_private_message_is_readable_by_its_two_parties(correspondence, rls_client):
+    """The positive control for the denials below."""
+    for who in ('alice', 'bob'):
+        visible = ids(
+            rls_client(correspondence[who]).table('direct_messages').select('id').execute().data
+        )
+        assert correspondence['message'] in visible, f'{who} must read their own message'
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_superadmin_cannot_read_two_other_people_s_private_messages(
+    correspondence, superadmin, rls_client
+):
+    """Platform staff are not a party to this conversation.
+
+    This is the assertion that holds the 2026-09-10 decision in place. The
+    `is_admin()` arm on direct_messages_select was dead, and the choice was
+    between deleting it and making it live for superadmins. Deleting it keeps
+    the answer here at "no"; making it live would change it to "yes" for every
+    message on the platform, silently, in a one-word migration.
+
+    If this test fails, that is what happened. It is a defensible thing to
+    want -- support and safeguarding both have a case -- but it is a policy
+    decision about reading minors' private correspondence, and it should not
+    arrive as a green build."""
+    visible = ids(
+        rls_client(superadmin).table('direct_messages').select('id').execute().data
+    )
+    assert correspondence['message'] not in visible
+
+    conversations = ids(
+        rls_client(superadmin).table('message_conversations').select('id').execute().data
+    )
+    assert correspondence['conversation'] not in conversations
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_an_unrelated_student_cannot_read_a_private_message(
+    correspondence, north, rls_client
+):
+    visible = ids(
+        rls_client(north['student']).table('direct_messages').select('id').execute().data
+    )
+    assert correspondence['message'] not in visible
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+@pytest.mark.critical
+def test_a_consent_record_is_readable_by_its_subject_and_nobody_else(
+    db, make_user, superadmin, north, rls_client
+):
+    """COPPA consent records: who was asked, at what address, and when.
+
+    Same shape as the messages above -- own row only, and the dead `is_admin()`
+    arm did not change that. C2 was 718 rows of exactly this kind of data
+    reachable by `anon`; this is the same data one layer in."""
+    subject = make_user(role='student')
+    row_id = str(uuid.uuid4())
+    db.table('parental_consent_log').insert({
+        'id': row_id,
+        'user_id': subject['id'],
+        'child_email': 'child@example.com',
+        'parent_email': 'guardian@example.com',
+        'consent_token': uuid.uuid4().hex,
+    }).execute()
+
+    assert row_id in ids(
+        rls_client(subject).table('parental_consent_log').select('id').execute().data
+    )
+    assert row_id not in ids(
+        rls_client(superadmin).table('parental_consent_log').select('id').execute().data
+    )
+    assert row_id not in ids(
+        rls_client(north['admin']).table('parental_consent_log').select('id').execute().data
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.authorization
+def test_diplomas_are_closed_to_the_data_api(db, north, rls_client, anon_client):
+    """`diplomas` has INSERT and UPDATE policies and NO SELECT policy, so
+    nobody reads it through PostgREST -- not its owner, not staff, not anon.
+
+    The public portfolio pages get their data from Flask on the service-role
+    client (portfolio_service.get_diploma_data), which is why nobody has
+    noticed. Asserted so that the day a client is pointed at this table, the
+    empty result is a documented answer. Same shape as user_skill_xp above."""
+    rows = db.table('diplomas').select('id').limit(5).execute().data
+    if not rows:
+        pytest.skip('no diploma rows seeded by the user fixtures on this stack')
+
+    assert rls_client(north['student']).table('diplomas').select('id').execute().data == []
+    assert anon_client.table('diplomas').select('id').execute().data == []
+
