@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import QuestDetail from './QuestDetail'
 import { ConfirmProvider } from '../contexts/ConfirmContext'
 import { OrganizationContext } from '../contexts/OrganizationContext'
+import toast from 'react-hot-toast'
+import api from '../services/api'
 
 const mockNavigate = vi.fn()
 let authState = {}
@@ -100,14 +102,19 @@ vi.mock('../components/quest/QuestMetadataCard', () => ({
 }))
 
 vi.mock('../components/quest/TaskWorkspace', () => ({
-  default: ({ tasks, onTaskSelect, onTaskComplete }) => (
+  default: ({ tasks, onTaskSelect, onTaskComplete, onRemoveTask, onAddTask }) => (
     <div data-testid="task-workspace">
+      {onAddTask && <button data-testid="add-task" onClick={onAddTask}>Add a task</button>}
       {tasks.map(task => (
         <div key={task.id} data-testid={`task-${task.id}`}>
           <span>{task.title}</span>
           <span data-testid={`task-xp-${task.id}`}>{task.xp_value} XP</span>
           {task.is_completed && <span data-testid={`task-done-${task.id}`}>Done</span>}
           <button onClick={() => onTaskSelect(task)}>Select</button>
+          <button data-testid={`remove-${task.id}`} onClick={() => onRemoveTask(task.id)}>Remove</button>
+          <button data-testid={`complete-${task.id}`} onClick={() => onTaskComplete({ taskId: task.id })}>
+            Complete
+          </button>
         </div>
       ))}
     </div>
@@ -135,7 +142,13 @@ vi.mock('../components/discussion/ClassCurriculum', () => ({
 }))
 
 vi.mock('../components/quest/RestartQuestModal', () => ({
-  default: ({ isOpen }) => isOpen ? <div data-testid="restart-modal">Restart Modal</div> : null
+  default: ({ isOpen, onLoadPreviousTasks, onStartFresh, previousTaskCount }) => isOpen ? (
+    <div data-testid="restart-modal">
+      <span data-testid="restart-previous-count">{previousTaskCount}</span>
+      <button data-testid="restart-load-previous" onClick={onLoadPreviousTasks}>Load previous</button>
+      <button data-testid="restart-start-fresh" onClick={onStartFresh}>Start fresh</button>
+    </div>
+  ) : null
 }))
 
 const mockQueryClient = new QueryClient({
@@ -547,6 +560,496 @@ describe('QuestDetail', () => {
       fireEvent.click(enrollBtn)
 
       expect(mockNavigate).toHaveBeenCalledWith('/login')
+    })
+  })
+
+  // ── Enrollment ────────────────────────────────────────────────────────────
+  //
+  // The single most-repaired path on this page. Six commits are about which
+  // enrollment outcome should and should not launch the personalization
+  // wizard ("Course quest enrollment now skips personalization wizard",
+  // "Course quests without preset tasks now show personalization wizard",
+  // "Fix template tasks not loading on quest enrollment", "Fix duplicate
+  // template tasks on quest restart"), and each fix was invisible to every
+  // other path. The branch is small and the failure is silent: the student
+  // either lands in a wizard they should not see, or gets no tasks at all.
+  describe('enrollment outcomes', () => {
+    const NOT_ENROLLED = () => ({
+      id: 'quest-123',
+      title: 'Learn React Testing',
+      user_enrollment: null,
+      quest_tasks: [],
+      allow_custom_tasks: true,
+      preset_tasks: [],
+      template_tasks: [],
+      has_template_tasks: false
+    })
+
+    /** Make the enroll mutation resolve with `data`, the way React Query would. */
+    const resolvesWith = (data) =>
+      vi.fn((_vars, opts) => { opts.onSuccess(data) })
+
+    /** Make the enroll mutation reject with `error`. */
+    const rejectsWith = (error) =>
+      vi.fn((_vars, opts) => { opts.onError(error) })
+
+    beforeEach(() => {
+      questDetailData.quest = NOT_ENROLLED()
+      questDetailData.totalTasks = 0
+    })
+
+    it('sends no click event through as enrollment options', async () => {
+      // handleEnroll defaults `options` to {}, and the button passes nothing.
+      // A version that wired onClick straight to onEnroll shipped a React
+      // synthetic event as the options object, so the backend received a
+      // request body of DOM properties. Assert the exact payload.
+      questDetailData.enrollMutation = { mutate: resolvesWith({}), isPending: false }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(questDetailData.enrollMutation.mutate).toHaveBeenCalledWith(
+          { questId: 'quest-123', options: {} },
+          expect.any(Object)
+        )
+      })
+    })
+
+    it('opens the wizard when the backend seeded no tasks', async () => {
+      questDetailData.enrollMutation = { mutate: resolvesWith({}), isPending: false }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(questDetailData.setShowPersonalizationWizard).toHaveBeenCalledWith(true)
+      })
+    })
+
+    it('skips the wizard when the backend says skip_wizard', async () => {
+      questDetailData.enrollMutation = {
+        mutate: resolvesWith({ enrollment: { skip_wizard: true } }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Enrolled! Your tasks are ready.')
+      })
+      expect(questDetailData.setShowPersonalizationWizard).not.toHaveBeenCalled()
+    })
+
+    it('skips the wizard when the quest has facilitator-authored tasks', async () => {
+      // A course/class quest arrives with its task list already written. The
+      // wizard would offer to generate a second, unrelated one.
+      questDetailData.enrollMutation = {
+        mutate: resolvesWith({ has_template_tasks: true }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Enrolled! Your tasks are ready.')
+      })
+      expect(questDetailData.setShowPersonalizationWizard).not.toHaveBeenCalled()
+    })
+
+    it('names the restored task count when a restart reloaded previous tasks', async () => {
+      questDetailData.enrollMutation = {
+        mutate: resolvesWith({ tasks_loaded: 5 }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(toast.success).toHaveBeenCalledWith('Restarted quest with 5 previous tasks!')
+      })
+      expect(questDetailData.setShowPersonalizationWizard).not.toHaveBeenCalled()
+    })
+
+    it('offers the restart choice instead of an error on a 409', async () => {
+      // Re-enrolling in a quest you already did is not a failure. The backend
+      // answers 409 + requires_confirmation and the page asks whether to bring
+      // the old tasks back -- it must not surface this as a red toast.
+      questDetailData.enrollMutation = {
+        mutate: rejectsWith({
+          response: {
+            status: 409,
+            data: { requires_confirmation: true, previous_task_count: 4 }
+          }
+        }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(questDetailData.setShowRestartModal).toHaveBeenCalledWith(true)
+      })
+      expect(questDetailData.setRestartModalData).toHaveBeenCalledWith({
+        previousTaskCount: 4,
+        questTitle: 'Learn React Testing'
+      })
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('shows the refusal the backend gave, not a generic failure', async () => {
+      // A parent is told the school assigns their quests. Falling back to
+      // "Could not start this quest" leaves a button that appears to do nothing.
+      questDetailData.enrollMutation = {
+        mutate: rejectsWith({
+          response: { status: 403, data: { message: 'Your school assigns quests for you.' } }
+        }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Your school assigns quests for you.')
+      })
+      expect(questDetailData.setShowRestartModal).not.toHaveBeenCalled()
+    })
+
+    it('falls back to a readable message when the error carries none', async () => {
+      questDetailData.enrollMutation = {
+        mutate: rejectsWith({ response: { status: 500, data: {} } }),
+        isPending: false
+      }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('enroll-btn'))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Could not start this quest.')
+      })
+    })
+
+    it('re-enrolls with load_previous_tasks when the student keeps their old work', async () => {
+      questDetailData.showRestartModal = true
+      questDetailData.restartModalData = { previousTaskCount: 4, questTitle: 'Learn React Testing' }
+      questDetailData.enrollMutation = { mutate: resolvesWith({ tasks_loaded: 4 }), isPending: false }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('restart-load-previous'))
+
+      await waitFor(() => {
+        expect(questDetailData.enrollMutation.mutate).toHaveBeenCalledWith(
+          { questId: 'quest-123', options: { load_previous_tasks: true, force_new: true } },
+          expect.any(Object)
+        )
+      })
+    })
+
+    it('re-enrolls with force_new alone when the student starts over', async () => {
+      questDetailData.showRestartModal = true
+      questDetailData.restartModalData = { previousTaskCount: 4, questTitle: 'Learn React Testing' }
+      questDetailData.enrollMutation = { mutate: resolvesWith({}), isPending: false }
+      renderQuestDetail()
+
+      fireEvent.click(screen.getByTestId('restart-start-fresh'))
+
+      await waitFor(() => {
+        expect(questDetailData.enrollMutation.mutate).toHaveBeenCalledWith(
+          { questId: 'quest-123', options: { force_new: true } },
+          expect.any(Object)
+        )
+      })
+    })
+  })
+
+  // ── Removing a task ───────────────────────────────────────────────────────
+  //
+  // "Stop the quest page from putting back a task the student deleted"
+  // (347e85b0): removing the LAST task used to be indistinguishable from an
+  // enrollment that was never seeded, so the next read copied the template
+  // tasks back in and the deleted task reappeared. The client half of that fix
+  // is that the completion flow now opens on the backend's `quest_now_empty`
+  // rather than on the page racing its own refetch and reading an empty cache.
+  describe('removing a task', () => {
+    const CACHE_KEY = ['quests', 'detail', 'quest-123']
+
+    const enrolledQuest = () => ({
+      id: 'quest-123',
+      title: 'Learn React Testing',
+      user_enrollment: { id: 'enrollment-1' },
+      quest_tasks: [
+        { id: 'task-1', title: 'Write unit tests', xp_value: 20, is_completed: false },
+        { id: 'task-2', title: 'Write integration tests', xp_value: 30, is_completed: false }
+      ],
+      has_template_tasks: false,
+      progress: { percentage: 0, completed_tasks: 0, total_tasks: 2 }
+    })
+
+    beforeEach(() => {
+      questDetailData.quest = enrolledQuest()
+      questDetailData.totalTasks = 2
+      mockQueryClient.setQueryData(CACHE_KEY, enrolledQuest())
+    })
+
+    const clickRemoveAndConfirm = async (taskId) => {
+      fireEvent.click(await screen.findByTestId(`remove-${taskId}`))
+      fireEvent.click(await screen.findByText('Confirm'))
+    }
+
+    it('asks before removing, and removes nothing if the student says no', async () => {
+      renderQuestDetail()
+      fireEvent.click(await screen.findByTestId('remove-task-1'))
+
+      fireEvent.click(await screen.findByText('Cancel'))
+
+      await waitFor(() => {
+        expect(api.delete).not.toHaveBeenCalled()
+      })
+    })
+
+    it('deletes the task and takes it out of the cache immediately', async () => {
+      api.delete.mockResolvedValue({ data: { quest_now_empty: false } })
+      renderQuestDetail()
+
+      await clickRemoveAndConfirm('task-1')
+
+      await waitFor(() => {
+        expect(api.delete).toHaveBeenCalledWith('/api/tasks/task-1')
+      })
+      const cached = mockQueryClient.getQueryData(CACHE_KEY)
+      expect(cached.quest_tasks.map(t => t.id)).toEqual(['task-2'])
+      expect(cached.progress.total_tasks).toBe(1)
+    })
+
+    it('opens the completion flow when the backend says that was the last task', async () => {
+      api.delete.mockResolvedValue({ data: { quest_now_empty: true } })
+      renderQuestDetail()
+
+      await clickRemoveAndConfirm('task-1')
+
+      await waitFor(() => {
+        expect(questDetailData.setShowQuestCompletionCelebration).toHaveBeenCalledWith(true)
+      })
+    })
+
+    it('does not open it just because the cache looks empty', async () => {
+      // This is the regression. The optimistic update above empties
+      // quest_tasks locally, so a page that reads the cache to decide would
+      // fire the completion flow after removing ANY task from a one-task list
+      // -- including one the backend still counts. The backend counted the
+      // remaining rows in the same request that did the delete; believe it.
+      const oneTask = enrolledQuest()
+      oneTask.quest_tasks = [oneTask.quest_tasks[0]]
+      questDetailData.quest = oneTask
+      questDetailData.totalTasks = 1
+      mockQueryClient.setQueryData(CACHE_KEY, oneTask)
+      api.delete.mockResolvedValue({ data: { quest_now_empty: false } })
+
+      renderQuestDetail()
+      await clickRemoveAndConfirm('task-1')
+
+      await waitFor(() => {
+        expect(api.delete).toHaveBeenCalled()
+      })
+      expect(mockQueryClient.getQueryData(CACHE_KEY).quest_tasks).toEqual([])
+      expect(questDetailData.setShowQuestCompletionCelebration).not.toHaveBeenCalled()
+    })
+
+    it('puts the task back when the delete fails', async () => {
+      // Without the revert the task is gone from the screen and still on the
+      // server, and the student only finds out on the next page load.
+      api.delete.mockRejectedValue({ response: { data: { error: 'Task is locked' } } })
+      renderQuestDetail()
+
+      await clickRemoveAndConfirm('task-1')
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Task is locked')
+      })
+      expect(mockQueryClient.getQueryData(CACHE_KEY).quest_tasks.map(t => t.id))
+        .toEqual(['task-1', 'task-2'])
+    })
+  })
+
+  // ── Ending a class ────────────────────────────────────────────────────────
+  describe('ending a credit class', () => {
+    const classQuest = () => ({
+      id: 'quest-123',
+      title: 'High School Biology',
+      quest_type: 'class',
+      transcript_subject: 'science',
+      user_enrollment: { id: 'enrollment-1' },
+      quest_tasks: [{ id: 'task-1', title: 'Unit 1', xp_value: 150, is_completed: false }],
+      has_template_tasks: false,
+      progress: { percentage: 0, completed_tasks: 0, total_tasks: 1 }
+    })
+
+    it('calls a class a class, not a quest', async () => {
+      questDetailData.quest = classQuest()
+      questDetailData.totalTasks = 1
+      questDetailData.completedTasks = 0
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('End class'))
+
+      await waitFor(() => {
+        expect(screen.getByText('End this class?')).toBeInTheDocument()
+      })
+      expect(screen.getByText(/1 task is still unfinished/)).toBeInTheDocument()
+    })
+
+    it('says which requirements are missing when the backend refuses', async () => {
+      // A course project with unmet requirements gets its own reason. The
+      // generic "Failed to finish quest. Please try again." tells a student to
+      // retry something that will never succeed.
+      questDetailData.quest = classQuest()
+      questDetailData.totalTasks = 1
+      questDetailData.endQuestMutation = {
+        mutate: vi.fn((_id, opts) => opts.onError({
+          response: {
+            data: {
+              reason: 'INCOMPLETE_REQUIREMENTS',
+              message: 'Finish the lab report before ending this class.'
+            }
+          }
+        })),
+        isPending: false
+      }
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByText('End class'))
+      fireEvent.click(await screen.findByText('Confirm'))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Finish the lab report before ending this class.')
+      })
+      expect(mockNavigate).not.toHaveBeenCalledWith('/dashboard')
+    })
+
+    it('does not ask twice when the header already did', async () => {
+      // QuestDetailHeader's LMS "Mark Complete" runs its own confirmation, so
+      // the page is called with skipConfirm and must go straight through.
+      questDetailData.quest = classQuest()
+      questDetailData.totalTasks = 1
+
+      renderQuestDetail()
+      fireEvent.click(screen.getByTestId('end-quest-btn'))
+
+      await waitFor(() => {
+        expect(questDetailData.endQuestMutation.mutate)
+          .toHaveBeenCalledWith('quest-123', expect.any(Object))
+      })
+      expect(screen.queryByText('End this class?')).not.toBeInTheDocument()
+    })
+  })
+
+  // ── The bottom End button's own visibility rules ──────────────────────────
+  describe('when the end action is offered at all', () => {
+    const enrolled = (extra = {}) => ({
+      id: 'quest-123',
+      title: 'Learn React Testing',
+      user_enrollment: { id: 'e-1' },
+      quest_tasks: [],
+      has_template_tasks: false,
+      ...extra
+    })
+
+    it('is hidden on an LMS quest, where the LMS owns completion', () => {
+      questDetailData.quest = enrolled({ lms_platform: 'canvas' })
+      renderQuestDetail()
+      expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+    })
+
+    it('is hidden while the student is mid-task inside a course lesson', () => {
+      // They came from a lesson and are going back to it. Ending the whole
+      // quest from here is never what that student meant.
+      sessionStorage.setItem('courseTaskReturnInfo', JSON.stringify({ pathname: '/courses/1' }))
+      try {
+        questDetailData.quest = enrolled()
+        renderQuestDetail()
+        expect(screen.queryByText('End quest')).not.toBeInTheDocument()
+      } finally {
+        sessionStorage.removeItem('courseTaskReturnInfo')
+      }
+    })
+
+    it('says how many tasks reopening would bring back', () => {
+      questDetailData.quest = enrolled({ completed_enrollment: { id: 'e-1' } })
+      questDetailData.isQuestCompleted = true
+      questDetailData.totalTasks = 5
+      questDetailData.completedTasks = 2
+
+      renderQuestDetail()
+      expect(screen.getByText(/3 tasks still/)).toBeInTheDocument()
+    })
+  })
+
+  // ── Returning to a course lesson ──────────────────────────────────────────
+  describe('finishing a task that was started from a course lesson', () => {
+    it('goes back to the lesson and forgets the way back', async () => {
+      // The key must be cleared, or every later completion on any quest
+      // navigates the student into a lesson they are no longer in.
+      sessionStorage.setItem(
+        'courseTaskReturnInfo',
+        JSON.stringify({ pathname: '/courses/c-1/lessons/l-2', search: '?tab=tasks' })
+      )
+      try {
+        questDetailData.quest = {
+          id: 'quest-123',
+          title: 'Learn React Testing',
+          user_enrollment: { id: 'e-1' },
+          quest_tasks: [{ id: 'task-1', title: 'Read the brief', xp_value: 10, is_completed: false }],
+          has_template_tasks: false,
+          progress: { percentage: 0, completed_tasks: 0, total_tasks: 1 }
+        }
+        questDetailData.totalTasks = 1
+        renderQuestDetail()
+
+        fireEvent.click(await screen.findByTestId('complete-task-1'))
+
+        await waitFor(() => {
+          expect(sessionStorage.getItem('courseTaskReturnInfo')).toBeNull()
+        })
+        await waitFor(() => {
+          expect(mockNavigate).toHaveBeenCalledWith('/courses/c-1/lessons/l-2?tab=tasks')
+        }, { timeout: 3000 })
+      } finally {
+        sessionStorage.removeItem('courseTaskReturnInfo')
+      }
+    })
+  })
+
+  // ── Error state ───────────────────────────────────────────────────────────
+  describe('the way out of an error, in focus mode', () => {
+    // Focus mode hides the sidebar, the navbar and the quest browser, so
+    // "Back to Quests" is a dead end: the kiosk student lands on a page with
+    // no navigation and nothing to press. The program that entered focus mode
+    // supplies its own home route.
+    it('sends a kiosk student to the program home, not the quest browser', () => {
+      localStorage.setItem('treehouse_focus', 'true')
+      localStorage.setItem('focus_mode_config', JSON.stringify({ homeRoute: '/treehouse' }))
+      questDetailData.error = { response: { status: 404 } }
+
+      renderQuestDetail()
+
+      expect(screen.queryByText('Back to Quests')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('Go Home'))
+      expect(mockNavigate).toHaveBeenCalledWith('/treehouse')
+    })
+
+    it('sends everyone else to the quest browser', () => {
+      questDetailData.error = { response: { status: 404 } }
+
+      renderQuestDetail()
+
+      expect(screen.queryByText('Go Home')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('Back to Quests'))
+      expect(mockNavigate).toHaveBeenCalledWith('/quests')
     })
   })
 })
