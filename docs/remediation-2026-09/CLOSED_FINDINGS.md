@@ -1,4 +1,4 @@
-# Closed Findings — audit remediation, as of 2026-09-09
+# Closed Findings — audit remediation, as of 2026-09-10
 
 This replaces the 3,964-line `docs/audit-2026-08/REMEDIATION_PLAN.md`, which is
 deleted. It is the file an agent should read before touching anything in these
@@ -21,6 +21,10 @@ Open items live in [REGISTER.md](REGISTER.md), the single ongoing register.
 Both files were verified against the code on 2026-09-08, and the guard column
 was re-checked on 2026-09-10; the verification method and its limits are in
 [§4](#4-how-this-was-verified-and-what-that-does-not-prove).
+
+**Added 2026-09-10 by the post-phase audit:** AUDIT.md **H1** (§2 and §3) — the
+last untriaged item from the 2026-08-01 external audit, closed by reading the
+live bucket flags rather than the schema.
 
 ---
 
@@ -140,6 +144,7 @@ reviewer has to check by hand; they are also listed in
 | HYG-02 | 20 tracked hash-named `.mjs` scripts in `verify/` | Deleted with `git rm` on the user's instruction; recoverable via `git log -- verify/` | n/a |
 | HYG-03 | Three carried pip-audit CVE suppressions | Re-run with the ignores removed — the only way to find out. Two were silencing nothing (worst state for a suppression: reads as accepted risk, is dead config). The third was real and was **fixed** by bumping pytest to 9.0.3. `pip-audit` now runs with no suppressions | Guarded since Phase 3: `TestHyg03PipAuditHasNoUnexplainedSuppressions` -- every ignore needs a dated reason and a re-check date, and pip-audit must stay enforcing |
 | FU-02 | `public.get_human_quest_performance` read two dropped tables | Verified dead four ways (no repo caller, no other function, no pg_cron job, EXECUTE granted only to postgres/service_role), then dropped. Rewrite was rejected: two of its four columns are computed *from* the dropped tables | "Does a function's tables exist" is a property of the live catalog, which no offline test sees |
+| **H1** | Student evidence media believed to be in public storage buckets, served to unauthenticated `GET` | **Checked 2026-09-10, and the premise no longer holds.** Every bucket holding student or family material is private: `quest-evidence` (2,551 objects), `user-uploads` (512), `user-photos` (363), `bug-reports` (170), `sis-secure-documents` (134), `staff-documents` (71), `curriculum` (39), `org-documents` (27), `identity-documents` (2), and four more, all `public = false`. The seven public buckets are asset buckets — `site-assets`, `quest-headers`, `course-covers`, `quest-images`, `curriculum-images`, `docs-images`, `mobile_app` — 124 objects between them, none of it student work. H4's 2026-08-02 remediation is the likeliest cause; nobody recorded it against H1 | **The bucket flag is what was verified, not the per-object policies.** A private bucket still serves anything a signed URL or a permissive `storage.objects` policy allows, and that was not audited. Treat as closed for the finding as written — "public buckets" — and as unaudited for the narrower question |
 
 ---
 
@@ -156,7 +161,7 @@ is what they now resolve to.
 | **C1** | A live Stripe **secret** key for a paying org was readable by anyone on the internet, unauthenticated — stored in a JSONB column whose RLS policy filters rows but cannot filter columns | Fixed. Secrets moved to `organization_secrets` (RLS on, no policies, grants revoked); reads go through `backend/utils/org_secrets.py`. **The key was rotated — it had been readable for an unknown period** |
 | **C2** | `portfolio_visibility_reset_20260801` — 718 rows of per-student minor-status and consent flags, RLS disabled, `SELECT`/`DELETE`/`TRUNCATE` granted to `anon` | Applied to production 2026-08-01 |
 | **C3** | `GET /api/auth/me` returned the org's full secret config to every member, including students | Fixed: `routes/auth/login/core.py` strips known credentials; the durable guarantee is that the column no longer holds any |
-| **H1** | All student evidence media sat in public storage buckets, served to unauthenticated `GET` | Out of the requested scope at the time. See REGISTER.md |
+| **H1** | All student evidence media sat in public storage buckets, served to unauthenticated `GET` | **Closed 2026-09-10** — every bucket holding student or family material is private. See §2 for the bucket-by-bucket read and the one thing it does not prove |
 | **H2** | Masquerade and acting-as sessions were immortal and survived logout | Closed by SEC-08 and FU-05 |
 | **H3** | `sis_billing_audit` — RLS disabled, anonymously writable audit trail | Applied to production 2026-08-01 |
 | **H4** | Student evidence readable over the public anon key (1,574 objects incl. photos and videos of minors) | Applied 2026-08-02 |
