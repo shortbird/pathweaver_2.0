@@ -152,16 +152,21 @@ def test_the_public_internet_reads_no_users(anon_client, north):
 
 
 @pytest.mark.integration
-def test_a_signed_out_client_cannot_write_a_user(anon_client, northgate):
-    """`users_insert_consolidated` requires `id = auth.uid()`, which anon never
-    satisfies."""
-    with pytest.raises(Exception):
-        anon_client.table('users').insert({
-            'id': str(uuid.uuid4()),
-            'email': f'intruder_{uuid.uuid4().hex[:8]}@example.com',
-            'role': 'student',
-            'organization_id': northgate['id'],
-        }).execute()
+def test_a_signed_out_client_cannot_edit_a_user(db, anon_client, north):
+    """An UPDATE rather than an INSERT, on purpose.
+
+    An anonymous INSERT into `public.users` also violates the foreign key to
+    `auth.users`, so it would raise whether or not RLS were switched on -- a
+    test that passes for the wrong reason. `users_update_consolidated` has no
+    clause anon can satisfy, and PostgREST reports a policy-blocked update as
+    an empty result rather than an error, so the row is re-read to see what
+    actually happened."""
+    anon_client.table('users').update({'first_name': 'Tampered'}) \
+        .eq('id', north['student']['id']).execute()
+
+    after = db.table('users').select('first_name') \
+        .eq('id', north['student']['id']).single().execute().data
+    assert after['first_name'] != 'Tampered'
 
 
 # ---------------------------------------------------------------------------
