@@ -330,6 +330,19 @@ Two things found while in there, neither of them behaviour changes:
 
 ## Bugs found, not fixed
 
+> **Status, 2026-09-10.** Three of these four were fixed later the same day, on
+> this branch, after the user asked for them. The entries below are left as
+> written -- including the two that were understated, each now carrying its own
+> correction -- because the record of what a phase found is worth more than a
+> tidy one. What changed:
+>
+> | # | Finding | Now |
+> |---|---|---|
+> | 1 | Advisor completions have no org scope | **Still open.** The fix is an RLS policy change and the RLS suite has still never run, so it is sequenced behind that. |
+> | 2 | `user_skill_xp` is RLS-on with zero policies | **Closed, no change.** Working as intended; deny-all is correct because every reader goes through the service-role client. Adding a policy would only widen access. Now documented in the catalog and asserted by a test. |
+> | 3 | The FERPA notice never renders | **Fixed** in `10f2617e`. Bigger than written: the backend had never sent `public_consent_info` at all, so both halves needed fixing. 3 public portfolios affected. |
+> | 4 | Dead `is_admin()` predicate | **Fixed** in `52136433`. Twelve policies, not one. Dead clauses deleted rather than repointed at `superadmin`, which would have been a grant of read access to private messages rather than a fix. |
+
 Per rule 5, these are written down rather than changed. Ordered by how much they
 would cost.
 
@@ -461,6 +474,46 @@ view, no `rpc()` in either app, all checked against production).
 
 ---
 
+## Follow-on work on this branch (2026-09-10)
+
+Commits 10-12, after the phase brief was complete and the user asked for the
+bugs to be fixed.
+
+| SHA | Commit |
+|---|---|
+| `52136433` | Remove is_admin(), a predicate that has never returned true |
+| `f4953d29` | Correct three things the Phase 4 handoff got wrong |
+| `10f2617e` | Make the FERPA notice on a public portfolio actually render |
+
+Test results after: backend **5,708 passed, 196 skipped, 0 failed**; web
+**334 files, 3,061 passed, 0 failed**; pyflakes clean.
+
+`supabase/migrations/20260910120000_remove_the_dead_admin_predicate.sql` is
+**landed but NOT applied**. Rule 7 was waived for it explicitly. See NEEDS
+TANNER step 4.
+
+Three decisions worth carrying forward, because each was a fork where the
+obvious move was the wrong one:
+
+- **Dead code that guards something is not the same as dead code.** Repointing
+  `is_admin()` at `superadmin` looks like fixing a typo and is actually a grant
+  of RLS-level read over private correspondence and COPPA consent records. It
+  was deleted instead, and five tests now fail if anyone makes that grant
+  quietly.
+- **Read policies off `pg_policies`, not off the baseline.** The baseline shows
+  `public.*` helpers; `20260815060000` later moved twelve policies onto
+  `private.*` copies. Both migrations are in the directory and replay in order,
+  so there is no drift -- but reading only the baseline gets you the wrong
+  answer about what is deployed, which is how this handoff shipped a wrong SQL
+  snippet.
+- **Two flags that look equivalent usually are not.** The FERPA notice is gated
+  on publication AND consent, because production holds 5 consent records
+  against 3 public portfolios: consent is a durable record, publication is a
+  toggle, and a withdrawn portfolio is still readable by the family's connected
+  viewers.
+
+---
+
 ## What I could not do, and why
 
 1. **Run the RLS tests.** No Docker, no `supabase` CLI on this machine, and
@@ -559,6 +612,27 @@ slug route too?** If yes, I will make the change and add the test that is
 currently parked. If no, tell me why and I will write the reason into the code so
 the next person does not re-open it.
 
-### 4. Nothing else
+### 4. Apply the is_admin() migration to production
+
+`supabase/migrations/20260910120000_remove_the_dead_admin_predicate.sql` is
+committed and has not been applied anywhere. It changes no access -- the
+argument for that is in the file header, per policy shape -- but it is a schema
+change and it is yours to run.
+
+1. Do step 1 first. `supabase start` replays `supabase/migrations/`, so booting
+   the local stack is also how this file gets its first execution. A syntax
+   error fails the boot; you do not want to find that out against production.
+2. Run `.github/workflows/migrate-prod.yml` in **`plan`** mode. Expect it to
+   report exactly one pending migration. If it reports dozens, stop and read
+   MIGRATION_RECONCILIATION.md -- the history drift is back.
+3. Run it again in **`apply`** with the typed confirmation.
+4. Sanity check afterwards, which should return no rows:
+   ```sql
+   SELECT tablename, policyname FROM pg_policies
+   WHERE schemaname='public'
+     AND (coalesce(qual,'')||' '||coalesce(with_check,'')) ~ '\mis_admin\(';
+   ```
+
+### 5. Nothing else
 
 No credentials, dashboards or approvals were needed for the rest of the phase.
