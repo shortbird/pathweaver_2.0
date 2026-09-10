@@ -22,7 +22,7 @@ const ConversionPanel = () => {
     {
       id: 'free',
       name: exploreTier?.display_name || 'Free',
-      price: exploreTier ? formatPrice(exploreTier.price_monthly) : '$0',
+      price: '$0',
       period: '',
       description: exploreTier?.description || 'Perfect for exploring the platform',
       features: exploreTier?.features || [
@@ -40,7 +40,7 @@ const ConversionPanel = () => {
     {
       id: 'supported',
       name: accelerateTier?.display_name || 'Supported',
-      price: accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50',
+      price: '$50',
       period: '/mo',
       description: accelerateTier?.description || 'For dedicated learners ready to grow',
       features: accelerateTier?.features || [
@@ -59,7 +59,7 @@ const ConversionPanel = () => {
     {
       id: 'academy',
       name: excelTier?.display_name || 'Academy',
-      price: excelTier ? formatPrice(excelTier.price_monthly) : '$600',
+      price: '$600',
       period: '/mo',
       description: excelTier?.description || 'A personalized private school experience',
       features: excelTier?.features || [

@@ -16,7 +16,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
   if (!skillsXP || Object.keys(skillsXP).length === 0) {
     return (
       <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-        <h2 className="text-2xl font-bold mb-4" style={{ color: text-primary }}>Core Competencies</h2>
+        <h2 className="text-2xl font-bold mb-4 text-gray-900">Core Competencies</h2>
         <p className="text-gray-600">Complete quests to develop skills across different pillars.</p>
       </div>
     );
@@ -25,7 +25,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
   return (
     <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold" style={{ color: text-primary }}>Core Competencies</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Core Competencies</h2>
         <div className="text-right">
           <p className="text-sm text-gray-600">Total XP</p>
           <p className="text-2xl font-bold" style={{ color: '#6D469B' }}>{totalXP.toLocaleString()}</p>
@@ -108,7 +108,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
           <div className="flex flex-wrap gap-2">
             {Object.entries(skillsXP).map(([pillar, xp]) => {
               if (xp === 0) return null;
-              const info = pillarInfo[pillar];
+              const info = getPillarInfoForDisplay(pillar);
               
               return (
                 <div 

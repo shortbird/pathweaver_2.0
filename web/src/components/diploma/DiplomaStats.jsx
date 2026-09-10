@@ -41,7 +41,7 @@ const DiplomaStats = ({ totalXP, questsCompleted, skillsCount, achievements }) =
     <div className="mb-12">
       {/* Growth Overview Header */}
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-3" style={{ color: text-primary }}>Growth Snapshot</h2>
+        <h2 className="text-3xl font-bold mb-3 text-gray-900">Growth Snapshot</h2>
         <p className="text-gray-600 max-w-2xl mx-auto">
           These numbers represent moments of curiosity, creativity, and personal development. Each point reflects genuine engagement with learning.
         </p>
