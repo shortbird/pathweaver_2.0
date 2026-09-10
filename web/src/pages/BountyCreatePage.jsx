@@ -94,7 +94,16 @@ const BountyCreatePage = () => {
   const [selectedKids, setSelectedKids] = useState([]) // empty = all kids
   const [cohorts, setCohorts] = useState([]) // org classes (cohorts) for optional restriction
 
-  // Fetch dependents + linked students for family visibility
+  // Fetch dependents + linked students for family visibility.
+  //
+  // All three reads are PROBES: this page has no idea whether the person on it
+  // is a parent, an observer, or neither, so it asks all three and keeps
+  // whatever answers. "You may not read this" is the answer for two of them for
+  // almost everyone, and each branch already handles it -- but the axios
+  // interceptor reported every one to Sentry as a 403 regression, so an advisor
+  // opening this form filed a bug report against a working page (OPTIO-WEB-13).
+  // expect403 marks the refusal as the expected answer it is; a 5xx here is
+  // still reported.
   useEffect(() => {
     const fetchChildren = async () => {
       const allKids = []
@@ -102,7 +111,7 @@ const BountyCreatePage = () => {
 
       // Fetch managed dependents (under 13)
       try {
-        const res = await api.get('/api/dependents/my-dependents')
+        const res = await api.get('/api/dependents/my-dependents', { expect403: true })
         for (const kid of (res.data.dependents || [])) {
           if (!seenIds.has(kid.id)) {
             allKids.push(kid)
@@ -115,7 +124,7 @@ const BountyCreatePage = () => {
 
       // Fetch 13+ kids connected via approved parent-student links
       try {
-        const res = await api.get('/api/parents/my-children')
+        const res = await api.get('/api/parents/my-children', { expect403: true })
         for (const child of (res.data.children || [])) {
           const kidId = child.student_id
           if (kidId && !seenIds.has(kidId)) {
@@ -130,7 +139,7 @@ const BountyCreatePage = () => {
 
       // Fetch linked students (13+ and advisor-linked) from observer links
       try {
-        const res = await api.get('/api/observers/my-students')
+        const res = await api.get('/api/observers/my-students', { expect403: true })
         for (const link of (res.data.students || [])) {
           const kidId = link.student_id || link.id
           const info = link.student || {}
