@@ -210,12 +210,20 @@ and normal churn does not.
 
 | Suite | Floor | Measured | Set in |
 |---|---|---|---|
-| Backend | 41% | not measured on this machine — see the register | `ci.yml`, `release.yml` (`coverage-floor`) |
+| Backend | 57% | 58% (2026-09-10, release run `34540674305`) | `ci.yml`, `release.yml` (`coverage-floor`) |
 | Web | 60% | 61.69% statements (2026-09-10) | `ci.yml`, `release.yml` |
 | Mobile | 36 stmt / 29 br / 38 line / 29 fn | 37.94 / 30.67 / 39.35 / 30.01 | `mobile/jest.config.js` |
 
 Both `ci.yml` and `release.yml` carry the backend and web numbers and **they
 must match** — one gates the merge, the other gates the deploy.
+
+**The backend number is only readable from CI.** A local `pytest` run loads
+`backend/.env` and the runner does not; the two disagree by about 15 points, and
+a floor set from the local number would gate on a measurement the deploy never
+reproduces. Read it with `gh run view <id> --log`, or from the `TOTAL` line of
+the `Backend Tests` job in the web UI. The floor stood at 41 against a real 58
+from Phase 4 until 2026-09-10, because "cannot be measured locally" was recorded
+twice as "cannot be measured".
 
 ## 4. Hooks
 

@@ -34,7 +34,12 @@ jobs:
   backend:
     uses: ./.github/workflows/tests-backend.yml
     with:
-      coverage-floor: 41
+      # 57, measured 58% on 2026-09-10 (was 41, never measured -- see below).
+      # Read from the Backend Tests job of release run 34540674305, which is the
+      # only place the number is true: a local pytest run loads backend/.env and
+      # the CI runner does not, and the two disagree by about 15 points. Ratchet
+      # up, never down.
+      coverage-floor: 57
 
   web:
     uses: ./.github/workflows/tests-web.yml
