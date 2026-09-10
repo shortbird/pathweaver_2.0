@@ -324,7 +324,10 @@ def test_fast_gate_records_what_it_saw():
     """The Stop hook depends on this list; if it is not written, nothing runs."""
     sys.path.insert(0, str(HOOKS))
     try:
-        import _common  # noqa: PLC0415
+        # The hooks live in .claude/hooks, which is not on the import path and
+        # is not a package. mypy cannot follow a sys.path inserted at runtime,
+        # so the ignore is about where the file is, not about what it contains.
+        import _common  # type: ignore[import-not-found]  # noqa: PLC0415
     finally:
         sys.path.pop(0)
     target = REPO_ROOT / 'backend' / 'scripts' / '_fast_gate_probe_state.py'
@@ -349,7 +352,7 @@ def test_fast_gate_records_what_it_saw():
 def test_stop_hook_maps_a_module_to_its_tests():
     sys.path.insert(0, str(HOOKS))
     try:
-        import related_tests  # noqa: PLC0415
+        import related_tests  # type: ignore[import-not-found]  # noqa: PLC0415
     finally:
         sys.path.pop(0)
 

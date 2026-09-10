@@ -597,7 +597,7 @@ class ClassService(BaseService):
             by_class = assigned_quest_ids_by_class(admin, class_ids)
 
             all_quest_ids = sorted({q for ids in by_class.values() for q in ids})
-            enrollments = []
+            enrollments: list[dict] = []
             for start in range(0, len(all_quest_ids), 100):
                 enrollments.extend((admin.table('user_quests')
                                     .select('id, quest_id, completed_at')

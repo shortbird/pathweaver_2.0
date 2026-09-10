@@ -108,7 +108,7 @@ def _scan(dirs: tuple[str, ...]) -> Counter:
 
 
 def _report(found: Counter) -> str:
-    by_table = Counter()
+    by_table: Counter = Counter()
     for (_, table), count in found.items():
         by_table[table] += count
     lines = [f'  {count:>3}  {table}' for table, count in by_table.most_common()]
