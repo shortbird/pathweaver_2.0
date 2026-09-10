@@ -8,6 +8,27 @@ import { useKioskIdleTimeout } from '../hooks/useKioskIdleTimeout'
 
 const SIDEBAR_PINNED_KEY = 'optio-sidebar-pinned'
 
+// Safari with site data blocked does not merely refuse storage — the global is
+// absent, so a bare `localStorage` reference throws ReferenceError rather than
+// returning null. This read runs in a useState initializer during render, and
+// Layout wraps the whole app, so the throw took the entire page down over a
+// sidebar preference (Sentry OPTIO-WEB-17). Same try/catch shape as
+// utils/appSurface.js, which learned this earlier.
+function readPinned() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_PINNED_KEY)
+  } catch {
+    return null
+  }
+}
+function writePinned(value) {
+  try {
+    window.localStorage.setItem(SIDEBAR_PINNED_KEY, value)
+  } catch {
+    // No storage: the preference just doesn't persist across reloads.
+  }
+}
+
 const Layout = () => {
   const { isAuthenticated, effectiveRole, logout } = useAuth()
   const location = useLocation()
@@ -78,13 +99,13 @@ const Layout = () => {
 
   // Initialize pinned state from localStorage (defaults to true for first-time users)
   const [sidebarPinned, setSidebarPinned] = useState(() => {
-    const stored = localStorage.getItem(SIDEBAR_PINNED_KEY)
+    const stored = readPinned()
     return stored === null ? true : stored === 'true'
   })
 
   // Persist pinned state to localStorage
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_PINNED_KEY, sidebarPinned.toString())
+    writePinned(sidebarPinned.toString())
   }, [sidebarPinned])
 
   // Track hover state for sidebar
