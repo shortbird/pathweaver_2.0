@@ -34,6 +34,7 @@ from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
 from services import sis_training_service
+from services import sis_quest_authoring as authoring
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
 
 logger = get_logger(__name__)
@@ -155,8 +156,14 @@ def _clean_xp_threshold(raw):
     return (value or None), None
 
 
-def _clean_task(raw, order_index):
-    """One preset task, or None when it has no title (an untouched blank row)."""
+def _clean_task(raw, order_index, keep_id=False):
+    """One preset task, or None when it has no title (an untouched blank row).
+
+    `keep_id` carries the row's existing id through, so a save can pair the
+    submitted list against what is already stored instead of replacing it (see
+    sis_quest_authoring.replace_template_tasks). Off by default: a CREATE must
+    never accept a caller-supplied primary key.
+    """
     if not isinstance(raw, dict):
         return None
     title = (raw.get('title') or '').strip()
@@ -167,7 +174,9 @@ def _clean_task(raw, order_index):
     except (TypeError, ValueError):
         xp = _DEFAULT_XP
     now = datetime.now(timezone.utc).isoformat()
+    task_id = (raw.get('id') or '').strip() if keep_id else None
     return {
+        **({'id': task_id} if task_id else {}),
         'title': title[:_MAX_TITLE_LEN],
         'description': (raw.get('description') or '').strip(),
         'pillar': _PILLAR_ALIASES.get((raw.get('pillar') or '').strip().lower(), _DEFAULT_PILLAR),
@@ -1002,7 +1011,7 @@ def get_training_quest(user_id, training_id):
         return jsonify({'success': False, 'error': 'Not found'}), 404
     q = rows[0]
     tasks = (admin.table('quest_template_tasks')
-             .select('title, description, pillar, xp_value, is_required, order_index')
+             .select('id, title, description, pillar, xp_value, is_required, order_index')
              .eq('quest_id', item['quest_id']).order('order_index').execute()).data or []
     return jsonify({'success': True, 'quest': {
         'quest_id': q['id'],
@@ -1116,12 +1125,13 @@ def update_training_quest(user_id, training_id):
         fields['source_material'] = data['source_material'].strip()[:_MAX_SOURCE_CHARS]
     admin.table('quests').update(fields).eq('id', item['quest_id']).execute()
 
-    cleaned = [t for t in (_clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
-    admin.table('quest_template_tasks').delete().eq('quest_id', item['quest_id']).execute()
-    if cleaned:
-        for t in cleaned:
-            t['quest_id'] = item['quest_id']
-        admin.table('quest_template_tasks').insert(cleaned).execute()
+    # Pair-and-update rather than delete-and-reinsert. The old way changed every
+    # task id on every save, which NULLed each enrolled student's
+    # source_template_task_id and would now also cascade away any resources
+    # attached to those tasks -- so saving a typo in the description could
+    # silently delete the handouts. See sis_quest_authoring.replace_template_tasks.
+    cleaned = [t for t in (_clean_task(r, i, keep_id=True) for i, r in enumerate(raw_tasks)) if t]
+    authoring.replace_template_tasks(admin, item['quest_id'], cleaned)
 
     # Best-effort: the edit is saved either way. An admin told the save failed
     # would press it again and edit twice, which is worse than a stale copy.

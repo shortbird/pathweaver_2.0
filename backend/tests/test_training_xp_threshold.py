@@ -426,10 +426,18 @@ def test_editing_rewrites_the_quest():
     assert update['big_idea'] == 'Updated'
 
 
-def test_editing_replaces_the_task_list():
-    """Replaced wholesale rather than diffed — a short authored list."""
+def test_editing_saves_the_task_list():
+    """Paired against what is stored, not replaced wholesale.
+
+    It WAS replaced wholesale, and that changed every task id on every save --
+    which NULLed each enrolled student's source_template_task_id and would now
+    also cascade away any resources attached to those tasks. Fixing a typo in a
+    description could silently delete the class's handouts. See
+    sis_quest_authoring.replace_template_tasks.
+    """
     _, status, log = _edit({'title': 'T', 'tasks': [{'title': 'New task', 'xp_value': 50}]})
-    assert ('quest_template_tasks', 'delete', None) in log
+    assert status == 200
+    assert ('quest_template_tasks', 'delete', None) not in log
     inserted = next(p for n, op, p in log if n == 'quest_template_tasks' and op == 'insert')
     assert [t['title'] for t in inserted] == ['New task']
 

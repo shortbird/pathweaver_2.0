@@ -1128,6 +1128,7 @@ def register_sis_routes(app):
     from routes.sis.student_records import bp as student_records_bp
     from routes.sis.community import bp as community_bp
     from routes.sis.messaging import bp as messaging_bp
+    from routes.sis.quest_resources import bp as quest_resources_bp
 
     for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
@@ -1145,6 +1146,7 @@ def register_sis_routes(app):
         (schedule_sync_bp, 'classes'),
         (coordinator_bp, 'sis'),
         (messaging_bp, 'messaging'),
+        (quest_resources_bp, 'quests'),
         (submissions_bp, 'submissions'),
         (class_materials_bp, 'classes'),
         (class_quests_bp, 'classes'),
@@ -1213,3 +1215,4 @@ def register_sis_routes(app):
     app.register_blueprint(student_records_bp)
     app.register_blueprint(community_bp)
     app.register_blueprint(messaging_bp)
+    app.register_blueprint(quest_resources_bp)

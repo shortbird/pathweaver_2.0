@@ -212,7 +212,17 @@ BASELINES = {
     #     exact failure the service was extracted to prevent.
     # The genuinely new table, credit_ai_reviews, DID get a repository
     # (repositories/credit_ai_review_repository.py) and accounts for none of this.
-    'services': 1841,
+    # 2026-09-10: 1841 -> 1844. Three permission reads that answer a question
+    # no repository owns:
+    #   - quest_resource_service.can_edit_quest reads class_quests to ask "does
+    #     this teacher moderate a class this quest is attached to". The data
+    #     access for quest_resources itself went into
+    #     repositories/quest_resource_repository.py, which is why this is +1 and
+    #     not +14.
+    #   - sis_messaging_service reads org_classes and class_meetings to build
+    #     the "teachers of this class" and "teaching on Tuesday" presets. Both
+    #     are org-wide lists behind fetch_all_rows, assembled for a picker.
+    'services': 1844,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -240,7 +250,11 @@ BASELINES = {
     # against credit_ai_reviews: the queue reads, the two conditional writes that
     # make the claim work, and the paged read behind the dashboard's AI filter.
     # All new work, all in the layer that is allowed to have it.
-    'repositories': 464,
+    # 2026-09-10: 464 -> 471. repositories/quest_resource_repository.py, the
+    # data access for the new quest_resources table. This layer is where a
+    # .table() call BELONGS -- the number going up here is the ratchet working,
+    # not being worked around.
+    'repositories': 471,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -302,7 +316,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2342 + 1841
+UPPER_TOTAL_BASELINE = 2345 + 1841
 
 
 def test_the_upper_layers_do_not_grow_in_total():

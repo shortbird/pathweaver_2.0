@@ -144,7 +144,7 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             def _fetch_user_tasks():
                 return supabase.table('user_quest_tasks')\
-                    .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id')\
+                    .select('id, title, description, success_criteria, pillar, xp_value, diploma_subjects, order_index, approval_status, user_quest_id, is_required, source_task_id, source_moment_id, source_template_task_id')\
                     .eq('user_quest_id', enrollment_to_use['id'])\
                     .eq('approval_status', 'approved')\
                     .order('order_index')\
@@ -251,6 +251,33 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['user_enrollment'] = None
             quest_data['completed_enrollment'] = None
             quest_data['progress'] = None
+
+        # Resources attached to the quest and to its individual tasks. Before
+        # this, a quest had one `material_link` and a task had nothing, so a
+        # teacher with a worksheet for step 3 and a video for step 5 pasted both
+        # into a description (iCreate, 2026-09-10).
+        #
+        # A student's task joins to the template it was copied from
+        # (source_template_task_id), which is why the training editor had to
+        # stop churning those ids on every save first.
+        #
+        # resolve_student_scope above already pointed this whole read at the
+        # child for a guardian, so a parent sees the same handouts for free.
+        # Best-effort: a quest that loses its attachments still loads.
+        try:
+            from services import quest_resource_service
+            attached = quest_resource_service.list_for_quest(quest_id, admin=supabase)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"[QUEST DETAIL] resources unavailable for {quest_id}: {e}")
+            attached = {'quest': [], 'by_task': {}}
+        quest_data['resources'] = attached['quest']
+        by_task = attached['by_task']
+        for task in (quest_data.get('quest_tasks') or []):
+            task['resources'] = by_task.get(task.get('source_template_task_id')) or []
+        # The template list is what somebody not yet enrolled reads, and it is
+        # keyed by the template task's OWN id.
+        for tmpl in all_template_tasks:
+            tmpl['resources'] = by_task.get(tmpl.get('id')) or []
 
         # Add template tasks for users who can enroll (not actively enrolled)
         # This allows frontend to determine whether to show "Choose Your Path" or template tasks
