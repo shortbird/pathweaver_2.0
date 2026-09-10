@@ -55,8 +55,16 @@ class TestTheFeedSurvivesAMissingUsersRow:
 
     def test_postgrest_single_really_does_raise_on_zero_rows(self):
         """Guards the premise. If this ever stops raising, the fix above is
-        merely tidy rather than load-bearing, and this file should say so."""
-        with pytest.raises(Exception):
+        merely tidy rather than load-bearing, and this file should say so.
+
+        Named exception rather than bare Exception: ruff's B017 bans the blind
+        form in CI, and the specific type is the stronger assertion anyway --
+        the premise is that PostgREST raises APIError, not that something
+        somewhere goes wrong.
+        """
+        from postgrest.exceptions import APIError
+
+        with pytest.raises(APIError):
             _Zero().execute()
 
 

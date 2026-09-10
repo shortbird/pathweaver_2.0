@@ -14,9 +14,7 @@ The commit comparison is what keeps this from hiding real bugs: a 404 on the
 SAME commit the backend is serving is a routing bug and still fails the run.
 """
 
-import sys
-import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
