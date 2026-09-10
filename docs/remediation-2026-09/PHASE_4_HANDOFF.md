@@ -338,8 +338,16 @@ would cost.
 `admin_advisor_access_completions` on `quest_task_completions` is:
 
 ```sql
-FOR ALL USING (is_superadmin(auth.uid()) OR is_advisor_user(auth.uid()))
+FOR ALL USING (private.is_superadmin((SELECT auth.uid()))
+            OR private.is_advisor_user((SELECT auth.uid())))
 ```
+
+(Corrected 2026-09-10 against production. This document first quoted the
+`public.*` helpers, which is what the baseline file shows; `20260815060000`
+later moved twelve policies onto `private.*` copies with identical bodies, and
+this is one of them. The behaviour described is unchanged -- but read policies
+off `pg_policies`, not off the baseline, because the baseline is not the last
+word on any object a later migration touched.)
 
 `is_advisor_user` resolves an effective role (`advisor`, `superadmin` or
 `org_admin`) and never looks at an organization. So **a teacher at Southvale can
@@ -370,6 +378,31 @@ gets an empty list and no explanation.
 `test_the_xp_ledger_is_closed_to_the_data_api` now documents it and asserts all
 three views of it. No change needed unless a Data API surface ever wants XP.
 
+### 3. The FERPA public notice has never rendered anywhere
+
+**Understated when first written. Corrected 2026-09-10.** The `isPublicRoute`
+gap below is real, but it is the second of two reasons the banner is invisible,
+and the smaller one. The first: `PublicNoticeBanner` is gated on
+`diploma?.public_consent_info?.opted_in`, and **`public_consent_info` does not
+exist anywhere in `backend/`** -- zero occurrences. `get_diploma_data()` returns
+nine keys and that is not one of them, so the condition has been `undefined` on
+every route since the component was written. `get_visibility_status()` computes
+something similar for the owner view, under different key names, and never
+reaches this payload.
+
+So the banner is dead code on both public routes, and widening `isPublicRoute`
+alone would change nothing. Making it work needs the backend to emit
+`public_consent_info` (the data is there: `diplomas.public_consent_given`,
+`public_consent_given_at` and `public_consent_given_by`) as well as the
+frontend one-liner.
+
+Scale, measured against production on 2026-09-10: 1,154 diplomas, of which **3
+are public**. All three carry a consent date and two were consented by an
+approver rather than the student. So this affects three live pages -- and those
+three are precisely the ones where a disclosure notice is the point.
+
+The original note follows.
+
 ### 3. The FERPA public notice never renders on `/portfolio/:slug`
 
 `PublicNoticeBanner` is gated on `isPublicRoute`, which is
@@ -384,6 +417,24 @@ than writing a test that blesses the current behaviour. The fix is one line
 (widen `isPublicRoute` to cover `/portfolio/`), but it changes what a public page
 displays, which is out of scope for a structural phase and is a product/legal
 call, not mine. **NEEDS TANNER step 3.**
+
+### 4. `superadmin_can_manage_organizations` matches nobody — and it is not alone
+
+**Understated when first written. Corrected 2026-09-10, and fixed in
+`52136433`.** The dead predicate is not one policy, it is **eleven**, plus this
+one. `is_admin()` is called by policies on `account_deletion_log`, `diplomas`
+(insert and update), `direct_messages`, `message_conversations`,
+`parental_consent_log`, `student_access_logs`, `ai_generated_quests`,
+`ai_generation_jobs`, `ai_seeds` and `site_settings`. Seven use it as a dead OR
+arm; four as the sole clause, leaving those tables deny-all.
+
+That mattered for the fix. Making the predicate live -- the obvious reading of
+"fix the dead policy" -- would have granted platform staff RLS-level read of
+private correspondence and COPPA consent records. The dead clauses were deleted
+instead, and five tests now hold that decision in place. See the migration
+header for the per-shape argument that no access changed.
+
+The original note follows.
 
 ### 4. `superadmin_can_manage_organizations` matches nobody
 
@@ -401,10 +452,12 @@ which is what OPS-07 removed from the application code. Worth deleting in a
 migration phase; not this one, since rule 7 puts `supabase/migrations/` off
 limits here.
 
-Two others in the same family, noted without action: `is_admin()` and
-`is_current_user_admin()` both test `role = 'admin'` and are therefore also
-permanently false. `diplomas` grants INSERT and UPDATE via `is_admin()` and has
-no SELECT policy at all.
+Two others in the same family: `is_admin()` and `is_current_user_admin()` both
+test `role = 'admin'` and are therefore also permanently false. `diplomas`
+grants INSERT and UPDATE via `is_admin()` and has no SELECT policy at all.
+**Both functions are dropped in `52136433`** -- neither had any remaining
+caller once the eleven policies were cleaned (no policy, no function body, no
+view, no `rpc()` in either app, all checked against production).
 
 ---
 
