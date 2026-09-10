@@ -80,6 +80,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   // Either completionId or learningEventId must be present for social features
   const hasSocialTarget = completionId || learningEventId;
 
+  // Whose work this card shows. The student themselves is the author; a
+  // parent, observer or teacher looking at it is not.
+  const isAuthor = Boolean(user?.id && item.student?.id && user.id === item.student.id);
+
   useEffect(() => {
     if (commentsExpanded && comments.length === 0 && hasSocialTarget) {
       loadComments();
@@ -102,7 +106,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   };
 
   const handleShowViewers = async () => {
-    if (!hasSocialTarget) return;
+    if (!hasSocialTarget || !isAuthor) return;
     if (showViewers) {
       setShowViewers(false);
       return;
@@ -552,13 +556,21 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
 
       {/* 6. Views/comment/edit buttons */}
       <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex items-center gap-4">
-        <button
-          onClick={handleShowViewers}
-          className={`flex items-center gap-1 p-2 transition-colors ${showViewers ? 'text-optio-purple' : 'text-gray-700 hover:text-gray-500'}`}
-        >
-          <EyeIcon className="w-6 h-6" />
-          {viewsCount > 0 && <span className="text-sm">{viewsCount}</span>}
-        </button>
+        {/* "Viewed by" is the AUTHOR's list, and the backend enforces that --
+            it is who has been looking at this student's work. Everyone else
+            got the eye icon anyway and a 403 for pressing it (Sentry
+            OPTIO-WEB-1C: a parent on her daughter's credits page). Hide the
+            affordance rather than answer the click with a refusal. */}
+        {isAuthor && (
+          <button
+            onClick={handleShowViewers}
+            aria-label="See who viewed this"
+            className={`flex items-center gap-1 p-2 transition-colors ${showViewers ? 'text-optio-purple' : 'text-gray-700 hover:text-gray-500'}`}
+          >
+            <EyeIcon className="w-6 h-6" />
+            {viewsCount > 0 && <span className="text-sm">{viewsCount}</span>}
+          </button>
+        )}
         {/* Comments require a real social target (completion or learning
             moment). Draft/helper evidence with no completion can't host
             comments, so — like the share button below — hide the affordance

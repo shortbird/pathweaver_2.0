@@ -10,7 +10,7 @@ Provides class management including:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from services.base_service import BaseService, ValidationError, NotFoundError
 from repositories.class_repository import ClassRepository
 from utils.logger import get_logger
@@ -556,8 +556,109 @@ class ClassService(BaseService):
             classes.append(cls)
 
         self._attach_schedule(classes)
+        self._attach_quest_status(classes, student_id)
         self._strip_staff_only(classes)
         return classes
+
+    def _attach_quest_status(
+        self, classes: List[Dict[str, Any]], student_id: str
+    ) -> None:
+        """Say how much of each class this student still has to turn in.
+
+        Gryffin student check-ins, 2026-09-10 (Dallin Bird): the students who
+        work from the class list "wanted a notice on each class chip for quests
+        that weren't done yet". The card carried a total quest count and an XP
+        bar, neither of which answers "is there anything waiting for me here" —
+        XP keeps climbing while assignments go unturned, so a full-looking bar
+        told a student nothing was outstanding when something was.
+
+        Done-ness is `utils.quest_completion.is_quest_done`, the rule the
+        teacher's progress grid and the parent digest already use. A chip that
+        counted differently from the grid would put a student and their teacher
+        on opposite sides of an argument about what is late.
+
+        Adds to each class:
+          assigned_quest_count  published assignments (unpublished work is not
+                                the student's problem yet)
+          unfinished_quest_count / overdue_quest_count
+          next_due_date         the soonest due date still outstanding
+
+        Best-effort: the class list is the thing the student asked for, and a
+        missing count must not cost them the page.
+        """
+        if not classes:
+            return
+        try:
+            from utils.class_assignments import assigned_quest_ids_by_class
+            from utils.quest_completion import is_quest_done, task_progress
+
+            admin = self.class_repo.admin_client
+            class_ids = [c['id'] for c in classes]
+            by_class = assigned_quest_ids_by_class(admin, class_ids)
+
+            all_quest_ids = sorted({q for ids in by_class.values() for q in ids})
+            enrollments = []
+            for start in range(0, len(all_quest_ids), 100):
+                enrollments.extend((admin.table('user_quests')
+                                    .select('id, quest_id, completed_at')
+                                    .eq('user_id', student_id)
+                                    .in_('quest_id', all_quest_ids[start:start + 100])
+                                    .execute()).data or [])
+
+            # `user_quests` has no unique index on (user_id, quest_id) and
+            # duplicate enrollments are real in production. Any finished one
+            # means the work is turned in, so the quest counts as done rather
+            # than as still outstanding on the strength of a stale twin.
+            progress = task_progress(admin, [e['id'] for e in enrollments])
+            done_quest_ids = set()
+            for e in enrollments:
+                done, total = progress.get(e['id'], (0, 0))
+                if is_quest_done(e, done, total):
+                    done_quest_ids.add(e['quest_id'])
+
+            due_dates = self.class_repo.get_due_dates_for_classes(class_ids)
+            now = datetime.now(timezone.utc)
+
+            for cls in classes:
+                assigned = by_class.get(cls['id'], set())
+                outstanding = [q for q in assigned if q not in done_quest_ids]
+                # Sorted by instant, not by text. Every value here comes from
+                # one PostgREST read so the strings happen to sort correctly
+                # today, but that is a property of the serializer, not a rule.
+                dates = [due_dates.get((cls['id'], q)) for q in outstanding]
+                dates = sorted((d for d in dates if d), key=self._as_instant)
+
+                cls['assigned_quest_count'] = len(assigned)
+                cls['unfinished_quest_count'] = len(outstanding)
+                cls['overdue_quest_count'] = sum(1 for d in dates if self._is_past(d, now))
+                cls['next_due_date'] = dates[0] if dates else None
+        except Exception as e:  # noqa: BLE001 — a badge must not cost the class list
+            logger.warning(f"Could not attach class quest status for {student_id}: {e}")
+
+    @staticmethod
+    def _as_instant(due_date: Any) -> datetime:
+        """A due date as a comparable UTC instant.
+
+        Parsed rather than compared as text. Postgres hands back
+        '2026-09-10 05:59:59+00' and Python writes '2026-09-10T05:59:59+00:00';
+        comparing those two as strings disagrees with the clock. An
+        unparseable value sorts last rather than raising — a malformed date on
+        one assignment must not cost the student the whole class list.
+        """
+        try:
+            parsed = datetime.fromisoformat(str(due_date).replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            return datetime.max.replace(tzinfo=timezone.utc)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+
+    @classmethod
+    def _is_past(cls, due_date: Any, now: datetime) -> bool:
+        """Is this due date behind us?"""
+        if not due_date:
+            return False
+        return cls._as_instant(due_date) < now
 
     @staticmethod
     def _strip_staff_only(classes: List[Dict[str, Any]]) -> None:

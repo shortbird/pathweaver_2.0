@@ -15,6 +15,7 @@ import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { dueStatus, dueChipClasses } from '../../utils/dueDate'
 
 /**
  * StudentClassesView - Shows enrolled classes for students
@@ -82,15 +83,31 @@ export default function StudentClassesView({ basePath = null } = {}) {
     )
   }
 
-  // If classId in URL but not found in enrolled classes (maybe still loading or invalid)
+  // A classId in the URL that is not in the student's list. The list is every
+  // ACTIVE enrollment in an ACTIVE class (services/class_service.get_student_classes),
+  // and the four endpoints the detail view calls each apply the same rule, so
+  // fetching anyway just collected four 403s and rendered "Class not found"
+  // at the end of them (Sentry OPTIO-WEB-1F/-1G/-1H/-1J: a Gryffin student
+  // opening a notification for a class she had been withdrawn from, archived
+  // back in February).
+  //
+  // Say so instead. The link is usually an old notification or a bookmark, and
+  // "you are no longer in this class" is the answer -- not an error.
   if (classId && !selectedClass && !loading) {
     return (
-      <StudentClassDetail
-        classId={classId}
-        orgId={user?.organization_id}
-        listPath={listPath}
-        onBack={() => navigate(listPath)}
-      />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+        <AcademicCapIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Class not available</h3>
+        <p className="text-gray-500">
+          This class has ended, or you are no longer enrolled in it.
+        </p>
+        <button
+          onClick={() => navigate(listPath)}
+          className="mt-4 text-optio-purple hover:underline"
+        >
+          Back to my classes
+        </button>
+      </div>
     )
   }
 
@@ -130,6 +147,15 @@ function StudentClassCard({ classData, onClick }) {
   const progress = classData.progress || {}
   const isComplete = progress.is_complete
 
+  // What is still waiting in this class. Gryffin students who work from this
+  // list asked for it (Dallin Bird, 2026-09-10): the card showed a quest count
+  // and an XP bar, and neither says whether anything is outstanding. XP keeps
+  // rising while assignments go unturned, so a nearly-full bar read as "all
+  // caught up" when it was not.
+  const unfinished = classData.unfinished_quest_count || 0
+  const overdue = classData.overdue_quest_count || 0
+  const nextDue = dueStatus(classData.next_due_date)
+
   return (
     <button
       onClick={onClick}
@@ -144,6 +170,35 @@ function StudentClassCard({ classData, onClick }) {
         </div>
         {isComplete && (
           <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0 ml-2" />
+        )}
+      </div>
+
+      {/* Outstanding work. Overdue is called out separately because it is the
+          only part of this a student has to act on today. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {overdue > 0 && (
+          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">
+            {overdue} overdue
+          </span>
+        )}
+        {unfinished > 0 ? (
+          <>
+            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-optio-purple/10 text-optio-purple">
+              {unfinished} quest{unfinished === 1 ? '' : 's'} to do
+            </span>
+            {nextDue && overdue === 0 && (
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${dueChipClasses(nextDue)}`}>
+                Next {nextDue.label.toLowerCase()}
+              </span>
+            )}
+          </>
+        ) : (
+          (classData.assigned_quest_count || 0) > 0 && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-green-50 text-green-700">
+              <CheckCircleIcon className="w-3.5 h-3.5" />
+              All caught up
+            </span>
+          )
         )}
       </div>
 
@@ -321,9 +376,11 @@ function StudentClassDetail({ classData: initialClassData, classId: propClassId,
           <p className="text-sm text-gray-500 truncate">{quest.description}</p>
         )}
       </div>
-      {cq.due_date && !completed && (
-        <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded whitespace-nowrap flex-shrink-0">
-          Due {new Date(cq.due_date).toLocaleDateString()}
+      {!completed && dueStatus(cq.due_date) && (
+        <span
+          className={`px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap flex-shrink-0 ${dueChipClasses(dueStatus(cq.due_date))}`}
+        >
+          {dueStatus(cq.due_date).label}
         </span>
       )}
       <span className={`text-sm font-medium flex-shrink-0 ${completed ? 'text-green-600' : 'text-optio-purple'}`}>

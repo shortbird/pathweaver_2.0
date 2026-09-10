@@ -18,7 +18,7 @@ from repositories.base_repository import NotFoundError, PermissionError
 from repositories.dependent_repository import DependentRepository
 from routes.auth.token_delivery import acting_as_body_tokens, refresh_body_tokens
 from middleware.error_handler import AuthorizationError
-from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.decorators import authorizing_user_id, require_auth, validate_uuid_param
 from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from utils.session_manager import session_manager
@@ -44,12 +44,28 @@ def register(bp):
             403: User is not a parent or doesn't own this dependent
             404: Dependent not found
         """
+        # WHO IS ASKING is not the id @require_auth hands us. That one is the
+        # EFFECTIVE user, and inside an acting-as session the effective user is
+        # the CHILD -- so a parent already acting as their dependent arrives
+        # here as the dependent. This endpoint is re-entered on every page
+        # reload (services/actingAsRestore re-mints the token), so the second
+        # call asked "is this child a parent?", got no, and answered 403.
+        # The frontend reads that as "no longer authorized", drops the session,
+        # and the parent lands back in their own account -- every reload, for
+        # every family using act-as (Sentry OPTIO-WEB-3: 80 reports, 45 people).
+        #
+        # authorizing_user_id() is what the relationship gate above already
+        # used, which is why the gate PASSED while the body below failed: it
+        # resolves to the parent behind an acting-as session. Minting from
+        # `user_id` would have been worse than the 403 if it had succeeded --
+        # a token naming the child as its own guardian.
+        parent_id = authorizing_user_id()
         try:
             # Deferred: routes.dependents imports this module to call
             # register(), so importing at module scope would close the cycle.
             # It also keeps the patch target where existing tests point.
             from routes.dependents import verify_parent_role
-            verify_parent_role(user_id)
+            verify_parent_role(parent_id)
 
             # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
             supabase = get_supabase_admin_client()
@@ -57,14 +73,14 @@ def register(bp):
 
             # Verify that this dependent belongs to this parent
             # get_dependent() will raise NotFoundError or PermissionError if not valid
-            dependent = dependent_repo.get_dependent(dependent_id, user_id)
+            dependent = dependent_repo.get_dependent(dependent_id, parent_id)
 
             # Generate acting-as token (+ refresh token so native sessions survive the
             # 401-refresh cycle without reverting to the parent's own identity).
-            acting_as_token = session_manager.generate_acting_as_token(user_id, dependent_id)
-            acting_as_refresh_token = session_manager.generate_acting_as_refresh_token(user_id, dependent_id)
+            acting_as_token = session_manager.generate_acting_as_token(parent_id, dependent_id)
+            acting_as_refresh_token = session_manager.generate_acting_as_refresh_token(parent_id, dependent_id)
 
-            logger.info(f"Parent {user_id} generated acting-as token for dependent {dependent_id}")
+            logger.info(f"Parent {parent_id} generated acting-as token for dependent {dependent_id}")
 
             # FU-05: the acting-as session rides an httpOnly cookie now, the way
             # masquerade has since SEC-03. Body tokens go only to clients that
@@ -81,10 +97,10 @@ def register(bp):
             return response
 
         except AuthorizationError as e:
-            logger.warning(f"Authorization error for user {user_id}: {str(e)}")
+            logger.warning(f"Authorization error for user {parent_id}: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 403
         except (NotFoundError, PermissionError) as e:
-            logger.warning(f"Error accessing dependent {dependent_id} for user {user_id}: {str(e)}")
+            logger.warning(f"Error accessing dependent {dependent_id} for user {parent_id}: {str(e)}")
             return jsonify({'success': False, 'error': str(e)}), 403
         except Exception as e:
             logger.error(f"Error generating acting-as token for dependent {dependent_id}: {str(e)}")

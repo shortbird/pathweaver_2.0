@@ -125,10 +125,27 @@ const ActiveQuestCard = ({
   const rhythmState = engagement?.rhythm?.state || 'ready_to_begin';
   const config = rhythmConfig[rhythmState] || rhythmConfig.finding_rhythm;
 
-  // For dependents: activate act-as and redirect to standard quest page
-  // For linked students (13+): link to parent quest view (evidence upload only)
-  // For own quests (no studentId): link to standard quest page
-  const questLink = studentId && !isDependent
+  // WHERE the card points depends on who is looking, not on whether a
+  // studentId was passed -- every caller passes one, including the student's
+  // own overview page, which passes the viewer's own id. This is the same
+  // mistake the engagement fetch above was fixed for (OPTIO-WEB-6); the link
+  // kept it a while longer.
+  //
+  // /parent/quest/:studentId/:questId is gated `allow=('parent','observer')`,
+  // so reading `!!studentId` as "parent view" sent a STUDENT to it for their
+  // own quest and a TEACHER to it for their student's, and both got a 403 page
+  // where a quest should be (Sentry OPTIO-WEB-1B: an org admin at Arete, from
+  // her own student overview).
+  //
+  // For dependents: activate act-as and redirect to the standard quest page.
+  // For a guardian's linked student (13+): the parent quest view.
+  // For the student themselves: their own quest page.
+  // For staff: no link at all. There is no teacher-facing per-quest page to
+  // send them to, and a card that navigates to a refusal is worse than a card
+  // that does not navigate.
+  const readsParentQuestView = viewerMode === 'parent' || viewerMode === 'observer';
+  const isStaffViewer = viewerMode === 'advisor';
+  const questLink = readsParentQuestView && studentId && !isDependent
     ? `/parent/quest/${studentId}/${questId}`
     : `/quests/${questId}`;
 
@@ -171,6 +188,17 @@ const ActiveQuestCard = ({
       >
         {cardContent}
       </button>
+    );
+  }
+
+  // Staff looking at somebody else's overview: show the card, don't pretend it
+  // opens. See the questLink note above -- every destination we have is either
+  // the teacher's own quest or a page that refuses them.
+  if (isStaffViewer && studentId) {
+    return (
+      <div className="block p-4 bg-white border border-gray-200 rounded-xl">
+        {cardContent}
+      </div>
     );
   }
 

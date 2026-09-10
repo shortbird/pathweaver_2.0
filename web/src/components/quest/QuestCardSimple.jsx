@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuestEngagement, useArchiveEnrollment } from '../../hooks/api/useQuests';
 import ModalOverlay from '../ui/ModalOverlay';
+import { dueStatus, dueChipOverlayClasses } from '../../utils/dueDate';
 import {
   BoltIcon,
   ArrowTrendingUpIcon,
@@ -178,6 +179,13 @@ const QuestCardSimple = ({ quest }) => {
   const nextTask = quest.quest_tasks?.find(task => !task.is_completed);
   const nextTaskTitle = nextTask?.title || 'Continue your quest';
 
+  // Schoolwork carries a deadline; a quest the student picked does not.
+  // Gryffin students who work from the home page rather than the class page
+  // asked for the date here (Dallin Bird, 2026-09-10) — until now the only way
+  // to see it was to open the class.
+  const assignment = quest.class_assignment || {};
+  const due = dueStatus(assignment.due_date);
+
   return (
     <div
       className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
@@ -259,6 +267,20 @@ const QuestCardSimple = ({ quest }) => {
 
             {/* Title Overlay */}
             <div className="absolute inset-x-0 bottom-0 p-4">
+              {due && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span
+                    className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${dueChipOverlayClasses(due)}`}
+                  >
+                    {due.label}
+                  </span>
+                  {assignment.class_name && (
+                    <span className="text-[11px] text-white/90 font-medium truncate drop-shadow">
+                      {assignment.class_name}
+                    </span>
+                  )}
+                </div>
+              )}
               <h3 className="text-white text-base sm:text-lg font-bold leading-tight drop-shadow-lg line-clamp-2">
                 {quest.title}
               </h3>

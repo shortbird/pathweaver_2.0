@@ -34,3 +34,43 @@ def is_quest_done(user_quest, done: int, total: int) -> bool:
         total: how many tasks they have for it.
     """
     return bool(user_quest and user_quest.get('completed_at')) or (total > 0 and done >= total)
+
+
+def task_progress(client, user_quest_ids):
+    """{user_quest_id: (done, total)} for these enrollments.
+
+    Counts every task on the enrollment, not just the ones flagged required.
+    That is the rule `is_quest_done` applies, and the two have to agree: a
+    quest auto-ended on the required-only reading would drop off the student's
+    home page while the teacher's grid still showed it outstanding.
+
+    Bounded by the caller's own enrollments. For a whole-org sweep, page the
+    task read with utils.db_fetch.fetch_all_rows instead.
+    """
+    if not user_quest_ids:
+        return {}
+
+    ids = list(user_quest_ids)
+    tasks = []
+    for start in range(0, len(ids), 100):
+        tasks.extend((client.table('user_quest_tasks')
+                      .select('id, user_quest_id')
+                      .in_('user_quest_id', ids[start:start + 100])
+                      .execute()).data or [])
+
+    task_ids = [t['id'] for t in tasks]
+    done_ids = set()
+    for start in range(0, len(task_ids), 200):  # keep the IN list sane
+        rows = (client.table('quest_task_completions')
+                .select('task_id')
+                .in_('task_id', task_ids[start:start + 200])
+                .execute()).data or []
+        done_ids.update(r['task_id'] for r in rows)
+
+    progress = {uq_id: [0, 0] for uq_id in ids}
+    for t in tasks:
+        bucket = progress.setdefault(t['user_quest_id'], [0, 0])
+        bucket[1] += 1
+        if t['id'] in done_ids:
+            bucket[0] += 1
+    return {uq_id: (done, total) for uq_id, (done, total) in progress.items()}
