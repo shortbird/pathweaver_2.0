@@ -1,0 +1,55 @@
+{
+  "$comment": [
+    "Project hooks. Checked in, so every agent working in this repository gets",
+    "them. What each one is for is documented in the script it runs; the short",
+    "version is that these three replace rules CLAUDE.md used to state as prose.",
+    "",
+    "guard_bash.py    refuses destructive git, broad staging, emoji in a commit",
+    "                 message, and stops a push to main for confirmation.",
+    "fast_gate.py     lints the single file that just changed (ruff, pyflakes,",
+    "                 eslint against HEAD, mobile tsc). Roughly 0.1-4 seconds.",
+    "related_tests.py runs the tests belonging to the files the session touched,",
+    "                 on Stop. The full suites are ~2 minutes each and belong",
+    "                 before a commit, not after every edit.",
+    "",
+    "No timeout is declared on purpose: every subprocess these scripts run",
+    "carries its own timeout, so the bound does not depend on how the harness",
+    "interprets this field.",
+    "",
+    "All three fail open. A hook that breaks must never stop somebody working."
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_bash.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/fast_gate.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/related_tests.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

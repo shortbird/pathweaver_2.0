@@ -23,7 +23,7 @@ absence reads as a decision rather than an oversight:
                      render.yaml still knows optio-marketing exists -- IS
                      guarded below.
   SEC-06             The code is deleted, so there is nothing to assert about
-                     it. Two external leftovers are in OPEN_FINDINGS.md.
+                     it. Two external leftovers are in REGISTER.md.
   OPS-04             The backup job's correctness lives in GCS and rclone. Its
                      three safety rails are in the workflow file and ARE
                      guarded below; whether last Sunday's run actually copied
@@ -275,9 +275,17 @@ class TestDocsDoNotRotBack:
               'document instead of asking.')
 
     def test_doc03_the_link_scan_found_links(self):
+        """A floor, so the broken-link test above cannot pass by finding none.
+
+        Lowered from 20 to 12 on 2026-09-10, when CLAUDE.md went from 656 lines
+        to about 210 and its link count fell from 33 to 20. The number is not a
+        target -- fewer links in a shorter file is the point of the exercise --
+        it is only here to catch the regex breaking. 12 is comfortably below the
+        20 the trimmed file carries and comfortably above zero.
+        """
         text = (REPO_ROOT / 'CLAUDE.md').read_text(encoding='utf-8')
         links = [m for m in re.finditer(r'\[[^\]]+\]\(([^)]+)\)', text)]
-        assert len(links) > 20, (
+        assert len(links) > 12, (
             f'Only {len(links)} markdown links parsed out of CLAUDE.md -- the '
             'regex is wrong, not the file suddenly bare.')
 

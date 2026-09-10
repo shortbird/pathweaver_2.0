@@ -17,8 +17,9 @@ Sources folded in:
   Its IDs are cited by ~20 code comments, so its ID map is preserved in
   [§3](#3-the-2026-08-01-audit-ids-cited-by-code-comments) below.
 
-Open items live in [OPEN_FINDINGS.md](OPEN_FINDINGS.md). Both files were verified
-against the code on 2026-09-08; the verification method and its limits are in
+Open items live in [REGISTER.md](REGISTER.md), the single ongoing register.
+Both files were verified against the code on 2026-09-08, and the guard column
+was re-checked on 2026-09-10; the verification method and its limits are in
 [§4](#4-how-this-was-verified-and-what-that-does-not-prove).
 
 ---
@@ -40,10 +41,10 @@ undone. These are the findings that cannot quietly regress.
 | SEC-11 | 242 handlers returned raw exception text in 5xx bodies | 240 now `raise` and let `middleware/error_handler` answer (fixed text in prod, detail in dev, Sentry grouping by stack); 2 AI health checks keep 503 with fixed text | `tests/unit/test_no_exception_text_in_5xx.py`. 4xx deliberately not banned — the status code is the line |
 | SEC-12 | OAuth provider minted full-privilege session tokens, scope enforced nowhere | `Config.OAUTH_PROVIDER_ENABLED`, default false; the blueprint is **not registered** unless set. Absent beats broken — the tables never existed, so it was returning 500s | `tests/unit/test_oauth_provider_disabled.py` — default off, no rule registered, 404 not 500, Google sign-in unaffected |
 | SEC-13 | `test_admin_client_justified` was deselected from CI and matched only assignment lines | Rewritten on AST (1,133 real call sites today, not the ~195 estimated); 84 missing justifications written per module; deselect removed from `tests-backend.yml` | `tests/unit/test_admin_client_justified.py`, plus `test_the_scan_still_finds_call_sites` — a floor of 500 catches "the scan broke" |
-| SEC-14 | Prod `JWT_SECRET_KEY` did not match the Supabase JWT secret, so **every** `get_user_client()` query 401'd — no RLS at all | User rotated the key (SEC-14 runbook). Prerequisites shipped first: `utils/jwt_keys.decode_app_jwt` gives three app-signed token types a previous-key fallback, and `POSTGREST_ROLE = 'authenticated'` is now a claim | Guard test bans new hand-rolled `jwt.decode` of app tokens. **Dated action — see OPEN_FINDINGS.md** |
+| SEC-14 | Prod `JWT_SECRET_KEY` did not match the Supabase JWT secret, so **every** `get_user_client()` query 401'd — no RLS at all | User rotated the key (SEC-14 runbook). Prerequisites shipped first: `utils/jwt_keys.decode_app_jwt` gives three app-signed token types a previous-key fallback, and `POSTGREST_ROLE = 'authenticated'` is now a claim | Guard test bans new hand-rolled `jwt.decode` of app tokens. **Dated action — see REGISTER.md** |
 | SEC-15 | FERPA disclosure logging covered only ~5 route modules | `@require_relationship_to(..., discloses='...')` — the gate is the only place that knows *which relationship* let the caller in. Applied to 38 read routes | Tested non-behaviours: `self` never logged, denied callers never logged, opt-in only, logging failure never breaks the read |
 | SEC-16 | Org Stripe keys stored application-readable in plaintext | Fernet envelope with an `enc:v1:` prefix keyed on `Config.ORG_SECRETS_ENCRYPTION_KEY`. Unset key is a supported state; rows re-encrypt lazily on read | Failure modes tested: encrypted-row-no-key → `None`, wrong key → `None`, **malformed key → raise** (a typo must not read as "not configured") |
-| SEC-17 | 27 unbounded backend deps, no lockfile | Corrected first: those 27 are in `backend/requirements.txt`, which **nothing installs**. The 8 unbounded specs in the ROOT file (what Render and CI install) now carry upper bounds | `tests/unit/test_requirements_are_bounded.py`, with an empty allowlist. A real lock is still open — see OPEN_FINDINGS.md |
+| SEC-17 | 27 unbounded backend deps, no lockfile | Corrected first: those 27 are in `backend/requirements.txt`, which **nothing installs**. The 8 unbounded specs in the ROOT file (what Render and CI install) now carry upper bounds | `tests/unit/test_requirements_are_bounded.py`, with an empty allowlist. A real lock is still open — see REGISTER.md |
 | CI-01 | No linter or type-checker in CI | ruff (F/E9/B/S110/S112) and mypy both enforcing in `tests-backend.yml`. mypy had never worked: `mypy.ini`'s `exclude` regex closed at column 0, killing every per-module setting, and `services/` lacked `__init__.py` | Both steps gate PR and release. 296 modules exempted by name; the list only shrinks |
 | CI-02 | Layering bleed: ~4,663 direct `.table(` calls | Per-layer ratchet, not a migration | `tests/unit/test_direct_db_calls_do_not_grow.py`. Also asserts the combined `routes/`+`services/` total never grows, so a lateral move down a layer passes |
 | CI-03 | `no-console` and a `localStorage` token ban were configured and had **never run** (eslint absent, config extended a CRA preset in a Vite project) | Both rules enforced in vitest, which CI already gates. 34 console calls: 11 deleted, 21 → `logger.debug`, 2 allowlisted in the logger itself | `web/src/__tests__/lintRules.test.js`, with a floor assertion so the scan cannot pass by globbing nothing |
@@ -103,34 +104,41 @@ described as working, and only executing it disagreed.
 - **`public.quests.quest_type` defaults to a value its own CHECK rejects** — see
   §2 below. Found by the seed script inserting a quest without specifying it.
 
-## 2. Closed but unguarded
+## 2. Closed, and guarded later or not at all
 
-These are fixed, and **nothing fails the build if they are undone.** They are the
-ones that can quietly regress. Listed so a reviewer knows where to look by hand.
+These were fixed with nothing watching them. **Seven of them are guarded now** --
+`tests/unit/test_closed_findings_stay_closed.py`, added in Phase 3, is the
+automatable half of this list, and the Guard column below names the class that
+covers each. The rest genuinely cannot be asserted from a repository, and the
+column says what to look at instead.
 
-| ID | Finding | How it was fixed | Why there is no guard |
+Updated 2026-09-10. The rows that still read "never guarded" are the ones a
+reviewer has to check by hand; they are also listed in
+[RATCHETS.md](RATCHETS.md) §6 with the reason each is unguardable.
+
+| ID | Finding | How it was fixed | Guard, or why there is none |
 |---|---|---|---|
-| SEC-04 | `.env.example` shipped the production Supabase project ref | Replaced with `your-project-ref` placeholders in `backend/` and `web/` | Never guarded. A one-line test asserting no tracked `.env.example` names `vvfgxcykxjybtvpfzwyx` would close this cheaply. **Verified clean 2026-09-08.** |
-| SEC-06 | `daily_advisor_summary` was hard-routed to one personal inbox on a production cron | Superseded: the whole job was **deleted** 2026-09-07 on the user's instruction (the dispatcher had stopped sending it on 2026-08-05). The job, its 951-line service, the cron script, both trigger endpoints, the template and the env var all went | Nothing to guard — the code is gone. Two external leftovers are in OPEN_FINDINGS.md |
-| SEC-14b | Prod key rotation state | `FLASK_SECRET_KEY_OLD` set and confirmed by the user 2026-09-03 | A live env var cannot be asserted from the repo. **Dated action in OPEN_FINDINGS.md** |
-| SEC-16b | Prod encryption key | `ORG_SECRETS_ENCRYPTION_KEY` set 2026-09-05; rows re-encrypt lazily, so the table cannot confirm the key is live | Follow-up query in OPEN_FINDINGS.md |
-| DOC-01 | `REPOSITORY_MIGRATION_STATUS.md` claimed "✅ MIGRATION COMPLETE" at ~9% adherence | Rewritten with counts from the tree (267 route files, 32 touching a repository, 196 making direct calls); records that the debt is *fenced* by CI-02 | Prose. Nothing detects a doc going stale again |
-| DOC-02 | Integration-test status drift across **five** artifacts, all understating | Corrected against the CI run of 2026-09-02 (133 passed, enforcing). The most harmful was CLAUDE.md's "advisory and red on purpose" — an engineer would have dismissed a real failure. The dead advisory branch in `tests-integration.yml` was removed | Prose |
-| DOC-03 | `LOCAL_DEVELOPMENT.md` was linked twice and did not exist | Created, carrying what is only learned by hitting it (no reloader, the exact test env, Node 25 breaking v1 vitest, the CRLF trap). All CLAUDE.md links swept | Prose |
-| DOC-04 | CLAUDE.md self-contradicted on commit scope | The "stage and commit ALL outstanding changes" text is gone; Rule 12 stands alone | Prose. This one matters: the old text was actively dangerous with several agents in one tree |
-| DOC-05 | ~20 planning docs cluttered the repo root | 16 moved; root is down to four `.md` files, all of which CLAUDE.md links or is | Prose |
-| QB-01 | Dead `exceptions.py` (549 lines, a second parallel exception hierarchy) | Verified zero importers and no dynamic reference, then deleted | Deletion is self-guarding |
+| SEC-04 | `.env.example` shipped the production Supabase project ref | Replaced with `your-project-ref` placeholders in `backend/` and `web/` | **Guarded** since Phase 3: `TestSec04EnvExamplesNameNoRealProject`, which also asserts there are `.env.example` files to check |
+| SEC-06 | `daily_advisor_summary` was hard-routed to one personal inbox on a production cron | Superseded: the whole job was **deleted** 2026-09-07 on the user's instruction (the dispatcher had stopped sending it on 2026-08-05). The job, its 951-line service, the cron script, both trigger endpoints, the template and the env var all went | Nothing to guard — the code is gone. Two external leftovers are in REGISTER.md |
+| SEC-14b | Prod key rotation state | `FLASK_SECRET_KEY_OLD` set and confirmed by the user 2026-09-03 | A live env var cannot be asserted from the repo. **Dated action in REGISTER.md** |
+| SEC-16b | Prod encryption key | `ORG_SECRETS_ENCRYPTION_KEY` set 2026-09-05; rows re-encrypt lazily, so the table cannot confirm the key is live | Follow-up query in REGISTER.md |
+| DOC-01 | `REPOSITORY_MIGRATION_STATUS.md` claimed "✅ MIGRATION COMPLETE" at ~9% adherence | Rewritten with counts from the tree (267 route files, 32 touching a repository, 196 making direct calls); records that the debt is *fenced* by CI-02 | Guarded since Phase 3: `TestDocsDoNotRotBack::test_doc01_migration_status_does_not_claim_completion` |
+| DOC-02 | Integration-test status drift across **five** artifacts, all understating | Corrected against the CI run of 2026-09-02 (133 passed, enforcing). The most harmful was CLAUDE.md's "advisory and red on purpose" — an engineer would have dismissed a real failure. The dead advisory branch in `tests-integration.yml` was removed | Guarded since Phase 3: `TestDocsDoNotRotBack::test_doc02_nothing_calls_the_integration_tests_advisory` |
+| DOC-03 | `LOCAL_DEVELOPMENT.md` was linked twice and did not exist | Created, carrying what is only learned by hitting it (no reloader, the exact test env, Node 25 breaking v1 vitest, the CRLF trap). All CLAUDE.md links swept | Guarded since Phase 3: `TestDocsDoNotRotBack::test_doc03_every_link_in_claude_md_resolves` (plus a floor test that the scan found links) |
+| DOC-04 | CLAUDE.md self-contradicted on commit scope | The "stage and commit ALL outstanding changes" text is gone; Rule 12 stands alone | Guarded since Phase 3: `TestDocsDoNotRotBack::test_doc04_claude_md_does_not_tell_agents_to_commit_everything` |
+| DOC-05 | ~20 planning docs cluttered the repo root | 16 moved; root is down to four `.md` files, all of which CLAUDE.md links or is | Guarded since Phase 3: `TestDocsDoNotRotBack::test_doc05_the_repo_root_stays_tidy` |
+| QB-01 | Dead `exceptions.py` (549 lines, a second parallel exception hierarchy) | Verified zero importers and no dynamic reference, then deleted | Guarded since Phase 3: `TestQb01DeletedCodeStaysDeleted`. Deletion is also self-guarding |
 | QB-03 | Raw `print()` in app code | 114 in app code (not the 408 estimated, which counted scripts and tests); 64 converted. `direct_message_service` held 34 putting two user UUIDs on stdout, where the SEC-05 scrubber never saw them | Guarded by CI-06 |
 | QB-05 | Three migration directories with ambiguous authority | Legacy two archived. The real finding was larger: **56 of 64** files in `supabase/migrations/` carry a version stamp differing from the recorded one, and 3 appear in no history row. `supabase db push` would attempt ~59 already-applied migrations | Documented at the top of `supabase/migrations/README.md`. No guard is possible — it is a property of the live catalog |
 | QB-06 | Repository-pattern endgame | **Decision: fenced, full migration declined on cost.** ~9% adherence is the accepted steady state. New code uses repositories; existing direct-DB code shrinks only incidentally | CI-02 is the fence |
 | QF-06 | Bundle weight | Two of three claims were already false (OpenCV and pdf-lib were already lazy). `html2pdf` was **not** — three pages imported it at module scope, so every visitor to a public transcript downloaded the PDF machinery. Now on demand. Consolidating the three PDF libraries was declined: they do three different jobs | Nothing stops a future eager import. The 4GB build heap is unmeasured |
-| OPS-02 | `render.yaml` was not in effect | Reconciled against the live API. Three findings mattered more than the rewrite: **www.optioeducation.com is served by `optio-marketing`**, which was missing from the file entirely; **neither backend installs ffmpeg**, so server-side video probing is silently off; and the security headers *are* live on `app.` but www returns only `x-content-type-options` | Dashboard state cannot be asserted from the repo |
-| OPS-04 | Student evidence (3,548 objects, 8.36 GB) had no backups | `.github/workflows/backup-storage.yml` — weekly, `rclone sync`, client-side `crypt`. Green end to end 2026-09-05, including a decryption round-trip. Three guards against the *backup* job: a 1,000-object source floor, `--max-delete 100`, and a pull-back-and-decrypt step | Scheduled workflow; a failure emails the repo owner. **Four defects shipped here that were reviewable on paper and only visible against reality** — wrong region, wrong docs URL, a SIGPIPE, and a GCS lifecycle rule that would have deleted all 3,548 objects on 2026-12-04 |
+| OPS-02 | `render.yaml` was not in effect | Reconciled against the live API. Three findings mattered more than the rewrite: **www.optioeducation.com is served by `optio-marketing`**, which was missing from the file entirely; **neither backend installs ffmpeg**, so server-side video probing is silently off; and the security headers *are* live on `app.` but www returns only `x-content-type-options` | Repo half guarded since Phase 3: `TestOps02RenderYamlKnowsAboutTheMarketingSite`. Dashboard state cannot be asserted from the repo -- see REGISTER.md NEEDS TANNER 4 |
+| OPS-04 | Student evidence (3,548 objects, 8.36 GB) had no backups | `.github/workflows/backup-storage.yml` — weekly, `rclone sync`, client-side `crypt`. Green end to end 2026-09-05, including a decryption round-trip. Three guards against the *backup* job: a 1,000-object source floor, `--max-delete 100`, and a pull-back-and-decrypt step | Guarded since Phase 3: `TestOps04TheBackupJobKeepsItsSafetyRails` covers all three rails. Whether last Sunday's run copied anything is still not visible from here |
 | OPS-06 | `marketing/` existed only untracked | Resolved by the owning session; 63 files are on `main` | n/a |
-| OPS-08 | ~70 hand-run prod-repair scripts, 21 keyed to one personal account, **8 of which write to production** | `scripts/_target_user.py` — `--user-email` required with no default; the 8 mutating scripts also require `--yes`. Runbook at `backend/scripts/README.md` covering all 71, **37 of which write** | The runbook's last rule is the one that matters: names like `check_feb15_task.py` were written for one past incident and still run. That is not the same as still being correct |
+| OPS-08 | ~70 hand-run prod-repair scripts, 21 keyed to one personal account, **8 of which write to production** | `scripts/_target_user.py` — `--user-email` required with no default; the 8 mutating scripts also require `--yes`. Runbook at `backend/scripts/README.md` covering all 71, **37 of which write** | Guarded since Phase 3: `TestOps08OneOffScriptsRefuseToGuess` (4 tests). The runbook rule still stands: a script written for one past incident still runs, which is not the same as still being correct |
 | HYG-01 | Committed junk | Six dead Windows scripts deleted (verified unreferenced); `test-output.txt` and `.debug-sessions/` untracked and gitignored. The tracked `__pycache__` the finding mentions did not exist | `.gitignore` prevents the first two |
 | HYG-02 | 20 tracked hash-named `.mjs` scripts in `verify/` | Deleted with `git rm` on the user's instruction; recoverable via `git log -- verify/` | n/a |
-| HYG-03 | Three carried pip-audit CVE suppressions | Re-run with the ignores removed — the only way to find out. Two were silencing nothing (worst state for a suppression: reads as accepted risk, is dead config). The third was real and was **fixed** by bumping pytest to 9.0.3. `pip-audit` now runs with no suppressions | The workflow comment requires a dated reason **and** a re-check date for any future ignore |
+| HYG-03 | Three carried pip-audit CVE suppressions | Re-run with the ignores removed — the only way to find out. Two were silencing nothing (worst state for a suppression: reads as accepted risk, is dead config). The third was real and was **fixed** by bumping pytest to 9.0.3. `pip-audit` now runs with no suppressions | Guarded since Phase 3: `TestHyg03PipAuditHasNoUnexplainedSuppressions` -- every ignore needs a dated reason and a re-check date, and pip-audit must stay enforcing |
 | FU-02 | `public.get_human_quest_performance` read two dropped tables | Verified dead four ways (no repo caller, no other function, no pg_cron job, EXECUTE granted only to postgres/service_role), then dropped. Rewrite was rejected: two of its four columns are computed *from* the dropped tables | "Does a function's tables exist" is a property of the live catalog, which no offline test sees |
 
 ---
@@ -148,7 +156,7 @@ is what they now resolve to.
 | **C1** | A live Stripe **secret** key for a paying org was readable by anyone on the internet, unauthenticated — stored in a JSONB column whose RLS policy filters rows but cannot filter columns | Fixed. Secrets moved to `organization_secrets` (RLS on, no policies, grants revoked); reads go through `backend/utils/org_secrets.py`. **The key was rotated — it had been readable for an unknown period** |
 | **C2** | `portfolio_visibility_reset_20260801` — 718 rows of per-student minor-status and consent flags, RLS disabled, `SELECT`/`DELETE`/`TRUNCATE` granted to `anon` | Applied to production 2026-08-01 |
 | **C3** | `GET /api/auth/me` returned the org's full secret config to every member, including students | Fixed: `routes/auth/login/core.py` strips known credentials; the durable guarantee is that the column no longer holds any |
-| **H1** | All student evidence media sat in public storage buckets, served to unauthenticated `GET` | Out of the requested scope at the time. See OPEN_FINDINGS.md |
+| **H1** | All student evidence media sat in public storage buckets, served to unauthenticated `GET` | Out of the requested scope at the time. See REGISTER.md |
 | **H2** | Masquerade and acting-as sessions were immortal and survived logout | Closed by SEC-08 and FU-05 |
 | **H3** | `sis_billing_audit` — RLS disabled, anonymously writable audit trail | Applied to production 2026-08-01 |
 | **H4** | Student evidence readable over the public anon key (1,574 objects incl. photos and videos of minors) | Applied 2026-08-02 |
@@ -156,7 +164,7 @@ is what they now resolve to.
 | **H6** | `bounties` (15 of 17 rows `visibility='family'`) and `curriculum_attachments` anon-readable | Applied 2026-08-03. Found by the scheduled exposure audit, not by a person |
 | **L1** | Two dependency manifests diverged; one is documented but unused | Closed by SEC-17 |
 | **L2** | The migration history cannot reproduce the deployed schema | Confirmed and quantified by QB-05; the apply path is OPEN (OPS-03) |
-| **M1–M6, L3–L5** | Medium/low findings, explicitly out of the requested scope | **Never triaged.** See OPEN_FINDINGS.md |
+| **M1–M6, L3–L5** | Medium/low findings, explicitly out of the requested scope | **Never triaged.** See REGISTER.md |
 
 The standing detection built for this audit — worth not deleting:
 
@@ -195,7 +203,7 @@ findings in §2 there is no guard at all, so "closed" there rests on reading the
 code and on the log of whoever closed it. And for anything whose state lives
 outside the repo — Render env vars, Supabase policies, GCS lifecycle rules,
 Sentry monitors — nothing in this repository can confirm it. Those are the items
-in OPEN_FINDINGS.md's NEEDS TANNER section, and they are exactly where the
+in REGISTER.md's NEEDS TANNER section, and they are exactly where the
 OPS-04 work shipped four defects that every reviewer had read and no one had run.
 
 One correction to the old plan's own record, found during this pass:

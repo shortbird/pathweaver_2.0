@@ -269,7 +269,7 @@ loud rather than leaving the absence to read as an oversight:
 - **OPS-02 (most of it)** — which service serves which domain, whether ffmpeg is
   installed.
 - **SEC-06** — the code is deleted, so there is nothing to assert about it. Two
-  external leftovers are in OPEN_FINDINGS.md.
+  external leftovers are in REGISTER.md.
 
 Two details a naive version of the doc guards gets wrong, recorded because they
 will come up again:
@@ -472,4 +472,4 @@ GitHub reads the file automatically; local clones need this once each.
 No credentials, no dashboard access and no product decision was needed for any
 of the ten items. Items that DID need dashboard state — the six unguardable
 findings in item 10 — are recorded rather than attempted, and their live-state
-follow-ups already live in `OPEN_FINDINGS.md`.
+follow-ups already live in `REGISTER.md`.

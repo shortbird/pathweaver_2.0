@@ -27,7 +27,7 @@ status line here said "not merged, not pushed" until then.
   rule or ratchet) and **§2 Closed but unguarded** (21 findings with nothing
   behind them — the ones that can regress silently, which is why they are
   separated). **§3** preserves the 2026-08-01 audit's C/H/M/L finding IDs.
-- **`docs/remediation-2026-09/OPEN_FINDINGS.md`**. The open items restated in
+- **`docs/remediation-2026-09/REGISTER.md`**. The open items restated in
   full, plus a NEEDS TANNER section of nine numbered procedures.
 
 ### `a03a919e` — deletions and reference repointing
@@ -145,7 +145,7 @@ Found while updating references; each is a comment-only fix.
   as open or closed.** This is the largest unverified item on the board.
 - **Triage AUDIT.md M1–M6 and L3–L5.** Never triaged by anyone; out of scope
   then and out of scope for a documentation phase now. Their IDs survive in
-  CLOSED_FINDINGS §3 and their substance is summarised in OPEN_FINDINGS.
+  CLOSED_FINDINGS §3 and their substance is summarised in the register.
 - **Delete more of `docs/`.** The instruction was to delete only what I was
   sure about. 45 files are stale and listed rather than removed; deleting them
   would free roughly a further 12,000 lines but each needs a judgement I do not
@@ -178,7 +178,7 @@ Found while updating references; each is a comment-only fix.
 ## NEEDS TANNER
 
 Nine items, all with numbered steps, live in
-[OPEN_FINDINGS.md](OPEN_FINDINGS.md#needs-tanner). Summarised here so nothing
+[REGISTER.md](REGISTER.md#needs-tanner). Summarised here so nothing
 is missed:
 
 1. **A deleted doc published two 64-hex secret keys.** `SESSION_PERSISTENCE.md`

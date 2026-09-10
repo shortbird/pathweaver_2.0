@@ -103,12 +103,46 @@ annotations, project management.
 
 **EU Cloud:** If using EU Cloud, use `mcp-eu.posthog.com` instead of `mcp.posthog.com`.
 
+## Sentry MCP
+
+Configured in the repo's `.mcp.json`, so it loads for anyone who opens this project.
+Reads the production error stream for backend, web and mobile, which is the input
+half of the `debug-production` skill.
+
+```json
+"sentry": {
+  "type": "http",
+  "url": "https://mcp.sentry.dev/mcp",
+  "headers": { "Authorization": "Sentry-Bearer ${SENTRY_AUTH_TOKEN}" }
+}
+```
+
+**The auth scheme is `Sentry-Bearer`, not `Bearer`.** This is the whole reason the
+server was unreachable for weeks. A user-scope entry named `sentry-optio` had been
+sitting in `~/.claude.json` since roughly 2026-08 sending `Bearer <sntryu_...>`, and
+every session reported `AUTH_HEADER_REJECTED / invalid_token`. That reads exactly
+like an expired or wrong token, so the standing advice became "use the Sentry REST
+API instead, the MCP server does not work" -- advice that was correct about the
+symptom and wrong about the cause. The token was fine the entire time. Verified
+2026-09-10 by sending the same `initialize` request twice with the same token:
+
+    Authorization: Bearer <token>          -> HTTP 401 invalid_token
+    Authorization: Sentry-Bearer <token>   -> HTTP 200, Sentry MCP 0.39.0
+
+`SENTRY_AUTH_TOKEN` is exported from `~/.zshrc` (a `sntryu_` user token). Nothing
+in the repo holds the value.
+
+If the server still fails to connect, check for a stale `sentry-optio` entry in
+`~/.claude.json` first -- a user-scope server with a broken header will keep
+failing next to the working project-scope one, and the two are easy to confuse in
+the startup output.
+
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | `claude mcp list` shows nothing | Config in wrong file - use `claude mcp add` command |
 | MCP not loading after restart | Check `~/.claude.json` has correct `mcpServers` section |
-| Auth errors | Regenerate token and re-add server |
+| Auth errors | Regenerate token and re-add server. For Sentry, check the scheme is `Sentry-Bearer` before blaming the token |
 | npx not found | Ensure Node.js is in PATH |
 | Tools not available in session | Restart Claude Code after adding MCP server |

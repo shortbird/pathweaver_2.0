@@ -1,656 +1,211 @@
 # Optio Platform - AI Agent Guide
 
-**Last Updated**: September 8, 2026 | **Local Dev**: Enabled
+**Last updated**: September 10, 2026
+
+This file holds what a machine cannot check: product context, architectural
+intent, judgment calls. Everything checkable is a test or a hook, listed in
+[RATCHETS.md](docs/remediation-2026-09/RATCHETS.md). A rule missing from here is
+usually a rule something enforces.
+
+It was 656 lines until 2026-09-10; the deleted text now fails builds instead of
+asking nicely. Adding prose back is a last resort — it is the weakest
+enforcement available, and this repository has the postmortems to prove it.
 
 ---
 
-## Critical Rules (Read First)
+## The four rules a machine cannot check
 
-1. **LOCAL VERIFICATION REQUIRED** - Never commit until user confirms fix works at http://localhost:3000
-2. **Commit only after user verification** - `develop` (dev deploy + preview OTA) or `main` (prod). Prod is direct-push-to-`main` (no PR) — see Git Configuration. Confirm with the user before pushing to `main`.
-3. **No emojis** - Professional tone
-4. **Verify DB schema first** - Use Supabase MCP before ANY query (table names change)
-5. **Use Optio brand colors** - `optio-purple`/`optio-pink` (NOT `purple-600`/`pink-600`)
-6. **Run tests before production** - `ci.yml` gates pull requests; `release.yml` runs the same suites on push to `main`, and Render deploys + the production OTA publish only if they pass. Don't push known-failing code to `main`.
-7. **Scope test runs** - While iterating, run only the affected test files (`npx vitest run <files>`). Run the full suite (`npm run test:run`) once, before commit/push — not after every change.
-8. **Include superadmin in role checks** - When creating new routes with role-based authorization, ALWAYS include `superadmin` in the allowed roles list.
-9. **API keys via Config class only** - All API keys and secrets must be accessed via `Config` from `app_config.py`, never `os.getenv()` directly. See `backend/docs/ENV_KEYS_REFERENCE.md`.
-10. **Never count rows in Python** - PostgREST silently truncates every response at 1000 rows (`Config.POSTGREST_MAX_ROWS`), so fetching rows to tally them returns a number that is quietly wrong once an org gets big enough. Use `count='exact'` for one number, or `utils.db_fetch.fetch_all_rows()` when you genuinely need every row. See [Row Limits](#row-limits-postgrests-silent-truncation).
-11. **You are not the only agent in this repo** - see [Working alongside other agents](#working-alongside-other-agents). Never run `git checkout -- <tracked file>`, `git reset --hard`, `git stash`, or `git clean` to tidy up: another agent's uncommitted work is in the same tree and those commands destroy it with no undo. Never kill or restart the dev servers unless the user asks.
-12. **"Commit" means commit YOUR work** - stage the files you changed this session and commit them. Do not sweep in unrelated modified files, and do not "clean up" changes you don't recognize — they belong to somebody else. The Git Configuration section says the same thing; it used to say the opposite.
+1. **Verify locally before you commit.** The user confirms the fix works at
+   http://localhost:3000. Nothing else counts as verification — not a passing
+   test, not a clean build.
+2. **Ask before you push to `main`.** `main` deploys to production and publishes
+   the production OTA. A hook stops the push so you have to ask; the answer is
+   the user's, not yours.
+3. **Check the schema before you write a query.** Table and column names in this
+   codebase have changed more than once. Use the Supabase MCP.
+4. **You are not the only agent in this tree.** Several sessions and the user
+   edit one working copy at once, so **commit only your own files** — the ones
+   you changed this session, named explicitly. Expect files to change under you:
+   a "modified since you read it" notice is usually a real edit by somebody
+   else, so re-read and keep their change. If your own work disappears, say so
+   plainly and re-apply it.
 
-### Working alongside other agents
+   The cost of ignoring this, on 2026-08-14: a session reset the tree while
+   tidying up and destroyed a half-finished feature and a security fix
+   belonging to two other sessions. Untracked files survived; edits to tracked
+   files did not. `.claude/hooks/guard_bash.py` now refuses that family.
 
-Several agents (and the user) work in this repo at the same time, in the same
-working tree. So at any moment there are uncommitted changes that are not yours,
-in files you did not touch — and sometimes in files you did.
+No emojis anywhere a person reads them — commit messages, PR bodies, UI copy.
+The hook catches commit messages; the rest is on you.
 
-**What this costs when ignored:** on 2026-08-14 a parallel session committed two
-unrelated features and reset the tree in the process. Every uncommitted change to
-a *tracked* file vanished — a half-finished feature and a security fix, from two
-different sessions. Untracked new files survived; edits to existing files did not.
+---
 
-Rules:
+## What the platform is
 
-- **Destructive git is off the table.** No `reset --hard`, `checkout --` on tracked
-  files, `stash`, or `clean`. If you need to discard your own edit, revert it with
-  Edit, not with git.
-- **Commit only your own files.** `git add <the files you touched>`, never
-  `git add -A` / `git commit -a`. Check `git status` first and leave the rest alone.
-- **Don't touch the dev servers** unless asked. Another agent may be mid-verification
-  on :3000 / :5001. (`killall node` remains banned outright — it kills Claude Code.)
-- **Expect your files to change under you.** A "file modified since you read it"
-  notice usually means a real edit by someone else, not a linter. Re-read before
-  editing around it, and keep their change unless the user says otherwise.
-- **If your work disappears, say so plainly** and re-apply it. Don't quietly rebuild
-  and don't blame the user's tooling.
+**"The Process Is The Goal"** — celebrate present-focused learning, not future
+outcomes. See [core_philosophy.md](core_philosophy.md). This is the reason
+behind product decisions that otherwise look arbitrary.
 
-### Role System (Platform vs Organization Users)
+Four surfaces, and the names matter because two of them are permanent siblings,
+not successive versions:
 
-**Platform Users** (`organization_id = NULL`)
-- Not in any organization, use the Optio platform directly
-- Have a direct role in the `role` column: `student`, `parent`, `advisor`, `observer`
-- `org_role` is NULL
-- Superadmin is always a platform user with `role = 'superadmin'`
+| Surface | Directory | What it is |
+|---|---|---|
+| **web platform** | `web/` | React 18.3 + Vite. The production web app. |
+| **mobile app** | `mobile/` | Expo SDK 55 + Expo Router + NativeWind. iOS/Android. Its web target is dev-only. |
+| **SIS console** | `web/src/pages/sis/` | `sis.optioeducation.com`. Its own surface, its own roles. |
+| **marketing** | `marketing/` | Astro. Serves `www.optioeducation.com`. |
 
-**Organization Users** (`organization_id` is set)
-- Belong to an external organization (school, program, etc.)
-- Have `role = 'org_managed'` (platform role)
-- Actual role is in `org_role` column: `student`, `parent`, `advisor`, `org_admin`, `observer`
-- Org admin controls their role via `org_role`
+Never say "learning app" — it is ambiguous. Never reintroduce "v1"/"v2" for web
+and mobile: the directories were `frontend/` and `frontend-v2/` until 2026-09-08
+and that naming read as a migration in progress. It is not one. Web users stay
+on the web app indefinitely.
 
-| User Type | organization_id | role | org_role |
-|-----------|-----------------|------|----------|
-| Platform student | `NULL` | `student` | `NULL` |
-| Platform parent | `NULL` | `parent` | `NULL` |
-| Org student | `<uuid>` | `org_managed` | `student` |
-| Org admin | `<uuid>` | `org_managed` | `org_admin` |
+Backend is Flask 3.0 + Supabase (PostgreSQL), httpOnly cookies and CSRF, on
+Render. All AI goes through Gemini; `Config.GEMINI_MODEL` is the only place a
+model name may appear.
+
+### Course architecture
+
+```
+Course -> Projects (Quests) -> Lessons -> Tasks
+```
+
+A **Project** is a Quest that sits inside a Course — the same database row,
+named for its context. **Pillars are on Tasks, not on Quests.** **XP is earned
+on Tasks, not on Lessons.**
+
+Lessons are deliberately thin. The teaching philosophy is just-in-time: give a
+student the minimum needed to start a competent attempt, because the knowledge
+gap they hit while *doing* is what creates the motivation to close it. A lesson
+that teaches everything up front is a lesson nobody reads.
+
+### Roles
+
+Two populations, and conflating them is the most common source of access bugs:
+
+| User type | `organization_id` | `role` | `org_role` |
+|---|---|---|---|
+| Platform student / parent / advisor / observer | `NULL` | the real role | `NULL` |
+| Org member | set | `org_managed` | the real role |
 | Superadmin | `NULL` | `superadmin` | `NULL` |
 
-**Use `get_effective_role(user)` to get the actual role** - this handles org_managed users automatically.
+Use `get_effective_role(user)`; it handles both. Valid roles are `superadmin`,
+`org_admin`, `campus_coordinator`, `advisor`, `parent`, `student`, `observer` —
+`admin`, `teacher`, `educator` and `school_admin` are not roles and never were.
+`campus_coordinator` is org-only, deliberately absent from `UserRole`.
 
-**Never write `users.is_org_admin`.** It is derived from `role`/`org_role`/`org_roles`
-by the `sync_is_org_admin` trigger
-([20260807](supabase/migrations-archive/20260807_campus_coordinator_org_role_constraints.sql)).
-Write the role columns and read the flag back. The flag alone grants org admin access
-in `require_school_admin`, `require_org_admin`, `require_advisor` and
-`PrivateRoute.jsx` — before the trigger, the ~11 paths that set roles without it left
-demoted admins holding admin access.
-
-**Adding a role to `OrgRole` needs a migration.** Two CHECK constraints on `users`
-(`valid_org_role`, `valid_org_roles`) list the valid values, and nothing in the app
-notices when they disagree — the role validates all the way down and dies at the
-write as an unreadable 500. `backend/tests/test_org_role_constraints.py` fails CI on
-that gap.
-
-### Valid Roles (7 total)
-| Role | Access Level |
-|------|-------------|
-| `superadmin` | Full access to everything (only tannerbowman@gmail.com) |
-| `org_admin` | Organization admin tools only |
-| `campus_coordinator` | **Org-only.** Everything `org_admin` has, minus the money — see below |
-| `advisor` | Advisor access (org-specific or platform) |
-| `parent` | Parent access (org-specific or platform) |
-| `student` | Student access (org-specific or platform) |
-| `observer` | View-only access to linked students, can comment on student work |
-
-**INVALID roles** (do NOT use): `admin`, `teacher`, `educator`, `school_admin`
-
-#### Campus coordinator
-
-`campus_coordinator` is an **org role only** — in `OrgRole`, deliberately NOT in
-`UserRole`, so it can never appear in `users.role`. Front-office staff who run the
-campus without seeing the school's finances.
+`users.is_org_admin` is **derived** by a database trigger from the role columns.
+Write the roles, read the flag.
 
 SIS access tiers live in [backend/utils/sis_roles.py](backend/utils/sis_roles.py)
-— **use these, don't re-declare a role tuple in a route module**:
-
-| Tier | Who | Use for |
-|------|-----|---------|
-| `STAFF_ROLES` | admin + coordinator + advisor + superadmin | Anything staff touch (class-scoped downstream for teachers) |
-| `ADMIN_ROLES` | admin + coordinator + superadmin | The front office: people, classes, registration, attendance, paperwork |
-| `FINANCE_ROLES` | admin + superadmin | **The money**: billing, tuition, Stripe, timesheets, payroll |
-
-Rules when adding SIS routes or fields:
-- Reach for `ADMIN_ROLES` by default. Use `FINANCE_ROLES` **only** for money.
-- `caller_is_admin()` is True for a coordinator — the restriction is financial,
-  not scope-based. Use `sis_service.caller_sees_pay(user_id)` for the money check.
-- Pay data on an otherwise-operational record is **redacted per-field**, not
-  hidden by withholding the endpoint (see `sis_staff_service.PAY_FIELDS` /
-  `redact_pay`). Adding a new pay column? Add it to `PAY_FIELDS` or it leaks.
-- Frontend mirrors this in [sisRole.js](web/src/pages/sis/sisRole.js):
-  `isSisAdmin` (chrome), `canSeeFinance` (money). Chrome only — the backend is the gate.
+— use them, never a hand-written role tuple in a route module. `ADMIN_ROLES` is
+the default for staff-facing work; `FINANCE_ROLES` is money only. A campus
+coordinator is an org admin minus the finances, which is why pay data on an
+otherwise-operational record is redacted per field
+(`sis_staff_service.PAY_FIELDS`) rather than hidden by withholding the endpoint.
+Add a pay column, add it to `PAY_FIELDS`, or it leaks.
 
 ---
 
-## Response Style: Simplified Technical English
+## Architectural intent
 
-Write every response in ASD-STE100 Simplified Technical English. Be as short as
-the facts permit.
+**One route, one owner.** Flask does not warn when two blueprints register the
+same rule — it dispatches to whichever registered first and the other becomes
+unreachable dead code, taking its auth decorator with it. Four production bugs
+so far. If an endpoint enforces a stricter role than its code says, resolve the
+real handler first: `app.url_map.bind('localhost').match('/api/x', method='PUT')`.
 
-Rules:
+**Never count rows in Python.** PostgREST truncates every response at 1,000 rows
+and tells you nothing — `APIResponse` drops the `Content-Range` header, so a
+truncated read looks exactly like a complete one. This shipped a real bug: SIS
+enrollment counts *fell* as more families enrolled. Use `count='exact'` for a
+number, or `utils.db_fetch.fetch_all_rows()` when you truly need every row.
+Anything bounded by one parent row is fine as it is. Never raise
+`POSTGREST_MAX_ROWS`; `utils/db_truncation_canary.py` warns when a response
+holds exactly the cap.
 
-- Write one fact in one sentence. Keep each sentence below 25 words.
-- Use the active voice. Do not use the passive voice.
-- Use simple tenses. Do not use a gerund. Write "When you archive a class, the
-  system removes the roster". Do not write "Archiving a class removes the roster".
-- Use one term for one thing. Do not use a synonym for variety.
-- Do not use a metaphor, an idiom, or jargon. Write "the tests passed". Do not
-  write "green".
-- Do not use contractions.
-- Use a vertical list for more than two related items.
-- Domain nouns are Technical Names. These are permitted: waitlist, quest, pillar,
-  org, RLS, OTA, XP.
+**RLS is the access control, and the client you pick decides whether it
+applies.** `get_user_client()` enforces it; `get_supabase_admin_client()`
+bypasses it, and every call site must justify itself. New tables inherit Data
+API grants — no per-table `GRANT` in a migration.
 
-Keep the reason. STE deletes causes if you permit it. Write the reason as its own
-short sentence.
+**Tokens live in memory and httpOnly cookies**, never in web storage. Safari and
+iOS fall back to Authorization headers when cookies are blocked
+(`session_manager.py`, `browserDetection.js`).
+See [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md).
 
-**This applies to replies only.** Code, code comments, commit messages, PR
-bodies, docs, and copy drafted for other people keep their present voice. The
-comments in this repository carry the postmortem that explains each rule. STE
-would destroy them.
-
----
-
-## Quick Reference
-
-### Environments
-| Env | URL | Branch |
-|-----|-----|--------|
-| Local (web) | http://localhost:3000 | any |
-| Local (mobile, web preview) | http://localhost:8081 | any |
-| Local (mobile, native) | exp://192.168.86.20:8081 | any |
-| Dev | https://optio-dev-frontend-r3v8.onrender.com | `develop` |
-| Prod | https://www.optioeducation.com | `main` |
-| API | https://api.optioeducation.com | `main` |
-
-> **Dev points at staging, not production** (since 2026-09-09). The dev Render
-> services read Supabase project `kltoyqefmcgolbplplsa`, which holds synthetic
-> data only — no real student records. Local `backend/.env` and the E2E suite
-> still point at production; those are the remaining half of OPS-01.
-
-### Tech Stack
-- **Backend**: Flask 3.0 + Supabase (PostgreSQL) + httpOnly cookies + CSRF
-- **Web**: React 18.3 + Vite + TailwindCSS (in `web/`) — the production web app
-- **Mobile**: Expo SDK 55 + Expo Router + NativeWind in `mobile/`, dev builds via EAS — iOS/Android app
-- **AI**: Gemini `gemini-3.7-flash` for **every** AI call. `Config.GEMINI_MODEL` in `app_config.py` is the single source of truth — change that one line (or set `GEMINI_MODEL`) to swap models platform-wide. Never hardcode a model name elsewhere; `tests/unit/test_single_model_source.py` fails the build if you do. Outage fallbacks: `GEMINI_FALLBACK_MODELS` (`gemini-3.6-flash` → `gemini-3.5-flash`). `GEMINI_CURRICULUM_MODEL` optionally pins the curriculum pipeline to a heavier model; it follows `GEMINI_MODEL` by default.
-- **Host**: Render
-
-> **Surface names:** say **web platform** and **mobile app** ("learning app" is
-> ambiguous — never use it). The SIS console (`sis.optioeducation.com`) is its own
-> surface. The two apps are `web/` (React + Vite) and `mobile/` (a universal Expo
-> project whose web target is dev-only).
->
-> **They are permanent siblings, not successive versions.** Web users stay on
-> the web app indefinitely; the mobile app is the iOS/Android surface, not a
-> replacement. The directories were called `frontend/` and `frontend-v2/` until
-> 2026-09-08 and the docs said "v1" and "v2", which read as a migration in
-> progress and is why this note exists. Do not reintroduce v1/v2 for these two.
-
-### Mobile App (`mobile/`)
-Key files:
-- `src/config/navigation.ts` - Single source of truth for all nav items (sidebar + tabs)
-- `src/services/api.ts` - API client with Bearer auth (Platform.select for web vs mobile URLs)
-- `src/stores/authStore.ts` - Zustand auth store
-- `src/components/ui/` - Shared UI component library
-- `tailwind.config.js` - Brand tokens (must be .js not .ts, must include NativeWind preset)
-
-**Mobile tabs:** Bounties, Journal, Home (center), Buddy, Profile
-**Desktop sidebar:** Home, Quests, Bounty Board, Buddy, Journal, Profile
-**Web-only:** Quests, Admin, Course Builder
-
-**API URL config:** Do NOT set `EXPO_PUBLIC_API_URL` in `.env` — it breaks mobile.
-Platform.select in api.ts handles web (localhost) vs mobile (LAN IP) automatically.
-
-### Core Philosophy
-"The Process Is The Goal" - Celebrate present-focused learning, not future outcomes.
-See [core_philosophy.md](core_philosophy.md).
+**Repositories for new code** (`backend/repositories/`). Existing direct
+`.table()` calls are fenced by a ratchet rather than migrated: ~9% adherence is
+the accepted steady state, decided on cost, not deferred.
 
 ---
 
-## Course Architecture
+## Working in this repository
 
-### Hierarchy
-```
-Course → Projects (Quests) → Lessons → Tasks
-```
+**Local development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) — the exact
+environment and the traps you only find by hitting them. Backend :5001, web
+:3000, mobile :8081. Do not restart or kill a dev server unless asked; another
+session may be mid-verification on it.
 
-- **Course**: Container that combines multiple Projects into structured curriculum
-- **Project**: A Quest when it's part of a Course (same DB record, different context)
-- **Lesson**: Brief instructional content with "Lesson Steps" (text, video, links, images, files)
-- **Task**: Actions students complete to earn XP (can be suggested or student-created)
+**Testing.** While iterating, run the affected files; the Stop hook does that
+for you from what you touched. Run the full suites once before committing:
+`cd backend && pytest`, `cd web && npm run test:run`, `cd mobile && npm test`.
+Zero failures is the bar. Do not skip, xfail or delete a test to reach it — if a
+test is genuinely wrong, say so out loud and explain why. Coverage floors and
+ratchet ceilings live in [RATCHETS.md](docs/remediation-2026-09/RATCHETS.md),
+which is the file to edit when a number legitimately moves.
 
-### Database Tables
-```
-courses              - id, title, description, status, visibility, created_by, organization_id
-course_quests        - course_id, quest_id, sequence_order (links Projects to Courses)
-quests               - id, title, quest_type, is_active (becomes "Project" when in a Course)
-curriculum_lessons   - id, quest_id, title, content, sequence_order
-curriculum_lesson_tasks - lesson_id, task_id (links Tasks to Lessons)
-user_quest_tasks     - id, user_id, quest_id, title, pillar, xp_value
-```
+**Shipping.** `git push origin develop` deploys dev and publishes the preview
+OTA. Production is a direct push to `main` — no PR gate — which triggers
+`release.yml`: tests, then the Render deploys, then the production OTA. Prod
+auto-deploy is OFF, so bad code can land on `main` but cannot reach users. Ask
+first. Reasoning: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md).
 
-### Just-in-Time Teaching Philosophy
-Lessons provide **minimal info** to start a competent attempt; learning happens during
-**task execution**, not content consumption. Knowledge gaps hit during doing create
-intrinsic motivation. Personalized tasks = natural engagement.
+**Migrations.** Do not touch `supabase/migrations/` casually — the history and
+the directory disagree, as documented in
+[MIGRATION_RECONCILIATION.md](docs/remediation-2026-09/MIGRATION_RECONCILIATION.md).
 
-### Course Builder Notes
-- Adding a "Project" = creating/connecting a Quest
-- Each Lesson should have suggested Task ideas (students can also create their own)
-- Pillars are on Tasks, NOT on Quests/Projects
-- Tasks are where XP is earned, not Lessons
+**Skills.** `.claude/skills/` carries the four workflows this repository repeats:
+`ship-feature`, `debug-production`, `review-diff`, `scoped-refactor`. Read the
+one that matches before improvising.
 
 ---
 
-## Local Development
+## Reference
 
-Development happens on macOS. Repo at `~/pathweaver_2.0`, backend venv at
-`~/pathweaver_2.0/venv` (Python 3.13 via Homebrew), Node 22 from Homebrew.
+**Supabase projects** (one MCP connection, `project_id` per call):
 
-**Check if servers running:**
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:5001/api/health   # 200 = backend up
-lsof -nP -iTCP:3000 -sTCP:LISTEN                                          # vite dev server
-```
-
-**Start servers:**
-```bash
-# Backend (Flask on :5001)
-cd ~/pathweaver_2.0 && source venv/bin/activate && python backend/app.py
-
-# Frontend (Vite on :3000)
-cd ~/pathweaver_2.0/web && npm run dev
-```
-From Claude Code, run each with `run_in_background` instead of backgrounding with `&`.
-
-**Stop servers:**
-```bash
-lsof -tnP -iTCP:3000 -sTCP:LISTEN | xargs kill   # frontend
-lsof -tnP -iTCP:5001 -sTCP:LISTEN | xargs kill   # backend
-```
-
-**WARNING:** Never use `killall node` / `pkill node` - this kills Claude Code itself.
-
-**Before committing:** Stop the servers using the commands above.
-
-**Full setup guide:** [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
-
-### Git Configuration
-
-Remote: `https://github.com/shortbird/pathweaver_2.0.git` (HTTPS + Git Credential Manager).
-
-**Dev workflow:**
-```bash
-git push origin develop    # Auto-deploys to Render dev + publishes the preview OTA
-```
-
-**Prod workflow (direct-to-main):** no PR gate — push directly:
-```bash
-git push origin main
-```
-
-`.github/workflows/release.yml` runs on push to `main`:
-- jobs `backend`, `web` (+ coverage gate), `mobile` run in parallel
-- job `deploy` (`needs: [backend, web]`) triggers the prod Render deploys via the
-  Render API, pinned to the pushed SHA
-- job `ota` (`needs: [backend, web, mobile]`) publishes the production OTA
-
-Render auto-deploy is OFF for both prod services — CI is the only prod deploy
-trigger. Bad code can land on `main` but won't deploy or OTA. So the prod ship is:
-`git push origin main` → watch `Release (main)`. History/why: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md).
-
-**When the user says "push", commit the files YOU changed this session, then
-push.** See Critical Rule 12. This used to say "stage and commit ALL outstanding
-changes… push everything", which was written when one agent worked in this tree
-at a time. It is now wrong and dangerous: several agents share this checkout, so
-`git add -A` sweeps somebody else's half-finished work into your commit and onto
-`main` under your message. That nearly happened once already.
-
-If you genuinely cannot tell which changes are yours, ask rather than guess.
-
----
-
-## Database Schema
-
-### ⚠️ Common Mistakes
-- ❌ `quest_tasks` → Use `user_quest_tasks`
-- ❌ `.select('*, quest_tasks(*)')` → Relationship removed
-- ✅ Always verify with Supabase MCP first
-
-### Core Tables
-```
-users                    - id, email, role, display_name, total_xp, organization_id, is_dependent, managed_by_parent_id
-quests                   - id, title, quest_type, lms_course_id, is_active, organization_id
-user_quest_tasks         - id, user_id, quest_id, title, pillar, xp_value, approval_status
-quest_task_completions   - id, user_id, quest_id, task_id, completed_at, evidence_text, evidence_url
-                           (NO xp_awarded column -- this line used to claim one. XP lives on
-                            user_quest_tasks.xp_value and in user_skill_xp.)
-user_skill_xp            - user_id, pillar, xp_amount
-badges                   - id, name, pillar_primary, min_quests, min_xp, image_url
-organizations            - id, name, slug, quest_visibility_policy, is_active
-```
-
-### Deleted Tables (Don't Query)
-`task_collaborations`, `subscription_tiers`, `friendships`, `calendar_view_preferences`,
-`user_quest_deadlines`, `promo_signups`, `promo_codes`, `services`, `service_inquiries`,
-`email_campaigns`, `email_campaign_sends`, `user_segments`, `quest_collaborations`,
-`quest_collaboration_members`, `shared_evidence`, `shared_evidence_approvals`,
-`ai_content_metrics`, `ai_generation_metrics`, `ai_improvement_logs`, `ai_prompt_templates`,
-`ai_prompt_versions`, `ai_quest_review_history`, `quality_action_logs`, `quest_task_flags`,
-`quest_template_task_flags`, `task_merges`, `task_merge_sources`, `parent_connection_requests`,
-`parent_evidence_uploads`, `observer_requests`, `quest_conversions`, `tutor_analytics`,
-`tutor_parent_access`, `accreditor_reviews`
-
-### Schema Check Pattern
-```sql
-SELECT column_name, data_type FROM information_schema.columns
-WHERE table_schema = 'public' AND table_name = 'your_table';
-```
-
-### Row Limits: PostgREST's silent truncation
-
-**Every Data API response is capped at 1000 rows, and nothing tells you.**
-`APIResponse` exposes only `data` and `count` — the `Content-Range` header is
-dropped, so a truncated read is indistinguishable from a complete one. This shipped
-a real bug (SIS enrollment counts *fell* as more families enrolled — postmortem:
-[docs/icreate/FAB_TRIAGE_2026-07-29_enrollment_counts.md](docs/icreate/FAB_TRIAGE_2026-07-29_enrollment_counts.md)).
-
-**Pick by what you need:**
-
-```python
-# A count -> let Postgres count. Cannot truncate.
-n = client.table('class_enrollments').select('id', count='exact') \
-      .eq('class_id', cid).eq('status', 'active').execute().count or 0
-
-# Every row of an org-wide read -> page it.
-from utils.db_fetch import fetch_all_rows
-rows = fetch_all_rows(lambda: (
-    client.table('class_enrollments').select('id, class_id')
-    .in_('class_id', class_ids).eq('status', 'active')
-))
-
-# WRONG: silently truncates once the org outgrows the cap.
-rows = client.table('class_enrollments').select('class_id') \
-         .in_('class_id', class_ids).execute().data
-counts = Counter(r['class_id'] for r in rows)
-```
-
-**Rules of thumb**
-- Bounded by one parent row (one student's classes, one class's roster)? Fine as-is.
-- Row count grows with the size of an org? Page it, or aggregate in Postgres.
-- Never raise `POSTGREST_MAX_ROWS` to make a symptom go away.
-
-**Safety net:** `utils/db_truncation_canary.py` logs a warning + Sentry event (tag
-`source:db_truncation`) whenever a response holds exactly the cap. A hit means some
-read is truncated — fix the call site.
-
-### Data API Grants
-
-New tables in `public` inherit Data API grants automatically via
-[20260527_restore_default_data_api_grants.sql](supabase/migrations-archive/20260527_restore_default_data_api_grants.sql)
-(`ALTER DEFAULT PRIVILEGES`). **No per-table GRANT statements needed in new
-migrations.** RLS remains the access-control mechanism. If you create a table
-outside the normal migration flow, verify it's reachable and add grants if not.
-
----
-
-## Authentication
-
-### httpOnly Cookies Only
-```javascript
-// ✅ CORRECT
-api.post('/api/auth/login', { email, password })  // Backend sets cookies
-
-// ❌ WRONG
-localStorage.setItem('token', ...)  // Never store tokens!
-```
-
-### RLS Client Selection
-```python
-supabase = get_user_client()           # User operations (RLS enforced)
-admin = get_supabase_admin_client()    # Admin operations (bypasses RLS)
-```
-
-### Safari/iOS
-Automatic fallback to Authorization headers when cookies blocked. See
-`session_manager.py` and `browserDetection.js`.
-
----
-
-## Common Patterns
-
-### Brand Colors
-```jsx
-// ✅ CORRECT
-className="bg-gradient-to-r from-optio-purple to-optio-pink"
-
-// ❌ WRONG
-className="bg-gradient-to-r from-purple-600 to-pink-600"
-```
-
-### CSRF POST Requests
-```javascript
-// ✅ CORRECT - Always include body
-api.post('/api/badges/123/select', {})
-
-// ❌ WRONG - Causes CSRF error
-api.post('/api/badges/123/select')
-```
-
-### Repository Pattern (New Code)
-```python
-# ✅ NEW code uses repositories
-from backend.repositories.task_repository import TaskRepository
-task_repo = TaskRepository(client=supabase)
-task = task_repo.get_task_with_relations(task_id, user_id)
-
-# Existing code may use direct DB (acceptable for complex queries)
-```
-
-### One route, one owner
-
-**Flask does not warn when two blueprints register the same rule.** It dispatches
-to whichever registered first; the other view becomes unreachable dead code. Both
-files still look correct in review, so what silently ships is the
-**first-registered module's auth decorator**.
-
-Four production bugs so far, all `admin_core.py` shadowing `admin/*`: advisors
-403'd off `/api/admin/quests`; "Failed to load users" from a copy querying a
-nonexistent column; and org admins told **"Superadmin access required"** when
-saving a user, which blocked them from promoting anyone to `org_admin`.
-
-- `tests/unit/test_no_duplicate_routes.py` fails on any duplicate. Don't
-  suppress it — delete the loser or merge the two views.
-- Rules collide by **path shape**, not text: `/users/<user_id>` and
-  `/users/<target_user_id>` are the same rule. The name only changes the kwarg.
-- Adding a route to an existing path? `grep` the rule across `routes/` first.
-- Symptom to recognize: an endpoint enforces a **stricter role than its code
-  says**. Resolve the real handler before debugging the decorator:
-  ```python
-  app.url_map.bind('localhost').match('/api/admin/users/x', method='PUT')
-  ```
-
----
-
-## Testing
-
-While iterating: `npx vitest run <affected test files>`.
-
-**Before production merge (run once):**
-```bash
-cd web && npm run test:run    # Must be 95%+ pass rate
-npm run test:coverage              # Must be 60%+ coverage
-```
-
-### CI structure
-
-Each test suite is defined ONCE, in a reusable workflow, and called by both
-gates — so what gates the merge is identical to what gates the deploy. Edit the
-`tests-*.yml` file, never a copy.
-
-| Workflow | Trigger | Purpose |
+| Project | ref | What |
 |---|---|---|
-| [ci.yml](.github/workflows/ci.yml) | `pull_request` → main/develop, push develop | **Pre-merge gate** |
-| [release.yml](.github/workflows/release.yml) | push `main` | Release gate + deploy + OTA |
-| [tests-backend.yml](.github/workflows/tests-backend.yml) | called | pytest + coverage + pip-audit |
-| [tests-web.yml](.github/workflows/tests-web.yml) | called | vitest + coverage |
-| [tests-mobile.yml](.github/workflows/tests-mobile.yml) | called | jest + coverage + audit gate |
-| [tests-integration.yml](.github/workflows/tests-integration.yml) | called | `requires_db` on a free local Supabase stack |
-| [supabase-branch-reaper.yml](.github/workflows/supabase-branch-reaper.yml) | daily | Deletes preview branches >3d old |
+| **Optio** | `vvfgxcykxjybtvpfzwyx` | This repo. **Production.** The default. |
+| optio-staging | `kltoyqefmcgolbplplsa` | What dev Render reads. Synthetic data only. |
+| chamberlin / praxis | `cpuvzobtymgjdoqfalfg` / `qsnbrspowgvcehkcxekm` | Other apps. Not this one. |
 
-**Coverage floors** — ratchet up, never down. Set just under measured so a
-regression fails and normal churn doesn't:
+The Optio project is in the **Shortbird** org, not the org named "Optio".
 
-| Suite | Floor | Measured (2026-08-13) |
-|---|---|---|
-| Backend | 41% | 42.08% |
-| Web | 53% | 54.44% |
-| Mobile | 31/24/32/23 (stmt/br/line/fn), in `jest.config.js` | 31.37/24.42/32.63/23.75 |
+**Render** (Shortbird, `tea-d9ah63qq4dsc739armqg`). Auto-deploy ON for dev, OFF
+for prod. Dev: backend `srv-d9sjl22fngtc73ffenl0`, frontend
+`srv-d9sjl3n10e5c73a14b2g`, mobile web `srv-d9sjl42fngtc73fff1d0`. Prod: backend
+`srv-d9sjl1f10e5c73a14610`, frontend `srv-d9sjl2qjnfac739k091g`, cron
+`crn-d9sjl4tbedkc73dmb010`, redis `red-d9sjl16gekts738r0u2g`.
 
-**Integration tests are enforcing and green.** 133 of them run against a
-throwaway local Supabase stack on every PR, and a failure blocks the merge. This
-entry used to say they were "advisory and red on purpose" and could not pass;
-that stopped being true and nobody updated it, which is worse than saying
-nothing — an engineer reading it would have dismissed a real failure. Read
-[backend/tests/integration/README.md](backend/tests/integration/README.md)
-before touching them.
+**Environments**: dev https://optio-dev-frontend-r3v8.onrender.com (`develop`);
+prod https://www.optioeducation.com and https://api.optioeducation.com (`main`).
+Shareable app links use `app.optioeducation.com`, not `www`.
 
-**Never point a test suite at a Supabase preview branch.** They cost real money
-(abandoned ones were 38% of the Aug 2026 invoice) and it puts a service-role key
-for a production clone in CI. Use the local stack.
-
-- The backend job fails on **undefined names** (`python -m pyflakes backend`, filtered
-  to `undefined name` / `referenced before assignment` / `invalid syntax`). Python only
-  finds a missing import when a request reaches that line, so these ship as 500s that
-  read as something else — four were live on 2026-09-02. Run it before you push:
-  `python -m pyflakes backend | grep 'undefined name'` (expect no output). The rest of
-  pyflakes (unused imports, f-strings without placeholders) is ~1200 findings of style
-  and is deliberately not gated.
-- The mobile job's `npm audit` runs through [scripts/audit-gate.mjs](scripts/audit-gate.mjs):
-  advisories with no published fix can be accepted in
-  [mobile/audit-allowlist.json](mobile/audit-allowlist.json) with a reason
-  and `recheck_after` date. Verify a fix genuinely doesn't exist before allowlisting
-  (compare against `npm view <pkg> versions` — npm's "fix available" sometimes
-  proposes a downgrade).
-- Prod Render deploys fire from `release.yml`'s `deploy` job only on green tests.
-
-**Full testing guide:** [web/TESTING.md](web/TESTING.md)
+**Mobile**: `src/config/navigation.ts` is the single source of truth for nav. Do
+not set `EXPO_PUBLIC_API_URL` in a local `.env` — `Platform.select` in
+`src/services/api.ts` handles web versus native, and setting it breaks native.
 
 ---
 
-## Key API Endpoints
+## Extended documentation
 
-### Auth
-`POST /api/auth/login` | `POST /api/auth/register` | `POST /api/auth/refresh` | `GET /api/auth/me`
-
-### Quests & Tasks
-`GET /api/quests` | `POST /api/quests/:id/start` | `POST /api/tasks/:id/complete` | `DELETE /api/tasks/:id`
-
-### Admin
-`GET /api/admin/users/*` | `GET /api/admin/quests/*` | `GET /api/admin/analytics/*` | `GET /api/admin/organizations/*`
-
-### Dependents
-`GET /api/dependents/my-dependents` | `POST /api/dependents/create` | `POST /api/dependents/:id/promote`
-
-### Observer
-`POST /api/observers/invite` | `GET /api/observers/my-students` | `GET /api/observers/student/:id/portfolio`
-
----
-
-## File Structure
-
-```
-backend/
-├── routes/           # API endpoints (use repositories for new code)
-├── repositories/     # Data access layer (15 repos)
-├── services/         # Business logic (22 services)
-└── middleware/       # CSRF, rate limiting
-
-web/                    # Web app (React + Vite) — the production web surface
-└── src/
-    ├── pages/          # Route components
-    ├── components/     # UI components
-    └── services/       # API + auth
-
-mobile/                 # Mobile iOS/Android app (Expo)
-├── app/                # Expo Router pages (file-based routing)
-├── src/                # components/ui, config/navigation.ts, hooks, services, stores
-├── tailwind.config.js  # Brand tokens (must be .js, not .ts)
-└── metro.config.js     # NativeWind integration
-```
-
----
-
-## MCP Quick Reference
-
-Setup, connection details, and troubleshooting: [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
-
-### Supabase projects (one connection reaches all — pass `project_id` per call)
-
-> The Optio project is in the **Shortbird** org (`zrailajwqifqtvyxgznq`), not the
-> org named "Optio" (`ewldvvivnnnxtyeaxmoz`, which holds only `momentum`). This
-> heading used to say they shared one org; they do not, and it matters because a
-> new project's cost differs per org.
-
-| Project | ref / project_id | What it is |
-|---------|------------------|------------|
-| **Optio** | `vvfgxcykxjybtvpfzwyx` | This repo (pathweaver_2.0) — the **prod** DB. Default for anything in this codebase. |
-| **optio-staging** | `kltoyqefmcgolbplplsa` | Staging (created 2026-09-09). What dev Render points at. Synthetic data only — see [STAGING_RUNBOOK.md](docs/remediation-2026-09/STAGING_RUNBOOK.md). |
-| chamberlin | `cpuvzobtymgjdoqfalfg` | Separate app (Chamberlin Music). |
-| praxis | `qsnbrspowgvcehkcxekm` | Separate app (fitness/nutrition). |
-
-> For work in THIS repo, always target `vvfgxcykxjybtvpfzwyx`.
-
-Useful tools: `list_tables`, `execute_sql` (read-only), `get_schemas`.
-
-### Render services (Shortbird workspace, `tea-d9ah63qq4dsc739armqg`)
-| Environment | Service | ID | Branch |
-|-------------|---------|-----|--------|
-| Dev | Backend | `srv-d9sjl22fngtc73ffenl0` | `develop` |
-| Dev | Frontend | `srv-d9sjl3n10e5c73a14b2g` | `develop` |
-| Dev | Mobile web target | `srv-d9sjl42fngtc73fff1d0` | `develop` |
-| Prod | Backend | `srv-d9sjl1f10e5c73a14610` | `main` |
-| Prod | Frontend | `srv-d9sjl2qjnfac739k091g` | `main` |
-| Prod | Cron (dispatch) | `crn-d9sjl4tbedkc73dmb010` | `main` |
-| Prod | Redis (rate limit) | `red-d9sjl16gekts738r0u2g` | — |
-
-Auto-deploy: ON for dev services, OFF for prod (CI-triggered only). All backends pin
-`PYTHON_VERSION=3.11.9`.
-
----
-
-## Troubleshooting
-
-| Error | Fix |
-|-------|-----|
-| "quest_tasks does not exist" | Use `user_quest_tasks` |
-| "friendships does not exist" | Table dropped (Mar 2026 audit) |
-| "calendar_view_preferences does not exist" | Table dropped (Mar 2026 audit) |
-| "Content-Type must be application/json" | Add body: `api.post(url, {})` |
-| 401 Unauthorized | Check httpOnly cookies |
-| Wrong brand colors | Use `optio-purple`/`optio-pink` |
-| RLS policy violations | Use correct client (user vs admin) |
-
----
-
-## Extended Documentation (read on demand)
-
-- **Local Development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
-- **Testing Guide**: [web/TESTING.md](web/TESTING.md)
-- **MCP Setup & Troubleshooting**: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)
-- **Supabase Branching**: [docs/SUPABASE_BRANCHING.md](docs/SUPABASE_BRANCHING.md)
-- **Ops History (deploy flow, hosting, migrations)**: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md)
-- **Repository Pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md)
-- **Design System (web)**: [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) — when a page and this doc disagree, the page is wrong
-- **Core Philosophy**: [core_philosophy.md](core_philosophy.md)
-- **Migration Status**: [backend/docs/REPOSITORY_MIGRATION_STATUS.md](backend/docs/REPOSITORY_MIGRATION_STATUS.md)
-- **Token Storage Model (ADR-001)**: [docs/ADR-001-token-storage.md](docs/ADR-001-token-storage.md)
-- **Audit remediation — what is already fixed**: [docs/remediation-2026-09/CLOSED_FINDINGS.md](docs/remediation-2026-09/CLOSED_FINDINGS.md) — read before changing auth, logging, CI guards or the ratchets
-- **Audit remediation — what is still open**: [docs/remediation-2026-09/OPEN_FINDINGS.md](docs/remediation-2026-09/OPEN_FINDINGS.md)
-- **Branch Test Data**: [supabase/seed.sql](supabase/seed.sql)
-- **Brand / colors**: [docs/OPTIO_BRAND_GUIDELINES.md](docs/OPTIO_BRAND_GUIDELINES.md), [docs/COLOR_REFERENCE.md](docs/COLOR_REFERENCE.md)
-- **Play Store release docs**: [docs/play-store/](docs/play-store/)
-- **Stale docs awaiting a decision**: [docs/remediation-2026-09/STALE_DOCS.md](docs/remediation-2026-09/STALE_DOCS.md)
-  — point-in-time records that are not wrong so much as finished. If one of
-  those disagrees with the code, the code is right.
+- **Every ratchet, hook and ceiling**: [RATCHETS.md](docs/remediation-2026-09/RATCHETS.md)
+- **What is still open, and why**: [REGISTER.md](docs/remediation-2026-09/REGISTER.md)
+- **What is closed — read before changing auth, logging or CI guards**: [CLOSED_FINDINGS.md](docs/remediation-2026-09/CLOSED_FINDINGS.md)
+- **Local development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) · **Testing**: [web/TESTING.md](web/TESTING.md) · **MCP**: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)
+- **Ops history**: [docs/OPS_HISTORY.md](docs/OPS_HISTORY.md) · **Repository pattern**: [backend/docs/REPOSITORY_PATTERN.md](backend/docs/REPOSITORY_PATTERN.md) · **Env keys**: [backend/docs/ENV_KEYS_REFERENCE.md](backend/docs/ENV_KEYS_REFERENCE.md)
+- **Design system** — when a page and this doc disagree, the page is wrong: [docs/design/DESIGN_SYSTEM.md](docs/design/DESIGN_SYSTEM.md) · **Brand**: [docs/OPTIO_BRAND_GUIDELINES.md](docs/OPTIO_BRAND_GUIDELINES.md)
+- **Finished, point-in-time docs** — if one disagrees with the code, the code is right: [STALE_DOCS.md](docs/remediation-2026-09/STALE_DOCS.md)

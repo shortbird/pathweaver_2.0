@@ -155,6 +155,11 @@ site/
 *.jks
 
 .claude/workspace/
+
+# Per-session scratch for the repo hooks (which files a session touched).
+# .claude/settings.json and .claude/hooks/ ARE tracked -- they are the gate.
+.claude/state/
+
 test_video.mp4
 
 # Android bug-report artifacts (never commit)

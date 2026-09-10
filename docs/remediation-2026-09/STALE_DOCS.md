@@ -22,7 +22,7 @@ workflow, or another doc, it was not deleted regardless of how stale it read.
 | `ADMIN_CLIENT_USAGE.md` | 342 | ADR 002 + `tests/unit/test_admin_client_justified.py` |
 | `ADMIN_CLIENT_USAGE_AUDIT.md` | 153 | same — this was a near-duplicate of the above |
 | `AUTHENTICATION_ANALYSIS.md` | 432 | `docs/ADR-001-token-storage.md`, `backend/docs/adr/003`, `004` |
-| `SESSION_PERSISTENCE.md` | 259 | SEC-14's key model. **Also published two 64-hex secrets** — see OPEN_FINDINGS NEEDS TANNER §1 |
+| `SESSION_PERSISTENCE.md` | 259 | SEC-14's key model. **Also published two 64-hex secrets** — see REGISTER.md NEEDS TANNER §1 |
 | `SIS_MVP.md` | 148 | `SIS_IMPLEMENTATION_PLAN.md`, per its own banner |
 
 Plus, in the previous commit: `docs/audit-2026-08/` (3,964 lines) and
