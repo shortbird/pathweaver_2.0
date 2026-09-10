@@ -239,7 +239,11 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
               ? Math.round((completedTasks / totalTasks) * 100)
               : 0
           },
-          quest_tasks: questData.quest_tasks || []
+          quest_tasks: questData.quest_tasks || [],
+          // Set by a class, and when it is due. Null for a quest the student
+          // picked themselves. Lives on the enrollment, not the quest: the same
+          // quest is schoolwork for one student and a free choice for another.
+          class_assignment: quest.class_assignment || null
         };
         return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
       })}

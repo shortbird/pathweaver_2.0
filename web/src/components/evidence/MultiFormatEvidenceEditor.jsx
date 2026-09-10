@@ -270,6 +270,7 @@ const MultiFormatEvidenceEditorInner = forwardRef(({ hideHeader = false }, ref) 
             xp_awarded: completeResponse.xp_awarded || 0,
             has_collaboration_bonus: completeResponse.has_collaboration_bonus || false,
             quest_completed: completeResponse.quest_completed || false,
+            quest_auto_ended: completeResponse.quest_auto_ended || false,
             message: completeResponse.xp_awarded
               ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
               : 'Task completed successfully!'

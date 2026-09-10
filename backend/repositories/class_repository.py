@@ -342,6 +342,21 @@ class ClassRepository(BaseRepository):
             .execute()
         return response.data[0] if response.data else None
 
+    def get_due_dates_for_classes(self, class_ids: List[str]) -> Dict[tuple, Optional[str]]:
+        """{(class_id, quest_id): due_date} across several classes at once.
+
+        One read for a whole class list. The per-class alternative is a query
+        per card, and a student with eight classes loads eight of them to render
+        one badge each.
+        """
+        if not class_ids:
+            return {}
+        rows = self.admin_client.table('class_quests')\
+            .select('class_id, quest_id, due_date')\
+            .in_('class_id', class_ids)\
+            .execute().data or []
+        return {(r['class_id'], r['quest_id']): r.get('due_date') for r in rows}
+
     def get_student_agenda(self, student_id: str) -> List[Dict[str, Any]]:
         """
         Upcoming due dates for a student across their active class enrollments.

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -359,9 +359,16 @@ const QuestDetail = () => {
     });
   };
 
+  // Did the backend close this enrollment for us? True only for a quest the
+  // student's class assigned, once every task on it is turned in. It changes
+  // what the celebration offers -- see QuestCompletionCelebration.
+  const [questAutoEnded, setQuestAutoEnded] = useState(false);
+
   const handleTaskCompletion = async (completionData) => {
     logger.debug('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
     logger.debug('[QUEST_DETAIL] completionData:', completionData);
+
+    setQuestAutoEnded(Boolean(completionData?.quest_auto_ended));
 
     if (selectedTask) {
       logger.debug('[QUEST_DETAIL] About to call flushSync for state + cache update');
@@ -875,6 +882,7 @@ const QuestDetail = () => {
             isClass={quest.quest_type === 'class'}
             onSubmitForReview={handleSubmitClassForReview}
             submitting={submittingClassReview}
+            autoEnded={questAutoEnded}
           />
         </Suspense>
       )}

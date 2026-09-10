@@ -345,6 +345,20 @@ def complete_task(user_id: str, task_id: str):
         else:
             quest_completed = False
 
+        # ...with one exception: a quest the student's class assigned them ends
+        # itself once every task on it is turned in. The prompt above is the
+        # right behaviour for a quest they chose, where staying open to add more
+        # is the point. It is the wrong behaviour for schoolwork, which left
+        # finished assignments sitting on the home page looking undone (Gryffin,
+        # 2026-09-10). The service decides which kind this is; it is a no-op for
+        # a student-started quest. Read its docstring before changing this.
+        quest_auto_ended = False
+        if quest_completed:
+            from services.class_quest_completion import end_if_class_quest_complete
+            quest_auto_ended = end_if_class_quest_complete(
+                admin_supabase, effective_user_id, quest_id
+            )
+
         # Emit webhook event for task completion
         try:
             webhook_service = WebhookService(admin_supabase)
@@ -401,6 +415,7 @@ def complete_task(user_id: str, task_id: str):
                 'xp_awarded': final_xp,
                 'xp_award_pending': xp_award_pending,
                 'quest_completed': quest_completed,
+                'quest_auto_ended': quest_auto_ended,
                 'completion': completion_payload
             }
         )

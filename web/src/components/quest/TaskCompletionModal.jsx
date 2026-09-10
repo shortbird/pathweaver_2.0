@@ -80,7 +80,8 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
         task,
         xp_awarded: xpAwarded,
         message: successMessage,
-        quest_completed: data.quest_completed || false
+        quest_completed: data.quest_completed || false,
+        quest_auto_ended: data.quest_auto_ended || false
       });
 
     } catch (error) {

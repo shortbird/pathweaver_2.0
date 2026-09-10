@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import logging
 
 from database import get_supabase_admin_client
+from utils.class_assignments import student_class_assignments
 from utils.quest_status import is_enrollment_complete
 from utils.validation.sanitizers import pgrst_timestamp
 
@@ -350,6 +351,36 @@ class DashboardService:
             logger.error(f"Error fetching active quests: {str(e)}")
             return self._get_active_quests_fallback(user_id, exclude_quest_ids)
 
+    def _attach_class_assignment(
+        self, user_id: str, quests: List[Dict]
+    ) -> List[Dict[str, Any]]:
+        """Say which of these quests a class assigned, and when it is due.
+
+        Gryffin student check-ins, 2026-09-10 (Dallin Bird): the students who
+        work from the home page rather than the class page "wanted a due date on
+        the quests seen there". They had no way to get one. The home page reads
+        user_quests joined to quests, and a due date lives on class_quests, one
+        table further out, so an assignment and a quest a student picked for
+        themselves looked identical on the card.
+
+        Attached as `class_assignment` on the enrollment rather than merged into
+        the quest record: the same quest can be assigned in one student's class
+        and self-chosen by another, so this is a fact about the enrollment.
+        """
+        if not quests:
+            return quests
+        try:
+            assignments = student_class_assignments(self.client, user_id)
+        except Exception as e:  # noqa: BLE001 — a due date must not cost the page
+            logger.warning(f"Could not attach class assignments for {user_id}: {e}")
+            return quests
+
+        for enrollment in quests:
+            assignment = assignments.get(enrollment.get('quest_id'))
+            if assignment:
+                enrollment['class_assignment'] = assignment
+        return quests
+
     def _filter_stale_quests(self, quests: List[Dict]) -> List[Dict]:
         """Filter out stale completed quests that were never properly ended."""
         active_only = []
@@ -464,7 +495,10 @@ class DashboardService:
             enrollment['completed_tasks'] = completed_count
             quest_info['quest_tasks'] = tasks
 
-        return quests
+        # Both the primary and the fallback active-quest paths land here, so
+        # this is where a class due date gets attached — a fallback that dropped
+        # due dates would look like the teacher never set one.
+        return self._attach_class_assignment(user_id, quests)
 
     def _get_active_quests_fallback(
         self, user_id: str, exclude_quest_ids: Set[str] = None

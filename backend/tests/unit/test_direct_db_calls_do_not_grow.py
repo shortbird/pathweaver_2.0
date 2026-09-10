@@ -212,7 +212,23 @@ BASELINES = {
     #     exact failure the service was extracted to prevent.
     # The genuinely new table, credit_ai_reviews, DID get a repository
     # (repositories/credit_ai_review_repository.py) and accounts for none of this.
-    'services': 1841,
+    # 2026-09-10: 1841 -> 1847. Class quests that end themselves once the
+    # assigned work is turned in (Gryffin student check-ins: a finished quest
+    # sat open on the student's home page). Six calls in two places:
+    #   - class_quest_completion.end_if_class_quest_complete reads the open
+    #     enrollments for one (student, quest) and closes the finished ones under
+    #     an optimistic lock, then fires the SAME side effects the student's own
+    #     "End quest" button fires -- the completions, the user's org, the quest
+    #     title, for one quest.completed webhook. Those three reads are copied
+    #     from routes/quest/completion.end_quest deliberately: the two paths have
+    #     to emit the identical event, and splitting them across a repository is
+    #     what would let them drift.
+    #   - class_service._attach_quest_status reads this student's user_quests for
+    #     the quests their classes assigned, to count what is still outstanding
+    #     on each class card. No repository owns user_quests keyed by student.
+    # The class_quests half of that feature did NOT land here: it went into
+    # ClassRepository.get_due_dates_for_classes, the layer that owns the table.
+    'services': 1847,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -240,7 +256,12 @@ BASELINES = {
     # against credit_ai_reviews: the queue reads, the two conditional writes that
     # make the claim work, and the paged read behind the dashboard's AI filter.
     # All new work, all in the layer that is allowed to have it.
-    'repositories': 464,
+    # 2026-09-10: 464 -> 465. ClassRepository.get_due_dates_for_classes -- one
+    # read of class_quests for a whole class list, so the outstanding-work badge
+    # on each student class card costs one query instead of one per card. It is
+    # the half of that feature that had a repository to go to; the layer that
+    # owns the table is where it belongs.
+    'repositories': 465,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -250,7 +271,21 @@ BASELINES = {
     # moved here from routes/tasks/xp_helpers.py with its one query, because
     # PersonalizationService needs it and services must not import from
     # routes (test_import_layers.py). routes/ dropped by the same one.
-    'utils': 136,
+    # 2026-09-10: 136 -> 144. Two modules whose entire job is answering one
+    # question against the database, in the "small and mostly legitimate"
+    # category the docstring describes:
+    #   - utils/class_assignments (6): what a student's classes have assigned to
+    #     them and when it is due. Three callers need the identical answer -- the
+    #     home page's due chip, the class card's outstanding count, and the
+    #     auto-end rule deciding whether a quest is schoolwork -- and the reason
+    #     it exists is that they must never each grow their own version. utils/
+    #     may not import repositories/ (test_import_layers) anyway.
+    #   - utils/quest_completion.task_progress (2): the task and completion
+    #     counts that feed is_quest_done, which already lives in this module as
+    #     the one definition of "is this student finished". Putting the counting
+    #     a layer away from the rule it feeds is how the teacher's grid and the
+    #     student's own screen came to disagree in the first place.
+    'utils': 144,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,
@@ -296,7 +331,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2342 + 1841
+UPPER_TOTAL_BASELINE = 2342 + 1847
 
 
 def test_the_upper_layers_do_not_grow_in_total():

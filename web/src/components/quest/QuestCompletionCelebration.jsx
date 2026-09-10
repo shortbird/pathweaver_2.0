@@ -14,7 +14,8 @@ const QuestCompletionCelebration = ({
   onClose,
   isClass = false,
   onSubmitForReview,
-  submitting = false
+  submitting = false,
+  autoEnded = false
 }) => {
   const navigate = useNavigate();
   const { effectiveRole } = useAuth();
@@ -30,7 +31,7 @@ const QuestCompletionCelebration = ({
   // Class quests aren't "complete" when tasks are done — they're ready to submit
   // to Optio for a final review that issues the transcript credit. Distinct copy
   // + actions from a regular quest. (Empty quests keep the generic flow.)
-  const isClassReady = isClass && !isEmptyQuest;
+  const isClassReady = isClass && !isEmptyQuest && !autoEnded;
   const subjectName = getSubjectName(quest?.transcript_subject || '') || 'this';
 
   useEffect(() => {
@@ -193,7 +194,9 @@ const QuestCompletionCelebration = ({
                   {quest?.title || 'Your Quest'}
                 </p>
                 <p className="text-gray-600 text-lg">
-                  Amazing work! You've completed all tasks in this quest.
+                  {autoEnded
+                    ? "Amazing work! Every task your class assigned is turned in, so this one is finished."
+                    : "Amazing work! You've completed all tasks in this quest."}
                 </p>
               </>
             )}
@@ -224,14 +227,20 @@ const QuestCompletionCelebration = ({
           {/* Question prompt */}
           <div className="bg-gradient-to-r from-optio-purple/5 to-optio-pink/5 rounded-2xl p-6 mb-6 border-2 border-optio-purple/20">
             <p className="text-center text-lg font-semibold text-gray-800 mb-2">
-              {isClassReady ? 'Ready to submit for credit?' : 'What would you like to do next?'}
+              {isClassReady
+                ? 'Ready to submit for credit?'
+                : autoEnded
+                  ? 'This one is turned in'
+                  : 'What would you like to do next?'}
             </p>
             <p className="text-center text-gray-600 text-sm">
               {isClassReady
                 ? `An Optio teacher will review your work. If a task needs more evidence, they'll send it back with notes. Once it's approved, your ${subjectName} credit is added to your transcript.`
-                : isEmptyQuest
-                  ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
-                  : 'Add more tasks to keep learning, or finish this quest and return to your dashboard. You can also close this and keep working on what you just finished.'}
+                : autoEnded
+                  ? 'Your teacher can see it. It has moved to the finished list on your class page and left your current quests. If you want to keep going, reopen it from the quest page.'
+                  : isEmptyQuest
+                    ? 'Add tasks to personalize your quest, or finish and return to your dashboard.'
+                    : 'Add more tasks to keep learning, or finish this quest and return to your dashboard. You can also close this and keep working on what you just finished.'}
             </p>
           </div>
 
@@ -253,6 +262,21 @@ const QuestCompletionCelebration = ({
               >
                 <PlusIcon className="w-5 h-5" />
                 Continue working
+              </button>
+            </div>
+          ) : autoEnded ? (
+            /* The quest is already closed -- their class assigned it and every
+               task is turned in, so the platform ended it for them. Offering
+               "Finish Quest" would ask for something already done, and "Add
+               More Tasks" would quietly reopen work a teacher considers
+               submitted. One button that agrees with the state. */
+            <div className="flex gap-4">
+              <button
+                onClick={onClose}
+                className="btn-primary btn-lg flex-1"
+              >
+                <CheckCircleIcon className="w-5 h-5" />
+                Done
               </button>
             </div>
           ) : (
