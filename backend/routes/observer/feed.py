@@ -89,10 +89,20 @@ def register_routes(bp):
 
             # Get user role to check if they're superadmin/advisor/parent
             # Need both role and org_role to handle org-managed users
-            user_result = supabase.table('users').select('role, org_role, email').eq('id', observer_id).single().execute()
-            user_role = user_result.data.get('role') if user_result.data else None
-            user_org_role = user_result.data.get('org_role') if user_result.data else None
-            user_email = user_result.data.get('email') if user_result.data else None
+            # maybe_single(), not single(): a token whose users row is gone
+            # must not raise. single() answers PGRST116 ("Cannot coerce the
+            # result to a single JSON object") on zero rows, which surfaced as
+            # a 500 to a mobile app still holding a session for an account that
+            # had been deleted and re-created under a new id (Sentry
+            # OPTIO-BACKEND-8P, 2026-09-10). The same shape cost us
+            # OPTIO-BACKEND-7J on /api/ai-access/status. No row means no roles,
+            # and the branches below already read that as an ordinary observer.
+            user_result = (supabase.table('users').select('role, org_role, email')
+                           .eq('id', observer_id).maybe_single().execute())
+            user_data = getattr(user_result, 'data', None) or {}
+            user_role = user_data.get('role')
+            user_org_role = user_data.get('org_role')
+            user_email = user_data.get('email')
 
             # Determine effective role (org_role for org_managed users, role otherwise)
             effective_role = user_org_role if user_role == 'org_managed' else user_role

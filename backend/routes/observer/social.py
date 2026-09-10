@@ -263,10 +263,30 @@ def register_routes(bp):
 
                 # Check if superadmin (directly or masquerading as another user)
                 from utils.auth.decorators import caller_is_superadmin
-                user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
-                user_role = user_result.data.get('role') if user_result.data else None
+                # maybe_single(): a caller whose users row is gone must answer
+                # 403, not raise PGRST116 and become a 500.
+                user_result = (supabase.table('users').select('role')
+                               .eq('id', user_id).maybe_single().execute())
+                user_role = (getattr(user_result, 'data', None) or {}).get('role')
                 if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
                     has_access = True
+
+                # A PARENT reading comments on their own child's work. This
+                # check was missing entirely: the gate knew observers, advisors
+                # and superadmin, so a mother opening her daughter's evidence
+                # was refused the comment thread attached to it (Sentry
+                # OPTIO-WEB-1D, Hearthwood, 2026-09-10). The feed that shows
+                # her the card is built on parent_student_links; the thread
+                # under it has to use the same relationship.
+                #
+                # is_parent_of covers both linking mechanisms (an approved
+                # parent_student_links row, or managed_by_parent_id for a
+                # dependent) -- re-deriving either here is how those four
+                # copies of the parent check came to disagree.
+                if not has_access:
+                    from utils.portfolio_access import is_parent_of
+                    if is_parent_of(user_id, student_id):
+                        has_access = True
 
                 # Check observer_student_links
                 if not has_access:
@@ -367,10 +387,30 @@ def register_routes(bp):
 
                 # Check if superadmin (directly or masquerading as another user)
                 from utils.auth.decorators import caller_is_superadmin
-                user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
-                user_role = user_result.data.get('role') if user_result.data else None
+                # maybe_single(): a caller whose users row is gone must answer
+                # 403, not raise PGRST116 and become a 500.
+                user_result = (supabase.table('users').select('role')
+                               .eq('id', user_id).maybe_single().execute())
+                user_role = (getattr(user_result, 'data', None) or {}).get('role')
                 if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
                     has_access = True
+
+                # A PARENT reading comments on their own child's work. This
+                # check was missing entirely: the gate knew observers, advisors
+                # and superadmin, so a mother opening her daughter's evidence
+                # was refused the comment thread attached to it (Sentry
+                # OPTIO-WEB-1D, Hearthwood, 2026-09-10). The feed that shows
+                # her the card is built on parent_student_links; the thread
+                # under it has to use the same relationship.
+                #
+                # is_parent_of covers both linking mechanisms (an approved
+                # parent_student_links row, or managed_by_parent_id for a
+                # dependent) -- re-deriving either here is how those four
+                # copies of the parent check came to disagree.
+                if not has_access:
+                    from utils.portfolio_access import is_parent_of
+                    if is_parent_of(user_id, student_id):
+                        has_access = True
 
                 # Check observer_student_links
                 if not has_access:
