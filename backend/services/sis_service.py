@@ -2271,55 +2271,57 @@ def waive_registration_fee(org_id: str, household_id: str,
 
 
 # ── Org messaging identity ────────────────────────────────────────────────────
-# SIS family/student messages are sent from a per-org "school account" so the
-# recipient sees the school's name and logo — not the individual staff member,
-# and never the "Optio Support" alias that fronts superadmin senders.
+# SIS family/student messages are sent from the org's school-inbox account
+# (organizations.inbox_user_id) so the recipient sees the school's name — not
+# the individual staff member, and never the "Optio Support" alias that fronts
+# superadmin senders.
+#
+# There used to be a SECOND school account here, minted by _org_messaging_sender
+# at school-<org_id>@optio-internal-placeholder.local, and the People page's
+# "Message family" / "Message student" buttons sent from that one. Nothing read
+# it. The School Inbox lists threads for inbox_user_id, so every reply a parent
+# wrote to one of those messages landed in an account no page opens and no
+# person is notified about -- the office saw silence and the family saw no
+# answer. The account and its threads are folded into inbox_user_id by
+# 20260910... _merge_org_messaging_sender_into_school_inbox.sql.
 
 def org_messaging_email(org_id: str) -> str:
-    """Deterministic placeholder email that marks the org's school account."""
+    """Deterministic placeholder email of the RETIRED second school account.
+
+    Kept only so the two roster filters that hide it (list_org_staff and the
+    training recipient list) keep hiding it while any un-migrated row survives.
+    Nothing sends from this identity any more. Delete once the merge migration
+    has run everywhere.
+    """
     return f"school-{org_id}@optio-internal-placeholder.local"
 
 
-def _org_messaging_sender(org_id: str) -> Optional[str]:
-    """User id of the org's school account, created on first use. org_role is
-    org_admin so DM permissions allow messaging anyone in the org AND let
-    recipients reply. The account can't log in (placeholder email, no password).
-    Returns None on failure so callers can fall back to the staff sender."""
-    admin = _admin()
-    email = org_messaging_email(org_id)
-    row = (admin.table('users').select('id').eq('email', email).limit(1).execute()).data
-    if row:
-        return row[0]['id']
+def _school_sender(org_id: str, fallback_id: str) -> tuple:
+    """(sender_id, sent_by_user_id) for a message going out as the school.
 
-    org_rows = (admin.table('organizations').select('name, branding_config')
-                .eq('id', org_id).limit(1).execute()).data
-    org = org_rows[0] if org_rows else {}
-    name = org.get('name') or 'School'
-    logo = (org.get('branding_config') or {}).get('logo_url')
+    Returns the org's school-inbox account with the staff member recorded as the
+    author, so the School Inbox shows "Sent by Kate" and the reply comes back to
+    a thread the office actually reads. Falls back to the staff member as
+    themselves if the inbox account cannot be resolved -- a message that goes
+    out under the wrong name beats one that does not go out at all.
+    """
+    from services import school_inbox_service
     try:
-        auth_resp = admin.auth.admin.create_user({
-            'email': email,
-            'email_confirm': False,
-            'user_metadata': {'display_name': name, 'org_messaging_account': True},
-            'app_metadata': {'provider': 'org_messaging', 'providers': ['org_messaging']},
-        })
-        uid = auth_resp.user.id
-        admin.table('users').insert({
-            'id': uid, 'email': email, 'display_name': name,
-            'first_name': name, 'last_name': '',
-            'avatar_url': logo,
-            'organization_id': org_id, 'role': 'org_managed', 'org_role': 'org_admin',
-        }).execute()
-        return uid
-    except Exception as e:
-        logger.error(f"org messaging account create failed for org {str(org_id)[:8]}: {e}")
-        return None
+        org = school_inbox_service.get_org(org_id)
+        inbox_id = school_inbox_service.get_or_create_inbox_user(org) if org else None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school sender: inbox lookup failed for org {str(org_id)[:8]}: {e}")
+        inbox_id = None
+    if inbox_id:
+        return inbox_id, fallback_id
+    return fallback_id, None
 
 
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,
                                subject: str, body: str) -> Dict[str, Any]:
     """Send a platform message to every guardian in a household (best-effort per
-    guardian), from the org's school account (falls back to the staff sender)."""
+    guardian), from the org's school-inbox account so replies come back to the
+    School Inbox. Falls back to the staff sender."""
     from services.direct_message_service import DirectMessageService
     members = (
         _admin().table('household_members').select('user_id, relationship')
@@ -2327,12 +2329,12 @@ def message_household_guardians(org_id: str, household_id: str, sender_id: str,
     ).data or []
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') in GUARDIAN_RELATIONSHIPS]
     content = f"{subject}\n\n{body}" if subject else body
-    sender = _org_messaging_sender(org_id) or sender_id
+    sender, sent_by = _school_sender(org_id, sender_id)
     svc = DirectMessageService()
     sent = 0
     for gid in guardian_ids:
         try:
-            svc.send_message(sender, gid, content)
+            svc.send_message(sender, gid, content, sent_by_user_id=sent_by)
             sent += 1
         except Exception as e:
             logger.info(f"family message to guardian {str(gid)[:8]} skipped: {e}")
@@ -2340,13 +2342,15 @@ def message_household_guardians(org_id: str, household_id: str, sender_id: str,
 
 
 def message_student(org_id: str, student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:
-    """Send a message to the student through the platform messaging (direct messages)
-    system, from the org's school account (falls back to the staff caller).
+    """Send a message to the student through the platform messaging (direct
+    messages) system, from the org's school-inbox account so replies come back
+    to the School Inbox. Falls back to the staff caller.
     Raises ValueError if the sender lacks permission."""
     from services.direct_message_service import DirectMessageService
     content = f"{subject}\n\n{body}" if subject else body
-    sender = _org_messaging_sender(org_id) or sender_id
-    msg = DirectMessageService().send_message(sender, student_id, content)
+    sender, sent_by = _school_sender(org_id, sender_id)
+    msg = DirectMessageService().send_message(sender, student_id, content,
+                                              sent_by_user_id=sent_by)
     return {'conversation_id': msg.get('conversation_id')}
 
 
