@@ -38,6 +38,8 @@ export const queryKeys = {
   family: {
     all: ['family'],
     classMaterials: (studentId) => [...queryKeys.family.all, 'classMaterials', studentId],
+    // The signed-in student's own, which takes no id -- see useMyClassMaterials.
+    myClassMaterials: () => [...queryKeys.family.all, 'myClassMaterials'],
   },
 
   // Social features (friends removed March 2026)

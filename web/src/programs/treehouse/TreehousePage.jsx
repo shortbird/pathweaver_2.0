@@ -16,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { treehouseAPI } from '../../services/api'
 import { isFocusMode, setFocusMode } from '../../utils/focusMode'
 import ModalOverlay from '../../components/ui/ModalOverlay'
+import TreehouseQuickCapture from './TreehouseQuickCapture'
 
 const isFacilitatorRole = (role, user) => {
   const roles = new Set([role, user?.org_role, ...(user?.org_roles || [])])
@@ -125,12 +126,17 @@ function StudentHome() {
         </button>
       )}
 
-      {/* Four big buttons */}
+      {/* Four big buttons, plus the camera across the bottom row. Capture is
+          full width because it is the one button that needs no quest first —
+          a finished thing in hand goes to the portfolio from here. */}
       <div className="grid grid-cols-2 gap-4 mt-6">
         <BigButton to="/dashboard" color="bg-gradient-to-br from-optio-purple to-indigo-500" icon="📚" label="My Quests" />
         <BigButton to="/treehouse/browse" color="bg-gradient-to-br from-optio-pink to-rose-500" icon="🔭" label="Find a Quest" />
         <BigButton to="/treehouse/showcase" color="bg-gradient-to-br from-amber-400 to-orange-500" icon="🌟" label="Showcase" />
         <BigButton to="/bounties" color="bg-gradient-to-br from-emerald-400 to-teal-500" icon="🛠️" label="School Jobs" />
+        <TreehouseQuickCapture
+          className="col-span-2 flex flex-col items-center justify-center gap-3 rounded-3xl p-8 text-white shadow-md transition active:scale-95 bg-gradient-to-br from-sky-400 to-cyan-500"
+        />
       </div>
 
       {/* Help + Proud */}

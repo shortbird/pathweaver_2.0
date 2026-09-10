@@ -51,7 +51,15 @@ const renderSteps = (steps, depth = 0) => (steps || []).map(step => `
   </div>
   ${step.sub_steps?.length ? renderSteps(step.sub_steps, depth + 1) : ''}`).join('\n')
 
-export function buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, tapeWidthMm = TAPE_WIDTH_MM }) {
+export function buildStepsReceiptHtml({
+  orgName,
+  studentName,
+  taskTitle,
+  steps,
+  tapeWidthMm = TAPE_WIDTH_MM,
+  docTitle = 'My steps',
+  footerText = 'One step at a time.',
+}) {
   const dateLine = new Date().toLocaleDateString(undefined, {
     weekday: 'long', month: 'long', day: 'numeric'
   })
@@ -61,7 +69,7 @@ export function buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, 
 <html>
 <head>
 <meta charset="utf-8">
-<title>My steps</title>
+<title>${escapeHtml(docTitle)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: ${tapeWidthMm}mm; }
@@ -123,7 +131,7 @@ export function buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, 
     <div class="rule"></div>
     ${renderSteps(steps)}
     <div class="rule"></div>
-    <div class="footer">One step at a time.</div>
+    <div class="footer">${escapeHtml(footerText)}</div>
   </div>
   <script>
     window.onload = function () {
@@ -144,13 +152,56 @@ export function buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, 
 </html>`
 }
 
-export function printStepsReceipt({ orgName, studentName, taskTitle, steps, tapeWidthMm }) {
-  if (!steps || steps.length === 0) return false
-
+// Hand the built label to a popup, which prints itself on load. Returns false
+// when the popup was blocked, so the caller can say so.
+const openReceiptWindow = (html) => {
   const printWindow = window.open('', '_blank', 'width=320,height=700')
   if (!printWindow) return false
   printWindow.document.open()
-  printWindow.document.write(buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, tapeWidthMm }))
+  printWindow.document.write(html)
   printWindow.document.close()
   return true
+}
+
+export function printStepsReceipt({ orgName, studentName, taskTitle, steps, tapeWidthMm }) {
+  if (!steps || steps.length === 0) return false
+
+  return openReceiptWindow(buildStepsReceiptHtml({ orgName, studentName, taskTitle, steps, tapeWidthMm }))
+}
+
+/**
+ * The same tape, for the quest's task list rather than one task's steps.
+ *
+ * A student who has not broken anything into steps yet still wants the list in
+ * their hand at the work table. Tasks print flat: title and checkbox only. The
+ * step layout nests and carries a hint line per row, which on a task list is
+ * both wrong (tasks are siblings) and expensive - the descriptions are long
+ * enough to triple the tape a young learner has to carry around.
+ *
+ * @param {Object} options
+ * @param {string} [options.orgName]     - school display name for the header
+ * @param {string} [options.studentName] - student first/display name
+ * @param {string} options.questTitle    - the quest the tasks belong to
+ * @param {Array}  options.tasks         - [{title, is_completed}] in display order
+ * @param {number} [options.tapeWidthMm] - physical tape width, default 62
+ */
+export function buildTaskListReceiptHtml({ orgName, studentName, questTitle, tasks, tapeWidthMm }) {
+  return buildStepsReceiptHtml({
+    orgName,
+    studentName,
+    taskTitle: questTitle,
+    steps: (tasks || []).map((task) => ({
+      title: task.title,
+      is_completed: !!task.is_completed,
+    })),
+    tapeWidthMm,
+    docTitle: 'My task list',
+    footerText: 'Pick one and start.',
+  })
+}
+
+export function printTaskListReceipt({ orgName, studentName, questTitle, tasks, tapeWidthMm }) {
+  if (!tasks || tasks.length === 0) return false
+
+  return openReceiptWindow(buildTaskListReceiptHtml({ orgName, studentName, questTitle, tasks, tapeWidthMm }))
 }

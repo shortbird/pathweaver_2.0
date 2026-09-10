@@ -265,6 +265,8 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
         sis_notifications.notify(
             assigned_to, 'New task assigned to you', title,
             link='/forms', organization_id=org_id)
+        _email_assignment(assigned_to, org_id, title, label,
+                          row_fields.get('due_date'))
     prefix = 'family' if submitter_role == 'parent' else 'staff'
     for admin_id in sis_service.org_admin_ids(org_id):
         if admin_id == user_id or admin_id == assigned_to:
@@ -273,6 +275,49 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
             admin_id, f'New {prefix} {label.lower()}', title,
             link='/forms', organization_id=org_id)
     return {'submission': submission}
+
+
+# The SIS console. Task links have to leave the app entirely, so they cannot be
+# relative the way an in-app notification link is.
+SIS_TASKS_URL = 'https://sis.optioeducation.com/my-tasks'
+
+
+def _email_assignment(user_id: str, org_id: str, title: str,
+                      form_type_label: str, due_date: Optional[str] = None) -> None:
+    """Email the person a task was just assigned to.
+
+    The in-app notification alone assumed staff open the SIS every day.
+    "When I get assigned a task, can I get an email? I have a hard time keeping
+    track" (iCreate a6d09acd). Best-effort: a task is assigned whether or not
+    the mail goes out, so nothing here may raise into the caller.
+    """
+    try:
+        # Repositories, not .table() here: both questions already have a method
+        # (tests/unit/test_direct_db_calls_do_not_grow).
+        from repositories.user_repository import UserRepository
+        from repositories.organization_repository import OrganizationRepository
+        client = _admin()
+        person = UserRepository(client=client).find_by_ids(
+            [user_id], select_fields='id, email, first_name').get(user_id) or {}
+        email = (person.get('email') or '').strip()
+        if not email or sis_service.is_placeholder_staff_email(email):
+            return
+        org = OrganizationRepository(client=client).find_by_id(org_id) or {}
+        org_name = org.get('name') or 'your school'
+        first = (person.get('first_name') or '').strip() or 'there'
+        due_line = f'<p>Due <strong>{due_date}</strong>.</p>' if due_date else ''
+        html = (
+            f'<p>Hi {first},</p>'
+            f'<p>A new task is assigned to you at {org_name}:</p>'
+            f'<p><strong>{title}</strong><br>'
+            f'<span style="color:#666;">{form_type_label}</span></p>'
+            f'{due_line}'
+            f'<p><a href="{SIS_TASKS_URL}">Open My Tasks</a> to work it.</p>'
+        )
+        from services.email_service import email_service
+        email_service.send_email(email, f'{org_name}: a task is assigned to you', html)
+    except Exception as e:  # noqa: BLE001 - delivery is never the caller's problem
+        logger.warning(f'task-assignment email skipped for {str(user_id)[:8]}: {e}')
 
 
 def _names_for(user_ids: List[str]) -> Dict[str, str]:
@@ -366,6 +411,25 @@ def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],
         payload['due_date'] = fields.get('due_date') or None
     if 'resolution_notes' in fields:
         payload['resolution_notes'] = (fields.get('resolution_notes') or '').strip() or None
+    # The request's own words. A filed row was immutable apart from its
+    # workflow fields, so a typo in it -- iCreate eec3e51e: "the purchases
+    # request has an incorrect link in it that we would like to fix" -- could
+    # only be answered by resolving the row and asking the submitter to file it
+    # again. Title and body only: the column-bound answers (student, class)
+    # decide where the row FILES, and re-homing a submission is a different
+    # action from correcting its text.
+    if 'title' in fields:
+        title = (fields.get('title') or '').strip()
+        if not title:
+            return {'error': 'Title cannot be empty'}
+        payload['title'] = title
+    if 'body' in fields:
+        body = (fields.get('body') or '').strip()
+        if not body:
+            return {'error': 'Description cannot be empty'}
+        existing = dict(rows[0].get('payload') or {})
+        existing['body'] = body
+        payload['payload'] = existing
     newly_assigned = None
     if 'assigned_to' in fields:
         payload['assigned_to'] = fields.get('assigned_to') or None
@@ -380,6 +444,8 @@ def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],
         sis_notifications.notify(
             newly_assigned, 'New task assigned to you', title,
             link='/forms', organization_id=org_id)
+        _email_assignment(newly_assigned, org_id, title, label,
+                          payload.get('due_date') or rows[0].get('due_date'))
     if status and rows[0].get('submitted_by') != actor_id:
         sis_notifications.notify(
             rows[0]['submitted_by'], f'Your {label.lower()} is {status.replace("_", " ")}',

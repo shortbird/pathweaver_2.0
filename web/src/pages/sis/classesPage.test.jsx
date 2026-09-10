@@ -634,3 +634,47 @@ describe('ClassesPage', () => {
     expect(screen.getByText('Woodworking')).toBeInTheDocument()
   })
 })
+
+/**
+ * ?class=<id> — the CLP meeting screen's link into a class (iCreate d48f2b63).
+ *
+ * "It would be great if each class name had a link to the actual class in the
+ * Classes tab that shows roster, waitlist, etc." The modal is DERIVED from the
+ * URL rather than copied into state, so these also pin that closing it clears
+ * the param — otherwise the modal reopens on the next render.
+ */
+describe('the ?class= deep link', () => {
+  const renderAt = (path) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return rtlRender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[path]}>{withConfirm(<ClassesPage />)}</MemoryRouter>
+      </QueryClientProvider>,
+    )
+  }
+
+  // The modal's own chrome: a Preview button and the Roster tab only exist
+  // while it is open, so either one is proof it opened.
+  const modalIsOpen = () => screen.queryAllByRole('button', { name: 'Preview' }).length > 0
+
+  it('opens that class straight on its roster', async () => {
+    renderAt('/classes?class=c1')
+    expect(await screen.findByRole('button', { name: '×' })).toBeInTheDocument()
+    // Landed on the roster, not on Details: "Add a student" belongs to the
+    // roster panel, and the registration switch belongs to Details.
+    expect(await screen.findByText('Add a student')).toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Toggle registration' })).not.toBeInTheDocument()
+  })
+
+  it('opens nothing when the class is not in the list', async () => {
+    renderAt('/classes?class=nope')
+    await screen.findAllByText('Pottery')
+    expect(modalIsOpen()).toBe(false)
+  })
+
+  it('stays shut once closed', async () => {
+    renderAt('/classes?class=c1')
+    fireEvent.click(await screen.findByRole('button', { name: '×' }))
+    await waitFor(() => expect(modalIsOpen()).toBe(false))
+  })
+})

@@ -15,6 +15,7 @@ import { isFamilyFirstHubOrg } from '../config/optioAcademy'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
+import MyClassMaterials from '../components/school/MyClassMaterials'
 
 const PAGE_SIZE = 20
 
@@ -452,6 +453,12 @@ export default function SchoolPage() {
           {/* The student's own week — renders nothing for guardians, staff, and
               the superadmin preview (no real student behind view_as=student). */}
           {!previewOrgId && <MyScheduleSection />}
+          {/* Under the schedule, for the same audience and for the same reason:
+              a student's own classes, and what those classes have shared. Both
+              render nothing for anyone who is not a student, and neither is
+              shown in the superadmin preview -- there is no real student behind
+              view_as=student to read enrollments for. */}
+          {!previewOrgId && <MyClassMaterials />}
 
           {!cardsOnly && (
             <UnifiedFeed

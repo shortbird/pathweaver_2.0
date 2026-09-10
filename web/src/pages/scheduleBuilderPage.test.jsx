@@ -126,11 +126,18 @@ describe('ScheduleBuilderPage', () => {
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText(/schedule changes are now made by/i)).toBeInTheDocument()
-    // clicking an open slot does nothing when locked
+    // A locked slot still opens its catalogue -- read-only. It used to open
+    // nothing, which took the description, the age range and "full" away from
+    // parents for the whole year (iCreate 22c43f7c).
     clickTue9am()
-    expect(screen.queryByText(/Classes at/)).not.toBeInTheDocument()
+    expect(await screen.findByText(/Classes at/)).toBeInTheDocument()
+    expect(screen.getByText('Woodshop')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Details' }).length).toBeGreaterThan(0)
+    // ...with no way to act on it from here.
+    expect(screen.queryByRole('button', { name: /^Add$|^Waitlist$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '×' }))
     // enrolled classes stay viewable, but with no drop action
-    fireEvent.click(screen.getByText('Pottery'))
+    fireEvent.click(await screen.findByText('Pottery'))
     expect(await screen.findByRole('button', { name: 'Close' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Drop class|Add class|Join waitlist/ })).not.toBeInTheDocument()
   })

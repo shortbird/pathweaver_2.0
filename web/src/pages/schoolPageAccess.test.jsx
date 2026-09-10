@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * Who gets a school page at all.
@@ -28,9 +29,20 @@ vi.mock('../services/api', () => ({
 }))
 import SchoolPage from './SchoolPage'
 
+// SchoolPage renders MyClassMaterials, which reads through hooks/api
+// (react-query, the paradigm this codebase decided on -- see
+// dataFetchingParadigm.test.js). A fresh client per render keeps one test's
+// cache out of the next one's; retry:false makes a failed query fail the
+// assertion instead of hanging through three backoff rounds.
+const withQuery = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+}
+
+
 // "Home" is the member's own app home (roleHomePath), never "/" — the marketing
 // homepage told signed-in members they had been logged out.
-const renderAt = (path = '/school') => render(
+const renderAt = (path = '/school') => render(withQuery(
   <MemoryRouter initialEntries={[path]}>
     <Routes>
       <Route path="/dashboard" element={<div>Dashboard</div>} />
@@ -38,7 +50,7 @@ const renderAt = (path = '/school') => render(
       <Route path="/announcements" element={<SchoolPage />} />
     </Routes>
   </MemoryRouter>,
-)
+))
 
 beforeEach(() => {
   vi.clearAllMocks()

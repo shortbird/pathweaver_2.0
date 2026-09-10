@@ -9,6 +9,7 @@ import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import { getPreviewTeacher } from './teacherPreview'
 import { MyDocumentsPanel } from './MyDocumentsPage'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 
 /**
  * My Tasks — everything the school is currently asking this person to do,
@@ -199,7 +200,16 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
             )}
           </div>
           {task.context && <p className="text-xs text-neutral-400 mt-0.5">{task.context}</p>}
-          {task.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {task.admin_notes}</p>}
+          {/* The office writes "the form is at https://..." into a task note,
+              and a URL that is not a link is a URL somebody retypes by hand
+              (iCreate e92b18ca). AnnouncementBody already turns every http(s)
+              URL in a plain body into a labeled button; this is the same text
+              in a different queue. */}
+          {task.admin_notes && (
+            <div className="text-sm text-amber-700 mt-0.5">
+              Note: <AnnouncementBody text={task.admin_notes} className="inline text-amber-700" />
+            </div>
+          )}
 
           {task.type === 'signature' && (
             <ChecklistSignature

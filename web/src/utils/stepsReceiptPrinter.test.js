@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { buildStepsReceiptHtml, printStepsReceipt } from './stepsReceiptPrinter'
+import {
+  buildStepsReceiptHtml,
+  buildTaskListReceiptHtml,
+  printStepsReceipt,
+  printTaskListReceipt,
+} from './stepsReceiptPrinter'
 
 const steps = [
   {
@@ -97,6 +102,59 @@ describe('printStepsReceipt', () => {
     vi.spyOn(window, 'open').mockReturnValue({ document: doc })
     expect(printStepsReceipt({ taskTitle: 'Build a birdhouse', steps })).toBe(true)
     expect(doc.write).toHaveBeenCalledWith(expect.stringContaining('Build a birdhouse'))
+    expect(doc.close).toHaveBeenCalled()
+  })
+})
+
+const tasks = [
+  { id: 't1', title: 'Paint the base coat', description: 'A long description nobody wants on the tape.', is_completed: true },
+  { id: 't2', title: 'Add the roof', description: null, is_completed: false }
+]
+
+describe('buildTaskListReceiptHtml', () => {
+  it('renders the quest title and every task', () => {
+    const html = buildTaskListReceiptHtml({
+      orgName: 'The Treehouse',
+      studentName: 'Robin',
+      questTitle: 'Build a birdhouse',
+      tasks
+    })
+    expect(html).toContain('The Treehouse')
+    expect(html).toContain('Robin')
+    expect(html).toContain('Build a birdhouse')
+    expect(html).toContain('Paint the base coat')
+    expect(html).toContain('Add the roof')
+  })
+
+  it('prints tasks flat, without the step hint lines', () => {
+    const html = buildTaskListReceiptHtml({ questTitle: 'Quest', tasks })
+    expect(html).not.toContain('A long description nobody wants on the tape.')
+    expect(html).not.toContain('class="step depth-1"')
+  })
+
+  it('checks off the tasks that are already done', () => {
+    const html = buildTaskListReceiptHtml({ questTitle: 'Quest', tasks })
+    expect((html.match(/box done/g) || []).length).toBe(1)
+  })
+})
+
+describe('printTaskListReceipt', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('returns false when the quest has no tasks yet', () => {
+    expect(printTaskListReceipt({ questTitle: 'Quest', tasks: [] })).toBe(false)
+  })
+
+  it('returns false when the popup is blocked', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    expect(printTaskListReceipt({ questTitle: 'Quest', tasks })).toBe(false)
+  })
+
+  it('writes the task list into the opened window', () => {
+    const doc = { open: vi.fn(), write: vi.fn(), close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue({ document: doc })
+    expect(printTaskListReceipt({ questTitle: 'Build a birdhouse', tasks })).toBe(true)
+    expect(doc.write).toHaveBeenCalledWith(expect.stringContaining('Add the roof'))
     expect(doc.close).toHaveBeenCalled()
   })
 })

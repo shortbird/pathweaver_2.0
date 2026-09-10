@@ -364,3 +364,61 @@ describe('assigning one task to several people', () => {
     expect(options.map((o) => o.textContent)).not.toContain('Kate Coordinator')
   })
 })
+
+/**
+ * Correcting a filed request (iCreate eec3e51e).
+ *
+ * "The purchases request has an incorrect link in it that we would like to
+ * fix." A submission was immutable apart from its workflow fields, so the only
+ * way to correct a typo in one was to resolve the row and ask the submitter to
+ * file it again.
+ */
+describe('editing a request', () => {
+  it('saves a corrected title and body', async () => {
+    renderPage()
+    await openRow('Printer in Room 3')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit text' }))
+
+    fireEvent.change(screen.getByLabelText('Request title'),
+      { target: { value: 'Printer in Room 4' } })
+    fireEvent.change(screen.getByLabelText('Request description'),
+      { target: { value: 'It is jammed. See https://example.com/fix' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/staff-admin/forms/f1',
+      expect.objectContaining({
+        title: 'Printer in Room 4',
+        body: 'It is jammed. See https://example.com/fix',
+      }),
+    ))
+  })
+
+  it('keeps the typing when the save is refused', async () => {
+    api.patch.mockRejectedValueOnce({ response: { data: { error: 'Nope' } } })
+    renderPage()
+    await openRow('Printer in Room 3')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit text' }))
+    fireEvent.change(screen.getByLabelText('Request title'), { target: { value: 'Edited' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(screen.getByLabelText('Request title')).toHaveValue('Edited'))
+  })
+
+  it('turns a URL in the body into a link rather than text', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.includes('/comments')) return Promise.resolve({ data: { comments: [] } })
+      if (url.includes('/api/sis/staff-admin/forms')) {
+        return Promise.resolve({ data: {
+          submissions: [{ ...SUBMISSION, payload: { body: 'Order at https://example.com/order' } }],
+          form_types: { maintenance: 'Maintenance request' },
+        } })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    renderPage()
+    await openRow('Printer in Room 3')
+    const link = await screen.findByRole('link', { name: /example\.com/ })
+    expect(link).toHaveAttribute('href', 'https://example.com/order')
+  })
+})

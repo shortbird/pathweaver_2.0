@@ -3,11 +3,15 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
-import { ModalOverlay, GlassTabBar, Spinner } from '../../components/ui'
-import ClassDetailsModal, { meetingText, money } from '../../components/schedule/ClassDetailsModal'
+import { ModalOverlay } from '../../components/ui'
+// Dead since the QF-02 extraction: the modal renders neither the tab bar, a
+// spinner, nor a nested ClassDetailsModal -- it calls onDetails and the page
+// owns that modal. Only the two formatters were ever used.
+import { meetingText, money } from '../../components/schedule/ClassDetailsModal'
 import AgeExceptionFooter from './AgeExceptionFooter'
 import conflictsWith from './conflictsWith'
 import slotLabel from './slotLabel'
+import ageBandText from './ageBandText'
 
 const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onRequestException, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
   <ModalOverlay onClose={onClose}>
@@ -16,7 +20,9 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Classes at {slotLabel(slot)}</h2>
           <p className="text-xs text-gray-400">
-            {enrolledHere.length ? 'What’s scheduled now, plus other classes at this time.' : 'Pick a class for this time slot.'}
+            {locked
+              ? 'What the school offers at this time. Ask the office to add or drop.'
+              : enrolledHere.length ? 'What’s scheduled now, plus other classes at this time.' : 'Pick a class for this time slot.'}
             {age != null ? ` Showing classes for age ${age}.` : ''}
           </p>
         </div>
@@ -66,6 +72,7 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
                   {meetingText(c.meetings)}
                   {money(c.price_cents) ? ` · ${money(c.price_cents)}` : ''}
                   {c.spots_left != null && !full ? ` · ${c.spots_left} spot${c.spots_left === 1 ? '' : 's'} left` : ''}
+                  {ageBandText(c) ? ` · ${ageBandText(c)}` : ''}
                 </div>
                 <div className="flex gap-1.5 mt-0.5">
                   {full && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Full — waitlist</span>}
@@ -74,11 +81,13 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
               </div>
               <div className="shrink-0 ml-3 flex items-center gap-2">
                 <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>
-                <button onClick={() => onAdd(c)} disabled={busy === c.id || !!conflict}
-                  title={conflict ? `Overlaps ${conflict} — drop it first` : undefined}
-                  className="btn-primary">
-                  {busy === c.id ? 'Adding…' : full ? 'Waitlist' : 'Add'}
-                </button>
+                {!locked && (
+                  <button onClick={() => onAdd(c)} disabled={busy === c.id || !!conflict}
+                    title={conflict ? `Overlaps ${conflict} — drop it first` : undefined}
+                    className="btn-primary">
+                    {busy === c.id ? 'Adding…' : full ? 'Waitlist' : 'Add'}
+                  </button>
+                )}
               </div>
             </div>
           )

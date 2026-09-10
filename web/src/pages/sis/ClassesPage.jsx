@@ -366,9 +366,11 @@ const ClassesPage = () => {
   }
 
   const handleUpdate = async (payload, imageFile) => {
-    const cls = classes.find((c) => c.id === editing.id) || editing
+    // openClass, not editing: the modal is also opened by ?class=<id>, where
+    // `editing` is null and reading .id off it would throw.
+    const cls = classes.find((c) => c.id === openClass.id) || openClass
     const ok = await saveClass(cls, payload, imageFile)
-    if (ok) setEditing(null)
+    if (ok) closeClassModal()
   }
 
   // Copy a class into a new "(copy)" draft — same details, meetings, and pricing,
@@ -416,6 +418,31 @@ const ClassesPage = () => {
   const openRoster = (c) => { setEditTab('roster'); setEditing(c) }
   const openEditor = (c) => { setEditTab('details'); setEditing(c) }
 
+  // ?class=<id> opens that class's roster straight from another page. The CLP
+  // meeting screen names a dozen classes per student, and every question about
+  // one ("who else is in it, is it full") lived two searches away on this page
+  // (iCreate d48f2b63).
+  //
+  // DERIVED, not copied into state by an effect. The URL already holds "which
+  // class is open"; mirroring it into `editing` would mean a second source of
+  // truth, a synchronous setState inside an effect, and a back button that
+  // could not close what it opened. Closing clears the param instead.
+  const deepLinkClassId = searchParams.get('class')
+  const deepLinkClass = deepLinkClassId
+    ? classes.find((c) => c.id === deepLinkClassId) || null
+    : null
+  const closeClassModal = () => {
+    setEditing(null)
+    if (!deepLinkClassId) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('class')
+    setSearchParams(next, { replace: true })
+  }
+  // An explicit click beats the URL: opening another class while ?class= is
+  // still set must show the class that was clicked.
+  const openClass = editing || deepLinkClass
+  const openTab = editing ? editTab : 'roster'
+
   // CSV export moved to ClassesExportModal: same client-side build from the
   // already-loaded rows, but with a column picker and schedule-grid formats
   // (iCreate asked to choose what the spreadsheet looks like).
@@ -426,7 +453,7 @@ const ClassesPage = () => {
     try {
       await sisClassApi.archive(c.id, orgId)
       toast.success('Class archived')
-      setEditing(null)
+      closeClassModal()
       reload()
     } catch { toast.error('Could not archive class') }
   }
@@ -435,7 +462,7 @@ const ClassesPage = () => {
     try {
       await sisClassApi.restore(c.id, orgId)
       toast.success('Class restored')
-      setEditing(null)
+      closeClassModal()
       reload()
     } catch { toast.error('Could not restore class') }
   }
@@ -799,19 +826,19 @@ const ClassesPage = () => {
         <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms}
           roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate} />
       )}
-      {editing && (
+      {openClass && (
         <ClassDetailModal
-          cls={classes.find((c) => c.id === editing.id) || editing}
+          cls={classes.find((c) => c.id === openClass.id) || openClass}
           staff={staff}
           timeBlocks={timeBlocks}
           rooms={rooms} roomOccupancy={roomOccupancy}
           orgId={orgId}
-          initialTab={editTab}
-          onClose={() => setEditing(null)}
+          initialTab={openTab}
+          onClose={closeClassModal}
           onSubmit={handleUpdate}
           onToggleRegistration={toggleRegistration}
-          onArchive={() => archiveClass(classes.find((c) => c.id === editing.id) || editing)}
-          onRestore={() => restoreClass(classes.find((c) => c.id === editing.id) || editing)}
+          onArchive={() => archiveClass(classes.find((c) => c.id === openClass.id) || openClass)}
+          onRestore={() => restoreClass(classes.find((c) => c.id === openClass.id) || openClass)}
           onRosterChanged={() => reload()}
         />
       )}

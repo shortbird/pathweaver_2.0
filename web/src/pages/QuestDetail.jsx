@@ -9,6 +9,7 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
+import PrintTaskListButton from '../components/quest/PrintTaskListButton';
 import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
@@ -646,6 +647,13 @@ const QuestDetail = () => {
         {/* Program-specific in-quest UI (e.g. Treehouse help/proud signal bar).
             The program registry decides what, if anything, renders here. */}
         {programQuest.signalBar}
+
+        {/* Carry the list to the work table: prints the tasks as they stand,
+            before any of them is broken into steps (schools with a receipt
+            printer only — the button gates itself on the org flag). */}
+        {quest.user_enrollment && (
+          <PrintTaskListButton questTitle={quest.title} tasks={quest.quest_tasks} />
+        )}
 
         {/* Task Display - Single Container with Integrated Task List */}
         {quest.user_enrollment && (programQuest.simpleTasksView || quest.quest_tasks?.length > 0) && (

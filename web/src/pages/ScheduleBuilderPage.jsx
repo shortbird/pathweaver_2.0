@@ -771,7 +771,12 @@ const ScheduleBuilderPage = () => {
           selectedSlot={slotModal}
           flaggedSlots={gapSlots}
           dayFooters={supplyFooters}
-          onSlotClick={interactionLocked ? null : (day, min, end) => setSlotModal({ day, min, end })}
+          // Browsable in both states. A locked slot still opens its class
+          // list -- read-only, no Add button -- because the catalog is where
+          // the description, the age range and "full" live, and a parent who
+          // cannot open it has no way to see any of them once the year starts
+          // (iCreate 22c43f7c). The add/drop request above is the action.
+          onSlotClick={(day, min, end) => setSlotModal({ day, min, end })}
           onClassClick={(c, slot) => setDetail({ item: c, enrolled: true, slot })}
         />
 
@@ -862,7 +867,7 @@ const ScheduleBuilderPage = () => {
             const ok = await dropClass(detail.item)
             if (ok) setDetail(null)
           }}
-          onSeeAlternatives={detail.enrolled && detail.slot && !locked
+          onSeeAlternatives={detail.enrolled && detail.slot
             ? () => { const s = detail.slot; setDetail(null); setSlotModal(s) }
             : null}
         />

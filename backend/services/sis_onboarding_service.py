@@ -642,6 +642,75 @@ def list_assignments(org_id: str, user_id: Optional[str] = None,
     return rows
 
 
+def completion_report(org_id: str, audience: Optional[str] = None,
+                      outstanding_only: bool = True) -> List[Dict[str, Any]]:
+    """Who still owes checklist items, and what is missing.
+
+    "It'd be really helpful to be able to download a .csv of who hasn't filled
+    in the checklist for onboarding... Or somehow make it so we can just message
+    them within the app to help them" (iCreate 42c4acde). The roll-up on screen
+    answers this per checklist; chasing forty people needed the other axis --
+    one row per person, with an address to chase them at.
+
+    A person holding two checklists gets one row: the office is chasing the
+    PERSON. `outstanding_only` is the default because a list of everyone who is
+    already done is not a chase list.
+    """
+    rows = list_assignments(org_id, audience=audience, kind='checklist')
+    if not rows:
+        return []
+    # UserRepository.find_by_ids, not .table(): one batched read, and new code
+    # above repositories/ goes through one (test_direct_db_calls_do_not_grow).
+    from repositories.user_repository import UserRepository
+    ids = list({r['user_id'] for r in rows if r.get('user_id')})
+    emails = {uid: u.get('email') for uid, u in
+              UserRepository(client=_admin()).find_by_ids(
+                  ids, select_fields='id, email').items()} if ids else {}
+
+    by_person: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        uid = r.get('user_id')
+        if not uid:
+            continue
+        person = by_person.setdefault(uid, {
+            'user_id': uid,
+            'name': r.get('user_name') or emails.get(uid) or 'Unknown',
+            'email': emails.get(uid),
+            'checklists': [],
+            'done_count': 0,
+            'total_count': 0,
+            'missing': [],
+        })
+        person['checklists'].append(r.get('template_name') or 'Checklist')
+        person['done_count'] += r.get('done_count') or 0
+        person['total_count'] += r.get('total_count') or 0
+        for item in (r.get('items') or []):
+            if item.get('status') not in ('complete', 'approved'):
+                person['missing'].append(item.get('title') or 'Item')
+
+    out = []
+    for person in by_person.values():
+        person['outstanding_count'] = len(person['missing'])
+        if outstanding_only and not person['outstanding_count']:
+            continue
+        out.append(person)
+    # Worst first: the chase starts at the top of the list.
+    out.sort(key=lambda p: (-p['outstanding_count'], (p['name'] or '').lower()))
+    return out
+
+
+def completion_csv(report: List[Dict[str, Any]]):
+    """(header, rows) for completion_report. Email is a column because the
+    point of the export is to contact these people."""
+    header = ['Name', 'Email', 'Checklists', 'Done', 'Total', 'Outstanding', 'Still missing']
+    rows = [[
+        p['name'], p.get('email') or '', '; '.join(p['checklists']),
+        p['done_count'], p['total_count'], p['outstanding_count'],
+        '; '.join(p['missing']),
+    ] for p in report]
+    return header, rows
+
+
 def signatures_by_document(org_id: str) -> Dict[str, Dict[str, Any]]:
     """doc_id -> the checklist signature that signed it.
 

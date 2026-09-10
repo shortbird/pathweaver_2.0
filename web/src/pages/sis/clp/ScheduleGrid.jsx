@@ -1,6 +1,7 @@
 // The student's week as one CSS grid: a header row of days, then a row per
 // start time, so a parent reads across a row and sees what happens at 9am.
 import React from 'react'
+import { Link } from 'react-router-dom'
 
 import { DAY_LABELS, Pill, fmtTime, toMinutes, dollars } from './clpHelpers'
 
@@ -26,6 +27,23 @@ const ScheduleGrid = ({ busyId, confirm, drop, schedule, scheduleDays, setTimeFo
   const slots = [...slotSet].sort((a, b) => (toMinutes(a) || 0) - (toMinutes(b) || 0))
   if (!slots.length) slots.push('') // one row of day placeholders for an empty week
   const unscheduled = schedule.filter((c) => !c.meetings.some((m) => m.day_of_week != null))
+
+  // A class that spans several blocks starts in one row and then vanishes from
+  // the rows it is still running through: an all-day 9:30-3:00 Monday class put
+  // nothing in the 1:00 row, while Tuesday's 1:00 class sat there alone, so
+  // reading across that row said the student was free on Monday at 1:00 when
+  // she was in class (iCreate 32b2beb3, after the earlier per-day-stack fix).
+  // Rows key on start time and cannot key on anything else -- a card has to
+  // live somewhere -- so the covered rows get a continuation marker instead.
+  const covering = (d, slot) => {
+    const at = toMinutes(slot)
+    if (at == null) return []
+    return schedule.flatMap((c) => (c.meetings || [])
+      .filter((m) => m.day_of_week === d
+        && toMinutes(m.start_time) != null && toMinutes(m.end_time) != null
+        && toMinutes(m.start_time) < at && at < toMinutes(m.end_time))
+      .map(() => c))
+  }
 
   // Per-day supply-fee totals — each class counted once per day it meets.
   const supplyByDay = {}
@@ -53,6 +71,15 @@ const ScheduleGrid = ({ busyId, confirm, drop, schedule, scheduleDays, setTimeFo
           <div className="text-xs text-neutral-500 mt-0.5">{fmtTime(m.start_time)}–{fmtTime(m.end_time)}</div>
           {cls.primary_instructor?.name && <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{cls.primary_instructor.name}</div>}
         </button>
+        {/* The card itself toggles the time focus, so the roster gets its own
+            small link rather than stealing the click (iCreate d48f2b63). */}
+        <Link
+          to={`/classes?class=${cls.class_id}`}
+          title={`Open the roster for ${cls.name}`}
+          className="mt-1 inline-block text-[11px] font-medium text-optio-purple hover:underline"
+        >
+          Roster &amp; waitlist
+        </Link>
         <button
           type="button"
           title={`Drop ${cls.name}`}
@@ -78,12 +105,22 @@ const ScheduleGrid = ({ busyId, confirm, drop, schedule, scheduleDays, setTimeFo
             {DAY_LABELS[d]}
           </div>
         ))}
-        {slots.map((slot, si) => scheduleDays.map((d) => (
-          <div key={`${slot}|${d}`} data-slot={slot} className="min-w-0 space-y-2">
-            {(cell[`${d}|${slot}`] || []).map((entry, i) => renderCard(entry, i, d))}
-            {si === 0 && !dayHasClass[d] && <div className="text-xs text-neutral-300 text-center py-4">—</div>}
-          </div>
-        )))}
+        {slots.map((slot, si) => scheduleDays.map((d) => {
+          const starting = cell[`${d}|${slot}`] || []
+          const through = starting.length ? [] : covering(d, slot)
+          return (
+            <div key={`${slot}|${d}`} data-slot={slot} className="min-w-0 space-y-2">
+              {starting.map((entry, i) => renderCard(entry, i, d))}
+              {through.map((c, i) => (
+                <div key={`cont-${c.class_id}-${i}`}
+                  className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 p-2.5 text-xs text-neutral-400 leading-tight">
+                  <span className="font-medium text-neutral-500">{c.name}</span> continues
+                </div>
+              ))}
+              {si === 0 && !dayHasClass[d] && <div className="text-xs text-neutral-300 text-center py-4">—</div>}
+            </div>
+          )
+        }))}
         {anySupply && scheduleDays.map((d) => (
           <div key={`supply-${d}`} className="min-w-0">
             {supplyByDay[d] > 0 && (

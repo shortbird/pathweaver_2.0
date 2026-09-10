@@ -716,6 +716,33 @@ def emergency_contacts(user_id):
     return jsonify({'success': True, 'report': report})
 
 
+@bp.route('/reports/checklist-completion', methods=['GET'])
+@require_role(*STAFF_ROLES)
+def checklist_completion(user_id):
+    """Who still owes onboarding checklist items, worst first.
+
+    iCreate, 2026-09-09 (42c4acde): "it'd be really helpful to be able to
+    download a .csv of who hasn't filled in the checklist for onboarding.
+    Either in the task center or in the reports. Or somehow make it so we can
+    just message them within the app to help them!" -- so the row carries the
+    email, and ?all=1 turns the chase list back into a full roll-up.
+    """
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_onboarding_service as onboarding
+    audience = request.args.get('audience') or None
+    report = onboarding.completion_report(
+        org_id, audience=audience,
+        outstanding_only=request.args.get('all') != '1')
+    if request.args.get('format') == 'csv':
+        header, rows = onboarding.completion_csv(report)
+        return _csv_response('checklist-completion.csv', header, rows)
+    # {'report': {'rows': [...]}} like every other report here, so the page's
+    # generic shaper can read it.
+    return jsonify({'success': True, 'report': {'rows': report}})
+
+
 @bp.route('/reports/media-release', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def media_release(user_id):

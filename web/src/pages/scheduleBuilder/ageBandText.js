@@ -3,9 +3,15 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
+// Returns '' for a class with no age limits at all. The original assumed a
+// caller had already established that one bound existed -- AgeExceptionFooter
+// only ever lists age-hidden classes -- and the last branch read "up to age
+// undefined" for anything else. SlotClassesModal calls it on the whole
+// catalogue, where most classes carry neither bound.
 const ageBandText = (c) => (c.min_age != null && c.max_age != null
   ? `ages ${c.min_age}–${c.max_age}`
-  : c.min_age != null ? `ages ${c.min_age}+` : `up to age ${c.max_age}`)
+  : c.min_age != null ? `ages ${c.min_age}+`
+  : c.max_age != null ? `up to age ${c.max_age}` : '')
 
 // ── Block-based tuition ───────────────────────────────────────────────────────
 // The org can define weekly-block pricing tiers (sis_settings.block_pricing,

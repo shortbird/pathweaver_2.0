@@ -38,6 +38,21 @@ const shapeReport = (type, data, questionLabel) => {
       ]),
     }
   }
+  if (type === 'checklist-completion') {
+    // The chase list. Email is a column because the point of it is to contact
+    // these people (iCreate 42c4acde).
+    return {
+      title: 'Checklist completion',
+      summary: (report.rows || []).length
+        ? `${(report.rows || []).length} people still have outstanding checklist items.`
+        : 'Everyone has finished their checklists.',
+      columns: ['Name', 'Email', 'Checklists', 'Done', 'Total', 'Outstanding', 'Still missing'],
+      rows: (report.rows || []).map((r) => [
+        r.name, r.email || '', (r.checklists || []).join('; '),
+        r.done_count, r.total_count, r.outstanding_count, (r.missing || []).join('; '),
+      ]),
+    }
+  }
   if (type === 'daily-attendance') {
     return {
       title: `Daily attendance${report.date ? ` — ${report.date}` : ''}`,

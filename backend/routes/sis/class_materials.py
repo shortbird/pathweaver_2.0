@@ -481,6 +481,61 @@ def _student_class_rows(student_id):
     return sorted(active, key=lambda c: (c.get('name') or '').lower())
 
 
+def _materials_by_class(admin, class_rows):
+    """[{class_id, class_name, materials}] for a set of classes, student-visible
+    rows only, with every file signed in one batch. Shared by the guardian read
+    and the student's own read so the two can never drift on what "visible"
+    means."""
+    groups = []
+    flat = []
+    for class_row in class_rows:
+        entries = _entries(
+            _list_materials(admin, class_row['id'], visible_only=True),
+            can_manage=False,
+            inherited=curriculum_materials_for_class(
+                admin, class_row['id'], visible_only=True),
+        )
+        if not entries:
+            continue
+        groups.append({'class_id': class_row['id'],
+                       'class_name': class_row.get('name'),
+                       'materials': entries})
+        flat.extend(entries)
+    # Every class's files signed in one call, not one call per class.
+    _sign_entries(flat)
+    return groups
+
+
+@bp.route('/student/materials', methods=['GET'])
+@require_auth
+@require_module('classes')
+def list_my_materials(user_id):
+    """Every handout the caller's own classes share, grouped by class.
+
+    The student side of the same question the guardian route answers, and the
+    reason it exists: a student could only reach class materials through
+    ClassCurriculum on a QUEST page, so a class with materials and no quest
+    showed them to nobody. iCreate's Musical Theater on 2026-09-10 had two
+    files, twenty-six students and zero quests, and its teacher had just told
+    the parent chat that the dance videos were "under class materials"
+    (3e37d8b8, f1787a98).
+
+    Self-scoped: the caller's own active enrollments and nothing else, so there
+    is no id to authorize. A guardian, teacher or member of staff simply has no
+    enrollments and gets an empty list rather than an error.
+
+    Read-only and student-visible-only by construction, exactly as the guardian
+    route is: can_manage is never computed here, so a row a teacher has staged
+    but not switched on is unreachable even for a student who is staff
+    elsewhere.
+    """
+    # admin client justified: class_materials/class_enrollments are RLS-deny-all;
+    # the scope IS the caller's own id, which no parameter can widen
+    admin = get_supabase_admin_client()
+    return jsonify({'success': True,
+                    'classes': _materials_by_class(admin, _student_class_rows(user_id))})
+
+
 @bp.route('/parent/students/<student_id>/materials', methods=['GET'])
 @require_auth
 @require_module('classes')
@@ -511,22 +566,5 @@ def list_materials_for_student(user_id, student_id):
     # the guardian relationship to student_id is enforced by the decorator above
     admin = get_supabase_admin_client()
 
-    groups = []
-    flat = []
-    for class_row in _student_class_rows(student_id):
-        entries = _entries(
-            _list_materials(admin, class_row['id'], visible_only=True),
-            can_manage=False,
-            inherited=curriculum_materials_for_class(
-                admin, class_row['id'], visible_only=True),
-        )
-        if not entries:
-            continue
-        groups.append({'class_id': class_row['id'],
-                       'class_name': class_row.get('name'),
-                       'materials': entries})
-        flat.extend(entries)
-
-    # Every class's files signed in one call, not one call per class.
-    _sign_entries(flat)
-    return jsonify({'success': True, 'classes': groups})
+    return jsonify({'success': True,
+                    'classes': _materials_by_class(admin, _student_class_rows(student_id))})

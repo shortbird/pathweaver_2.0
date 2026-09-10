@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * The school hub.
@@ -50,13 +51,24 @@ vi.mock('../services/api', () => ({ default: { get: (...a) => get(...a), post: (
 
 import SchoolPage from './SchoolPage'
 
+// SchoolPage renders MyClassMaterials, which reads through hooks/api
+// (react-query, the paradigm this codebase decided on -- see
+// dataFetchingParadigm.test.js). A fresh client per render keeps one test's
+// cache out of the next one's; retry:false makes a failed query fail the
+// assertion instead of hanging through three backoff rounds.
+const withQuery = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+}
+
+
 const GUARDIAN_ORG = {
   organization_id: 'org-1', organization_name: 'iCreate',
   is_guardian: true, post_registration_flow: 'schedule',
 }
 const MEMBER_ORG = { ...GUARDIAN_ORG, is_guardian: false }
 
-const renderPage = () => render(<MemoryRouter><SchoolPage /></MemoryRouter>)
+const renderPage = () => render(withQuery(<MemoryRouter><SchoolPage /></MemoryRouter>))
 
 const cardRail = async () => {
   renderPage()

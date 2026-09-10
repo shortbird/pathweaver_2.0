@@ -11,6 +11,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import SearchSelect from '../../components/ui/SearchSelect'
 import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 
 /**
  * StaffFormsPage — staff forms and the internal task system (iCreate Phase 2).
@@ -411,6 +412,11 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
   // saved a null halfway through and reloaded the row on top of the typing —
   // which is why the year could not be typed at all (iCreate, 2026-08-20).
   const [dueDrafts, setDueDrafts] = useState({})
+  // The row being text-edited, as { id, title, body }. A filed request used to
+  // be immutable apart from its workflow fields, so a wrong link inside one
+  // could only be fixed by closing it and asking for it again (iCreate
+  // eec3e51e).
+  const [editing, setEditing] = useState(null)
   // Who the row belongs to. Reassigning has always worked — it is a control on
   // the open row — but "who has this?" could only be answered by opening rows
   // one at a time, which is what made it look like it could not be done
@@ -471,6 +477,8 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
     status: 'Status updated',
     priority: 'Priority updated',
     due_date: 'Due date updated',
+    title: 'Request updated',
+    body: 'Request updated',
   }
 
   const resolveTask = async (f) => {
@@ -493,8 +501,10 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
       const key = Object.keys(fields).find((k) => SAVED_LABEL[k])
       toast.success(key ? SAVED_LABEL[key] : 'Saved')
       load()
+      return true
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not update')
+      return false
     }
   }
 
@@ -618,8 +628,37 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
 
               {expanded && (
                 <div className="pb-3 px-2">
-                  {f.payload?.body && (
-                    <p className="text-sm text-neutral-600 whitespace-pre-wrap">{f.payload.body}</p>
+                  {editing?.id === f.id ? (
+                    <div className="space-y-2 mb-2">
+                      <input
+                        value={editing.title} aria-label="Request title"
+                        onChange={(e) => setEditing((p) => ({ ...p, title: e.target.value }))}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm font-medium"
+                      />
+                      <textarea
+                        value={editing.body} aria-label="Request description" rows={4}
+                        onChange={(e) => setEditing((p) => ({ ...p, body: e.target.value }))}
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async () => {
+                            // Stay open on a rejected save, so the typing survives it.
+                            if (await update(f.id, { title: editing.title, body: editing.body })) {
+                              setEditing(null)
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90">
+                          Save changes
+                        </button>
+                        <button onClick={() => setEditing(null)}
+                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : f.payload?.body && (
+                    <AnnouncementBody text={f.payload.body} className="text-sm text-neutral-600" />
                   )}
                   {f.payload?.location && <p className="text-xs text-neutral-400 mt-0.5">Location: {f.payload.location}</p>}
                   <AnswerList payload={f.payload} fields={formFieldsByType?.[f.form_type]} />
@@ -665,6 +704,13 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                       className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
                       Comments
                     </button>
+                    {editing?.id !== f.id && (
+                      <button
+                        onClick={() => setEditing({ id: f.id, title: f.title || '', body: f.payload?.body || '' })}
+                        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+                        Edit text
+                      </button>
+                    )}
                   </div>
 
                   {f.status !== 'resolved' && (

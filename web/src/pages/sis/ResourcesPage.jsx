@@ -238,7 +238,9 @@ const ResourcesPage = () => {
                       </span>
                     )}
                   </span>
-                  {r.description && <div className="text-xs text-neutral-500 truncate">{r.description}</div>}
+                  {r.description && (
+                    <div className="text-xs text-neutral-500 whitespace-pre-wrap">{r.description}</div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   {r.requires_ack && !r.my_ack?.current && (
@@ -358,8 +360,15 @@ const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onC
           <input value={f.category} onChange={(e) => set('category', e.target.value)} className={field} placeholder="Policies" />
         </label>
       </div>
-      <label className="text-xs text-neutral-500 block">Description <span className="text-neutral-400">(optional)</span>
-        <input value={f.description} onChange={(e) => set('description', e.target.value)} className={field} placeholder="What families will find inside" />
+      {/* A textarea, not a one-line input. "On resources, can we make it so
+          that we can add text here? Like for instructions so they don't just
+          have random links and docs?" (iCreate d262941c) -- the field existed,
+          but it held one line and the list truncated it, so nobody could write
+          an instruction in it. */}
+      <label className="text-xs text-neutral-500 block">Description or instructions <span className="text-neutral-400">(optional)</span>
+        <textarea value={f.description} onChange={(e) => set('description', e.target.value)}
+          rows={3} className={field}
+          placeholder="What this is, and what to do with it. Line breaks are kept." />
       </label>
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-neutral-500 block flex-1 min-w-[240px]">Link

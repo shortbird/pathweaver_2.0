@@ -45,12 +45,17 @@ import { isPathHidden } from './sisModules'
 const tabsFor = (hr) => [
   ['requests', 'Requests'],
   ['assigned', 'Assigned'],
+  // Authoring got its own tab back. Collapsing it inside Requests kept a rare
+  // act off the daily triage screen, which was right, but it also made the
+  // templates unfindable: "Can we put templates on its own tab? (off of
+  // requests?) Otherwise I forget where this is" (iCreate 51efdb7c).
+  ['templates', 'Templates'],
   ...(hr ? [['documents', 'Documents']] : []),
 ]
 
 // Every tab name this page has ever had, mapped to where that work lives now —
 // old notification links and bookmarks must keep landing on the right list.
-const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned', forms: 'requests' }
+const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned', forms: 'templates' }
 
 const CREATE_ACTIONS = [
   ['assign', 'Assign a task'],
@@ -83,17 +88,15 @@ const TaskCenterPage = () => {
   const [creating, setCreating] = useState(null) // null | 'assign' | 'request' | 'checklist'
   const [menuOpen, setMenuOpen] = useState(false)
   const [routing, setRouting] = useState(false)   // "Where requests go" editor
-  const [manageFormsOpen, setManageFormsOpen] = useState(
-    rawTab === 'forms' || searchParams.get('manage_forms') === '1'
-  )
   const [refreshKey, setRefreshKey] = useState(0)
   const [counts, setCounts] = useState({})
 
+  // ?manage_forms=1 predates the Templates tab and is still in the wild
+  // (notification links, the settings page). It now means "that tab".
+  const wantsTemplates = searchParams.get('manage_forms') === '1'
   useEffect(() => {
-    if (rawTab === 'forms' || searchParams.get('manage_forms') === '1') {
-      setManageFormsOpen(true)
-    }
-  }, [rawTab, searchParams])
+    if (wantsTemplates && tab !== 'templates') setTab('templates')
+  }, [wantsTemplates, tab])
 
   useEffect(() => {
     if (!orgId) return
@@ -142,8 +145,7 @@ const TaskCenterPage = () => {
   const startCreating = (action) => {
     setMenuOpen(false)
     if (action === 'form_template') {
-      setTab('requests')
-      setManageFormsOpen(true)
+      setTab('templates')
       setCreating('form_template')
       return
     }
@@ -227,18 +229,28 @@ const TaskCenterPage = () => {
         <div className="space-y-4">
           <AdminQueue key={`req-${refreshKey}`} orgId={orgId} staff={staff}
             openSubmissionId={openSubmissionId} onCount={countRequests} />
+          <div className="flex justify-end px-1">
+            <button onClick={() => setTab('templates')}
+              className="text-sm text-optio-purple font-medium hover:underline">
+              Manage forms and checklist templates
+            </button>
+          </div>
+        </div>
+      )}
+      {tab === 'templates' && (
+        <div className="space-y-4">
           {/* Authoring: paperwork templates (forms and checklists) and request routing */}
           <div className="space-y-2">
             {/* ONE tabbed manager for forms and checklist templates (ticket
-                b0d6324a), replacing the two separate sections. It collapses on
-                its own, so it no longer needs the manageFormsOpen wrapper HEAD
-                had -- but that flag still drives it OPEN, and initialEditing
-                still points it at a new form, so "New form template" in the
-                action menu lands where it always did. */}
+                b0d6324a), replacing the two separate sections. Open on arrival
+                now that this tab exists only to hold it -- a collapsed
+                accordion behind a tab called Templates is one click of nothing.
+                initialEditing still points it at a new form, so "New form
+                template" in the action menu lands where it always did. */}
             <PaperworkTemplatesManager
               key={`forms-${refreshKey}`} orgId={orgId} staff={staff}
               title="Paperwork templates (Manage forms)" defaultTab="forms"
-              initiallyOpen={manageFormsOpen}
+              initiallyOpen
               initialEditing={creating === 'form_template' ? 'new' : null}
             />
             <div className="flex justify-end px-1">

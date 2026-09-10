@@ -332,17 +332,19 @@ describe('the tabs', () => {
       api.get.mock.calls.some(([u]) => u.includes('/api/sis/staff-admin/forms'))).toBe(true))
   })
 
-  it('keeps form authoring collapsed under the queue it feeds', async () => {
+  it('sends the requests queue to Templates for authoring', async () => {
     mockGets({ extra: { '/form-templates': { templates: [] } } })
     renderPage('/tasks?tab=requests')
     const manage = await screen.findByRole('button', { name: /Manage forms/i })
-    // Collapsed: the builder is not on screen until asked for.
+    // Authoring is not on the triage screen; the link is the whole of it there.
     expect(screen.queryByRole('button', { name: '+ New form' })).not.toBeInTheDocument()
     fireEvent.click(manage)
+    // Templates opens the builder outright -- an accordion behind a tab called
+    // Templates is one click of nothing (iCreate 51efdb7c).
     expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
   })
 
-  it('opens the routing editor from the requests tab', async () => {
+  it('opens the routing editor from the templates tab', async () => {
     mockGets({ extra: {
       '/form-routing': {
         routing: { substitute_request: 'julia-1' },
@@ -350,7 +352,7 @@ describe('the tabs', () => {
       },
       '/api/sis/staff': { staff: [{ id: 'julia-1', name: 'Julia' }] },
     } })
-    renderPage('/tasks?tab=requests')
+    renderPage('/tasks?tab=templates')
     fireEvent.click(await screen.findByRole('button', { name: /Where requests go/i }))
     expect(await screen.findByRole('dialog', { name: /Where forms go/i })).toBeInTheDocument()
     expect(await screen.findByLabelText('Who receives Substitute request')).toHaveValue('julia-1')
