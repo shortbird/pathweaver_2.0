@@ -13,7 +13,10 @@ on:
       coverage-floor:
         description: 'Minimum line coverage percent. Ratchet up, never down.'
         required: false
-        default: 41
+        # Both callers pass this explicitly. The default matters only for a
+        # future third caller, and a stale one hands it a floor 16 points below
+        # the real number -- which is how this sat at 41 against a measured 58.
+        default: 57
         type: number
 
 permissions:
