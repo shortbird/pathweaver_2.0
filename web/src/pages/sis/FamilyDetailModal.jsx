@@ -69,9 +69,23 @@ const TABS = [
   { key: 'registration', label: 'Registration' },
 ]
 
+/**
+ * The tabs this person gets. Billing is FINANCE_ROLES on the backend --
+ * /api/sis/households/<id>/billing answers "Required role: org_admin,
+ * superadmin" -- and a campus coordinator is an org admin minus the finances.
+ * The tab was offered to everyone regardless, so a coordinator opening it
+ * collected a 403, a "Could not load billing" toast and a Sentry error against
+ * a page that was refusing exactly what it should (OPTIO-WEB-11, 2026-09-08,
+ * two coordinators). Hide what the backend would refuse, the way the sidebar
+ * and the staff modal already do.
+ */
+export const familyTabsFor = (user) =>
+  TABS.filter((t) => t.key !== 'billing' || canSeeFinance(user))
+
 const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
   const confirm = useConfirm()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [tab, setTab] = useState('family')
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name || '')
@@ -172,7 +186,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
         </div>
 
         <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {TABS.map((t) => (
+          {familyTabsFor(user).map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}>
               {t.label}
