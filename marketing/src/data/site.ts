@@ -42,5 +42,6 @@ export const OFFER = {
   transferGuarantee:
     'If your school will not accept the credit, we refund you in full. That is the Transfer Guarantee.',
   academyMonthly: '$50',
+  academyFamilyCap: '$150',
   academyPerCredit: '$100',
 }

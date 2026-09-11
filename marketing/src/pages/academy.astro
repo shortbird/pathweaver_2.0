@@ -32,7 +32,7 @@ const FAQS = [
   },
   {
     q: 'How much does Optio Academy cost?',
-    a: 'Enrollment is $50 per month, and what you pay counts toward credits: each credit costs $100 as your student earns it, and a full diploma is 24 credits. Families who want one-on-one support from a licensed Optio teacher can add it; we price that together on your discovery call.',
+    a: `Enrollment is ${OFFER.academyMonthly} per kid per month, capped at ${OFFER.academyFamilyCap} per family, and the price is the same for every grade, K through 12. In high school, what you pay counts toward credits: each credit costs ${OFFER.academyPerCredit} as your student earns it, and a full diploma is 24 credits. Families who want one-on-one support from a licensed Optio teacher can add it; we price that together on your discovery call.`,
   },
   {
     q: 'Can we try it before enrolling?',
@@ -66,7 +66,7 @@ const schema = [
     '@type': 'School',
     name: 'Optio Academy',
     url: `${SITE.url}/academy`,
-    description: `A fully online private school for grades 9 to 12. ${WASC_ACCREDITED_PHRASE}. Credit is based on evidence of learning, with rolling admissions and self-paced learning.`,
+    description: `A fully online private school for grades K to 12. ${WASC_ACCREDITED_PHRASE}. Credit is based on evidence of learning, with rolling admissions and self-paced learning.`,
     email: SITE.academyEmail,
     sameAs: SOCIAL_LINKS.map((s) => s.href),
     parentOrganization: { '@type': 'Organization', name: 'Optio', url: SITE.url },
@@ -85,7 +85,7 @@ const schema = [
 
 <Marketing
   title="Optio Academy | A WASC-Accredited Online Private School"
-  description="Optio Academy is a WASC-accredited online private school built on the learning your kid already does. $50 per month, counting toward $100 per credit. First class free."
+  description="Optio Academy is a WASC-accredited online private school built on the learning your kid already does. $50 per kid per month, capped at $150 per family, K through 12. First class free."
   ogImage="/images/og/academy.png"
   schema={schema}
 >
@@ -158,7 +158,7 @@ const schema = [
             training log, a business plan: real work is the exam.
           </p>
           <p class="text-neutral-500 font-medium leading-relaxed">
-            Grades 9 to 12, self-paced, rolling admissions. Start any month of the year.
+            Grades K to 12, self-paced, rolling admissions. Start any month of the year.
           </p>
         </div>
         <Receipt
@@ -264,28 +264,24 @@ const schema = [
       </div>
 
       <div class="max-w-4xl mx-auto rounded-2xl border-2 border-optio-purple/30 shadow-lg bg-white overflow-hidden">
-        <div class="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-neutral-100">
-          <!-- Stage 1: K-8 on the Family plan -->
-          <div class="p-7 sm:p-8 flex flex-col">
-            <p class="text-xs font-semibold uppercase tracking-wider text-optio-purple bg-optio-purple/10 rounded-full px-3 py-1 self-start mb-4">Grades K to 8</p>
-            <p class="text-3xl font-bold text-neutral-900 mb-1">$20<span class="text-base font-medium text-neutral-500">/month per kid</span></p>
-            <p class="text-sm text-neutral-500 font-medium mb-5">Capped at $50 per family, all kids included.</p>
-            <p class="text-neutral-500 text-sm font-medium leading-relaxed flex-1">
-              Enrollment in Optio Academy's WASC-accredited K-8 program on the Family plan: the
-              official record of your homeschool. The learning journal, portfolios, the family
-              activity feed, and observer access for grandparents and mentors.
+        <!-- One price, every grade -->
+        <div class="grid md:grid-cols-[auto_1fr] gap-8 md:gap-12 p-7 sm:p-8 items-start">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-white bg-optio-purple rounded-full px-3 py-1 inline-block mb-4">Grades K to 12</p>
+            <p class="text-3xl font-bold text-neutral-900 mb-1">{OFFER.academyMonthly}<span class="text-base font-medium text-neutral-500">/month per kid</span></p>
+            <p class="text-sm text-neutral-500 font-medium">
+              Capped at {OFFER.academyFamilyCap} per family, all kids included. Same price at every grade.
             </p>
           </div>
-
-          <!-- Stage 2: High school -->
-          <div class="p-7 sm:p-8 flex flex-col">
-            <p class="text-xs font-semibold uppercase tracking-wider text-white bg-optio-purple rounded-full px-3 py-1 self-start mb-4">Grades 9 to 12</p>
-            <p class="text-3xl font-bold text-neutral-900 mb-1">{OFFER.academyMonthly}<span class="text-base font-medium text-neutral-500">/month</span></p>
-            <p class="text-sm text-neutral-500 font-medium mb-5">
-              Counts toward credits at {OFFER.academyPerCredit} per credit. A full diploma is 24 credits.
+          <div class="text-neutral-500 text-sm font-medium leading-relaxed space-y-3">
+            <p>
+              Enrollment in Optio Academy's WASC-accredited K-12 program: the official record of
+              your homeschool. The learning journal, portfolios, the family activity feed, and
+              observer access for grandparents and mentors.
             </p>
-            <p class="text-neutral-500 text-sm font-medium leading-relaxed flex-1">
-              The full high school, starting at age 13. You guide the learning day to day; Optio
+            <p>
+              In high school, what you pay counts toward credits at {OFFER.academyPerCredit} per
+              credit; a full diploma is 24 credits. You guide the learning day to day; Optio
               provides the structure, licensed teacher review, the official transcript, and the
               WASC-accredited diploma.
             </p>
