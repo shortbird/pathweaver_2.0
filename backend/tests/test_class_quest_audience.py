@@ -21,8 +21,6 @@ those students. Three rules carry the risk and are asserted directly:
 
 from unittest.mock import Mock, patch
 
-import pytest
-
 from services.class_quest_enrollment import (
     assigned_to,
     audience,
