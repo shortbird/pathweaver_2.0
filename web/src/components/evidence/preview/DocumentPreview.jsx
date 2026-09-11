@@ -8,8 +8,15 @@ import {
   DocumentIcon
 } from '@heroicons/react/24/outline';
 
+import DocxPreview from './DocxPreview';
+
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// Past this, an inline reader stops stacking pages and hands over to the
+// browser's own viewer. A forty-page PDF rendered to canvas at once is a lot of
+// memory for a pane that also holds the rest of the evidence.
+const MAX_INLINE_PAGES = 30;
 
 // Configure PDF.js worker from public folder
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -20,6 +27,15 @@ pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 export const isPdf = (url, title) => {
   const str = (title || url || '').toLowerCase();
   return str.endsWith('.pdf') || str.includes('.pdf?');
+};
+
+/**
+ * Determines if a URL/filename points to a Word document. Only .docx: the old
+ * binary .doc has no browser-side reader, so it stays a download.
+ */
+export const isDocx = (url, title) => {
+  const str = (title || url || '').toLowerCase();
+  return str.endsWith('.docx') || str.includes('.docx?');
 };
 
 /**
@@ -57,6 +73,9 @@ export const isPreviewableDocument = (url, title) =>
  * The page also measures its own container rather than the viewport. Sizing a
  * PDF to `window.innerWidth` is right only when the preview spans the window;
  * in a split review pane it overflowed the column it was sitting in.
+ *
+ * Inline also stacks every page rather than paging: a reviewer reads an essay
+ * top to bottom, and clicking "next" thirty times is not reading.
  */
 const DocumentPreview = ({ url, title, variant = 'card' }) => {
   const [numPages, setNumPages] = useState(null);
@@ -155,8 +174,8 @@ const DocumentPreview = ({ url, title, variant = 'card' }) => {
         onTouchEnd={handleTouchEnd}
       >
         {/* Card: fixed square well keeps feed rows even. Inline: natural height. */}
-        <div className={`flex items-center justify-center pointer-events-none overflow-hidden ${
-          isInline ? 'min-h-[240px] py-2' : 'aspect-square'
+        <div className={`flex items-center justify-center pointer-events-none ${
+          isInline ? 'min-h-[240px] py-3 overflow-y-auto max-h-[80vh]' : 'aspect-square overflow-hidden'
         }`}>
           {loading && (
             <div className="flex items-center justify-center w-full h-full">
@@ -182,20 +201,39 @@ const DocumentPreview = ({ url, title, variant = 'card' }) => {
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}
-            className={loading ? 'hidden' : 'shadow-lg max-h-full'}
+            className={loading ? 'hidden' : (isInline ? 'space-y-3' : 'shadow-lg max-h-full')}
           >
-            <Page
-              key={`page-${pageNumber}`}
-              pageNumber={pageNumber}
-              width={pageWidth}
-              renderTextLayer={false}
-              renderAnnotationLayer={false}
-            />
+            {isInline ? (
+              Array.from({ length: Math.min(numPages || 0, MAX_INLINE_PAGES) }, (_, i) => (
+                <Page
+                  key={`page-${i + 1}`}
+                  pageNumber={i + 1}
+                  width={pageWidth}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  className="shadow-md"
+                />
+              ))
+            ) : (
+              <Page
+                key={`page-${pageNumber}`}
+                pageNumber={pageNumber}
+                width={pageWidth}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            )}
           </Document>
         </div>
 
-        {/* Navigation controls - overlaid at bottom */}
-        {!loading && !error && numPages > 1 && (
+        {isInline && !loading && !error && numPages > MAX_INLINE_PAGES && (
+          <p className="px-3 py-2 text-xs text-gray-500 bg-white border-t border-gray-200">
+            Showing the first {MAX_INLINE_PAGES} of {numPages} pages. Open the PDF to read the rest.
+          </p>
+        )}
+
+        {/* Navigation controls - overlaid at bottom (card only; inline stacks) */}
+        {!isInline && !loading && !error && numPages > 1 && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-lg pointer-events-auto">
             <button
               type="button"
@@ -263,7 +301,11 @@ const DocumentPreview = ({ url, title, variant = 'card' }) => {
     );
   }
 
-  // Fallback for unsupported document types (docx, xlsx, etc.)
+  if (isDocx(url, title)) {
+    return <DocxPreview url={url} title={displayTitle} />;
+  }
+
+  // Fallback for unsupported document types (xlsx, pptx, .doc, etc.)
   return (
     <a
       href={url}

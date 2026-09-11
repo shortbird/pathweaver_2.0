@@ -1,9 +1,10 @@
 /**
  * Rendering one block of a student's evidence for a reviewer.
  *
- * Split out of ItemDetail when it crossed the size cap. It is a clean seam: this
- * file knows how to show a photo, a document, a link and a video, and nothing
- * about approving anything.
+ * Split out of the detail pane when it crossed the size cap, and now the
+ * grader's evidence column leans on it. It is a clean seam: this file knows how
+ * to show a photo, a document, a link and a video, and nothing about approving
+ * anything.
  *
  * The recurring hazard here is that `block_type` records which picker the
  * student opened, not what the file is. A .jpg pasted into the Link picker
@@ -20,8 +21,9 @@ import {
   isVideoSharingLink,
   isUploadedVideoUrl,
 } from '../../utils/videoUtils'
-import DocumentPreview, { isPreviewableDocument } from '../evidence/preview/DocumentPreview'
+import DocumentPreview, { isPreviewableDocument, isPdf, isDocx } from '../evidence/preview/DocumentPreview'
 import VideoLinkPreview from '../evidence/preview/VideoLinkPreview'
+import LinkEmbed from '../evidence/preview/LinkEmbed'
 import { DIFF_NEW, DIFF_MODIFIED, DIFF_REMOVED } from './evidenceDiff'
 
 // Evidence block content can be a string or an object like {text: "..."}
@@ -150,19 +152,18 @@ const renderBlockBody = (block) => {
                 {renderVideoItem(item)}
                 {item.title && <p className="text-xs text-gray-500 mt-1">{item.title}</p>}
               </div>
+            ) : isPdf(item.url, item.title) || isDocx(item.url, item.title) ? (
+              // A PDF or Word file pasted as a link is still a document.
+              <div key={j}>
+                <DocumentPreview url={item.url} title={itemLabel(item, 'Document')} variant="inline" />
+                {isPreviewableDocument(item.url, item.title) && (
+                  <p className="text-xs text-gray-500 mt-1">{itemLabel(item, 'Document')}</p>
+                )}
+              </div>
             ) : (
-              <a
-                key={j}
-                href={safeHref(item.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-optio-purple hover:underline flex items-center gap-1 break-all"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                {itemLabel(item)}
-              </a>
+              // Anything else is a page: show it here rather than sending the
+              // reviewer off to a new tab. The frame carries its own Open link.
+              <LinkEmbed key={j} url={item.url} title={item.title} />
             )
           ))}
         </div>

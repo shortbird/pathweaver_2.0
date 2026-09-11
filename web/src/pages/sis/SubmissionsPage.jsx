@@ -35,7 +35,7 @@ const timeAgo = (iso) => {
 
 // Evidence block content mirrors the credit dashboard's shapes: content is a
 // string or an object ({text} / {url,...} / {items: [...]}). The dashboard's
-// renderer lives inside ItemDetail.jsx (not exported), so this is a compact
+// full renderer is credit-dashboard/EvidenceBlockCard.jsx; this is a compact
 // read-only equivalent.
 const blockText = (content) => {
   if (typeof content === 'string') return content

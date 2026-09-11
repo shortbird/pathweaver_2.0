@@ -1,17 +1,17 @@
 import React, { useState } from 'react'
 import FilterBar from './FilterBar'
+import AiBadge from './AiBadge'
+import StatusPill from './StatusPill'
+import { aiItemSummary } from './aiReview'
 
-const statusColors = {
-  pending_org_approval: 'bg-optio-purple/10 text-optio-purple-dark',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-  grow_this: 'bg-orange-100 text-orange-800',
-  finalized: 'bg-emerald-100 text-emerald-800',
-  merged: 'bg-gray-100 text-gray-500',
-}
-
+/**
+ * The queue as a table. Clicking a row opens it in the grader; the checkboxes
+ * are for merge and the other bulk actions, which is why they stop the click.
+ */
 const CreditDataTable = ({
   items, selectedItems, onToggleSelection, onSelectAll, onRowClick,
-  filters, onFiltersChange, loading, total, page, perPage, onPageChange
+  filters, onFiltersChange, loading, total, page, perPage, onPageChange,
+  showAi = false,
 }) => {
   const [sortKey, setSortKey] = useState('submitted_at')
   const [sortDir, setSortDir] = useState('desc')
@@ -53,7 +53,7 @@ const CreditDataTable = ({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <FilterBar filters={filters} onFiltersChange={onFiltersChange} />
+      <FilterBar filters={filters} onFiltersChange={onFiltersChange} showAiFilter={showAi} layout="row" />
 
       <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -75,20 +75,24 @@ const CreditDataTable = ({
               <SortHeader label="Quest" sortField="quest_title" />
               <SortHeader label="Subjects" sortField="pillar" />
               <SortHeader label="XP" sortField="xp_value" />
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Evidence
+              </th>
               <SortHeader label="Status" sortField="diploma_status" />
+              {showAi && <SortHeader label="AI" sortField="ai_recommendation" />}
               <SortHeader label="Date" sortField="submitted_at" />
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={8} className="text-center py-12">
+                <td colSpan={showAi ? 10 : 9} className="text-center py-12">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple mx-auto" />
                 </td>
               </tr>
             ) : sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-gray-500 text-sm">
+                <td colSpan={showAi ? 10 : 9} className="text-center py-12 text-gray-500 text-sm">
                   No items found
                 </td>
               </tr>
@@ -113,13 +117,17 @@ const CreditDataTable = ({
                   {Object.keys(item.suggested_subjects || {}).map(s => s.replace(/_/g, ' ')).join(', ') || '-'}
                 </td>
                 <td className="px-3 py-2 text-sm font-medium text-gray-900">{item.xp_value}</td>
-                <td className="px-3 py-2">
-                  <span className={`inline-flex text-xs px-2 py-0.5 rounded-full font-medium ${
-                    statusColors[item.diploma_status] || 'bg-gray-100'
-                  }`}>
-                    {(item.diploma_status || '').replace(/_/g, ' ')}
-                  </span>
+                <td className="px-3 py-2 text-xs text-gray-500">
+                  {item.evidence_block_count ?? '-'}
                 </td>
+                <td className="px-3 py-2">
+                  <StatusPill status={item.diploma_status} />
+                </td>
+                {showAi && (
+                  <td className="px-3 py-2">
+                    <AiBadge size="xs" {...aiItemSummary(item)} />
+                  </td>
+                )}
                 <td className="px-3 py-2 text-xs text-gray-400">
                   {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString() : '-'}
                 </td>

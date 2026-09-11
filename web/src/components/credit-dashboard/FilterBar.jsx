@@ -26,13 +26,19 @@ const AI_RECOMMENDATIONS = [
   { value: 'not_run', label: 'AI: no verdict yet' },
 ]
 
-const FilterBar = ({ filters, onFiltersChange, showAiFilter = false }) => {
+// `layout="row"` lays the controls side by side for the full-width queue;
+// the default stacks them for the narrow list on a phone.
+const FilterBar = ({ filters, onFiltersChange, showAiFilter = false, layout = 'stack' }) => {
   const update = (key, value) => {
     onFiltersChange(prev => ({ ...prev, [key]: value }))
   }
 
+  const wrap = layout === 'row'
+    ? 'flex flex-wrap items-center gap-2 px-4 py-3 border-b border-gray-200 bg-white [&>*]:w-auto [&>*]:min-w-[12rem]'
+    : 'p-3 space-y-2 border-b border-gray-200 bg-white'
+
   return (
-    <div className="p-3 space-y-2 border-b border-gray-200 bg-white">
+    <div className={wrap}>
       <select
         aria-label="Status"
         value={filters.status}

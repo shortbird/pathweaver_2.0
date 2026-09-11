@@ -1,24 +1,8 @@
 import React from 'react'
 import FilterBar from './FilterBar'
 import AiBadge from './AiBadge'
+import StatusPill from './StatusPill'
 import { aiItemSummary } from './aiReview'
-import StatusTimeline from './StatusTimeline'
-
-const statusColors = {
-  pending_org_approval: 'bg-optio-purple/10 text-optio-purple-dark',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-  grow_this: 'bg-orange-100 text-orange-800',
-  finalized: 'bg-emerald-100 text-emerald-800',
-  merged: 'bg-gray-100 text-gray-500',
-}
-
-const statusLabels = {
-  pending_org_approval: 'pending org',
-  pending_review: 'pending review',
-  grow_this: 'grow this',
-  finalized: 'finalized',
-  merged: 'merged',
-}
 
 const ItemList = ({
   items, selectedItem, selectedItems, onSelect, onToggleSelection,
@@ -76,11 +60,7 @@ const ItemList = ({
                       <span className="text-sm font-medium text-gray-900 truncate">
                         {item.student_name}
                       </span>
-                      <span className={`inline-flex text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                        statusColors[item.diploma_status] || 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {statusLabels[item.diploma_status] || item.diploma_status?.replace('_', ' ')}
-                      </span>
+                      <StatusPill status={item.diploma_status} size="xs" />
                     </div>
                     <p className="text-sm md:text-xs text-gray-600 truncate mt-0.5">{item.task_title}</p>
                     <div className="flex items-center gap-2 mt-1 text-[11px] md:text-[10px] text-gray-400 flex-wrap">

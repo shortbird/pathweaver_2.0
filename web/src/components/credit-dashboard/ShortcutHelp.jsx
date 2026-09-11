@@ -1,14 +1,13 @@
 import React from 'react'
 
 const shortcuts = [
-  { key: 'j', description: 'Move down in list' },
-  { key: 'k', description: 'Move up in list' },
-  { key: 'a', description: 'Approve' },
-  { key: 'g', description: 'Grow This (return with feedback)' },
-  { key: 'x', description: 'Take the AI recommendation (still asks first)' },
-  { key: 'm', description: 'Open merge modal (2+ selected)' },
-  { key: 't', description: 'Toggle table/split-panel mode' },
-  { key: 'Esc', description: 'Close modal / deselect' },
+  { key: 'j', description: 'Next item (opens the grader from the queue)' },
+  { key: 'k', description: 'Previous item' },
+  { key: 'a', description: 'Approve, with the note and XP as shown' },
+  { key: 'g', description: 'Grow This (return with the note; focuses the note if empty)' },
+  { key: 'x', description: 'Take the AI recommendation (asks first)' },
+  { key: 'm', description: 'Open merge modal (2+ selected in the queue)' },
+  { key: 'Esc', description: 'Back to the queue / close dialog' },
   { key: '?', description: 'Toggle this help overlay' },
 ]
 

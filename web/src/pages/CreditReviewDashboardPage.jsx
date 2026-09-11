@@ -2,31 +2,37 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import DashboardLayout from '../components/credit-dashboard/DashboardLayout'
 import ItemList from '../components/credit-dashboard/ItemList'
-import ItemDetail from '../components/credit-dashboard/ItemDetail'
-import StudentContext from '../components/credit-dashboard/StudentContext'
 import CreditDataTable from '../components/credit-dashboard/CreditDataTable'
 import BulkActionBar from '../components/credit-dashboard/BulkActionBar'
 import MergeModal from '../components/credit-dashboard/MergeModal'
 import ShortcutHelp from '../components/credit-dashboard/ShortcutHelp'
 import ClassReviewsSection from '../components/credit-dashboard/ClassReviewsSection'
+import GraderView from '../components/credit-dashboard/grader/GraderView'
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts'
 import useAiReviewPolling from '../hooks/useAiReviewPolling'
 import { useRerunAiReview } from '../hooks/api'
 import GlassTabBar from '../components/ui/GlassTabBar'
 import useIsMobile from '../hooks/useIsMobile'
 
-// orgId is set when this page is embedded in the org management screen
-// (/admin/organizations/:orgId > Credit Review tab). It scopes the queue to
-// that org's students -- without it a superadmin sees the platform-wide queue.
+/**
+ * The credit review queue, and the grader that opens over it.
+ *
+ * This page owns the list, the filters, the fetches and the keyboard. Opening
+ * an item puts the grader over the whole screen; deciding it drops the row and
+ * moves to the next, so a reviewer can work a queue without touching the list.
+ *
+ * orgId is set when this page is embedded in the org management screen
+ * (/admin/organizations/:orgId > Credit Review tab). It scopes the queue to
+ * that org's students -- without it a superadmin sees the platform-wide queue.
+ */
 const CreditReviewDashboardPage = ({ orgId = null }) => {
   const { effectiveRole } = useAuth()
   const isMobile = useIsMobile()
   // Holistic class credit is a superadmin function (platform class submissions
   // route to superadmin); only they see the Classes tab.
   const canReviewClasses = effectiveRole === 'superadmin'
-  const [viewMode, setViewMode] = useState('split') // 'split' or 'table'
+  const showAi = effectiveRole === 'superadmin'
   const [items, setItems] = useState([])
   const [selectedItem, setSelectedItem] = useState(null)
   const [selectedItems, setSelectedItems] = useState([])
@@ -84,6 +90,27 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
 
   const perPage = 50
 
+  // Refs for keyboard shortcut handlers (avoids stale closures / constant re-registration)
+  const itemsRef = useRef(items)
+  const selectedItemRef = useRef(selectedItem)
+  const selectedItemsRef = useRef(selectedItems)
+  const showMergeModalRef = useRef(showMergeModal)
+  const showShortcutsRef = useRef(showShortcuts)
+  const feedbackTextareaRef = useRef(null)
+  // The grader registers its approve / grow-this / accept-AI handlers here, so
+  // a keypress and a click go through one code path rather than two.
+  const decisionRef = useRef(null)
+  // Set when a decision empties the loaded page and more rows remain: the next
+  // fetch opens its first row so the reviewer keeps going without a detour
+  // through the queue.
+  const continueOnLoadRef = useRef(false)
+
+  useEffect(() => { itemsRef.current = items }, [items])
+  useEffect(() => { selectedItemRef.current = selectedItem }, [selectedItem])
+  useEffect(() => { selectedItemsRef.current = selectedItems }, [selectedItems])
+  useEffect(() => { showMergeModalRef.current = showMergeModal }, [showMergeModal])
+  useEffect(() => { showShortcutsRef.current = showShortcuts }, [showShortcuts])
+
   // Filter changes reset to page 1. Without this, narrowing the filter while
   // holding page 2 asks the API for an offset past the end of the smaller
   // result set -- PostgREST answers 416, the endpoint 500s, and the dashboard
@@ -95,6 +122,48 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     setFilters(update)
     setPage(1)
   }, [])
+
+  const closeGrader = useCallback(() => {
+    setSelectedItem(null)
+    setItemDetail(null)
+    setStudentContext(null)
+  }, [])
+
+  // The story editor opens in a new tab. The grader is a queue with a
+  // position in it, and a reviewer who publishes a story mid-queue should
+  // come back to the same item, not the top of the list. A router navigation
+  // would unmount the grader and lose that.
+  const openStory = useCallback((storyId) => {
+    window.open(`/admin/stories/${storyId}`, '_blank', 'noopener,noreferrer')
+  }, [])
+
+  // Open an item in the grader. Responses are only applied if the item is
+  // still the one on screen: a reviewer pressing j twice gets two fetches, and
+  // the first must not land on top of the second.
+  const selectItem = useCallback(async (item) => {
+    if (!item) {
+      closeGrader()
+      return
+    }
+    setSelectedItem(item)
+    selectedItemRef.current = item
+    try {
+      setDetailLoading(true)
+      const [detailRes, contextRes] = await Promise.all([
+        api.get(`/api/credit-dashboard/items/${item.completion_id}`),
+        api.get(`/api/credit-dashboard/student-context/${item.student_id}`)
+      ])
+      if (selectedItemRef.current?.completion_id !== item.completion_id) return
+      setItemDetail(detailRes.data?.data || detailRes.data)
+      setStudentContext(contextRes.data?.data || contextRes.data)
+    } catch (err) {
+      console.error('Failed to fetch detail:', err)
+    } finally {
+      if (selectedItemRef.current?.completion_id === item.completion_id) {
+        setDetailLoading(false)
+      }
+    }
+  }, [closeGrader])
 
   // Fetch items. Bails until the role-based filter default has been applied
   // (filtersInitialized = true) so we don't fire a no-filter request on
@@ -110,14 +179,19 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
       })
       const res = await api.get('/api/credit-dashboard/items', { params })
       const data = res.data?.data || res.data
-      setItems(data.items || [])
+      const list = data.items || []
+      setItems(list)
       setTotal(data.total || 0)
+      if (continueOnLoadRef.current) {
+        continueOnLoadRef.current = false
+        if (list.length) selectItem(list[0])
+      }
     } catch (err) {
       console.error('Failed to fetch items:', err)
     } finally {
       setLoading(false)
     }
-  }, [filters, page, filtersInitialized, orgId])
+  }, [filters, page, filtersInitialized, orgId, selectItem])
 
   const fetchStats = useCallback(async () => {
     if (!filtersInitialized) return
@@ -149,7 +223,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   const patchItemAi = useCallback((completionId, ai) => {
     if (!ai) return
     const review = ai.review || {}
-    setItems(prev => prev.map(item => (
+    const patch = (item) => (
       item.completion_id === completionId
         ? {
             ...item,
@@ -159,50 +233,10 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
             ai_xp_recommended: review.xp?.changed ? review.xp.recommended : null,
           }
         : item
-    )))
+    )
+    setItems(prev => prev.map(patch))
+    setSelectedItem(prev => (prev ? patch(prev) : prev))
   }, [])
-
-  // Fetch item detail
-  const selectItem = useCallback(async (item) => {
-    if (!item) {
-      setSelectedItem(null)
-      setItemDetail(null)
-      setStudentContext(null)
-      return
-    }
-    setSelectedItem(item)
-    try {
-      setDetailLoading(true)
-      const [detailRes, contextRes] = await Promise.all([
-        api.get(`/api/credit-dashboard/items/${item.completion_id}`),
-        api.get(`/api/credit-dashboard/student-context/${item.student_id}`)
-      ])
-      setItemDetail(detailRes.data?.data || detailRes.data)
-      setStudentContext(contextRes.data?.data || contextRes.data)
-    } catch (err) {
-      console.error('Failed to fetch detail:', err)
-    } finally {
-      setDetailLoading(false)
-    }
-  }, [])
-
-  // Refs for keyboard shortcut handlers (avoids stale closures / constant re-registration)
-  const itemsRef = useRef(items)
-  const selectedItemRef = useRef(selectedItem)
-  const selectedItemsRef = useRef(selectedItems)
-  const showMergeModalRef = useRef(showMergeModal)
-  const showShortcutsRef = useRef(showShortcuts)
-  const feedbackRef = useRef('')
-  const feedbackTextareaRef = useRef(null)
-  // ItemDetail registers its accept-AI handler here, so the shortcut and any
-  // future button go through one code path rather than two.
-  const acceptAiRef = useRef(null)
-
-  useEffect(() => { itemsRef.current = items }, [items])
-  useEffect(() => { selectedItemRef.current = selectedItem; feedbackRef.current = '' }, [selectedItem])
-  useEffect(() => { selectedItemsRef.current = selectedItems }, [selectedItems])
-  useEffect(() => { showMergeModalRef.current = showMergeModal }, [showMergeModal])
-  useEffect(() => { showShortcutsRef.current = showShortcuts }, [showShortcuts])
 
   const handleRefresh = useCallback(() => {
     fetchItems()
@@ -234,113 +268,10 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     onTimeout: () => toast('The AI review is taking a while. Re-run it if it stays stuck.'),
   })
 
-  // Stable keyboard shortcuts object (never changes identity)
-  const shortcuts = useMemo(() => ({
-    'k': () => {
-      const idx = itemsRef.current.findIndex(i => i.completion_id === selectedItemRef.current?.completion_id)
-      if (idx > 0) selectItem(itemsRef.current[idx - 1])
-    },
-    'j': () => {
-      const idx = itemsRef.current.findIndex(i => i.completion_id === selectedItemRef.current?.completion_id)
-      if (idx < itemsRef.current.length - 1) selectItem(itemsRef.current[idx + 1])
-      else if (idx === -1 && itemsRef.current.length > 0) selectItem(itemsRef.current[0])
-    },
-    'a': async () => {
-      const item = selectedItemRef.current
-      if (!item) return
-      const prevItems = itemsRef.current
-      const idx = prevItems.findIndex(i => i.completion_id === item.completion_id)
-
-      // Optimistic: remove item and advance selection
-      const nextItems = prevItems.filter(i => i.completion_id !== item.completion_id)
-      setItems(nextItems)
-      itemsRef.current = nextItems
-      const nextItem = nextItems[idx] || nextItems[idx - 1] || null
-      if (nextItem) {
-        selectItem(nextItem)
-      } else {
-        setSelectedItem(null)
-        setItemDetail(null)
-        setStudentContext(null)
-      }
-
-      try {
-        // Route by the item's stage, not the reviewer's role: org-approve
-        // handles pending_org_approval for both org_admins and superadmins
-        // (superadmins collapse both stages server-side), while approve is
-        // the superadmin final-review action for pending_review items.
-        if (item.diploma_status === 'pending_org_approval') {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-approve`, {})
-        } else {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/approve`, {})
-        }
-        fetchStats()
-      } catch (err) {
-        console.error('Action failed:', err)
-        // Revert on failure
-        setItems(prevItems)
-        itemsRef.current = prevItems
-        selectItem(item)
-      }
-    },
-    'g': async () => {
-      const item = selectedItemRef.current
-      if (!item) return
-      const fb = feedbackRef.current?.trim()
-      if (!fb) {
-        feedbackTextareaRef.current?.focus()
-        return
-      }
-      const prevItems = itemsRef.current
-      const idx = prevItems.findIndex(i => i.completion_id === item.completion_id)
-      const nextItems = prevItems.filter(i => i.completion_id !== item.completion_id)
-      setItems(nextItems)
-      itemsRef.current = nextItems
-      const nextItem = nextItems[idx] || nextItems[idx - 1] || null
-      if (nextItem) {
-        selectItem(nextItem)
-      } else {
-        setSelectedItem(null)
-        setItemDetail(null)
-        setStudentContext(null)
-      }
-      try {
-        // Same stage-based routing as approve above
-        if (item.diploma_status === 'pending_org_approval') {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/org-grow-this`, {
-            feedback: fb
-          })
-          toast.success('Returned to student')
-        } else {
-          await api.post(`/api/credit-dashboard/items/${item.completion_id}/grow-this`, {
-            feedback: fb
-          })
-          toast.success('Returned with feedback')
-        }
-        fetchStats()
-      } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to return')
-        setItems(prevItems)
-        itemsRef.current = prevItems
-        selectItem(item)
-      }
-    },
-    // Take the AI's recommendation as written. ItemDetail owns what that means
-    // and still confirms; this is only the key that reaches it.
-    'x': () => acceptAiRef.current?.(),
-    't': () => setViewMode(v => v === 'split' ? 'table' : 'split'),
-    'm': () => { if (selectedItemsRef.current.length >= 2) setShowMergeModal(true) },
-    'Escape': () => {
-      if (showMergeModalRef.current) setShowMergeModal(false)
-      else if (showShortcutsRef.current) setShowShortcuts(false)
-      else { setSelectedItem(null); setItemDetail(null) }
-    },
-    '?': () => setShowShortcuts(s => !s),
-  }), [selectItem, effectiveRole, fetchItems, fetchStats])
-
-  useKeyboardShortcuts(shortcuts)
-
-  // Optimistic advance: remove item from list and select next
+  // Drop a decided row and move the grader to its neighbour. When the loaded
+  // page runs dry but the server has more, fetch again and open the first row
+  // of what comes back. Returns the list as it was, so a failed request can
+  // put it back.
   const optimisticRemove = useCallback((completionId) => {
     const curItems = itemsRef.current
     const idx = curItems.findIndex(i => i.completion_id === completionId)
@@ -348,36 +279,59 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
     const nextItems = curItems.filter(i => i.completion_id !== completionId)
     setItems(nextItems)
     itemsRef.current = nextItems
+    setTotal(t => Math.max(0, t - 1))
     const nextItem = nextItems[idx] || nextItems[idx - 1] || null
     if (nextItem) {
       selectItem(nextItem)
-    } else {
-      setSelectedItem(null)
+    } else if (total > prevItems.length) {
+      // Clear the detail so the grader shows a loader, not the decided item,
+      // while the next page is on its way.
       setItemDetail(null)
-      setStudentContext(null)
+      continueOnLoadRef.current = true
+      if (page === 1) fetchItems()
+      else setPage(1)
+    } else {
+      closeGrader()
     }
     fetchStats()
     return prevItems
-  }, [selectItem, fetchStats])
+  }, [selectItem, fetchStats, fetchItems, closeGrader, total, page])
 
   const handleAdvance = useCallback((completionId) => {
     optimisticRemove(completionId)
   }, [optimisticRemove])
 
-  // Grow this: optimistic advance + API call with feedback, revert on failure
-  const handleGrowThis = useCallback(async (completionId, feedbackText) => {
-    const prevItems = optimisticRemove(completionId)
-    try {
-      await api.post(`/api/credit-dashboard/items/${completionId}/grow-this`, {
-        feedback: feedbackText
-      })
-      toast.success('Returned with feedback')
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to return')
-      setItems(prevItems)
-      itemsRef.current = prevItems
+  const goTo = useCallback((offset) => {
+    const list = itemsRef.current
+    if (!list.length) return
+    const idx = list.findIndex(i => i.completion_id === selectedItemRef.current?.completion_id)
+    if (idx === -1) {
+      selectItem(list[0])
+      return
     }
-  }, [optimisticRemove])
+    const next = list[idx + offset]
+    if (next) selectItem(next)
+  }, [selectItem])
+
+  // Stable keyboard shortcuts object (never changes identity)
+  const shortcuts = useMemo(() => ({
+    'k': () => goTo(-1),
+    'j': () => goTo(1),
+    // Approve, Grow This and take-the-AI all belong to the grader, which
+    // registers them on decisionRef. Nothing here decides anything itself.
+    'a': () => decisionRef.current?.approve(),
+    'g': () => decisionRef.current?.growThis(),
+    'x': () => decisionRef.current?.acceptAi(),
+    'm': () => { if (selectedItemsRef.current.length >= 2) setShowMergeModal(true) },
+    'Escape': () => {
+      if (showMergeModalRef.current) setShowMergeModal(false)
+      else if (showShortcutsRef.current) setShowShortcuts(false)
+      else closeGrader()
+    },
+    '?': () => setShowShortcuts(s => !s),
+  }), [goTo, closeGrader])
+
+  useKeyboardShortcuts(shortcuts)
 
   // Toggle selection for bulk ops
   const toggleItemSelection = useCallback((completionId) => {
@@ -387,6 +341,10 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
         : [...prev, completionId]
     )
   }, [])
+
+  const selectedIndex = selectedItem
+    ? items.findIndex(i => i.completion_id === selectedItem.completion_id)
+    : -1
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -426,88 +384,71 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
             </div>
           )}
         </div>
-        {/* Desktop-only chrome: view toggle, keyboard shortcuts. On mobile
-            the split view is forced and keyboard shortcuts are irrelevant.
-            Only relevant to the per-task queue. */}
-        {!isMobile && mainTab === 'tasks' && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode(v => v === 'split' ? 'table' : 'split')}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
-            >
-              {viewMode === 'split' ? 'Table View' : 'Split View'}
-            </button>
-            <button
-              onClick={() => setShowShortcuts(true)}
-              className="px-2 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-500"
-              title="Keyboard shortcuts (?)"
-            >
-              ?
-            </button>
+        {mainTab === 'tasks' && (
+          <div className="flex items-center gap-2 shrink-0">
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => selectItem(items[0])}
+                className="btn-primary"
+              >
+                Start grading
+              </button>
+            )}
+            {!isMobile && (
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(true)}
+                className="btn-quiet px-2.5 text-gray-500"
+                title="Keyboard shortcuts (?)"
+                aria-label="Keyboard shortcuts"
+              >
+                ?
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* Full-class submissions — one card per class, not per task. */}
       {mainTab === 'classes' && (
-        <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 bg-neutral-50">
           <ClassReviewsSection onReviewed={() => setClassRefreshKey(k => k + 1)} />
         </div>
       )}
 
-      {/* Main content. On mobile we force the split layout (the table view
-          and bulk-select workflow assume a trackpad + keyboard). */}
-      {mainTab === 'tasks' && (viewMode === 'split' || isMobile) && (
-        <DashboardLayout
-          isMobile={isMobile}
-          hasSelection={!!selectedItem}
-          onBackToList={() => setSelectedItem(null)}
-        >
-          <ItemList
-            items={items}
-            selectedItem={selectedItem}
-            selectedItems={selectedItems}
-            onSelect={selectItem}
-            onToggleSelection={toggleItemSelection}
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            loading={loading}
-            total={total}
-            page={page}
-            perPage={perPage}
-            onPageChange={setPage}
-            showAi={effectiveRole === 'superadmin'}
-          />
-          <ItemDetail
-            item={selectedItem}
-            detail={itemDetail}
-            loading={detailLoading}
-            effectiveRole={effectiveRole}
-            onRefresh={handleRefresh}
-            onAdvance={handleAdvance}
-            onGrowThis={handleGrowThis}
-            onFeedbackChange={(fb) => { feedbackRef.current = fb }}
-            feedbackTextareaRef={feedbackTextareaRef}
-            onRerunAi={rerunAiReview}
-            rerunAiLoading={rerunMutation.isPending}
-            acceptAiRef={acceptAiRef}
-          />
-          {/* Student context sidebar is desktop-only — on a phone it would
-              push the detail pane off-screen, and tapping an item already
-              reveals enough context in the detail view. */}
-          {!isMobile && (
-            <StudentContext context={studentContext} loading={detailLoading} />
-          )}
-        </DashboardLayout>
+      {/* The queue. A table with bulk selection on a desktop; a tappable list
+          on a phone, where the table's width and the merge workflow assume a
+          trackpad and a keyboard. Either way a row opens the grader. */}
+      {mainTab === 'tasks' && isMobile && (
+        <div className="flex flex-1 flex-col overflow-hidden bg-neutral-50 p-2">
+          <div className="flex-1 overflow-y-auto bg-white rounded-lg shadow-sm">
+            <ItemList
+              items={items}
+              selectedItem={selectedItem}
+              selectedItems={selectedItems}
+              onSelect={selectItem}
+              onToggleSelection={toggleItemSelection}
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              loading={loading}
+              total={total}
+              page={page}
+              perPage={perPage}
+              onPageChange={setPage}
+              showAi={showAi}
+            />
+          </div>
+        </div>
       )}
 
-      {mainTab === 'tasks' && viewMode === 'table' && !isMobile && (
+      {mainTab === 'tasks' && !isMobile && (
         <CreditDataTable
           items={items}
           selectedItems={selectedItems}
           onToggleSelection={toggleItemSelection}
           onSelectAll={(ids) => setSelectedItems(ids)}
-          onRowClick={(item) => { setViewMode('split'); selectItem(item) }}
+          onRowClick={selectItem}
           filters={filters}
           onFiltersChange={handleFiltersChange}
           loading={loading}
@@ -515,11 +456,12 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
           page={page}
           perPage={perPage}
           onPageChange={setPage}
+          showAi={showAi}
         />
       )}
 
       {/* Bulk action bar — desktop only. Mobile users review one item at
-          a time via the single-panel layout above. */}
+          a time via the grader. */}
       {mainTab === 'tasks' && !isMobile && selectedItems.length > 0 && (
         <BulkActionBar
           selectedCount={selectedItems.length}
@@ -529,6 +471,30 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
           onDeselectAll={() => setSelectedItems([])}
           onMerge={() => setShowMergeModal(true)}
           onRefresh={handleRefresh}
+        />
+      )}
+
+      {/* The grader covers everything, app chrome included. */}
+      {selectedItem && (
+        <GraderView
+          item={selectedItem}
+          detail={itemDetail}
+          loading={detailLoading}
+          studentContext={studentContext}
+          effectiveRole={effectiveRole}
+          index={selectedIndex}
+          total={items.length}
+          onPrev={() => goTo(-1)}
+          onNext={() => goTo(1)}
+          onExit={closeGrader}
+          onShowShortcuts={isMobile ? null : () => setShowShortcuts(true)}
+          onAdvance={handleAdvance}
+          onRefresh={handleRefresh}
+          feedbackTextareaRef={feedbackTextareaRef}
+          decisionRef={decisionRef}
+          onRerunAi={rerunAiReview}
+          rerunAiLoading={rerunMutation.isPending}
+          onOpenStory={openStory}
         />
       )}
 
