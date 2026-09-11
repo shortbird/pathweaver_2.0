@@ -27,8 +27,8 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | ID | Status | One line |
 |---|---|---|
 | [OPS-01b](#ops-01b--local-development-still-reads-production) | NEEDS-USER | `backend/.env` and dev's third-party keys still point at production |
-| [SEC-18](#sec-18--csrf-exemption-list-stays-a-central-list) | WONTFIX | Confirm or reverse |
-| [OPS-05](#ops-05--main-keeps-direct-push-with-no-branch-protection) | WONTFIX | Confirm or reverse |
+| [SEC-18](#sec-18--csrf-exemption-list-stays-a-central-list) | WONTFIX | Confirmed 2026-09-11 |
+| [OPS-05](#ops-05--main-keeps-direct-push-with-no-branch-protection) | WONTFIX | Confirmed 2026-09-11 |
 | [BUG-1](#bug-1--eight-referenceerrors-in-the-web-app) | FIXED | All ten files fixed 2026-09-10. **Seven were dead code** — read the correction |
 | [BUG-2](#bug-2--33-app-layer-queries-against-dropped-tables) | OPEN | 33 calls to tables production does not have |
 | [BUG-3](#bug-3--rls-findings-from-the-integration-suite) | OPEN | Four findings, asserted in tests, not fixed |
@@ -69,7 +69,7 @@ Runbook: [STAGING_RUNBOOK.md](STAGING_RUNBOOK.md).
 
 ### SEC-18 — CSRF exemption list stays a central list
 
-**Status: WONTFIX, presented for confirmation.**
+**Status: WONTFIX, confirmed by the user 2026-09-11.** The reasoning below stands as the record.
 
 `middleware/csrf_protection.py` holds ~30 exempt endpoint names in a central,
 hand-edited list. Two production outages came from drift in it. The audit
@@ -94,7 +94,11 @@ some other purpose that this could ride on.
 
 ### OPS-05 — `main` keeps direct-push with no branch protection
 
-**Status: WONTFIX, presented for confirmation.**
+**Status: WONTFIX, confirmed by the user 2026-09-11.** The reasoning below
+stands as the record. One piece of evidence arrived the night before the
+confirmation: two pushes landed on `main` with a failing integration suite
+(runs `34546961454`, `34548012063`) and neither reached production, because
+the deploy job is the gate and not the branch.
 
 There is no branch protection rule on `main`, no required review, and nothing
 preventing a force-push or a branch deletion.
@@ -626,9 +630,11 @@ that it could not be measured *locally*, which was true and not the same thing.
    the bug, since the key had never existed in `backend/` at all and the banner
    was dead on *both* routes. `test_public_consent_notice.py` covers it.
 
-### 9. Confirm or reverse two WONTFIX decisions
+### 9. ~~Confirm or reverse two WONTFIX decisions~~ — DONE 2026-09-11
 
-Both are presented, not re-argued. Reply keep or reverse.
+**Both kept.** Recorded on the two entries above; nothing further to do.
+
+The original text follows.
 
 1. **SEC-18** — the CSRF exemption list stays central rather than becoming a
    per-route decorator.
