@@ -60,7 +60,11 @@ def get_class_quests(user_id, org_id, class_id):
         # as a learner resolved to 'student' when that sorted first, and lost
         # sight of her own scheduled quests.
         only_published = not is_staff(effective_roles)
-        quests = service.get_class_quests(class_id, only_published=only_published)
+        # A student also sees only the quests that are for them: a quest a
+        # teacher kept to specific classmates is not on this student's list.
+        quests = service.get_class_quests(
+            class_id, only_published=only_published,
+            student_id=None if is_staff(effective_roles) else user_id)
 
         return jsonify({
             'success': True,

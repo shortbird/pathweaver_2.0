@@ -117,7 +117,7 @@ These authorize per-record rather than per-role, which is usually stricter:
 
 | File | Gate |
 |---|---|
-| `class_materials.py`, `class_quests.py` | Per-class moderator: org admin, primary instructor, named assistant, or an active `class_advisors` row. Plus a family read for guardians. |
+| `class_materials.py`, `class_quests.py`, `class_quest_students.py` | Per-class moderator: org admin, primary instructor, named assistant, or an active `class_advisors` row (`class_quests._authorize`, which `class_quest_students` imports). Plus a family read for guardians. The student-specific routes in `class_quest_students.py` (one student's work, reminders, adding or removing a student from a quest) also require a teacher or org-staff relationship to that student. |
 | `curriculum_materials.py` | A teacher of any class on the curriculum. **See the open question below.** |
 | `quest_resources.py` | An org admin of the quest's org, or a teacher of a class the quest is attached to. |
 | `parent.py`, `parent_forms.py`, `parent_prior_learning.py` | The family relationship, checked inside `sis_parent_service`. |

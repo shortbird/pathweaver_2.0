@@ -301,7 +301,8 @@ class ClassRepository(BaseRepository):
 
     # ===== Quest Management =====
 
-    def get_class_quests(self, class_id: str, only_published: bool = False) -> List[Dict[str, Any]]:
+    def get_class_quests(self, class_id: str, only_published: bool = False,
+                         student_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all quests assigned to a class.
 
@@ -310,6 +311,8 @@ class ClassRepository(BaseRepository):
             only_published: When True (student view), hide quests whose publish_at is
                 still in the future. A NULL publish_at always counts as visible now.
                 Teachers/admins pass False to see scheduled quests too.
+            student_id: When set (student view), hide quests kept to other
+                students. class_quests.student_ids NULL is the whole class.
         """
         query = self.admin_client.table('class_quests')\
             .select('*, quests(id, title, description, quest_type, is_active)')\
@@ -322,7 +325,11 @@ class ClassRepository(BaseRepository):
             )
 
         response = query.order('sequence_order').execute()
-        return response.data if response.data else []
+        rows = response.data if response.data else []
+        if student_id:
+            from utils.class_assignments import assigned_to
+            rows = [r for r in rows if assigned_to(r, student_id)]
+        return rows
 
     def set_quest_schedule(self, class_id: str, quest_id: str, publish_at: Optional[str]) -> Optional[Dict[str, Any]]:
         """Set or clear (publish_at=None) the scheduled publish time for a class quest."""
@@ -381,15 +388,19 @@ class ClassRepository(BaseRepository):
 
         now_iso = datetime.now(timezone.utc).isoformat()
         rows = self.admin_client.table('class_quests')\
-            .select('class_id, quest_id, due_date, publish_at, quests(id, title, description, header_image_url)')\
+            .select('class_id, quest_id, due_date, publish_at, student_ids, '
+                    'quests(id, title, description, header_image_url)')\
             .in_('class_id', class_ids)\
             .not_.is_('due_date', 'null')\
             .or_(f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}')\
             .order('due_date')\
             .execute()
 
+        from utils.class_assignments import assigned_to
         agenda = []
         for r in (rows.data or []):
+            if not assigned_to(r, student_id):
+                continue
             quest = r.get('quests') or {}
             agenda.append({
                 'class_id': r['class_id'],

@@ -200,7 +200,7 @@ class ParentDigestRepository(BaseRepository):
         for chunk in _chunks(_clean(class_ids)):
             rows += fetch_all_rows(partial(lambda c: (
                 self.client.table('class_quests')
-                .select('class_id, quest_id, due_date, publish_at')
+                .select('class_id, quest_id, due_date, publish_at, student_ids')
                 .in_('class_id', c).not_.is_('due_date', 'null')
             ), chunk))
         return rows

@@ -662,15 +662,17 @@ class DashboardService:
 
         now_iso = datetime.now(timezone.utc).isoformat()
         rows = self.client.table('class_quests')\
-            .select('class_id, quest_id, due_date, sequence_order, '
+            .select('class_id, quest_id, due_date, sequence_order, student_ids, '
                     'quests(id, title, description, quest_type, is_active, header_image_url, image_url)')\
             .in_('class_id', list(class_names.keys()))\
             .or_(f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(now_iso, "publish_at")}')\
             .order('sequence_order')\
             .execute()
 
+        from utils.class_assignments import assigned_to
         assignments = [r for r in (rows.data or [])
-                       if (r.get('quests') or {}).get('is_active')]
+                       if (r.get('quests') or {}).get('is_active')
+                       and assigned_to(r, user_id)]
         if not assignments:
             return []
 

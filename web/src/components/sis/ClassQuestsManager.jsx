@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   PlusIcon, TrashIcon, AcademicCapIcon, ChevronDownIcon, ChevronRightIcon,
-  CalendarDaysIcon,
+  CalendarDaysIcon, ClockIcon, UsersIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import QuestDraftForm, { blankTask } from './QuestDraftForm'
@@ -17,6 +17,12 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * quest with preset "template" tasks that every enrolled student receives when
  * they start it. Preset tasks are editable only on the school's own quests.
  * Talks to /api/sis/classes/:classId/quests* (moderator-gated backend).
+ *
+ * Each quest also carries, per class: a due date, a release date (students see
+ * nothing until then; `scheduledEnabled` gates the control by org flag), and
+ * who it is for -- everyone, or a picked set of students (Gryffin, 2026-09-10:
+ * "some kids can only handle so many assignments" / "only assign certain
+ * assignments to specific kids").
  */
 
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
@@ -31,9 +37,12 @@ const SCOPE_HEADING = {
   other: 'Elsewhere in your school and the Optio library',
 }
 
-export default function ClassQuestsManager({ classId }) {
+export default function ClassQuestsManager({ classId, scheduledEnabled = false }) {
   const confirm = useConfirm()
   const [quests, setQuests] = useState([])
+  // The class's active students, for the "who is this for" picker. Rides along
+  // on the quests read, so the picker costs no second request.
+  const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(null)
 
@@ -53,6 +62,12 @@ export default function ClassQuestsManager({ classId }) {
   // Curriculum attached to this class, each with its saved quest set.
   const [curricula, setCurricula] = useState([])
   const [syncing, setSyncing] = useState(null) // curriculum id mid-copy/save
+  // Optional release date for the NEXT assignment, shared by "assign existing"
+  // and "create new". It has to be set at assign time: assigning enrolls the
+  // class on the spot, so a date added a minute later would find the quest
+  // already in every student's account (Gryffin, 2026-09-10: "put all of the
+  // assignments in and then schedule a release date in addition to a due date").
+  const [assignRelease, setAssignRelease] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,6 +79,7 @@ export default function ClassQuestsManager({ classId }) {
         api.get(`/api/sis/classes/${classId}/curriculum-quests`).catch(() => ({ data: {} })),
       ])
       setQuests(q.data?.quests || [])
+      setStudents(q.data?.students || [])
       setCurricula(c.data?.curricula || [])
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not load class quests')
@@ -135,11 +151,30 @@ export default function ClassQuestsManager({ classId }) {
     }
   }
 
+  // A release date is the START of the day the teacher typed, in their own
+  // timezone -- students see it when they sit down that morning. (Due dates
+  // use the END of the day, below, for the mirror-image reason.)
+  const releaseInputToIso = (value) => {
+    if (!value) return null
+    const [y, m, d] = value.split('-').map(Number)
+    return new Date(y, m - 1, d, 0, 0, 0).toISOString()
+  }
+  const releaseBody = () => {
+    const iso = scheduledEnabled ? releaseInputToIso(assignRelease) : null
+    return iso ? { publish_at: iso } : {}
+  }
+  const assignedToast = (verb) => {
+    const iso = releaseBody().publish_at
+    toast.success(iso
+      ? `${verb}. Students will see it on ${new Date(iso).toLocaleDateString()}.`
+      : verb)
+  }
+
   const assignExisting = async (questId) => {
     try {
-      await api.post(`/api/sis/classes/${classId}/quests`, { quest_id: questId })
-      toast.success('Quest assigned')
-      setMode(null); setSearch('')
+      await api.post(`/api/sis/classes/${classId}/quests`, { quest_id: questId, ...releaseBody() })
+      assignedToast('Quest assigned')
+      setMode(null); setSearch(''); setAssignRelease('')
       await load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not assign the quest')
@@ -152,10 +187,10 @@ export default function ClassQuestsManager({ classId }) {
     try {
       const tasks = newTasks.filter((t) => t.title.trim())
       await api.post(`/api/sis/classes/${classId}/quests/create`, {
-        title: newTitle.trim(), description: newDesc.trim(), tasks,
+        title: newTitle.trim(), description: newDesc.trim(), tasks, ...releaseBody(),
       })
-      toast.success('Quest created and assigned')
-      setMode(null); setNewTitle(''); setNewDesc(''); setNewTasks([blankTask()])
+      assignedToast('Quest created and assigned')
+      setMode(null); setNewTitle(''); setNewDesc(''); setNewTasks([blankTask()]); setAssignRelease('')
       await load()
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not create the quest')
@@ -199,6 +234,69 @@ export default function ClassQuestsManager({ classId }) {
       toast.success(value ? 'Due date set' : 'Due date cleared')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not save the due date')
+    }
+  }
+
+  // Release date on a quest that is already on the class. The backend moves
+  // enrollment with it: a date in the future takes the quest back out of the
+  // accounts of students who have not touched it; clearing (or a past date)
+  // hands it to everyone it is for today.
+  const [releaseEditing, setReleaseEditing] = useState(null)
+  const [releaseValue, setReleaseValue] = useState('')
+  const isFuture = (iso) => Boolean(iso) && new Date(iso).getTime() > Date.now()
+
+  const saveRelease = async (questId, value) => {
+    const iso = releaseInputToIso(value)
+    try {
+      const { data } = await api.patch(`/api/sis/classes/${classId}/quests/${questId}`, { publish_at: iso })
+      setQuests((prev) => prev.map((q) => (q.quest_id === questId ? { ...q, publish_at: iso } : q)))
+      setReleaseEditing(null)
+      if (isFuture(iso)) {
+        const hidden = data?.students_hidden || 0
+        toast.success(`Students will see it on ${new Date(iso).toLocaleDateString()}.`
+          + (hidden ? ` Hidden from ${hidden} who had not started it.` : ''))
+      } else {
+        toast.success('Released to students')
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the release date')
+    }
+  }
+
+  // Who a quest is for. null = everyone on the class (and anyone who joins);
+  // a list = those students only. Saved as a whole list; the backend enrolls
+  // the newly added and takes the quest back from the newly removed, keeping
+  // any work they had already done.
+  const [audienceEditing, setAudienceEditing] = useState(null)
+  const [audienceDraft, setAudienceDraft] = useState([])
+  const [savingAudience, setSavingAudience] = useState(false)
+  const rosterIds = students.map((s) => s.student_id)
+
+  const openAudience = (q) => {
+    setAudienceDraft(q.student_ids === null || q.student_ids === undefined ? rosterIds : q.student_ids)
+    setAudienceEditing(q.quest_id)
+  }
+  const toggleStudent = (id) => setAudienceDraft((prev) => (
+    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  const audienceLabel = (q) => {
+    if (q.student_ids === null || q.student_ids === undefined) return `Everyone (${students.length})`
+    return `${q.student_ids.length} of ${students.length} students`
+  }
+
+  const saveAudience = async (q) => {
+    const everyone = rosterIds.every((id) => audienceDraft.includes(id))
+    setSavingAudience(true)
+    try {
+      const { data } = await api.put(`/api/sis/classes/${classId}/quests/${q.quest_id}/students`,
+        { student_ids: everyone ? null : audienceDraft })
+      setQuests((prev) => prev.map((x) => (
+        x.quest_id === q.quest_id ? { ...x, student_ids: data?.student_ids ?? null } : x)))
+      setAudienceEditing(null)
+      toast.success(data?.summary || 'Saved who this quest is for')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save who this quest is for')
+    } finally {
+      setSavingAudience(false)
     }
   }
 
@@ -267,8 +365,8 @@ export default function ClassQuestsManager({ classId }) {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-neutral-500">
-          Quests you assign show up for enrolled students as “assigned to you.” When a student starts one,
-          any preset tasks are added to their quest automatically.
+          Quests you assign land in each student’s account like any other quest, preset tasks included.
+          Each one can have a due date{scheduledEnabled ? ', a release date' : ''} and its own set of students.
         </p>
         {!mode && (
           <button onClick={() => setMode('existing')}
@@ -326,6 +424,22 @@ export default function ClassQuestsManager({ classId }) {
             ))}
             <button onClick={() => setMode(null)} className="ml-auto text-sm text-neutral-400 hover:text-neutral-700">Cancel</button>
           </div>
+
+          {/* Set before assigning, on purpose: see assignRelease. */}
+          {scheduledEnabled && (
+            <label className="flex flex-wrap items-center gap-2 mb-4 text-sm text-neutral-700">
+              <ClockIcon className="w-4 h-4 text-neutral-400" />
+              Release on
+              <input type="date" value={assignRelease} onChange={(e) => setAssignRelease(e.target.value)}
+                aria-label="Release date for the quest you assign"
+                className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+              <span className="text-xs text-neutral-400">
+                {assignRelease
+                  ? 'Students will not see the quest until that day. You will.'
+                  : 'Optional. Leave blank and students see it as soon as you assign it.'}
+              </span>
+            </label>
+          )}
 
           {mode === 'existing' && (
             <div>
@@ -451,6 +565,14 @@ export default function ClassQuestsManager({ classId }) {
                         is the one teachers kept typing into by mistake. A
                         library quest belongs to every school, so its target is
                         not ours to set. */}
+                    <button type="button" onClick={() => (audienceEditing === q.quest_id ? setAudienceEditing(null) : openAudience(q))}
+                      aria-expanded={audienceEditing === q.quest_id}
+                      title="Choose which students get this quest"
+                      className={`mt-1 inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5 hover:bg-optio-purple/10 ${
+                        q.student_ids === null || q.student_ids === undefined
+                          ? 'text-neutral-500' : 'text-optio-purple font-medium bg-optio-purple/5'}`}>
+                      <UsersIcon className="w-3.5 h-3.5" /> {audienceLabel(q)}
+                    </button>
                     {q.editable_tasks && (
                       <label className="flex items-center gap-2 text-xs text-neutral-500 mt-1.5">
                         XP to finish
@@ -464,6 +586,45 @@ export default function ClassQuestsManager({ classId }) {
                     )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
+                    {scheduledEnabled && isFuture(q.publish_at) && releaseEditing !== q.quest_id && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-sky-100 text-sky-700 whitespace-nowrap"
+                        title="Students cannot see this quest yet">
+                        Releases {new Date(q.publish_at).toLocaleDateString()}
+                      </span>
+                    )}
+                    {scheduledEnabled && (releaseEditing === q.quest_id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input type="date" value={releaseValue} autoFocus
+                          onChange={(e) => setReleaseValue(e.target.value)}
+                          aria-label={`Release date for ${q.title}`}
+                          title="Students see the quest from this day. Until then only you and other staff do."
+                          className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+                        <button onClick={() => saveRelease(q.quest_id, releaseValue)} disabled={!releaseValue}
+                          className="px-2 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs disabled:opacity-40">
+                          Save
+                        </button>
+                        {isFuture(q.publish_at) && (
+                          <button onClick={() => saveRelease(q.quest_id, '')}
+                            className="px-2 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600">
+                            Release now
+                          </button>
+                        )}
+                        <button onClick={() => setReleaseEditing(null)}
+                          className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setReleaseValue(isoToDateInput(isFuture(q.publish_at) ? q.publish_at : null))
+                          setReleaseEditing(q.quest_id)
+                        }}
+                        className="px-2 py-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-sky-700 hover:bg-sky-50 rounded-lg whitespace-nowrap">
+                        <ClockIcon className="w-4 h-4" />
+                        {isFuture(q.publish_at) ? 'Change release date' : 'Set release date'}
+                      </button>
+                    ))}
                     {q.due_date && dueEditing !== q.quest_id && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-700 whitespace-nowrap">
                         Due {new Date(q.due_date).toLocaleDateString()}
@@ -525,6 +686,47 @@ export default function ClassQuestsManager({ classId }) {
                     )}
                   </div>
                 </div>
+                {audienceEditing === q.quest_id && (
+                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/70" role="group"
+                    aria-label={`Who gets ${q.title}`}>
+                    <p className="text-xs text-neutral-600 mb-2">
+                      Who gets this quest? Uncheck a student to take it off their list.
+                      Anything they have already done stays in their account.
+                    </p>
+                    {students.length === 0 ? (
+                      <p className="text-xs text-neutral-400">No students are enrolled in this class yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {students.map((s) => (
+                          <label key={s.student_id} className="inline-flex items-center gap-1.5 text-sm text-neutral-800">
+                            <input type="checkbox" checked={audienceDraft.includes(s.student_id)}
+                              onChange={() => toggleStudent(s.student_id)}
+                              className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+                            {s.name}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => setAudienceDraft(rosterIds)}
+                        className="text-xs text-optio-purple hover:underline">Everyone</button>
+                      <button type="button" onClick={() => setAudienceDraft([])}
+                        className="text-xs text-neutral-500 hover:underline">Nobody</button>
+                      <button type="button" onClick={() => saveAudience(q)}
+                        disabled={savingAudience || audienceDraft.length === 0}
+                        title={audienceDraft.length === 0 ? 'Pick at least one student, or unassign the quest instead' : undefined}
+                        className="ml-2 px-3 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold disabled:opacity-40">
+                        {savingAudience ? 'Saving…' : 'Save'}
+                      </button>
+                      <button type="button" onClick={() => setAudienceEditing(null)}
+                        className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-700">Cancel</button>
+                      <span className="text-xs text-neutral-400">
+                        New students automatically get quests assigned to everyone. A quest kept to
+                        specific students stays with them until you add someone here.
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {open && (
                   <div className="border-t border-gray-100 px-4 pb-4">
                     <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`}

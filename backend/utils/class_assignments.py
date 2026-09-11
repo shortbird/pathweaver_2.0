@@ -12,6 +12,11 @@ Only *published* assignments count. `class_quests.publish_at` in the future is
 a teacher scheduling work for later; the student is not late for it and should
 not be told about it.
 
+Only assignments *for this student* count. `class_quests.student_ids` NULL is
+the whole class; a list is those students only (Gryffin, 2026-09-10). A quest
+kept to three classmates is not this student's schoolwork and must not put a
+due date on their home page.
+
 Scope note: every read here is bounded by one student's own enrollments, so a
 single request per table stays under PostgREST's 1000-row cap. Do not reuse
 these for a whole-org sweep without paging (see utils/db_fetch.fetch_all_rows).
@@ -29,6 +34,12 @@ logger = get_logger(__name__)
 def _published_filter():
     """PostgREST `or` clause for 'this assignment is visible to students now'."""
     return f'publish_at.is.null,publish_at.lte.{pgrst_timestamp(_now_iso(), "publish_at")}'
+
+
+def assigned_to(link: Dict[str, Any], student_id: str) -> bool:
+    """Is this student in the class quest's audience? NULL student_ids = everyone."""
+    ids = link.get('student_ids')
+    return ids is None or student_id in ids
 
 
 def student_active_class_ids(client, student_id: str) -> List[str]:
@@ -83,7 +94,7 @@ def student_class_assignments(client, student_id: str) -> Dict[str, Dict[str, An
         names = student_class_names(client, class_ids)
 
         rows = (client.table('class_quests')
-                .select('class_id, quest_id, due_date')
+                .select('class_id, quest_id, due_date, student_ids')
                 .in_('class_id', class_ids)
                 .or_(_published_filter())
                 .execute()).data or []
@@ -94,7 +105,7 @@ def student_class_assignments(client, student_id: str) -> Dict[str, Dict[str, An
     by_quest: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         quest_id = r.get('quest_id')
-        if not quest_id:
+        if not quest_id or not assigned_to(r, student_id):
             continue
         candidate = {
             'class_id': r.get('class_id'),
@@ -116,13 +127,18 @@ def _is_sooner(candidate: Optional[str], current: Optional[str]) -> bool:
     return candidate < current
 
 
-def assigned_quest_ids_by_class(client, class_ids: List[str]) -> Dict[str, Set[str]]:
-    """{class_id: {quest_id, ...}} for the published assignments of these classes."""
+def assigned_quest_ids_by_class(client, class_ids: List[str],
+                                student_id: Optional[str] = None) -> Dict[str, Set[str]]:
+    """{class_id: {quest_id, ...}} for the published assignments of these classes.
+
+    With student_id, only the assignments that student is in the audience of.
+    Without it, every published assignment on the class -- the staff view.
+    """
     if not class_ids:
         return {}
     try:
         rows = (client.table('class_quests')
-                .select('class_id, quest_id')
+                .select('class_id, quest_id, student_ids')
                 .in_('class_id', class_ids)
                 .or_(_published_filter())
                 .execute()).data or []
@@ -132,8 +148,11 @@ def assigned_quest_ids_by_class(client, class_ids: List[str]) -> Dict[str, Set[s
 
     by_class: Dict[str, Set[str]] = {}
     for r in rows:
-        if r.get('class_id') and r.get('quest_id'):
-            by_class.setdefault(r['class_id'], set()).add(r['quest_id'])
+        if not (r.get('class_id') and r.get('quest_id')):
+            continue
+        if student_id and not assigned_to(r, student_id):
+            continue
+        by_class.setdefault(r['class_id'], set()).add(r['quest_id'])
     return by_class
 
 
@@ -150,13 +169,12 @@ def is_class_assigned(client, student_id: str, quest_id: str) -> bool:
         if not class_ids:
             return False
         rows = (client.table('class_quests')
-                .select('quest_id')
+                .select('quest_id, student_ids')
                 .in_('class_id', class_ids)
                 .eq('quest_id', quest_id)
                 .or_(_published_filter())
-                .limit(1)
                 .execute()).data or []
-        return bool(rows)
+        return any(assigned_to(r, student_id) for r in rows)
     except Exception as e:  # noqa: BLE001 — treat an unknown as "not assigned"
         logger.warning(f'Could not resolve class assignment for {quest_id}: {e}')
         return False

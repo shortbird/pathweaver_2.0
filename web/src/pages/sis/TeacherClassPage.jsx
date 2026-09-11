@@ -60,7 +60,7 @@ const TAB_ALIASES = { gradebook: 'progress', discussion: 'messages' }
 
 const TeacherClassPage = () => {
   const { classId } = useParams()
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [searchParams] = useSearchParams()
   // QF-03: the class, its budget and its roster arrive together and are only
   // ever set together, so they are one query. Keyed on classId too, so moving
@@ -202,7 +202,11 @@ const TeacherClassPage = () => {
       </div>
 
       {tab === 'quests' && (
-        <ClassQuestsManager classId={classId} />
+        // Release dates are gated by the org's scheduled_publish flag, read
+        // from the org in view rather than the caller's own -- a superadmin
+        // looking at a school's class has no org of their own.
+        <ClassQuestsManager classId={classId}
+          scheduledEnabled={Boolean(activeOrg?.feature_flags?.scheduled_publish)} />
       )}
 
       {tab === 'curriculum' && (

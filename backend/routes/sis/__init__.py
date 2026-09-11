@@ -1113,6 +1113,7 @@ def register_sis_routes(app):
     from routes.sis.submissions import bp as submissions_bp
     from routes.sis.class_materials import bp as class_materials_bp
     from routes.sis.class_quests import bp as class_quests_bp
+    from routes.sis.class_quest_students import bp as class_quest_students_bp
     from routes.sis.curriculum import bp as sis_curriculum_bp
     # Curriculum resources: links and documents a teacher saves on a curriculum
     # and can show to the students of every class teaching it.
@@ -1152,6 +1153,7 @@ def register_sis_routes(app):
         (submissions_bp, 'submissions'),
         (class_materials_bp, 'classes'),
         (class_quests_bp, 'classes'),
+        (class_quest_students_bp, 'classes'),
         (sis_curriculum_bp, 'curriculum'),
         (sis_curriculum_materials_bp, 'curriculum'),
         (quest_drafts_bp, 'curriculum'),
@@ -1202,6 +1204,7 @@ def register_sis_routes(app):
     app.register_blueprint(submissions_bp)
     app.register_blueprint(class_materials_bp)
     app.register_blueprint(class_quests_bp)
+    app.register_blueprint(class_quest_students_bp)
     app.register_blueprint(sis_curriculum_bp)
     app.register_blueprint(sis_curriculum_materials_bp)
     app.register_blueprint(quest_drafts_bp)

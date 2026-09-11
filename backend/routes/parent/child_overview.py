@@ -229,12 +229,17 @@ def get_child_overview(user_id, student_id):
             enrolled_class_ids = [e['class_id'] for e in class_enr_rows]
             if enrolled_class_ids:
                 clsq_response = supabase.table('class_quests').select('''
-                    class_id, quest_id, sequence_order, publish_at, due_date,
+                    class_id, quest_id, sequence_order, publish_at, due_date, student_ids,
                     quests(id, title, image_url, header_image_url)
                 ''').in_('class_id', enrolled_class_ids).order('sequence_order').execute()
                 now_utc = datetime.now(dt_timezone.utc)
+                from utils.class_assignments import assigned_to
                 for cq in (clsq_response.data or []):
-                    # Match the student view: scheduled-but-unpublished quests stay hidden
+                    # Match the student view: a quest kept to other students is
+                    # not this child's, and scheduled-but-unpublished quests
+                    # stay hidden.
+                    if not assigned_to(cq, student_id):
+                        continue
                     publish_at = cq.get('publish_at')
                     if publish_at:
                         try:

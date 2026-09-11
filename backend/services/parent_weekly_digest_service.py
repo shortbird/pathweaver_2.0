@@ -320,10 +320,15 @@ def _late_work(repo: ParentDigestRepository, enrollments: Dict[str, List[str]],
         tasks_by_uq.setdefault(row['user_quest_id'], []).append(row['id'])
     done_ids = repo.completed_task_ids([tid for ids in tasks_by_uq.values() for tid in ids])
 
+    from utils.class_assignments import assigned_to
+
     out: Dict[str, List[Dict[str, Any]]] = {}
     for student_id, student_classes in enrollments.items():
         for link in links:
             if link['class_id'] not in student_classes:
+                continue
+            # A quest the teacher kept to other students is not late for this one.
+            if not assigned_to(link, student_id):
                 continue
             uq = uq_by_pair.get((student_id, link['quest_id']))
             own = tasks_by_uq.get(uq['id'], []) if uq else []

@@ -260,10 +260,12 @@ class ClassService(BaseService):
         results = self.class_repo.enroll_students_bulk(class_id, student_ids, enrolled_by)
         logger.info(f"{len(student_ids)} students enrolled in class {class_id} by {enrolled_by}")
 
-        from services.class_quest_enrollment import (
-            class_quest_ids, enroll_students_in_quests, enroll_safe)
-        enroll_safe(enroll_students_in_quests, self.class_repo.admin_client,
-                    student_ids, class_quest_ids(self.class_repo.admin_client, class_id))
+        # One at a time, because each student's list depends on who the quest
+        # is for: a quest kept to specific students does not spread to newcomers.
+        from services.class_quest_enrollment import enroll_student_in_class_quests, enroll_safe
+        for student_id in student_ids:
+            enroll_safe(enroll_student_in_class_quests, self.class_repo.admin_client,
+                        class_id, student_id)
 
         # Check completion status for all enrolled students
         for student_id in student_ids:
@@ -395,10 +397,12 @@ class ClassService(BaseService):
 
         return success
 
-    def get_class_quests(self, class_id: str, only_published: bool = False) -> List[Dict[str, Any]]:
+    def get_class_quests(self, class_id: str, only_published: bool = False,
+                         student_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all quests for a class. only_published hides future-scheduled quests (student view)."""
         self.validate_required(class_id=class_id)
-        return self.class_repo.get_class_quests(class_id, only_published=only_published)
+        return self.class_repo.get_class_quests(
+            class_id, only_published=only_published, student_id=student_id)
 
     def set_quest_schedule(
         self,
@@ -594,7 +598,7 @@ class ClassService(BaseService):
 
             admin = self.class_repo.admin_client
             class_ids = [c['id'] for c in classes]
-            by_class = assigned_quest_ids_by_class(admin, class_ids)
+            by_class = assigned_quest_ids_by_class(admin, class_ids, student_id=student_id)
 
             all_quest_ids = sorted({q for ids in by_class.values() for q in ids})
             enrollments: list[dict] = []

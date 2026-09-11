@@ -21,7 +21,10 @@ from unittest.mock import Mock, patch
 import pytest
 
 import app  # noqa: F401 — import graph ordering
-from routes.sis import class_quests as cq
+# remind_student and _student_work moved to class_quest_students on 2026-09-11,
+# when class_quests.py crossed the route-file line cap. _authorize is imported
+# there by name, so patching it on this module still gates the route.
+from routes.sis import class_quest_students as cq
 
 # Real UUIDs: the route validates both ids before it does anything else.
 CLASS_ID = str(_uuid.uuid4())

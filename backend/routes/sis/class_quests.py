@@ -17,6 +17,14 @@ their copy of the template tasks, via services/class_quest_enrollment), so the
 quest shows up wherever a student's quests show up rather than only in a
 separate "assigned to you, start it" tray. Unassigning does not unenroll.
 
+Who a quest is for (2026-09-11, Gryffin): class_quests.student_ids. NULL is the
+whole class; a list is those students only. Resolved in one place --
+services/class_quest_enrollment.audience. The per-student routes -- the
+progress grid, one student's work, reminders, and the /students endpoints that
+change who a quest is for -- live in routes/sis/class_quest_students.py, split
+out when this file crossed the route-file line cap. A release date (publish_at)
+set here hides the quest from students until then; enrollment follows the date.
+
 SAFETY: template-task authoring is allowed ONLY on quests owned by the class's
 organization. Global/Optio-library quests are assigned as-is and their tasks are
 never edited here — editing quest_template_tasks on a shared quest would change
@@ -30,8 +38,6 @@ Python above every read/write.
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
-from utils.auth.relationships import require_relationship_to
-from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.quest_completion import is_quest_done
 from utils.validation import validate_uuid
@@ -47,11 +53,18 @@ from services.sis_quest_authoring import (
 )
 from services.sis_curriculum_sync import assignable_quest_ids
 from services.class_quest_enrollment import (
+    active_student_ids,
+    audience,
     enroll_class_in_quests,
     enroll_safe,
+    is_published,
     publish_due_class_quests,
+    withdraw_students_from_quest,
 )
+from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
 from database import get_supabase_admin_client
+from utils import person_name
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -144,6 +157,52 @@ def _serialize_task(t):
     }
 
 
+def _iso_or_error(data, field):
+    """(value, error) for an optional ISO timestamp field in a request body.
+
+    Absent -> (None, None) and the caller leaves the column alone. Present and
+    empty -> ('', None): clear it. Present and malformed -> a 400.
+    """
+    if field not in data:
+        return None, None
+    raw = data.get(field)
+    if raw in (None, ''):
+        return '', None
+    try:
+        datetime.fromisoformat(str(raw).strip().replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None, (jsonify({
+            'success': False, 'error': f'{field} must be an ISO datetime string.'}), 400)
+    return str(raw).strip(), None
+
+
+def _roster(admin, class_id):
+    """The class's active students, named, in roster order -- who a quest can be for."""
+    ids = active_student_ids(admin, class_id)
+    if not ids:
+        return []
+    by_id = {u['id']: u for u in ClassQuestAudienceRepository(admin).named_users(ids)}
+    roster = [{'student_id': sid, 'name': person_name.full_name(by_id.get(sid), 'Unnamed')}
+              for sid in ids]
+    roster.sort(key=lambda r: r['name'].lower())
+    return roster
+
+
+def _student_ids_or_error(data, roster_ids):
+    """(student_ids, error). None = everyone; a list is kept to the roster."""
+    if 'student_ids' not in data or data.get('student_ids') is None:
+        return None, None
+    raw = data.get('student_ids')
+    if not isinstance(raw, list) or any(not isinstance(x, str) for x in raw):
+        return None, (jsonify({
+            'success': False, 'error': 'student_ids must be a list of student ids.'}), 400)
+    if _bad_uuid(*raw):
+        return None, (jsonify({'success': False, 'error': 'Invalid student id'}), 400)
+    on_roster = set(roster_ids)
+    return [sid for sid in dict.fromkeys(raw) if sid in on_roster], None
+
+
+
 @bp.route('/classes/<class_id>/call-for-help', methods=['POST'])
 @require_auth
 def call_for_help(user_id, class_id):
@@ -200,13 +259,18 @@ def list_class_quests(user_id, class_id):
     if err:
         return err
     rows = (admin.table('class_quests')
-            .select('id, quest_id, sequence_order, publish_at, due_date, '
+            .select('id, quest_id, sequence_order, publish_at, due_date, student_ids, '
                     'quests(id, title, description, quest_type, is_active, '
                     'organization_id, xp_threshold)')
             .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
     quest_ids = [r['quest_id'] for r in rows]
     counts = _template_task_count(admin, quest_ids)
     org_id = class_row['organization_id']
+    # The roster rides along so the "who is this for" picker needs no second
+    # request, and so a stored list can be shown against the students who are
+    # actually still in the class.
+    roster = _roster(admin, class_row['id'])
+    roster_ids = [r['student_id'] for r in roster]
     out = []
     for r in rows:
         q = r.get('quests') or {}
@@ -218,6 +282,9 @@ def list_class_quests(user_id, class_id):
             'sequence_order': r.get('sequence_order'),
             'publish_at': r.get('publish_at'),
             'due_date': r.get('due_date'),
+            # None = everyone in the class. A list is the students it is kept to,
+            # already trimmed to the active roster.
+            'student_ids': None if r.get('student_ids') is None else audience(r, roster_ids),
             'template_task_count': counts.get(r['quest_id'], 0),
             # The XP a student has to earn before the quest counts as finished.
             # On the quest, not the class link: it is a property of the work.
@@ -225,7 +292,7 @@ def list_class_quests(user_id, class_id):
             # Only the org's own quests may have their preset tasks edited here.
             'editable_tasks': q.get('organization_id') == org_id,
         })
-    return jsonify({'success': True, 'quests': out})
+    return jsonify({'success': True, 'quests': out, 'students': roster})
 
 
 def _curriculum_quest_ids(admin, class_id):
@@ -348,19 +415,52 @@ def assign_quest(user_id, class_id):
                          or (quest.get('organization_id') is None and quest.get('is_public'))):
         return jsonify({'success': False, 'error': 'That quest is not available to assign.'}), 404
 
+    # A release date, a due date and an audience can all be set at assign time.
+    # The release date in particular HAS to be: assigning enrolls the class on
+    # the spot, so a date added a minute later would find the quest already in
+    # every student's account (Gryffin, 2026-09-10: "put all of the assignments
+    # in and then schedule a release date in addition to a due date").
+    row, err = _assignment_fields(admin, class_row, data)
+    if err:
+        return err
+
     existing = (admin.table('class_quests').select('sequence_order')
                 .eq('class_id', class_row['id']).order('sequence_order', desc=True)
                 .limit(1).execute()).data
     next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
     admin.table('class_quests').upsert({
         'class_id': class_row['id'], 'quest_id': quest_id,
-        'added_by': user_id, 'sequence_order': next_order,
+        'added_by': user_id, 'sequence_order': next_order, **row,
     }, on_conflict='class_id,quest_id').execute()
     _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
     # An assigned quest is a quest: enroll the class so it lands in each
     # student's account like any other, not in a separate "assigned" tray.
+    # (Only the students it is for, and only once its release date has come.)
     enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
-    return jsonify({'success': True, 'students_enrolled': enrolled['enrolled']})
+    return jsonify({'success': True, 'students_enrolled': enrolled['enrolled'],
+                    'publish_at': row.get('publish_at'), 'student_ids': row.get('student_ids')})
+
+
+def _assignment_fields(admin, class_row, data):
+    """The optional class_quests columns an assign/create request may carry.
+
+    Returns ({column: value}, None) with only the fields the request named, so
+    an upsert over an existing link leaves its other dates alone; or (None, err).
+    """
+    row = {}
+    for field in ('publish_at', 'due_date'):
+        value, err = _iso_or_error(data, field)
+        if err:
+            return None, err
+        if value is not None:
+            row[field] = value or None
+    if 'student_ids' in data:
+        ids, err = _student_ids_or_error(data, active_student_ids(admin, class_row['id']))
+        if err:
+            return None, err
+        if ids is not None:
+            row['student_ids'] = ids
+    return row, None
 
 
 # ── The curriculum round trip ─────────────────────────────────────────────────
@@ -622,6 +722,11 @@ def create_quest_with_tasks(user_id, class_id):
     if err:
         return err
     data = request.get_json(silent=True) or {}
+    # Checked before the quest exists: a malformed date must not leave behind a
+    # quest that was never assigned.
+    _, err = _assignment_fields(admin, class_row, data)
+    if err:
+        return err
     try:
         created = create_org_quest(
             admin,
@@ -635,19 +740,25 @@ def create_quest_with_tasks(user_id, class_id):
         return jsonify({'success': False, 'error': e.message}), e.status
     quest_id = created['quest_id']
 
+    # Same optional release date / due date / audience as assign_quest.
+    row, err = _assignment_fields(admin, class_row, data)
+    if err:
+        return err
+
     existing = (admin.table('class_quests').select('sequence_order')
                 .eq('class_id', class_row['id']).order('sequence_order', desc=True)
                 .limit(1).execute()).data
     next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
     admin.table('class_quests').upsert({
         'class_id': class_row['id'], 'quest_id': quest_id,
-        'added_by': user_id, 'sequence_order': next_order,
+        'added_by': user_id, 'sequence_order': next_order, **row,
     }, on_conflict='class_id,quest_id').execute()
     _attach_quest_to_class_curricula(admin, class_row['id'], quest_id, user_id)
     enrolled = enroll_safe(enroll_class_in_quests, admin, class_row['id'], [quest_id])
 
     return jsonify({'success': True, 'quest_id': quest_id, 'task_count': created['task_count'],
-                    'students_enrolled': enrolled['enrolled']})
+                    'students_enrolled': enrolled['enrolled'],
+                    'publish_at': row.get('publish_at')})
 
 
 # ── Preset (template) tasks on an assigned, org-owned quest ────────────────────
@@ -829,9 +940,11 @@ def update_class_quest(user_id, class_id, quest_id):
     data = request.get_json(silent=True) or {}
     updates = {}
     for field in ('due_date', 'publish_at'):
-        if field in data:
-            value = data.get(field)
-            updates[field] = (str(value).strip() or None) if value else None
+        value, err = _iso_or_error(data, field)
+        if err:
+            return err
+        if value is not None:
+            updates[field] = value or None
 
     xp_threshold = None
     if 'xp_threshold' in data:
@@ -851,12 +964,14 @@ def update_class_quest(user_id, class_id, quest_id):
     if not updates and xp_threshold is None:
         return jsonify({'success': False, 'error': 'Nothing to update.'}), 400
 
-    link = (admin.table('class_quests').select('id')
+    link = (admin.table('class_quests').select('id, publish_at, student_ids')
             .eq('class_id', class_id).eq('quest_id', quest_id).limit(1).execute()).data
     if not link:
         return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+    link = link[0]
 
     row = [{}]
+    students_enrolled = students_hidden = 0
     if updates:
         # No updated_at here: class_quests doesn't have that column (only added_at),
         # and PostgREST rejects the whole PATCH over it (Sentry OPTIO-BACKEND-7B/7C).
@@ -864,6 +979,27 @@ def update_class_quest(user_id, class_id, quest_id):
                .eq('class_id', class_id).eq('quest_id', quest_id).execute()).data
         if not row:
             return jsonify({'success': False, 'error': 'That quest is not on this class.'}), 404
+
+        if 'publish_at' in updates:
+            # Enrollment follows the release date, in both directions. Released
+            # now (or cleared): the audience gets it today rather than at the
+            # next cron sweep. Pushed into the future: students who have not
+            # touched it lose sight of it until then; anyone mid-way keeps
+            # working (withdraw_students_from_quest, set_down_started=False).
+            # Without this, a date set after assigning changed nothing a
+            # student could see, because assigning had already enrolled them.
+            was_published = is_published(link)
+            now_published = is_published(row[0])
+            if now_published:
+                students_enrolled = enroll_safe(
+                    enroll_class_in_quests, admin, class_row['id'], [quest_id])['enrolled']
+            elif was_published:
+                who = audience(link, active_student_ids(admin, class_row['id']))
+                try:
+                    students_hidden = withdraw_students_from_quest(
+                        admin, who, quest_id, set_down_started=False)['removed']
+                except Exception as e:  # noqa: BLE001 -- the date is saved; say so
+                    logger.warning(f'Could not hide rescheduled quest {quest_id}: {e}')
 
     if xp_threshold is not None:
         quest = (admin.table('quests').select('organization_id')
@@ -882,7 +1018,9 @@ def update_class_quest(user_id, class_id, quest_id):
     return jsonify({'success': True,
                     'due_date': row[0].get('due_date'),
                     'publish_at': row[0].get('publish_at'),
-                    'xp_threshold': xp_threshold})
+                    'xp_threshold': xp_threshold,
+                    'students_enrolled': students_enrolled,
+                    'students_hidden': students_hidden})
 
 
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>/duplicate',
@@ -956,290 +1094,6 @@ def _is_done(user_quest, done, total):
     Read the docstring there — it carries the postmortem.
     """
     return is_quest_done(user_quest, done, total)
-
-
-@bp.route('/classes/<class_id>/progress', methods=['GET'])
-@require_auth
-def class_student_progress(user_id, class_id):
-    """Per-student task progress for the quests assigned to this class.
-
-    This is the automatic replacement for the hand-entered gradebook: nothing
-    here is typed by a teacher. For every enrolled student it reports, per
-    assigned quest, whether they have started it and how many of their tasks
-    are done — read from user_quests / user_quest_tasks / quest_task_completions,
-    the same records that drive the student's own dashboard.
-
-    Students who have not started a quest are reported explicitly rather than
-    omitted; "nobody has begun this yet" is the single most useful thing on the
-    page and it must not look like missing data.
-    """
-    class_row, admin, err = _authorize(user_id, class_id)
-    if err:
-        return err
-
-    assigned = (admin.table('class_quests')
-                .select('quest_id, sequence_order, due_date, quests(id, title)')
-                .eq('class_id', class_row['id']).order('sequence_order').execute()).data or []
-    quests = [{
-        'quest_id': r['quest_id'],
-        'title': (r.get('quests') or {}).get('title') or 'Untitled quest',
-        'due_date': r.get('due_date'),
-    } for r in assigned]
-    quest_ids = [q['quest_id'] for q in quests]
-
-    # Active enrollments only. Without this filter a withdrawn student stayed on
-    # the progress grid forever, so this tab disagreed with the roster and the
-    # Messages tab about how many students are in the class.
-    enrolled = (admin.table('class_enrollments').select('student_id')
-                .eq('class_id', class_row['id']).eq('status', 'active').execute()).data or []
-    student_ids = [e['student_id'] for e in enrolled if e.get('student_id')]
-
-    if not student_ids:
-        return jsonify({'success': True, 'quests': quests, 'students': []})
-
-    users = (admin.table('users')
-             .select('id, first_name, last_name, display_name')
-             .in_('id', student_ids).execute()).data or []
-    names = {u['id']: ((u.get('display_name')
-                        or f"{u.get('first_name') or ''} {u.get('last_name') or ''}".strip())
-                       or 'Unnamed') for u in users}
-
-    # Enrollments, then that enrollment's tasks, then which of those are done.
-    user_quests, tasks, done_task_ids = [], [], set()
-    if quest_ids:
-        user_quests = (admin.table('user_quests')
-                       .select('id, user_id, quest_id, is_active, completed_at, started_at')
-                       .in_('user_id', student_ids).in_('quest_id', quest_ids).execute()).data or []
-    uq_ids = [uq['id'] for uq in user_quests]
-    if uq_ids:
-        # Paged: this is one row per task per student per assigned quest, so a
-        # full class crosses PostgREST's row cap without saying so. A truncated
-        # read drops the tail silently, and every cell built from it reports a
-        # smaller `total` than the student actually has — the grid would say a
-        # student is done when they are not (Sentry OPTIO-BACKEND-5T).
-        tasks = fetch_all_rows(lambda: admin.table('user_quest_tasks')
-                               .select('id, user_quest_id, user_id, quest_id, title, xp_value')
-                               .in_('user_quest_id', uq_ids))
-    task_ids = [t['id'] for t in tasks]
-    for chunk_start in range(0, len(task_ids), 200):  # keep the IN list sane
-        chunk = task_ids[chunk_start:chunk_start + 200]
-        rows = (admin.table('quest_task_completions').select('task_id')
-                .in_('task_id', chunk).execute()).data or []
-        done_task_ids.update(r['task_id'] for r in rows)
-
-    tasks_by_uq = {}
-    for t in tasks:
-        tasks_by_uq.setdefault(t['user_quest_id'], []).append(t)
-    uq_by_student_quest = {(uq['user_id'], uq['quest_id']): uq for uq in user_quests}
-
-    students = []
-    for sid in student_ids:
-        cells, total_done, total_tasks = [], 0, 0
-        for q in quests:
-            uq = uq_by_student_quest.get((sid, q['quest_id']))
-            if not uq:
-                cells.append({'quest_id': q['quest_id'], 'started': False,
-                              'completed': False, 'done': 0, 'total': 0})
-                continue
-            own = tasks_by_uq.get(uq['id'], [])
-            done = len([t for t in own if t['id'] in done_task_ids])
-            total_done += done
-            total_tasks += len(own)
-            cells.append({
-                'quest_id': q['quest_id'],
-                'started': True,
-                'completed': _is_done(uq, done, len(own)),
-                'done': done,
-                'total': len(own),
-                'started_at': uq.get('started_at'),
-                'completed_at': uq.get('completed_at'),
-            })
-        students.append({
-            'student_id': sid,
-            'name': names.get(sid, 'Unnamed'),
-            'cells': cells,
-            'tasks_done': total_done,
-            'tasks_total': total_tasks,
-            'quests_started': len([c for c in cells if c['started']]),
-            'quests_completed': len([c for c in cells if c['completed']]),
-        })
-    students.sort(key=lambda s: s['name'].lower())
-
-    return jsonify({'success': True, 'quests': quests, 'students': students})
-
-
-# ── One student's work, and a nudge about what is left ────────────────────────
-
-def _student_work(admin, class_row, student_id):
-    """This student's assigned quests for the class, task by task.
-
-    The class progress grid answers "how many tasks are done"; this answers
-    "which ones", which is what a teacher needs before saying anything to a
-    family (Gryffin, 2026-08-27: "You should be able to click on a name and see
-    what is done and what isn't").
-    """
-    links = (admin.table('class_quests')
-             .select('quest_id, due_date, quests(title)')
-             .eq('class_id', class_row['id'])
-             .order('sequence_order').execute()).data or []
-    quest_ids = [r['quest_id'] for r in links if r.get('quest_id')]
-    if not quest_ids:
-        return []
-
-    user_quests = (admin.table('user_quests')
-                   .select('id, quest_id, completed_at, started_at')
-                   .eq('user_id', student_id)
-                   .in_('quest_id', quest_ids).execute()).data or []
-    uq_by_quest = {uq['quest_id']: uq for uq in user_quests}
-    uq_ids = [uq['id'] for uq in user_quests]
-
-    tasks, done_ids, completion_by_task = [], set(), {}
-    if uq_ids:
-        tasks = (admin.table('user_quest_tasks')
-                 .select('id, user_quest_id, title, description, xp_value, order_index')
-                 .in_('user_quest_id', uq_ids).order('order_index').execute()).data or []
-        task_ids = [t['id'] for t in tasks]
-        for start in range(0, len(task_ids), 200):
-            rows = (admin.table('quest_task_completions')
-                    .select('id, task_id, completed_at')
-                    .in_('task_id', task_ids[start:start + 200]).execute()).data or []
-            done_ids.update(r['task_id'] for r in rows)
-            completion_by_task.update({r['task_id']: r['id'] for r in rows})
-
-    by_uq = {}
-    for t in tasks:
-        by_uq.setdefault(t['user_quest_id'], []).append(t)
-
-    out = []
-    for link in links:
-        uq = uq_by_quest.get(link['quest_id'])
-        own = by_uq.get(uq['id'], []) if uq else []
-        out.append({
-            'quest_id': link['quest_id'],
-            'title': (link.get('quests') or {}).get('title') or 'Untitled quest',
-            'due_date': link.get('due_date'),
-            'started': bool(uq),
-            'completed': _is_done(uq, len([t for t in own if t['id'] in done_ids]), len(own)),
-            'tasks': [{
-                'id': t['id'],
-                'title': t.get('title'),
-                # What the task actually asks for. A title alone is a label:
-                # "I would like to be able to click on the tasks and be able to
-                # see the description of the task" (Nicole Connole, 2026-09-04).
-                'description': t.get('description'),
-                'xp_value': t.get('xp_value'),
-                'done': t['id'] in done_ids,
-                # Lets the task row link straight to the submission review
-                # (Gryffin, 2026-08-28: "It would be nice to be able to click
-                # on the task to see their submission").
-                'completion_id': completion_by_task.get(t['id']),
-            } for t in own],
-        })
-    return out
-
-
-@bp.route('/classes/<class_id>/students/<student_id>/progress', methods=['GET'])
-@require_auth
-@require_relationship_to('student_id', allow=('teacher', 'org_staff'), discloses='progress')
-def student_class_progress(user_id, class_id, student_id):
-    """What one student on this class has finished, and what they have not."""
-    class_row, admin, err = _authorize(user_id, class_id)
-    if err:
-        return err
-    if _bad_uuid(student_id):
-        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
-
-    enrolled = (admin.table('class_enrollments').select('id')
-                .eq('class_id', class_row['id']).eq('student_id', student_id)
-                .eq('status', 'active').limit(1).execute()).data
-    if not enrolled:
-        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
-
-    from utils import person_name
-    user = (admin.table('users').select(person_name.USER_NAME_FIELDS)
-            .eq('id', student_id).limit(1).execute()).data
-    return jsonify({
-        'success': True,
-        'student': {
-            'id': student_id,
-            'name': person_name.full_name(user[0], 'Unnamed') if user else 'Unnamed',
-        },
-        'quests': _student_work(admin, class_row, student_id),
-    })
-
-
-@bp.route('/classes/<class_id>/students/<student_id>/remind', methods=['POST'])
-@require_auth
-@require_relationship_to('student_id', allow=('teacher', 'org_staff'))
-def remind_student(user_id, class_id, student_id):
-    """Nudge a student, and their guardians, about work that is still open.
-
-    Gryffin, 2026-08-27: "you should be able to send a reminder of what work
-    they haven't completed and that should be sent to the parent and student."
-    Nothing like it existed -- the only nudge on the platform was for unread
-    announcements.
-    """
-    class_row, admin, err = _authorize(user_id, class_id)
-    if err:
-        return err
-    if _bad_uuid(student_id):
-        return jsonify({'success': False, 'error': 'Invalid student id'}), 400
-
-    enrolled = (admin.table('class_enrollments').select('id')
-                .eq('class_id', class_row['id']).eq('student_id', student_id)
-                .eq('status', 'active').limit(1).execute()).data
-    if not enrolled:
-        return jsonify({'success': False, 'error': 'That student is not on this class.'}), 404
-
-    outstanding = []
-    for q in _student_work(admin, class_row, student_id):
-        if q['completed']:
-            continue
-        left = [t['title'] for t in q['tasks'] if not t['done']]
-        if left or not q['started']:
-            outstanding.append({'quest': q['title'], 'tasks': left, 'started': q['started']})
-    if not outstanding:
-        return jsonify({'success': False,
-                        'error': 'Nothing outstanding — there is nothing to remind them about.'}), 400
-
-    lines = []
-    for item in outstanding[:5]:
-        if not item['started']:
-            lines.append(f"{item['quest']} (not started)")
-        else:
-            shown = ', '.join(item['tasks'][:3])
-            more = len(item['tasks']) - 3
-            lines.append(f"{item['quest']}: {shown}" + (f" and {more} more" if more > 0 else ''))
-    body = f"Still to do in {class_row.get('name') or 'your class'} — " + '; '.join(lines)
-
-    from services.notification_service import NotificationService
-    notifier = NotificationService()
-
-    # Where the alert takes each recipient. A student's own work is on their
-    # dashboard, but a PARENT's /dashboard is the family home — so a guardian
-    # who opened the alert from the page they were already sitting on went
-    # nowhere at all (Gryffin, 2026-09-04: "when I click on it to see the alert
-    # nothing happens. I would like to see what assignments my child has").
-    # Send them to the child this reminder is actually about.
-    recipients = [(student_id, '/dashboard')] + [
-        (p['id'], f'/parent/dashboard/{student_id}')
-        for p in (notifier.get_parents_for_student(student_id) or []) if p.get('id')]
-
-    sent = 0
-    for recipient, link in recipients:
-        try:
-            notifier.create_notification(
-                user_id=recipient,
-                notification_type='announcement',
-                title='A reminder about unfinished work',
-                message=body,
-                link=link,
-            )
-            sent += 1
-        except Exception as e:  # noqa: BLE001 — one failed send must not lose the rest
-            logger.warning(f'Reminder to {recipient[:8]} failed: {e}')
-
-    return jsonify({'success': True, 'notified': sent, 'outstanding': len(outstanding)})
 
 
 @bp.route('/internal/publish-class-quests', methods=['POST'])

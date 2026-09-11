@@ -75,6 +75,12 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
+def _assigned_to(cq: Dict[str, Any], student_id: str) -> bool:
+    """class_quests.student_ids NULL is the whole class; a list is those students."""
+    ids = cq.get('student_ids')
+    return ids is None or student_id in ids
+
+
 def _is_released(cq: Dict[str, Any], now: datetime) -> bool:
     published = _parse_ts(cq.get('publish_at'))
     return published is None or published <= now
@@ -168,7 +174,7 @@ def _sweep_org(org_id: str) -> int:
     for chunk in _chunks(class_ids):
         cq_rows.extend(fetch_all_rows(lambda c=chunk: (
             admin.table('class_quests')
-            .select('id, class_id, quest_id, sequence_order, publish_at, added_at')
+            .select('id, class_id, quest_id, sequence_order, publish_at, added_at, student_ids')
             .in_('class_id', c)
         )))
     for cq in cq_rows:
@@ -254,15 +260,20 @@ def _sweep_org(org_id: str) -> int:
     for cls in classes:
         cid = cls['id']
         cqs = quests_by_class.get(cid, [])
-        released = [cq for cq in cqs if _is_released(cq, now)]
-        if not released:
+        class_released = [cq for cq in cqs if _is_released(cq, now)]
+        if not class_released:
             continue
         # Was any quest already released 14+ days ago? (For never-active students.)
         oldest_release = min(
             (_parse_ts(cq.get('publish_at')) or _parse_ts(cq.get('added_at')) or now)
-            for cq in released
+            for cq in class_released
         )
         for sid in students_by_class.get(cid, []):
+            # Only the quests this student was given. A quest the teacher kept
+            # to other students is not unfinished work of theirs.
+            released = [cq for cq in class_released if _assigned_to(cq, sid)]
+            if not released:
+                continue
             # (a) later quest released while an earlier released quest is
             #     untouched. End of the week only.
             for later_idx in range(1, len(released)) if week_is_ending else ():

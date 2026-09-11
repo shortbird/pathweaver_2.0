@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { PrinterIcon, InboxIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
+import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
  * StudentProgressTab — how each student in a class is doing on the quests
@@ -15,16 +16,24 @@ import ModalOverlay from '../ui/ModalOverlay'
  * whoever remembered to fill it in.
  *
  * One row per student, one column per assigned quest. A cell says where that
- * student is on that quest: not started, part-way (3/5), or done.
+ * student is on that quest: not started, part-way (3/5), or done -- or "not
+ * assigned", when the teacher kept that quest to other students. The
+ * per-student panel is where a teacher takes a quest off one student's list, or
+ * gives one to them (Gryffin, 2026-09-10: "go into a specific student's
+ * assignments and remove them").
  */
 
+const isAssigned = (c) => c.assigned !== false
+
 const cellStyle = (c) => {
+  if (!isAssigned(c)) return 'text-neutral-300 border border-dashed border-gray-200'
   if (!c.started) return 'bg-gray-50 text-neutral-400'
   if (c.completed) return 'bg-green-50 text-green-700 font-semibold'
   return 'bg-amber-50 text-amber-800'
 }
 
 const cellLabel = (c) => {
+  if (!isAssigned(c)) return 'Not assigned'
   if (!c.started) return 'Not started'
   if (c.completed) return 'Done'
   if (!c.total) return 'Started'
@@ -81,10 +90,14 @@ const StudentProgressTab = ({ classId, className }) => {
 
   const summary = useMemo(() => {
     if (!students.length) return null
-    const notStarted = students.filter((s) => s.quests_started === 0).length
-    const allDone = students.filter((s) => quests.length && s.quests_completed === quests.length).length
+    // Measured against what each student was actually given: a student with
+    // nothing assigned has not "started nothing", and one who finished their
+    // two of three quests is done.
+    const given = (s) => s.cells.filter(isAssigned).length
+    const notStarted = students.filter((s) => given(s) > 0 && s.quests_started === 0).length
+    const allDone = students.filter((s) => given(s) > 0 && s.quests_completed === given(s)).length
     return { notStarted, allDone }
-  }, [students, quests.length])
+  }, [students])
 
   if (loading) return <p className="text-neutral-500">Loading…</p>
 
@@ -185,6 +198,7 @@ const StudentProgressTab = ({ classId, className }) => {
           classId={classId}
           student={openStudent}
           onClose={() => setOpenStudent(null)}
+          onChanged={load}
         />
       )}
     </div>
@@ -198,21 +212,64 @@ const StudentProgressTab = ({ classId, className }) => {
  * for: "send a reminder of what work they haven't completed and that should be
  * sent to the parent and student."
  */
-const StudentWorkPanel = ({ classId, student, onClose }) => {
+const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
+  const confirm = useConfirm()
   const [work, setWork] = useState(null)
   const [loading, setLoading] = useState(true)
   const [reminding, setReminding] = useState(false)
+  const [changing, setChanging] = useState(null) // quest_id mid add/remove
   // One task's description open at a time — the panel is a scan of what a
   // student still owes, and every description expanded would bury it.
   const [openTaskId, setOpenTaskId] = useState(null)
+  const firstName = (student.name || '').split(' ')[0] || 'this student'
 
-  useEffect(() => {
+  const loadWork = useCallback(() => {
     setLoading(true)
-    api.get(`/api/sis/classes/${classId}/students/${student.student_id}/progress`)
+    return api.get(`/api/sis/classes/${classId}/students/${student.student_id}/progress`)
       .then((r) => setWork(r.data?.quests || []))
       .catch((e) => toast.error(e?.response?.data?.error || 'Could not load this student'))
       .finally(() => setLoading(false))
   }, [classId, student.student_id])
+
+  useEffect(() => { loadWork() }, [loadWork])
+
+  // Take a quest off this one student's plate, or give them one the class has
+  // that they did not. Both go through the class quest's audience on the
+  // backend, which also moves their enrollment -- and keeps any work they did.
+  const removeFor = async (q) => {
+    if (!(await confirm(
+      `Take “${q.title}” off ${firstName}’s list?\n\n`
+      + 'It stays assigned to the rest of the class. '
+      + (q.started ? `${firstName} has started it, so their work stays in their account.`
+        : 'Nothing they have done is deleted.')))) return
+    setChanging(q.quest_id)
+    try {
+      const { data } = await api.delete(
+        `/api/sis/classes/${classId}/quests/${q.quest_id}/students/${student.student_id}`)
+      toast.success(data?.summary || `Removed for ${firstName}`)
+      await loadWork()
+      onChanged?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not remove the quest for this student')
+    } finally {
+      setChanging(null)
+    }
+  }
+
+  const assignTo = async (q) => {
+    setChanging(q.quest_id)
+    try {
+      const { data } = await api.post(
+        `/api/sis/classes/${classId}/quests/${q.quest_id}/students/${student.student_id}`, {})
+      toast.success(data?.summary || `Assigned to ${firstName}`)
+      await loadWork()
+      onChanged?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not assign the quest to this student')
+    } finally {
+      setChanging(null)
+    }
+  }
 
   const remind = async () => {
     setReminding(true)
@@ -228,7 +285,7 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
   }
 
   const outstanding = (work || []).filter(
-    (q) => !q.completed && (!q.started || q.tasks.some((t) => !t.done)))
+    (q) => isAssigned(q) && !q.completed && (!q.started || q.tasks.some((t) => !t.done)))
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -246,21 +303,38 @@ const StudentWorkPanel = ({ classId, student, onClose }) => {
         <div className="p-4 overflow-y-auto space-y-4">
           {loading && <p className="text-sm text-neutral-500">Loading…</p>}
           {!loading && (work || []).map((q) => (
-            <div key={q.quest_id}>
+            <div key={q.quest_id} className={isAssigned(q) ? '' : 'opacity-70'}>
               <div className="flex items-baseline justify-between gap-2">
                 <p className="font-medium text-sm text-neutral-800">{q.title}</p>
-                {q.due_date && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">
-                    due {new Date(q.due_date).toLocaleDateString()}
-                  </span>
-                )}
+                <span className="flex items-center gap-2 shrink-0">
+                  {isAssigned(q) && q.due_date && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                      due {new Date(q.due_date).toLocaleDateString()}
+                    </span>
+                  )}
+                  {isAssigned(q) ? (
+                    <button type="button" onClick={() => removeFor(q)} disabled={changing === q.quest_id}
+                      className="text-[11px] text-neutral-400 hover:text-red-600 hover:underline disabled:opacity-40"
+                      title={`Take this quest off ${firstName}'s list; the rest of the class keeps it`}>
+                      {changing === q.quest_id ? 'Removing…' : `Remove for ${firstName}`}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => assignTo(q)} disabled={changing === q.quest_id}
+                      className="text-[11px] font-medium text-optio-purple hover:underline disabled:opacity-40">
+                      {changing === q.quest_id ? 'Assigning…' : `Assign to ${firstName}`}
+                    </button>
+                  )}
+                </span>
               </div>
-              {!q.started && <p className="text-sm text-neutral-400 mt-0.5">Not started</p>}
-              {q.started && q.tasks.length === 0 && (
+              {!isAssigned(q) && (
+                <p className="text-sm text-neutral-400 mt-0.5">Not assigned to {firstName}</p>
+              )}
+              {isAssigned(q) && !q.started && <p className="text-sm text-neutral-400 mt-0.5">Not started</p>}
+              {isAssigned(q) && q.started && q.tasks.length === 0 && (
                 <p className="text-sm text-neutral-400 mt-0.5">No tasks on this quest</p>
               )}
               <ul className="mt-1 space-y-0.5">
-                {q.tasks.map((t) => (
+                {(isAssigned(q) ? q.tasks : []).map((t) => (
                   <li key={t.id} className="text-sm">
                     <div className="flex items-start gap-2">
                     <span className={t.done ? 'text-green-600' : 'text-neutral-300'}>
