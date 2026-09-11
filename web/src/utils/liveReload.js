@@ -37,12 +37,22 @@ export function recoverFromChunkError(now = Date.now(), storage = window.session
 }
 
 /** Wire global listeners that recover from stale-chunk load failures. */
-export function installChunkErrorRecovery(target = window) {
+export function installChunkErrorRecovery(target = window, recover = recoverFromChunkError) {
+  // Vite's own signal for a failed lazy chunk, raised on every browser. The
+  // two message-matching listeners below cannot cover Safari: it reports a
+  // missing chunk as a bare `TypeError: Load failed`, the same words it uses
+  // for any failed fetch, so matching on them would reload the page over a
+  // dropped API call. That left iOS users on a stale tab with a broken page
+  // after a deploy (Sentry OPTIO-WEB-H, 2026-09-02) until they refreshed by
+  // hand. The event carries no message to match; the event itself is the fact.
+  target.addEventListener('vite:preloadError', () => {
+    recover()
+  })
   target.addEventListener('error', (e) => {
-    if (isChunkLoadError(e?.message)) recoverFromChunkError()
+    if (isChunkLoadError(e?.message)) recover()
   })
   target.addEventListener('unhandledrejection', (e) => {
     const msg = e?.reason?.message || e?.reason
-    if (isChunkLoadError(msg)) recoverFromChunkError()
+    if (isChunkLoadError(msg)) recover()
   })
 }

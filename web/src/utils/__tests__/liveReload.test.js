@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isChunkLoadError, recoverFromChunkError } from '../liveReload'
+import { isChunkLoadError, recoverFromChunkError, installChunkErrorRecovery } from '../liveReload'
 
 describe('isChunkLoadError', () => {
   it('matches dynamic import failures', () => {
@@ -46,5 +46,50 @@ describe('recoverFromChunkError', () => {
     recoverFromChunkError(T0, storage, reload)
     expect(recoverFromChunkError(T0 + 20000, storage, reload)).toBe(true)
     expect(reload).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('installChunkErrorRecovery', () => {
+  /**
+   * OPTIO-WEB-H (2026-09-02, iOS 16 Safari): after a deploy, an open tab's
+   * stale index.html asked for chunk files that no longer existed, and Safari
+   * reported each as a bare `TypeError: Load failed` -- the same words it uses
+   * for any failed fetch, so the message filter above cannot match it without
+   * reloading the page on every dropped request. Vite raises its own
+   * `vite:preloadError` event on exactly this failure, on every browser, which
+   * is the signal to reload on.
+   */
+  const fakeTarget = () => {
+    const listeners = {}
+    return {
+      addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn) },
+      dispatch: (type, event) => (listeners[type] || []).forEach((fn) => fn(event)),
+    }
+  }
+
+  it('reloads on vite:preloadError, whatever the browser called it', () => {
+    const target = fakeTarget()
+    const recover = vi.fn()
+    installChunkErrorRecovery(target, recover)
+    target.dispatch('vite:preloadError', { payload: new TypeError('Load failed') })
+    expect(recover).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reload on a bare Safari "Load failed" that is not a preload', () => {
+    // Any failed fetch in Safari says this. Reloading on the words alone would
+    // bounce the page on a dropped API call.
+    const target = fakeTarget()
+    const recover = vi.fn()
+    installChunkErrorRecovery(target, recover)
+    target.dispatch('unhandledrejection', { reason: new TypeError('Load failed') })
+    expect(recover).not.toHaveBeenCalled()
+  })
+
+  it('still reloads on the named dynamic-import failures', () => {
+    const target = fakeTarget()
+    const recover = vi.fn()
+    installChunkErrorRecovery(target, recover)
+    target.dispatch('unhandledrejection', { reason: new Error('Failed to fetch dynamically imported module: /assets/x.js') })
+    expect(recover).toHaveBeenCalledTimes(1)
   })
 })
