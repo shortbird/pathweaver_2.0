@@ -80,9 +80,15 @@ def approve_credit(user_id: str, completion_id: str):
             )
 
         # Get task data for subject distribution
+        # id, quest_id and pillar are for apply_reviewer_xp: adjust_task_xp
+        # writes by id, moves pillar XP by pillar, and stamps the audit row with
+        # the quest. Without them every XP change a reviewer made here came back
+        # 400 "Cannot adjust XP without a task" -- the org-approve path selected
+        # them from the start, this one did not (2026-09-11).
         task_result = with_connection_retry(
             lambda: admin_supabase.table('user_quest_tasks')
-            .select('title, diploma_subjects, subject_xp_distribution, xp_value')
+            .select('id, quest_id, pillar, title, diploma_subjects, '
+                    'subject_xp_distribution, xp_value')
             .eq('id', completion_data['user_quest_task_id'])
             .single()
             .execute(),
