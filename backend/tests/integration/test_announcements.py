@@ -26,6 +26,14 @@ them. Two things genuinely changed shape, and are NOT papered over:
     parametrize over ['title', 'message'] would have been asserting a rule the
     product does not have. It tests the title alone, and this paragraph is why
     the second case is gone rather than quietly deleted.
+  * Posting and sending are now two acts. A bare post goes to the board only;
+    it reaches a family's home when the payload asks for it. `_announce` sends,
+    because these tests read through the family-facing endpoint -- see its
+    docstring.
+
+The assertions are also scoped to one organization now. sis_announcements is
+not truncated between tests in this suite, so `== []` against the whole table
+asserted something about test ordering rather than about the endpoint.
 """
 
 import pytest
@@ -57,9 +65,31 @@ def org_student(make_user, org):
 
 
 def _announce(client, headers, **overrides):
-    payload = {'title': 'Snow day', 'body': 'Campus is closed tomorrow.'}
+    """Post to the board AND send it to families.
+
+    `notify` is what makes a post reach a family: without it
+    sis_community_service._notify_audiences returns [] and the post is
+    board-only, which is deliberate ("Sending is the louder, separate act").
+    The reads below go through the family-facing endpoint, so they only mean
+    anything if the post was actually sent -- a board-only post returning an
+    empty read would be correct behaviour and a worthless test.
+    """
+    payload = {'title': 'Snow day', 'body': 'Campus is closed tomorrow.',
+               'audience': 'school', 'notify': True}
     payload.update(overrides)
     return client.post(POST_URL, headers=headers, json=payload)
+
+
+def _board_rows(db, org_id, columns='id'):
+    """Board rows for ONE org.
+
+    Scoped rather than asserting the table is empty: the integration fixture
+    does not truncate sis_announcements between tests, so a global assertion
+    passes or fails on whatever ran before it. Two tests here failed exactly
+    that way.
+    """
+    return (db.table('sis_announcements').select(columns)
+            .eq('organization_id', org_id).execute().data)
 
 
 # Creating
@@ -72,8 +102,7 @@ def test_an_org_admin_can_post_an_announcement(client, db, org, org_admin, auth_
 
     assert response.status_code in (200, 201), response.get_data(as_text=True)
 
-    rows = db.table('sis_announcements').select(
-        'title, organization_id, created_by').execute().data
+    rows = _board_rows(db, org['id'], 'title, organization_id, created_by')
     assert len(rows) == 1
     assert rows[0]['title'] == 'Snow day'
     # Stamped with the author's org, not one supplied by the caller.
@@ -84,17 +113,17 @@ def test_an_org_admin_can_post_an_announcement(client, db, org, org_admin, auth_
 @pytest.mark.integration
 @pytest.mark.authorization
 @pytest.mark.critical
-def test_a_student_cannot_post_an_announcement(client, db, org_student, auth_headers_for):
+def test_a_student_cannot_post_an_announcement(client, db, org, org_student, auth_headers_for):
     """Announcements notify the whole org. A student broadcasting to every
     family is a megaphone, not a feature."""
     response = _announce(client, auth_headers_for(org_student['id']))
 
     assert response.status_code == 403
-    assert db.table('sis_announcements').select('id').execute().data == []
+    assert _board_rows(db, org['id']) == []
 
 
 @pytest.mark.integration
-def test_an_announcement_requires_a_title(client, db, org_admin, auth_headers_for):
+def test_an_announcement_requires_a_title(client, db, org, org_admin, auth_headers_for):
     """A body is optional by design -- see the module docstring. The title is
     the only field the service refuses to default."""
     response = client.post(
@@ -104,7 +133,7 @@ def test_an_announcement_requires_a_title(client, db, org_admin, auth_headers_fo
     )
 
     assert response.status_code == 400
-    assert db.table('sis_announcements').select('id').execute().data == []
+    assert _board_rows(db, org['id']) == []
 
 
 @pytest.mark.integration
@@ -117,8 +146,7 @@ def test_the_author_cannot_post_into_another_organization(
 
     _announce(client, auth_headers_for(org_admin['id']), organization_id=other_org['id'])
 
-    rows = db.table('sis_announcements').select('organization_id').execute().data
-    assert all(r['organization_id'] != other_org['id'] for r in rows), \
+    assert _board_rows(db, other_org['id']) == [], \
         'caller-supplied organization_id was trusted'
 
 
