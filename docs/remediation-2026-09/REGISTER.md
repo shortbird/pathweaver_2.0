@@ -35,6 +35,7 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | [BUG-4](#bug-4--questsquest_type-defaults-to-a-value-its-own-check-rejects) | OPEN | Every `INSERT` omitting the column fails |
 | [BUG-5](#bug-5--subjectdistributioneditor-writes-keys-outside-the-enum) | OPEN | A live editor writes four subject keys nothing else recognises |
 | [ORPH-1](#orph-1--sixteen-tables-no-application-code-reads) | NEEDS-USER | 14 of them hold rows; never decided |
+| [CI-07](#ci-07--the-ota-publishes-when-the-deploy-does-not) | OPEN | Mobile can ship ahead of the API it calls |
 | [GAP-1](#gap-1--the-carried-forward-gaps) | OPEN | Smaller gaps noted inside closed items |
 | [GAP-2](#gap-2--the-handoff-leftovers-nothing-else-tracks) | NEEDS-USER | Nine items that lived only in a handoff |
 
@@ -283,6 +284,40 @@ that class), or repoint code that should have been reading it.
 **One caveat on the method.** "Unreferenced" here means no string match in
 application code. A table read only by a SQL function, a view or a dashboard
 query would look the same. Check before dropping anything.
+
+### CI-07 — the OTA publishes when the deploy does not
+
+Found on 2026-09-10 by watching it happen twice in one evening.
+
+In `release.yml` the two shipping jobs have different prerequisites:
+
+| Job | `needs` |
+|---|---|
+| `Deploy prod (web + backend)` | `[backend, web, integration]` |
+| `Publish production OTA` | `[backend, web, mobile]` |
+
+The OTA does not wait for `integration`, and neither job waits for the other. So
+a run where the integration suite fails **skips the backend and web deploy and
+publishes the mobile bundle anyway**. That is what happened on runs
+`34546961454` and `34548012063`: the mobile app ran new JavaScript against an
+API roughly 17 minutes older than it, until the next green run caught the
+backend up.
+
+Nothing came of it this time — Sentry recorded no new issue on either project,
+and it was one in the morning. The exposure is real regardless: the new bundle
+called routes the deployed backend did not have yet, and a 404 from a route that
+exists on `main` is among the harder things to diagnose from a mobile crash
+report.
+
+It is the same shape as the cron service auto-deploying ahead of the CI-gated
+backend, and the fix is the same one line: give the OTA job the `integration`
+dependency the deploy already has, or make it `needs: [deploy]` outright so the
+API is never behind the client. The second is stricter and probably right —
+there is no version of "the app is updated but the server is not" anybody wants.
+
+**Not changed here**, because it is a release-pipeline change and this session
+was already pushing to `main` repeatedly; it wants its own commit and a green
+run that proves the ordering, not a rider on a deploy.
 
 ### GAP-1 — the carried-forward gaps
 
