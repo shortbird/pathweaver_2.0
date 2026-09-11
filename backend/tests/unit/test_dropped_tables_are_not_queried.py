@@ -34,7 +34,8 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[2]
 
 #: Dropped from production. Confirmed absent from information_schema.tables in
-#: project vvfgxcykxjybtvpfzwyx on 2026-09-10. If you are adding a name here,
+#: project vvfgxcykxjybtvpfzwyx on 2026-09-10, and again on 2026-09-11 after
+#: 20260911140000_drop_fifteen_orphan_tables.sql (the fifteen marked below). If you are adding a name here,
 #: confirm it the same way -- a table somebody *believes* is dropped, and is
 #: not, would make this file quietly ban working code.
 DROPPED_TABLES = (
@@ -45,14 +46,25 @@ DROPPED_TABLES = (
     'ai_prompt_templates',
     'ai_prompt_versions',
     'ai_quest_review_history',
+    'ai_seeds',  # 2026-09-11
+    'automation_sequences',  # 2026-09-11
+    'buddies',  # 2026-09-11
     'calendar_view_preferences',
+    'class_discussion_posts',  # 2026-09-11
+    'consultation_requests',  # 2026-09-11
+    'curriculum_settings',  # 2026-09-11
     'email_campaign_sends',
     'email_campaigns',
+    'email_templates',  # 2026-09-11
     'friendships',
+    'lms_sessions',  # 2026-09-11
     'observer_requests',
     'parent_connection_requests',
     'parent_evidence_uploads',
+    'portfolio_visibility_reset_20260801',  # 2026-09-11
+    'portfolio_visibility_reset_20260802',  # 2026-09-11
     'promo_codes',
+    'promo_interest',  # 2026-09-11
     'promo_signups',
     'quality_action_logs',
     'quest_collaboration_members',
@@ -61,16 +73,20 @@ DROPPED_TABLES = (
     'quest_task_flags',
     'quest_tasks',
     'quest_template_task_flags',
+    'security_warnings_documentation',  # 2026-09-11
     'service_inquiries',
     'services',
     'shared_evidence',
     'shared_evidence_approvals',
+    'sis_schedule_submissions',  # 2026-09-11
     'subscription_tiers',
     'task_collaborations',
     'task_merge_sources',
     'task_merges',
     'tutor_analytics',
     'tutor_parent_access',
+    'tutor_tier_limits',  # 2026-09-11
+    'tutorial_verification_log',  # 2026-09-11
     'user_quest_deadlines',
     'user_segments',
 )

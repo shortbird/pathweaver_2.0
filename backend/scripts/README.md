@@ -71,11 +71,9 @@ to the database**.
 | `delete_password_reset_template.py` | read-only | — | Delete password_reset.html template to enable CRM database template system |
 | `export_brevo_contacts.py` | read-only | — | Export every contact from the Brevo lead/customer lists to a JSON archive |
 | `find_avian_task.py` | read-only | `--user-email` |  |
-| `fix_all_email_template_variables.py` | **WRITES** | — | Fix all email templates to use correct Jinja2 syntax: {{ variable }} instead o |
 | `fix_blueprint_declarations.py` | read-only | — | Fix Blueprint declarations that were corrupted by the print replacement script |
 | `fix_course_quest_enrollments.py` | WRITES (dry-run) | `--dry-run` | Fix Course Quest Enrollments Migration Script |
 | `fix_pagination_variables.py` | read-only | — | Fix pagination variable references after migration. |
-| `fix_password_reset_jinja_syntax.py` | **WRITES** | — | Fix password reset template to use correct Jinja2 syntax: {{ variable }} inste |
 | `fix_rls_performance.py` | read-only | — | Fix RLS Performance Issues |
 | `fix_stderr_prints.py` | read-only | — | Fix print(file=sys.stderr) statements |
 | `fix_test_xp.py` | **WRITES** | `--user-email` | Remove the 1 test XP that was added. |

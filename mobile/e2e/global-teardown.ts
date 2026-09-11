@@ -45,7 +45,6 @@ export default async function globalTeardown() {
   await deleteWhere('learning_events', '?id=like.e2e*');
   await deleteWhere('interest_tracks', '?id=like.e2e*');
   await deleteWhere('notifications', '?id=like.e2e*');
-  await deleteWhere('buddies', '?id=like.e2e*');
 
   // Seed-script data (reverse dependency order)
   await deleteWhere('quest_task_completions', `?user_id=eq.${STUDENT_ID}`);

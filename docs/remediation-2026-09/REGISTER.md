@@ -9,7 +9,7 @@ The `PHASE_N_HANDOFF.md` files are historical records of what each phase did.
 They are not to be updated, and nothing should be tracked only in one of them —
 if an item in a handoff is still open, it is repeated below.
 
-**Last reconciled: 2026-09-10 (post-phase audit).** The audit scored all six
+**Last reconciled: 2026-09-11.** The audit scored all six
 phases against the tree and checked every outstanding item against live state —
 the Render API, production Postgres, Sentry, GitHub Actions. Five NEEDS TANNER
 items turned out to be already done and are closed below with the evidence; the
@@ -34,10 +34,10 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | [BUG-3](#bug-3--rls-findings-from-the-integration-suite) | OPEN | Four findings, asserted in tests, not fixed |
 | [BUG-4](#bug-4--questsquest_type-defaults-to-a-value-its-own-check-rejects) | OPEN | Every `INSERT` omitting the column fails |
 | [BUG-5](#bug-5--subjectdistributioneditor-writes-keys-outside-the-enum) | OPEN | A live editor writes four subject keys nothing else recognises |
-| [ORPH-1](#orph-1--sixteen-tables-no-application-code-reads) | NEEDS-USER | 14 of them hold rows; never decided |
-| [CI-07](#ci-07--the-ota-publishes-when-the-deploy-does-not) | OPEN | Mobile can ship ahead of the API it calls |
+| [ORPH-1](#orph-1--sixteen-tables-no-application-code-reads) | CLOSED | Decided 2026-09-11: fifteen dropped, one turned out to be live |
+| [CI-07](#ci-07--the-ota-publishes-when-the-deploy-does-not) | CLOSED | Fixed 2026-09-11: the OTA needs `deploy` |
 | [GAP-1](#gap-1--the-carried-forward-gaps) | OPEN | Smaller gaps noted inside closed items |
-| [GAP-2](#gap-2--the-handoff-leftovers-nothing-else-tracks) | NEEDS-USER | Nine items that lived only in a handoff |
+| [GAP-2](#gap-2--the-handoff-leftovers-nothing-else-tracks) | NEEDS-USER | Seven left of nine; stale docs and Render renames decided 2026-09-11 |
 
 ### OPS-01b — local development still reads production
 
@@ -252,6 +252,30 @@ deciding whether to remap the keys or the reader.
 
 ### ORPH-1 — sixteen tables no application code reads
 
+**Status: CLOSED 2026-09-11 — decided: delete.** Fifteen are dropped by
+`20260911140000_drop_fifteen_orphan_tables.sql`, applied to production through
+`migrate-prod.yml`. Every row was exported first to
+`~/optio-orphan-tables-export-20260911.json` (944 rows, outside the repo), which
+is the only undo.
+
+**Sixteen became fifteen, and the reason is the caveat below coming true.**
+`docs_search_misses` is written by `routes/docs.py` through
+`rpc('upsert_search_miss')`; the table name appears only inside that SQL
+function, so a grep for it in application code finds nothing. A second sweep
+over `pg_proc.prosrc` found it, along with two genuinely dead functions
+(`cleanup_expired_lms_sessions`, `check_security_fixes` — no caller in any app,
+no `rpc()`, no pg_cron job) that went with their tables. Before the drop, each
+table was also checked for foreign keys from outside the set, views, triggers,
+`marketing/`, the mobile e2e teardown, and the daily exposure audit's allowlists;
+the migration's guard block re-asks the FK and view questions at apply time and
+names the offender rather than cascading.
+
+Two repair scripts whose only subject was `email_templates` were deleted with
+it rather than the dropped-table ratchet's script ceiling being raised for
+code that can now only fail. The ratchet knows all fifteen names.
+
+The original entry follows.
+
 **Status: NEEDS-USER.** The original phase plan listed "deciding what happens to
 the 16 orphan Supabase tables that still hold live rows" as the user's call. No
 phase picked it up and no document in this repository named the tables, so the
@@ -286,6 +310,10 @@ application code. A table read only by a SQL function, a view or a dashboard
 query would look the same. Check before dropping anything.
 
 ### CI-07 — the OTA publishes when the deploy does not
+
+**Status: CLOSED 2026-09-11.** `Publish production OTA` now `needs: [deploy,
+mobile]`. The first release after the change ran the OTA only after the deploy
+and smoke check had passed. The original entry follows.
 
 Found on 2026-09-10 by watching it happen twice in one evening.
 
@@ -363,8 +391,11 @@ evaporate.
 `PHASE_N_HANDOFF.md` and never carried into this register, which is the exact
 failure mode the header warns about. None is urgent; all are decisions.
 
-1. **The 25 stale documents in [STALE_DOCS.md](STALE_DOCS.md) §2 are all still
-   present.** Phase 0 deliberately listed rather than deleted them, and the
+1. ~~**The 25 stale documents in [STALE_DOCS.md](STALE_DOCS.md) §2 are all still
+   present.**~~ **Decided and done 2026-09-11** — 49 files deleted, §2d kept, and
+   `SIS_ARCHITECTURE_DISCOVERY.md` turned out to be misleading three
+   docstrings rather than protecting them (see STALE_DOCS.md §2 and commit
+   `ce24c0ca`). The rest of this item is the original text. Phase 0 deliberately listed rather than deleted them, and the
    decision was never made. Two want reading rather than deciding:
    `EVIDENCE_ATTACH_IOS_2026-07-30.md` still says *"Status: not fixed.
    Instrumented so the next report identifies the cause"* — two reports from one
@@ -389,8 +420,9 @@ failure mode the header warns about. None is urgent; all are decisions.
    pass over both is one decision, not two.
 4. **`mobile/MOBILE_LAUNCH_READINESS.md`** is a 61-row parity comparison from
    March 2026, never re-verified. Either stale-list it or re-run it.
-5. **Renaming the three Render services** that still say v1/v2 or "frontend" is
-   optional and carries a trap: the dev `.onrender.com` hostnames are hard-coded
+5. ~~**Renaming the three Render services**~~ **Declined 2026-09-11** — the names
+   stay. The original text follows: renaming the three services that still say
+   v1/v2 or "frontend" is optional and carries a trap: the dev `.onrender.com` hostnames are hard-coded
    in `token_delivery.py` and `app_config.py`, so a slug change breaks dev login.
    Full recipe in PHASE_1_HANDOFF §3.
 6. **`20260824_admin_platform_metrics_daily.sql` still carries an 8-digit

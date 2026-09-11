@@ -59,7 +59,6 @@ ORG_PUBLIC_COLUMNS = {
 # to this list is a deliberate decision to publish, and should be reviewed.
 KNOWN_PUBLIC_TABLES = {
     'contact_submissions',   # public "anyone can submit" form (INSERT only)
-    'promo_interest',        # ditto
 }
 
 # Tables the anon key is ALLOWED to return rows from. Every entry is a decision
@@ -81,8 +80,6 @@ ANON_READABLE_BY_DESIGN = {
     'philosophy_nodes',   # public marketing content (/philosophy map)
     'philosophy_edges',   # ditto
     'site_settings',      # site name, logo, colours -- rendered for logged-out visitors
-    'tutor_tier_limits',  # static plan limits, no user data
-    'security_warnings_documentation',  # static help text
 }
 
 # Reviewed on 2026-08-01 and deliberately NOT allowlisted -- each returned rows to
