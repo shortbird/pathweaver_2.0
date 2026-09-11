@@ -20,7 +20,9 @@ from services.stories.drafter import DraftResult
 from services.stories.safety import ImageVerdict
 from services.stories.source import (
     ImageCandidate,
+    LinkCandidate,
     QuestSource,
+    QuoteCandidate,
     RoundSource,
     StorySource,
     StudentSource,
@@ -34,6 +36,9 @@ STUDENT_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
 COMPLETION_ID = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
 REF = ('https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/'
        'quest-evidence/task-evidence/x/{n}.jpg')
+VIDEO_REF = ('https://auth.optioeducation.com/storage/v1/object/public/'
+             'quest-evidence/evidence-tasks/x/{n}_Dream.MP4')
+MP4 = b'\x00\x00\x00\x18ftypmp42' + b'\x00' * 40
 
 
 # ── fakes ────────────────────────────────────────────────────────────────────
@@ -110,6 +115,12 @@ class FakeSourceRepo:
 class FakeConsentRepo:
     def __init__(self, active=None): self.active = active
     def active_for_student(self, sid): return self.active
+
+
+def _video(n: int) -> ImageCandidate:
+    return ImageCandidate(index=n, task_index=1, block_id=f'v{n}', item_index=1,
+                          source_ref=VIDEO_REF.format(n=n), mime_type='video/mp4', data=MP4,
+                          label='Dream', kind='video')
 
 
 def _source(images: int = 2) -> StorySource:
@@ -196,10 +207,13 @@ def world(monkeypatch):
         out = []
         for a in assets:
             if a.get('included'):
-                path = assets_mod.public_path_for(story['id'], a['id'])
+                sizeless = a.get('kind') in ('video', 'document')
+                path = assets_mod.public_path_for(story['id'], a['id'], kind=a.get('kind') or 'image',
+                                                  mime_type=a.get('mime_type'))
                 state['copied'].append(path)
-                repo.patch(a['id'], {'public_path': path, 'width': 1600, 'height': 900})
-                a = {**a, 'public_path': path, 'width': 1600, 'height': 900}
+                size = {'width': None, 'height': None} if sizeless else {'width': 1600, 'height': 900}
+                repo.patch(a['id'], {'public_path': path, **size})
+                a = {**a, 'public_path': path, **size}
             out.append(a)
         return out
     monkeypatch.setattr(assets_mod, 'copy_to_public', fake_copy)
@@ -296,6 +310,333 @@ class TestAutoPublish:
         assert story['status'] == 'published'
 
 
+class TestVideoEvidence:
+    """A safe video publishes as a `video` evidence item; it is never the hero."""
+
+    def _with_video(self, world):
+        source = world['source']
+        source.tasks[0].images.append(_video(3))
+        world['verdicts'].append(ImageVerdict(3, 'v3', 1, VIDEO_REF.format(n=3), 'safe', None,
+                                              checked_by='g'))
+        world['drafter'] = FakeDrafter({
+            **DRAFT,
+            'images': DRAFT['images'] + [{'index': 3, 'use': True, 'alt': 'A dance routine',
+                                          'caption': 'Three minutes, one take'}],
+            'hero_index': 3,                                  # the model picked the video
+        })
+
+    def test_published_video_asset_yields_a_video_item_with_an_mp4_url(self, world):
+        self._with_video(world)
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
+        assets = {a['source_block_id']: a for a in world['asset_repo'].for_story(STORY_ID)}
+        video = assets['v3']
+        assert video['kind'] == 'video' and video['mime_type'] == 'video/mp4'
+        assert video['included'] and video['public_path'].endswith('.mp4')
+        assert video['width'] is None and video['height'] is None
+        assert assets['b1']['kind'] == 'image' and assets['b1']['public_path'].endswith('.jpg')
+
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        by_type = {i['type']: i for i in evidence['items']}
+        assert set(by_type) == {'image', 'video'}
+        assert by_type['video']['url'].endswith(f'/story-assets/stories/{STORY_ID}/{video["id"]}.mp4')
+        assert by_type['video']['alt'] == 'A dance routine'
+
+        # The model asked for the video as hero; the hero is the first image.
+        assert story['hero_asset_id'] == assets['b1']['id']
+
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        item = next(i for i in next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+                    if i['type'] == 'video')
+        assert set(item) == {'type', 'url', 'alt', 'caption'}     # no width, no height
+        assert item['url'].endswith('.mp4')
+        assert view['hero_image_url'].endswith('.jpg')
+
+    def test_a_video_alone_is_never_a_hero(self, world):
+        self._with_video(world)
+        world['verdicts'][0] = ImageVerdict(1, 'b1', 1, REF.format(n=1), 'excluded', 'faces', faces=1)
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
+        assert story['hero_asset_id'] is None
+        included = [a for a in world['asset_repo'].for_story(STORY_ID) if a['included']]
+        assert [a['kind'] for a in included] == ['video']
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        assert view['hero_image_url'] is None
+
+    def test_the_video_bytes_are_dropped_after_the_safety_pass(self, world, monkeypatch):
+        self._with_video(world)
+        video = world['source'].tasks[0].images[-1]
+        seen = {}
+
+        def fake_check(candidates, **k):
+            seen['video_bytes'] = next(c for c in candidates if c.is_video).data
+            return [v for v in world['verdicts'] if v.index in {c.index for c in candidates}]
+        monkeypatch.setattr(safety, 'check_images', fake_check)
+        generate.run(STORY_ID)
+        assert seen['video_bytes'] == MP4                        # the pass saw them
+        assert video.data is None                                 # and nothing after did
+
+
+PDF_REF = ('https://auth.optioeducation.com/storage/v1/object/public/'
+           'quest-evidence/evidence-tasks/x/{n}_Lab%20report.pdf')
+PDF = b'%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n'
+
+
+def _document(n: int) -> ImageCandidate:
+    return ImageCandidate(index=n, task_index=1, block_id=f'd{n}', item_index=1,
+                          source_ref=PDF_REF.format(n=n), mime_type='application/pdf', data=PDF,
+                          label='Lab report', kind='document',
+                          excerpt='Load test results. The bridge held 12 kg.')
+
+
+def _keys(value: Any) -> List[str]:
+    if isinstance(value, dict):
+        return [k for k in value] + [k for v in value.values() for k in _keys(v)]
+    if isinstance(value, list):
+        return [k for v in value for k in _keys(v)]
+    return []
+
+
+class TestDocumentEvidence:
+    """A safe PDF publishes as a `document` item with a .pdf URL; never the hero."""
+
+    def _with_document(self, world):
+        world['source'].tasks[0].images.append(_document(3))
+        world['verdicts'].append(ImageVerdict(3, 'd3', 1, PDF_REF.format(n=3), 'safe', None,
+                                              checked_by='g'))
+        world['drafter'] = FakeDrafter({
+            **DRAFT,
+            'images': DRAFT['images'] + [{'index': 3, 'use': True, 'alt': 'ignored',
+                                          'caption': 'The lab report, as submitted'}],
+            'hero_index': 3,                                  # the model picked the PDF
+        })
+
+    def test_published_pdf_asset_yields_a_document_item_with_a_pdf_url(self, world):
+        self._with_document(world)
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
+        assets = {a['source_block_id']: a for a in world['asset_repo'].for_story(STORY_ID)}
+        doc = assets['d3']
+        assert doc['kind'] == 'document' and doc['mime_type'] == 'application/pdf'
+        assert doc['included'] and doc['public_path'].endswith('.pdf')
+        assert doc['alt'] == 'Lab report'                        # the title, not the model's alt
+        assert doc['caption'] == 'The lab report, as submitted'
+        assert doc['width'] is None and doc['height'] is None
+
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        by_type = {i['type']: i for i in evidence['items']}
+        assert set(by_type) == {'image', 'document'}
+        assert by_type['document']['url'].endswith(f'/story-assets/stories/{STORY_ID}/{doc["id"]}.pdf')
+        assert story['hero_asset_id'] == assets['b1']['id']     # the hero is the first image
+
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        item = next(i for i in next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+                    if i['type'] == 'document')
+        assert set(item) == {'type', 'url', 'alt', 'caption'}
+        assert item['url'].endswith('.pdf') and item['alt'] == 'Lab report'
+        assert view['hero_image_url'].endswith('.jpg')
+
+    def test_a_pdf_alone_is_never_a_hero(self, world):
+        self._with_document(world)
+        world['verdicts'][0] = ImageVerdict(1, 'b1', 1, REF.format(n=1), 'excluded', 'faces', faces=1)
+        assert generate.run(STORY_ID)['status'] == 'published'
+        assert _story(world)['hero_asset_id'] is None
+
+    def test_the_drafter_sees_the_excerpt_not_the_bytes(self, world, monkeypatch):
+        self._with_document(world)
+        doc = world['source'].tasks[0].images[-1]
+        seen = {}
+
+        class Peeking(FakeDrafter):
+            def draft(self, source, *, student_label, safe_images, tier='anonymized'):
+                from services.stories import prompt as prompt_mod
+                seen['prompt'] = prompt_mod.build_prompt(source, student_label=student_label,
+                                                         safe_images=safe_images, tier=tier)
+                seen['parts'] = prompt_mod.build_parts(seen['prompt'], safe_images)
+                seen['bytes'] = doc.data
+                return super().draft(source, student_label=student_label,
+                                     safe_images=safe_images, tier=tier)
+        world['drafter'] = Peeking(world['drafter'].data)
+        generate.run(STORY_ID)
+        assert seen['bytes'] is None                              # dropped after the safety pass
+        assert 'DOCUMENTS (1 passed the safety check' in seen['prompt']
+        assert 'Excerpt of [I3]: Load test results.' in seen['prompt']
+        assert all(not (isinstance(p, dict) and p.get('mime_type') == 'application/pdf')
+                   for p in seen['parts'])
+
+
+class TestQuotesAndLinks:
+    """Quotes and links ride on the body, switched on or off by their verdict."""
+
+    YOUTUBE = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    INSTAGRAM = 'https://www.instagram.com/anna.l/'
+
+    def _with_words_and_links(self, world, monkeypatch):
+        task = world['source'].tasks[0]
+        task.evidence_texts = ['It held 12 kg.', 'LEAK: ask [name] about it.']
+        task.quotes = [
+            QuoteCandidate(1, 1, 'b1', 1, 'It held 12 kg.', None, 'text', text_index=0),
+            QuoteCandidate(2, 1, 'b2', 1, 'LEAK: ask [name] about it.', 'From notes', 'document',
+                           text_index=1),
+        ]
+        task.links = [
+            LinkCandidate(1, 1, 'l1', 1, self.YOUTUBE, 'Bridge load test', 'youtube.com',
+                          provider='youtube', video_id='dQw4w9WgXcQ'),
+            LinkCandidate(2, 1, 'l2', 1, self.INSTAGRAM, 'anna.l', 'instagram.com'),
+        ]
+        # The second quote defeats the re-scrub (the real scrubber cannot be
+        # made to; this is the seam the rule is written against).
+        monkeypatch.setattr(safety, 'check_quote',
+                            lambda text, scrubber: (text, ['Anna'] if 'LEAK' in text else []))
+
+    def test_anonymized_story_publishes_the_clean_quote_and_no_link(self, world, monkeypatch):
+        self._with_words_and_links(world, monkeypatch)
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        standalone = [i for i in evidence['items'] if i['type'] in ('quote', 'link')]
+        assert [(i['type'], i['included'], i['safety']['reason']) for i in standalone] == [
+            ('quote', True, None),
+            ('quote', False, 'text_leak'),
+            ('link', False, 'external_link_identifies'),
+            ('link', False, 'social_profile'),
+        ]
+        assert story['safety']['quotes'] == [
+            {'index': 1, 'verdict': 'safe', 'reason': None},
+            {'index': 2, 'verdict': 'excluded', 'reason': 'text_leak'}]
+        assert [c for c in story['concerns'] if c.startswith(('Quote', 'Link'))] == [
+            'Quote [Q2] left out: the text still identified someone after a re-scrub.',
+            'Link [L1] (youtube.com) left out: an external link identifies the student in an '
+            'anonymized story.',
+            'Link [L2] (instagram.com) left out: the link is a social media profile.',
+        ]
+        assert story['blockers'] == []                            # a concern, never a blocker
+
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image', 'quote']
+        assert items[1] == {'type': 'quote', 'text': 'It held 12 kg.', 'caption': None}
+        keys = set(_keys(view))
+        assert 'included' not in keys and 'safety' not in keys
+        assert 'source_block_id' not in keys and 'source_item_index' not in keys
+        assert 'LEAK' not in str(view) and 'instagram' not in str(view)
+
+    def test_named_story_publishes_the_clean_link_and_still_no_social_profile(self, world, monkeypatch):
+        self._with_words_and_links(world, monkeypatch)
+        world['consent'] = FakeConsentRepo({'id': 'consent-1', 'scope_work': True,
+                                            'scope_first_name': True})
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
+        assert story['tier'] == 'named'
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image', 'quote', 'link']
+        assert items[2] == {'type': 'link', 'url': self.YOUTUBE, 'alt': 'Bridge load test',
+                            'caption': None}
+        assert 'instagram' not in str(view)
+
+    def test_quotes_and_links_survive_unpublish_and_republish(self, world, monkeypatch):
+        self._with_words_and_links(world, monkeypatch)
+        world['consent'] = FakeConsentRepo({'id': 'consent-1', 'scope_work': True})
+        generate.run(STORY_ID)
+        publish.unpublish(STORY_ID, user_id='admin-1')
+        evidence = next(s for s in _story(world)['body']['sections'] if s['kind'] == 'evidence')
+        assert [i['type'] for i in evidence['items']] == ['quote', 'quote', 'link', 'link']
+        story, found = publish.publish_from_review(STORY_ID, user_id='admin-1')
+        assert found == [] and story['status'] == 'published'
+
+
+class TestCopyToPublic:
+    """The real copy step against a fake bucket: a video goes up as-is."""
+
+    class FakeBucket:
+        def __init__(self, objects):
+            self.objects = objects
+            self.uploads: List[Any] = []
+
+        def download(self, path): return self.objects[path]
+        def upload(self, path, blob, options):
+            self.uploads.append((path, blob, options))
+
+    class FakeAdmin:
+        def __init__(self, buckets): self.buckets = buckets
+        @property
+        def storage(self): return self
+        def from_(self, name): return self.buckets[name]
+
+    def _world(self, monkeypatch, *, private_objects):
+        private = self.FakeBucket(private_objects)
+        public = self.FakeBucket({})
+        admin = self.FakeAdmin({'quest-evidence': private, 'story-assets': public})
+        repo = FakeAssetRepo()
+
+        def no_pillow(blob):
+            raise AssertionError('prepare_public_image must not run for a video')
+        monkeypatch.setattr(assets_mod, 'prepare_public_image', no_pillow)
+        return admin, public, repo
+
+    def test_video_uploads_the_original_bytes_with_its_content_type(self, monkeypatch):
+        admin, public, repo = self._world(monkeypatch, private_objects={
+            'evidence-tasks/x/3_Dream.MP4': MP4})
+        asset = {'id': 'a-video', 'story_id': STORY_ID, 'source_ref': VIDEO_REF.format(n=3),
+                 'kind': 'video', 'mime_type': 'video/quicktime', 'included': True,
+                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        path = f'stories/{STORY_ID}/a-video.mov'
+        assert public.uploads == [(path, MP4, {'content-type': 'video/quicktime', 'upsert': 'true'})]
+        assert out[0]['public_path'] == path
+        assert out[0]['width'] is None and out[0]['height'] is None
+        assert repo.rows['a-video']['public_path'] == path
+
+    def test_a_video_type_the_bucket_refuses_is_dropped_with_a_reason(self, monkeypatch):
+        admin, public, repo = self._world(monkeypatch, private_objects={
+            'evidence-tasks/x/3_Dream.MP4': MP4})
+        asset = {'id': 'a-video', 'story_id': STORY_ID, 'source_ref': VIDEO_REF.format(n=3),
+                 'kind': 'video', 'mime_type': 'video/x-msvideo', 'included': True,
+                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        assert public.uploads == []
+        assert out[0]['included'] is False
+        assert out[0]['safety']['copy_error'] == 'unsupported_video_type'
+
+    def test_a_pdf_uploads_the_original_bytes_as_application_pdf(self, monkeypatch):
+        admin, public, repo = self._world(monkeypatch, private_objects={
+            'evidence-tasks/x/3_Lab%20report.pdf': PDF})
+        monkeypatch.setattr('services.credit_ai_review.evidence_loader.sniff_mime',
+                            lambda blob, declared=None, filename=None: 'application/pdf')
+        asset = {'id': 'a-doc', 'story_id': STORY_ID, 'source_ref': PDF_REF.format(n=3),
+                 'kind': 'document', 'mime_type': 'application/pdf', 'included': True,
+                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        path = f'stories/{STORY_ID}/a-doc.pdf'
+        assert public.uploads == [(path, PDF, {'content-type': 'application/pdf', 'upsert': 'true'})]
+        assert out[0]['public_path'] == path
+
+    def test_bytes_that_are_no_longer_a_pdf_are_not_published(self, monkeypatch):
+        admin, public, repo = self._world(monkeypatch, private_objects={
+            'evidence-tasks/x/3_Lab%20report.pdf': b'\xff\xd8 not a pdf'})
+        monkeypatch.setattr('services.credit_ai_review.evidence_loader.sniff_mime',
+                            lambda blob, declared=None, filename=None: 'image/jpeg')
+        asset = {'id': 'a-doc', 'story_id': STORY_ID, 'source_ref': PDF_REF.format(n=3),
+                 'kind': 'document', 'mime_type': 'application/pdf', 'included': True,
+                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        assert public.uploads == []
+        assert out[0]['included'] is False
+        assert out[0]['safety']['copy_error'] == 'unsupported_document_type'
+
+    def test_public_path_extension_follows_the_mime(self):
+        assert assets_mod.public_path_for('s', 'a') == 'stories/s/a.jpg'
+        assert assets_mod.public_path_for('s', 'a', kind='video', mime_type='video/mp4') == 'stories/s/a.mp4'
+        assert assets_mod.public_path_for('s', 'a', kind='video', mime_type='video/webm') == 'stories/s/a.webm'
+        assert assets_mod.public_path_for('s', 'a', kind='video', mime_type='video/quicktime') == 'stories/s/a.mov'
+        assert assets_mod.public_path_for('s', 'a', kind='document') == 'stories/s/a.pdf'
+
+
 class TestLandsInReview:
     def test_second_text_leak_parks_the_story_with_the_reason(self, world):
         world['text_blockers'] = ['text_leak']
@@ -350,7 +691,6 @@ class TestGates:
         (dict(status='pending_review'), 'source_not_finalized'),
         (dict(merged='c9'), 'merged'),
         (dict(confidential=True), 'confidential'),
-        (dict(org='org-1'), 'org_student_phase2'),
     ])
     def test_refusals_by_source_state(self, world, setup, code):
         world['source_repo'] = FakeSourceRepo(**setup)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -20,11 +20,11 @@ pytestmark = pytest.mark.unit
 
 
 class FakeRebuildRepo:
-    def __init__(self, rows: List[Dict[str, Any]] = None):
+    def __init__(self, rows: Optional[List[Dict[str, Any]]] = None):
         self.rows = list(rows or [])
         self.n = len(self.rows)
 
-    def create(self, reason, status='requested', requested_at=None):
+    def create_request(self, reason, status='requested', requested_at=None):
         self.n += 1
         row = {'id': f'rb{self.n}', 'reason': reason, 'status': status, 'fired_at': None,
                'requested_at': requested_at or datetime.now(timezone.utc).isoformat()}
@@ -129,7 +129,7 @@ class TestRequestRebuild:
 
     def test_a_broken_repository_never_raises(self, posts):
         class Broken:
-            def create(self, *a, **k):
+            def create_request(self, *a, **k):
                 raise RuntimeError('db down')
         out = marketing_site.request_rebuild('story_published', repo=Broken())
         assert out['status'] == 'error'

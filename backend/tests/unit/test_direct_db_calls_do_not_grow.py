@@ -308,7 +308,14 @@ BASELINES = {
     # routes/stories/ and services/stories/ make zero direct calls; the
     # erasure hook in user_erasure_repository goes through the repositories
     # above rather than adding reads of its own.
-    'repositories': 528,
+    # 2026-09-11: 528 -> 529. user_repository.ids_matching_name, the read
+    # behind the credit dashboard's student search box. The box had been
+    # sending the typed name as student_id and the route matched it against
+    # the uuid, so a name could never find anyone.
+    # 2026-09-11: 529 -> 530. story_repository.list_previewable, behind the
+    # dev-only ?preview=1 on the public stories route so a story in review can
+    # be seen as a www page before anyone presses Publish.
+    'repositories': 530,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

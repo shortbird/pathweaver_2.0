@@ -10,24 +10,24 @@
 - POST /api/admin/stories/<id>/unpublish
 
 Superadmin only. A story carries a student's id and private evidence pointers,
-and the editor shows thumbnails of a minor's photographs; nobody else has a
-reason to see either.
+and the editor shows thumbnails of a minor's photographs and plays their
+videos; nobody else has a reason to see any of it.
 
 Responses use utils.api_response_v1, so the body is {"data": {...}}.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from flask import request
 
 from middleware.rate_limiter import rate_limit
 from utils.api_response_v1 import error_response, success_response
 from utils.auth.decorators import require_superadmin
-from utils.evidence_labels import contains_storage_url
+from utils.evidence_labels import contains_private_storage_url
 from utils.logger import get_logger
-from utils.storage_urls import sign_thumb_urls
+from utils.storage_urls import sign_stored_url, sign_thumb_urls
 from utils.validation.sanitizers import pgrst_uuid
 
 from services import marketing_site
@@ -64,6 +64,80 @@ def _uuid_or_none(value: Any, field: str) -> Optional[str]:
         return pgrst_uuid(str(value), field) if value else None
     except Exception:  # noqa: BLE001
         return None
+
+
+#: Exclusion reasons on a quote or link that no editor may override, in any
+#: tier. A social profile is a pointer to everything else a child has posted;
+#: no consent on file covers that.
+LOCKED_ITEM_REASONS = ('social_profile',)
+
+
+def _standalone_key(item: Dict[str, Any], position: int) -> Any:
+    """How an incoming quote or link is matched to its stored self."""
+    if item.get('source_block_id') is not None:
+        return (item.get('type'), item.get('source_block_id'), item.get('source_item_index'))
+    return (item.get('type'), position)
+
+
+def _reconcile_standalone_items(story: Dict[str, Any], body: Dict[str, Any],
+                                user_id: str) -> Tuple[Dict[str, Any], Optional[str]]:
+    """Apply the editor's toggles to the quote and link items, on the server's terms.
+
+    The stored item is the truth for everything but `included`, the caption
+    and (for a link) the title: the text is the student's words verbatim, the
+    URL is what they submitted, and the `safety` record is the pass's verdict,
+    which a client cannot rewrite by omitting it. Including an excluded item
+    follows the same rule as an excluded image -- named tier only, recorded as
+    an override -- and a social profile stays out in both tiers.
+
+    Returns (body, refusal message or None).
+    """
+    raw_body = story.get('body')
+    stored_body: Dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
+    stored: Dict[Any, Dict[str, Any]] = {}
+    for section in stored_body.get('sections') or []:
+        if isinstance(section, dict) and section.get('kind') == 'evidence':
+            position = 0
+            for item in section.get('items') or []:
+                if isinstance(item, dict) and item.get('type') in publish.STANDALONE_ITEM_TYPES:
+                    stored[_standalone_key(item, position)] = item
+                    position += 1
+
+    sections = []
+    for section in body.get('sections') or []:
+        if not (isinstance(section, dict) and section.get('kind') == 'evidence'):
+            sections.append(section)
+            continue
+        items = []
+        position = 0
+        for item in section.get('items') or []:
+            if not (isinstance(item, dict) and item.get('type') in publish.STANDALONE_ITEM_TYPES):
+                items.append(item)
+                continue
+            original = stored.get(_standalone_key(item, position))
+            position += 1
+            if original is None:
+                # Not something the pipeline produced: an editor cannot add a
+                # quotation or a link by hand, only decide about the ones the
+                # student submitted.
+                continue
+            safety = dict(original.get('safety') or {})
+            wanted = item.get('included') is not False
+            if wanted and safety.get('verdict') != 'safe':
+                noun = 'quotation' if original.get('type') == 'quote' else 'link'
+                if safety.get('reason') in LOCKED_ITEM_REASONS:
+                    return body, f'A {noun} to a social profile cannot be published.'
+                if story.get('tier') != 'named':
+                    return body, f'An excluded {noun} cannot be included in an anonymized story.'
+                safety['override'] = user_id
+            merged = {**original, 'included': wanted, 'safety': safety}
+            if 'caption' in item:
+                merged['caption'] = (str(item['caption'])[:300] if item['caption'] else None)
+            if original.get('type') == 'link' and 'alt' in item:
+                merged['alt'] = str(item['alt'] or '')[:200]
+            items.append(merged)
+        sections.append({**section, 'items': items})
+    return {**body, 'sections': sections}, None
 
 
 # ── the one click ────────────────────────────────────────────────────────────
@@ -154,18 +228,14 @@ def eligibility(user_id: str, completion_id: str):
     quest_status = source_quest.status(user_quest_id, repo=source_repo) if user_quest_id else None
     quest_story = story_repo.get_by_source('quest', user_quest_id) if user_quest_id else None
 
-    consent = consent_service.status_for(student_id)
     return success_response(data={'eligibility': {
         'completion_id': completion_id,
         'student_user_id': student_id,
         'eligible': not reasons,
         'reasons': reasons,
-        'consent': {
-            'active': bool(consent['active']),
-            'scope': consent['scope'],
-            'tier': consent['tier'],
-            'consent_id': (consent['active'] or {}).get('id'),
-        },
+        # The same shape the detail view sends, so the grader chip and the
+        # editor panel read one thing.
+        'consent': _consent_view(student_id),
         'existing_story': _serialize(story_repo.get_by_source('credit_submission', completion_id)),
         'quest': {
             'user_quest_id': user_quest_id,
@@ -221,7 +291,9 @@ def update_story(user_id: str, story_id: str):
     for key in EDITABLE:
         if key in payload:
             changes[key] = payload[key]
-    if contains_storage_url({k: v for k, v in changes.items() if k != 'hero_asset_id'}):
+    # Private buckets only: a published body legitimately carries public
+    # story-assets copies and the external links a student submitted.
+    if contains_private_storage_url({k: v for k, v in changes.items() if k != 'hero_asset_id'}):
         return error_response(code='STORAGE_URL',
                               message='A private storage link may not appear in a story.')
     if 'activity_slug' in changes:
@@ -238,9 +310,15 @@ def update_story(user_id: str, story_id: str):
         }
     if 'body' in changes and not isinstance(changes['body'], dict):
         return error_response(code='BAD_REQUEST', message='body must be an object.')
+    if 'body' in changes:
+        reconciled, refusal = _reconcile_standalone_items(story, changes['body'], user_id)
+        if refusal:
+            return error_response(code='EXCLUSION_STANDS', message=refusal)
+        changes['body'] = reconciled
     # The editor sends faq at the top level for convenience; it lives in body.
     if 'faq' in payload:
-        body = dict(changes.get('body') if isinstance(changes.get('body'), dict)
+        changed_body = changes.get('body')
+        body = dict(changed_body if isinstance(changed_body, dict)
                     else (story.get('body') or {}))
         body['faq'] = [{'q': str(f.get('q') or '')[:300], 'a': str(f.get('a') or '')[:1500]}
                        for f in (payload['faq'] or []) if isinstance(f, dict)]
@@ -277,6 +355,12 @@ def update_story(user_id: str, story_id: str):
                     return error_response(
                         code='EXCLUSION_STANDS',
                         message='An excluded image cannot be included in an anonymized story.')
+                if (asset.get('safety') or {}).get('reason') == 'video_location_metadata':
+                    # Not a judgment call a consent can cover: the file itself
+                    # says where the child was, and it is published as-is.
+                    return error_response(
+                        code='EXCLUSION_STANDS',
+                        message='A video with location metadata cannot be published.')
                 asset_changes['safety'] = {**(asset.get('safety') or {}), 'override': user_id}
             asset_changes['included'] = wanted
         if asset_changes:
@@ -348,22 +432,40 @@ def _serialize(story: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not story:
         return None
     out = {k: v for k, v in story.items() if k not in ('claim_token',)}
-    body = out.get('body') if isinstance(out.get('body'), dict) else {}
+    raw_body = out.get('body')
+    body: Dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
     out['faq'] = body.get('faq') or []
     if out.get('slug') and out.get('status') == 'published':
         out['marketing_url'] = marketing_site.story_url(out['slug'])
     return out
 
 
+def _asset_view(asset: Dict[str, Any], thumbs: Dict[str, Optional[str]]) -> Dict[str, Any]:
+    """An asset row for the editor, with a way to see it.
+
+    An image gets a downscaled signed thumbnail. A video or a PDF gets
+    `media_url`, a signed URL of the original, because the transform endpoint
+    only renders images and a poster frame would need ffmpeg; `thumb_url`
+    stays None so the picker knows to render a player or a link. Both URLs
+    are short-lived and the editor never stores them.
+    """
+    is_file = asset.get('kind') in ('video', 'document')
+    source_ref = asset.get('source_ref')
+    return {
+        **asset,
+        'thumb_url': None if is_file or not source_ref else thumbs.get(source_ref),
+        'media_url': sign_stored_url(asset.get('source_ref')) if is_file else None,
+        'public_url': assets_mod.public_url_for(asset.get('public_path')),
+    }
+
+
 def _detail(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> Dict[str, Any]:
-    thumbs = sign_thumb_urls([a.get('source_ref') for a in assets], size=THUMB_PX)
+    thumbs = sign_thumb_urls([a.get('source_ref') for a in assets
+                              if a.get('kind') not in ('video', 'document')],
+                             size=THUMB_PX)
     return {
         'story': _serialize(story),
-        'assets': [{
-            **a,
-            'thumb_url': thumbs.get(a.get('source_ref')),
-            'public_url': assets_mod.public_url_for(a.get('public_path')),
-        } for a in assets],
+        'assets': [_asset_view(a, thumbs) for a in assets],
         'consent': _consent_view(story.get('student_user_id')),
         'blockers': story.get('blockers') or [],
         'concerns': story.get('concerns') or [],
@@ -375,10 +477,15 @@ def _consent_view(student_id: Optional[str]) -> Optional[Dict[str, Any]]:
     if not student_id:
         return None
     status = consent_service.status_for(student_id)
+    active = status['active'] or {}
     return {
-        'active': bool(status['active']),
-        'consent_id': (status['active'] or {}).get('id'),
+        'active': bool(active),
+        'consent_id': active.get('id'),
         'scope': status['scope'],
         'tier': status['tier'],
+        'source': active.get('source'),
+        'source_ref': active.get('source_ref'),
+        'approver_kind': active.get('approver_kind'),
+        'granted_at': active.get('granted_at'),
         'history': consent_service.history_summary(status['history']),
     }

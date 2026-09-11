@@ -88,8 +88,8 @@ RESPONSE_SCHEMA = {
         },
         'images': {
             'type': 'ARRAY',
-            'description': 'One entry per [I<n>] image offered. Only images marked use=true '
-                           'appear on the page.',
+            'description': 'One entry per [I<n>] offered: image, video or document. Only '
+                           'entries marked use=true appear on the page.',
             'items': {
                 'type': 'OBJECT',
                 'properties': {

@@ -119,7 +119,7 @@ def student_label(tier: str, scope: Optional[Dict[str, Any]], first_name: Option
     """
     scope = scope or {}
     if tier == 'named' and scope.get('first_name') and (first_name or '').strip():
-        name = first_name.strip()
+        name = (first_name or '').strip()
         if scope.get('age') and isinstance(age, int) and age > 0:
             return f'{name}, {age}'
         return name

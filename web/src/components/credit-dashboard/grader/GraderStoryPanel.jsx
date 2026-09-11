@@ -119,7 +119,6 @@ const GraderStoryPanel = ({
 
   const data = elig.data || {}
   const quest = data.quest || null
-  const isOrgStudent = !!data.is_org_student
 
   return (
     <section
@@ -148,7 +147,6 @@ const GraderStoryPanel = ({
             studentUserId={data.student_user_id}
             consent={data.consent}
             onChange={(consent) => setElig(e => ({ ...e, data: { ...(e.data || {}), consent } }))}
-            disabled={isOrgStudent}
           />
 
           {result?.story ? (
@@ -161,14 +159,11 @@ const GraderStoryPanel = ({
             />
           ) : (
             <div className="space-y-2">
-              {isOrgStudent && (
-                <p className="text-xs text-gray-500">Org students are not eligible yet.</p>
-              )}
               <div className="flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={() => start({ sourceType: 'credit_submission', sourceId: completionId, mode: 'auto' })}
-                  disabled={isOrgStudent || !!busy}
+                  disabled={!!busy}
                   aria-busy={busy === 'auto:credit_submission'}
                   className="btn-primary flex-1 min-h-[44px]"
                 >
@@ -177,7 +172,7 @@ const GraderStoryPanel = ({
                 <button
                   type="button"
                   onClick={() => start({ sourceType: 'quest', sourceId: quest?.user_quest_id, mode: 'auto' })}
-                  disabled={isOrgStudent || !!busy || !quest?.complete || !quest?.user_quest_id}
+                  disabled={!!busy || !quest?.complete || !quest?.user_quest_id}
                   aria-busy={busy === 'auto:quest'}
                   title={quest && !quest.complete
                     ? `The quest is not complete yet (${quest.finalized_count ?? 0} of ${quest.task_count ?? 0} tasks finalized)`
@@ -195,7 +190,7 @@ const GraderStoryPanel = ({
               <button
                 type="button"
                 onClick={() => start({ sourceType: 'credit_submission', sourceId: completionId, mode: 'review' })}
-                disabled={isOrgStudent || !!busy}
+                disabled={!!busy}
                 className="text-xs font-medium text-optio-purple hover:text-optio-purple-dark disabled:opacity-50 disabled:cursor-not-allowed min-h-[32px] md:min-h-0 touch-manipulation"
               >
                 Draft for review instead

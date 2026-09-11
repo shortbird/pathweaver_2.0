@@ -1,11 +1,21 @@
 ---
 /**
- * What the student submitted. Images go through astro:assets (resized,
- * srcset, lazy). Quotes are blockquotes. Videos and documents are links: the
- * public story bucket holds images only, so those URLs are always external.
+ * What the student submitted, every form of it.
+ *
+ * Images go through astro:assets (resized, srcset, lazy). A video the backend
+ * published to the public story bucket plays inline, in the same grid as the
+ * images; a video anywhere else is a link, because we neither host it nor
+ * vouch for what its host serves. Quotes are the student's own words, or the
+ * first page of a document they wrote, as full-width blockquotes with the
+ * file named in a <cite>. A document is a PDF the backend copied to the story
+ * bucket after its safety pass; the card links to it. A link is an external
+ * URL the student submitted (named-tier stories only): a YouTube or Vimeo
+ * link embeds through the no-cookie player with the link beneath as the
+ * fallback, anything else is a card with the host and the title.
  */
 import { Image } from 'astro:assets'
 import type { EvidenceItem } from '../../data/stories.schema'
+import { hostnameOf, videoEmbed } from '../../lib/stories'
 
 export interface Props {
   items: EvidenceItem[]
@@ -13,16 +23,54 @@ export interface Props {
 }
 const { items, class: className = '' } = Astro.props
 
-const images = items.filter((i) => i.type === 'image' && i.url)
-const quotes = items.filter((i) => i.type === 'quote' && i.caption)
-const links = items.filter((i) => (i.type === 'video' || i.type === 'document') && i.url)
-const wide = images.length === 1
+/** The two hostnames the public story bucket answers on. Nothing else plays inline. */
+const OUR_MEDIA_HOSTS = new Set(['vvfgxcykxjybtvpfzwyx.supabase.co', 'auth.optioeducation.com'])
+
+const isOurs = (url: string | null | undefined): boolean => {
+  if (!url) return false
+  try {
+    return OUR_MEDIA_HOSTS.has(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
+const inlineVideo = (i: EvidenceItem) => i.type === 'video' && isOurs(i.url)
+
+/** The bucket publishes mp4, mov and webm; the extension is the backend's own, from the MIME it sniffed. */
+const videoType = (url: string): string => {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
+  if (ext === 'webm') return 'video/webm'
+  if (ext === 'mov') return 'video/quicktime'
+  return 'video/mp4'
+}
+const media = items.filter((i) => Boolean(i.url) && (i.type === 'image' || inlineVideo(i)))
+const quotes = items.filter((i) => i.type === 'quote' && i.text)
+const documents = items.filter((i) => i.type === 'document' && i.url)
+const links = items.filter((i) => i.type === 'link' && i.url)
+const looseVideos = items.filter((i) => i.type === 'video' && !inlineVideo(i) && i.url)
+const wide = media.length === 1
 ---
 
 <div class={`space-y-8 ${className}`}>
-  {images.length > 0 && (
+  {media.length > 0 && (
     <ul class={`grid gap-5 ${wide ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
-      {images.map((item) => {
+      {media.map((item) => {
+        if (item.type === 'video') {
+          return (
+            <li class="col-span-full md:col-span-1">
+              <figure class="rounded-2xl border border-neutral-100 bg-neutral-50 overflow-hidden">
+                <video controls preload="metadata" playsinline class="w-full rounded-xl bg-neutral-900" aria-label={item.alt ?? 'Video the student submitted'}>
+                  <source src={item.url!} type={videoType(item.url!)} />
+                  <a href={item.url!} rel="noopener">Watch the video</a>
+                </video>
+                {item.caption && (
+                  <figcaption class="px-4 py-3 text-sm text-neutral-500 font-medium border-t border-neutral-100 bg-white">{item.caption}</figcaption>
+                )}
+              </figure>
+            </li>
+          )
+        }
         const sized = Boolean(item.width && item.height)
         return (
           <li>
@@ -59,37 +107,89 @@ const wide = images.length === 1
     </ul>
   )}
 
-  {quotes.map((item) => (
-    <blockquote class="border-l-4 border-optio-purple/30 pl-5 italic text-neutral-700 font-medium leading-relaxed">
-      <p>{item.caption}</p>
-      <footer class="not-italic text-xs text-neutral-500 font-semibold uppercase tracking-wider mt-2">From the student's submission</footer>
-    </blockquote>
-  ))}
+  {quotes.length > 0 && (
+    <ul class="grid grid-cols-1 gap-5">
+      {quotes.map((item) => (
+        <li class="col-span-full">
+          <blockquote class="rounded-2xl border border-optio-purple/15 bg-optio-purple/5 px-6 py-5 text-neutral-800 font-medium leading-relaxed">
+            <p class="whitespace-pre-line">{item.text}</p>
+            <footer class="mt-3 text-xs text-neutral-500 font-semibold uppercase tracking-wider">
+              <cite class="not-italic">{item.caption || "In the student's own words"}</cite>
+            </footer>
+          </blockquote>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {(documents.length > 0 || looseVideos.length > 0) && (
+    <ul class="space-y-3">
+      {documents.map((item) => (
+        <li>
+          <div class="flex items-center gap-4 rounded-2xl border border-neutral-100 bg-white p-4">
+            <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex-shrink-0" aria-hidden="true">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-neutral-900">{item.alt || 'A document the student submitted'}</p>
+              {item.caption && <p class="text-sm text-neutral-500">{item.caption}</p>}
+              <a href={item.url!} target="_blank" rel="noopener" class="text-sm font-semibold text-optio-purple hover:underline">Open the PDF</a>
+            </div>
+          </div>
+        </li>
+      ))}
+      {looseVideos.map((item) => (
+        <li>
+          <a href={item.url!} rel="noopener" target="_blank" class="group flex items-center gap-4 rounded-2xl border border-neutral-100 bg-white p-3 hover:border-optio-purple/40 transition-colors">
+            {item.thumb_url ? (
+              <span class="w-28 aspect-video rounded-lg overflow-hidden bg-neutral-50 flex-shrink-0">
+                <Image src={item.thumb_url} alt="" inferSize widths={[224]} sizes="112px" class="w-full h-full object-cover" />
+              </span>
+            ) : (
+              <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex-shrink-0" aria-hidden="true">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </span>
+            )}
+            <span class="text-sm font-semibold text-neutral-900 group-hover:text-optio-purple transition-colors">{item.caption || item.alt || 'Watch the video'}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
 
   {links.length > 0 && (
-    <ul class="space-y-3">
+    <ul class="space-y-5">
       {links.map((item) => {
-        const label = item.caption || item.alt || (item.type === 'video' ? 'Watch the video' : 'Open the document')
+        const embed = videoEmbed(item.url)
+        const host = hostnameOf(item.url)
+        const title = item.alt || host || 'A link the student submitted'
         return (
-          <li>
-            <a href={item.url!} rel="noopener" target="_blank" class="group flex items-center gap-4 rounded-2xl border border-neutral-100 bg-white p-3 hover:border-optio-purple/40 transition-colors">
-              {item.type === 'video' && item.thumb_url ? (
-                <span class="w-28 aspect-video rounded-lg overflow-hidden bg-neutral-50 flex-shrink-0">
-                  <Image src={item.thumb_url} alt="" inferSize widths={[224]} sizes="112px" class="w-full h-full object-cover" />
-                </span>
-              ) : (
-                <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex-shrink-0" aria-hidden="true">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-                    {item.type === 'video' ? (
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    ) : (
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    )}
-                  </svg>
-                </span>
-              )}
-              <span class="text-sm font-semibold text-neutral-900 group-hover:text-optio-purple transition-colors">{label}</span>
-            </a>
+          <li class="space-y-3">
+            {embed && (
+              <div class="aspect-video w-full rounded-2xl overflow-hidden border border-neutral-100 bg-neutral-900">
+                <iframe
+                  src={embed.src}
+                  title={title}
+                  class="w-full h-full"
+                  loading="lazy"
+                  allow="accelerometer; encrypted-media; picture-in-picture"
+                  allowfullscreen
+                  referrerpolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            )}
+            <div class="rounded-2xl border border-neutral-100 bg-white p-4">
+              <p class="text-xs text-neutral-500 font-semibold uppercase tracking-wider">{host}</p>
+              <p class="text-sm font-semibold text-neutral-900">{title}</p>
+              {item.caption && <p class="text-sm text-neutral-500">{item.caption}</p>}
+              <a href={item.url!} target="_blank" rel="noopener" class="text-sm font-semibold text-optio-purple hover:underline">
+                {embed ? 'Open on ' + host : 'Open'}
+              </a>
+            </div>
           </li>
         )
       })}

@@ -7,15 +7,32 @@ a quest story has one per finalized task plus the student's reflections.
 
 Everything textual in here has already been through the scrubber. The loaders
 build the scrubber from the student's identity names and scrub as they read,
-so no later stage holds a copy of a name to forget to remove. Image bytes are
-transient: they are held for the safety pass and the draft, and never stored.
+so no later stage holds a copy of a name to forget to remove. Media bytes are
+transient: an image is held for the safety pass and the draft, a video or a
+PDF for the safety pass only, and none of them is ever stored.
+
+Every form of evidence has a candidate type here, so nothing a student
+submitted is silently absent from the page:
+
+  image, video, PDF   `ImageCandidate` (kind image | video | document); these
+                      become `story_assets` rows and public copies
+  typed text          `QuoteCandidate` (caption None): the student's own words
+  docx/doc/txt/csv    `QuoteCandidate` (caption "From <title>"): the first
+                      1500 characters; the file itself is never published
+  external link       `LinkCandidate`: YouTube, Vimeo, a website, a Google Doc
+
+Quotes and links are not assets (nothing to copy). They live on the evidence
+section's items with an `included` flag and a `safety` verdict.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
+from config.constants import MAX_VIDEO_SIZE
 from generated.credits import TRANSCRIPT_SUBJECT_NAMES, XP_PER_CREDIT
 from utils.evidence_labels import block_items
 from utils.logger import get_logger
@@ -28,12 +45,31 @@ logger = get_logger(__name__)
 
 FINALIZED = 'finalized'
 
+#: A PDF larger than this is not published (and not sent to the model): the
+#: story worker shares a 512MB container, and Gemini's inline request ceiling
+#: is about this size.
+MAX_DOCUMENT_SIZE = 20 * 1024 * 1024
+
+#: The longest quotation the page shows. Cut on a sentence boundary, with an
+#: ellipsis, so a quote never ends mid-word.
+MAX_QUOTE_CHARS = 1500
+
+#: How much of a PDF's text the drafter is shown. Prompt-only; the PDF is
+#: published as a file, not as text.
+MAX_DOCUMENT_EXCERPT_CHARS = 2500
+
 
 # ── dataclasses ──────────────────────────────────────────────────────────────
 
 @dataclass
 class ImageCandidate:
-    """One image the story might show. `data` is bytes for the safety pass."""
+    """One file the story might publish. `data` is bytes for the safety pass.
+
+    `kind` is 'image', 'video' or 'document' (a PDF). The class keeps its
+    original name because every stage downstream (safety, drafter, assemble)
+    was written against it; `MediaCandidate` below is the same class under the
+    name that now fits.
+    """
     index: int                    # 1-based across the whole source: the [I<n>] label
     task_index: int
     block_id: Optional[str]
@@ -42,6 +78,61 @@ class ImageCandidate:
     mime_type: str
     data: Optional[bytes] = None
     label: str = 'a photo'
+    kind: str = 'image'           # image | video | document
+    file_name: Optional[str] = None  # the upload's name; admin-side only, never in a prompt
+    excerpt: Optional[str] = None    # a document's scrubbed text, for the drafter only
+
+    @property
+    def is_video(self) -> bool:
+        return self.kind == 'video'
+
+    @property
+    def is_document(self) -> bool:
+        return self.kind == 'document'
+
+    @property
+    def is_image(self) -> bool:
+        return self.kind == 'image'
+
+
+MediaCandidate = ImageCandidate
+
+
+@dataclass
+class QuoteCandidate:
+    """The student's words, or the first page of a document they wrote.
+
+    `text` is scrubbed and capped at MAX_QUOTE_CHARS on a sentence boundary.
+    `caption` is None for typed text and "From <title>" for a document.
+    `text_index` is the position of the full text in `TaskSource.evidence_texts`,
+    so the prompt can label it [Q<n>] without printing it twice.
+    """
+    index: int                    # 1-based across the whole source: the [Q<n>] label
+    task_index: int
+    block_id: Optional[str]
+    item_index: int
+    text: str
+    caption: Optional[str]
+    origin: str                   # text | document
+    text_index: int = 0
+
+
+@dataclass
+class LinkCandidate:
+    """An external URL the student submitted. Never fetched here, never copied.
+
+    `title` is scrubbed: the student's own title for the link, else what the
+    loader read from the video's oEmbed record, else the hostname.
+    """
+    index: int                    # 1-based across the whole source: the [L<n>] label
+    task_index: int
+    block_id: Optional[str]
+    item_index: int
+    url: str
+    title: str
+    host: str
+    provider: Optional[str] = None   # youtube | vimeo | None
+    video_id: Optional[str] = None
 
 
 @dataclass
@@ -66,6 +157,8 @@ class TaskSource:
     xp: int
     evidence_texts: List[str] = field(default_factory=list)
     images: List[ImageCandidate] = field(default_factory=list)
+    quotes: List[QuoteCandidate] = field(default_factory=list)
+    links: List[LinkCandidate] = field(default_factory=list)
     ai_criteria: List[Dict[str, Any]] = field(default_factory=list)
     celebrate: Optional[str] = None
     rounds: List[RoundSource] = field(default_factory=list)
@@ -143,12 +236,38 @@ class StorySource:
 
     @property
     def image_candidates(self) -> List[ImageCandidate]:
+        """Every file candidate -- images, videos and PDFs -- in [I<n>] order."""
         return [img for task in self.tasks for img in task.images]
+
+    @property
+    def video_candidates(self) -> List[ImageCandidate]:
+        return [c for c in self.image_candidates if c.is_video]
+
+    @property
+    def document_candidates(self) -> List[ImageCandidate]:
+        return [c for c in self.image_candidates if c.is_document]
+
+    @property
+    def quote_candidates(self) -> List[QuoteCandidate]:
+        """Every quote, in the order the student wrote them: the [Q<n>] order."""
+        return [q for task in self.tasks for q in task.quotes]
+
+    @property
+    def link_candidates(self) -> List[LinkCandidate]:
+        return [link for task in self.tasks for link in task.links]
 
     def release_images(self) -> None:
         """Drop the bytes. The story keeps pointers, never pixels."""
         for img in self.image_candidates:
             img.data = None
+
+    def release_videos(self) -> None:
+        """Drop the video and PDF bytes early. Both are only ever needed for
+        the safety pass; the drafter cannot read them (it gets a PDF's excerpt
+        instead) and the publish step downloads the original again."""
+        for candidate in self.image_candidates:
+            if candidate.is_video or candidate.is_document:
+                candidate.data = None
 
 
 # ── subjects and credit ──────────────────────────────────────────────────────
@@ -354,9 +473,263 @@ def _source_refs(snapshot: Any) -> Dict[tuple, Dict[str, Any]]:
     return refs
 
 
+# ── video uploads ────────────────────────────────────────────────────────────
+#
+# A `video` block whose item lives in one of our buckets is handled here, not
+# by the evidence loader. The loader exists to feed a model a whole submission
+# within one request's budget; it would inline a small video (spending the
+# image budget on it), skip a large one with a "too large" flag, or -- with
+# the File API on -- upload it and then delete the handle in release() before
+# the safety pass could look at it. The story wants none of that. It wants the
+# bytes, once, for the safety pass, and then a pointer.
+
+#: What an upload's extension says it is, when the sniff needs a hint.
+_VIDEO_MIME_BY_EXT = {
+    'mp4': 'video/mp4', 'm4v': 'video/x-m4v', 'mov': 'video/quicktime',
+    'webm': 'video/webm', 'mkv': 'video/x-matroska', 'avi': 'video/x-msvideo',
+    'mpg': 'video/mpeg', 'mpeg': 'video/mpeg', '3gp': 'video/3gpp',
+}
+
+
+def _upload_name(item: Dict[str, Any]) -> str:
+    return str(item.get('filename') or item.get('file_name') or item.get('title') or '')
+
+
+def _strip_extension(name: str) -> str:
+    base = name.rsplit('/', 1)[-1]
+    if '.' in base:
+        stem, ext = base.rsplit('.', 1)
+        if stem and len(ext) <= 5 and ext.isalnum():
+            return stem
+    return base
+
+
+def _is_stored_video(block: Dict[str, Any], item: Any) -> bool:
+    if (block.get('block_type') or '') != 'video' or not isinstance(item, dict):
+        return False
+    url = item.get('url')
+    return bool(url and parse_object_ref(url))
+
+
+def _split_stored_videos(snapshot: List[Any]) -> Tuple[List[Any], Dict[tuple, int],
+                                                       List[Tuple[int, int, Dict[str, Any], Dict[str, Any]]]]:
+    """Take the stored video uploads out of the loader's view of the snapshot.
+
+    Returns (loader_snapshot, index_map, videos):
+
+      loader_snapshot  the snapshot with those items removed from their blocks.
+                       Block positions are kept, so the loader's [E<n>] numbers
+                       still line up with `_source_refs`.
+      index_map        (block_index, loader_item_index) -> original item_index,
+                       for the blocks that lost an item.
+      videos           (block_index, item_index, block, item) for each video.
+    """
+    loader_snapshot: List[Any] = []
+    index_map: Dict[tuple, int] = {}
+    videos: List[Tuple[int, int, Dict[str, Any], Dict[str, Any]]] = []
+    blocks = [b for b in snapshot if isinstance(b, dict)]
+    for block_index, block in enumerate(blocks, start=1):
+        items = block_items(block.get('content'))
+        taken = [i for i, item in enumerate(items, start=1) if _is_stored_video(block, item)]
+        if not taken:
+            loader_snapshot.append(block)
+            continue
+        kept: List[Any] = []
+        for item_index, item in enumerate(items, start=1):
+            if item_index in taken:
+                videos.append((block_index, item_index, block, item))
+            else:
+                kept.append(item)
+                index_map[(block_index, len(kept))] = item_index
+        loader_snapshot.append({**block, 'content': {'items': kept}})
+    return loader_snapshot, index_map, videos
+
+
+def _video_candidate(admin, block: Dict[str, Any], item: Dict[str, Any], *, index: int,
+                     task_index: int, block_index: int, item_index: int,
+                     scrubber: Scrubber) -> Tuple[Optional[ImageCandidate], Optional[str]]:
+    """(candidate, flag). Exactly one of the two is set.
+
+    The bytes are downloaded here and held for the safety pass. Anything over
+    MAX_VIDEO_SIZE -- the ceiling the upload path already enforces -- is
+    skipped rather than read, because the story worker shares a 512MB
+    container with everything else.
+    """
+    from services.credit_ai_review.evidence_loader import sniff_mime
+    from services.stories import assets as assets_mod
+
+    name = _upload_name(item)
+    label = scrubber.scrub(_strip_extension(name) or 'a video')[:120]
+    tag = f'[E{block_index}] {label}'
+
+    url = item.get('url') or ''
+    declared_size = item.get('file_size')
+    if isinstance(declared_size, int) and declared_size > MAX_VIDEO_SIZE:
+        return None, f'{tag}: the video is too large for a story'
+
+    client = assets_mod._admin_client(admin)
+    # Ask the bucket before pulling the bytes: a signed upload can be ten
+    # times the ceiling, and the ceiling is a memory limit, not a preference.
+    known_size = assets_mod.object_size(client, url)
+    if known_size is not None and known_size > MAX_VIDEO_SIZE:
+        return None, f'{tag}: the video is too large for a story'
+
+    blob = assets_mod._download(client, url)
+    if not blob:
+        return None, f'{tag}: the video could not be read'
+    if len(blob) > MAX_VIDEO_SIZE:
+        return None, f'{tag}: the video is too large for a story'
+
+    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    mime = sniff_mime(blob, declared=_VIDEO_MIME_BY_EXT.get(ext), filename=name)
+    if not mime.startswith('video/'):
+        return None, f'{tag}: the file is not a video ({mime})'
+
+    return ImageCandidate(
+        index=index,
+        task_index=task_index,
+        block_id=block.get('id'),
+        item_index=item_index,
+        source_ref=canonical_stored_url(item.get('url')) or '',
+        mime_type=mime,
+        data=blob,
+        label=label,
+        kind='video',
+        file_name=name or None,
+    ), None
+
+
+# ── quotes, documents and links ──────────────────────────────────────────────
+
+_SENTENCE_END_RE = re.compile(r'[.!?]["\')\]]?(?=\s|$)')
+_MIN_QUOTE_CUT = 200
+
+#: Where a video link points, and the id the page needs to embed it.
+_YOUTUBE_ID_RE = re.compile(
+    r'(?:youtube\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?|shorts|live)/|.*[?&]v=)|youtu\.be/)([A-Za-z0-9_-]{11})')
+_VIMEO_ID_RE = re.compile(r'vimeo\.com/(?:video/)?(\d+)')
+
+
+def clip_quote(text: str, limit: int = MAX_QUOTE_CHARS) -> str:
+    """`text` cut to `limit` characters on the last sentence boundary, plus "...".
+
+    A quotation that stops mid-sentence reads as a mistake. The cut goes back
+    to the last full stop, question mark or exclamation mark before the limit;
+    when there is none far enough in, it goes back to the last space instead.
+    An ellipsis marks every cut, so a reader knows there is more.
+    """
+    cleaned = ' '.join((text or '').split())
+    if len(cleaned) <= limit:
+        return cleaned
+    head = cleaned[:limit]
+    ends = [m.end() for m in _SENTENCE_END_RE.finditer(head)]
+    if ends and ends[-1] >= _MIN_QUOTE_CUT:
+        return head[:ends[-1]].rstrip() + '...'
+    space = head.rfind(' ')
+    cut = head[:space] if space >= _MIN_QUOTE_CUT else head
+    return cut.rstrip(' ,;:') + '...'
+
+
+def hostname_of(url: str) -> str:
+    """The host a link points at, lower-case, without a leading www."""
+    try:
+        host = (urlparse(url or '').hostname or '').lower()
+    except ValueError:
+        return ''
+    return host[4:] if host.startswith('www.') else host
+
+
+def link_video(url: str) -> Tuple[Optional[str], Optional[str]]:
+    """('youtube' | 'vimeo', id) when the URL is a video page, else (None, None)."""
+    if not url or not isinstance(url, str):
+        return None, None
+    m = _YOUTUBE_ID_RE.search(url)
+    if m:
+        return 'youtube', m.group(1)
+    m = _VIMEO_ID_RE.search(url)
+    if m:
+        return 'vimeo', m.group(1)
+    return None, None
+
+
+#: Uploads are stored as `<uuid>_<YYYYMMDD>_<HHMMSS>_<original name>`; the
+#: prefix is machine noise (same rule as web/src/utils/evidenceItems.js).
+_STAMPED_UPLOAD_RE = re.compile(r'^[0-9a-f-]{36}_\d{8}_\d{6}_(.+)$', re.IGNORECASE)
+
+
+def document_title(name: str) -> str:
+    """What a document is called on the page: the file's own name, without
+    the storage stamp, the folder, the percent-encoding or the extension."""
+    from urllib.parse import unquote
+    base = unquote(str(name or '')).rsplit('/', 1)[-1]
+    m = _STAMPED_UPLOAD_RE.match(base)
+    if m:
+        base = m.group(1)
+    return _strip_extension(base).strip()
+
+
+def _is_external_link(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    url = item.get('url')
+    return (isinstance(url, str) and '://' in url and not parse_object_ref(url)
+            and not url.lower().startswith('data:'))
+
+
+def _link_title(item: Dict[str, Any], part: Any, url: str, scrubber: Scrubber) -> str:
+    """The student's title for the link, else the video's oEmbed title, else the host.
+
+    The oEmbed text the loader reads is "title -- author -- description"; only
+    the title is wanted here, and never the author.
+    """
+    own = item.get('title')
+    if isinstance(own, str) and own.strip() and '://' not in own:
+        return scrubber.scrub(own.strip())[:200]
+    if (part is not None and getattr(part, 'kind', None) == 'text' and part.text
+            and getattr(part, 'source', None) in ('youtube', 'vimeo')):
+        first = re.split(r'\s+(?:—|--|-)\s+', part.text.strip(), maxsplit=1)[0].strip()
+        if first:
+            return scrubber.scrub(first)[:200]
+    return hostname_of(url) or 'a link'
+
+
+def _story_budget():
+    """The evidence loader's budget, adjusted for a story rather than a review.
+
+    A PDF is inlined up to MAX_DOCUMENT_SIZE so the safety pass and the public
+    copy see the same bytes, and the total inline room is raised to match; the
+    loader here is not assembling one model request, so that ceiling is a
+    memory bound, not an API one. A YouTube link is never a file_uri part: the
+    drafter cannot watch it, and the oEmbed title the loader reads instead is
+    what the link card shows.
+    """
+    from services.credit_ai_review.evidence_loader import Budget
+    budget = Budget.from_config()
+    budget.max_pdf_inline_bytes = MAX_DOCUMENT_SIZE
+    budget.max_pdf_inline_pages = 1000
+    budget.max_inline_bytes = max(budget.max_inline_bytes, 3 * MAX_DOCUMENT_SIZE)
+    budget.max_youtube_parts = 0
+    return budget
+
+
+def _document_excerpt(blob: bytes, scrubber: Scrubber) -> Optional[str]:
+    from services.credit_ai_review.evidence_loader import _pdf_text
+    text = _pdf_text(blob)
+    if not text:
+        return None
+    return scrubber.scrub(' '.join(text.split()))[:MAX_DOCUMENT_EXCERPT_CHARS] or None
+
+
 def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubber,
-               admin, image_offset: int = 0, load_images: bool = True) -> TaskSource:
-    """Everything the story needs about one finalized submission."""
+               admin, image_offset: int = 0, load_images: bool = True,
+               quote_offset: int = 0, link_offset: int = 0) -> TaskSource:
+    """Everything the story needs about one finalized submission.
+
+    `images` holds every file candidate for the task -- images, videos and
+    PDFs -- in the order the evidence was submitted; `quotes` and `links` the
+    text and the external URLs, likewise. The three offsets keep the [I<n>],
+    [Q<n>] and [L<n>] numbers unique across a quest's tasks.
+    """
     from repositories.credit_ai_review_repository import CreditAIReviewRepository
     from services.credit_ai_review import evidence_loader
     from services.credit_ai_review.prompt import criteria_for
@@ -368,7 +741,8 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
 
     review = CreditAIReviewRepository(client=admin).latest_complete_for_completion(
         completion['id']) or {}
-    review_body = review.get('review') if isinstance(review.get('review'), dict) else {}
+    raw_review = review.get('review')
+    review_body: Dict[str, Any] = raw_review if isinstance(raw_review, dict) else {}
     ai_criteria = [
         {
             'index': c.get('index'),
@@ -378,40 +752,115 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
         }
         for c in (review_body.get('criteria') or []) if isinstance(c, dict)
     ]
-    celebrate = ((review_body.get('feedback') or {}).get('celebrate')
-                 if isinstance(review_body.get('feedback'), dict) else None)
+    feedback = review_body.get('feedback')
+    celebrate = feedback.get('celebrate') if isinstance(feedback, dict) else None
 
     evidence_texts: List[str] = []
     images: List[ImageCandidate] = []
+    quotes: List[QuoteCandidate] = []
+    links: List[LinkCandidate] = []
     flags: List[str] = []
     snapshot = rounds[-1].get('evidence_snapshot') if rounds else None
     if load_images and isinstance(snapshot, list) and snapshot:
         refs = _source_refs(snapshot)
-        # Never the File API: a story has no use for a child's video, and an
-        # upload it does not need is an upload it should not make.
-        load = evidence_loader.load_evidence(snapshot, admin=admin, file_api_enabled=False)
+        loader_snapshot, index_map, videos = _split_stored_videos(snapshot)
+        blocks = [b for b in snapshot if isinstance(b, dict)]
+        # The loader never uses the File API here. Stored videos were taken
+        # out of its view above and are read by _video_candidate, whose bytes
+        # the safety pass uploads itself and deletes itself; a handle the
+        # loader made would be gone (release()) before that pass ran.
+        load = evidence_loader.load_evidence(loader_snapshot, budget=_story_budget(),
+                                             admin=admin, file_api_enabled=False)
+        parts_by_item: Dict[tuple, Any] = {}
         try:
             for part in load.parts:
+                item_index = index_map.get((part.block_index, part.item_index), part.item_index)
+                parts_by_item[(part.block_index, item_index)] = part
+                block = blocks[part.block_index - 1] if 0 < part.block_index <= len(blocks) else {}
                 if part.kind == 'text' and part.text:
-                    evidence_texts.append(scrubber.scrub(part.text.strip()))
-                elif (part.kind == 'inline' and part.data
-                      and (part.mime_type or '').startswith('image/')):
-                    ref = refs.get((part.block_index, part.item_index))
+                    text = scrubber.scrub(part.text.strip())
+                    evidence_texts.append(text)
+                    # The student's own words, or the first page of a document
+                    # they wrote, become a quotation. Text the loader pulled
+                    # off a web page or a Google Doc does not: that is a link,
+                    # and the page shows it as one.
+                    if part.source == 'typed':
+                        quotes.append(QuoteCandidate(
+                            index=quote_offset + len(quotes) + 1, task_index=index,
+                            block_id=block.get('id'), item_index=item_index,
+                            text=clip_quote(text), caption=None, origin='text',
+                            text_index=len(evidence_texts) - 1))
+                    elif part.source == 'upload':
+                        title = scrubber.scrub(document_title(part.label or '')).strip()
+                        quotes.append(QuoteCandidate(
+                            index=quote_offset + len(quotes) + 1, task_index=index,
+                            block_id=block.get('id'), item_index=item_index,
+                            text=clip_quote(text),
+                            caption=f'From {title}' if title else 'From a document',
+                            origin='document', text_index=len(evidence_texts) - 1))
+                elif part.kind == 'inline' and part.data and part.source == 'upload':
+                    ref = refs.get((part.block_index, item_index))
                     if not ref:
                         continue
-                    images.append(ImageCandidate(
-                        index=image_offset + len(images) + 1,
-                        task_index=index,
-                        block_id=ref['block_id'],
-                        item_index=part.item_index,
-                        source_ref=ref['source_ref'],
-                        mime_type=part.mime_type or 'image/jpeg',
-                        data=part.data,
-                        label=scrubber.scrub(ref['label']),
-                    ))
+                    mime = (part.mime_type or '').lower()
+                    if mime.startswith('image/'):
+                        images.append(ImageCandidate(
+                            index=image_offset + len(images) + 1,
+                            task_index=index,
+                            block_id=ref['block_id'],
+                            item_index=item_index,
+                            source_ref=ref['source_ref'],
+                            mime_type=part.mime_type or 'image/jpeg',
+                            data=part.data,
+                            label=scrubber.scrub(ref['label']),
+                        ))
+                    elif mime == 'application/pdf':
+                        # The loader sniffed these bytes as a PDF and kept them
+                        # whole. The safety pass reads the same bytes; the
+                        # publish step copies the original.
+                        name = ref['label'] if ref['label'] != 'a photo' else (part.label or '')
+                        label = scrubber.scrub(document_title(name)).strip()
+                        images.append(ImageCandidate(
+                            index=image_offset + len(images) + 1,
+                            task_index=index,
+                            block_id=ref['block_id'],
+                            item_index=item_index,
+                            source_ref=ref['source_ref'],
+                            mime_type='application/pdf',
+                            data=part.data,
+                            label=label or 'a document',
+                            kind='document',
+                            file_name=name or None,
+                            excerpt=_document_excerpt(part.data, scrubber),
+                        ))
             flags = list(load.flags or [])
         finally:
             evidence_loader.release(load)
+
+        # External links come from the snapshot, not from the loader's parts:
+        # a page the loader could not fetch is still a link the student
+        # submitted, and the page shows it as one.
+        for block_index, block in enumerate(blocks, start=1):
+            for item_index, item in enumerate(block_items(block.get('content')), start=1):
+                if not _is_external_link(item):
+                    continue
+                url = item['url'].strip()
+                provider, video_id = link_video(url)
+                links.append(LinkCandidate(
+                    index=link_offset + len(links) + 1, task_index=index,
+                    block_id=block.get('id'), item_index=item_index, url=url,
+                    title=_link_title(item, parts_by_item.get((block_index, item_index)),
+                                      url, scrubber),
+                    host=hostname_of(url), provider=provider, video_id=video_id))
+
+        for block_index, item_index, block, item in videos:
+            candidate, flag = _video_candidate(
+                admin, block, item, index=image_offset + len(images) + 1, task_index=index,
+                block_index=block_index, item_index=item_index, scrubber=scrubber)
+            if candidate is not None:
+                images.append(candidate)
+            elif flag:
+                flags.append(flag)
 
     return TaskSource(
         index=index,
@@ -425,6 +874,8 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
         xp=xp,
         evidence_texts=evidence_texts,
         images=images,
+        quotes=quotes,
+        links=links,
         ai_criteria=ai_criteria,
         celebrate=scrubber.scrub(celebrate) if isinstance(celebrate, str) else None,
         rounds=rounds_from_rows(rounds, scrubber),

@@ -99,11 +99,14 @@ def load(user_quest_id: str, *, repo=None, admin=None,
         raise QuestNotComplete(f'user_quest {user_quest_id} has no finalized task')
 
     task_sources = []
-    image_offset = 0
+    image_offset = quote_offset = link_offset = 0
     for index, completion in enumerate(completions, start=1):
         task = build_task(repo, completion, index=index, scrubber=scrubber, admin=admin,
-                          image_offset=image_offset, load_images=load_images)
+                          image_offset=image_offset, load_images=load_images,
+                          quote_offset=quote_offset, link_offset=link_offset)
         image_offset += len(task.images)
+        quote_offset += len(task.quotes)
+        link_offset += len(task.links)
         task_sources.append(task)
 
     return StorySource(

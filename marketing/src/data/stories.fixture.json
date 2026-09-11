@@ -36,7 +36,27 @@
             "type": "quote",
             "url": null,
             "alt": null,
-            "caption": "In November I could not get through the full-court drill without stopping. By February I was the one asking to run it again. I did not notice the change until I read my own log back."
+            "text": "In November I could not get through the full-court drill without stopping. By February I was the one asking to run it again. I did not notice the change until I read my own log back.",
+            "caption": null
+          },
+          {
+            "type": "quote",
+            "url": null,
+            "alt": null,
+            "text": "Week 1: 54% from the line, legs gone by the third quarter. Week 14: 71%, and I ran the last drill of the season.",
+            "caption": "From Training log"
+          },
+          {
+            "type": "document",
+            "url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/fixtures/training-log.pdf",
+            "alt": "Training log",
+            "caption": "Fourteen weeks of dated entries, one per practice, with the free-throw chart on the last page."
+          },
+          {
+            "type": "link",
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "alt": "Season highlights",
+            "caption": "The club's highlight reel from the last game of the season."
           }
         ]
       },
@@ -127,8 +147,15 @@
             "caption": "The project page in the app. Five tasks, each with its own evidence."
           },
           {
+            "type": "video",
+            "url": "https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/story-assets/stories/fixture/stop-motion.mp4",
+            "alt": "The finished stop motion film, two minutes and six seconds",
+            "caption": "The film as submitted. Twelve frames per second, 1,140 frames."
+          },
+          {
             "type": "quote",
-            "caption": "I thought the hard part would be the clay. The hard part was keeping the light the same for eleven days."
+            "text": "I thought the hard part would be the clay. The hard part was keeping the light the same for eleven days.",
+            "caption": null
           }
         ]
       },

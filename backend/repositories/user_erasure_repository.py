@@ -354,7 +354,7 @@ def _unpublish_stories(client, user_id: str, prefixes: List[Tuple[str, str]],
 
     if unpublished:
         try:
-            MarketingRebuildRepository(client=client).create('student_erased', status='requested')
+            MarketingRebuildRepository(client=client).create_request('student_erased', status='requested')
         except Exception as e:  # noqa: BLE001
             errors.append(f'queue marketing rebuild: {e}')
     return unpublished

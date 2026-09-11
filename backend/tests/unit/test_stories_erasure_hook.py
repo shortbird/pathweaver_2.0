@@ -7,7 +7,7 @@ published rows are marked unpublished, and one rebuild is queued for the cron.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -19,7 +19,10 @@ STUDENT = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
 
 
 class FakeStoryRepo:
-    def __init__(self, client=None, rows: List[Dict[str, Any]] = None):
+    seed: List[Dict[str, Any]] = []
+    patched: List[tuple] = []
+
+    def __init__(self, client=None, rows: Optional[List[Dict[str, Any]]] = None):
         self.rows = rows if rows is not None else FakeStoryRepo.seed
         self.patches: List[tuple] = []
 
@@ -37,7 +40,7 @@ class FakeRebuildRepo:
     def __init__(self, client=None):
         pass
 
-    def create(self, reason, status='requested', requested_at=None):
+    def create_request(self, reason, status='requested', requested_at=None):
         FakeRebuildRepo.created.append((reason, status))
         return {'id': 'rb1'}
 

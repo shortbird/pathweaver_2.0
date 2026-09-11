@@ -37,6 +37,9 @@ from services.stories.source import credit_display, subject_slug
 logger = get_logger(__name__)
 
 EVIDENCE_ITEM_KEYS = ('type', 'url', 'alt', 'caption', 'width', 'height')
+#: The two evidence item types that are not backed by a `story_assets` row.
+#: They carry their own `included` flag and `safety` record on the item.
+STANDALONE_ITEM_TYPES = ('quote', 'link')
 TASK_ROW_KEYS = ('title', 'subject', 'xp', 'criteria_met', 'criteria_total', 'rounds')
 CRITERION_KEYS = ('text', 'verdict', 'note')
 ROUND_KEYS = ('round', 'date', 'action', 'feedback_verbatim', 'what_changed')
@@ -54,7 +57,8 @@ def _repos(admin=None):
 # ── the gate ─────────────────────────────────────────────────────────────────
 
 def _section(story: Dict[str, Any], kind: str) -> Optional[Dict[str, Any]]:
-    body = story.get('body') if isinstance(story.get('body'), dict) else {}
+    raw_body = story.get('body')
+    body: Dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
     for section in body.get('sections') or []:
         if isinstance(section, dict) and section.get('kind') == kind:
             return section
@@ -63,6 +67,29 @@ def _section(story: Dict[str, Any], kind: str) -> Optional[Dict[str, Any]]:
 
 def _blocker(code: str, field: str, message: str) -> Dict[str, str]:
     return {'code': code, 'field': field, 'message': message}
+
+
+def _is_video(asset: Optional[Dict[str, Any]]) -> bool:
+    return (asset or {}).get('kind') == 'video'
+
+
+def _is_document(asset: Optional[Dict[str, Any]]) -> bool:
+    return (asset or {}).get('kind') == 'document'
+
+
+def _is_still(asset: Optional[Dict[str, Any]]) -> bool:
+    return bool(asset) and not _is_video(asset) and not _is_document(asset)
+
+
+def _is_standalone(item: Any) -> bool:
+    """A quote or a link: an evidence item with no asset row behind it."""
+    return isinstance(item, dict) and item.get('type') in STANDALONE_ITEM_TYPES
+
+
+def _hero_candidates(assets: List[Dict[str, Any]]) -> List[str]:
+    """Included IMAGE asset ids. A video or a PDF is never a hero: the page and
+    the og:image both want a still, and a <video> in an <Image> fails the build."""
+    return [a['id'] for a in assets if a.get('included') and _is_still(a)]
 
 
 def blockers(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> List[Dict[str, str]]:
@@ -77,8 +104,10 @@ def blockers(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> List[Dict[s
         out.append(_blocker('empty_body', 'what_they_did',
                             'The "what they did" section is empty.'))
 
-    safety = story.get('safety') if isinstance(story.get('safety'), dict) else {}
-    text_report = safety.get('text') if isinstance(safety.get('text'), dict) else {}
+    raw_safety = story.get('safety')
+    safety: Dict[str, Any] = raw_safety if isinstance(raw_safety, dict) else {}
+    raw_text_report = safety.get('text')
+    text_report: Dict[str, Any] = raw_text_report if isinstance(raw_text_report, dict) else {}
     if 'text_leak' in (text_report.get('blockers') or []):
         out.append(_blocker('text_leak', 'body',
                             'The text still identified someone after one rescrub: '
@@ -89,14 +118,20 @@ def blockers(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> List[Dict[s
     if hero and not (by_id.get(hero) or {}).get('included'):
         out.append(_blocker('hero_excluded', 'hero_asset_id',
                             'The hero image is an excluded asset.'))
+    elif hero and not _is_still(by_id.get(hero)):
+        out.append(_blocker('hero_not_image', 'hero_asset_id',
+                            'The hero must be an image, not a video or a document.'))
 
     evidence = _section(story, 'evidence') or {}
     for item in evidence.get('items') or []:
-        url = item.get('url') if isinstance(item, dict) else None
+        if not isinstance(item, dict) or item.get('included') is False:
+            continue
+        url = item.get('url')
         if url and not str(url).startswith('https://'):
             out.append(_blocker('insecure_url', 'evidence', f'Not an https URL: {url}'))
 
-    receipt = story.get('receipt') if isinstance(story.get('receipt'), dict) else {}
+    raw_receipt = story.get('receipt')
+    receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
     included = [a for a in assets if a.get('included')]
     if not included and not receipt.get('icon'):
         out.append(_blocker('no_image_no_icon', 'receipt',
@@ -133,8 +168,10 @@ def apply_verdicts(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
     """Make the row agree with the safety verdicts. Returns the updated pair.
 
     An asset whose verdict is not `safe` is not included, whatever the drafter
-    said. A hero that points at an excluded asset is re-pointed at the first
-    included one, or cleared. Evidence items for excluded assets are dropped.
+    said. A hero that points at an excluded asset, or at a video, is re-pointed
+    at the first included image, or cleared. Evidence items for excluded
+    assets are dropped. Quotes and links carry their own `included` flag and
+    are left as they are.
     """
     changed_assets: List[Dict[str, Any]] = []
     for asset in assets:
@@ -146,15 +183,17 @@ def apply_verdicts(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
         changed_assets.append(asset)
 
     included_ids = [a['id'] for a in changed_assets if a.get('included')]
+    hero_ids = _hero_candidates(changed_assets)
     hero = story.get('hero_asset_id')
-    new_hero = hero if hero in included_ids else (included_ids[0] if included_ids else None)
+    new_hero = hero if hero in hero_ids else (hero_ids[0] if hero_ids else None)
 
     body = dict(story.get('body') or {})
     sections = []
     for section in body.get('sections') or []:
         if isinstance(section, dict) and section.get('kind') == 'evidence':
             items = [i for i in (section.get('items') or [])
-                     if isinstance(i, dict) and i.get('asset_id') in included_ids]
+                     if _is_standalone(i)
+                     or (isinstance(i, dict) and i.get('asset_id') in included_ids)]
             section = {**section, 'items': items}
         sections.append(section)
     body['sections'] = sections
@@ -170,7 +209,8 @@ def apply_verdicts(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
 
 
 def _fill_urls(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Evidence items get their public URL, size and nothing else."""
+    """Asset-backed evidence items get their public URL, size and nothing
+    else. Quotes and links have nothing to fill and pass through unchanged."""
     by_id = {a.get('id'): a for a in assets}
     body = dict(story.get('body') or {})
     sections = []
@@ -178,6 +218,9 @@ def _fill_urls(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> Dict[str,
         if isinstance(section, dict) and section.get('kind') == 'evidence':
             items = []
             for item in section.get('items') or []:
+                if _is_standalone(item):
+                    items.append(item)
+                    continue
                 asset = by_id.get((item or {}).get('asset_id')) if isinstance(item, dict) else None
                 if not asset or not asset.get('public_path') or not asset.get('included'):
                     continue
@@ -204,7 +247,7 @@ def _publish(story: Dict[str, Any], assets: List[Dict[str, Any]], *, admin=None,
     story, assets = apply_verdicts(story, assets, asset_repo=asset_repo, story_repo=story_repo)
     found = blockers(story, assets)
     if found:
-        update = {'status': 'review', 'blockers': found}
+        update: Dict[str, Any] = {'status': 'review', 'blockers': found}
         if updated_by:
             update['updated_by'] = updated_by
         story_repo.patch(story['id'], update)
@@ -212,10 +255,11 @@ def _publish(story: Dict[str, Any], assets: List[Dict[str, Any]], *, admin=None,
 
     assets = assets_mod.copy_to_public(story, assets, admin=admin, repo=asset_repo)
     body = _fill_urls(story, assets)
-    included_ids = [a['id'] for a in assets if a.get('included') and a.get('public_path')]
+    hero_ids = [a['id'] for a in assets if a.get('included') and a.get('public_path')
+                and _is_still(a)]
     hero = story.get('hero_asset_id')
-    if hero not in included_ids:
-        hero = included_ids[0] if included_ids else None
+    if hero not in hero_ids:
+        hero = hero_ids[0] if hero_ids else None
     stamp = now_iso()
     update = {
         'status': 'published',
@@ -374,7 +418,8 @@ def _included(row: Any) -> bool:
 
 def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
                      ) -> Tuple[List[Dict[str, Any]], int]:
-    body = story.get('body') if isinstance(story.get('body'), dict) else {}
+    raw_body = story.get('body')
+    body: Dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
     sections: List[Dict[str, Any]] = []
     task_count = 1
     for section in body.get('sections') or []:
@@ -390,21 +435,52 @@ def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
         elif kind == 'evidence':
             items = []
             for item in section.get('items') or []:
-                if not isinstance(item, dict):
+                if not isinstance(item, dict) or not _included(item):
                     continue
-                asset = by_id.get(item.get('asset_id')) or {}
+                if item.get('type') == 'quote':
+                    # The student's words. `included` and `safety` stay behind;
+                    # so does everything else on the item.
+                    text = item.get('text')
+                    if isinstance(text, str) and text.strip():
+                        items.append({'type': 'quote', 'text': text,
+                                      'caption': item.get('caption') or None})
+                    continue
+                if item.get('type') == 'link':
+                    url = item.get('url')
+                    if isinstance(url, str) and url.strip():
+                        items.append({'type': 'link', 'url': url,
+                                      'alt': item.get('alt') or '',
+                                      'caption': item.get('caption') or None})
+                    continue
+                asset_id = item.get('asset_id')
+                asset = (by_id.get(asset_id) or {}) if asset_id else {}
                 url = (assets_mod.public_url_for(asset.get('public_path'))
-                       if asset.get('included') and asset.get('public_path') else item.get('url'))
+                       if asset.get('included') and asset.get('public_path')
+                       else asset.get('preview_url') or item.get('url'))
                 if not url:
                     continue
-                items.append({
-                    'type': item.get('type') or 'image',
+                # The asset row decides the type: a video is a video and a PDF
+                # a document whatever the item says, and neither carries a
+                # pixel size.
+                if _is_video(asset):
+                    item_type = 'video'
+                elif _is_document(asset):
+                    item_type = 'document'
+                else:
+                    item_type = item.get('type') or 'image'
+                public_item: Dict[str, Any] = {
+                    'type': item_type,
                     'url': url,
                     'alt': item.get('alt') or asset.get('alt') or '',
                     'caption': item.get('caption') if item.get('caption') is not None else asset.get('caption'),
-                    'width': asset.get('width') or item.get('width'),
-                    'height': asset.get('height') or item.get('height'),
-                })
+                }
+                width = asset.get('width') or item.get('width')
+                height = asset.get('height') or item.get('height')
+                if width is not None:
+                    public_item['width'] = width
+                if height is not None:
+                    public_item['height'] = height
+                items.append(public_item)
             sections.append({'kind': kind, 'items': items})
         elif kind == 'what_reviewer_looked_for':
             sections.append({'kind': kind,
@@ -417,26 +493,44 @@ def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
     return sections, task_count
 
 
-def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Exactly what the marketing site's zod schema expects. Nothing else."""
-    by_id = {a.get('id'): a for a in assets or []}
+def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
+                *, preview: bool = False) -> Dict[str, Any]:
+    """Exactly what the marketing site's zod schema expects. Nothing else.
+
+    ``preview`` is the local-only path behind ``?preview=1``: a story still in
+    review has no public copies of its media, so included assets are shown
+    through short-lived signed URLs of the private originals instead. The
+    route refuses the flag in production, so those URLs never leave a dev box.
+    """
+    if preview:
+        from utils.storage_urls import sign_stored_url
+        assets = [
+            {**a, 'preview_url': (sign_stored_url(a.get('source_ref'))
+                                  if a.get('included') and not a.get('public_path') else None)}
+            for a in (assets or [])
+        ]
+    by_id = {a['id']: a for a in assets or [] if a.get('id')}
     sections, task_count = _public_sections(story, by_id)
-    body = story.get('body') if isinstance(story.get('body'), dict) else {}
+    raw_body = story.get('body')
+    body: Dict[str, Any] = raw_body if isinstance(raw_body, dict) else {}
     faq = [{'q': f.get('q'), 'a': f.get('a')} for f in body.get('faq') or []
            if isinstance(f, dict) and f.get('q') and f.get('a')]
 
     hero = by_id.get(story.get('hero_asset_id')) or {}
+    if not _is_still(hero):
+        hero = {}
     hero_url = (assets_mod.public_url_for(hero.get('public_path'))
                 if hero.get('included') and hero.get('public_path') else None)
 
-    receipt = story.get('receipt') if isinstance(story.get('receipt'), dict) else {}
+    raw_receipt = story.get('receipt')
+    receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
     subject = story.get('subject') or 'Electives'
     return {
         'slug': story.get('slug'),
         'title': story.get('title'),
         'dek': story.get('dek'),
-        'status': 'published',
-        'published_at': story.get('published_at'),
+        'status': 'published' if story.get('status') == 'published' else 'review',
+        'published_at': story.get('published_at') or story.get('updated_at') or story.get('created_at'),
         'updated_at': story.get('updated_at'),
         'author': {'name': story.get('author_name'), 'title': story.get('author_title')},
         'student': {

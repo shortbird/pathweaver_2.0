@@ -7,7 +7,7 @@
 import type { Story } from '../data/stories.schema'
 import { SITE } from '../data/site'
 import { absolute } from '../data/schema'
-import { formatDate, reviewStats, sectionsByKind, summarySentence, SETTING_LABEL, GRADE_BAND_LABEL, landerFor, storyUrl } from './stories'
+import { formatDate, hostnameOf, reviewStats, sectionsByKind, summarySentence, SETTING_LABEL, GRADE_BAND_LABEL, landerFor, storyUrl } from './stories'
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -58,10 +58,17 @@ export function storyHtml(story: Story): string {
       if (item.type === 'image' && item.url) {
         const size = item.width && item.height ? ` width="${item.width}" height="${item.height}"` : ''
         parts.push(`<figure><img src="${esc(item.url)}" alt="${esc(item.alt ?? '')}"${size} />${item.caption ? `<figcaption>${esc(item.caption)}</figcaption>` : ''}</figure>`)
-      } else if (item.type === 'quote' && item.caption) {
-        parts.push(`<blockquote>${esc(item.caption)}</blockquote>`)
-      } else if ((item.type === 'video' || item.type === 'document') && item.url) {
-        const label = item.caption || item.alt || (item.type === 'video' ? 'Watch the video' : 'Open the document')
+      } else if (item.type === 'quote' && item.text) {
+        const cite = item.caption ? `<footer><cite>${esc(item.caption)}</cite></footer>` : ''
+        parts.push(`<blockquote><p>${esc(item.text)}</p>${cite}</blockquote>`)
+      } else if (item.type === 'document' && item.url) {
+        const label = item.alt || 'A document the student submitted'
+        parts.push(`<p><a href="${esc(item.url)}">${esc(label)} (PDF)</a>${item.caption ? `: ${esc(item.caption)}` : ''}</p>`)
+      } else if (item.type === 'link' && item.url) {
+        const label = item.alt || hostnameOf(item.url) || item.url
+        parts.push(`<p><a href="${esc(item.url)}">${esc(label)}</a>${item.caption ? `: ${esc(item.caption)}` : ''}</p>`)
+      } else if (item.type === 'video' && item.url) {
+        const label = item.caption || item.alt || 'Watch the video'
         parts.push(`<p><a href="${esc(item.url)}">${esc(label)}</a></p>`)
       }
     }

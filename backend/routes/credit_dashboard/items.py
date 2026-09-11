@@ -115,6 +115,10 @@ def get_dashboard_items(user_id: str):
         # Parse query params
         status_filter = request.args.get('status')
         student_id_filter = request.args.get('student_id')
+        # The search box sends a name, not an id. Resolved to ids below, inside
+        # the caller's scope, so a name typed by an org admin can never match a
+        # student in another org.
+        student_search = (request.args.get('student') or '').strip()
         request.args.get('subject')
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
@@ -133,6 +137,14 @@ def get_dashboard_items(user_id: str):
         student_ids = None if scope is UNRESTRICTED else scope
         if student_ids is not None and not student_ids:
             return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
+
+        if student_search:
+            from repositories.user_repository import UserRepository
+            matched = UserRepository(client=admin_supabase).ids_matching_name(
+                student_search, within_ids=student_ids)
+            if not matched:
+                return success_response(data={'items': [], 'total': 0, 'page': page, 'per_page': per_page})
+            student_ids = matched
 
         # An AI filter narrows to a set of completion ids. Resolved before the
         # page query rather than after, so page 2 of "AI recommends approve" is

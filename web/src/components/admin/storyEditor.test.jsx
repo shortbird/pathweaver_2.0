@@ -4,8 +4,11 @@
  *
  * What is held here: the form loads what the server sent, a title option
  * is one click, Save PUTs the editable subset (assets included), Publish
- * saves first and shows the server's blockers when it refuses, and the
- * evidence picker locks an excluded image in the anonymized tier.
+ * saves first and shows the server's blockers when it refuses, the
+ * evidence picker locks an excluded image in the anonymized tier, a video
+ * asset renders as a player rather than a thumbnail, a PDF as a link, and
+ * the "Words and links" list carries the student's quotations and external
+ * links with the same include rules the server enforces.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -228,6 +231,175 @@ describe('the evidence picker', () => {
     expect(api.put.mock.calls[0][1].assets[1].included).toBe(true)
   })
 
+  it('renders a video asset as a player, with include and captions but no hero radio', async () => {
+    loaded = response({
+      assets: [
+        ...ASSETS,
+        { id: 'v1', kind: 'video', mime_type: 'video/mp4', thumb_url: null,
+          media_url: 'https://signed.test/v1.mp4?token=abc', alt: 'A dance routine', caption: 'One take',
+          included: true, safety: { verdict: 'safe', reason: null, faces: 0, readable_text: [] } },
+      ],
+    })
+    renderEditor()
+    const box = await screen.findByLabelText('Include video A dance routine')
+    expect(box).toBeEnabled()
+    expect(box).toBeChecked()
+    expect(screen.queryByLabelText('Use as hero image A dance routine')).toBeNull()
+    expect(screen.getByLabelText('Caption for video v1')).toHaveValue('One take')
+
+    // The picker's player and the preview's player, both over the signed URL.
+    const players = document.querySelectorAll('video')
+    expect(players.length).toBe(2)
+    players.forEach((el) => {
+      expect(el.getAttribute('src')).toBe('https://signed.test/v1.mp4?token=abc')
+      expect(el).toHaveAttribute('controls')
+      expect(el.getAttribute('preload')).toBe('metadata')
+    })
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    expect(within(preview).getByText('One take')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Caption for video v1'), { target: { value: 'Three minutes.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    expect(api.put.mock.calls[0][1].assets[2]).toEqual(
+      { id: 'v1', included: true, alt: 'A dance routine', caption: 'Three minutes.' })
+  })
+
+  it('keeps a video with location metadata locked even in the named tier', async () => {
+    loaded = response({
+      story: { tier: 'named' },
+      assets: [
+        { id: 'v2', kind: 'video', mime_type: 'video/mp4', thumb_url: null, media_url: null,
+          alt: 'Located', caption: '', included: false,
+          safety: { verdict: 'excluded', reason: 'video_location_metadata', faces: 0, readable_text: [] } },
+      ],
+    })
+    renderEditor()
+    const box = await screen.findByLabelText('Include video Located')
+    expect(box).toBeDisabled()
+    expect(screen.getByText('Locked: the video carries location metadata.')).toBeInTheDocument()
+    expect(screen.getByText('No preview')).toBeInTheDocument()
+  })
+
+  it('renders a document asset as a PDF link, with include and captions but no hero radio', async () => {
+    loaded = response({
+      assets: [
+        ...ASSETS,
+        { id: 'd1', kind: 'document', mime_type: 'application/pdf', thumb_url: null,
+          media_url: 'https://signed.test/d1.pdf?token=abc', alt: 'Lab report', caption: 'As submitted',
+          included: true, safety: { verdict: 'safe', reason: null, faces: 0, readable_text: [] } },
+      ],
+    })
+    renderEditor()
+    const box = await screen.findByLabelText('Include document Lab report')
+    expect(box).toBeChecked()
+    expect(screen.queryByLabelText('Use as hero image Lab report')).toBeNull()
+    const links = screen.getAllByRole('link', { name: 'Open the PDF' })
+    expect(links.length).toBe(2)                                   // the picker and the preview
+    links.forEach(a => expect(a).toHaveAttribute('href', 'https://signed.test/d1.pdf?token=abc'))
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    expect(within(preview).getByText('Lab report')).toBeInTheDocument()
+  })
+})
+
+describe('words and links', () => {
+  const YOUTUBE = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+  const withWords = (tier = 'anonymized') => response({
+    story: {
+      tier,
+      body: {
+        sections: [
+          { kind: 'what_they_did', body_md: 'Played **a season**.' },
+          { kind: 'evidence', items: [
+            { type: 'image', asset_id: 'a1', url: null, alt: 'A ball on grass', caption: '' },
+            { type: 'quote', text: 'In November I could not finish the drill.', caption: null,
+              source_block_id: 'b1', source_item_index: 1, included: true,
+              safety: { verdict: 'safe', reason: null } },
+            { type: 'quote', text: 'From the log.', caption: 'From Training log',
+              source_block_id: 'd1', source_item_index: 1, included: true,
+              safety: { verdict: 'safe', reason: null } },
+            { type: 'link', url: YOUTUBE, alt: 'Season highlights', caption: null,
+              source_block_id: 'l1', source_item_index: 1, included: tier === 'named',
+              safety: tier === 'named'
+                ? { verdict: 'safe', reason: null }
+                : { verdict: 'excluded', reason: 'external_link_identifies' } },
+            { type: 'link', url: 'https://www.instagram.com/team/', alt: 'team', caption: null,
+              source_block_id: 'l2', source_item_index: 1, included: false,
+              safety: { verdict: 'excluded', reason: 'social_profile' } },
+          ] },
+          { kind: 'what_it_counted_for', body_md: 'Half a credit of PE.' },
+        ],
+      },
+    },
+  })
+
+  it('renders a quote row, and the preview shows it as a blockquote with its caption', async () => {
+    loaded = withWords()
+    renderEditor()
+    const box = await screen.findByLabelText('Include quote 1')
+    expect(box).toBeEnabled()
+    expect(box).toBeChecked()
+    expect(screen.getByLabelText('Caption for quote 2')).toHaveValue('From Training log')
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    const quotes = within(preview).getAllByRole('blockquote')
+    expect(quotes.map(q => q.textContent)).toEqual([
+      'In November I could not finish the drill.',
+      'From the log.From Training log',
+    ])
+    expect(within(preview).getByText('From Training log').tagName).toBe('CITE')
+  })
+
+  it('locks an external link in the anonymized tier and explains why', async () => {
+    loaded = withWords('anonymized')
+    renderEditor()
+    const box = await screen.findByLabelText('Include link Season highlights')
+    expect(box).toBeDisabled()
+    expect(box).not.toBeChecked()
+    const row = within(box.closest('li'))
+    expect(row.getByText('Locked out in the anonymized tier.')).toBeInTheDocument()
+    expect(row.getByText(/external_link_identifies/)).toBeInTheDocument()
+    expect(row.getByRole('link', { name: YOUTUBE })).toHaveAttribute('href', YOUTUBE)
+    const social = screen.getByLabelText('Include link team')
+    expect(social).toBeDisabled()
+    expect(within(social.closest('li')).getByText('Locked: a social profile is never published.')).toBeInTheDocument()
+    // Neither link reaches the preview.
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    expect(within(preview).queryByText('Season highlights')).toBeNull()
+    expect(document.querySelector('iframe')).toBeNull()
+  })
+
+  it('in the named tier a clean link embeds through the no-cookie player, a social profile stays locked', async () => {
+    loaded = withWords('named')
+    renderEditor()
+    expect(await screen.findByLabelText('Include link Season highlights')).toBeEnabled()
+    expect(screen.getByLabelText('Include link team')).toBeDisabled()
+    const frame = document.querySelector('iframe')
+    expect(frame.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ')
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    expect(within(preview).getByRole('link', { name: 'Season highlights' })).toHaveAttribute('href', YOUTUBE)
+  })
+
+  it('switches a quote off and saves the body with the flag', async () => {
+    loaded = withWords()
+    renderEditor()
+    fireEvent.click(await screen.findByLabelText('Include quote 1'))
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    expect(within(preview).queryByText('In November I could not finish the drill.')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Caption for quote 2'), { target: { value: 'From the log, week 3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    const items = api.put.mock.calls[0][1].body.sections.find(s => s.kind === 'evidence').items
+    expect(items[1]).toMatchObject({ type: 'quote', included: false, text: 'In November I could not finish the drill.' })
+    expect(items[2]).toMatchObject({ type: 'quote', caption: 'From the log, week 3' })
+  })
+
+  it('says so when the student submitted no text or links', async () => {
+    renderEditor()
+    expect(await screen.findByText('The student submitted no text or links.')).toBeInTheDocument()
+  })
+})
+
+describe('review rounds', () => {
   it('leaves a review round out of the story on a toggle', async () => {
     renderEditor()
     fireEvent.click(await screen.findByLabelText('Include round 1'))

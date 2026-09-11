@@ -33,8 +33,19 @@ type RawStory = Record<string, any>
 
 class StoriesLoadError extends Error {}
 
+/**
+ * STORIES_PREVIEW=1 asks the API for stories still in review as well, so a
+ * draft can be read as a page before anyone presses Publish. The API honours
+ * the flag only outside production, and this loader refuses it on Render, so
+ * a review draft can never reach the live site through it.
+ */
+function previewRequested(): boolean {
+  return process.env.STORIES_PREVIEW === '1'
+}
+
 function endpointUrl(): string {
-  return `${SITE.apiUrl.replace(/\/$/, '')}${ENDPOINT_PATH}`
+  const base = `${SITE.apiUrl.replace(/\/$/, '')}${ENDPOINT_PATH}`
+  return previewRequested() ? `${base}?preview=1` : base
 }
 
 function sleep(ms: number) {
@@ -172,6 +183,10 @@ export function storiesLoader(): Loader {
       const isDev = import.meta.env.DEV
       const minCount = Number.parseInt(process.env.STORIES_MIN_COUNT ?? '0', 10) || 0
       const url = endpointUrl()
+
+      if (previewRequested() && onRender) {
+        throw new StoriesLoadError('Stories: STORIES_PREVIEW=1 is refused on Render. Unset it on the service.')
+      }
 
       let raw: RawStory[]
       if (source === 'fixture') {

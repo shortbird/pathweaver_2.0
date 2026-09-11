@@ -78,7 +78,7 @@ def request_rebuild(reason: str, *, repo=None) -> Dict[str, Any]:
     """Record the ask and fire the hook now if the debounce allows. Never raises."""
     try:
         repo = _repo(repo)
-        row = repo.create(reason or 'unspecified', status='requested')
+        row = repo.create_request(reason or 'unspecified', status='requested')
         row_id = row.get('id')
         hook = Config.MARKETING_DEPLOY_HOOK_URL
         if not hook:

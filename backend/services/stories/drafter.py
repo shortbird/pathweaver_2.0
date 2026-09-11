@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app_config import Config
 from services.base_ai_service import BaseAIService
@@ -28,7 +28,7 @@ from utils.timestamps import now_iso
 from services.stories import prompt as prompt_mod
 from services.stories.activities import normalize_activity_slug, valid_icon
 from services.stories.anonymize import Scrubber
-from services.stories.safety import ImageVerdict
+from services.stories.safety import ImageVerdict, ItemVerdict
 from services.stories.schema import RESPONSE_SCHEMA
 from services.stories.source import (
     ImageCandidate,
@@ -38,6 +38,15 @@ from services.stories.source import (
     subject_display,
     subject_split_rows,
 )
+
+#: What the founder's email and the editor say about a quote or link left out.
+ITEM_REASONS = {
+    'text_leak': 'the text still identified someone after a re-scrub',
+    'external_link_identifies': 'an external link identifies the student in an anonymized story',
+    'social_profile': 'the link is a social media profile',
+    'insecure_url': 'the link is not https',
+    'empty': 'there was nothing left to quote',
+}
 
 logger = get_logger(__name__)
 
@@ -192,16 +201,83 @@ def _task_rows(source: StorySource, summaries: Dict[int, str]) -> List[Dict[str,
     return rows
 
 
+def _quote_items(source: StorySource, verdicts: List[ItemVerdict]
+                 ) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Evidence items for the quotes, in the order the student wrote them.
+
+    Each carries `included` and a `safety` record so the editor can toggle it
+    and see why it was left out. An excluded quote becomes a concern, never a
+    blocker: one quotation with a leak is not a reason to hold the page.
+    """
+    by_index = {v.index: v for v in verdicts or []}
+    items: List[Dict[str, Any]] = []
+    concerns: List[str] = []
+    for quote in source.quote_candidates:
+        verdict = by_index.get(quote.index)
+        safe = bool(verdict and verdict.safe)
+        text = (verdict.text if verdict and verdict.text is not None else quote.text)
+        safety: Dict[str, Any] = (verdict.safety_record() if verdict
+                                  else {'verdict': 'excluded', 'reason': 'not_checked'})
+        if verdict and verdict.leaks:
+            safety['leaks'] = verdict.leaks
+        items.append({
+            'type': 'quote', 'text': text, 'caption': quote.caption,
+            'source_block_id': quote.block_id, 'source_item_index': quote.item_index,
+            'included': safe, 'safety': safety,
+        })
+        if not safe:
+            reason = ITEM_REASONS.get(safety.get('reason') or '', safety.get('reason') or 'not checked')
+            concerns.append(f'Quote [Q{quote.index}] left out: {reason}.')
+    return items, concerns
+
+
+def _link_items(source: StorySource, verdicts: List[ItemVerdict]
+                ) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Evidence items for the external links. Nothing is copied; the URL is
+    the student's, and `alt` is the title the card shows."""
+    by_index = {v.index: v for v in verdicts or []}
+    items: List[Dict[str, Any]] = []
+    concerns: List[str] = []
+    for link in source.link_candidates:
+        verdict = by_index.get(link.index)
+        safe = bool(verdict and verdict.safe)
+        safety = (verdict.safety_record() if verdict
+                  else {'verdict': 'excluded', 'reason': 'not_checked'})
+        items.append({
+            'type': 'link', 'url': link.url, 'alt': link.title, 'caption': None,
+            'source_block_id': link.block_id, 'source_item_index': link.item_index,
+            'included': safe, 'safety': safety,
+        })
+        if not safe:
+            reason = ITEM_REASONS.get(safety.get('reason') or '', safety.get('reason') or 'not checked')
+            concerns.append(f'Link [L{link.index}] ({link.host or "a link"}) left out: {reason}.')
+    return items, concerns
+
+
 def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tier: str,
              verdicts: List[ImageVerdict], scrubber: Scrubber,
              slug_exists: Callable[[str], bool],
-             story_id: Optional[str] = None) -> Dict[str, Any]:
+             story_id: Optional[str] = None,
+             quote_verdicts: Optional[List[ItemVerdict]] = None,
+             link_verdicts: Optional[List[ItemVerdict]] = None) -> Dict[str, Any]:
     """The story row's fields, plus the asset rows to insert.
 
     Returns {'story': {...columns...}, 'assets': [...rows...]}. The draft is
     scrubbed once more here (scrub_structure) before anything is read from it:
     the prompt forbids names, and the scrubber is what makes that a rule.
+
+    Files (images, videos, PDFs) become asset rows and asset-backed evidence
+    items. Quotes and links become evidence items only, each with `included`
+    and `safety`, after the files and in the student's order. Their verdicts
+    are computed here when the caller did not (they need no model call).
     """
+    from services.stories import safety as safety_mod
+
+    if quote_verdicts is None:
+        quote_verdicts = safety_mod.check_quotes(source.quote_candidates, scrubber)
+    if link_verdicts is None:
+        link_verdicts = safety_mod.check_links(source.link_candidates, tier=tier,
+                                               scrubber=scrubber)
     data = scrubber.scrub_structure(draft.data or {})
     split = source.subject_split
     primary_key = source.primary_subject
@@ -228,8 +304,11 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
     model_images: Dict[int, Dict[str, Any]] = {}
     for item in data.get('images') if isinstance(data.get('images'), list) else []:
         if isinstance(item, dict):
+            index = item.get('index')
+            if index is None:
+                continue
             try:
-                model_images[int(item.get('index'))] = item
+                model_images[int(index)] = item
             except (TypeError, ValueError):
                 continue
 
@@ -245,16 +324,25 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
         verdict = by_index.get(candidate.index)
         choice = model_images.get(candidate.index) or {}
         safe = bool(verdict and verdict.safe)
-        included = safe and bool(choice.get('use'))
+        if candidate.is_document:
+            # A safe PDF the student submitted is evidence by definition; the
+            # model may leave it off the page (use=false) but not by silence.
+            included = safe and bool(choice.get('use', True))
+            alt = candidate.label or _plain(choice.get('alt'), 200) or None
+        else:
+            included = safe and bool(choice.get('use'))
+            alt = _plain(choice.get('alt'), 200) or None
         asset_id = str(uuid.uuid4())
-        alt = _plain(choice.get('alt'), 200) or None
         caption = _plain(choice.get('caption'), 300) or None
+        kind = candidate.kind if candidate.kind in ('video', 'document') else 'image'
         assets.append({
             'id': asset_id,
             'story_id': story_id,
             'source_block_id': candidate.block_id,
             'source_item_index': candidate.item_index,
             'source_ref': candidate.source_ref,
+            'kind': kind,
+            'mime_type': candidate.mime_type or None,
             'public_path': None,
             'alt': alt,
             'caption': caption,
@@ -267,19 +355,29 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
         })
         if included:
             evidence_items.append({
-                'type': 'image', 'asset_id': asset_id, 'url': None,
+                'type': kind, 'asset_id': asset_id, 'url': None,
                 'alt': alt or '', 'caption': caption, 'width': None, 'height': None,
             })
-            if candidate.index == hero_index:
+            # The hero is a still. The model was told so; this is the rule.
+            if candidate.index == hero_index and candidate.is_image:
                 hero_asset_id = asset_id
-    if hero_asset_id is None and evidence_items:
-        hero_asset_id = evidence_items[0]['asset_id']
+    if hero_asset_id is None:
+        first_image = next((i for i in evidence_items if i['type'] == 'image'), None)
+        hero_asset_id = first_image['asset_id'] if first_image else None
+
+    quote_items, quote_concerns = _quote_items(source, quote_verdicts)
+    link_items, link_concerns = _link_items(source, link_verdicts)
+    evidence_items.extend(quote_items)
+    evidence_items.extend(link_items)
 
     summaries: Dict[int, str] = {}
     for item in data.get('tasks') if isinstance(data.get('tasks'), list) else []:
         if isinstance(item, dict):
+            index = item.get('index')
+            if index is None:
+                continue
             try:
-                summaries[int(item.get('index'))] = _plain(item.get('summary'), 300)
+                summaries[int(index)] = _plain(item.get('summary'), 300)
             except (TypeError, ValueError):
                 continue
 
@@ -300,6 +398,8 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
     for task in source.tasks:
         for flag in task.evidence_flags:
             concerns.append(f'Evidence not read: {flag}')
+    concerns.extend(quote_concerns)
+    concerns.extend(link_concerns)
 
     story = {
         'slug': unique_slug(title or source.quest.title, slug_exists),

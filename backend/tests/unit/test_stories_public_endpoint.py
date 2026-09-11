@@ -162,6 +162,92 @@ class TestPublicView:
         view = public_view(story, _assets())
         assert view['hero_image_url'] is None and view['hero_alt'] is None
 
+    def test_a_video_asset_passes_through_as_type_video(self):
+        """The asset row decides the type, the URL is the public .mp4, and a
+        video carries no pixel size -- the keys are absent, not null."""
+        story = _story()
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        evidence['items'].append({'type': 'video', 'asset_id': 'a3', 'url': None,
+                                  'alt': 'A dance routine', 'caption': 'One take',
+                                  'width': None, 'height': None})
+        assets = _assets() + [{
+            'id': 'a3', 'story_id': STORY_ID, 'source_block_id': 'v1', 'source_item_index': 1,
+            'source_ref': PRIVATE.replace('1.jpg', 'Dream.MP4'), 'kind': 'video',
+            'mime_type': 'video/mp4', 'public_path': f'stories/{STORY_ID}/a3.mp4',
+            'alt': 'A dance routine', 'caption': 'One take', 'width': None, 'height': None,
+            'order_index': 2, 'safety': {'verdict': 'safe'}, 'included': True,
+        }]
+        view = public_view(story, assets)
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image', 'video']
+        video = items[1]
+        assert set(video) == {'type', 'url', 'alt', 'caption'}
+        assert video['url'].endswith(f'/story-assets/stories/{STORY_ID}/a3.mp4')
+        assert video['alt'] == 'A dance routine' and video['caption'] == 'One take'
+        for url in _urls(view):
+            assert 'quest-evidence' not in url and '/sign/' not in url
+
+    def test_quote_link_and_document_pass_through_with_their_fields(self):
+        """Each standalone item ships exactly its public keys; the asset row
+        decides that a PDF is a document; excluded items and the editor's
+        `included` and `safety` never leave the row."""
+        story = _story()
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        evidence['items'].extend([
+            {'type': 'document', 'asset_id': 'a4', 'url': None, 'alt': 'Lab report',
+             'caption': 'As submitted', 'width': None, 'height': None},
+            {'type': 'quote', 'text': 'It held 12 kg.', 'caption': None,
+             'source_block_id': 'b5', 'source_item_index': 1,
+             'included': True, 'safety': {'verdict': 'safe', 'reason': None}},
+            {'type': 'quote', 'text': 'From the doc.', 'caption': 'From notes',
+             'source_block_id': 'b6', 'source_item_index': 1,
+             'included': True, 'safety': {'verdict': 'safe', 'reason': None}},
+            {'type': 'quote', 'text': 'Ask Anna.', 'caption': None,
+             'included': False, 'safety': {'verdict': 'excluded', 'reason': 'text_leak',
+                                           'leaks': ['Anna']}},
+            {'type': 'link', 'url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+             'alt': 'Bridge load test', 'caption': 'Filmed in one take',
+             'included': True, 'safety': {'verdict': 'safe', 'reason': None}},
+            {'type': 'link', 'url': 'https://www.instagram.com/anna.l/', 'alt': 'anna.l',
+             'caption': None, 'included': False,
+             'safety': {'verdict': 'excluded', 'reason': 'social_profile'}},
+        ])
+        assets = _assets() + [{
+            'id': 'a4', 'story_id': STORY_ID, 'source_block_id': 'd1', 'source_item_index': 1,
+            'source_ref': PRIVATE.replace('1.jpg', 'Lab.pdf'), 'kind': 'document',
+            'mime_type': 'application/pdf', 'public_path': f'stories/{STORY_ID}/a4.pdf',
+            'alt': 'Lab report', 'caption': 'As submitted', 'width': None, 'height': None,
+            'order_index': 3, 'safety': {'verdict': 'safe'}, 'included': True,
+        }]
+        view = public_view(story, assets)
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image', 'document', 'quote', 'quote', 'link']
+        document, quote, labelled, link = items[1], items[2], items[3], items[4]
+        assert document == {'type': 'document', 'alt': 'Lab report', 'caption': 'As submitted',
+                            'url': document['url']}
+        assert document['url'].endswith(f'/story-assets/stories/{STORY_ID}/a4.pdf')
+        assert quote == {'type': 'quote', 'text': 'It held 12 kg.', 'caption': None}
+        assert labelled == {'type': 'quote', 'text': 'From the doc.', 'caption': 'From notes'}
+        assert link == {'type': 'link', 'url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                        'alt': 'Bridge load test', 'caption': 'Filmed in one take'}
+        keys = set(_keys(view))
+        for forbidden in ('included', 'safety', 'leaks', 'source_block_id', 'source_item_index'):
+            assert forbidden not in keys, forbidden
+        assert 'Anna' not in str(view) and 'instagram' not in str(view)
+
+    @pytest.mark.parametrize('kind, path', [('video', 'a3.mp4'), ('document', 'a3.pdf')])
+    def test_a_video_or_a_document_is_never_the_hero_image(self, kind, path):
+        story = {**_story(), 'hero_asset_id': 'a3'}
+        assets = _assets() + [{
+            'id': 'a3', 'story_id': STORY_ID, 'source_ref': PRIVATE, 'kind': kind,
+            'mime_type': 'video/mp4' if kind == 'video' else 'application/pdf',
+            'public_path': f'stories/{STORY_ID}/{path}',
+            'alt': 'A file', 'caption': None, 'width': None, 'height': None,
+            'order_index': 2, 'safety': {'verdict': 'safe'}, 'included': True,
+        }]
+        view = public_view(story, assets)
+        assert view['hero_image_url'] is None and view['hero_alt'] is None
+
 
 # ── the endpoint ─────────────────────────────────────────────────────────────
 
@@ -285,3 +371,47 @@ def test_rows_an_editor_switched_off_are_not_published():
     assert [r['round'] for r in by_kind['how_it_went']['rounds']] == [2]
     assert [r['title'] for r in by_kind['tasks']['rows']] == ['b']
     assert 'included' not in str(view)
+
+
+class TestPreviewFlag:
+    """``?preview=1`` is a developer convenience and must be inert in production."""
+
+    def test_ignored_in_production(self, monkeypatch):
+        from app_config import Config
+        from routes.stories import public as public_mod
+        from flask import Flask
+        monkeypatch.setattr(Config, 'FLASK_ENV', 'production')
+        app = Flask(__name__)
+        with app.test_request_context('/api/public/stories?preview=1'):
+            assert public_mod._preview_requested() is False
+
+    def test_honoured_in_development(self, monkeypatch):
+        from app_config import Config
+        from routes.stories import public as public_mod
+        from flask import Flask
+        monkeypatch.setattr(Config, 'FLASK_ENV', 'development')
+        app = Flask(__name__)
+        with app.test_request_context('/api/public/stories?preview=1'):
+            assert public_mod._preview_requested() is True
+        with app.test_request_context('/api/public/stories'):
+            assert public_mod._preview_requested() is False
+
+    def test_preview_view_signs_the_original_when_nothing_is_public(self, monkeypatch):
+        from services.stories import publish
+        monkeypatch.setattr('utils.storage_urls.sign_stored_url', lambda ref: f'signed:{ref}')
+        story = {
+            'slug': 's', 'title': 'T', 'dek': 'D', 'status': 'review', 'updated_at': '2026-09-11T00:00:00Z',
+            'body': {'sections': [{'kind': 'evidence', 'items': [{'type': 'image', 'asset_id': 'a1', 'alt': 'x'}]}], 'faq': []},
+            'receipt': {'activity': 'a', 'course': 'c', 'credit': '0.5 credit', 'icon': 'ball'},
+            'subject': 'Science', 'xp_awarded': 100,
+        }
+        assets = [{'id': 'a1', 'included': True, 'public_path': None,
+                   'source_ref': 'https://x.supabase.co/storage/v1/object/public/quest-evidence/p.jpg'}]
+        view = publish.public_view(story, assets, preview=True)
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert items[0]['url'].startswith('signed:')
+        assert view['status'] == 'review'
+        assert view['published_at'] == '2026-09-11T00:00:00Z'
+        # And without preview the same story shows nothing it has not published.
+        plain = publish.public_view(story, assets)
+        assert next(s for s in plain['sections'] if s['kind'] == 'evidence')['items'] == []

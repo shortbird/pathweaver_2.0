@@ -415,6 +415,8 @@ const StoryEditor = () => {
             heroAssetId={story.hero_asset_id}
             onChange={patchAssets}
             onHeroChange={id => patch({ hero_asset_id: id })}
+            story={story}
+            onStoryChange={next => { setStory(next); setDirty(true) }}
           />
 
           <SectionHeading>From the review</SectionHeading>

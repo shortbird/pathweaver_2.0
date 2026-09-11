@@ -223,6 +223,47 @@ class UserRepository(BaseRepository):
         """
         return self.find_all(filters={'role': role}, limit=limit)
 
+    def ids_matching_name(self, term: str, *, within_ids: Optional[List[str]] = None,
+                          limit: int = 200) -> List[str]:
+        """User ids whose first, last, preferred or display name, or email, contains `term`.
+
+        Built for the credit dashboard's student search: the queue is filtered
+        by user_id, so a name has to become a set of ids first. `within_ids`
+        keeps the match inside the caller's scope (an org admin's own students)
+        so a name never reveals a student outside it. A two-word term is
+        matched as first and last name in that order, because "Sam Peters" is
+        how a reviewer types it.
+        """
+        if not pgrst_pattern(term):
+            return []
+        try:
+            query = self.client.table(self.table_name).select('id')
+            words = pgrst_pattern(term).split()
+            if len(words) >= 2:
+                query = query.ilike('first_name', f'%{pgrst_pattern(words[0])}%').ilike(
+                    'last_name', f'%{pgrst_pattern(words[-1])}%')
+            else:
+                # Sanitized at the point of interpolation, which is what the
+                # PostgREST filter-injection guard (tests/test_postgrest_filter_
+                # injection.py) can see; a variable that was sanitized earlier
+                # looks raw to it, and rightly so.
+                query = query.or_(
+                    f'first_name.ilike.%{pgrst_pattern(term)}%,'
+                    f'last_name.ilike.%{pgrst_pattern(term)}%,'
+                    f'preferred_name.ilike.%{pgrst_pattern(term)}%,'
+                    f'display_name.ilike.%{pgrst_pattern(term)}%,'
+                    f'email.ilike.%{pgrst_pattern(term)}%'
+                )
+            if within_ids is not None:
+                if not within_ids:
+                    return []
+                query = query.in_('id', within_ids)
+            rows = query.limit(limit).execute().data or []
+            return [r['id'] for r in rows if r.get('id')]
+        except APIError as e:
+            logger.error(f"Error searching users by name: {e}")
+            raise DatabaseError(f"Failed to search users: {e}") from e
+
     def search_by_display_name(
         self,
         search_term: str,

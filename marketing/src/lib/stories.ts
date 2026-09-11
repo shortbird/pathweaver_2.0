@@ -18,8 +18,8 @@ export const isPublished = (story: Story) => story.status === 'published'
  * fixture must pass listingNoindex(...) to the layout.
  */
 export function listable(stories: Story[]): Story[] {
-  const withFixtures = process.env.STORIES_SOURCE === 'fixture' || import.meta.env.DEV
-  return stories.filter((s) => isPublished(s) || withFixtures)
+  const withDrafts = process.env.STORIES_SOURCE === 'fixture' || process.env.STORIES_PREVIEW === '1' || import.meta.env.DEV
+  return stories.filter((s) => isPublished(s) || withDrafts)
 }
 
 export const listingNoindex = (stories: Story[]) => stories.some((s) => !isPublished(s))
@@ -166,6 +166,40 @@ export function formatDate(date: Date): string {
 }
 
 export const isImage = (item: EvidenceItem) => item.type === 'image' && typeof item.url === 'string'
+
+const YOUTUBE_ID_RE = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+const VIMEO_ID_RE = /vimeo\.com\/(?:video\/)?(\d+)/
+
+export interface VideoEmbed {
+  provider: 'youtube' | 'vimeo'
+  id: string
+  /** The privacy-friendly player: no cookies until the visitor presses play. */
+  src: string
+}
+
+/**
+ * A YouTube or Vimeo link as an embed, or null for any other URL. The id
+ * extraction matches the backend (services/stories/source.py, link_video)
+ * and the admin editor's preview, so the three agree on what embeds.
+ */
+export function videoEmbed(url: string | null | undefined): VideoEmbed | null {
+  if (!url) return null
+  const yt = url.match(YOUTUBE_ID_RE)
+  if (yt) return { provider: 'youtube', id: yt[1], src: `https://www.youtube-nocookie.com/embed/${yt[1]}` }
+  const vm = url.match(VIMEO_ID_RE)
+  if (vm) return { provider: 'vimeo', id: vm[1], src: `https://player.vimeo.com/video/${vm[1]}?dnt=1` }
+  return null
+}
+
+/** The host a link points at, without a leading www. Empty for a bad URL. */
+export function hostnameOf(url: string | null | undefined): string {
+  if (!url) return ''
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
 
 /** Only the fields a card needs, so a listing page's props stay small. */
 export function cardProps(story: Story) {

@@ -160,13 +160,11 @@ describe('the buttons', () => {
     expect(publishCalls()[0][1].mode).toBe('review')
   })
 
-  it('refuses an org student for now', async () => {
+  it('treats an org student like any other', async () => {
     eligibility = { ...ELIGIBLE, is_org_student: true }
     renderPanel()
-    await screen.findByText('Org students are not eligible yet.')
-    expect(screen.getByRole('button', { name: 'Publish story' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /Publish whole quest/ })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Draft for review instead' })).toBeDisabled()
+    expect(await screen.findByRole('button', { name: 'Publish story' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Draft for review instead' })).toBeEnabled()
   })
 
   it('offers the existing story instead of a second one', async () => {
@@ -231,7 +229,7 @@ describe('after the click', () => {
 
   it('opens the existing story on a 409', async () => {
     api.post.mockRejectedValueOnce({
-      response: { status: 409, data: { error: { code: 'STORY_EXISTS', message: 'exists', details: { existing_story_id: 'st1' } } } },
+      response: { status: 409, data: { error: 'exists', error_detail: { code: 'STORY_EXISTS', message: 'exists', details: { existing_story_id: 'st1' } } } },
     })
     storyResponses = [storyAt('review')]
     renderPanel()

@@ -164,6 +164,121 @@ class TestPublish:
         assert world['kicked'] == []
 
 
+YOUTUBE = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+INSTAGRAM = 'https://www.instagram.com/anna.l/'
+PUBLIC_COPY = ('https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/'
+               'story-assets/stories/x/a1.jpg')
+PRIVATE_COPY = ('https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/'
+                'quest-evidence/task-evidence/x/1.jpg')
+
+
+def _evidence_items():
+    return [
+        {'type': 'image', 'asset_id': 'a1', 'url': PUBLIC_COPY, 'alt': 'A bridge', 'caption': None},
+        {'type': 'quote', 'text': 'It held 12 kg.', 'caption': None, 'source_block_id': 'b1',
+         'source_item_index': 1, 'included': True, 'safety': {'verdict': 'safe', 'reason': None}},
+        {'type': 'link', 'url': YOUTUBE, 'alt': 'Bridge load test', 'caption': None,
+         'source_block_id': 'l1', 'source_item_index': 1, 'included': False,
+         'safety': {'verdict': 'excluded', 'reason': 'external_link_identifies'}},
+        {'type': 'link', 'url': INSTAGRAM, 'alt': 'anna.l', 'caption': None,
+         'source_block_id': 'l2', 'source_item_index': 1, 'included': False,
+         'safety': {'verdict': 'excluded', 'reason': 'social_profile'}},
+    ]
+
+
+@pytest.fixture
+def editable(world, monkeypatch):
+    """A story in review with a quote and two links, and the PUT's other seams stubbed."""
+    monkeypatch.setattr('routes.stories.admin._consent_view', lambda student_id: None)
+    monkeypatch.setattr('routes.stories.admin.sign_thumb_urls', lambda refs, size=None: {})
+    story = world['story_repo'].create({
+        'status': 'review', 'source_type': 'credit_submission', 'source_id': COMPLETION,
+        'student_user_id': STUDENT, 'mode': 'review', 'tier': 'anonymized',
+        'title': 'A bridge', 'dek': 'It held.', 'subject': 'Science',
+        'receipt': {'activity': 'Bridge', 'course': 'Science', 'credit': '0.5 credit', 'icon': 'flask'},
+        'student_label': 'A high school student',
+        'body': {'sections': [
+            {'kind': 'what_they_did', 'body_md': 'They built it.'},
+            {'kind': 'evidence', 'items': _evidence_items()},
+        ], 'faq': []},
+    })
+    return story
+
+
+def _put(client, story_id, items, **extra):
+    body = {'sections': [{'kind': 'what_they_did', 'body_md': 'They built it.'},
+                         {'kind': 'evidence', 'items': items}], 'faq': []}
+    return client.put(f'/api/admin/stories/{story_id}', json={'body': body, **extra})
+
+
+class TestEditQuotesAndLinks:
+    def _items(self, **included):
+        items = _evidence_items()
+        for item in items:
+            key = item.get('source_block_id')
+            if key in included:
+                item['included'] = included[key]
+        return items
+
+    def test_a_published_copy_and_an_external_url_are_allowed_a_private_pointer_is_not(self, client, editable):
+        assert _put(client, editable['id'], self._items()).status_code == 200
+        items = self._items()
+        items[0]['url'] = PRIVATE_COPY
+        response = _put(client, editable['id'], items)
+        assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'STORAGE_URL'
+
+    def test_anonymized_tier_cannot_include_an_external_link(self, client, editable):
+        response = _put(client, editable['id'], self._items(l1=True))
+        assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'EXCLUSION_STANDS'
+
+    def test_a_social_profile_stays_out_in_the_named_tier(self, client, editable, world):
+        world['story_repo'].patch(editable['id'], {'tier': 'named'})
+        response = _put(client, editable['id'], self._items(l2=True))
+        assert response.status_code == 400
+        assert 'social profile' in response.get_json()['error']['message']
+
+    def test_named_tier_may_include_an_external_link_and_it_is_recorded_as_an_override(self, client, editable, world):
+        world['story_repo'].patch(editable['id'], {'tier': 'named'})
+        response = _put(client, editable['id'], self._items(l1=True))
+        assert response.status_code == 200
+        saved = world['story_repo'].get(editable['id'])
+        items = next(s for s in saved['body']['sections'] if s['kind'] == 'evidence')['items']
+        youtube = next(i for i in items if i.get('url') == YOUTUBE)
+        assert youtube['included'] is True
+        assert youtube['safety'] == {'verdict': 'excluded', 'reason': 'external_link_identifies',
+                                     'override': ADMIN}
+
+    def test_the_text_the_url_and_the_verdict_come_from_the_stored_item(self, client, editable, world):
+        items = self._items()
+        items[1]['text'] = 'Rewritten by an editor.'
+        items[1]['caption'] = 'A caption'
+        items[1]['safety'] = {'verdict': 'safe'}
+        items[2]['url'] = 'https://elsewhere.example.com/'
+        items[2]['safety'] = {'verdict': 'safe', 'reason': None}     # a client cannot launder it
+        items.append({'type': 'quote', 'text': 'Invented.', 'included': True,
+                      'safety': {'verdict': 'safe'}})
+        response = _put(client, editable['id'], items)
+        assert response.status_code == 200
+        saved = world['story_repo'].get(editable['id'])
+        saved_items = next(s for s in saved['body']['sections'] if s['kind'] == 'evidence')['items']
+        quote = next(i for i in saved_items if i['type'] == 'quote')
+        assert quote['text'] == 'It held 12 kg.' and quote['caption'] == 'A caption'
+        links = [i for i in saved_items if i['type'] == 'link']
+        assert [link['url'] for link in links] == [YOUTUBE, INSTAGRAM]
+        assert links[0]['included'] is False
+        assert links[0]['safety']['reason'] == 'external_link_identifies'
+        assert 'Invented.' not in str(saved)
+
+    def test_switching_a_quote_off_is_saved(self, client, editable, world):
+        assert _put(client, editable['id'], self._items(b1=False)).status_code == 200
+        saved = world['story_repo'].get(editable['id'])
+        quote = next(i for s in saved['body']['sections'] if s['kind'] == 'evidence'
+                     for i in s['items'] if i['type'] == 'quote')
+        assert quote['included'] is False
+
+
 class TestInternal:
     def test_cron_secret_opens_the_sweep(self, client, world):
         response = client.post('/api/admin/stories/internal/rebuild-sweep',

@@ -132,6 +132,15 @@ def _image(index=1):
                           label='bridge.jpg')
 
 
+VIDEO_URL = PRIVATE_URL.replace('bridge.jpg', 'anna_load_test.MP4')
+
+
+def _video(index=3):
+    return ImageCandidate(index=index, task_index=1, block_id='v1', item_index=1,
+                          source_ref=VIDEO_URL, mime_type='video/mp4', data=b'ftypmp42',
+                          label='Load test', kind='video', file_name='anna_load_test.MP4')
+
+
 class TestTheSourceIsScrubbed:
     def test_names_are_gone_from_every_text_field(self, source):
         task = source.tasks[0]
@@ -197,6 +206,28 @@ class TestThePrompt:
     def test_prompt_version_is_pinned(self):
         assert prompt_mod.PROMPT_VERSION.startswith('story-draft/')
 
+    def test_a_video_is_described_not_attached_and_may_not_be_the_hero(self, source):
+        source.tasks[0].images = [_image(1), _video(3)]
+        text = prompt_mod.build_prompt(source, student_label='A student',
+                                       safe_images=[_image(1), _video(3)])
+        assert 'IMAGES (1 passed the safety check, attached below): [I1]' in text
+        assert 'VIDEOS (1 passed the safety check; not attached):' in text
+        assert ('[I3] Load test (a short video the student submitted; it passed the safety '
+                'check; you cannot watch it here, write the alt from the task and label)') in text
+        assert 'A video can never be the hero.' in text
+        assert 'Videos attached to this task: [I3]' in text
+        for token in FORBIDDEN + ('anna_load_test', '.MP4'):
+            assert token not in text, token
+
+        parts = prompt_mod.build_parts(text, [_image(1), _video(3)])
+        assert parts == [text, '[I1]:', {'mime_type': 'image/jpeg', 'data': b'\xff\xd8jpeg'}]
+
+    def test_only_a_video_means_hero_index_zero(self, source):
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[_video(3)])
+        assert 'No image passed the safety check.' in text
+        assert 'There is no image, so hero_index must be 0.' in text
+        assert prompt_mod.build_parts(text, [_video(3)]) == [text]
+
 
 # ── assembly ─────────────────────────────────────────────────────────────────
 
@@ -230,10 +261,10 @@ def _assemble(source: StorySource, draft: Optional[Dict[str, Any]] = None,
     source.tasks[0].images = [_image(1), _image(2)]
     result = DraftResult(data=draft or DRAFT, model='gemini-test', prompt_version='story-draft/test',
                          usage={'input_tokens': 1}, drafted_at='2026-09-11T00:00:00+00:00')
-    taken = set(taken or [])
+    taken_slugs = set(taken or [])
     return assemble(source, result, student_label='A high school student', tier=tier,
                     verdicts=[_verdict(1, 'safe'), _verdict(2, 'excluded', faces=1)],
-                    scrubber=Scrubber(['Anna Lindqvist']), slug_exists=lambda s: s in taken,
+                    scrubber=Scrubber(['Anna Lindqvist']), slug_exists=lambda s: s in taken_slugs,
                     story_id='story-1')
 
 
@@ -264,8 +295,11 @@ class TestAssemble:
         assert [a['included'] for a in assets] == [True, False]
         assert assets[1]['safety']['verdict'] == 'excluded'
         evidence = next(s for s in out['story']['body']['sections'] if s['kind'] == 'evidence')
-        assert [i['asset_id'] for i in evidence['items']] == [assets[0]['id']]
-        assert evidence['items'][0]['url'] is None                      # filled at publish
+        media = [i for i in evidence['items'] if i['type'] in ('image', 'video', 'document')]
+        assert [i['asset_id'] for i in media] == [assets[0]['id']]
+        assert media[0]['url'] is None                                  # filled at publish
+        # The two typed text blocks follow the media, as quotes, in order.
+        assert [i['type'] for i in evidence['items']] == ['image', 'quote', 'quote']
         # The model wanted [I2] as hero; it is excluded, so the first included wins.
         assert out['story']['hero_asset_id'] == assets[0]['id']
         assert assets[0]['source_ref'] == PRIVATE_URL                   # admin-only pointer
@@ -293,6 +327,40 @@ class TestAssemble:
 
     def test_faq_drops_empty_rows(self, source):
         assert _assemble(source)['story']['body']['faq'] == [{'q': 'Can a bridge count?', 'a': 'Yes.'}]
+
+    def test_a_video_asset_carries_its_kind_and_is_never_the_hero(self, source):
+        source.tasks[0].images = [_image(1), _video(3)]
+        draft = {**DRAFT, 'images': [
+            {'index': 1, 'use': True, 'alt': 'A wooden bridge', 'caption': 'The bridge'},
+            {'index': 3, 'use': True, 'alt': 'The load test, filmed', 'caption': 'It held'},
+        ], 'hero_index': 3}
+        result = DraftResult(data=draft, model='gemini-test', prompt_version='story-draft/test',
+                             usage={}, drafted_at='2026-09-11T00:00:00+00:00')
+        out = assemble(source, result, student_label='A high school student', tier='anonymized',
+                       verdicts=[_verdict(1, 'safe'), _verdict(3, 'safe')],
+                       scrubber=Scrubber(['Anna Lindqvist']), slug_exists=lambda s: False,
+                       story_id='story-1')
+        image, video = out['assets']
+        assert (image['kind'], image['mime_type']) == ('image', 'image/jpeg')
+        assert (video['kind'], video['mime_type']) == ('video', 'video/mp4')
+        assert video['included'] and video['alt'] == 'The load test, filmed'
+        assert video['source_ref'] == VIDEO_URL
+        evidence = next(s for s in out['story']['body']['sections'] if s['kind'] == 'evidence')
+        assert [i['type'] for i in evidence['items'] if 'asset_id' in i] == ['image', 'video']
+        # The model wanted the video as hero. The hero is the first included image.
+        assert out['story']['hero_asset_id'] == image['id']
+
+    def test_with_only_a_video_the_hero_is_none(self, source):
+        source.tasks[0].images = [_video(3)]
+        draft = {**DRAFT, 'images': [{'index': 3, 'use': True, 'alt': 'Filmed', 'caption': ''}],
+                 'hero_index': 3}
+        result = DraftResult(data=draft, model='gemini-test', prompt_version='story-draft/test',
+                             usage={}, drafted_at='2026-09-11T00:00:00+00:00')
+        out = assemble(source, result, student_label='A high school student', tier='anonymized',
+                       verdicts=[_verdict(3, 'safe')], scrubber=Scrubber([]),
+                       slug_exists=lambda s: False, story_id='story-1')
+        assert out['assets'][0]['included'] is True
+        assert out['story']['hero_asset_id'] is None
 
     def test_slug_is_unique(self, source):
         assert _assemble(source)['story']['slug'] == 'a-bridge-that-held-12-kg'

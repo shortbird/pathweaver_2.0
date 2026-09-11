@@ -100,6 +100,16 @@ class StoryRepository(BaseRepository):
             order_by='id')
         return sorted(rows, key=lambda r: r.get('published_at') or '', reverse=True)
 
+    def list_previewable(self) -> List[Dict[str, Any]]:
+        """Published plus review, for a LOCAL preview of the static site only.
+
+        The public route refuses the preview flag in production; this exists
+        so a story can be seen as a page before anyone presses Publish.
+        """
+        rows = self.client.table(self.table_name).select(PUBLIC_COLUMNS).in_(
+            'status', ['published', 'review']).order('updated_at', desc=True).limit(200).execute().data or []
+        return rows
+
     def slug_exists(self, slug: str) -> bool:
         rows = self.client.table(self.table_name).select('id').eq(
             'slug', slug).limit(1).execute().data

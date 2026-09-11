@@ -193,9 +193,29 @@ def contains_storage_url(value: Any) -> bool:
     return False
 
 
+def contains_private_storage_url(value: Any) -> bool:
+    """True if a string (or any string inside a structure) points at a PRIVATE bucket.
+
+    The narrower check, for content that legitimately carries URLs: a published
+    story's body holds public `story-assets` copies and the external links a
+    student submitted, and neither is a leak. A `quest-evidence` pointer is.
+    """
+    from utils.storage_urls import is_private_bucket, parse_object_ref
+
+    if isinstance(value, str):
+        ref = parse_object_ref(value)
+        return ref is not None and is_private_bucket(ref[0])
+    if isinstance(value, dict):
+        return any(contains_private_storage_url(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(contains_private_storage_url(v) for v in value)
+    return False
+
+
 __all__ = [
     'DEFAULT_TEXT_LIMIT',
     'block_items',
+    'contains_private_storage_url',
     'contains_storage_url',
     'describable_ref',
     'describe_item',

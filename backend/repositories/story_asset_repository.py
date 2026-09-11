@@ -1,4 +1,10 @@
-"""Data access for `story_assets` -- the images a story considered, and the verdict on each.
+"""Data access for `story_assets` -- the media a story considered, and the verdict on each.
+
+`kind` is 'image', 'video' or 'document' (a PDF); `mime_type` is what the
+original sniffed as, and is the content type a video or a PDF is published
+under (an image is always re-encoded to JPEG). `duration_seconds` is recorded
+when known and null otherwise. Quotes and links are not assets: they live on
+the story body's evidence items.
 
 `source_ref` is the canonical private URL of the original in `quest-evidence`.
 It exists so an editor can be shown a thumbnail and so the publish step can
@@ -14,8 +20,9 @@ from typing import Any, Dict, List, Optional
 from repositories.base_repository import BaseRepository
 
 COLUMNS = (
-    'id, story_id, source_block_id, source_item_index, source_ref, public_path, alt, '
-    'caption, width, height, order_index, safety, included, created_at, updated_at'
+    'id, story_id, source_block_id, source_item_index, source_ref, kind, mime_type, '
+    'duration_seconds, public_path, alt, caption, width, height, order_index, safety, '
+    'included, created_at, updated_at'
 )
 
 

@@ -34,11 +34,20 @@ export const taskRow = z.object({
 })
 
 export const evidenceItem = z.object({
-  type: z.enum(['image', 'video', 'quote', 'document']),
-  /** Image, video or document URL. A quote carries its text in `caption`. */
+  /**
+   * image, video: a public copy in the story bucket. document: a PDF copied
+   * there as-is after the safety pass. quote: the student's own words (or the
+   * first page of a document they wrote) in `text`, with `caption` naming the
+   * file when there is one. link: an external URL the student submitted,
+   * named-tier stories only; `alt` is its title.
+   */
+  type: z.enum(['image', 'video', 'quote', 'document', 'link']),
+  /** Image, video, document or link URL. Null for a quote. */
   url: z.string().nullable().optional(),
   alt: z.string().nullable().optional(),
   caption: z.string().nullable().optional(),
+  /** A quote's text, verbatim and already scrubbed by the backend. */
+  text: z.string().nullable().optional(),
   /** Poster for a video, when the backend has one. */
   thumb_url: z.string().nullable().optional(),
   width: z.number().int().positive().nullable().optional(),
@@ -72,7 +81,8 @@ export const storySchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be lowercase and hyphenated'),
   title: z.string().min(1),
   dek: z.string().min(1),
-  status: z.enum(['published', 'fixture']),
+  /** review appears only under STORIES_PREVIEW=1 (a local dev server reading a local API). */
+  status: z.enum(['published', 'review', 'fixture']),
   published_at: z.coerce.date(),
   updated_at: z.coerce.date(),
   author: z.object({ name: z.string(), title: z.string() }),

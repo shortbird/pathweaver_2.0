@@ -1,6 +1,9 @@
 import React from 'react'
 import DocsMarkdown from '../../docs/DocsMarkdown'
-import { SECTION_ORDER, SECTION_TITLES, sectionByKind, GRADE_BAND_OPTIONS, SETTING_OPTIONS } from './storyEditorState'
+import {
+  SECTION_ORDER, SECTION_TITLES, sectionByKind, GRADE_BAND_OPTIONS, SETTING_OPTIONS,
+  hostnameOf, isStandaloneItem, videoEmbed,
+} from './storyEditorState'
 
 const isIncluded = (row) => row?.included !== false
 
@@ -57,9 +60,78 @@ const Section = ({ title, children }) => (
  * renderer the help center uses, so headings and lists look the way an
  * editor already expects.
  */
+const isVideo = (asset) => asset?.kind === 'video'
+const isDocument = (asset) => asset?.kind === 'document'
+
+const VideoFigure = ({ src, caption, label }) => (
+  <figure className="space-y-1">
+    <video
+      controls
+      preload="metadata"
+      src={src}
+      className="w-full rounded-lg border border-gray-200 bg-black"
+      aria-label={label}
+    />
+    {caption && <figcaption className="text-xs text-gray-500">{caption}</figcaption>}
+  </figure>
+)
+
+/** A PDF the page will offer as a file: a card with the title and "Open the PDF". */
+const DocumentCard = ({ href, title, caption }) => (
+  <div className="rounded-lg border border-gray-200 p-3 text-sm">
+    <p className="font-medium text-gray-900">{title || 'A document'}</p>
+    {caption && <p className="text-gray-600">{caption}</p>}
+    {href ? (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-optio-purple hover:underline">
+        Open the PDF
+      </a>
+    ) : (
+      <span className="text-gray-400">Open the PDF</span>
+    )}
+  </div>
+)
+
+/**
+ * An external link as the page shows it: a YouTube or Vimeo link embeds
+ * through the no-cookie player with the link beneath as fallback; anything
+ * else is a card with the host, the title and the URL.
+ */
+const LinkCard = ({ item }) => {
+  const embed = videoEmbed(item.url)
+  const host = hostnameOf(item.url)
+  const title = item.alt || host || 'A link'
+  return (
+    <div className="space-y-2">
+      {embed && (
+        <div className="aspect-video w-full rounded-lg overflow-hidden border border-gray-200 bg-black">
+          <iframe
+            src={embed.src}
+            title={title}
+            className="w-full h-full"
+            allow="accelerometer; encrypted-media; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      )}
+      <div className="rounded-lg border border-gray-200 p-3 text-sm">
+        <p className="text-xs uppercase tracking-wider text-gray-400">{host}</p>
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className="font-medium text-gray-900 hover:text-optio-purple">
+          {title}
+        </a>
+        {item.caption && <p className="text-gray-600">{item.caption}</p>}
+      </div>
+    </div>
+  )
+}
+
 const StoryPreview = ({ story, assets = [] }) => {
   if (!story) return null
-  const images = assets.filter(a => a.included)
+  const included = assets.filter(a => a.included)
+  const images = included.filter(a => !isVideo(a) && !isDocument(a))
+  const videos = included.filter(isVideo)
+  const documents = included.filter(isDocument)
+  const byId = Object.fromEntries(assets.map(a => [a.id, a]))
   const hero = images.find(a => a.id === story.hero_asset_id) || null
 
   const renderSection = (kind) => {
@@ -92,8 +164,18 @@ const StoryPreview = ({ story, assets = [] }) => {
         )
       }
       case 'evidence': {
-        const items = (section.items || []).filter(item => item?.type !== 'image')
-        if (images.length === 0 && items.length === 0) return null
+        // Images, videos and PDFs render from the included assets, so a
+        // toggle in the picker shows up here at once. Quotes and links are
+        // the body's own items, shown when their `included` flag is on. A
+        // video item the body carries without an asset of its own still gets
+        // a player when it has a URL; items whose asset is excluded are gone.
+        const words = (section.items || []).filter(item => isStandaloneItem(item) && item.included !== false)
+        const loose = (section.items || []).filter((item) => {
+          if (!item || isStandaloneItem(item) || item.type === 'image' || item.type === 'document') return false
+          return !(item.type === 'video' && byId[item.asset_id])
+        })
+        if (images.length === 0 && videos.length === 0 && documents.length === 0
+            && words.length === 0 && loose.length === 0) return null
         return (
           <Section key={kind} title={SECTION_TITLES[kind]}>
             {images.length > 0 && (
@@ -108,16 +190,36 @@ const StoryPreview = ({ story, assets = [] }) => {
                 ))}
               </div>
             )}
-            {items.map((item, i) => (
-              item.type === 'quote' ? (
-                <blockquote key={i} className="border-l-4 border-optio-purple pl-4 text-gray-700 italic">
-                  {item.text || item.caption}
-                </blockquote>
+            {videos.map(a => (
+              (a.media_url || a.public_url) ? (
+                <VideoFigure
+                  key={a.id}
+                  src={a.media_url || a.public_url}
+                  caption={a.caption}
+                  label={a.alt || 'Video evidence'}
+                />
               ) : (
-                <p key={i} className="text-sm text-gray-700">
-                  {item.caption || item.alt || item.url}
-                </p>
+                <p key={a.id} className="text-sm text-gray-700">{a.caption || a.alt || 'A video'}</p>
               )
+            ))}
+            {loose.map((item, i) => (
+              item.type === 'video' && item.url ? (
+                <VideoFigure key={`loose-${i}`} src={item.url} caption={item.caption} label={item.alt || 'Video evidence'} />
+              ) : (
+                <p key={`loose-${i}`} className="text-sm text-gray-700">{item.caption || item.alt || item.url}</p>
+              )
+            ))}
+            {words.filter(item => item.type === 'quote').map((item, i) => (
+              <blockquote key={`quote-${i}`} className="border-l-4 border-optio-purple pl-4 text-gray-700 italic whitespace-pre-wrap">
+                <p>{item.text}</p>
+                {item.caption && <cite className="block not-italic text-xs text-gray-500 mt-1">{item.caption}</cite>}
+              </blockquote>
+            ))}
+            {documents.map(a => (
+              <DocumentCard key={a.id} href={a.media_url || a.public_url} title={a.alt} caption={a.caption} />
+            ))}
+            {words.filter(item => item.type === 'link').map((item, i) => (
+              <LinkCard key={`link-${i}`} item={item} />
             ))}
           </Section>
         )

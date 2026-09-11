@@ -1,7 +1,8 @@
 """One story, start to finish, on a background thread.
 
-    claim -> gates -> tier -> load -> image safety -> draft -> text safety
-          -> assemble -> (auto: publish | review: park)
+    claim -> gates -> tier -> load -> media safety (images, videos, PDFs)
+          -> quote and link rules -> draft -> assemble -> text safety
+          -> (auto: publish | review: park)
 
 The gates run before a byte of evidence is read, in this order, and each has
 its own reason so the grader can say why:
@@ -9,7 +10,6 @@ its own reason so the grader can say why:
     source_not_finalized   the submission is not finalized / the quest not complete
     merged                 the completion was merged into a newer one
     confidential           the student marked it confidential
-    org_student_phase2     org students wait for the org opt-in (Phase 2)
     ai_disabled            the family switched AI off for this student
 
 The AI-consent gate sits before the load for the same reason it does in the
@@ -169,7 +169,7 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
     elif source_type == 'quest':
         from services.stories import source_quest
         user_quest = source_repo.user_quest(source_id)
-        if not user_quest:
+        if not source_id or not user_quest:
             raise Refused('source_not_found', 'The quest enrolment no longer exists.')
         completions, tasks = source_quest.finalized_completions(source_repo, source_id)
         if not source_quest.is_complete(user_quest, tasks, completions) or not completions:
@@ -183,10 +183,6 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
     student = source_repo.student(student_id) if student_id else None
     if not student:
         raise Refused('source_not_found', 'The student no longer exists.')
-    if student.get('organization_id'):
-        raise Refused('org_student_phase2',
-                      'Org students are not included until the org opt-in exists.')
-
     from utils.ai_access import check_ai_access
     has_access, denial, _ = check_ai_access(student_id, strict=True)
     if not has_access:
@@ -229,14 +225,23 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
 
         candidates = source.image_candidates
         verdicts = safety.check_images(candidates, tier=tier, scope=scope, scrubber=scrubber)
+        # A video's or a PDF's bytes were for the safety pass only. The drafter
+        # cannot read them and the publish step re-downloads the original, so
+        # drop the 50MB now rather than carry it through the model call.
+        source.release_videos()
         safe_ids = {v.index for v in verdicts if v.safe}
         safe_images = [c for c in candidates if c.index in safe_ids]
+
+        # Quotes and links have no bytes: the scrubber decides, and the tier.
+        quote_verdicts = safety.check_quotes(source.quote_candidates, scrubber)
+        link_verdicts = safety.check_links(source.link_candidates, tier=tier, scrubber=scrubber)
 
         draft = drafter_mod.StoryDrafter().draft(
             source, student_label=label, safe_images=safe_images, tier=tier)
         assembled = drafter_mod.assemble(
             source, draft, student_label=label, tier=tier, verdicts=verdicts,
-            scrubber=scrubber, slug_exists=story_repo.slug_exists, story_id=story_id)
+            scrubber=scrubber, slug_exists=story_repo.slug_exists, story_id=story_id,
+            quote_verdicts=quote_verdicts, link_verdicts=link_verdicts)
     finally:
         source.release_images()
 
@@ -248,6 +253,8 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
 
     safety_record = {
         'images': [v.safety_record() for v in verdicts],
+        'quotes': [{'index': v.index, **v.safety_record()} for v in quote_verdicts],
+        'links': [{'index': v.index, **v.safety_record()} for v in link_verdicts],
         'text': text_report,
         'tier': tier,
         'checked_at': now_iso(),

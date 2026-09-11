@@ -21,8 +21,11 @@ class MarketingRebuildRepository(BaseRepository):
         # user rows in it; written by publish, revoke, erasure and the cron.
         super().__init__(user_id=None, client=client)
 
-    def create(self, reason: str, status: str = 'requested',
-               requested_at: Optional[str] = None) -> Dict[str, Any]:
+    def create_request(self, reason: str, status: str = 'requested',
+                       requested_at: Optional[str] = None) -> Dict[str, Any]:
+        """Queue one rebuild. Unlike BaseRepository.create this never raises on
+        an empty insert response: the caller's publish must not fail because
+        the bookkeeping row did not echo back."""
         row: Dict[str, Any] = {'reason': reason, 'status': status}
         if requested_at:
             row['requested_at'] = requested_at

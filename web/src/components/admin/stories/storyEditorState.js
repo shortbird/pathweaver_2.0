@@ -88,6 +88,52 @@ const sections = (story) => story?.body?.sections || []
 export const sectionByKind = (story, kind) =>
   sections(story).find(s => s?.kind === kind) || null
 
+/** Evidence items that are not backed by an asset row: quotes and links. */
+export const STANDALONE_ITEM_TYPES = ['quote', 'link']
+
+export const isStandaloneItem = (item) =>
+  !!item && STANDALONE_ITEM_TYPES.includes(item.type)
+
+/**
+ * Why a quote or link the safety pass excluded stays locked in the editor,
+ * or null when the tier lets a superadmin bring it back. Mirrors the server
+ * (routes/stories/admin.py, _reconcile_standalone_items): a social profile is
+ * locked in both tiers; everything else is locked in the anonymized tier
+ * and an override in the named one.
+ */
+export const standaloneLockReason = (item, tier) => {
+  if (!item || item.safety?.verdict === 'safe') return null
+  if (item.safety?.reason === 'social_profile') return 'Locked: a social profile is never published.'
+  if (tier !== 'named') return 'Locked out in the anonymized tier.'
+  return null
+}
+
+const YOUTUBE_ID_RE = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([A-Za-z0-9_-]{11})/
+const VIMEO_ID_RE = /vimeo\.com\/(?:video\/)?(\d+)/
+
+/**
+ * A privacy-friendly embed for a YouTube or Vimeo link, or null for any
+ * other URL. Same id extraction as the backend (services/stories/source.py,
+ * link_video) and the marketing site, so the three agree on what embeds.
+ */
+export const videoEmbed = (url) => {
+  if (!url || typeof url !== 'string') return null
+  const yt = url.match(YOUTUBE_ID_RE)
+  if (yt) return { provider: 'youtube', id: yt[1], src: `https://www.youtube-nocookie.com/embed/${yt[1]}` }
+  const vm = url.match(VIMEO_ID_RE)
+  if (vm) return { provider: 'vimeo', id: vm[1], src: `https://player.vimeo.com/video/${vm[1]}?dnt=1` }
+  return null
+}
+
+/** The host a link points at, without a leading www, for a card's eyebrow. */
+export const hostnameOf = (url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Patch one section, returning a new story. A section that does not exist
  * yet is appended in canonical order so the preview never shows it out of

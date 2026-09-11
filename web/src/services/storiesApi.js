@@ -17,7 +17,10 @@ const unwrap = (res) => {
 /** The `details` object of an API v1 error, or an empty object. */
 export const errorDetails = (err) => {
   const body = err?.response?.data
-  return body?.error?.details || body?.details || body || {}
+  // api.ts flattens a v1 error to a string and parks the object on
+  // error_detail; a raw body (tests, a bypassed interceptor) still nests it.
+  const nested = body?.error_detail || (typeof body?.error === 'object' ? body.error : null)
+  return nested?.details || body?.details || body || {}
 }
 
 export const storiesApi = {
@@ -29,7 +32,9 @@ export const storiesApi = {
 
   /** What the grader panel needs before it offers a Publish button. */
   eligibility: (completionId) =>
-    api.get(`/api/admin/stories/eligibility/${completionId}`).then(unwrap),
+    api.get(`/api/admin/stories/eligibility/${completionId}`)
+      .then(unwrap)
+      .then((d) => (d && typeof d === 'object' && d.eligibility) ? d.eligibility : d),
 
   list: (status) =>
     api.get('/api/admin/stories', { params: status ? { status } : {} }).then(unwrap),
