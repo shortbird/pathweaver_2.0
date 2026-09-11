@@ -26,10 +26,10 @@ def register_routes(bp):
     @bp.route('/api/observers/student/<student_id>/learning-moments', methods=['GET'])
     @require_auth
     @validate_uuid_param('student_id')
-    @require_relationship_to('student_id', allow=('observer',))
+    @require_relationship_to('student_id', allow=('parent', 'observer'))
     def get_student_learning_moments_for_observer(user_id, student_id):
         """
-        Observer views a linked student's learning moments (read-only).
+        Observer -- or parent -- views a linked student's learning moments (read-only).
 
         Query params:
             limit: Maximum number of moments (default 20, max 100)
@@ -42,18 +42,32 @@ def register_routes(bp):
         observer_id = user_id
 
         try:
-            # admin client justified: cross-user read of the linked student's learning_events (non-confidential only), gated by the observer_student_links check directly below
+            # admin client justified: cross-user read of the linked student's learning_events (non-confidential only), gated by the parent / observer_student_links check directly below
             supabase = get_supabase_admin_client()
 
-            link = supabase.table('observer_student_links') \
-                .select('id') \
-                .eq('observer_id', observer_id) \
-                .eq('student_id', student_id) \
-                .limit(1) \
-                .execute()
+            # A PARENT on the observer surface. The observer feed lists a
+            # parent's own children (parent_student_links), and the student
+            # page it links to reads the Learning Journal through this route,
+            # which knew observers only -- in the gate above and again here --
+            # so a mother was refused her daughter's journal on the page above
+            # the comment thread she had already been refused (Sentry
+            # OPTIO-WEB-V, Hearthwood, 2026-09-05; same shape as OPTIO-WEB-1D).
+            # The relationship the feed is built on is the one the reads under
+            # it honour. is_parent_of is THE definition of parent; do not grow
+            # another copy of it here.
+            from utils.portfolio_access import is_parent_of
+            is_parent = is_parent_of(observer_id, student_id)
 
-            if not link.data:
-                return jsonify({'error': 'Access denied'}), 403
+            if not is_parent:
+                link = supabase.table('observer_student_links') \
+                    .select('id') \
+                    .eq('observer_id', observer_id) \
+                    .eq('student_id', student_id) \
+                    .limit(1) \
+                    .execute()
+
+                if not link.data:
+                    return jsonify({'error': 'Access denied'}), 403
 
             limit = request.args.get('limit', 20, type=int)
             offset = request.args.get('offset', 0, type=int)
@@ -111,27 +125,32 @@ def register_routes(bp):
             from services.portfolio_service import PortfolioService
             PortfolioService().sign_evidence_blocks_on(moments)
 
-            try:
-                ObserverAuditService(user_id=observer_id).log_observer_access(
-                    observer_id=observer_id,
-                    student_id=student_id,
-                    action_type='view_learning_moments',
-                    resource_type='learning_journal',
-                    metadata={'count': len(moments)}
-                )
-            except Exception as audit_error:
-                logger.error(f"Failed to log observer access: {audit_error}")
+            # The observer audit answers "who has been viewing your child".
+            # A parent reading their own child is not an entry in that list.
+            if not is_parent:
+                try:
+                    ObserverAuditService(user_id=observer_id).log_observer_access(
+                        observer_id=observer_id,
+                        student_id=student_id,
+                        action_type='view_learning_moments',
+                        resource_type='learning_journal',
+                        metadata={'count': len(moments)}
+                    )
+                except Exception as audit_error:
+                    logger.error(f"Failed to log observer access: {audit_error}")
 
             # Also record it as a FERPA disclosure. observer_access_audit
             # feeds the observer-activity views; student_access_logs is what
             # routes/admin/ferpa_compliance.py builds disclosure reports from,
             # and a read that appears in only one of them is invisible to
-            # whichever question is asked of the other.
+            # whichever question is asked of the other. The purpose is part of
+            # the disclosure: a parent reading their own child and a third
+            # party looking in are different rows in a compliance report.
             AccessLogger.log_student_data_access(
                 student_id=student_id,
                 accessor_id=observer_id,
                 data_type='learning_journal',
-                purpose='observer_view',
+                purpose='parent_request' if is_parent else 'observer_view',
                 fields=['learning_events', 'evidence_blocks'],
             )
 
