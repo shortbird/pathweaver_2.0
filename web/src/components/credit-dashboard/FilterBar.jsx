@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 const DIPLOMA_STATUSES = [
   { value: '', label: 'All Statuses' },
@@ -25,6 +25,36 @@ const AI_RECOMMENDATIONS = [
   { value: 'needs_human', label: 'AI: needs a person' },
   { value: 'not_run', label: 'AI: no verdict yet' },
 ]
+
+// The queue refetches on every filter change, so the name box waits for the
+// reviewer to pause typing rather than firing a request per keystroke. The
+// value the page holds is the settled one; the box shows what is typed.
+const StudentSearch = ({ value, onChange }) => {
+  const [text, setText] = useState(value || '')
+  // When the page changes the settled value (a reset, a role default), the
+  // box follows it. Derived during render, the way React asks, rather than
+  // through an effect that would render twice.
+  const [seen, setSeen] = useState(value || '')
+  if ((value || '') !== seen) {
+    setSeen(value || '')
+    setText(value || '')
+  }
+  useEffect(() => {
+    if (text === (value || '')) return undefined
+    const timer = setTimeout(() => onChange(text.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [text, value, onChange])
+  return (
+    <input
+      type="search"
+      aria-label="Search student"
+      placeholder="Search student by name..."
+      value={text}
+      onChange={e => setText(e.target.value)}
+      className={inputClass}
+    />
+  )
+}
 
 // `layout="row"` lays the controls side by side for the full-width queue;
 // the default stacks them for the narrow list on a phone.
@@ -61,13 +91,7 @@ const FilterBar = ({ filters, onFiltersChange, showAiFilter = false, layout = 's
           ))}
         </select>
       )}
-      <input
-        type="text"
-        placeholder="Search student..."
-        value={filters.student_id}
-        onChange={e => update('student_id', e.target.value)}
-        className={inputClass}
-      />
+      <StudentSearch value={filters.student} onChange={value => update('student', value)} />
     </div>
   )
 }

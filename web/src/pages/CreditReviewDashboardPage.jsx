@@ -43,7 +43,7 @@ const CreditReviewDashboardPage = ({ orgId = null }) => {
   const [detailLoading, setDetailLoading] = useState(false)
   const [filters, setFilters] = useState(() => ({
     status: '',
-    student_id: '',
+    student: '',
     subject: '',
     date_from: '',
     date_to: '',
