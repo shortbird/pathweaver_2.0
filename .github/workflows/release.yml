@@ -167,10 +167,24 @@ jobs:
           fi
           exit $fail
 
-  # Production OTA — only after all three test jobs pass.
+  # Production OTA — only after the API it calls is live.
+  #
+  # `deploy` rather than the three test jobs. Until 2026-09-11 this needed
+  # [backend, web, mobile], which is not the same set as deploy's
+  # [backend, web, integration], and neither job waited for the other. So a run
+  # whose integration suite failed SKIPPED the backend and web deploy and
+  # published the mobile bundle anyway -- twice in one evening (runs
+  # 34546961454, 34548012063), each time leaving the app on new JavaScript
+  # against an API ~17 minutes older than it, calling routes the deployed
+  # backend did not have. Nothing came of it; it was 1am. CI-07 in REGISTER.md.
+  #
+  # There is no version of "the app is updated but the server is not" anybody
+  # wants, so the OTA now waits for the deploy itself. mobile stays in the list
+  # because deploy does not need it and the bundle must still pass its own
+  # tests.
   ota:
     name: Publish production OTA
-    needs: [backend, web, mobile]
+    needs: [deploy, mobile]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
