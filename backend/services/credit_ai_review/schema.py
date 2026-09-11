@@ -75,7 +75,8 @@ RESPONSE_SCHEMA = {
             'properties': {
                 'celebrate': {
                     'type': 'STRING',
-                    'description': 'The note that goes out with credit. Plain prose.',
+                    'description': 'The note that goes out with credit. One or two '
+                                   'short, friendly sentences. Plain prose.',
                 },
                 'grow_this': {
                     'type': 'STRING',
@@ -106,7 +107,7 @@ JSON_EXAMPLE = """{
   "summary": "One short paragraph for the reviewer.",
   "xp": {"recommended": 0, "proportionate": true, "rationale": "One sentence."},
   "feedback": {
-    "celebrate": "Three to five short sentences, one paragraph, plain text.",
+    "celebrate": "One or two short, friendly sentences, plain text.",
     "grow_this": "Three to five short sentences, one paragraph, plain text."
   },
   "concerns": []

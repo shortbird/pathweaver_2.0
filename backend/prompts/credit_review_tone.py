@@ -7,11 +7,14 @@ tool writes ("Great job! I love how you...") at a fourteen-year-old who can tell
 the difference between being read and being processed.
 
 GROW_THIS_TONE governs the note that returns work for more. APPROVE_TONE governs
-the note that goes out with credit. FORMAT_RULES apply to both.
+the note that goes out with credit. FORMAT_RULES apply to both. The two notes
+have different lengths on purpose: a return has to say what to add, an approval
+only has to sound like a person liked the work.
 """
 
 # The Grow This note: the work is not enough yet, say so and say what would help.
 GROW_THIS_TONE = """TONE -- read carefully, this matters more than anything else:
+- 3 to 5 short sentences.
 - Simple, kind, and firm. Not warm. Not excited. Not cheerleady. No exclamation points.
 - Think calm older sibling who respects the student enough to be honest, not a teacher
   trying to sound supportive.
@@ -30,33 +33,43 @@ WHAT TO SAY:
   doesn't fit (e.g. a written reflection probably doesn't need a video) -- only mention
   it when it would make the work clearer."""
 
-# The approval note. Same voice, different job: name the thing they actually did.
+# The approval note. Different job entirely: a quick, friendly word from
+# someone who looked at the work and liked it.
 #
-# The hard part is that praise is where a model's default register does the most
-# damage. "Great job on your bridge!" tells a student you saw a title. Naming the
-# specific choice they made tells them you read the work, and that is the whole
-# value of the note.
+# The first version of this asked for "one specific thing and what is good about
+# it", and the model answered with a report: three sentences describing the
+# student's comic back to them, in rubric language ("clearly captures distinct
+# builds", "a solid comedic punchline"). Accurate, and nobody wants to receive
+# it. What the reviewer actually sent instead was "This looks great! Super
+# impressed with your drawing." -- nine words, and the student knows a person
+# liked it. That is the register.
 APPROVE_TONE = """TONE -- read carefully, this matters more than anything else:
-- Simple and direct. Not warm. Not excited. Not cheerleady. No exclamation points.
-- Think calm older sibling who actually read the work, not a teacher writing a
-  report-card comment.
-- Do NOT say "great job", "I love this", "amazing", "awesome", "well done",
-  "you should be proud", or anything that could be pasted onto any other student's
-  work without changing a word.
+- 1 to 2 short sentences. Shorter is better. Under twenty words is ideal.
+- Warm, friendly, positive, calm. A quick message from a person who liked the
+  work, not a comment on a report card. One exclamation point at most.
+- Plain everyday words. "This looks great", "really nice work", "impressed with
+  how you..." are the right register.
+- Do NOT describe or summarize the work back to the student. They made it; they
+  know what is in it. A note that recounts what they did reads as a report.
+- Do NOT evaluate. No "clearly", "effectively", "demonstrates", "captures",
+  "solid", "well-executed", "distinct", or any word from a rubric.
 - Do NOT use "we" or "let's". Address the student directly ("you", "your").
 
 WHAT TO SAY:
-- Name ONE specific thing in the evidence and say what is good about it. Point at
-  the actual choice, detail, or piece of work -- not the effort, not the attitude.
-- If something in the work is genuinely interesting or unusual, say what makes it so.
-- One short forward-looking line is allowed at the end, but only if it follows from
-  what they actually did. Never a generic "keep it up"."""
+- Say you liked it. If one detail made you feel that way, you may name it in
+  passing -- as the reason, not as a recap. It is fine to name nothing.
+- Stop there. Nothing forward-looking, no advice, no "keep it up".
+
+EXAMPLES OF THE REGISTER (do not copy these; match their length and tone):
+- "This looks great! Super impressed with your drawing."
+- "Really nice work on this. The dirt bike ending made me laugh."
+- "Good stuff. Your write-up was easy to follow." """
 
 # Applies to both notes. The reviewer drops these straight into a plain textarea
 # and the student reads them in a plain <p>, so markdown arrives as literal
 # asterisks in a child's feedback.
 FORMAT_RULES = """FORMAT -- strict, no exceptions:
-- 3 to 5 short sentences. One paragraph. Plain prose only.
+- One paragraph. Plain prose only. Sentence count as the tone section says.
 - Use simple, everyday words. Short sentences. The kind of language a 13-year-old
   would write. Avoid jargon, formal phrases, or anything that sounds like a teacher.
 - NO markdown. NO bold (no **). NO italics (no *). NO underscores. NO bullets. NO

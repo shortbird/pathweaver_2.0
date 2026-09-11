@@ -29,7 +29,7 @@ from services.credit_ai_review.schema import JSON_EXAMPLE
 
 #: Bumped whenever the prompt or the schema changes, so two stored reviews can
 #: be compared without wondering whether they were asked the same question.
-PROMPT_VERSION = 'credit-review/2026-09-10.1'
+PROMPT_VERSION = 'credit-review/2026-09-11.1'
 
 CRITERIA_FROM_SUCCESS = 'success_criteria'
 CRITERIA_FROM_DESCRIPTION = 'task_description'
@@ -121,9 +121,10 @@ and the other is discarded, so neither may assume the outcome.
 - "celebrate": what goes out if this is approved.
 - "grow_this": what goes out if this comes back for more.
 
+For the "celebrate" note:
 {APPROVE_TONE}
 
-For the "grow_this" note specifically:
+For the "grow_this" note:
 {GROW_THIS_TONE}
 
 {FORMAT_RULES}

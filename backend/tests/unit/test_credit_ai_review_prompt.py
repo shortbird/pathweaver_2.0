@@ -224,3 +224,38 @@ class TestGuardrails:
         """The reviewer may disagree, and then needs the other draft."""
         text = _prompt()
         assert 'Write both, every time' in text
+
+
+@pytest.mark.unit
+class TestTheApprovalNote:
+    """The note that goes out with credit is a reaction, not a report.
+
+    The first prompt asked for "one specific thing and what is good about it"
+    and got back three sentences of rubric prose describing the student's own
+    comic to them. The reviewer replaced it with "This looks great! Super
+    impressed with your drawing." The rules below hold the prompt to that.
+    """
+
+    def test_it_is_short(self):
+        text = _prompt()
+        approve = text[text.index('For the "celebrate" note:'):text.index('For the "grow_this" note:')]
+        assert '1 to 2 short sentences' in approve
+
+    def test_it_is_told_not_to_describe_the_work_back(self):
+        text = _prompt()
+        approve = text[text.index('For the "celebrate" note:'):text.index('For the "grow_this" note:')]
+        assert 'Do NOT describe or summarize the work back' in approve
+        assert 'Do NOT evaluate' in approve
+
+    def test_it_is_warm_and_plain(self):
+        text = _prompt()
+        approve = text[text.index('For the "celebrate" note:'):text.index('For the "grow_this" note:')]
+        assert 'Warm, friendly, positive, calm' in approve
+        assert 'This looks great' in approve
+        assert 'One exclamation point at most' in approve
+
+    def test_the_return_note_keeps_its_length_and_firmness(self):
+        text = _prompt()
+        grow = text[text.index('For the "grow_this" note:'):]
+        assert '3 to 5 short sentences' in grow
+        assert 'Simple, kind, and firm' in grow
