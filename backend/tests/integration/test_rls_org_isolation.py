@@ -790,11 +790,18 @@ def correspondence(db, make_user):
     alice = make_user(role='student')
     bob = make_user(role='student')
 
+    # Sorted, because message_conversations_participants_sorted (migration
+    # 20260910180000) is a CHECK, not a convention. make_user hands back random
+    # uuid4s, so inserting alice/bob in argument order failed this constraint
+    # on roughly half of all runs -- a flake that would have read as an RLS
+    # problem rather than a fixture one. get_or_create_conversation sorts the
+    # same way for the same reason.
+    p1, p2 = sorted((alice['id'], bob['id']))
     conversation_id = str(uuid.uuid4())
     db.table('message_conversations').insert({
         'id': conversation_id,
-        'participant_1_id': alice['id'],
-        'participant_2_id': bob['id'],
+        'participant_1_id': p1,
+        'participant_2_id': p2,
     }).execute()
 
     message_id = str(uuid.uuid4())
