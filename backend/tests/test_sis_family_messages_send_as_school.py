@@ -11,6 +11,7 @@ These tests pin the identity: the sender is the inbox account, the staff member
 is recorded in sent_by_user_id, and no second account is ever minted.
 """
 
+import inspect
 from unittest.mock import Mock, patch
 
 import pytest
@@ -75,7 +76,14 @@ class TestTheSenderIsTheSchoolInbox:
             result = sis_service.message_household_guardians(
                 ORG, 'house-1', STAFF, 'Picture day', 'Wear a shirt')
 
-        assert result == {'sent': 2, 'guardians': 2}
+        assert result['sent'] == 2
+        assert result['guardians'] == 2
+        # The ids the People-page modal turns into "Open in School Inbox".
+        # The `sent` fixture records each CALL and mints its thread id from the
+        # recipient, so the expectation is derived the same way rather than read
+        # back off the call dict, which never held it.
+        assert result['conversation_ids'] == [f"conv-{c['recipient_id']}" for c in sent]
+        assert result['conversation_id'] == result['conversation_ids'][0]
         assert {c['sender_id'] for c in sent} == {INBOX}
         assert {c['recipient_id'] for c in sent} == {GUARDIAN_A, GUARDIAN_B}
 
@@ -167,7 +175,11 @@ class TestTheFallback:
             result = sis_service.message_household_guardians(
                 ORG, 'house-1', STAFF, '', 'Hi')
 
-        assert result == {'sent': 1, 'guardians': 2}
+        assert result['sent'] == 1
+        assert result['guardians'] == 2
+        # Only the guardian who actually received it contributes a thread.
+        assert result['conversation_ids'] == ['c2']
+        assert result['conversation_id'] == 'c2'
 
 
 @pytest.mark.unit
@@ -189,8 +201,75 @@ class TestTheSecondSchoolAccountIsGone:
 
         admin.auth.admin.create_user.assert_not_called()
 
-    def test_the_placeholder_address_is_still_computable(self):
-        """Two roster filters still hide any un-migrated placeholder by this
-        address. Keep it until the merge migration has run everywhere."""
-        assert sis_service.org_messaging_email(ORG) == \
-            f'school-{ORG}@optio-internal-placeholder.local'
+    def test_the_placeholder_address_is_gone_too(self):
+        """This test asserted the opposite until 2026-09-11, deliberately.
+
+        `org_messaging_email` was a transitional helper, kept so two roster
+        filters could hide an un-migrated placeholder by its address; its own
+        docstring said to delete it once the merge migration had run
+        everywhere. That migration reached production on 2026-09-10
+        (20260910180000 through 210000) and left zero placeholders carrying an
+        organization_id -- so both filters matched nothing, and an address
+        nothing sends from and nothing filters on is only a way to recreate the
+        second account by hand.
+
+        The filters went with it. The school-inbox account cannot turn up in a
+        staff roster on its own merits: it carries organization_id NULL, and
+        every roster query is scoped to an org.
+        """
+        assert not hasattr(sis_service, 'org_messaging_email')
+        assert not hasattr(sis_service, '_org_messaging_sender')
+
+
+def _raw(view):
+    """The view function with require_role / require_relationship_to unwrapped."""
+    return inspect.unwrap(view)
+
+
+@pytest.mark.unit
+class TestRoutesReturnTheConversation:
+    """The modal cannot offer "Open in School Inbox" without an id to open.
+
+    The service returning a conversation id is only half of it -- the route has
+    to hand it to the client. Ported from the People-page branch, which had the
+    only coverage of this hop.
+    """
+
+    def _ctx(self, app, path, payload):
+        return app.test_request_context(path, json=payload, method='POST')
+
+    def test_student_route_passes_the_conversation_id_through(self):
+        from flask import Flask
+        import routes.sis as sis_routes
+
+        app = Flask(__name__)
+        with self._ctx(app, '/api/sis/students/s1/message', {'body': 'Hello'}), \
+             patch.object(sis_routes, '_org_or_error', return_value=(ORG, None)), \
+             patch.object(sis_routes.sis_service, 'student_in_org', return_value=True), \
+             patch.object(sis_routes.sis_service, 'message_student',
+                          return_value={'conversation_id': 'convo-9'}):
+            resp = _raw(sis_routes.message_student)(STAFF, 's1')
+
+        assert resp.get_json() == {'success': True, 'conversation_id': 'convo-9'}
+
+    def test_household_route_passes_the_conversation_id_through(self):
+        from flask import Flask
+        import routes.sis as sis_routes
+
+        repo = Mock()
+        repo.find_by_id.return_value = {'id': 'hh-1', 'organization_id': ORG}
+        app = Flask(__name__)
+        with self._ctx(app, '/api/sis/households/hh-1/message', {'body': 'Hello'}), \
+             patch.object(sis_routes, '_org_or_error', return_value=(ORG, None)), \
+             patch.object(sis_routes, 'get_supabase_admin_client', return_value=Mock()), \
+             patch.object(sis_routes, 'HouseholdRepository', return_value=repo), \
+             patch.object(sis_routes.sis_service, 'message_household_guardians',
+                          return_value={'sent': 1, 'guardians': 1,
+                                        'conversation_id': 'convo-a',
+                                        'conversation_ids': ['convo-a']}):
+            resp = _raw(sis_routes.message_household)(STAFF, 'hh-1')
+
+        body = resp.get_json()
+        assert body['success'] is True
+        assert body['conversation_id'] == 'convo-a'
+        assert body['sent'] == 1

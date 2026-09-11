@@ -288,8 +288,7 @@ def test_roles_survive_a_null_org_roles_array():
 def _family_audience(users):
     client, _ = _client({'users': users})
     with patch.object(training, '_admin', return_value=client), \
-         patch('utils.db_fetch.fetch_all_rows', lambda q: users), \
-         patch('services.sis_service.org_messaging_email', return_value='school@placeholder.local'):
+         patch('utils.db_fetch.fetch_all_rows', lambda q: users):
         return {p['id'] for p in training._guardians('org-1')}
 
 
@@ -322,9 +321,18 @@ def test_students_are_not_in_the_family_audience():
 
 
 def test_the_school_s_own_messaging_identity_is_not_a_person():
+    """The school account carries no org roles, so the role filter drops it.
+
+    This used to be a filter on the account's placeholder EMAIL, because the
+    People page sent from a SECOND school account that sat on the roster as an
+    org_admin. That account is retired: an org has one identity that speaks for
+    it, the School Inbox account, and that one is a platform user with
+    organization_id NULL. The migration that retired the old row stripped its
+    org roles for the same reason -- otherwise it would surface here as staff.
+    """
     ids = _family_audience([
-        {'id': 'bot', 'email': 'school@placeholder.local', 'org_role': 'org_admin',
-         'org_roles': None, 'role': 'org_managed'},
+        {'id': 'bot', 'email': None, 'org_role': None,
+         'org_roles': None, 'role': 'observer'},
     ])
     assert ids == set()
 

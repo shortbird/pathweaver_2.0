@@ -1200,11 +1200,7 @@ def list_org_staff(org_id: str, include_archived: bool = False) -> List[Dict[str
         .eq('organization_id', org_id)
     ))
     out = []
-    school_account_email = org_messaging_email(org_id)
     for u in rows:
-        # The org's messaging identity is infrastructure, not a staff member.
-        if u.get('email') == school_account_email:
-            continue
         roles = _user_org_roles(u)
         staff_roles = [r for r in STAFF_ORG_ROLES if r in roles]
         if not staff_roles:
@@ -2285,17 +2281,6 @@ def waive_registration_fee(org_id: str, household_id: str,
 # answer. The account and its threads are folded into inbox_user_id by
 # 20260910... _merge_org_messaging_sender_into_school_inbox.sql.
 
-def org_messaging_email(org_id: str) -> str:
-    """Deterministic placeholder email of the RETIRED second school account.
-
-    Kept only so the two roster filters that hide it (list_org_staff and the
-    training recipient list) keep hiding it while any un-migrated row survives.
-    Nothing sends from this identity any more. Delete once the merge migration
-    has run everywhere.
-    """
-    return f"school-{org_id}@optio-internal-placeholder.local"
-
-
 def _school_sender(org_id: str, fallback_id: str) -> tuple:
     """(sender_id, sent_by_user_id) for a message going out as the school.
 
@@ -2332,13 +2317,25 @@ def message_household_guardians(org_id: str, household_id: str, sender_id: str,
     sender, sent_by = _school_sender(org_id, sender_id)
     svc = DirectMessageService()
     sent = 0
+    conversation_ids = []
     for gid in guardian_ids:
         try:
-            svc.send_message(sender, gid, content, sent_by_user_id=sent_by)
+            msg = svc.send_message(sender, gid, content, sent_by_user_id=sent_by)
             sent += 1
+            if msg.get('conversation_id'):
+                conversation_ids.append(msg['conversation_id'])
         except Exception as e:
             logger.info(f"family message to guardian {str(gid)[:8]} skipped: {e}")
-    return {'sent': sent, 'guardians': len(guardian_ids)}
+    return {
+        'sent': sent,
+        'guardians': len(guardian_ids),
+        # One link for the modal to offer. A family with two guardians is two
+        # threads; the first is enough to get the office into /inbox, which is
+        # the thing staff were never told -- the reply comes back to the school
+        # account, not to whoever wrote it.
+        'conversation_id': conversation_ids[0] if conversation_ids else None,
+        'conversation_ids': conversation_ids,
+    }
 
 
 def message_student(org_id: str, student_id: str, sender_id: str, subject: str, body: str) -> Dict[str, Any]:

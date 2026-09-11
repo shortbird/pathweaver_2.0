@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
@@ -619,18 +620,32 @@ const SchedulePanel = ({ student, orgId }) => {
 }
 
 // ── Message (platform messaging / direct messages) ────────────────────────────
+
+// Where the answer to this message will be. The send leaves from the school's
+// inbox account, so the reply comes back to /inbox — not to the sender's own
+// Messages. Staff were never told that, and the replies to People-page messages
+// used to go to a second school account no page in the product listed.
+// Lives here, not in FamilyDetailModal, because that file imports this one.
+export const inboxThreadLink = (conversationId) =>
+  conversationId ? `/inbox?conversation=${conversationId}` : '/inbox'
+
 const MessagePanel = ({ student, orgId }) => {
+  const navigate = useNavigate()
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  // null until a send lands; then the thread id, or '' when the response
+  // carried none — the link still points at /inbox, which is where the reply is.
+  const [sentThread, setSentThread] = useState(null)
 
   const send = async () => {
     if (!body.trim()) { toast.error('Write a message'); return }
     setSending(true)
     try {
-      await sisStudentApi.message(student.student_id, subject, body, orgId)
+      const r = await sisStudentApi.message(student.student_id, subject, body, orgId)
       toast.success('Message sent')
       setSubject(''); setBody('')
+      setSentThread(r?.data?.conversation_id || '')
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not send message')
     } finally { setSending(false) }
@@ -638,14 +653,22 @@ const MessagePanel = ({ student, orgId }) => {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-neutral-500">Sends a message to {student.name} through Messages, sent from your school's account.</p>
+      <p className="text-sm text-neutral-500">Sends a message to {student.name} through Messages, sent as the school. Their replies arrive in the School Inbox.</p>
       <label className="text-xs text-neutral-500 block">Subject
         <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
       </label>
       <label className="text-xs text-neutral-500 block">Message
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={`${field} resize-none`} />
       </label>
-      <Button size="sm" onClick={send} loading={sending}>Send</Button>
+      <div className="flex items-center gap-3">
+        <Button size="sm" onClick={send} loading={sending}>Send</Button>
+        {sentThread !== null && (
+          <button type="button" onClick={() => navigate(inboxThreadLink(sentThread))}
+            className="text-sm text-optio-purple font-medium hover:underline">
+            Open in School Inbox
+          </button>
+        )}
+      </div>
     </div>
   )
 }

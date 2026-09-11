@@ -300,4 +300,24 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine&to=teacher-1' })
     expect(await screen.findByPlaceholderText('Write a reply...')).toBeInTheDocument()
   })
+
+  // The People page's Message button sends AS the school, so the family's reply
+  // comes back here and not to the staff member who wrote it. ?conversation= is
+  // how they get from "sent" to the thread it started.
+  it('opens the thread named by ?conversation=', async () => {
+    state.schoolConvos = [convo(1, 'Greta'), convo(2, 'Pat')]
+    state.schoolMessages = [
+      { id: 'm1', sender_id: 'inbox-1', message_content: 'Field trip Friday', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?conversation=c2' })
+    expect(await screen.findByText('Field trip Friday')).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith('/api/school-inbox/conversations/c2')
+  })
+
+  it('ignores a ?conversation= that is not in this inbox', async () => {
+    state.schoolConvos = [convo(1, 'Greta')]
+    render(<SchoolInboxPage />, { route: '/inbox?conversation=not-mine' })
+    await screen.findByText('Greta Family')
+    expect(api.get).not.toHaveBeenCalledWith('/api/school-inbox/conversations/not-mine')
+  })
 })

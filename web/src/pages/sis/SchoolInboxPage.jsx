@@ -291,6 +291,31 @@ const SchoolInboxPage = () => {
       setSearchParams(next, { replace: true })
     }
   }, [wantedTo, tab, conversations])
+  // ?conversation=<id> opens that thread. The People page's Message button
+  // sends AS the school, so the answer comes back here rather than to the
+  // sender's own Messages -- this link is how staff get from "sent" to the
+  // thread it started, which is the half they were never told about.
+  //
+  // Keyed on the thread id rather than the person, so unlike ?to= it does not
+  // need to know which tab the thread lives on: whichever list is loaded, if
+  // the id is in it, that is the thread. Same consume-once rule and the same
+  // reason -- a param left in the URL re-opens its thread on every poll and
+  // fights anyone reading another.
+  const wantedConversation = searchParams.get('conversation')
+  useEffect(() => {
+    if (!wantedConversation || !isMessages) return
+    const match = conversations.find((c) => c.id === wantedConversation)
+    if (!match) return
+    setSelected(match)
+    // Consumed only once the thread is in hand, exactly as ?to= is. Dropping
+    // the param on the first pass instead would eat it during the load -- the
+    // list is empty until the fetch returns, so the effect runs once with
+    // nothing to match, and by the time the conversations arrive the param it
+    // was looking for is gone and the thread never opens.
+    const next = new URLSearchParams(searchParams)
+    next.delete('conversation')
+    setSearchParams(next, { replace: true })
+  }, [wantedConversation, isMessages, conversations])
   // A pending attachment belongs to the thread it was picked for.
   useEffect(() => { setAttachments([]) }, [selected?.id])
 

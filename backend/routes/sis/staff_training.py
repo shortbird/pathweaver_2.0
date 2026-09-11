@@ -1323,17 +1323,8 @@ def _guardians(org_id):
         .select('id, first_name, last_name, display_name, email, org_role, org_roles, role')
         .eq('organization_id', org_id)
     ))
-    school_account = None
-    try:
-        school_account = sis_service.org_messaging_email(org_id)
-    except Exception as _exc:  # noqa: BLE001 — worst case the placeholder shows up
-        logger.debug("school messaging account lookup failed: %s", _exc, exc_info=True)
-
     out = []
     for u in rows:
-        # The org's messaging identity is infrastructure, not a person.
-        if school_account and u.get('email') == school_account:
-            continue
         roles = _roles_of(u)
         if not (roles & {'parent', *_ADMIN_ORG_ROLES}):
             continue

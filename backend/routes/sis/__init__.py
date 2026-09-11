@@ -888,6 +888,8 @@ def message_household(user_id, household_id):
     body = (data.get('body') or '').strip()
     if not body:
         return jsonify({'success': False, 'error': 'Message body is required'}), 400
+    # `result` carries conversation_id: the reply lands in the School Inbox, and
+    # the modal offers a link straight to the thread it just started.
     result = sis_service.message_household_guardians(org_id, household_id, user_id, (data.get('subject') or '').strip(), body)
     return jsonify({'success': True, **result})
 

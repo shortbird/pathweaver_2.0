@@ -5,7 +5,7 @@ import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
-import StudentDetailModal from './StudentDetailModal'
+import StudentDetailModal, { inboxThreadLink } from './StudentDetailModal'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
@@ -615,9 +615,11 @@ const BillingPanel = ({ householdId, orgId }) => {
 }
 
 const MessageComposeModal = ({ household, orgId, onClose }) => {
+  const navigate = useNavigate()
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(null)
 
   const send = async () => {
     if (!body.trim()) { toast.error('Write a message'); return }
@@ -626,7 +628,8 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
       const r = await sisFamilyApi.message(household.id, subject, body, orgId)
       const n = r.data?.sent ?? 0
       toast.success(n ? `Sent to ${n} guardian${n === 1 ? '' : 's'}` : 'No guardians to message')
-      onClose()
+      if (!n) { onClose(); return }
+      setSent({ count: n, conversationId: r.data?.conversation_id || null })
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not send') }
     finally { setSending(false) }
   }
@@ -638,17 +641,34 @@ const MessageComposeModal = ({ household, orgId, onClose }) => {
           <h3 className="text-lg font-bold text-neutral-900">Message the family</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-xl leading-none">×</button>
         </div>
-        <p className="text-sm text-neutral-500 mb-3">Sends a message to every guardian in {household.name} through Messages, sent from your school's account.</p>
-        <label className="text-xs text-neutral-500 block mb-3">Subject
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
-        </label>
-        <label className="text-xs text-neutral-500 block mb-4">Message
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={`${field} resize-none`} />
-        </label>
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-100 rounded-lg">Cancel</button>
-          <Button size="sm" onClick={send} loading={sending}>Send</Button>
-        </div>
+        {sent ? (
+          <>
+            <p className="text-sm text-neutral-600 mb-4">
+              Sent to {sent.count} guardian{sent.count === 1 ? '' : 's'} as the school.
+              Their replies arrive in the School Inbox.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-100 rounded-lg">Done</button>
+              <Button size="sm" onClick={() => { onClose(); navigate(inboxThreadLink(sent.conversationId)) }}>
+                Open in School Inbox
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-neutral-500 mb-3">Sends a message to every guardian in {household.name} through Messages, sent as the school. Their replies arrive in the School Inbox.</p>
+            <label className="text-xs text-neutral-500 block mb-3">Subject
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} className={field} placeholder="Optional" />
+            </label>
+            <label className="text-xs text-neutral-500 block mb-4">Message
+              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className={`${field} resize-none`} />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-100 rounded-lg">Cancel</button>
+              <Button size="sm" onClick={send} loading={sending}>Send</Button>
+            </div>
+          </>
+        )}
       </div>
     </ModalOverlay>
   )
