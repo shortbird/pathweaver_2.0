@@ -2,8 +2,11 @@
 SIS reporting — enrollment, revenue, and attendance summaries for the admin console.
 
 The aggregation math is pure (testable without a DB); thin wrappers fetch the rows.
-Revenue is record-only (billed vs. collected vs. outstanding) — Optio reports money,
-it doesn't move it. See SIS_IMPLEMENTATION_PLAN.md (M7).
+Revenue here is a REPORT of billed vs. collected vs. outstanding; the collecting
+itself happens in sis_billing_service (Stripe on the school's own account, or
+recorded by the office for a school without one). This docstring used to say
+Optio "doesn't move money", citing a June 2026 plan that locked exactly that --
+the decision was reversed and the plan is deleted.
 """
 
 from typing import Dict, List, Any, Optional

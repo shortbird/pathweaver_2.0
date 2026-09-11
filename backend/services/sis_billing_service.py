@@ -1,10 +1,20 @@
 """
-SIS Billing service — record-only tuition/invoicing (Optio never processes payments).
+SIS Billing service — tuition, invoicing, and collecting the money.
 
 Composes the pure pricing engine (services/sis_pricing.py) with admin-client DB ops:
 discount rules, quoting a registration, generating an invoice + line items, payment
-plans + installments, recording payments (money collected in SBS), late fees, and a
-QuickBooks sync-log stub. See SIS_ARCHITECTURE_DISCOVERY.md §1.5.
+plans + installments, late fees, and a QuickBooks sync-log stub.
+
+Two ways money arrives, and the org's own Stripe key decides which:
+  * Online -- Stripe Checkout and autopay on the SCHOOL's Stripe account, keyed by
+    organization_secrets.stripe_secret_key (encrypted at rest; see SEC-16). Optio
+    holds no card data; Stripe does. settle_invoice_from_stripe is the webhook end.
+  * Recorded -- a school with no Stripe key still gets invoices and a ledger, and
+    the office records payments it collected some other way with record_payment.
+
+The docstring here used to say "record-only, Optio never processes payments",
+citing a June 2026 discovery document that locked exactly that. The decision was
+reversed and the document is deleted; this file is the money.
 """
 
 from datetime import datetime, timezone, timedelta, date

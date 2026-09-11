@@ -3,9 +3,16 @@ SIS pricing engine — PURE functions, no DB.
 
 Tuition math lives here so the bug-prone parts (discount stacking, splitting a
 total into installments without losing cents, due-date stepping, late fees) are
-exhaustively unit-testable. Optio CALCULATES and RECORDS money only — it never
-processes payments (Simple Biz Suite collects; see SIS_ARCHITECTURE_DISCOVERY.md
-§1.5). All amounts are integer cents.
+exhaustively unit-testable. This module only calculates; collecting the money
+lives in sis_billing_service (Stripe Checkout on the school's own account, with
+record-only as the fallback for a school that has no Stripe key). All amounts
+are integer cents.
+
+History, since the old docstring here said the opposite: the June 2026 SIS
+discovery locked "no payment processor, Simple Biz Suite collects". That was
+reversed when schools wanted card payment in the portal, and that document is
+gone. If a comment anywhere still says Optio never processes payments, it is
+older than the reversal.
 
 Discount rules (rule_type / criteria jsonb):
   sibling     {min_students, percent|amount_cents}  -> auto when household has >= min_students enrolling

@@ -2,7 +2,7 @@
 
 Covers the **13 in-app feedback items submitted by Molly Christensen
 (`dmchrplus@gmail.com`, org_admin — iCreate) on 2026-07-28**, all after the
-[round-5 triage](FAB_TRIAGE_2026-07-27.md) was written. Every item was checked
+[round-5 triage](https://github.com/shortbird/pathweaver_2.0/blob/b01cc256/docs/icreate/FAB_TRIAGE_2026-07-27.md) was written. Every item was checked
 against the current `develop` source before being classified — "already built"
 claims below were read in code, not assumed.
 

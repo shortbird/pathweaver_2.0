@@ -32,7 +32,34 @@ Plus, in the previous commit: `docs/audit-2026-08/` (3,964 lines) and
 
 ## 2. Stale — your call
 
-Grouped by why they are stale. **Nothing here has been touched.**
+**Decided 2026-09-11: deleted.** 49 files and 11,566 lines came out of `docs/`
+(155 files → 106; 28,567 lines of markdown → 17,001). Everything in §2a, §2b,
+§2c and §2e below is gone, with three exceptions and one correction:
+
+- **Kept: everything in §2d.** Business and marketing material was listed only
+  so the audit was complete and was recommended for keeping. It was not
+  touched.
+- **Kept: `icreate/FAB_TRIAGE_2026-07-29_enrollment_counts.md`.** It is the
+  postmortem `backend/utils/db_truncation_canary.py` cites for the
+  never-count-rows-in-Python rule. Its one link to a deleted sibling now points
+  at git history.
+- **Kept: `backend/docs/ENVIRONMENT_VARIABLES.md`**, the third env doc. Only
+  the `docs/` copy was deleted; `backend/docs/` is the designated location.
+- **Correction, found while deleting `SIS_ARCHITECTURE_DISCOVERY.md`.** Its
+  §1.5 "locked decision" — no payment processor, Simple Biz Suite collects —
+  was **reversed** after it was written: `sis_billing_service.py` runs Stripe
+  Checkout and autopay on each school's own account. Three docstrings
+  (`sis_pricing`, `sis_billing_service`, `sis_reports_service`) cited that
+  section and repeated the claim; they now describe the code beneath them.
+  The concern in §2b about deleting it "blind" turned out to be backwards —
+  the doc was the thing misleading the reader.
+- `EVIDENCE_ATTACH_IOS_2026-07-30.md` was checked before deletion: the report
+  is marked resolved in `bug_reports` and no iOS photo/upload/attach report has
+  arrived in the six weeks since. Not an open bug.
+
+The lists below are left as written so the reasoning survives.
+
+Grouped by why they were stale.
 
 ### 2a. Duplicate pairs — one of each is probably redundant
 

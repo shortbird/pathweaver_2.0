@@ -152,7 +152,7 @@ has passed, it is now quietly blocking registrants.
 
 Three classes have a free seat *and* students waiting, which needs **Offer next
 seat** on each class's Waitlist tab (a freed seat is never auto-filled — the
-deliberate call recorded in [FAB_TRIAGE_2026-07-27.md](FAB_TRIAGE_2026-07-27.md)
+deliberate call recorded in [FAB_TRIAGE_2026-07-27.md](https://github.com/shortbird/pathweaver_2.0/blob/b01cc256/docs/icreate/FAB_TRIAGE_2026-07-27.md)
 for Theater JR):
 
 | Class | Enrolled | Seats open | Waiting |

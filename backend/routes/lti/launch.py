@@ -350,7 +350,8 @@ def _stash_deep_link_settings(
 
 def _frontend_url() -> str:
     # LTI-only base. Defaults to FRONTEND_URL, so this resolves to the web app,
-    # which is where the LTI surface lives (docs/LTI_FRONTEND_REDESIGN.md §3).
+    # which is where the LTI surface lives. (The redesign doc that once argued
+    # for moving it to mobile is deleted; the decision was to keep it here.)
     # No cutover is pending -- the comment here used to say one was, and had
     # been wrong since 2026-05-20. LTI_FRONTEND_URL remains a host override if
     # one is ever wanted; the paths below need no code change either way.

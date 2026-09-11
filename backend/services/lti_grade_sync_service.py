@@ -42,7 +42,7 @@ def _evidence_url_for_quest(user_id: str, quest_id: str) -> Optional[str]:
     unauthenticated, so it must resolve without an Optio session).
 
     Routes to the LTI-specific quest-scoped evidence page (decision: keep
-    the LTI surface on the web app — see docs/LTI_FRONTEND_REDESIGN.md). The page
+    the LTI surface on the web app; the cutover proposal is deleted). The page
     fetches GET /lti/evidence?lti_token=... which derives the (user, quest)
     from the signed token itself, so the URL carries only the token.
 
