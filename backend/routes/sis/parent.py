@@ -466,6 +466,27 @@ def student_schedule(user_id, student_id):
     return jsonify({'success': True, **result})
 
 
+@bp.route('/students/<student_id>/attendance', methods=['GET'])
+@require_auth
+@require_module('attendance')
+@require_relationship_to('student_id', allow=('parent', 'household_guardian'), discloses='attendance')
+def student_attendance(user_id, student_id):
+    """What the school has recorded for this student. Optional ?class_id=.
+
+    Families could report an absence and never see what came of it -- every
+    attendance route was staff-only, so a parent had no way to check that the
+    absence they phoned in had been marked excused.
+    """
+    org_id = _org(request)
+    if not org_id:
+        return jsonify({'success': False, 'error': 'organization_id is required'}), 400
+    result = parent.student_attendance(user_id, org_id, student_id,
+                                       class_id=request.args.get('class_id'))
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 403
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/students/<student_id>/classes', methods=['POST'])
 @require_auth
 @require_module('classes')

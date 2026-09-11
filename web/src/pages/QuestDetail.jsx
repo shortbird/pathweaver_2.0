@@ -9,7 +9,8 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
-import PrintTaskListButton from '../components/quest/PrintTaskListButton';
+import PrintTaskListButton from '../components/quest/PrintTaskListButton'
+import QuestResourceList from '../components/quest/QuestResourceList';
 import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
@@ -764,6 +765,12 @@ const QuestDetail = () => {
             two orgs whose events stopped had simply not loaded a quest page
             since. Wait for the load to finish, then apply the rule: a null org
             after loading still means ask. */}
+        {/* Attached to the quest as a whole -- the syllabus, the reading list.
+            No org or module gate: these belong to the quest, so anyone who can
+            open the quest can read them, and the API only returns what it
+            already decided this reader may see. */}
+        <QuestResourceList resources={quest.resources} className="mt-6" />
+
         {user?.organization_id && quest.user_enrollment && !orgLoading
           && !moduleKnownOff(organization, 'classes') && (
           <ClassCurriculum questId={quest.id} className="mt-6" />

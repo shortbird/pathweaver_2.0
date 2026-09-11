@@ -17,14 +17,28 @@ destructive. So the split does not apply here: it is ('parent',) throughout.
 
 **The in-view checks must not be collapsed away.** In routes/parent/* the
 decorator replaced verify_parent_access outright, because the two were exactly
-equivalent. Here they are NOT. These routes gate on
-`users.managed_by_parent_id == caller`; the decorator's `parent` predicate is
-`is_parent_of`, which ALSO accepts an approved `parent_student_links` row.
-Measured against production on 2026-09-03: 129 of the 131 approved links point
-at a student whose managed_by_parent_id is somebody else. Collapsing would hand
-those 129 pairs delete, promote and act-as over a teen who is not their
-dependent. The decorator is the outer structural gate; managed_by_parent_id
-stays as the precise one.
+equivalent. Here they are NOT. The decorator's `parent` predicate is
+`is_parent_of`, which accepts any of the three family links; these routes need
+something narrower. Measured against production on 2026-09-03: 129 of the 131
+approved `parent_student_links` point at a student whose managed_by_parent_id is
+somebody else. Collapsing would hand those 129 pairs delete, promote and act-as
+over a teen who is not their dependent.
+
+The inner check is `DependentRepository.get_dependent`, and since 2026-09-10 it
+draws TWO lines rather than one:
+
+  * `is_dependent = True`, always. This is what protects the 129 pairs above: a
+    student with their own login is not impersonable, deletable or promotable by
+    anyone, whatever relationship they hold.
+  * `owner_only=True` on delete, promote and add-login. Any guardian may ACT for
+    a child -- the second parent of a shared child is as much a parent as the
+    first, and tying that to whoever clicked "add a child" first was arbitrary.
+    But ending the account or handing it its own credentials is not acting for
+    the child, and a co-guardian must not do it silently.
+
+So the decorator is still the outer structural gate and the repository is still
+the precise one; what changed is that "precise" is now two questions instead of
+`managed_by_parent_id == caller` answering both at once.
 """
 
 import pytest

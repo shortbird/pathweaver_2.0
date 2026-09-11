@@ -14,6 +14,7 @@ import AddEvidenceModal from '../components/evidence/AddEvidenceModal';
 import { submitHelperEvidence } from '../components/evidence/helperEvidenceUtils';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import { useConfirm } from '../contexts/ConfirmContext'
+import { useActingAs } from '../contexts/ActingAsContext';
 
 /**
  * ParentQuestView - Streamlined quest view for parents to upload evidence and
@@ -31,6 +32,7 @@ import { useConfirm } from '../contexts/ConfirmContext'
 const ParentQuestView = () => {
   const confirm = useConfirm()
   const { studentId, questId } = useParams();
+  const { setActingAs } = useActingAs();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [questData, setQuestData] = useState(null);
@@ -226,6 +228,29 @@ const ParentQuestView = () => {
                 </p>
               </div>
             </div>
+
+            {/* Work as the child. The web app never passed
+                acting_as_dependent_id to the completion routes, so a parent on
+                a laptop could attach evidence and not finish the task, while
+                the same parent on the phone could — the app does pass it. Rather
+                than a second implementation of "complete a task" here, this
+                hands over to the child's own workspace, which already has the
+                evidence blocks, the completion rules and the XP.
+
+                Managed accounts only. A student with their own login owns their
+                work; a guardian helps by attaching evidence, and the student
+                marks it done. */}
+            {questData.is_dependent && (
+              <button
+                onClick={() => setActingAs(
+                  { id: studentId, display_name: questData.student_name },
+                  `/quests/${questId}`,
+                )}
+                className="flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-optio-purple border border-optio-purple/40 hover:bg-optio-purple/5 transition-colors"
+              >
+                Work on this as {questData.student_name || 'your child'}
+              </button>
+            )}
 
             {/* Add tasks — same wizard the student uses, written to their quest. */}
             {questData.can_add_tasks && (

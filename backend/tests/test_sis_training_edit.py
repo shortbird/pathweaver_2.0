@@ -117,10 +117,21 @@ class TestSavingEdits:
             'title': 'Orientation', 'tasks': [{'title': 'Take a photo of your room'}],
         })
         assert status == 200
-        assert [(op, n) for (op, n, _p) in log if n == 'quest_template_tasks'] == [
-            ('delete', 'quest_template_tasks'), ('insert', 'quest_template_tasks')]
-        inserted = [p for (op, n, p) in log if op == 'insert' and n == 'quest_template_tasks'][0]
-        assert inserted[0]['title'] == 'Take a photo of your room'
+        writes = [p for (op, n, p) in log
+                  if op == 'insert' and n == 'quest_template_tasks']
+        assert writes and writes[0][0]['title'] == 'Take a photo of your room'
+
+    def test_saving_does_not_delete_and_recreate_the_tasks(self):
+        """It used to. Every save changed every task id, which NULLed each
+        enrolled student's source_template_task_id -- and would now also cascade
+        away any resources attached to those tasks, so fixing a typo in the
+        description could silently delete the class's handouts."""
+        _body, _status, log = _run(training.update_training_quest, {
+            'title': 'Orientation', 'tasks': [{'title': 'Take a photo of your room'}],
+        })
+        deletes = [p for (op, n, p) in log
+                   if op == 'delete' and n == 'quest_template_tasks']
+        assert not deletes
 
     def test_posting_back_the_artwork_it_already_has_is_not_an_error(self):
         """The bug. The form was given the logo and handed it straight back."""

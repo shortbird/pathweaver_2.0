@@ -65,7 +65,18 @@ def register(bp):
             # register(), so importing at module scope would close the cycle.
             # It also keeps the patch target where existing tests point.
             from routes.dependents import verify_parent_role
-            verify_parent_role(parent_id)
+            # check_relationships=True: a guardian holds a real relationship to
+            # this child whatever their role column happens to say. The
+            # per-child gate is get_dependent below; this is only "is this
+            # person a parent at all".
+            #
+            # parent_id, NOT user_id -- see the comment above. Both halves of
+            # this line were fixes to separate live bugs and a merge took one
+            # of each: `parent_id` is what stopped act-as 403ing on every page
+            # reload, and `check_relationships` is what lets a guardian whose
+            # role column says otherwise through. Passing user_id here would
+            # re-break the first one for the 45 people in OPTIO-WEB-3.
+            verify_parent_role(parent_id, check_relationships=True)
 
             # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
             supabase = get_supabase_admin_client()

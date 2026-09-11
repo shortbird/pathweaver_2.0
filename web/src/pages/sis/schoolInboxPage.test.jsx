@@ -26,8 +26,8 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
   useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, loading: false, activeOrg: null }),
 }))
 
-// The composer drags in TipTap; the tab only has to mount it.
-vi.mock('../../components/sis/AnnouncementComposer', () => ({
+// The board tab drags in TipTap; this page only has to mount it.
+vi.mock('../../components/sis/BoardAnnouncementsTab', () => ({
   default: () => <div>composer-stub</div>,
 }))
 vi.mock('../../components/communication/MessageParts', () => ({
@@ -196,7 +196,7 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />)
-    await screen.findByRole('button', { name: /^Conversations/ })
+    await screen.findByRole('button', { name: /^My messages/ })
     expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
   })
 
@@ -205,7 +205,99 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />, { route: '/inbox?tab=announcements' })
     expect(await screen.findByText('composer-stub')).toBeInTheDocument()
     // And the tabs switch back to threads.
-    fireEvent.click(screen.getByRole('button', { name: /^Conversations/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^My messages/ }))
     expect(screen.queryByText('composer-stub')).not.toBeInTheDocument()
+  })
+
+  // ── The personal inbox (2026-09-10) ────────────────────────────────────────
+  //
+  // Which thread source you saw used to be decided by your role: an admin got
+  // the school inbox and nothing else. So an admin or coordinator who was
+  // messaged personally -- as a colleague, or as a parent of their own child at
+  // the school -- had nowhere in the console to read it. The notification
+  // linked to the learning app and the console pretended the thread was not
+  // there. It is a tab now.
+
+  it('offers an admin both the school inbox and their own threads', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    render(<SchoolInboxPage />)
+    expect(await screen.findByRole('button', { name: /^Hearthwood/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^My messages/ })).toBeInTheDocument()
+  })
+
+  it('opens an admin on the school queue, which is the one they work', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.schoolConvos = [{
+      id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
+      last_message_preview: 'from a parent', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />)
+    expect(await screen.findByText('from a parent')).toBeInTheDocument()
+  })
+
+  it('shows an admin their own threads on the Mine tab', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.myConvos = [{
+      id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
+      last_message_preview: 'just between us', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    expect(await screen.findByText('just between us')).toBeInTheDocument()
+  })
+
+  it('replies as the school only on the school tab', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.schoolConvos = [{
+      id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
+      last_message_preview: 'hi', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('hi'))
+    expect(await screen.findByPlaceholderText(/Reply as Hearthwood/)).toBeInTheDocument()
+  })
+
+  it('replies as yourself on the Mine tab', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.myConvos = [{
+      id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
+      last_message_preview: 'hi', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByText('hi'))
+    expect(await screen.findByPlaceholderText('Write a reply...')).toBeInTheDocument()
+  })
+
+  it('sends an admin reply on the Mine tab through their own account', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.myConvos = [{
+      id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
+      last_message_preview: 'hi', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByText('hi'))
+    const box = await screen.findByPlaceholderText('Write a reply...')
+    fireEvent.change(box, { target: { value: 'on my way' } })
+    fireEvent.click(screen.getByRole('button', { name: /send/i }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/messages/conversations/teacher-1/send', expect.anything())
+    })
+  })
+
+  it('gives a teacher no school tab — they have no school inbox to read', async () => {
+    authUser = { id: 'me-1', role: 'advisor' }
+    render(<SchoolInboxPage />)
+    await screen.findByRole('button', { name: /^My messages/ })
+    expect(screen.queryByRole('button', { name: /^Hearthwood/ })).not.toBeInTheDocument()
+  })
+
+  it('opens a thread with the person named by ?to=', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.myConvos = [{
+      id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
+      last_message_preview: 'hi', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine&to=teacher-1' })
+    expect(await screen.findByPlaceholderText('Write a reply...')).toBeInTheDocument()
   })
 })

@@ -19,7 +19,7 @@ from utils.logger import get_logger
 from services import sis_service
 from services import sis_clp_service as clp
 # Admin tier: this whole module is org management, not teacher-facing.
-from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,7 @@ def _org_or_error(user_id):
 
 
 @bp.route('/clp/directory', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def clp_directory(user_id):
     """Active students grouped by family (+ a flat list) for the CLP student picker."""
     org_id, err = _org_or_error(user_id)
@@ -49,7 +49,7 @@ def clp_directory(user_id):
 
 
 @bp.route('/clp/students/<student_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='clp')
 def clp_student(user_id, student_id):
     """One student's CLP payload: profile, family/siblings, schedule, and the full
@@ -64,7 +64,7 @@ def clp_student(user_id, student_id):
 
 
 @bp.route('/clp/students/<student_id>/record', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def update_clp_record(user_id, student_id):
     """Partial update of the student's CLP meeting record: mark the CLP

@@ -26,6 +26,10 @@ import SisLayout from './SisLayout'
 import SisSidebar from './SisSidebar'
 import { setPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
+// The badge polls two unread endpoints through react-query; these tests render
+// the sidebar without a QueryClientProvider and only care about the nav items.
+vi.mock('./InboxUnreadBadge', () => ({ default: () => null }))
+
 function renderLayout() {
   return render(
     <MemoryRouter>

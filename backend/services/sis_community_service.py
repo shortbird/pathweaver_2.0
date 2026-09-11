@@ -111,6 +111,64 @@ def list_announcements(org_id: str, include_hidden: bool = True) -> List[Dict[st
     return rows
 
 
+#: Which roles a board audience notifies, when the poster ticks "also notify".
+#: The board audience already says who the notice is FOR; asking again in a
+#: second vocabulary is how three composers with three different audience models
+#: came to exist in the first place.
+_NOTIFY_ROLES = {
+    'school': ('parents', 'students', 'advisors'),
+    'teachers': ('advisors',),
+    # No admin audience exists in announcement_service.ROLE_AUDIENCES, so an
+    # admins-only post cannot be notified. The composer says so rather than
+    # silently posting to the board and sending nothing.
+    'admins': (),
+}
+
+
+def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
+    """The role audiences a post should be sent to, or [] for board-only.
+
+    Accepts the old explicit `notify_audiences` list for one release -- mobile
+    and any other caller still send it -- and the new `notify` boolean, which
+    derives the audiences from the post's own.
+    """
+    explicit = data.get('notify_audiences')
+    if explicit:
+        return list(explicit)
+    if data.get('notify'):
+        return list(_NOTIFY_ROLES.get(audience, ()))
+    return []
+
+
+def _default_expires_at(org_id: str) -> Optional[str]:
+    """End of the school year, so a notice stays up for the year it is about.
+
+    An announcement is a thing people come back and re-read -- the calendar, the
+    dress code, where to park at pickup. With no expiry set they accumulated
+    forever and last September's first-day instructions sat above this week's
+    news; the board has an expires_at column and a filter that honours it, and
+    nothing was ever putting a value in it.
+
+    Needs organizations.feature_flags.sis_settings.last_day_of_school. Without
+    it, no expiry -- the old behaviour, which is right for a school that has not
+    told us when its year ends.
+    """
+    try:
+        row = (_admin().table('organizations').select('feature_flags')
+               .eq('id', org_id).limit(1).execute()).data
+        settings = ((row[0].get('feature_flags') or {}).get('sis_settings') or {}) if row else {}
+        last_day = settings.get('last_day_of_school')
+        if not last_day:
+            return None
+        from services.sis_staff_service import _org_tz
+        end = datetime.strptime(str(last_day)[:10], '%Y-%m-%d').replace(
+            hour=23, minute=59, second=59, tzinfo=_org_tz(org_id))
+        return end.isoformat()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not work out the end of the school year for {org_id}: {e}')
+        return None
+
+
 def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     title = _text(data.get('title'))
     if not title:
@@ -129,7 +187,8 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
         'priority': priority,
         'audience': audience,
         'publish_at': (str(data['publish_at']).strip() or None) if data.get('publish_at') else None,
-        'expires_at': (str(data['expires_at']).strip() or None) if data.get('expires_at') else None,
+        'expires_at': ((str(data['expires_at']).strip() or None) if data.get('expires_at')
+                       else _default_expires_at(org_id)),
         'created_by': user_id,
     }
     row = (_admin().table('sis_announcements').insert(fields).execute()).data
@@ -142,7 +201,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     # announcement path — durable row, in-app notification, email. Best-effort —
     # a delivery problem must not lose the post that already succeeded.
     result = {'announcement': created}
-    audiences = data.get('notify_audiences')
+    audiences = _notify_audiences(data, audience)
     if audiences:
         try:
             from services import announcement_service
@@ -150,6 +209,8 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
             if audiences:
                 sent = announcement_service.publish(
                     org_id, user_id, title, _body(data.get('body')) or title, audiences,
+                    send_app=bool(data.get('notify_app', True)) if 'notify' in data else True,
+                    send_email=bool(data.get('notify_email')) if 'notify' in data else True,
                     # Tie the send to the post, so an edit or a delete on the
                     # board reaches both halves of what a family sees as one
                     # notice (see announcement_service.revise_for_source).

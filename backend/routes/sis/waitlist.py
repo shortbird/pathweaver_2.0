@@ -15,7 +15,7 @@ from services import sis_waitlist_service as waitlist
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 # Admin tier: this whole module is org management, not teacher-facing.
-from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -41,7 +41,7 @@ def _class_in_org(org_id, class_id):
 
 
 @bp.route('/classes/<class_id>/waitlist', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_waitlist(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -52,7 +52,7 @@ def list_waitlist(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/waitlist', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_waitlist(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -86,7 +86,7 @@ def add_waitlist(user_id, class_id):
 
 
 @bp.route('/classes/<class_id>/waitlist/offer-next', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def offer_next(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -104,7 +104,7 @@ def offer_next(user_id, class_id):
 
 
 @bp.route('/waitlist/<entry_id>/offer', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def offer_entry(user_id, entry_id):
     """Offer (or re-offer) the seat to one named student, resetting the clock.
 
@@ -121,7 +121,7 @@ def offer_entry(user_id, entry_id):
 
 
 @bp.route('/waitlist/<entry_id>/enroll', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def enroll_entry(user_id, entry_id):
     """Admit a waitlisted student into the class directly, without waiting for
     the family to claim the offer. Capacity is not enforced — an admin doing
@@ -147,7 +147,7 @@ def enroll_entry(user_id, entry_id):
 
 
 @bp.route('/waitlist/<entry_id>/offer-section', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def offer_other_section(user_id, entry_id):
     """Offer a waitlisted student a seat in a different section of the same class.
 
@@ -169,7 +169,7 @@ def offer_other_section(user_id, entry_id):
 
 
 @bp.route('/classes/<class_id>/sibling-sections', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def sibling_sections(user_id, class_id):
     """Other sections of this class that still have room, so a waitlisted
     student can be offered a different time instead of just waiting."""
@@ -182,7 +182,7 @@ def sibling_sections(user_id, class_id):
 
 
 @bp.route('/waitlist/<entry_id>/respond', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def respond(user_id, entry_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -201,7 +201,7 @@ def respond(user_id, entry_id):
 
 
 @bp.route('/waitlist/<entry_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def remove_entry(user_id, entry_id):
     org_id, err = _org_or_error(user_id)
     if err:

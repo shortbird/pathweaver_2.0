@@ -127,11 +127,19 @@ def is_masquerade_still_authorized(admin_id: str, target_id: str = None) -> bool
 
 
 def is_acting_as_still_authorized(parent_id: str, dependent_id: str) -> bool:
-    """True iff `dependent_id` is still a dependent managed by `parent_id`.
+    """True iff `dependent_id` is still a dependent `parent_id` may act for.
 
-    Mirrors DependentRepository.get_dependent()'s authorization check, which is
-    what gates the original grant in routes/dependents.py. Fails CLOSED, for the
-    same reason as the masquerade check.
+    MUST mirror DependentRepository.get_dependent()'s default authorization,
+    which is what gates the original grant in routes/dependents.py. The two are
+    a pair: this runs on every subsequent request, so a check that is stricter
+    than the grant hands out a token that dies on its first use. When
+    get_dependent widened from "the managing parent" to "any guardian"
+    (household guardians included), this had to widen with it.
+
+    The is_dependent filter is the part that must NOT relax: a student with
+    their own login is never impersonable, by anyone.
+
+    Fails CLOSED, for the same reason as the masquerade check.
     """
     if not parent_id or not dependent_id:
         return False
@@ -144,4 +152,14 @@ def is_acting_as_still_authorized(parent_id: str, dependent_id: str) -> bool:
     if not rows:
         return False
     row = rows[0]
-    return bool(row.get('is_dependent')) and row.get('managed_by_parent_id') == parent_id
+    if not row.get('is_dependent'):
+        return False
+    if row.get('managed_by_parent_id') == parent_id:
+        return True
+    try:
+        from utils.portfolio_access import is_parent_of
+        return is_parent_of(parent_id, dependent_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[TokenAuthority] Acting-as guardian check failed for "
+                       f"{dependent_id[:8]}...: {e}")
+        return False

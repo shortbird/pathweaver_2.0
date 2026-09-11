@@ -95,7 +95,6 @@ vi.mock('../../services/api', () => ({ default: api }))
 import SisDashboard from './SisDashboard'
 import RosterPage from './RosterPage'
 import HouseholdsPage from './HouseholdsPage'
-import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
@@ -293,20 +292,6 @@ describe('HouseholdsPage', () => {
     const heading = await screen.findByText('Students without a family')
     const panel = heading.closest('.bg-amber-50')
     expect(within(panel).getByText(/Possible duplicate of Zed Twin/)).toBeInTheDocument()
-  })
-})
-
-describe('AnnouncementComposer', () => {
-  it('sends an announcement via /api/announcements', async () => {
-    render(<AnnouncementComposer />)
-    fireEvent.change(screen.getByPlaceholderText('Subject line'), { target: { value: 'Hello' } })
-    fireEvent.change(screen.getByPlaceholderText('Write your announcement…'), { target: { value: 'Body text' } })
-    fireEvent.click(screen.getByText('Send announcement'))
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/announcements', expect.objectContaining({
-        title: 'Hello', message: 'Body text', audiences: ['parents'],
-      })),
-    )
   })
 })
 

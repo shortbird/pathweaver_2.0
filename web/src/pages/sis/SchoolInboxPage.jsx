@@ -12,8 +12,9 @@ import {
 import api from '../../services/api'
 import { AttachmentList } from '../../components/communication/MessageParts'
 import { splitUrls, hostLabel } from '../../components/announcements/AnnouncementBody'
-import AnnouncementComposer from '../../components/sis/AnnouncementComposer'
+import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import SearchSelect from '../../components/ui/SearchSelect'
+import StaffComposeModal from '../../components/sis/StaffComposeModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -102,9 +103,9 @@ const LinkifiedText = ({ text, light }) => (
 const SchoolInboxPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { user } = useAuth()
-  // Which thread source this caller reads (see the header comment). The
-  // backend is the real gate either way: /api/school-inbox/* is ADMIN_ROLES,
-  // /api/messages/* answers only for the caller.
+  // Whether this caller has a school inbox to read at all. The backend is the
+  // real gate either way: /api/school-inbox/* is ADMIN_ROLES, /api/messages/*
+  // answers only for the caller.
   const admin = isSisAdmin(user)
   const [searchParams, setSearchParams] = useSearchParams()
   // Which threads to show. The office's inbox is a work queue: what it needs to
@@ -113,8 +114,23 @@ const SchoolInboxPage = () => {
   // new messages that haven't been replied to show" (2ca63bde) and "I don't
   // have an outbox really" (7fb34ed4) are the two halves of this one control.
   const [threadView, setThreadView] = useState('open')
-  const tab = searchParams.get('tab') === 'announcements' ? 'announcements' : 'messages'
-  const setTab = (t) => setSearchParams(t === 'messages' ? {} : { tab: t }, { replace: true })
+  // Three tabs, from ?tab=. Which SOURCE the Messages half reads used to be
+  // decided by the caller's role: an admin got the school inbox and nothing
+  // else, so an admin or coordinator who was messaged personally -- as a
+  // colleague, or as a parent of their own child at the school -- had nowhere
+  // in the console to read it. The notification linked to the learning app and
+  // the console pretended the thread did not exist. It is a tab now, and both
+  // halves are available to whoever the backend lets read them.
+  const rawTab = searchParams.get('tab')
+  const tab = rawTab === 'announcements' ? 'announcements'
+    : rawTab === 'mine' ? 'mine'
+      // Default: the office opens on the queue it works, a teacher on their own
+      // threads (they have no school inbox to open).
+      : rawTab === 'school' ? 'school' : (admin ? 'school' : 'mine')
+  const isMessages = tab === 'school' || tab === 'mine'
+  // The school inbox is only ever read on the School tab.
+  const viewingSchool = admin && tab === 'school'
+  const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
   const [conversations, setConversations] = useState([])
   const [inboxUserId, setInboxUserId] = useState(null)
   const [orgName, setOrgName] = useState('')
@@ -133,6 +149,9 @@ const SchoolInboxPage = () => {
   const [composing, setComposing] = useState(false)
   const [people, setPeople] = useState([])
   const [pickedPerson, setPickedPerson] = useState('')
+  // Writing to several staff at once. Separate from `composing`, which starts a
+  // thread with ONE family or student as the school.
+  const [staffCompose, setStaffCompose] = useState(false)
   const fileRef = useRef(null)
   const endRef = useRef(null)
   const draftRef = useRef(null)
@@ -150,20 +169,19 @@ const SchoolInboxPage = () => {
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [draft])
 
-  // "Me" in a thread: the school for the front office, the teacher themself
-  // otherwise.
-  const selfId = admin ? inboxUserId : user?.id
+  // "Me" in a thread: the school on the School tab, myself on Mine.
+  const selfId = viewingSchool ? inboxUserId : user?.id
 
   const loadConversations = useCallback((quiet = false) => {
     if (!quiet) setLoading(true)
-    const req = admin
+    const req = viewingSchool
       ? api.get(withOrg('/api/school-inbox/conversations', isSuperadmin ? orgId : null))
       : api.get('/api/messages/conversations')
     req
       .then((r) => {
         const data = r.data?.data || {}
         setConversations(data.conversations || [])
-        if (admin) {
+        if (viewingSchool) {
           setInboxUserId(data.inbox_user_id || null)
           setOrgName(data.organization?.name || '')
         }
@@ -172,22 +190,22 @@ const SchoolInboxPage = () => {
         if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the inbox')
       })
       .finally(() => { if (!quiet) setLoading(false) })
-  }, [orgId, isSuperadmin, admin])
+  }, [orgId, isSuperadmin, viewingSchool])
 
   useEffect(() => {
-    if (tab !== 'messages') return
-    if (admin && isSuperadmin && !orgId) return
+    if (!isMessages) return
+    if (viewingSchool && isSuperadmin && !orgId) return
     loadConversations()
     const timer = setInterval(() => loadConversations(true), POLL_LIST_MS)
     return () => clearInterval(timer)
-  }, [loadConversations, isSuperadmin, orgId, admin, tab])
+  }, [loadConversations, isSuperadmin, orgId, viewingSchool, tab, isMessages])
 
   useEffect(() => {
-    if (!composing || !admin || people.length) return
+    if (!composing || !viewingSchool || people.length) return
     api.get(withOrg('/api/sis/roster', isSuperadmin ? orgId : null))
       .then((r) => setPeople(r.data?.roster || []))
       .catch(() => toast.error('Could not load the school directory'))
-  }, [composing, admin, isSuperadmin, orgId, people.length])
+  }, [composing, viewingSchool, isSuperadmin, orgId, people.length])
 
   // Open a thread with somebody who has never written in. It has no
   // conversation id until the first message lands, which handleSend adopts
@@ -211,7 +229,7 @@ const SchoolInboxPage = () => {
   const loadMessages = useCallback((conversationId, quiet = false) => {
     if (!conversationId) return
     if (!quiet) setMessagesLoading(true)
-    const url = admin
+    const url = viewingSchool
       ? withOrg(`/api/school-inbox/conversations/${conversationId}`, isSuperadmin ? orgId : null)
       : `/api/messages/conversations/${conversationId}`
     api.get(url)
@@ -219,7 +237,7 @@ const SchoolInboxPage = () => {
         setMessages(r.data?.data?.messages || [])
         // The school inbox marks the thread read on GET; a teacher's own
         // thread needs the explicit mark (same as the learning app).
-        if (!admin) {
+        if (!viewingSchool) {
           api.post(`/api/messages/conversations/${conversationId}/read`, {}).catch(() => {})
         }
         setConversations((prev) => prev.map((c) =>
@@ -229,10 +247,10 @@ const SchoolInboxPage = () => {
         if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the conversation')
       })
       .finally(() => { if (!quiet) setMessagesLoading(false) })
-  }, [orgId, isSuperadmin, admin])
+  }, [orgId, isSuperadmin, viewingSchool])
 
   useEffect(() => {
-    if (!selected?.id || tab !== 'messages') return
+    if (!selected?.id || !isMessages) return
     loadMessages(selected.id)
     const timer = setInterval(() => loadMessages(selected.id, true), POLL_THREAD_MS)
     return () => clearInterval(timer)
@@ -242,8 +260,37 @@ const SchoolInboxPage = () => {
     endRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages])
 
-  // Switching orgs (superadmin) resets the open thread.
-  useEffect(() => { setSelected(null); setMessages([]) }, [orgId])
+
+  // Switching orgs (superadmin) or tabs resets the open thread -- School and
+  // Mine are different thread lists, and a conversation id from one is
+  // meaningless to the other.
+  useEffect(() => { setSelected(null); setMessages([]); setConversations([]) }, [orgId, tab])
+
+  // ?to=<user id> opens a thread with that person straight away, so "Message"
+  // on a staff card is one click rather than a page plus a search. The thread
+  // may not exist yet, which is the state startThread also leaves it in: no id
+  // until the first message lands, and handleSend adopts the id from the reply.
+  //
+  // Declared AFTER the reset above on purpose. Effects run in source order, so
+  // the other way round the reset fired second and cleared the thread this one
+  // had just opened -- ?to= appeared to do nothing at all.
+  const wantedTo = searchParams.get('to')
+  useEffect(() => {
+    if (!wantedTo || tab !== 'mine') return
+    const existing = conversations.find((c) => c.other_user?.id === wantedTo)
+    setSelected((current) => {
+      if (existing) return existing
+      if (current?.other_user?.id === wantedTo) return current
+      return { id: null, other_user: { id: wantedTo } }
+    })
+    if (existing) {
+      // Consumed once a real thread is in hand. Leaving it in the URL would
+      // re-open this thread on every poll and fight anyone reading another.
+      const next = new URLSearchParams(searchParams)
+      next.delete('to')
+      setSearchParams(next, { replace: true })
+    }
+  }, [wantedTo, tab, conversations])
   // A pending attachment belongs to the thread it was picked for.
   useEffect(() => { setAttachments([]) }, [selected?.id])
 
@@ -275,7 +322,7 @@ const SchoolInboxPage = () => {
     const content = draft.trim()
     if ((!content && !attachments.length) || !selected?.other_user?.id || sending) return
     setSending(true)
-    const url = admin
+    const url = viewingSchool
       ? withOrg(`/api/school-inbox/conversations/${selected.other_user.id}/send`, isSuperadmin ? orgId : null)
       : `/api/messages/conversations/${selected.other_user.id}/send`
     api.post(url, {
@@ -325,35 +372,55 @@ const SchoolInboxPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">Messaging</h1>
           <p className="text-sm text-neutral-500 mt-0.5">
-            {admin ? (
+            {viewingSchool ? (
               <>Messages families and staff send to {orgName ? <span className="font-medium">{orgName}</span> : 'the school'} —
                 replies go out under the school&apos;s name.</>
+            ) : tab === 'mine' ? (
+              <>Your own threads — replies come from you, not the school.</>
             ) : (
-              <>Your message threads, and announcements to the families of your classes.</>
+              <>Announcements to the families of your classes.</>
             )}
-            {tab === 'messages' && totalUnread > 0 && ` ${totalUnread} unread.`}
+            {isMessages && totalUnread > 0 && ` ${totalUnread} unread.`}
           </p>
         </div>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <button type="button" onClick={() => setTab('messages')} className={tabClass('messages')}>
-          Conversations{totalUnread > 0 ? ` (${totalUnread})` : ''}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {admin && (
+          <button type="button" onClick={() => setTab('school')} className={tabClass('school')}>
+            {orgName || 'School'}{tab === 'school' && totalUnread > 0 ? ` (${totalUnread})` : ''}
+          </button>
+        )}
+        <button type="button" onClick={() => setTab('mine')} className={tabClass('mine')}>
+          My messages{tab === 'mine' && totalUnread > 0 ? ` (${totalUnread})` : ''}
         </button>
         <button type="button" onClick={() => setTab('announcements')} className={tabClass('announcements')}>
           Announcements
         </button>
       </div>
 
+      <StaffComposeModal
+        isOpen={staffCompose}
+        orgId={isSuperadmin ? orgId : null}
+        onClose={() => setStaffCompose(false)}
+        onSent={() => loadConversations(true)}
+      />
+
       {tab === 'announcements' ? (
-        <AnnouncementComposer />
+        // The same board composer /community mounts. It used to be a second,
+        // different composer here -- a targeted SEND that could pick classes,
+        // teachers and age bands, next to a BOARD post that could not. Two
+        // composers for one act, and the office had to choose between them
+        // before writing anything. Reaching a chosen set of people is what the
+        // messaging tabs beside this one are for now.
+        <BoardAnnouncementsTab orgId={isSuperadmin ? orgId : null} admin={admin} />
       ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}
         <div className={`w-full md:w-[300px] lg:w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col ${
           selected ? 'hidden md:flex' : 'flex'}`}>
-          {admin && (
+          {viewingSchool && (
             <div className="border-b border-gray-100 p-3">
               {composing ? (
                 <div>
@@ -384,6 +451,14 @@ const SchoolInboxPage = () => {
               )}
             </div>
           )}
+          {admin && tab === 'mine' && (
+            <div className="border-b border-gray-100 p-3">
+              <button type="button" onClick={() => setStaffCompose(true)}
+                className="w-full rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+                New message
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-100" role="group"
             aria-label="Filter threads">
             {THREAD_VIEWS.map(([value, label]) => (
@@ -406,7 +481,7 @@ const SchoolInboxPage = () => {
                 <InboxIcon className="w-12 h-12 text-gray-300 mb-3" />
                 <p className="text-sm font-medium text-neutral-700 mb-1">No messages yet</p>
                 <p className="text-xs text-neutral-500">
-                  {admin
+                  {viewingSchool
                     ? 'When a family or staff member messages the school, the thread shows up here.'
                     : 'When someone messages you, the thread shows up here.'}
                 </p>
@@ -473,7 +548,7 @@ const SchoolInboxPage = () => {
             <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
               <ChatBubbleLeftRightIcon className="w-10 h-10 text-gray-300 mb-3" />
               <p className="text-sm text-neutral-500">
-                {admin
+                {viewingSchool
                   ? 'Pick a conversation to read and reply as the school.'
                   : 'Pick a conversation to read and reply.'}
               </p>
@@ -489,7 +564,7 @@ const SchoolInboxPage = () => {
                 </button>
                 <div className="min-w-0">
                   <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selected)}</h2>
-                  {admin && (
+                  {viewingSchool && (
                     <p className="text-xs text-neutral-500 flex items-center gap-1">
                       <AcademicCapIcon className="w-3.5 h-3.5" />
                       Replying as {orgName || 'the school'}
@@ -526,9 +601,9 @@ const SchoolInboxPage = () => {
                           )}
                           <p className={`text-[11px] mt-1 ${fromMe ? 'text-white/70' : 'text-gray-400'}`}>
                             {formatTime(message.created_at)}
-                            {admin && fromMe && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
+                            {viewingSchool && fromMe && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
                             {/* A member-side message with an author = forwarded in from Optio Support. */}
-                            {admin && !fromMe && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
+                            {viewingSchool && !fromMe && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
                           </p>
                         </div>
                       </div>
@@ -580,7 +655,7 @@ const SchoolInboxPage = () => {
                       }
                     }}
                     rows={1}
-                    placeholder={admin ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
+                    placeholder={viewingSchool ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
                     // resize-y, not resize-none: the auto-grow handles the
                     // common case, and the drag handle is there for the reply
                     // somebody wants a bigger window on regardless.

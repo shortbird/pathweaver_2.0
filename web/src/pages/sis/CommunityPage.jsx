@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  useCommunityHighlights, useCommunityAnnouncements, useCommunityLostFound,
+  useCommunityHighlights, useCommunityLostFound,
   useCommunityRecognition, useCommunityMembers, useCommunityEvents,
   sisCommunityApi, invalidateCommunity,
 } from '../../hooks/api/useSisCommunity'
@@ -14,8 +14,7 @@ import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
-import RichTextEditor from '../../components/course/outline/RichTextEditor'
-import AnnouncementBody from '../../components/announcements/AnnouncementBody'
+import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import { htmlToText } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
@@ -106,7 +105,7 @@ const CommunityPage = () => {
       ) : (
         <>
           {tab === 'highlights' && <HighlightsTab orgId={orgId} onNavigate={setTab} />}
-          {tab === 'announcements' && <AnnouncementsTab orgId={orgId} admin={admin} />}
+          {tab === 'announcements' && <BoardAnnouncementsTab orgId={orgId} admin={admin} />}
           {tab === 'lost-found' && <LostFoundTab orgId={orgId} admin={admin} />}
           {tab === 'recognition' && <RecognitionTab orgId={orgId} />}
           {tab === 'events' && <EventsTab orgId={orgId} />}
@@ -244,210 +243,6 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
 }
 
 // ── Announcements ─────────────────────────────────────────────────────────────
-const AnnouncementsTab = ({ orgId, admin }) => {
-  const confirm = useConfirm()
-  const queryClient = useQueryClient()
-  const [editing, setEditing] = useState(null) // row | 'new' | null
-
-  const { data: items = [], isPending: loading, isError } = useCommunityAnnouncements(orgId)
-  useEffect(() => { if (isError) toast.error('Failed to load announcements') }, [isError])
-  const load = useCallback(
-    () => invalidateCommunity(queryClient, orgId), [queryClient, orgId],
-  )
-
-  const remove = async (a) => {
-    if (!(await confirm(`Delete "${a.title}"?`))) return
-    try {
-      await sisCommunityApi.deleteAnnouncement(a.id, orgId)
-      toast.success('Announcement deleted')
-      load()
-    } catch { toast.error('Could not delete') }
-  }
-
-  return (
-    <div>
-      {admin && (
-        <div className="mb-4 flex items-center gap-3 flex-wrap">
-          <Button size="sm" onClick={() => setEditing('new')}>Post announcement</Button>
-          {/* The board and the send were two composers for one act, and the
-              office kept having to decide which one they wanted before they
-              had written anything ("I think we may be getting confused with
-              messaging and announcements?" — ce12a041, 2026-09-02). Posting
-              here still only posts; Messaging is where a notice can post AND
-              be delivered in the same breath, so the door to it is here. */}
-          <Link to="/inbox?tab=announcements"
-            className="text-sm text-optio-purple hover:underline">
-            Post and send it to families →
-          </Link>
-        </div>
-      )}
-      {editing && (
-        <AnnouncementForm
-          orgId={orgId}
-          announcement={editing === 'new' ? null : editing}
-          onDone={() => { setEditing(null); load() }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-      {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && !items.length && <p className="text-neutral-500">No announcements yet.</p>}
-      <div className="space-y-3">
-        {items.map((a) => (
-          <div key={a.id} className={`bg-white rounded-xl border p-4 ${a.pinned ? 'border-optio-purple/40' : 'border-gray-200'}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {a.pinned && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">Pinned</span>}
-                  {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
-                  <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
-                </div>
-                {a.body && <AnnouncementBody text={a.body} className="text-sm text-neutral-600 mt-1" />}
-                <div className="text-xs text-neutral-400 mt-2">
-                  {fmtDate(a.created_at)}
-                  {a.publish_at && new Date(a.publish_at) > new Date() ? ` · Scheduled for ${fmtDateTime(a.publish_at)}` : ''}
-                  {a.expires_at ? ` · Expires ${fmtDate(a.expires_at)}` : ''}
-                </div>
-              </div>
-              {admin && (
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <button onClick={() => setEditing(a)} className="text-sm text-neutral-500 hover:text-optio-purple">Edit</button>
-                  <button onClick={() => remove(a)} className="text-sm text-red-500 hover:underline">Delete</button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
-  const [f, setF] = useState({
-    title: announcement?.title || '',
-    body: announcement?.body || '',
-    pinned: Boolean(announcement?.pinned),
-    priority: announcement?.priority || 'normal',
-    audience: announcement?.audience || 'school',
-    publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
-    expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
-    // Who to SEND it to, beyond the staff noticeboard. Empty = noticeboard only.
-    notify: [],
-  })
-  const [saving, setSaving] = useState(false)
-  const set = (k, v) => setF((p) => ({ ...p, [k]: v }))
-
-  const save = async () => {
-    if (!f.title.trim()) return toast.error('Title is required')
-    setSaving(true)
-    const payload = {
-      organization_id: orgId,
-      title: f.title,
-      body: f.body,
-      pinned: f.pinned,
-      priority: f.priority,
-      audience: f.audience,
-      publish_at: f.publish_at ? new Date(f.publish_at).toISOString() : null,
-      expires_at: f.expires_at ? new Date(f.expires_at).toISOString() : null,
-      notify_audiences: f.notify,
-    }
-    try {
-      if (announcement) await sisCommunityApi.saveAnnouncement(announcement.id, payload)
-      else {
-        const { data } = await sisCommunityApi.saveAnnouncement(null, payload)
-        if (data?.notify_error) toast.error(data.notify_error)
-        else if (data?.notified?.sent) {
-          toast.success(`Posted and sent to ${data.notified.sent} ${data.notified.sent === 1 ? 'person' : 'people'}`)
-          return onDone()
-        }
-      }
-      toast.success(announcement ? 'Announcement updated' : 'Announcement posted')
-      onDone()
-    } catch (e) { toast.error(e?.response?.data?.error || 'Could not save') }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5 space-y-3">
-      <label className="text-xs text-neutral-500 block">Title
-        <input value={f.title} onChange={(e) => set('title', e.target.value)} className={field} placeholder="Early dismissal Friday" autoFocus />
-      </label>
-      <div className="text-xs text-neutral-500">
-        Message <span className="text-neutral-400">(optional)</span>
-        <div className="mt-1">
-          <RichTextEditor
-            value={f.body}
-            onChange={(v) => set('body', v)}
-            placeholder="Share the details…"
-            minHeight="110px"
-            alignment={false}
-          />
-        </div>
-      </div>
-      {/* Posting to the board publishes it — families and students read the same
-          board in the app. Sending is the separate, louder act: a notification
-          and an email that arrive whether or not anyone opens the board. */}
-      {!announcement && (
-        <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-            Who sees this
-          </p>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Families and students see the board in the app. Tick a group to also send
-            this to them as an announcement — a notification and an email.
-          </p>
-          <div className="flex flex-wrap gap-3 mt-2">
-            {[['parents', 'Families'], ['students', 'Students'], ['advisors', 'Teachers']].map(([key, label]) => (
-              <label key={key} className="flex items-center gap-1.5 text-sm text-neutral-700">
-                <input type="checkbox" checked={f.notify.includes(key)}
-                  onChange={() => set('notify', f.notify.includes(key)
-                    ? f.notify.filter((x) => x !== key)
-                    : [...f.notify, key])} />
-                {label}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-neutral-700">
-          <input type="checkbox" checked={f.pinned} onChange={(e) => set('pinned', e.target.checked)} />
-          Pin to top
-        </label>
-        <label className="text-xs text-neutral-500 block">Priority
-          <select value={f.priority} onChange={(e) => set('priority', e.target.value)} className={field}>
-            <option value="normal">Normal</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </label>
-        {/* Who can READ the board post. Separate from "send it to", below:
-            posting to the board and sending a notification are two acts. Board
-            posts had no audience at all, so a note for teachers was readable by
-            every family in the app (iCreate, 2026-08-26). */}
-        <label className="text-xs text-neutral-500 block">Visible to
-          <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
-            <option value="school">Everyone at the school</option>
-            <option value="teachers">Staff only</option>
-            <option value="admins">Admins only</option>
-          </select>
-        </label>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="text-xs text-neutral-500 block">Publish at <span className="text-neutral-400">(optional)</span>
-          <input type="datetime-local" value={f.publish_at} onChange={(e) => set('publish_at', e.target.value)} className={field} />
-        </label>
-        <label className="text-xs text-neutral-500 block">Expires at <span className="text-neutral-400">(optional)</span>
-          <input type="datetime-local" value={f.expires_at} onChange={(e) => set('expires_at', e.target.value)} className={field} />
-        </label>
-      </div>
-      <div className="flex gap-2">
-        <Button size="sm" onClick={save} loading={saving}>{announcement ? 'Save changes' : 'Post'}</Button>
-        <button onClick={onCancel} className="text-sm text-neutral-500 hover:underline">Cancel</button>
-      </div>
-    </div>
-  )
-}
-
 // ── Lost & Found ──────────────────────────────────────────────────────────────
 const LF_STATUS = { unclaimed: 'Unclaimed', claimed: 'Claimed', donated: 'Donated' }
 const lfStatusPill = (s) => ({

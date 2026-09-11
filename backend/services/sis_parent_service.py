@@ -366,6 +366,26 @@ def _owned_registration(user_id: str, org_id: str, reg_id: str) -> Optional[Dict
     return reg
 
 
+def student_attendance(user_id: str, org_id: str, student_user_id: str,
+                       class_id: Optional[str] = None) -> Dict[str, Any]:
+    """One student's attendance record, for their guardian.
+
+    There was no way for a family to see this at all. A parent could REPORT an
+    absence (/absences) and never find out what the school had recorded --
+    including whether the absence they reported had been marked excused, which
+    is the whole reason they reported it. Every attendance route was ADMIN_ROLES
+    + org_staff, so the answer existed and only staff could read it.
+
+    Same shape the staff view gets: records newest first, plus the summary
+    counts and rate.
+    """
+    if not _can_register(user_id, org_id, student_user_id):
+        return {'error': 'You do not have access to this student'}
+    from services import sis_attendance_service
+    return sis_attendance_service.student_history(org_id, student_user_id,
+                                                  class_id=class_id)
+
+
 # ── Catalog (open classes only) ───────────────────────────────────────────────
 def open_classes(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]]:
     if not _has_org_access(user_id, org_id):

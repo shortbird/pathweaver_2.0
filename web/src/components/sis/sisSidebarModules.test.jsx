@@ -14,6 +14,10 @@ vi.mock('../../utils/appSurface', () => ({ switchSurfaceInApp: vi.fn() }))
 
 import SisSidebar from './SisSidebar'
 
+// The badge polls two unread endpoints through react-query; these tests render
+// the sidebar without a QueryClientProvider and only care about the nav items.
+vi.mock('./InboxUnreadBadge', () => ({ default: () => null }))
+
 // sis_enabled matters now: the module system cascades from the 'sis' block,
 // so a no-SIS org correctly shows nothing (the console never renders for one).
 const withHidden = (mods, extraSettings = {}) =>

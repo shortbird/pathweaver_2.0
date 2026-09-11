@@ -399,12 +399,29 @@ def daily_report(org_id: str, on_date: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def student_history(org_id: str, student_user_id: str) -> Dict[str, Any]:
-    records = (
-        _admin().table('sis_attendance').select('*')
-        .eq('organization_id', org_id).eq('student_user_id', student_user_id)
-        .order('date', desc=True).execute()
-    ).data or []
+def student_history(org_id: str, student_user_id: str,
+                    class_id: Optional[str] = None) -> Dict[str, Any]:
+    """Every attendance record for one student, newest first.
+
+    Paged. A student with six classes meeting most days passes 1000 rows inside
+    a school year, and PostgREST truncates at exactly that with nothing in the
+    response to say it did -- so the attendance RATE would have quietly started
+    describing only the most recent part of the year, at a school large enough
+    or a year long enough for it to matter. There is no visible symptom; the
+    number just becomes wrong.
+
+    `class_id` narrows it to one class, which is what a per-class view asks for.
+    """
+    from utils.db_fetch import fetch_all_rows
+
+    def _query():
+        q = (_admin().table('sis_attendance').select('*')
+             .eq('organization_id', org_id).eq('student_user_id', student_user_id))
+        if class_id:
+            q = q.eq('class_id', class_id)
+        return q.order('date', desc=True)
+
+    records = fetch_all_rows(_query)
     return {'records': records, 'summary': summarize(records)}
 
 

@@ -217,92 +217,9 @@ class TestCommunityPostCanReachFamilies:
         assert out['announcement']['id'] == 'a1'
         assert 'notify_error' in out
 
-
-@pytest.mark.unit
-class TestTargetedSend:
-    """iCreate asked to aim a message at classes, teachers or an age range
-    (d63154c7, 2e930120), and to stop every in-app note also being three hundred
-    emails (857b5f70)."""
-
-    def test_no_filters_means_the_whole_school(self):
-        """None, not an empty set: "everyone" and "nobody matched" are different
-        answers and only one of them should send."""
-        from services import announcement_service as svc
-        assert svc.targeted_student_ids('org-1') is None
-
-    def test_classes_and_ages_are_anded_not_ored(self):
-        from services import announcement_service as svc
-        with patch.object(svc, '_students_in_classes', return_value={'s1', 's2'}), \
-             patch.object(svc, '_admin') as admin:
-            table = Mock()
-            admin.return_value.table.return_value = table
-            table.select.return_value = table
-            table.eq.return_value = table
-            table.execute.return_value = Mock(data=[
-                {'id': 's1', 'date_of_birth': '2016-01-01'},   # ~10
-                {'id': 's2', 'date_of_birth': '2008-01-01'},   # ~18
-            ])
-            got = svc.targeted_student_ids('org-1', class_ids=['c1'], min_age=9, max_age=12)
-        assert got == {'s1'}
-
-    def test_a_selection_matching_nobody_is_empty_not_everyone(self):
-        from services import announcement_service as svc
-        with patch.object(svc, '_students_in_classes', return_value=set()):
-            assert svc.targeted_student_ids('org-1', class_ids=['c1']) == set()
-
-    def test_recipients_narrow_to_the_targeted_students(self):
-        from services import announcement_service as svc
-        members = [
-            {'id': 's1', 'role': 'org_managed', 'org_role': 'student'},
-            {'id': 's2', 'role': 'org_managed', 'org_role': 'student'},
-            {'id': 'a1', 'role': 'org_managed', 'org_role': 'advisor'},
-        ]
-        with patch.object(svc, '_admin') as admin:
-            table = Mock()
-            admin.return_value.table.return_value = table
-            table.select.return_value = table
-            table.eq.return_value = table
-            table.order.return_value = table   # the org-members read is paged
-            table.range.return_value = table
-            table.execute.return_value = Mock(data=members)
-            got = svc.recipients_for('org-1', ['students'], student_ids={'s1'})
-        assert got == {'s1'}
-
-    def test_the_preview_breakdown_matches_what_would_be_sent(self):
-        """The composer shows who a send will reach before it goes out, and it
-        is only worth trusting if it cannot disagree with the send — so both are
-        built on the same resolution (iCreate, 2026-08-26: "I love that we can
-        narrow it down, but it's still confusing")."""
-        from services import announcement_service as svc
-        members = [
-            {'id': 's1', 'role': 'org_managed', 'org_role': 'student'},
-            {'id': 's2', 'role': 'org_managed', 'org_role': 'student'},
-            {'id': 'a1', 'role': 'org_managed', 'org_role': 'advisor'},
-        ]
-        with patch.object(svc, '_admin') as admin:
-            table = Mock()
-            admin.return_value.table.return_value = table
-            table.select.return_value = table
-            table.eq.return_value = table
-            table.order.return_value = table
-            table.range.return_value = table
-            table.execute.return_value = Mock(data=members)
-            by_role = svc.recipients_by_role('org-1', ['students', 'advisors'])
-            everyone = svc.recipients_for('org-1', ['students', 'advisors'])
-        assert by_role['students'] == {'s1', 's2'}
-        assert by_role['advisors'] == {'a1'}
-        assert set().union(*by_role.values()) == everyone
-
-    def test_target_label_records_who_it_went_to(self):
-        from services import announcement_service as svc
-        label = svc.target_label(['parents'], class_ids=['c1', 'c2'], min_age=9, max_age=12)
-        assert '2 classes' in label and 'ages 9-12' in label
-
-    def test_target_label_is_none_when_nothing_was_narrowed(self):
-        from services import announcement_service as svc
-        assert svc.target_label(['parents']) is None
-
-
+# Targeting a send at particular classes, teachers or an age band went with
+# the composer that offered it on 2026-09-10. Reaching a chosen set of
+# people is what messaging is for; an announcement goes to the school.
 @pytest.mark.unit
 class TestEmailIsOptional:
     """The flag defaults True so every existing caller — the Community Hub

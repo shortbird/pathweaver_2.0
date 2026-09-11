@@ -15,7 +15,7 @@ from services import sis_registration_service as regs
 from services import sis_exception_service as exceptions
 from services import sis_enrollment_waitlist_service as enrollment_waitlist
 # Admin tier: this whole module is org management, not teacher-facing.
-from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,7 @@ def _org_or_error(user_id):
 
 
 @bp.route('/registrations', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_registrations(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -47,7 +47,7 @@ def list_registrations(user_id):
 
 
 @bp.route('/registrations', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def create_registration(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -65,7 +65,7 @@ def create_registration(user_id):
 
 
 @bp.route('/registrations/<reg_id>', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def get_registration(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -77,7 +77,7 @@ def get_registration(user_id, reg_id):
 
 
 @bp.route('/registrations/<reg_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def update_registration(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -91,7 +91,7 @@ def update_registration(user_id, reg_id):
 
 
 @bp.route('/registrations/<reg_id>/items', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_item(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -107,7 +107,7 @@ def add_item(user_id, reg_id):
 
 
 @bp.route('/registrations/<reg_id>/items/<item_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def remove_item(user_id, reg_id, item_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -119,7 +119,7 @@ def remove_item(user_id, reg_id, item_id):
 
 
 @bp.route('/registrations/<reg_id>/submit', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def submit_registration(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -133,7 +133,7 @@ def submit_registration(user_id, reg_id):
 
 
 @bp.route('/registrations/<reg_id>/complete', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def complete_registration(user_id, reg_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -146,7 +146,7 @@ def complete_registration(user_id, reg_id):
 
 # ── Age-exception requests (family asks to join a class outside its age band) ─
 @bp.route('/age-exception-requests', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_age_exception_requests(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -158,7 +158,7 @@ def list_age_exception_requests(user_id):
 
 
 @bp.route('/age-exception-requests/<request_id>/resolve', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def resolve_age_exception_request(user_id, request_id):
     """Approve (enrolls the student right away — approving IS the age override)
     or decline a pending request."""
@@ -183,7 +183,7 @@ def resolve_age_exception_request(user_id, request_id):
 
 # ── Enrollment age-group waitlist ────────────────────────────────────────────
 @bp.route('/enrollment-waitlist', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def list_enrollment_waitlist(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -192,7 +192,7 @@ def list_enrollment_waitlist(user_id):
 
 
 @bp.route('/enrollment-waitlist/<entry_id>/release', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def release_enrollment_waitlist_entry(user_id, entry_id):
     """Release ONE student ("room for 9 of the 12"): unlocks class selection,
     reopens a deferred registration fee, and emails the guardian."""
@@ -206,7 +206,7 @@ def release_enrollment_waitlist_entry(user_id, entry_id):
 
 
 @bp.route('/enrollment-waitlist/<entry_id>/reject', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def reject_enrollment_waitlist_entry(user_id, entry_id):
     """Not accepted: mark ONE waiting student rejected and refund their
     proportional share of the family's paid registration fee."""
@@ -220,7 +220,7 @@ def reject_enrollment_waitlist_entry(user_id, entry_id):
 
 
 @bp.route('/enrollment-waitlist/manual', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def add_enrollment_waitlist_entry(user_id):
     """Hand-add a student to the waitlist — a family who queued somewhere other
     than the registration funnel (the old Google form, a phone call). Pass
@@ -245,7 +245,7 @@ def add_enrollment_waitlist_entry(user_id):
 
 
 @bp.route('/enrollment-waitlist/reorder', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def reorder_enrollment_waitlist(user_id):
     """Set an explicit order for one age band. `entry_ids` is the band's whole
     waiting list, in the order staff want it."""
@@ -265,7 +265,7 @@ def reorder_enrollment_waitlist(user_id):
 
 
 @bp.route('/enrollment-waitlist/release-band', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def release_enrollment_waitlist_band(user_id):
     """Release every waiting student in an age band (count-confirmed client-side)."""
     org_id, err = _org_or_error(user_id)
@@ -278,7 +278,7 @@ def release_enrollment_waitlist_band(user_id):
 
 
 @bp.route('/classes/<class_id>/eligibility', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def class_eligibility(user_id, class_id):
     org_id, err = _org_or_error(user_id)
     if err:

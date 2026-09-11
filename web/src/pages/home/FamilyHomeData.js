@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import api, { parentAPI } from '../../services/api'
 import { getMyDependents } from '../../services/dependentAPI'
 import { moduleKnownOff } from '../../modules/moduleEnabled'
+import { mergeFeedItems } from '../../components/announcements/UnifiedFeed'
 
 /**
  * Data hooks for FamilyHome (pages/home/FamilyHome.jsx).
@@ -221,8 +222,35 @@ export function useSchoolSection(enabled) {
     ...SILENT,
   })
 
+  // The BOARD, which the archive above does not cover. Those two are different
+  // records: the archive holds sends (a notification that went out), the board
+  // holds posts (a notice people come and read). A board-only post -- which is
+  // now the default shape of an announcement -- reached the /school page and
+  // never this one, so the family home said "nothing from your school" on a day
+  // the school had posted.
+  const boardFeed = useQuery({
+    queryKey: ['family-home', 'communityFeed'],
+    queryFn: async () => {
+      const r = await api.get('/api/sis/community/feed')
+      return r.data?.success ? (r.data.announcements || []) : []
+    },
+    enabled,
+    ...SILENT,
+  })
+
   return {
     schoolOrg: context.data || null,
-    announcements: announcements.data || [],
+    // Merged the way /school merges them, so the board copy of a post that was
+    // ALSO sent does not appear twice (mergeFeedItems dedupes on
+    // source_announcement_id). Unwrapped back to plain rows, and a board post's
+    // `body` normalised onto `message`, because SchoolSection renders rows and
+    // reads content || message.
+    announcements: mergeFeedItems({ announcements: boardFeed.data || [] },
+                                  announcements.data || [])
+      .filter((i) => i.kind === 'announcement' || i.kind === 'message')
+      .slice(0, 3)
+      .map((i) => (i.kind === 'announcement'
+        ? { ...i.data, message: i.data.body }
+        : i.data)),
   }
 }

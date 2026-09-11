@@ -23,7 +23,7 @@ from utils.logger import get_logger
 from services import sis_service
 from services import sis_reports_service as reports
 # Admin tier: this whole module is org management, not teacher-facing.
-from utils.sis_roles import ADMIN_ROLES as STAFF_ROLES
+from utils.sis_roles import ADMIN_ROLES
 # ...with one exception: the revenue summary is money, and money is not the
 # coordinator's (see the revenue route).
 from utils.sis_roles import FINANCE_ROLES
@@ -55,7 +55,7 @@ def _day_arg():
 
 
 @bp.route('/reports/enrollment', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def enrollment(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -104,7 +104,7 @@ def payments(user_id):
 
 
 @bp.route('/reports/attendance', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def attendance(user_id):
     org_id, err = _org_or_error(user_id)
     if err:
@@ -113,7 +113,7 @@ def attendance(user_id):
 
 
 @bp.route('/reports/classes', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def classes_report(user_id):
     """One row per class, with the caller choosing the columns.
 
@@ -151,7 +151,7 @@ def classes_report(user_id):
 
 
 @bp.route('/reports/rosters', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def rosters_report(user_id):
     """One row per student per class, for as many classes as were asked for.
 
@@ -192,7 +192,7 @@ def rosters_report(user_id):
 
 
 @bp.route('/reports/student-schedule', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def student_schedule(user_id):
     """Master list of every student and which days / class blocks they come.
 
@@ -217,7 +217,7 @@ def student_schedule(user_id):
 
 
 @bp.route('/reports/day-rosters', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def day_rosters(user_id):
     """Every teaching day, block by block: the class, its room, and who is in it.
 
@@ -237,7 +237,7 @@ def day_rosters(user_id):
 
 
 @bp.route('/reports/block-rosters', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def block_rosters(user_id):
     """One sheet per block: every class running in it, side by side, with ages.
 
@@ -423,7 +423,7 @@ def _kid_name(kid, users):
 
 
 @bp.route('/reports/registration-questions', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def registration_questions(user_id):
     """The org's configured registration questions, so the UI can offer a
     question picker for the generic answers report."""
@@ -443,7 +443,7 @@ from utils.blank_values import has_value as _has_value  # noqa: E402
 
 
 @bp.route('/reports/registration-answers', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def registration_answers(user_id):
     """Generic report: every family's (or student's) answer to one question."""
     org_id, err = _org_or_error(user_id)
@@ -507,7 +507,7 @@ def registration_answers(user_id):
 
 
 @bp.route('/reports/medications', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def medications(user_id):
     """Canned report: every kid with medications — from the registration kids[]
     entry, the synced users.medications column, or any answer whose question key
@@ -596,7 +596,7 @@ def medications(user_id):
 
 
 @bp.route('/reports/allergies', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def allergies(user_id):
     """Canned report: every kid with a recorded allergy — from the registration
     kids[] entry, the synced users.allergies column, or any answer whose question
@@ -673,7 +673,7 @@ def allergies(user_id):
 
 
 @bp.route('/reports/daily-attendance', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def daily_attendance(user_id):
     """Who was absent (excused vs unexcused) on one day, across all classes —
     matches guardian-reported absences against what teachers marked so staff can
@@ -695,7 +695,7 @@ def daily_attendance(user_id):
 
 
 @bp.route('/reports/emergency-contacts', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def emergency_contacts(user_id):
     """The sheet the office keeps on the wall: every student, the guardians in
     their household, the emergency contacts named for them, and — the second
@@ -717,7 +717,7 @@ def emergency_contacts(user_id):
 
 
 @bp.route('/reports/checklist-completion', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def checklist_completion(user_id):
     """Who still owes onboarding checklist items, worst first.
 
@@ -744,7 +744,7 @@ def checklist_completion(user_id):
 
 
 @bp.route('/reports/media-release', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*ADMIN_ROLES)
 def media_release(user_id):
     """Canned report: per student, the answers to media/photo-release questions.
     Matching keys come from feature_flags.sis_settings.report_question_map

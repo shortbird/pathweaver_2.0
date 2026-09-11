@@ -53,6 +53,9 @@ class QuestAuthoringError(Exception):
 from utils.timestamps import now_iso  # noqa: E402
 
 
+from utils.template_tasks import _title_key
+
+
 def norm_pillar(value):
     return PILLAR_ALIASES.get((value or '').strip().lower(), DEFAULT_PILLAR)
 
@@ -370,10 +373,37 @@ def duplicate_org_quest(admin, *, org_id, user_id, source_quest_id, title=None):
             'updated_at': now_iso(),
         })
         copies.append(copy)
+    new_tasks = []
     if copies:
-        admin.table('quest_template_tasks').insert(copies).execute()
+        new_tasks = (admin.table('quest_template_tasks').insert(copies)
+                     .execute()).data or []
 
-    return {'quest_id': quest_id, 'title': new_title, 'task_count': len(copies)}
+    # Carry the attachments across. A duplicate whose tasks arrive without their
+    # worksheets is not a duplicate -- and the teacher who made it has no way to
+    # tell, because the copy looks complete until a student opens step 3.
+    #
+    # Matched by ORDER INDEX, which is the only thing the source task and its
+    # copy share (the copy has a new id, and titles repeat). Best-effort: a
+    # duplicate that exists without its files is still usable; one that failed
+    # outright is not.
+    resource_count = 0
+    try:
+        task_id_map = {}
+        # strict=False deliberately: if the insert returned fewer rows than it
+        # was given, pairing what did come back is the best-effort behaviour
+        # this block is documented to have. strict=True would raise into the
+        # handler below and lose every resource rather than the unpaired ones.
+        for source_task, new_task in zip(source_tasks, new_tasks, strict=False):
+            if source_task.get('id') and new_task.get('id'):
+                task_id_map[source_task['id']] = new_task['id']
+        from services import quest_resource_service
+        resource_count = quest_resource_service.copy_for_quest(
+            source_quest_id, quest_id, task_id_map, org_id, user_id, admin=admin)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Could not copy resources onto quest {quest_id}: {e}')
+
+    return {'quest_id': quest_id, 'title': new_title, 'task_count': len(copies),
+            'resource_count': resource_count}
 
 
 def duplicate_template_task(admin, source_task, quest_id):
@@ -396,3 +426,85 @@ def duplicate_template_task(admin, source_task, quest_id):
     })
     rows = admin.table('quest_template_tasks').insert(copy).execute().data
     return rows[0] if rows else None
+
+
+def replace_template_tasks(admin, quest_id, cleaned):
+    """Save an edited preset-task list WITHOUT churning the task ids.
+
+    The training editor used to delete every quest_template_tasks row for the
+    quest and insert the list again. Correct as far as the words on the page
+    went, and quietly destructive of everything keyed on a task:
+
+      * user_quest_tasks.source_template_task_id is FK'd to these rows, so every
+        save NULLed the link between a student's copy and the template it came
+        from. utils/template_tasks._title_key exists only to re-find them
+        afterwards by matching titles -- which fails the moment a title is what
+        the edit changed.
+      * quest_resources hangs off task_id ON DELETE CASCADE. A teacher saving a
+        typo in a quest description would have silently taken every file and
+        link attached to its tasks with it.
+
+    So: pair each submitted row to an existing one, update those, insert what is
+    new, delete only what is genuinely gone. Pairing is by id when the form
+    round-trips one, then by title, then by position -- three keys because the
+    form has historically sent none, some, or all of them.
+
+    `cleaned` is a list of insertable rows (see _clean_task / clean_task).
+    Returns {'kept': n, 'added': n, 'removed': n}.
+    """
+    existing = (admin.table('quest_template_tasks')
+                .select('id, title, order_index')
+                .eq('quest_id', quest_id).order('order_index').execute()).data or []
+
+    # A row with no id cannot be updated in place, so it is not a pairing
+    # candidate at all -- fall through and let it be replaced.
+    existing = [r for r in existing if r.get('id')]
+    by_id = {r['id']: r for r in existing}
+    by_title = {}
+    for r in existing:
+        by_title.setdefault(_title_key(r.get('title')), []).append(r)
+    unclaimed = [r for r in existing]
+
+    def _claim(row):
+        if row in unclaimed:
+            unclaimed.remove(row)
+            return row
+        return None
+
+    paired, added = [], []
+    for position, task in enumerate(cleaned):
+        submitted_id = task.pop('id', None)
+        match = None
+        if submitted_id and submitted_id in by_id:
+            match = _claim(by_id[submitted_id])
+        if match is None:
+            for candidate in by_title.get(_title_key(task.get('title')), []):
+                match = _claim(candidate)
+                if match:
+                    break
+        if match is None and position < len(existing):
+            # Position last: a renamed task at the same place is still that task,
+            # and its resources and its students' copies should follow the rename.
+            match = _claim(existing[position])
+        if match:
+            paired.append((match['id'], task))
+        else:
+            added.append(task)
+
+    for task_id, fields in paired:
+        patch = {k: v for k, v in fields.items() if k != 'created_at'}
+        admin.table('quest_template_tasks').update(patch).eq('id', task_id).execute()
+
+    if added:
+        for task in added:
+            task['quest_id'] = quest_id
+        admin.table('quest_template_tasks').insert(added).execute()
+
+    removed_ids = [r['id'] for r in unclaimed]
+    if removed_ids:
+        # These really are gone from the list, so the cascade is what should
+        # happen: their resources go with them.
+        (admin.table('quest_template_tasks').delete()
+         .in_('id', removed_ids).execute())
+
+    return {'kept': len(paired), 'added': len(added), 'removed': len(removed_ids)}

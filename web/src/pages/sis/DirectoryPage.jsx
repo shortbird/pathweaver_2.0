@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -70,6 +71,12 @@ const DirectoryPage = () => {
               )}
               {s.work_schedule && <p className="text-xs text-neutral-400 mt-1">{s.work_schedule}</p>}
               {s.bio && <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{s.bio}</p>}
+              {/* The directory listed colleagues and offered only their email
+                  address, so reaching one from here meant leaving the console. */}
+              <Link to={`/inbox?tab=mine&to=${s.id}`}
+                className="inline-block text-sm font-medium text-optio-purple hover:underline mt-2">
+                Message
+              </Link>
             </div>
           </div>
         ))}

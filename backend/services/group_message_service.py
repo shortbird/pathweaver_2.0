@@ -18,6 +18,14 @@ logger = get_logger(__name__)
 class GroupMessageService(BaseService):
     """Service for group messaging operations"""
 
+    #: Who may start a group chat. Staff only, across both tiers: platform
+    #: advisors and superadmins, and org staff resolved through org_roles.
+    #: Deliberately the STAFF tier and not ADMIN_ROLES -- a teacher starting a
+    #: group for her own class is the original use case.
+    GROUP_CREATOR_ROLES = frozenset({
+        'advisor', 'org_admin', 'campus_coordinator', 'superadmin',
+    })
+
     def __init__(self):
         pass
 
@@ -31,36 +39,35 @@ class GroupMessageService(BaseService):
     # ==================== Permission Checking ====================
 
     def can_create_group(self, user_id: str) -> bool:
-        """
-        Check if user has permission to create groups
-        Only advisors, org_admins, and superadmins can create groups
+        """Whether this person may start a group chat: staff only.
 
-        Args:
-            user_id: UUID of the user
+        Reads EVERY role the person holds, not `org_role` alone. Two bugs came
+        out of the old single-column check:
 
-        Returns:
-            Boolean indicating if user can create groups
+        1. `campus_coordinator` was missing from the list, so a coordinator got
+           "You do not have permission to create groups" from a console where
+           ADMIN_ROLES (utils/sis_roles.py:36) lets her do everything else the
+           front office does. Group chat is not financial and not HR.
+        2. `org_role` is one column but staff hold several roles. At iCreate the
+           teachers are parents too: org_roles ['parent', 'advisor'] with
+           org_role 'parent' failed this check while the same person's
+           @require_role(*STAFF_ROLES) routes all passed (the same shape as
+           Sentry OPTIO-BACKEND-6P, 2026-08-18, in verify_parent_role).
+
+        get_effective_roles resolves org_managed through org_roles/org_role and
+        narrows under an active role view, so viewing as a parent correctly
+        stops you creating staff groups.
         """
         try:
             supabase = self._get_client()
-            user = supabase.table('users').select('role, org_role').eq('id', user_id).single().execute()
+            user = (supabase.table('users').select('role, org_role, org_roles')
+                    .eq('id', user_id).single().execute())
 
             if not user.data:
                 return False
 
-            # Check both platform role and org role
-            role = user.data.get('role')
-            org_role = user.data.get('org_role')
-
-            # Platform users
-            if role in ['advisor', 'superadmin']:
-                return True
-
-            # Org-managed users - check org_role
-            if role == 'org_managed' and org_role in ['advisor', 'org_admin']:
-                return True
-
-            return False
+            from utils.roles import get_effective_roles
+            return bool(set(get_effective_roles(user.data)) & self.GROUP_CREATOR_ROLES)
 
         except Exception as e:
             logger.error(f"Error checking create group permission: {str(e)}")
@@ -262,7 +269,9 @@ class GroupMessageService(BaseService):
         user_id: str,
         name: str,
         description: Optional[str] = None,
-        member_ids: Optional[List[str]] = None
+        member_ids: Optional[List[str]] = None,
+        organization_id: Optional[str] = None,
+        audience: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new group chat
@@ -272,6 +281,15 @@ class GroupMessageService(BaseService):
             name: Group name
             description: Optional group description
             member_ids: Optional list of member UUIDs to add
+            organization_id: Org the group belongs to. Defaults to the creator's.
+                Pass it explicitly for a superadmin, who has no organization of
+                their own: a group minted with organization_id NULL then fails
+                can_add_member for every teacher in it (no shared org, no
+                explicit relationship), so the superadmin ends up alone in a
+                group they created for a school.
+            audience: 'family' | 'student' | 'staff'. Class chats set the first
+                two; a staff group sets 'staff'. Left unset, the column default
+                ('family') would quietly file a staff group with the parents.
 
         Returns:
             Created group record
@@ -282,12 +300,16 @@ class GroupMessageService(BaseService):
 
             supabase = self._get_client()
 
-            # Get creator's organization
-            creator = supabase.table('users').select('organization_id').eq(
+            creator = supabase.table('users').select('organization_id, role').eq(
                 'id', user_id
             ).single().execute()
+            creator_org = creator.data.get('organization_id') if creator.data else None
 
-            organization_id = creator.data.get('organization_id') if creator.data else None
+            if organization_id and organization_id != creator_org:
+                # Only a superadmin may name an org that is not their own.
+                if not creator.data or creator.data.get('role') != 'superadmin':
+                    raise ValueError("You cannot create a group in another organization")
+            organization_id = organization_id or creator_org
 
             # Create group
             group_id = str(uuid.uuid4())
@@ -301,6 +323,8 @@ class GroupMessageService(BaseService):
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
+            if audience:
+                group['audience'] = audience
 
             result = supabase.table('group_conversations').insert(group).execute()
 
@@ -820,7 +844,8 @@ class GroupMessageService(BaseService):
     # ==================== Message Operations ====================
 
     def send_message(self, user_id: str, group_id: str, content: str,
-                     reply_to_message_id: str = None, attachments: list = None) -> Dict[str, Any]:
+                     reply_to_message_id: Optional[str] = None,
+                     attachments: Optional[list] = None) -> Dict[str, Any]:
         """
         Send a message to a group. Supports replying to a message and attachments.
         Announcement-only groups accept messages from group admins only.

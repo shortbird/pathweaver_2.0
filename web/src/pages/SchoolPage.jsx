@@ -16,6 +16,7 @@ import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
 import MyClassMaterials from '../components/school/MyClassMaterials'
+import FamilyClassesSection from '../components/school/FamilyClassesSection'
 
 const PAGE_SIZE = 20
 
@@ -459,6 +460,12 @@ export default function SchoolPage() {
               shown in the superadmin preview -- there is no real student behind
               view_as=student to read enrollments for. */}
           {!previewOrgId && <MyClassMaterials />}
+          {/* And the guardian's half of the same question. The two sections
+              above are the STUDENT's own week and handouts, which render
+              nothing for a parent -- a parent has no enrollments. This is each
+              of their children's classes, with what each class has shared
+              inside it. */}
+          {!previewOrgId && <FamilyClassesSection />}
 
           {!cardsOnly && (
             <UnifiedFeed

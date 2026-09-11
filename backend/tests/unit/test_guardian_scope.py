@@ -39,6 +39,10 @@ class _Query:
         self.filters[column] = value
         return self
 
+    def in_(self, column, values):
+        self.filters[column] = list(values)
+        return self
+
     def limit(self, *_a):
         return self
 
@@ -54,29 +58,67 @@ class _Query:
         return result
 
 
-def _client(*, managed_by=None, link=False, caller_role='parent', first_name='Ada'):
-    """A Supabase double answering the three lookups the resolver makes."""
+def _client(*, managed_by=None, link=False, caller_role='parent', first_name='Ada',
+            is_dependent=None, household=False):
+    """A Supabase double answering every lookup the resolver makes.
+
+    It serves BOTH guardian_scope's own client and the one inside
+    portfolio_access.is_parent_of, which guardian_relationship delegates the
+    "are these two family?" question to.
+
+    `household` is the third link (household_members): guardian and student in
+    one household, the shape the SIS registration funnel writes.
+    """
     client = MagicMock()
+    if is_dependent is None:
+        is_dependent = managed_by is not None
 
     def users_rows(filters):
         # The users table is read twice: the student's row, then the caller's
         # role. Which one is being asked for is the id in the filter.
         if filters.get('id') == KID:
-            return {'first_name': first_name, 'managed_by_parent_id': managed_by}
+            return {'first_name': first_name, 'is_dependent': is_dependent,
+                    'managed_by_parent_id': managed_by}
         return {'role': caller_role}
 
     def link_rows(_filters):
-        return [{'id': 'link-1'}] if link else []
+        # portfolio_access.is_parent_of reads status; guardian_scope's old
+        # inline query filtered on it. Serve a shape that satisfies both.
+        return [{'id': 'link-1', 'status': 'approved'}] if link else []
 
-    client.table.side_effect = lambda name: _Query(
-        users_rows if name == 'users' else link_rows
-    )
+    def household_rows(filters):
+        if not household:
+            return []
+        # is_household_guardian asks twice: the caller's guardian rows, then
+        # whether the student is a 'student' member of one of those households.
+        if filters.get('relationship') == 'student':
+            return [{'household_id': 'house-1'}]
+        return [{'household_id': 'house-1', 'relationship': 'guardian'}]
+
+    def rows_for(name):
+        if name == 'users':
+            return users_rows
+        if name == 'household_members':
+            return household_rows
+        return link_rows
+
+    client.table.side_effect = lambda name: _Query(rows_for(name))
     return client
 
 
 @pytest.fixture
 def admin_client():
-    with patch.object(guardian_scope, 'get_supabase_admin_client') as factory:
+    """Patches both clients the relationship answer now flows through."""
+    from utils import portfolio_access
+    with patch.object(guardian_scope, 'get_supabase_admin_client') as factory, \
+            patch.object(portfolio_access, '_admin', side_effect=factory), \
+            patch.object(portfolio_access, '_fetch_user') as fetch_user:
+        def _student_row(user_id, _cols):
+            client = factory.return_value
+            if not isinstance(client, MagicMock):
+                return None
+            return client.table('users').select().eq('id', user_id).maybe_single().execute().data
+        fetch_user.side_effect = _student_row
         yield factory
 
 
@@ -148,3 +190,48 @@ def test_capabilities_for_a_linked_student_allow_adding_only(admin_client):
     assert caps['can_add_tasks'] is True
     assert caps['can_complete_tasks'] is False
     assert caps['can_remove_tasks'] is False
+
+
+# ── The third link, and the co-guardian (2026-09-10) ─────────────────────────
+#
+# A family is linked three ways, not two. The SIS registration funnel writes the
+# third -- a guardian row in household_members -- and until these landed, a
+# guardian who registered that way was refused their own child's quest screen
+# while the SIS pages let them pay that child's tuition.
+
+def test_a_household_guardian_may_read(admin_client):
+    """No managed_by, no parent_student_link -- just a shared household."""
+    admin_client.return_value = _client(managed_by=None, link=False, household=True)
+    assert guardian_scope.resolve_student_scope(PARENT, KID) == KID
+
+
+def test_a_household_guardian_of_a_dependent_gets_the_full_capabilities(admin_client):
+    """The second parent is as much a parent as the first.
+
+    is_dependent used to be computed as `managed_by_parent_id == caller`, so
+    whichever guardian had clicked "add a child" got the complete and remove
+    buttons and the other did not -- on the same child, in the same family.
+    """
+    admin_client.return_value = _client(managed_by='someone-else', link=False,
+                                        household=True, is_dependent=True)
+    caps = guardian_scope.guardian_capabilities(PARENT, KID)
+    assert caps['is_dependent'] is True
+    assert caps['can_complete_tasks'] is True
+    assert caps['can_remove_tasks'] is True
+
+
+def test_a_household_guardian_of_a_teen_still_may_not_complete(admin_client):
+    """The dependent line has not moved: work owned by a student with their own
+    login is still theirs to complete, whoever the guardian is."""
+    admin_client.return_value = _client(managed_by=None, link=False,
+                                        household=True, is_dependent=False)
+    caps = guardian_scope.guardian_capabilities(PARENT, KID)
+    assert caps['is_dependent'] is False
+    assert caps['can_add_tasks'] is True
+    assert caps['can_complete_tasks'] is False
+
+
+def test_sharing_no_household_is_still_a_refusal(admin_client):
+    admin_client.return_value = _client(managed_by=None, link=False, household=False)
+    with pytest.raises(GuardianAccessError):
+        guardian_scope.resolve_student_scope(STRANGER, KID)

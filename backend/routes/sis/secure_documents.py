@@ -19,7 +19,9 @@ from utils.logger import get_logger
 from services import sis_notifications, sis_onboarding_service, sis_secure_docs_service, sis_service
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
-from utils.sis_roles import HR_ROLES as STAFF_ROLES
+# HR tier: contracts, background checks, custody and medical files. Not the
+# coordinator's, and not a teacher's.
+from utils.sis_roles import HR_ROLES
 
 logger = get_logger(__name__)
 
@@ -134,7 +136,7 @@ def _names_for(ids):
 
 
 @bp.route('/secure-documents/upload', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def upload_secure_document(user_id):
     """Upload a sensitive file to the PRIVATE secure-documents bucket and record
     a metadata row per person it is filed against.
@@ -199,7 +201,7 @@ def upload_secure_document(user_id):
 
 
 @bp.route('/secure-documents/signature-requests', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def send_hr_signature_request(user_id):
     """Send a document for signature, HR paperwork included (HR_ROLES).
 
@@ -213,7 +215,7 @@ def send_hr_signature_request(user_id):
 
 
 @bp.route('/secure-documents/signature-requests', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def list_hr_signature_requests(user_id):
     """Every send in the org, HR paperwork included."""
     org_id, err = _org_or_error(user_id)
@@ -223,7 +225,7 @@ def list_hr_signature_requests(user_id):
 
 
 @bp.route('/secure-documents/signature-requests/<assignment_id>/remind', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def remind_hr_signature_request(user_id, assignment_id):
     """Chase one person who has not signed, employment paperwork included."""
     org_id, err = _org_or_error(user_id)
@@ -234,7 +236,7 @@ def remind_hr_signature_request(user_id, assignment_id):
 
 
 @bp.route('/secure-documents/signature-requests/<assignment_id>/release', methods=['POST'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def release_hr_signature_hold(user_id, assignment_id):
     """Let a family back into the platform without signing, HR sends included."""
     org_id, err = _org_or_error(user_id)
@@ -245,7 +247,7 @@ def release_hr_signature_hold(user_id, assignment_id):
 
 
 @bp.route('/secure-documents', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def list_secure_documents(user_id):
     """All secure documents for the org (newest first), hydrated with display
     names. Optional ?owner_user_id / ?student_user_id filters."""
@@ -346,7 +348,7 @@ def _notify_shared(org_id, docs):
 
 
 @bp.route('/secure-documents', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def bulk_share_secure_documents(user_id):
     """Share (or stop sharing) a selection of documents in one action.
 
@@ -419,7 +421,7 @@ def bulk_share_secure_documents(user_id):
 
 
 @bp.route('/secure-documents/<doc_id>', methods=['PATCH'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def update_secure_document(user_id, doc_id):
     """Change a document's sharing, signing or filing details.
 
@@ -471,7 +473,7 @@ def update_secure_document(user_id, doc_id):
 
 
 @bp.route('/secure-documents/<doc_id>/url', methods=['GET'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def secure_document_url(user_id, doc_id):
     """1-hour signed URL for a secure document's blob."""
     doc, _org_id, err = _doc_or_error(user_id, doc_id)
@@ -484,7 +486,7 @@ def secure_document_url(user_id, doc_id):
 
 
 @bp.route('/secure-documents/<doc_id>', methods=['DELETE'])
-@require_role(*STAFF_ROLES)
+@require_role(*HR_ROLES)
 def delete_secure_document(user_id, doc_id):
     """Remove the blob and delete the metadata row."""
     doc, _org_id, err = _doc_or_error(user_id, doc_id)

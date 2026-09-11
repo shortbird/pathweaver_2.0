@@ -70,6 +70,20 @@ class TestRetract:
         with patch('services.announcement_service._admin', return_value=client):
             svc.retract('sent-1')  # must not raise
 
+    def test_the_sweep_filters_on_the_type_column(self):
+        """The column is `type`. `notification_type` is the keyword argument
+        NotificationService.create_notification takes, and for a year this swept
+        on that name instead: PostgREST 400s on an unknown column, the except
+        above swallows it, and the notification the docstring promises to remove
+        stayed in the bell. A mock accepts any column name, so assert the name.
+        """
+        client, table = _admin_client([])
+        with patch('services.announcement_service._admin', return_value=client):
+            svc.retract('sent-1')
+        cols = [c[0][0] for c in table.eq.call_args_list]
+        assert 'type' in cols
+        assert 'notification_type' not in cols
+
     def test_deleting_a_board_post_pulls_every_send_it_spawned(self):
         client, _ = _admin_client([{'id': 'sent-1'}, {'id': 'sent-2'}])
         with patch('services.announcement_service._admin', return_value=client), \
@@ -101,6 +115,15 @@ class TestRevise:
             svc.revise_for_source('board-9', title='New title')
         tables = [c[0][0] for c in client.table.call_args_list]
         assert 'notifications' in tables
+
+    def test_the_bell_update_filters_on_the_type_column(self):
+        """Same column-name trap as retract() -- see that test."""
+        client, table = _admin_client([{'id': 'sent-1'}])
+        with patch('services.announcement_service._admin', return_value=client):
+            svc.revise_for_source('board-9', title='New title')
+        cols = [c[0][0] for c in table.eq.call_args_list]
+        assert 'type' in cols
+        assert 'notification_type' not in cols
 
     def test_an_edit_with_nothing_in_it_touches_nothing(self):
         client, table = _admin_client([{'id': 'sent-1'}])

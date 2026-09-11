@@ -19,7 +19,7 @@ Three doors to the money, and each is checked here:
   3. The staff roster CSV, which carried Pay Type and Payroll ID columns.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -31,6 +31,18 @@ from services import sis_staff_service as staff
 
 def _user(*org_roles):
     return {'id': 'kate', 'role': 'org_managed', 'org_roles': list(org_roles)}
+
+
+def _tiers_gating(filename):
+    """Every distinct role tuple named by a @require_role in one routes/sis file.
+
+    Reads the source rather than the module attribute so a single widened route
+    is caught, not just a changed import.
+    """
+    import re
+    from pathlib import Path
+    path = (Path(__file__).resolve().parents[1] / 'routes' / 'sis' / filename)
+    return set(re.findall(r'@require_role\(\*(\w+)\)', path.read_text()))
 
 
 @pytest.mark.unit
@@ -194,10 +206,19 @@ class TestTheFinanceModulesAreActuallyGated:
         assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'payroll_csv')
 
     def test_the_whole_billing_module_is_finance_gated(self):
-        """billing.py imports FINANCE_ROLES under the name STAFF_ROLES, so every
-        @require_role(*STAFF_ROLES) in it is a finance gate."""
-        from routes.sis import billing
-        assert billing.STAFF_ROLES == sis_roles.FINANCE_ROLES
+        """Every role gate in billing.py names FINANCE_ROLES.
+
+        This used to assert `billing.STAFF_ROLES == FINANCE_ROLES`, because the
+        module imported the finance tuple under the name STAFF_ROLES. The alias
+        is gone (it made every reader and every grep believe teachers could
+        reach the money), so assert the decorators themselves -- which is the
+        stronger check anyway: it catches ONE route being widened, where the
+        alias identity check could not.
+        """
+        assert _tiers_gating('billing.py') == {'FINANCE_ROLES'}
+
+    def test_the_whole_tuition_module_is_finance_gated(self):
+        assert _tiers_gating('tuition.py') == {'FINANCE_ROLES'}
 
     def test_onboarding_stays_open_to_coordinators(self):
         """The point of splitting staff_admin per-route: the operational half
@@ -227,10 +248,9 @@ class TestTheHrTier:
         assert has_any_role(_user('org_admin'), list(sis_roles.HR_ROLES))
 
     def test_the_whole_secure_documents_module_is_hr_gated(self):
-        """secure_documents.py imports its role tuple under the name STAFF_ROLES,
-        so asserting the alias covers every @require_role in the module."""
-        from routes.sis import secure_documents
-        assert secure_documents.STAFF_ROLES == sis_roles.HR_ROLES
+        """Every role gate in secure_documents.py names HR_ROLES. See the note
+        on the billing equivalent for why this no longer asserts an alias."""
+        assert _tiers_gating('secure_documents.py') == {'HR_ROLES'}
 
 
 @pytest.mark.unit
@@ -328,14 +348,23 @@ class TestTheSchoolPageAdmitsCoordinators:
         from routes import announcements
         assert _admits_coordinator(announcements, 'announcements_archive')
 
-    def test_they_can_read_and_send_announcements_at_all(self):
+    def test_they_can_read_announcements_at_all(self):
         """The archive was the ONLY announcements route that named them, so the
-        Messaging page a coordinator is shown could read its history and neither
-        list the current messages nor send one (found 2026-08-18)."""
+        Messaging page a coordinator is shown could read its history and not
+        list the current messages (found 2026-08-18).
+
+        The SEND half of this test went with the targeted-send composer on
+        2026-09-10 -- posting an announcement is now the board route below,
+        which is ADMIN_ROLES and so admits them.
+        """
         from routes import announcements
-        for view in ('create_announcement', 'list_announcements',
-                     'get_announcement_templates', 'put_announcement_templates'):
+        for view in ('list_announcements', 'announcements_archive'):
             assert _admits_coordinator(announcements, view), view
+
+    def test_they_can_post_an_announcement_to_the_board(self):
+        """Where posting an announcement lives now."""
+        from routes.sis import community
+        assert _admits_coordinator(community, 'create_announcement')
 
     def test_the_attendance_kiosks_are_theirs_too(self):
         """Kiosk devices are provisioned from the Settings page a coordinator
@@ -401,3 +430,137 @@ class TestClassReportMoneyRedaction:
         runs the class report."""
         keys = {f['key'] for f in self._report(False)['fields']}
         assert {'name', 'teacher', 'room', 'enrolled', 'capacity'} <= keys
+
+
+@pytest.mark.unit
+class TestGroupChats:
+    """Starting a group chat is not financial and not HR, so a coordinator does
+    it. The old check read `org_role` alone against a list that had no
+    coordinator in it at all, so Kate got "You do not have permission to create
+    groups" from a console that lets her run everything else in the front
+    office."""
+
+    def _service_seeing(self, user_row):
+        from services.group_message_service import GroupMessageService
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        table.select.return_value = table
+        table.eq.return_value = table
+        table.single.return_value = table
+        table.execute.return_value = Mock(data=user_row)
+        svc = GroupMessageService()
+        svc._get_client = lambda: client
+        return svc
+
+    def test_a_coordinator_can_create_a_group(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'campus_coordinator',
+                                    'org_roles': ['campus_coordinator']})
+        assert svc.can_create_group('kate') is True
+
+    def test_roles_come_from_org_roles_not_org_role_alone(self):
+        """At iCreate the teachers are parents too. org_role carries whichever
+        role happens to lead; the staff role can be anywhere in org_roles."""
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'parent',
+                                    'org_roles': ['parent', 'advisor']})
+        assert svc.can_create_group('teacher-parent') is True
+
+    def test_an_org_admin_still_can(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'org_admin',
+                                    'org_roles': ['org_admin']})
+        assert svc.can_create_group('admin') is True
+
+    def test_a_platform_advisor_still_can(self):
+        svc = self._service_seeing({'role': 'advisor', 'org_role': None, 'org_roles': None})
+        assert svc.can_create_group('advisor') is True
+
+    def test_a_superadmin_still_can(self):
+        svc = self._service_seeing({'role': 'superadmin', 'org_role': None, 'org_roles': None})
+        assert svc.can_create_group('tanner') is True
+
+    def test_a_parent_still_cannot(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'parent',
+                                    'org_roles': ['parent']})
+        assert svc.can_create_group('parent') is False
+
+    def test_a_student_still_cannot(self):
+        svc = self._service_seeing({'role': 'org_managed', 'org_role': 'student',
+                                    'org_roles': ['student']})
+        assert svc.can_create_group('student') is False
+
+    def test_an_unknown_user_cannot(self):
+        svc = self._service_seeing(None)
+        assert svc.can_create_group('nobody') is False
+
+    def test_the_creator_tier_matches_sis_staff_roles(self):
+        """The tuple in utils/sis_roles.py is the definition of "on staff"; this
+        set must not drift from it."""
+        from services.group_message_service import GroupMessageService
+        assert GroupMessageService.GROUP_CREATOR_ROLES == frozenset(sis_roles.STAFF_ROLES)
+
+
+@pytest.mark.unit
+class TestCreatingAGroupInAnotherOrg:
+    """Only a superadmin may name an org that is not their own.
+
+    A superadmin has no organization_id, so a group they created for a school
+    was minted with organization_id NULL -- and can_add_member then refused
+    every teacher in it (no shared org, no explicit relationship). The
+    superadmin ended up alone in a group they had made for somebody else.
+    """
+
+    def _service(self, role, org_id):
+        from services.group_message_service import GroupMessageService
+        client = Mock()
+        table = Mock()
+        client.table.return_value = table
+        for chained in ('select', 'eq', 'single', 'insert', 'limit'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(
+            data={'organization_id': org_id, 'role': role,
+                  'org_role': None, 'org_roles': None})
+        svc = GroupMessageService()
+        svc._get_client = lambda: client
+        svc.can_create_group = lambda _uid: True
+        return svc, table
+
+    def test_a_superadmin_may_name_the_org(self):
+        svc, table = self._service('superadmin', None)
+        table.execute.side_effect = [
+            Mock(data={'organization_id': None, 'role': 'superadmin'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('tanner', 'Tuesday cover', organization_id='org-1',
+                         audience='staff')
+        assert table.insert.call_args_list[0][0][0]['organization_id'] == 'org-1'
+
+    def test_an_admin_may_not_name_another_org(self):
+        svc, _ = self._service('org_managed', 'org-1')
+        with pytest.raises(ValueError, match='another organization'):
+            svc.create_group('kate', 'x', organization_id='org-2')
+
+    def test_a_staff_group_is_filed_as_staff(self):
+        """Left unset the column default is 'family', which would file a staff
+        group with a class's parent chats."""
+        svc, table = self._service('org_managed', 'org-1')
+        table.execute.side_effect = [
+            Mock(data={'organization_id': 'org-1', 'role': 'org_managed'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('kate', 'Tuesday cover', organization_id='org-1',
+                         audience='staff')
+        assert table.insert.call_args_list[0][0][0]['audience'] == 'staff'
+
+    def test_a_group_with_no_audience_does_not_set_the_column(self):
+        """Class chats and the learning app's own group modal pass none; the
+        column default keeps answering for them."""
+        svc, table = self._service('org_managed', 'org-1')
+        table.execute.side_effect = [
+            Mock(data={'organization_id': 'org-1', 'role': 'org_managed'}),
+            Mock(data=[{'id': 'group-1'}]),
+            Mock(data=[{'id': 'member-1'}]),
+        ]
+        svc.create_group('kate', 'Book club')
+        assert 'audience' not in table.insert.call_args_list[0][0][0]

@@ -44,9 +44,16 @@ def guardian_relationship(caller_id: str, student_id: str):
     """Describe how `caller_id` is tied to `student_id`, or None if not at all.
 
     Returns ``{'first_name': str, 'is_dependent': bool}`` — is_dependent meaning
-    the student is a managed under-13 profile (`managed_by_parent_id`), which is
-    the line the destructive actions sit behind: completing and removing a
-    task undo work that a student with their own login must own.
+    the student is a managed profile (`users.is_dependent`), which is the line
+    the destructive actions sit behind: completing and removing a task undo work
+    that a student with their own login must own.
+
+    `is_dependent` used to be computed as `managed_by_parent_id == caller_id`,
+    which conflated two different questions: "is this a managed account?" and
+    "did YOU create it?". A second guardian in the same household -- the other
+    parent -- saw is_dependent False on a child who is plainly a dependent, and
+    so lost the complete and remove buttons their co-parent had. It now reads
+    the student's own flag, and WHO may act is decided by is_parent_of.
     """
     if not caller_id or not student_id:
         return None
@@ -55,7 +62,8 @@ def guardian_relationship(caller_id: str, student_id: str):
     # reads users + parent_student_links to decide whether a caller may act for a student
     supabase = get_supabase_admin_client()
 
-    student = supabase.table('users').select('first_name, managed_by_parent_id') \
+    student = supabase.table('users') \
+        .select('first_name, is_dependent, managed_by_parent_id') \
         .eq('id', student_id).maybe_single().execute()
     # A row, or nothing to reason about. `.data` is typed as arbitrary JSON, and
     # an answer that is not a row cannot be evidence of a relationship — so a
@@ -66,16 +74,15 @@ def guardian_relationship(caller_id: str, student_id: str):
 
     described = {
         'first_name': student_row.get('first_name') or '',
-        'is_dependent': student_row.get('managed_by_parent_id') == caller_id,
+        'is_dependent': bool(student_row.get('is_dependent')),
     }
-    if described['is_dependent'] or caller_id == student_id:
+    if caller_id == student_id:
         return described
 
-    link = supabase.table('parent_student_links').select('id') \
-        .eq('parent_user_id', caller_id) \
-        .eq('student_user_id', student_id) \
-        .eq('status', 'approved').limit(1).execute()
-    if link.data:
+    # One definition of "parent", covering all three links (managed_by,
+    # parent_student_links, household_members). See utils.portfolio_access.
+    from utils.portfolio_access import is_parent_of
+    if is_parent_of(caller_id, student_id):
         return described
 
     caller = supabase.table('users').select('role').eq('id', caller_id).maybe_single().execute()

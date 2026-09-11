@@ -10,7 +10,6 @@ import { SettingsTab, PeopleTab } from '../../components/organization'
 import QuestsTab from '../../components/organization/QuestsTab'
 import OrgCoursesTab from '../../components/organization/OrgCoursesTab'
 import OrgClassesTab from '../../components/organization/OrgClassesTab'
-import AnnouncementsTab from '../../components/organization/AnnouncementsTab'
 import GettingStartedChecklist from '../../components/organization/GettingStartedChecklist'
 import CreditReviewDashboardPage from '../CreditReviewDashboardPage'
 import BountyBoardPage from '../BountyBoardPage'
@@ -21,7 +20,6 @@ const TABS = [
   { id: 'people', label: 'People' },
   { id: 'progress', label: 'Progress' },
   { id: 'classes', label: 'Classes' },
-  { id: 'announcements', label: 'Announcements' },
   { id: 'quests', label: 'Quests' },
   { id: 'courses', label: 'Courses' },
   { id: 'bounties', label: 'Bounties' },
@@ -35,7 +33,6 @@ const TAB_DESCRIPTIONS = {
   people: 'Add and manage your students, parents, and advisors. Invite new members and set their roles.',
   progress: "See every student's XP, quests, and activity at a glance — filter by date range and export to CSV.",
   classes: 'Group students into classes, assign quests, and schedule when each quest becomes available to the class.',
-  announcements: 'Send a notification through Optio to everyone in your organization — students, advisors, and parents.',
   quests: 'Create organization-specific quests for your students and control which Optio quests are available to them.',
   courses: 'Assign courses to your students and build new course content for your organization.',
   bounties: 'View the bounties available to your students and post new ones to encourage their learning.',
@@ -283,10 +280,6 @@ export default function OrganizationManagement() {
 
       {activeTab === 'classes' && (
         <OrgClassesTab orgId={orgId} />
-      )}
-
-      {activeTab === 'announcements' && (
-        <AnnouncementsTab orgId={orgId} />
       )}
 
       {activeTab === 'quests' && (

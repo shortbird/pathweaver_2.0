@@ -190,7 +190,15 @@ BACKEND = Path(__file__).resolve().parents[2]
 # editors wrote no subject at all, so every task a school typed in kept the
 # column default of ['Electives'].
 BASELINES = {
-    'routes': 2342,
+    # 2026-09-11 (merge of icreate/requests-v2 into main): both branches moved
+    # this number and the merge is the union, so every figure below is MEASURED
+    # on the merged tree rather than carried from either side. routes and
+    # services FELL -- the quest-resources work took its queries down into
+    # repositories/quest_resource_repository.py instead of leaving them in the
+    # route -- so they are lowered here in the same commit, per rule 2 at the
+    # top of docs/remediation-2026-09/RATCHETS.md. A layer that drops and keeps
+    # the old ceiling is that much of a fix nobody would notice being undone.
+    'routes': 2330,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -228,7 +236,17 @@ BASELINES = {
     #     on each class card. No repository owns user_quests keyed by student.
     # The class_quests half of that feature did NOT land here: it went into
     # ClassRepository.get_due_dates_for_classes, the layer that owns the table.
-    'services': 1847,
+    # 2026-09-10: 1841 -> 1844. Three permission reads that answer a question
+    # no repository owns:
+    #   - quest_resource_service.can_edit_quest reads class_quests to ask "does
+    #     this teacher moderate a class this quest is attached to". The data
+    #     access for quest_resources itself went into
+    #     repositories/quest_resource_repository.py, which is why this is +1 and
+    #     not +14.
+    #   - sis_messaging_service reads org_classes and class_meetings to build
+    #     the "teachers of this class" and "teaching on Tuesday" presets. Both
+    #     are org-wide lists behind fetch_all_rows, assembled for a picker.
+    'services': 1843,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -261,7 +279,11 @@ BASELINES = {
     # on each student class card costs one query instead of one per card. It is
     # the half of that feature that had a repository to go to; the layer that
     # owns the table is where it belongs.
-    'repositories': 465,
+    # 2026-09-10: 464 -> 471. repositories/quest_resource_repository.py, the
+    # data access for the new quest_resources table. This layer is where a
+    # .table() call BELONGS -- the number going up here is the ratchet working,
+    # not being worked around.
+    'repositories': 472,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -285,7 +307,13 @@ BASELINES = {
     #     the one definition of "is this student finished". Putting the counting
     #     a layer away from the rule it feeds is how the teacher's grid and the
     #     student's own screen came to disagree in the first place.
-    'utils': 144,
+    # 2026-09-10: 136 -> 139. The third parent-child link (household_members)
+    # reaching class_membership.guardians_by_student (+2, one for the student
+    # rows and one for their households' guardians) and children_of_parent (+1).
+    # This module IS the shared answer to "who belongs to a class" and owns its
+    # own reads by design -- the whole reason it lives in utils/ is that
+    # repositories need it and may not import services.
+    'utils': 147,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,
@@ -331,7 +359,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2342 + 1847
+UPPER_TOTAL_BASELINE = 2330 + 1843
 
 
 def test_the_upper_layers_do_not_grow_in_total():

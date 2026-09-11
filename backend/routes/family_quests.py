@@ -29,27 +29,15 @@ bp = Blueprint('family_quests', __name__, url_prefix='/api/family')
 
 
 def verify_parent_has_access_to_child(parent_id: str, child_id: str) -> bool:
+    """Whether a parent may act on this child's quests.
+
+    All three links: managed_by_parent_id (a dependent), an approved
+    parent_student_links row (a student with their own login), and a shared
+    household (how the SIS registration funnel builds a family). One definition,
+    in utils.portfolio_access.is_parent_of -- this used to inline the first two.
     """
-    Check if a parent has access to a child via:
-    1. managed_by_parent_id (dependent under 13)
-    2. parent_student_links with approved status (linked 13+ student)
-    """
-    # admin client justified: parent->child relationship lookup helper used by route handlers below; reads users + parent_student_links
-    supabase = get_supabase_admin_client()
-
-    # Check managed_by_parent_id
-    dependent = supabase.table('users').select('id').eq('id', child_id).eq('managed_by_parent_id', parent_id).execute()
-    if dependent.data:
-        return True
-
-    # Check parent_student_links
-    link = supabase.table('parent_student_links').select('id').eq(
-        'parent_user_id', parent_id
-    ).eq('student_user_id', child_id).eq('status', 'approved').execute()
-    if link.data:
-        return True
-
-    return False
+    from utils.portfolio_access import is_parent_of
+    return is_parent_of(parent_id, child_id)
 
 
 @bp.route('/quests/create', methods=['POST'])

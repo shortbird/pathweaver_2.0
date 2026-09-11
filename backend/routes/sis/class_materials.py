@@ -49,11 +49,14 @@ bp = Blueprint('sis_class_materials', __name__, url_prefix='/api/sis')
 # Private bucket, shared with the staff resource library. Uploaded materials are
 # org-owned curriculum: the row stores the canonical pointer and every read signs
 # it for the requester. See utils/storage_urls.py.
-_MATERIALS_BUCKET = 'org-documents'
-_DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
-                   'png', 'jpg', 'jpeg', 'webp', 'gif', 'txt', 'csv'}
-_MAX_DOC_BYTES = 25 * 1024 * 1024
-_MAX_TITLE_LEN = 300
+# One definition, shared with curriculum materials and quest resources. The
+# extension set is a security boundary, not a preference -- see the module.
+from utils.document_uploads import (  # noqa: E402
+    DOCUMENT_BUCKET as _MATERIALS_BUCKET,
+    DOCUMENT_EXTENSIONS as _DOC_EXTENSIONS,
+    MAX_DOCUMENT_BYTES as _MAX_DOC_BYTES,
+    MAX_TITLE_LEN as _MAX_TITLE_LEN,
+)
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402
