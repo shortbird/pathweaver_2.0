@@ -61,15 +61,15 @@ const PAGE_SIZE = 20
 const SCHOOL_LIFE_CARDS = [
   {
     name: 'Calendar', path: '/school-calendar', Icon: CalendarDaysIcon,
-    description: 'Field trips, showcases and closures.', module: 'calendar', module: 'calendar',
+    description: 'Field trips, showcases and closures.', module: 'calendar',
   },
   {
     name: 'Resources', path: '/resources', Icon: BookOpenIcon,
-    description: 'Guidebooks, contracts and forms to refer back to.', module: 'resources', module: 'resources',
+    description: 'Guidebooks, contracts and forms to refer back to.', module: 'resources',
   },
   {
     name: 'Directory', path: '/family-directory', Icon: UsersIcon,
-    description: 'Contact details for families who opted in.', module: 'community', module: 'community',
+    description: 'Contact details for families who opted in.', module: 'community',
   },
   // Everyone's card, not guardian-only: students see the board too (it may
   // explain their own ride) — the backend keeps posting adults-only.
@@ -82,7 +82,7 @@ const SCHOOL_LIFE_CARDS = [
 const FAMILY_CARDS = [
   {
     name: 'Absences', path: '/absences', Icon: CalendarIcon,
-    description: 'Let us know when your child will be out.', guardianOnly: true, module: 'attendance', module: 'attendance',
+    description: 'Let us know when your child will be out.', guardianOnly: true, module: 'attendance',
   },
   {
     name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
@@ -90,11 +90,11 @@ const FAMILY_CARDS = [
   },
   {
     name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
-    description: 'Checklists assigned to your family.', guardianOnly: true, module: 'onboarding', module: 'onboarding',
+    description: 'Checklists assigned to your family.', guardianOnly: true, module: 'onboarding',
   },
   {
     name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
-    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true, module: 'forms', module: 'forms',
+    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true, module: 'forms',
   },
 ]
 
@@ -104,12 +104,12 @@ const flowCard = (postRegistrationFlow) => (
     ? {
       name: 'Goal Setting', path: '/family/goals', Icon: CheckCircleIcon,
       description: 'Set a direction and per-subject goals for each child.',
-      guardianOnly: true, module: 'goals', module: 'goals',
+      guardianOnly: true, module: 'goals',
     }
     : {
       name: 'Schedule', path: '/schedule-builder', Icon: TableCellsIcon,
       description: 'Build and change your children’s class schedules.',
-      guardianOnly: true, module: 'classes', module: 'classes',
+      guardianOnly: true, module: 'classes',
     }
 )
 
@@ -118,7 +118,7 @@ const flowCard = (postRegistrationFlow) => (
 const priorLearningCard = {
   name: 'Prior Learning', path: '/family/prior-learning', Icon: AcademicCapIcon,
   description: 'Submit learning done before Optio for high-school credit.',
-  guardianOnly: true, module: 'prior_learning', module: 'prior_learning',
+  guardianOnly: true, module: 'prior_learning',
 }
 
 /** The rail, grouped. A student gets only the School life group. */

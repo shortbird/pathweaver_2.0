@@ -15,10 +15,10 @@
  * the same disposition CI-02 gave direct DB calls and QF-03 gave hand-rolled
  * fetches.
  *
- * WHAT THE FIRST RUN FOUND THAT IS A REAL BUG. Recorded here rather than fixed,
- * because this phase is structural (see PHASE_3_HANDOFF.md, "Bugs found, not
- * fixed"). Each of these is a `no-undef` on an identifier that is read at
- * runtime and never bound -- a ReferenceError the moment that line executes:
+ * WHAT THE FIRST RUN FOUND THAT IS A REAL BUG -- ALL FIXED 2026-09-10, on
+ * branch fix/web-reference-errors. Kept here because the list is the argument
+ * for the ratchet: a linter that had never run was hiding nine crashes, and
+ * this is what "the number stops growing" bought on its first day.
  *
  *   src/utils/animations.js               React        (no React import at all)
  *   src/components/ui/PhilosophyCard.jsx  Heart, TrendingUp, Clock
@@ -28,6 +28,14 @@
  *   src/components/diploma/DiplomaStats.jsx    text, primary
  *   src/components/diploma/SkillsBreakdown.jsx text, primary, pillarInfo
  *   src/pages/SchoolPage.jsx              9x duplicate object key 'module'
+ *
+ * The `text, primary` three were one mistake made three times: a retired
+ * Tailwind token written into an inline style, so JSX evaluated `text-primary`
+ * as the subtraction `text - primary` and threw on two undefined names. They
+ * are `text-gray-900` classes now, which is what DESIGN_SYSTEM.md says a
+ * heading is. SkillsRadarChart.jsx carried the same mistake in quotes
+ * (`color: 'text-primary'`), which throws nothing and silently renders no
+ * colour at all; it was fixed alongside them.
  *
  * Also 5 `console.debug` calls that the vitest re-implementation of no-console
  * never saw, because it matched only `console.log`. They are counted in the
@@ -47,8 +55,15 @@ import { fileURLToPath } from 'url'
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
-/** Measured 2026-09-09 on the first run. Ratchet DOWN, never up. */
-const ERROR_BASELINE = 292
+/**
+ * Ratchet DOWN, never up.
+ * Errors: 292 measured 2026-09-09 on the first run, 239 on 2026-09-10 when the
+ * ten files in the first run's no-undef list were fixed. That is 43 crashes and
+ * duplicate keys, plus 10 imports that became used again once the code stopped
+ * referring to icons by names nothing imported.
+ * Warnings: 2183, unchanged — the fixes are all in the error class.
+ */
+const ERROR_BASELINE = 239
 const WARNING_BASELINE = 2183
 
 /**

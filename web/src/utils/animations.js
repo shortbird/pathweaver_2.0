@@ -1,3 +1,5 @@
+import { useState, useRef, useEffect } from 'react'
+
 /**
  * Animation utilities for homepage redesign
  * Intersection Observer-based scroll animations and lazy loading
@@ -26,10 +28,10 @@ export const createScrollObserver = (callback, options = {}) => {
  * @returns {Object} - { ref, isVisible }
  */
 export const useScrollAnimation = (threshold = 0.2) => {
-  const [isVisible, setIsVisible] = React.useState(false)
-  const ref = React.useRef(null)
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     const observer = createScrollObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -93,11 +95,11 @@ export const getAnimationClasses = (isVisible, animationClass = 'fade-in-up') =>
  * @returns {Object} - { imgSrc, isLoaded, handleLoad }
  */
 export const useLazyImage = (src, placeholder = null) => {
-  const [imgSrc, setImgSrc] = React.useState(placeholder || src)
-  const [isLoaded, setIsLoaded] = React.useState(false)
-  const imgRef = React.useRef(null)
+  const [imgSrc, setImgSrc] = useState(placeholder || src)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const imgRef = useRef(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     const observer = createScrollObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -133,10 +135,10 @@ export const useLazyImage = (src, placeholder = null) => {
  * @returns {Object} - { ref, offset }
  */
 export const useParallax = (speed = 0.3) => {
-  const [offset, setOffset] = React.useState(0)
-  const ref = React.useRef(null)
+  const [offset, setOffset] = useState(0)
+  const ref = useRef(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (prefersReducedMotion()) {
       return // No parallax if reduced motion preferred
     }

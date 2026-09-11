@@ -48,21 +48,21 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-3 gap-6">
             <PhilosophyCard
-              icon={Clock}
+              icon={ClockIcon}
               title="Learn Today"
               description="Each skill you build has immediate value. Your growth matters now."
               gradientClasses="from-optio-purple/5 to-blue-50"
             />
             
             <PhilosophyCard
-              icon={TrendingUp}
+              icon={ArrowTrendingUpIcon}
               title="Progress Over Perfection"
               description="Every attempt teaches. Mistakes are data. Forward is forward."
               gradientClasses="from-[#ef597b]/10 to-[#6d469b]/10"
             />
             
             <PhilosophyCard
-              icon={Heart}
+              icon={HeartIcon}
               title="Joy of Discovery"
               description="Follow curiosity, not credentials. Create because you want to."
               gradientClasses="from-optio-pink/5 to-optio-purple/5"

@@ -196,7 +196,7 @@ const SkillsRadarChart = ({ skillsXP, compact = false }) => {
     }
     return (
       <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-        <h2 className="text-2xl font-bold mb-4" style={{ color: 'text-primary' }}>Growth Dimensions</h2>
+        <h2 className="text-2xl font-bold mb-4 text-gray-900">Growth Dimensions</h2>
         <div className="text-center py-12">
           <div className="w-64 h-64 mx-auto rounded-full bg-gradient-to-br from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-center">
             <p className="text-gray-600">Complete quests to develop your growth dimensions</p>

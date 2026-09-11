@@ -191,7 +191,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
             {needle && byType.length
               ? `Nothing here matches "${q.trim()}".`
               : type && byStatus.length
-                ? `No ${(TYPES.find(([v]) => v === type) || [, 'items'])[1].toLowerCase()} here.`
+                ? `No ${(TYPES.find(([v]) => v === type) || [null, 'items'])[1].toLowerCase()} here.`
                 : 'Everything assigned is done.'}
           </p>
         )}

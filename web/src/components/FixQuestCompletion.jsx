@@ -22,8 +22,7 @@ const FixQuestCompletion = () => {
       // If quests were fixed, refresh the page to show updated diploma
       if (response.data.fixed_quests && response.data.fixed_quests.length > 0) {
         setTimeout(() => {
-          // Use a more reliable reload method
-          window.location.href = window.location.href;
+          window.location.reload();
         }, 2000);
       }
     } catch (err) {
