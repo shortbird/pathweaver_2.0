@@ -145,6 +145,13 @@ def main():
     _run("credit-ai-review-sweep", f"{base}/api/credit-dashboard/internal/ai-review-sweep",
          cron_secret, failures, base=base)
 
+    # Every run: stories rebuild sweep. Fires the one marketing-site deploy that
+    # a burst of story publishes deferred inside the debounce window, and
+    # requeues story drafts a dead worker left mid-flight. Returns before any
+    # model call, and no-ops cheaply when nothing is pending.
+    _run("stories-rebuild-sweep", f"{base}/api/admin/stories/internal/rebuild-sweep",
+         cron_secret, failures, base=base)
+
     # Every run: weekly parent digest. The send day and hour belong to each
     # school (in ITS timezone), so the window check has to happen server-side —
     # a fixed UTC hour here would send Sunday's digest on Monday for half the
@@ -192,6 +199,14 @@ def main():
     # next day retries rather than parking them as done.
     if now.hour == 9 and now.minute < 10:
         _run("account-deletion-sweep", f"{base}/api/users/internal/deletion-sweep", cron_secret, failures, base=base)
+
+    # Once/day: stories nightly (08:00 UTC). Makes the public story-assets
+    # bucket agree with the rows (a withdrawn story whose object delete failed
+    # gets retried here) and rebuilds the marketing site only if a published
+    # story changed since the last deploy. Idempotent: a bucket already in
+    # agreement does nothing and fires nothing.
+    if now.hour == 8 and now.minute < 10:
+        _run("stories-nightly", f"{base}/api/admin/stories/internal/nightly", cron_secret, failures, base=base)
 
     # Once/day: data retention sweep (10:00 UTC). AI tutor conversation history
     # only. DISABLED by default (Config.TUTOR_RETENTION_ENABLED) — with it off

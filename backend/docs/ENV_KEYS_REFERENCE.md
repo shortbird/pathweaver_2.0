@@ -60,6 +60,12 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `CREDIT_AI_REVIEW_MAX_INPROC` | Concurrent reviews per web process. Each holds its evidence bytes in memory against a 512MB container | `Config.CREDIT_AI_REVIEW_MAX_INPROC` | Default `2` |
 | `CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Total attached bytes per model request. Gemini's inline limit is about 20MB including the prompt, and exceeding it fails the whole call | `Config.CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Default `18` |
 | `CREDIT_AI_REVIEW_FILE_API_ENABLED` | Whether video and audio too large to inline may be uploaded to Gemini's File API (deleted immediately after the call). Off means the model is told a video exists and never sees it | `Config.CREDIT_AI_REVIEW_FILE_API_ENABLED` | Default `true` |
+| `STORIES_ENABLED` | The stories pipeline (`services/stories/`): one click on a finalized credit submission drafts an anonymized case study for www. Off means the publish endpoint answers 503; stories already published stay served | `Config.STORIES_ENABLED` | Default `true` |
+| `MARKETING_DEPLOY_HOOK_URL` | Render deploy hook for the `optio-marketing` static site, called after a story is published or withdrawn. Unset means every rebuild request is recorded as `skipped` (local dev, preview branches) | `Config.MARKETING_DEPLOY_HOOK_URL` | Render dashboard > optio-marketing > Settings > Deploy Hook; prod backend only |
+| `MARKETING_REBUILD_MIN_INTERVAL_SECONDS` | Debounce between deploy-hook calls. Publishes inside the window fire one deploy; the cron rebuild-sweep fires once for the rest and marks them `coalesced` | `Config.MARKETING_REBUILD_MIN_INTERVAL_SECONDS` | Default `300` |
+| `MARKETING_URL` | Base URL of the www site, for the founder's "story published" email and the editor's View on www link | `Config.MARKETING_URL` | Default `https://www.optioeducation.com` |
+| `STORY_DRAFT_TIMEOUT` | Per-attempt model timeout, seconds, for the story draft and the image safety pass. Runs on a background thread | `Config.STORY_DRAFT_TIMEOUT` | Default `120` |
+| `STORY_SAFETY_MIN_CONFIDENCE` | An image whose safety report is less confident than this is excluded from the page, whatever else it says | `Config.STORY_SAFETY_MIN_CONFIDENCE` | Default `0.8` |
 
 ### Email Configuration
 

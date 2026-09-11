@@ -88,6 +88,20 @@ class CreditAIReviewRepository(BaseRepository):
         return self.client.table(self.table_name).select(ROUND_COLUMNS).in_(
             'round_id', round_ids).execute().data or []
 
+    def latest_complete_for_completion(self, completion_id: str) -> Optional[Dict[str, Any]]:
+        """The newest finished review of this submission, or None.
+
+        A story about an approved submission quotes what the reviewer looked
+        for; that comes from the last complete round, not from a skipped or
+        failed one.
+        """
+        if not completion_id:
+            return None
+        rows = self.client.table(self.table_name).select(SUMMARY_COLUMNS).eq(
+            'completion_id', completion_id).eq('status', 'complete').order(
+            'created_at', desc=True).limit(1).execute().data
+        return rows[0] if rows else None
+
     def existing_round_ids(self, round_ids: List[str]) -> List[str]:
         if not round_ids:
             return []

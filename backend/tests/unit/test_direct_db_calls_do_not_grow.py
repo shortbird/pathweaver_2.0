@@ -283,7 +283,32 @@ BASELINES = {
     # data access for the new quest_resources table. This layer is where a
     # .table() call BELONGS -- the number going up here is the ratchet working,
     # not being worked around.
-    'repositories': 472,
+    # 2026-09-11: 472 -> 484. repositories/class_quest_audience_repository.py,
+    # the data access behind "who is this class quest for" (Gryffin): the
+    # class's quest links with their student_ids, the audience write, and the
+    # four reads that decide whether a removed student's enrollment can be
+    # deleted or must be set down (their user_quests row, its tasks, and any
+    # completion or evidence document on those tasks). routes/ and services/
+    # did not move: the route and the enrollment service call the repository.
+    # 2026-09-11: 484 -> 528. Stories on www (services/stories/). Forty-four
+    # calls, every one in a repository, none above:
+    #   - story_repository (15): the queue reads and the two conditional writes
+    #     that make the claim work, the paged published list the static site
+    #     builds from, and the per-student list revocation and erasure use.
+    #   - story_source_repository (11): read-only access to everything a story
+    #     is drafted from -- the completion, its rounds, the task, the quest,
+    #     the enrolment, the student, the guardians' names and the org name the
+    #     scrubber must remove, the academy enrolment for the grade band. The
+    #     guardian RELATIONSHIP comes from utils.class_membership, the one
+    #     definition (test_one_definition_of_parent); only the names are read.
+    #   - story_asset_repository (7), promotional_consent_repository (5),
+    #     marketing_rebuild_repository (5): each new table's own data access.
+    #   - credit_ai_review_repository (+1): latest_complete_for_completion, so
+    #     a story can quote what the reviewer looked for.
+    # routes/stories/ and services/stories/ make zero direct calls; the
+    # erasure hook in user_erasure_repository goes through the repositories
+    # above rather than adding reads of its own.
+    'repositories': 528,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -107,6 +107,12 @@ def register_all(app):
     from routes.philosophy import public_philosophy_bp
     app.register_blueprint(public_philosophy_bp)
 
+    # Stories on www: the grader's Publish button and the public feed the
+    # static site builds from. Same public + admin pair as docs.
+    from routes.stories import admin_stories_bp, public_stories_bp
+    app.register_blueprint(admin_stories_bp)
+    app.register_blueprint(public_stories_bp)
+
     from routes.homepage_images import bp as homepage_images_bp
     app.register_blueprint(homepage_images_bp)
 

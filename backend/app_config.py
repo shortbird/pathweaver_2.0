@@ -517,6 +517,30 @@ class Config:
     CREDIT_AI_REVIEW_FILE_API_ENABLED = os.getenv(
         'CREDIT_AI_REVIEW_FILE_API_ENABLED', 'true').lower() == 'true'
 
+    # ── Stories on www (services/stories/, services/marketing_site.py) ───────
+    #
+    # One click on a finalized credit submission drafts an anonymized case
+    # study, runs an AI safety pass, publishes it to www.optioeducation.com and
+    # rebuilds the static site. Off means the publish endpoint answers 503 and
+    # nothing is drafted; already-published stories stay served.
+    STORIES_ENABLED = os.getenv('STORIES_ENABLED', 'true').lower() == 'true'
+    # Render's deploy hook for the optio-marketing static site. Unset (local
+    # dev, preview branches) records every rebuild request as skipped.
+    MARKETING_DEPLOY_HOOK_URL = os.getenv('MARKETING_DEPLOY_HOOK_URL') or None
+    # Debounce between deploy-hook calls. A burst of publishes inside this
+    # window fires one deploy; the cron's rebuild-sweep fires the rest once.
+    MARKETING_REBUILD_MIN_INTERVAL_SECONDS = int(
+        os.getenv('MARKETING_REBUILD_MIN_INTERVAL_SECONDS', '300'))
+    # Where a published story lives, for the founder's email and the editor's
+    # "View on www" link. Shareable app links use app., but stories are on www.
+    MARKETING_URL = os.getenv('MARKETING_URL', 'https://www.optioeducation.com')
+    # Per-attempt model timeout for the draft and the safety pass. Larger than
+    # the reviewer's: the draft is prose with images attached, on a thread
+    # where nobody is waiting.
+    STORY_DRAFT_TIMEOUT = int(os.getenv('STORY_DRAFT_TIMEOUT', '120'))
+    # An image whose safety report is less confident than this is excluded.
+    STORY_SAFETY_MIN_CONFIDENCE = float(os.getenv('STORY_SAFETY_MIN_CONFIDENCE', '0.8'))
+
     PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
 

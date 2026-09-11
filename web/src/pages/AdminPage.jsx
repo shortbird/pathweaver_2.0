@@ -15,6 +15,8 @@ const TransferCreditForm = lazy(() => import('./admin/TransferCreditForm'))
 const TranscriptGeneratorPage = lazy(() => import('./admin/TranscriptGeneratorPage'))
 const CoursePlanMode = lazy(() => import('./admin/CoursePlanMode'))
 const DocsManager = lazy(() => import('../components/admin/DocsManager'))
+const StoriesManager = lazy(() => import('../components/admin/StoriesManager'))
+const StoryEditor = lazy(() => import('../components/admin/StoryEditor'))
 const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
 const RosterImportPage = lazy(() => import('./admin/RosterImportPage'))
@@ -39,7 +41,8 @@ const ADMIN_TABS = [
   { path: 'moderation', label: 'Moderation' },
   { path: 'roster-import', label: 'Roster Import' },
   { path: 'bulk-generate', label: 'Bulk Generate' },
-  { path: 'docs', label: 'Docs' }
+  { path: 'docs', label: 'Docs' },
+  { path: 'stories', label: 'Stories' }
 ]
 
 const AdminPage = () => {
@@ -105,6 +108,8 @@ const AdminPage = () => {
           <Route path="course-plan/:sessionId" element={<CoursePlanMode />} />
           <Route path="bulk-generate" element={<BulkCourseGeneration />} />
           <Route path="docs" element={<DocsManager />} />
+          <Route path="stories" element={<StoriesManager />} />
+          <Route path="stories/:storyId" element={<StoryEditor />} />
           <Route path="moderation" element={<ModerationQueue />} />
           <Route path="roster-import" element={<RosterImportPage />} />
           <Route path="crm/*" element={<CrmConsole />} />

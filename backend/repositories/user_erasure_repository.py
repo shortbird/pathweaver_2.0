@@ -309,6 +309,57 @@ def delete_storage_prefixes(client, prefixes: Iterable[Tuple[str, str]],
     return removed
 
 
+STORY_ASSETS_BUCKET = 'story-assets'
+STORY_STORAGE_PREFIX = 'stories/{story_id}'
+
+
+def _unpublish_stories(client, user_id: str, prefixes: List[Tuple[str, str]],
+                       errors: List[str]) -> int:
+    """Take every story about this student off the site. Returns how many.
+
+    Adds each story's public object prefix to `prefixes` (the storage sweep
+    that follows deletes them), marks the published rows unpublished, and
+    queues one marketing rebuild. The cron rebuild-sweep fires it; nothing
+    here waits on a webhook.
+    """
+    from repositories.marketing_rebuild_repository import MarketingRebuildRepository
+    from repositories.story_repository import StoryRepository
+
+    try:
+        story_repo = StoryRepository(client=client)
+        stories = story_repo.list_for_student(user_id)
+    except Exception as e:  # noqa: BLE001
+        if 'does not exist' in str(e).lower():
+            # The stories migration is not applied in this environment (a
+            # preview branch, a local stack). No table means no story to take
+            # down; it is not a reason to leave the account undeleted.
+            logger.warning(f'[ACCOUNT_DELETE] user={user_id} stories table absent; skipping')
+            return 0
+        errors.append(f'read stories: {e}')
+        return 0
+
+    unpublished = 0
+    for story in stories:
+        prefixes.append((STORY_ASSETS_BUCKET, STORY_STORAGE_PREFIX.format(story_id=story['id'])))
+        if story.get('status') != 'published':
+            continue
+        try:
+            story_repo.patch(story['id'], {
+                'status': 'unpublished',
+                'unpublished_at': datetime.now(timezone.utc).isoformat(),
+            })
+            unpublished += 1
+        except Exception as e:  # noqa: BLE001
+            errors.append(f'unpublish story {story["id"]}: {e}')
+
+    if unpublished:
+        try:
+            MarketingRebuildRepository(client=client).create('student_erased', status='requested')
+        except Exception as e:  # noqa: BLE001
+            errors.append(f'queue marketing rebuild: {e}')
+    return unpublished
+
+
 # ---------------------------------------------------------------------------
 # The erasure itself
 # ---------------------------------------------------------------------------
@@ -386,6 +437,17 @@ def purge_user(user_id: str, admin=None, reason: str = '',
     # 1. Storage. Collect learning-event ids first: their media is keyed by the
     #    event, so once the rows are gone the objects are unreachable orphans.
     prefixes = [(b, p.format(uid=user_id)) for b, p in USER_STORAGE_PREFIXES]
+
+    #    Stories about this student. A published story is a public page and a
+    #    public copy of their photographs, keyed by the STORY id in the public
+    #    story-assets bucket -- so, like learning-event media, the ids are
+    #    collected before the cascade takes the rows (stories.student_user_id
+    #    is ON DELETE CASCADE). The rows are marked unpublished and a site
+    #    rebuild is queued for the cron sweep, which is what removes the page.
+    #    Through repositories, not services/stories/publish: this layer may
+    #    not import services (test_import_layers), and the data work is all
+    #    erasure needs.
+    counts['stories_unpublished'] = _unpublish_stories(client, user_id, prefixes, errors)
     try:
         events = client.table('learning_events').select('id').eq('user_id', user_id).execute().data or []
         for event in events:

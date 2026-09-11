@@ -2,7 +2,7 @@ import React, { useEffect, useState, lazy, Suspense, startTransition } from 'rea
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { HelmetProvider } from 'react-helmet-async'
+import { HelmetProvider, Helmet } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
 import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
@@ -41,7 +41,7 @@ import RegisterPage from './pages/RegisterPage'
 import OrganizationSignup from './pages/auth/OrganizationSignup'
 import PrivateRoute from './components/PrivateRoute'
 import RequireParentRegistration from './components/RequireParentRegistration'
-import { getAppSurface, subscribeSurface } from './utils/appSurface'
+import { getAppSurface, subscribeSurface, isSisHost } from './utils/appSurface'
 import SisRoutes from './sis/SisRoutes'
 import UpdateAvailableBanner from './components/UpdateAvailableBanner'
 
@@ -429,6 +429,14 @@ function App() {
   return (
     <ErrorBoundary>
       <HelmetProvider>
+        {/* sis. and app. are one static site, so a host-wide X-Robots-Tag
+            would also de-index the consented /portfolio pages. The SIS
+            console asks not to be indexed from inside the page instead. */}
+        {isSisHost() && (
+          <Helmet>
+            <meta name="robots" content="noindex, nofollow" />
+          </Helmet>
+        )}
         <QueryClientProvider client={queryClient}>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           {/* Skip Navigation Link - WCAG 2.1 AA Accessibility */}
