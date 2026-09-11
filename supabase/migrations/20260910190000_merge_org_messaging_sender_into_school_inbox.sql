@@ -22,6 +22,15 @@
 -- and does nothing. Safe to run before or after the code deploy -- ahead of it,
 -- new sends keep using the placeholder and a second run picks them up.
 --
+-- Depends on 20260910180000_conversation_participants_are_sorted, which must
+-- run first and does by timestamp. The repoint below looks for an existing
+-- thread at (LEAST, GREATEST) and takes the create-or-repoint branch when it
+-- finds none. A reverse-ordered row is invisible to that lookup, so before
+-- 180000 normalised them this migration would repoint the placeholder's thread
+-- alongside one that already existed, leaving the member holding two threads
+-- with their school -- and UNIQUE (participant_1_id, participant_2_id) does not
+-- object, because (a,b) and (b,a) are different rows to it.
+--
 -- The placeholder users are NOT deleted. message_conversations and
 -- direct_messages cascade on users.id, so a delete would erase the history this
 -- migration exists to rescue if any rewrite were missed. They are stripped of
@@ -31,12 +40,14 @@
 
 DO $$
 DECLARE
-  ph        record;
-  conv      record;
-  inbox_id  uuid;
-  lo        uuid;
-  hi        uuid;
-  existing  uuid;
+  ph         record;
+  conv       record;
+  inbox_id   uuid;
+  lo         uuid;
+  hi         uuid;
+  existing   uuid;
+  self_msgs  integer;
+  stranded   integer;
 BEGIN
   FOR ph IN
     SELECT u.id            AS placeholder_id,
@@ -93,9 +104,37 @@ BEGIN
       WHERE ph.placeholder_id IN (c.participant_1_id, c.participant_2_id)
     LOOP
       -- A conversation between the placeholder and the inbox account itself is
-      -- nonsense (nobody could have created one), but repointing it would make
-      -- both participants the same user. Skip rather than corrupt.
-      CONTINUE WHEN conv.member_id = inbox_id;
+      -- the school talking to itself. Repointing it would set both participants
+      -- to inbox_id, which is a corrupt row the sorted-participants CHECK in
+      -- 20260910180000 now refuses outright.
+      --
+      -- DELETED, not skipped, and the difference matters. Skipping was the
+      -- first version and it left the row behind with the retired placeholder
+      -- still on it, while the belt-and-braces UPDATEs below rewrote its
+      -- messages to sender_id = recipient_id. Verification 2 and 3 then
+      -- returned non-zero on a clean run, so a real failure was
+      -- indistinguishable from that one benign leftover -- which is the worst
+      -- property a verification query can have.
+      --
+      -- Deleting is safe HERE specifically because both sides are machine
+      -- accounts. There is no family's half of this conversation to rescue,
+      -- which is the thing the no-delete rule at the top of this file exists to
+      -- protect; the rule is about the placeholder's threads WITH MEMBERS, and
+      -- this is not one. Nobody could have created such a thread in the first
+      -- place -- the People page messages families and students, and the inbox
+      -- account carries organization_id NULL so it is in no org's roster -- so
+      -- the count below is expected to be 0 every time. It is announced rather
+      -- than silent precisely so that a non-zero one gets looked at.
+      IF conv.member_id = inbox_id THEN
+        DELETE FROM public.direct_messages WHERE conversation_id = conv.id;
+        GET DIAGNOSTICS self_msgs = ROW_COUNT;
+        DELETE FROM public.message_conversations WHERE id = conv.id;
+        RAISE NOTICE
+          'org %: deleted a placeholder-to-inbox self-thread (% message(s)). '
+          'Nothing should ever create one -- worth reading the audit trail.',
+          ph.org_id, self_msgs;
+        CONTINUE;
+      END IF;
 
       lo := LEAST(inbox_id, conv.member_id);
       hi := GREATEST(inbox_id, conv.member_id);
@@ -162,10 +201,41 @@ BEGIN
 
     -- Anything left pointing at the placeholder outside a conversation we
     -- walked (there should be none; belt and braces before it loses its org).
+    --
+    -- Both UPDATEs refuse to collapse a message onto itself. Unguarded, a row
+    -- whose other end is ALREADY the inbox account comes out with
+    -- sender_id = recipient_id -- the school addressing itself, which no
+    -- reader renders sensibly and which verification 5 below now catches.
+    -- The self-thread delete above removes the only way that shape was reached
+    -- in practice; these guards mean the belt and braces cannot manufacture it
+    -- from some row nobody anticipated, which is the entire point of a belt and
+    -- braces.
     UPDATE public.direct_messages SET sender_id    = inbox_id
-      WHERE sender_id    = ph.placeholder_id;
+      WHERE sender_id    = ph.placeholder_id
+        AND recipient_id NOT IN (inbox_id, ph.placeholder_id);
     UPDATE public.direct_messages SET recipient_id = inbox_id
-      WHERE recipient_id = ph.placeholder_id;
+      WHERE recipient_id = ph.placeholder_id
+        AND sender_id    NOT IN (inbox_id, ph.placeholder_id);
+
+    -- What those guards just refused to touch, if anything: a message with the
+    -- placeholder on one end and the inbox account (or the placeholder again)
+    -- on the other, outside any conversation this loop walked. Same reasoning
+    -- as the self-thread above -- both ends are machine accounts, there is no
+    -- correspondent -- but it is left in place rather than deleted, because
+    -- unlike the self-thread it has no conversation to tell us what it was.
+    -- Announced so it is not discovered later as an unexplained verification
+    -- failure.
+    SELECT count(*) INTO stranded
+      FROM public.direct_messages
+     WHERE ph.placeholder_id IN (sender_id, recipient_id);
+
+    IF stranded > 0 THEN
+      RAISE WARNING
+        'org %: % message(s) still name the placeholder on both ends and were '
+        'left alone -- rewriting them would have produced sender_id = '
+        'recipient_id. Verification 3 and 5 will report these.',
+        ph.org_id, stranded;
+    END IF;
 
     -- Neutralise: out of every roster, count, recipient list and contact list.
     UPDATE public.users
@@ -180,14 +250,29 @@ BEGIN
   END LOOP;
 END $$;
 
--- ── Verification (run these after applying; all four must hold) ──────────────
+-- ── Verification (run these after applying; all six must hold) ───────────────
 --
---   -- 1. No placeholder is parked inside an org any more.
+--   -- 1. Every org's school-inbox account sits outside the org.
+--   --
+--   --    This replaces an earlier query that looked for
+--   --    email LIKE 'school-%@optio-internal-placeholder.local' AND
+--   --    organization_id IS NOT NULL. That query returns 0 after ANY run,
+--   --    including one that died halfway, because the first thing the
+--   --    migration does to a placeholder is NULL its email -- so it proved the
+--   --    rows had been touched and nothing about whether the work finished.
+--   --    inbox_user_id survives, and being outside the org is the invariant
+--   --    that actually matters: it is what keeps the account out of every
+--   --    roster, count and recipient list.
+--   SELECT count(*) FROM organizations o
+--     JOIN users u ON u.id = o.inbox_user_id
+--    WHERE u.organization_id IS NOT NULL;                    -- expect 0
+--
+--   -- 1b. And no merged placeholder kept its org.
 --   SELECT count(*) FROM users
---    WHERE email LIKE 'school-%@optio-internal-placeholder.local'
+--    WHERE display_name LIKE '%(retired school account)'
 --      AND organization_id IS NOT NULL;                      -- expect 0
 --
---   -- 2. No thread still has a placeholder as a participant.
+--   -- 2. No thread still has a retired placeholder as a participant.
 --   SELECT count(*) FROM message_conversations c
 --     JOIN users u ON u.id IN (c.participant_1_id, c.participant_2_id)
 --    WHERE u.display_name LIKE '%(retired school account)';  -- expect 0
@@ -197,8 +282,24 @@ END $$;
 --     JOIN users u ON u.id IN (d.sender_id, d.recipient_id)
 --    WHERE u.display_name LIKE '%(retired school account)';  -- expect 0
 --
---   -- 4. Message count is conserved. Capture before, compare after.
+--   -- 4. Message count is conserved, MINUS whatever the NOTICE above reported
+--   --    as a deleted self-thread (expected: nothing). Capture before,
+--   --    compare after, and if the two differ read the migration's output
+--   --    before assuming the worst.
 --   SELECT count(*) FROM direct_messages;
+--
+--   -- 5. Nobody is talking to themselves. This is the shape the repoint and
+--   --    the belt-and-braces UPDATEs could each produce if their guards were
+--   --    ever removed, and it renders as a thread with no correspondent.
+--   SELECT count(*) FROM direct_messages
+--    WHERE sender_id = recipient_id;                         -- expect 0
+--
+--   -- 6. No conversation came out reverse-ordered. 20260910180000 normalises
+--   --    these and adds a CHECK, so this cannot fail while that constraint is
+--   --    in place -- run it anyway, because the constraint is what is being
+--   --    verified as much as the data.
+--   SELECT count(*) FROM message_conversations
+--    WHERE participant_1_id > participant_2_id;              -- expect 0
 --
 -- And the functional proof, which is the one that matters: People -> a family
 -- -> Message, reply as that parent from the learning app, and confirm the reply
