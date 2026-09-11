@@ -14,6 +14,9 @@ export async function GET(context) {
       description: post.data.description,
       pubDate: post.data.pubDate,
       link: `/blog/${post.id}/`,
+      // The whole post as content:encoded; the glob loader renders markdown
+      // to HTML at build, so this is free.
+      content: post.rendered?.html,
     })),
   })
 }

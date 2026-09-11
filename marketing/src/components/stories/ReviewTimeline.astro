@@ -1,0 +1,44 @@
+---
+/**
+ * How the review went, round by round. The reviewer's feedback is quoted
+ * verbatim and labelled as such; the "what changed" line is the editor's
+ * summary of the student's response.
+ */
+import type { ReviewRound } from '../../data/stories.schema'
+import { formatDate } from '../../lib/stories'
+
+export interface Props {
+  rounds: ReviewRound[]
+  class?: string
+}
+const { rounds, class: className = '' } = Astro.props
+const awarded = (r: ReviewRound) => /award|final/i.test(r.action)
+---
+
+<ol class={`relative border-l-2 border-neutral-100 ml-3 space-y-8 ${className}`}>
+  {rounds.map((round) => (
+    <li class="pl-7 relative">
+      <span
+        class={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white ${awarded(round) ? 'bg-green-500' : 'bg-optio-purple'}`}
+        aria-hidden="true"
+      />
+      <p class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold mb-1">
+        Round {round.round} &middot; <time datetime={round.date.toISOString()}>{formatDate(round.date)}</time>
+      </p>
+      <h3 class="text-lg font-bold text-neutral-900 mb-3">{round.action}</h3>
+      {round.feedback_verbatim && (
+        <figure class="rounded-2xl bg-neutral-50 border border-neutral-100 px-5 py-4 mb-3">
+          <figcaption class="text-[11px] uppercase tracking-wider text-optio-purple font-semibold mb-2">Reviewer feedback, verbatim</figcaption>
+          <blockquote class="text-neutral-700 font-medium leading-relaxed">
+            <p>{round.feedback_verbatim}</p>
+          </blockquote>
+        </figure>
+      )}
+      {round.what_changed && (
+        <p class="text-sm text-neutral-500 font-medium">
+          <span class="font-semibold text-neutral-900">What changed:</span> {round.what_changed}
+        </p>
+      )}
+    </li>
+  ))}
+</ol>

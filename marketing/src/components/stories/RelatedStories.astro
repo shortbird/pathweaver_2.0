@@ -1,0 +1,41 @@
+---
+/**
+ * Up to three more stories in the same subject. Renders nothing when there
+ * are none, so a subject's first story has no empty band.
+ */
+import StoryCard from './StoryCard.astro'
+import type { StoryCardProps } from '../../lib/stories'
+import { subjectUrl } from '../../lib/stories'
+
+export interface Props {
+  stories: StoryCardProps[]
+  subject: string
+  /** Set when the subject has a hub page. */
+  subjectSlug?: string | null
+  class?: string
+}
+const { stories, subject, subjectSlug = null, class: className = '' } = Astro.props
+---
+
+{stories.length > 0 && (
+  <section class={`bg-neutral-50 border-y border-neutral-100 ${className}`} aria-labelledby="related-stories">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-8">
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-2">More {subject} stories</p>
+          <h2 id="related-stories" class="text-2xl sm:text-3xl font-bold text-neutral-900">Other students, same subject</h2>
+        </div>
+        {subjectSlug && (
+          <a href={subjectUrl(subjectSlug)} class="text-sm font-semibold text-optio-purple hover:underline">
+            Every {subject} story
+          </a>
+        )}
+      </div>
+      <div class="grid md:grid-cols-3 gap-5">
+        {stories.map((story) => (
+          <StoryCard story={story} />
+        ))}
+      </div>
+    </div>
+  </section>
+)}

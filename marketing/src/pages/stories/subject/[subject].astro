@@ -1,0 +1,110 @@
+---
+/**
+ * /stories/subject/<slug>: one subject's stories. Built only for subjects
+ * with two or more stories; a subject with one story is an anchor on the
+ * index instead, so no hub page is ever a single card.
+ */
+import { getCollection } from 'astro:content'
+import Marketing from '../../../layouts/Marketing.astro'
+import Breadcrumbs from '../../../components/Breadcrumbs.astro'
+import StoryCard from '../../../components/stories/StoryCard.astro'
+import FreeClassForm from '../../../components/FreeClassForm.astro'
+import { SITE, OFFER } from '../../../data/site'
+import { absolute, breadcrumbNode, graph, organizationNode } from '../../../data/schema'
+import type { Story } from '../../../data/stories.schema'
+import { cardProps, groupBySubject, listable, listingNoindex, storyUrl, subjectUrl } from '../../../lib/stories'
+import { landers } from '../../../data/landers'
+
+export async function getStaticPaths() {
+  const stories = listable((await getCollection('stories')).map((e) => e.data))
+  return groupBySubject(stories)
+    .filter((g) => g.stories.length >= 2)
+    .map((g) => ({ params: { subject: g.slug }, props: { subject: g.subject, slug: g.slug, stories: g.stories } }))
+}
+
+interface Props {
+  subject: string
+  slug: string
+  stories: Story[]
+}
+const { subject, slug, stories } = Astro.props
+const noindex = listingNoindex(stories)
+const pageUrl = absolute(subjectUrl(slug))
+const crumbs = [
+  { name: 'Home', href: '/' },
+  { name: 'Stories', href: '/stories/' },
+  { name: subject, href: subjectUrl(slug) },
+]
+const lander = landers.find((l) => l.subject === subject)
+const description = `${stories.length} real ${subject} submissions that became accredited credit on Optio: what each student did, what they submitted, and what the reviewer looked for.`
+
+const schema = [
+  graph(
+    organizationNode(),
+    {
+      '@type': 'CollectionPage',
+      '@id': pageUrl,
+      url: pageUrl,
+      name: `${subject} stories`,
+      description,
+      isPartOf: { '@id': `${SITE.url}/#website` },
+      about: { '@type': 'Thing', name: subject },
+      mainEntity: { '@id': `${pageUrl}#list` },
+    },
+    {
+      '@type': 'ItemList',
+      '@id': `${pageUrl}#list`,
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
+      numberOfItems: stories.length,
+      itemListElement: stories.map((story, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: absolute(storyUrl(story)),
+        name: story.title,
+      })),
+    },
+    breadcrumbNode(crumbs)
+  ),
+]
+---
+
+<Marketing title={`${subject} stories | Optio`} description={description} ogImage="/images/og/stories.png" schema={schema} noindex={noindex}>
+  <section class="bg-white">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-10">
+      <Breadcrumbs items={crumbs} class="mb-6" />
+      <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">Stories</p>
+      <h1 class="text-4xl sm:text-5xl font-bold text-neutral-900 mb-4">{subject}</h1>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed max-w-3xl">
+        {stories.length} real submissions that earned {subject} credit on Optio. Each one is anonymized, quotes the
+        reviewer verbatim, and shows exactly what counted.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-neutral-50 border-y border-neutral-100">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-14">
+      <div class="grid md:grid-cols-3 gap-5">
+        {stories.map((story, i) => (
+          <StoryCard story={cardProps(story)} headingLevel="h2" loading={i < 3 ? 'eager' : 'lazy'} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-3">
+        {lander ? lander.headline : `Your kid's ${subject.toLowerCase()} work could count too.`}
+      </h2>
+      <p class="text-neutral-500 font-medium mb-8">{OFFER.freeClassLine} {OFFER.transferGuarantee}</p>
+      <div class="max-w-md mx-auto">
+        <FreeClassForm source={`stories_subject_${slug}`} />
+      </div>
+      {lander && (
+        <p class="mt-6 text-sm font-medium text-neutral-500">
+          Read more about <a href={`/l/${lander.slug}/`} class="text-optio-purple underline">{lander.activity} as {subject} credit</a>.
+        </p>
+      )}
+    </div>
+  </section>
+</Marketing>

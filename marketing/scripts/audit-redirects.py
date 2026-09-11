@@ -40,7 +40,7 @@ SOURCES = [
 
 # Segments the marketing site serves itself (marketing/src/pages/*.astro) or
 # redirects to one of its own pages. These must never forward to the app.
-MARKETING_OWNED = {"academy", "philosophy", "schools", "blog", "l",
+MARKETING_OWNED = {"academy", "philosophy", "schools", "blog", "stories", "l",
                    "how-it-works", "classes", "for-students", "for-families",
                    "for-schools"}
 

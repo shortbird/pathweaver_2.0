@@ -1,18 +1,30 @@
 ---
+import { getCollection } from 'astro:content'
 import Lander from '../../layouts/Lander.astro'
 import Receipt from '../../components/Receipt.astro'
 import FreeClassForm from '../../components/FreeClassForm.astro'
 import { landers } from '../../data/landers'
 import { OFFER } from '../../data/site'
+import { byNewest, isPublished, storyUrl } from '../../lib/stories'
 
-export function getStaticPaths() {
+export async function getStaticPaths() {
+  // Up to three published stories whose activity matches this lander. The
+  // backend sets activity.slug from the same list (STORY_ACTIVITY_SLUGS
+  // mirrors landers.ts), so a match is exact, never fuzzy.
+  const stories = (await getCollection('stories')).map((e) => e.data).filter(isPublished).sort(byNewest)
   return landers.map((lander) => ({
     params: { activity: lander.slug },
-    props: { lander },
+    props: {
+      lander,
+      examples: stories
+        .filter((s) => s.activity.slug === lander.slug)
+        .slice(0, 3)
+        .map((s) => ({ title: s.title, href: storyUrl(s), credit: s.credit_fraction, subject: s.subject })),
+    },
   }))
 }
 
-const { lander } = Astro.props
+const { lander, examples } = Astro.props
 ---
 
 <Lander
@@ -53,6 +65,27 @@ const { lander } = Astro.props
         {OFFER.classPriceDetail} Credit is issued through Optio Academy, a WASC-accredited online
         private school.
       </p>
+
+      {examples.length > 0 && (
+        <div class="mt-10 pt-8 border-t border-neutral-100">
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">Real examples</p>
+          <ul class="divide-y divide-neutral-100 rounded-xl border border-neutral-100 bg-white">
+            {examples.map((ex) => (
+              <li>
+                <a href={ex.href} data-track="lander_story" class="flex items-center justify-between gap-4 px-4 py-3 group">
+                  <span>
+                    <span class="block text-sm font-semibold text-neutral-900 group-hover:text-optio-purple transition-colors">{ex.title}</span>
+                    <span class="block text-xs text-neutral-500 font-medium mt-0.5">{ex.subject} &middot; {ex.credit}</span>
+                  </span>
+                  <svg class="w-4 h-4 text-neutral-300 group-hover:text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   </section>
 </Lander>

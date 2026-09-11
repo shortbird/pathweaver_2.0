@@ -1,39 +1,47 @@
 ---
+import { getCollection } from 'astro:content'
 import Marketing from '../layouts/Marketing.astro'
 import Receipt from '../components/Receipt.astro'
+import StoryCard from '../components/stories/StoryCard.astro'
 import TestimonialRow from '../components/TestimonialRow.astro'
 import FreeClassForm from '../components/FreeClassForm.astro'
 import WascBadge from '../components/WascBadge.astro'
-import { SITE, SOCIAL_LINKS, OFFER } from '../data/site'
+import { SITE, OFFER } from '../data/site'
+import { ORG_ID, WEBSITE_ID, graph, organizationNode } from '../data/schema'
 import { testimonials } from '../data/testimonials'
 import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
+import { byNewest, cardProps, isPublished } from '../lib/stories'
+
+// The "It counted" strip shows real stories once there are three to show.
+// Until then the three stock receipts stay: never a thin strip, never a
+// fixture on the home page.
+const recentStories = (await getCollection('stories'))
+  .map((e) => e.data)
+  .filter(isPublished)
+  .sort(byNewest)
+  .slice(0, 3)
+  .map(cardProps)
+const showStories = recentStories.length >= 3
 
 const schema = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: 'Optio',
-    url: SITE.url,
-    logo: `${SITE.url}/images/OptioLogo-FullColor.png`,
-    slogan: 'Real credit for real life',
-    email: SITE.supportEmail,
-    sameAs: SOCIAL_LINKS.map((s) => s.href),
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: 'Optio',
-    url: SITE.url,
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'School',
-    name: 'Optio Academy',
-    url: `${SITE.url}/academy`,
-    description: `A fully online private school. ${WASC_ACCREDITED_PHRASE}.`,
-    email: SITE.academyEmail,
-    parentOrganization: { '@type': 'Organization', name: 'Optio' },
-  },
+  graph(
+    organizationNode(),
+    {
+      '@type': 'WebSite',
+      '@id': WEBSITE_ID,
+      name: 'Optio',
+      url: SITE.url,
+      publisher: { '@id': ORG_ID },
+    },
+    {
+      '@type': 'School',
+      name: 'Optio Academy',
+      url: `${SITE.url}/academy`,
+      description: `A fully online private school. ${WASC_ACCREDITED_PHRASE}.`,
+      email: SITE.academyEmail,
+      parentOrganization: { '@id': ORG_ID },
+    }
+  ),
 ]
 ---
 
@@ -60,6 +68,25 @@ const schema = [
   </section>
 
   <!-- ========== RECEIPT STRIP ========== -->
+  {showStories ? (
+    <section class="bg-neutral-50 border-y border-neutral-100">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+        <p class="text-center text-sm font-semibold uppercase tracking-wider text-optio-purple mb-2">
+          It counted
+        </p>
+        <h2 class="text-center text-2xl sm:text-3xl font-bold text-neutral-900 mb-8">Recent stories</h2>
+        <div class="grid md:grid-cols-3 gap-5">
+          {recentStories.map((story) => (
+            <StoryCard story={story} loading="eager" />
+          ))}
+        </div>
+        <p class="text-center text-neutral-500 font-medium mt-8">
+          Real submissions, anonymized, with the reviewer's feedback verbatim.
+          <a href="/stories/" data-track="home_stories" class="text-optio-purple underline">Read every story</a>.
+        </p>
+      </div>
+    </section>
+  ) : (
   <section class="bg-neutral-50 border-y border-neutral-100">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
       <p class="text-center text-sm font-semibold uppercase tracking-wider text-optio-purple mb-8">
@@ -90,6 +117,7 @@ const schema = [
       </p>
     </div>
   </section>
+  )}
 
   <!-- ========== TWO DOORS ========== -->
   <section class="bg-white">

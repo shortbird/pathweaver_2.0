@@ -103,4 +103,40 @@
   .prose-optio strong {
     @apply font-semibold text-neutral-900;
   }
+  .prose-optio h4 {
+    @apply text-lg font-semibold text-neutral-900 mt-6 mb-2;
+  }
+  .prose-optio hr {
+    @apply border-neutral-100 my-10;
+  }
+  .prose-optio img {
+    @apply rounded-2xl max-w-full h-auto my-6;
+  }
+  .prose-optio figure {
+    @apply my-6;
+  }
+  .prose-optio figure img {
+    @apply my-0;
+  }
+  .prose-optio figcaption {
+    @apply text-sm text-neutral-500 font-medium mt-2;
+  }
+  .prose-optio table {
+    @apply w-full text-sm text-left border-collapse my-6;
+  }
+  .prose-optio th {
+    @apply font-semibold text-neutral-900 border-b border-neutral-300 px-3 py-2 align-top;
+  }
+  .prose-optio td {
+    @apply border-b border-neutral-100 px-3 py-2 align-top;
+  }
+  .prose-optio code {
+    @apply font-mono text-[0.9em] bg-neutral-50 border border-neutral-100 rounded px-1 py-0.5 text-neutral-900;
+  }
+  .prose-optio pre {
+    @apply bg-neutral-900 text-white text-sm rounded-2xl p-5 overflow-x-auto my-6;
+  }
+  .prose-optio pre code {
+    @apply bg-transparent border-0 p-0 text-inherit;
+  }
 }

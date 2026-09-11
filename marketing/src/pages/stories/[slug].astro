@@ -1,0 +1,297 @@
+---
+/**
+ * One story. Answer first: the computed sentence and the receipt sit above
+ * the fold, then the facts, then the long form. Every section heading is
+ * a question a parent (or an answer engine) would ask about the story.
+ *
+ * Fixture entries (STORIES_SOURCE=fixture, never on Render) render here
+ * with noindex so the layout can be checked on a developer's machine.
+ */
+import { getCollection } from 'astro:content'
+import { Image, getImage } from 'astro:assets'
+import Marketing from '../../layouts/Marketing.astro'
+import Breadcrumbs from '../../components/Breadcrumbs.astro'
+import Receipt from '../../components/Receipt.astro'
+import FaqList from '../../components/FaqList.astro'
+import FreeClassForm from '../../components/FreeClassForm.astro'
+import StoryFacts from '../../components/stories/StoryFacts.astro'
+import TaskList from '../../components/stories/TaskList.astro'
+import EvidenceGrid from '../../components/stories/EvidenceGrid.astro'
+import CriteriaList from '../../components/stories/CriteriaList.astro'
+import ReviewTimeline from '../../components/stories/ReviewTimeline.astro'
+import RelatedStories from '../../components/stories/RelatedStories.astro'
+import { OFFER } from '../../data/site'
+import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizationNode, personNode } from '../../data/schema'
+import type { Story } from '../../data/stories.schema'
+import {
+  cardProps,
+  formatDate,
+  isPublished,
+  landerFor,
+  listable,
+  ogImagePath,
+  related,
+  sectionsByKind,
+  storyUrl,
+  subjectUrl,
+  summarySentence,
+} from '../../lib/stories'
+
+export async function getStaticPaths() {
+  const entries = await getCollection('stories')
+  const all = entries.map((e) => e.data)
+  const visible = listable(all)
+  const counts = new Map<string, number>()
+  for (const s of visible) counts.set(s.subject_slug, (counts.get(s.subject_slug) ?? 0) + 1)
+  const hubSlugs = [...counts.entries()].filter(([, n]) => n >= 2).map(([slug]) => slug)
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: {
+      story: entry.data,
+      relatedStories: related(entry.data, visible).map(cardProps),
+      hubSlugs,
+    },
+  }))
+}
+
+interface Props {
+  story: Story
+  relatedStories: ReturnType<typeof cardProps>[]
+  hubSlugs: string[]
+}
+const { story, relatedStories, hubSlugs } = Astro.props
+const hubs = new Set(hubSlugs)
+const published = isPublished(story)
+const sections = sectionsByKind(story)
+const lander = landerFor(story)
+const summary = summarySentence(story)
+const url = absolute(storyUrl(story))
+const ogImage = ogImagePath(story)
+
+const crumbs = [
+  { name: 'Home', href: '/' },
+  { name: 'Stories', href: '/stories/' },
+  ...(hubs.has(story.subject_slug) ? [{ name: story.subject, href: subjectUrl(story.subject_slug) }] : []),
+  { name: story.title, href: storyUrl(story) },
+]
+
+// Article.image: the hero as astro:assets built it (a www URL) plus the OG
+// card. Both are absolute; Google requires it.
+const heroBuilt = story.hero_image_url
+  ? await getImage({ src: story.hero_image_url, inferSize: true, width: 1200, format: 'jpg' })
+  : null
+const images = [heroBuilt ? absolute(heroBuilt.src) : null, absolute(ogImage)].filter(Boolean)
+
+const article = {
+  '@type': 'Article',
+  '@id': `${url}#article`,
+  headline: story.title,
+  description: story.dek,
+  image: images,
+  datePublished: story.published_at.toISOString(),
+  dateModified: story.updated_at.toISOString(),
+  author: { '@id': PERSON_ID },
+  publisher: { '@id': ORG_ID },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+  url,
+  articleSection: 'Stories',
+  inLanguage: 'en-US',
+  isAccessibleForFree: true,
+  about: [
+    { '@type': 'Thing', name: story.subject },
+    { '@type': 'Thing', name: story.activity.label },
+  ],
+  keywords: [story.subject, story.activity.label, 'high school credit', 'Optio Academy'].join(', '),
+}
+
+const schema = [
+  graph(
+    organizationNode(),
+    personNode(),
+    article,
+    breadcrumbNode(crumbs),
+    ...(story.faq.length > 0 ? [faqNode(story.faq, `${url}#faq`)] : [])
+  ),
+]
+---
+
+<Marketing
+  title={`${story.title} | Optio`}
+  description={story.dek}
+  ogImage={ogImage}
+  ogType="article"
+  schema={schema}
+  noindex={!published}
+  publishedTime={story.published_at}
+  modifiedTime={story.updated_at}
+>
+  <article>
+    <!-- ========== HEADER ========== -->
+    <header class="bg-white">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-10">
+        <Breadcrumbs items={crumbs} class="mb-6" />
+        {!published && (
+          <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            Fixture story. This page exists to check the layout and is never published.
+          </p>
+        )}
+        <p class="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-4">
+          <time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time>
+          &middot; {story.subject}
+        </p>
+        <h1 class="text-3xl sm:text-5xl font-bold text-neutral-900 leading-tight mb-5 max-w-3xl">{story.title}</h1>
+        <p class="text-lg sm:text-xl text-neutral-500 font-medium leading-relaxed mb-8 max-w-3xl">{story.dek}</p>
+        <div class="flex items-center gap-3">
+          <img
+            src="/images/head-of-school.png"
+            alt={story.author.name}
+            class="w-10 h-10 rounded-full bg-white ring-1 ring-neutral-100"
+            width="40"
+            height="40"
+          />
+          <div>
+            <p class="text-sm font-semibold text-neutral-900">{story.author.name}</p>
+            <p class="text-xs text-neutral-500 font-medium">{story.author.title} &middot; Reviewed by a licensed Optio teacher</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========== ANSWER BOX ========== -->
+    <section class="bg-neutral-50 border-y border-neutral-100" aria-labelledby="in-one-sentence">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-14">
+        <div class="grid md:grid-cols-[1fr_minmax(0,22rem)] gap-8 lg:gap-12 items-start">
+          <div>
+            <h2 id="in-one-sentence" class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">In one sentence</h2>
+            <p class="text-2xl sm:text-3xl font-bold text-neutral-900 leading-snug mb-8">{summary}</p>
+            <StoryFacts story={story} hubSlugs={hubs} />
+          </div>
+          {story.hero_image_url ? (
+            <Receipt {...story.receipt}>
+              <Fragment slot="media">
+                <Image
+                  src={story.hero_image_url}
+                  alt={story.hero_alt ?? story.receipt.activity}
+                  inferSize
+                  widths={[480, 800]}
+                  sizes="(min-width: 768px) 352px, 100vw"
+                  loading="eager"
+                  class="w-full h-full object-cover object-top"
+                />
+              </Fragment>
+            </Receipt>
+          ) : (
+            <Receipt {...story.receipt} />
+          )}
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== BODY ========== -->
+    <div class="bg-white">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-16 space-y-14 sm:space-y-16">
+        {sections.whatTheyDid && (
+          <section aria-labelledby="what-they-did">
+            <h2 id="what-they-did" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-5">What the student did</h2>
+            <div class="prose-optio" set:html={sections.whatTheyDid.body_html ?? ''} />
+          </section>
+        )}
+
+        {sections.tasks && sections.tasks.rows.length > 0 && (
+          <section aria-labelledby="the-tasks">
+            <h2 id="the-tasks" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">The tasks</h2>
+            <p class="text-neutral-500 font-medium mb-5">
+              Each task was submitted, reviewed, and finalized on its own. XP is earned per task; the credit is the sum.
+            </p>
+            <TaskList rows={sections.tasks.rows} />
+          </section>
+        )}
+
+        {sections.evidence && sections.evidence.items.length > 0 && (
+          <section aria-labelledby="evidence">
+            <h2 id="evidence" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the student submitted as evidence</h2>
+            <p class="text-neutral-500 font-medium mb-6">
+              Shown as submitted, minus anything the family did not agree to share.
+            </p>
+            <EvidenceGrid items={sections.evidence.items} />
+          </section>
+        )}
+
+        {sections.criteria && sections.criteria.criteria.length > 0 && (
+          <section aria-labelledby="criteria">
+            <h2 id="criteria" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the reviewer looked for</h2>
+            <p class="text-neutral-500 font-medium mb-6">
+              The criteria belong to the task. A licensed Optio teacher marked each one from the evidence.
+            </p>
+            <CriteriaList criteria={sections.criteria.criteria} />
+          </section>
+        )}
+
+        {sections.howItWent && sections.howItWent.rounds.length > 0 && (
+          <section aria-labelledby="how-it-went">
+            <h2 id="how-it-went" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">How the review went</h2>
+            <p class="text-neutral-500 font-medium mb-8">
+              Reviewer feedback is quoted word for word. Nothing here was written for this page.
+            </p>
+            <ReviewTimeline rounds={sections.howItWent.rounds} />
+          </section>
+        )}
+
+        {sections.whatItCountedFor && (
+          <section aria-labelledby="what-it-counted-for">
+            <h2 id="what-it-counted-for" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-5">What it counted for</h2>
+            <div class="prose-optio" set:html={sections.whatItCountedFor.body_html ?? ''} />
+            {lander && (
+              <a
+                href={`/l/${lander.slug}/`}
+                data-track="story_lander"
+                class="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-optio-purple/20 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 p-5 group"
+              >
+                <span>
+                  <span class="block text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1">Your {lander.activity} could count too</span>
+                  <span class="block text-lg font-bold text-neutral-900 group-hover:text-optio-purple transition-colors">{lander.headline}</span>
+                  <span class="block text-sm text-neutral-500 font-medium mt-1">{lander.subject}, {lander.credit}. First class free.</span>
+                </span>
+                <svg class="w-5 h-5 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
+            )}
+          </section>
+        )}
+
+        {story.faq.length > 0 && (
+          <section aria-labelledby="questions">
+            <h2 id="questions" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Questions about this story</h2>
+            <FaqList faqs={story.faq} />
+          </section>
+        )}
+
+        <p class="text-sm text-neutral-500 font-medium border-t border-neutral-100 pt-6">
+          Stories are written from real submissions on Optio. Student details are anonymized unless a family has
+          recorded consent, reviewer feedback is quoted verbatim, and a person edits every story before it is
+          published. Published {formatDate(story.published_at)}{story.updated_at.valueOf() > story.published_at.valueOf() ? `, updated ${formatDate(story.updated_at)}` : ''}.
+        </p>
+      </div>
+    </div>
+  </article>
+
+  <RelatedStories
+    stories={relatedStories}
+    subject={story.subject}
+    subjectSlug={hubs.has(story.subject_slug) ? story.subject_slug : null}
+  />
+
+  <!-- ========== CTA ========== -->
+  <section class="bg-gradient-primary text-white">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-3 leading-tight">Your kid's {lander ? lander.activity : 'real work'} could be next.</h2>
+      <p class="text-white/80 font-medium mb-8">
+        One semester-length class, 0.5 credit, reviewed by a licensed teacher. {OFFER.freeClassLine}
+      </p>
+      <div class="max-w-md mx-auto [&_.form-note]:text-white/60 [&_.form-note]:text-center [&_.form-error]:text-center">
+        <FreeClassForm source={`story_${story.slug}`} inverse />
+      </div>
+    </div>
+  </section>
+</Marketing>

@@ -39,4 +39,20 @@ const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
       </div>
     </div>
   </section>
+
+  <section class="bg-neutral-50 border-t border-neutral-100">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-16">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-6">
+        <div class="flex-1">
+          <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-2">Stories</p>
+          <h2 class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the credit looks like in practice.</h2>
+          <p class="text-neutral-500 font-medium leading-relaxed">
+            Real submissions that became accredited credit: what the student did, what they turned in, and what
+            the reviewer said, word for word.
+          </p>
+        </div>
+        <a href="/stories/" data-track="blog_index_stories" class="btn-primary flex-shrink-0">Read the stories</a>
+      </div>
+    </div>
+  </section>
 </Marketing>

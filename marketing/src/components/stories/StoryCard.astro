@@ -1,0 +1,67 @@
+---
+/**
+ * One story in a list: hero (or the receipt icon), title, dek, and the
+ * transcript line it became. The whole card is the link.
+ */
+import { Image } from 'astro:assets'
+import type { StoryCardProps } from '../../lib/stories'
+import { storyUrl, SETTING_LABEL } from '../../lib/stories'
+import { RECEIPT_ICON_PATHS } from '../../data/receipt-icons'
+
+export interface Props {
+  story: StoryCardProps
+  /** Heading level for the title; the page decides. */
+  headingLevel?: 'h2' | 'h3'
+  loading?: 'lazy' | 'eager'
+  class?: string
+}
+const { story, headingLevel = 'h3', loading = 'lazy', class: className = '' } = Astro.props
+const Heading = headingLevel
+
+const icons = RECEIPT_ICON_PATHS
+---
+
+<a
+  href={storyUrl(story)}
+  class={`group flex flex-col bg-white rounded-2xl border border-neutral-100 shadow-lg overflow-hidden h-full transition-shadow hover:shadow-xl ${className}`}
+>
+  <div class="aspect-[16/9] overflow-hidden bg-neutral-50 relative">
+    {story.hero_image_url ? (
+      <Image
+        src={story.hero_image_url}
+        alt={story.hero_alt}
+        widths={[480, 800]}
+        sizes="(min-width: 768px) 400px, 100vw"
+        inferSize
+        loading={loading}
+        class="w-full h-full object-cover object-top"
+      />
+    ) : (
+      <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-optio-purple/10 to-optio-pink/10">
+        <span class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white text-optio-purple shadow-sm" aria-hidden="true">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d={icons[story.icon]} />
+          </svg>
+        </span>
+      </div>
+    )}
+  </div>
+  <div class="px-5 pt-4 pb-3 flex-1 flex flex-col">
+    <p class="text-[11px] uppercase tracking-widest text-optio-purple font-semibold mb-2">
+      {story.subject} &middot; {SETTING_LABEL[story.setting]}
+    </p>
+    <Heading class="text-lg font-bold text-neutral-900 leading-snug group-hover:text-optio-purple transition-colors mb-2">
+      {story.title}
+    </Heading>
+    <p class="text-sm text-neutral-500 font-medium leading-relaxed line-clamp-3">{story.dek}</p>
+  </div>
+  <div class="border-t border-dashed border-neutral-300 bg-neutral-50/60 px-5 py-3 flex items-center justify-between gap-2">
+    <span class="text-sm font-semibold text-neutral-900">{story.credit_fraction}</span>
+    <span class="inline-flex items-center gap-1 text-sm font-semibold text-green-700 whitespace-nowrap">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+      Earned
+    </span>
+  </div>
+</a>

@@ -1,0 +1,41 @@
+---
+/**
+ * What the reviewer looked for: each criterion with its verdict. The
+ * criteria come from the task itself and the verdicts from the review; the
+ * page copies both verbatim.
+ */
+import type { Criterion } from '../../data/stories.schema'
+
+export interface Props {
+  criteria: Criterion[]
+  class?: string
+}
+const { criteria, class: className = '' } = Astro.props
+---
+
+<ul class={`divide-y divide-neutral-100 rounded-2xl border border-neutral-100 bg-white ${className}`}>
+  {criteria.map((c) => (
+    <li class="flex items-start gap-4 px-5 py-4">
+      <span
+        class={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider flex-shrink-0 ${
+          c.verdict === 'met' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+        }`}
+      >
+        {c.verdict === 'met' ? (
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+          </svg>
+        )}
+        {c.verdict === 'met' ? 'Met' : 'Partial'}
+      </span>
+      <div>
+        <p class="font-semibold text-neutral-900">{c.text}</p>
+        {c.note && <p class="text-sm text-neutral-500 font-medium mt-1">{c.note}</p>}
+      </div>
+    </li>
+  ))}
+</ul>

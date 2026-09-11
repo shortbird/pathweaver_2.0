@@ -1,0 +1,101 @@
+---
+/**
+ * The facts of a story as a definition list: who (anonymized), where, what,
+ * how much credit, how the review went, and when. Plain <dl> so an answer
+ * engine reads label and value as a pair.
+ */
+import type { Story } from '../../data/stories.schema'
+import { formatDate, reviewStats, subjectSlug, subjectUrl, SETTING_LABEL, GRADE_BAND_LABEL } from '../../lib/stories'
+
+export interface Props {
+  story: Story
+  /** Subjects with a hub page; those render as links. */
+  hubSlugs?: Set<string>
+  class?: string
+}
+const { story, hubSlugs = new Set<string>(), class: className = '' } = Astro.props
+const stats = reviewStats(story)
+const multi = story.subject_split.length > 1
+const setting = SETTING_LABEL[story.student.setting]
+// An anonymized label already says the band ("A middle schooler"); only a
+// named label ("Maya, 14") needs it spelled out beside it.
+const bandLabel = story.student.grade_band ? GRADE_BAND_LABEL[story.student.grade_band] : null
+const gradeBand = bandLabel && !/elementary|middle|high school/i.test(story.student.label) ? bandLabel : null
+---
+
+<dl class={`grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm ${className}`}>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Student</dt>
+    <dd class="font-semibold text-neutral-900">{story.student.label}{gradeBand && <span class="text-neutral-500 font-medium"> &middot; {gradeBand}</span>}</dd>
+  </div>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Setting</dt>
+    <dd class="font-semibold text-neutral-900">{setting}</dd>
+  </div>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Activity</dt>
+    <dd class="font-semibold text-neutral-900">{story.activity.label}</dd>
+  </div>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">{multi ? 'Subjects' : 'Subject'}</dt>
+    <dd class="font-semibold text-neutral-900">
+      {multi ? (
+        <ul class="space-y-0.5">
+          {story.subject_split.map((s) => {
+            const slug = s.subject === story.subject ? story.subject_slug : subjectSlug(s.subject)
+            return (
+              <li>
+                {hubSlugs.has(slug) ? <a href={subjectUrl(slug)} class="text-optio-purple hover:underline">{s.subject}</a> : s.subject}
+                <span class="text-neutral-500 font-medium"> &middot; {s.xp.toLocaleString('en-US')} XP</span>
+              </li>
+            )
+          })}
+        </ul>
+      ) : hubSlugs.has(story.subject_slug) ? (
+        <a href={subjectUrl(story.subject_slug)} class="text-optio-purple hover:underline">{story.subject}</a>
+      ) : (
+        story.subject
+      )}
+    </dd>
+  </div>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Credit</dt>
+    <dd class="font-semibold text-neutral-900">{story.credit_fraction}</dd>
+  </div>
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">XP</dt>
+    <dd class="font-semibold text-neutral-900">{story.xp_awarded.toLocaleString('en-US')}</dd>
+  </div>
+  {story.task_count > 1 && (
+    <div>
+      <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Tasks</dt>
+      <dd class="font-semibold text-neutral-900">{story.task_count}</dd>
+    </div>
+  )}
+  {stats.rounds > 0 && (
+    <div>
+      <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Review rounds</dt>
+      <dd class="font-semibold text-neutral-900">{stats.rounds}</dd>
+    </div>
+  )}
+  {stats.firstSubmission && stats.awarded && (
+    <div class="sm:col-span-2">
+      <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">First submission to award</dt>
+      <dd class="font-semibold text-neutral-900">
+        {formatDate(stats.firstSubmission)} to {formatDate(stats.awarded)}{stats.daysToAward !== null && stats.daysToAward > 0 && (
+          <span class="text-neutral-500 font-medium"> &middot; {stats.daysToAward} day{stats.daysToAward === 1 ? '' : 's'}</span>
+        )}
+      </dd>
+    </div>
+  )}
+  <div>
+    <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Published</dt>
+    <dd class="font-semibold text-neutral-900"><time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time></dd>
+  </div>
+  {story.updated_at.valueOf() > story.published_at.valueOf() && (
+    <div>
+      <dt class="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold">Updated</dt>
+      <dd class="font-semibold text-neutral-900"><time datetime={story.updated_at.toISOString()}>{formatDate(story.updated_at)}</time></dd>
+    </div>
+  )}
+</dl>

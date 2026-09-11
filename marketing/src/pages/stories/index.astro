@@ -1,0 +1,132 @@
+---
+/**
+ * /stories: every published story, grouped by subject. Subjects with two
+ * or more stories get a hub page and the chip links there; a subject with
+ * one story links to its anchor on this page.
+ */
+import { getCollection } from 'astro:content'
+import Marketing from '../../layouts/Marketing.astro'
+import Breadcrumbs from '../../components/Breadcrumbs.astro'
+import StoryCard from '../../components/stories/StoryCard.astro'
+import { SITE } from '../../data/site'
+import { absolute, breadcrumbNode, graph, organizationNode } from '../../data/schema'
+import { byNewest, cardProps, groupBySubject, listable, listingNoindex, storyUrl, subjectUrl } from '../../lib/stories'
+
+const stories = listable((await getCollection('stories')).map((e) => e.data)).sort(byNewest)
+const groups = groupBySubject(stories)
+const noindex = listingNoindex(stories)
+const crumbs = [
+  { name: 'Home', href: '/' },
+  { name: 'Stories', href: '/stories/' },
+]
+const pageUrl = absolute('/stories/')
+const description =
+  'Real student work that became accredited credit: what they did, what they submitted, what the reviewer looked for, and what it counted for. Anonymized, with reviewer feedback quoted verbatim.'
+
+const schema = [
+  graph(
+    organizationNode(),
+    {
+      '@type': 'CollectionPage',
+      '@id': pageUrl,
+      url: pageUrl,
+      name: 'Stories',
+      description,
+      isPartOf: { '@id': `${SITE.url}/#website` },
+      about: { '@id': `${SITE.url}/#organization` },
+      mainEntity: { '@id': `${pageUrl}#list` },
+    },
+    {
+      '@type': 'ItemList',
+      '@id': `${pageUrl}#list`,
+      itemListOrder: 'https://schema.org/ItemListOrderDescending',
+      numberOfItems: stories.length,
+      itemListElement: stories.map((story, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: absolute(storyUrl(story)),
+        name: story.title,
+      })),
+    },
+    breadcrumbNode(crumbs)
+  ),
+]
+---
+
+<Marketing title="Stories | Optio" description={description} ogImage="/images/og/stories.png" schema={schema} noindex={noindex}>
+  <section class="bg-white">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-8">
+      <Breadcrumbs items={crumbs} class="mb-6" />
+      <h1 class="text-4xl sm:text-5xl font-bold text-neutral-900 mb-4">Stories</h1>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed max-w-3xl">
+        Each story is one real submission on Optio, written up after a licensed teacher awarded the credit. The
+        student is anonymized, the reviewer's feedback is quoted verbatim, and a person edits every story before
+        it is published. Read what the student did, what they submitted, what the reviewer looked for, and what
+        it counted for.
+      </p>
+      {groups.length > 0 && (
+        <nav aria-label="Subjects" class="mt-8">
+          <ul class="flex flex-wrap gap-2">
+            {groups.map((g) => (
+              <li>
+                <a
+                  href={g.stories.length >= 2 ? subjectUrl(g.slug) : `#${g.slug}`}
+                  class="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 px-3.5 py-1.5 text-sm font-semibold text-neutral-700 hover:border-optio-purple hover:text-optio-purple transition-colors"
+                >
+                  {g.subject}
+                  <span class="text-xs text-neutral-500 font-medium">{g.stories.length}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+    </div>
+  </section>
+
+  {groups.length === 0 ? (
+    <section class="bg-white">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
+        <div class="rounded-2xl border border-neutral-100 bg-neutral-50 p-8 text-center">
+          <p class="text-lg font-bold text-neutral-900 mb-2">The first story is on its way.</p>
+          <p class="text-neutral-500 font-medium">
+            Stories are published from real submissions as they are reviewed. Until then, see how credit works at
+            <a href="/academy" class="text-optio-purple underline">Optio Academy</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+  ) : (
+    groups.map((g, gi) => (
+      <section id={g.slug} class={gi % 2 === 0 ? 'bg-neutral-50 border-y border-neutral-100' : 'bg-white'} aria-labelledby={`h-${g.slug}`}>
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-14">
+          <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
+            <h2 id={`h-${g.slug}`} class="text-2xl sm:text-3xl font-bold text-neutral-900">{g.subject}</h2>
+            {g.stories.length >= 2 && (
+              <a href={subjectUrl(g.slug)} class="text-sm font-semibold text-optio-purple hover:underline">
+                Every {g.subject} story
+              </a>
+            )}
+          </div>
+          <div class="grid md:grid-cols-3 gap-5">
+            {g.stories.map((story, i) => (
+              <StoryCard story={cardProps(story)} loading={gi === 0 && i < 3 ? 'eager' : 'lazy'} />
+            ))}
+          </div>
+        </div>
+      </section>
+    ))
+  )}
+
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-16 text-center">
+      <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">How a story gets here</p>
+      <p class="text-neutral-500 font-medium leading-relaxed">
+        A student submits evidence for a task. A licensed Optio teacher reviews it against the task's criteria,
+        sends it back when it needs more, and awards credit when it is ready. When a family has agreed, or the
+        story can be told with no identifying detail at all, we write it up and publish it here.
+        <a href="/stories/rss.xml" class="text-optio-purple underline">Subscribe to the feed</a> to get each one.
+      </p>
+    </div>
+  </section>
+</Marketing>

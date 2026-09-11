@@ -1,0 +1,38 @@
+---
+/**
+ * The tasks of a quest story, one row each. Quest stories only; a task
+ * story has no tasks section.
+ */
+import type { TaskRow } from '../../data/stories.schema'
+
+export interface Props {
+  rows: TaskRow[]
+  class?: string
+}
+const { rows, class: className = '' } = Astro.props
+---
+
+<div class={`overflow-x-auto rounded-2xl border border-neutral-100 ${className}`}>
+  <table class="w-full text-sm text-left">
+    <thead class="bg-neutral-50 text-[11px] uppercase tracking-wider text-neutral-500">
+      <tr>
+        <th scope="col" class="px-4 py-3 font-semibold">Task</th>
+        <th scope="col" class="px-4 py-3 font-semibold">Subject</th>
+        <th scope="col" class="px-4 py-3 font-semibold text-right">XP</th>
+        <th scope="col" class="px-4 py-3 font-semibold text-right">Criteria met</th>
+        <th scope="col" class="px-4 py-3 font-semibold text-right">Rounds</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-neutral-100">
+      {rows.map((row) => (
+        <tr>
+          <th scope="row" class="px-4 py-3 font-semibold text-neutral-900">{row.title}</th>
+          <td class="px-4 py-3 text-neutral-700 font-medium whitespace-nowrap">{row.subject}</td>
+          <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.xp.toLocaleString('en-US')}</td>
+          <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.criteria_met} of {row.criteria_total}</td>
+          <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.rounds}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>

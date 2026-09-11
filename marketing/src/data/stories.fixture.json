@@ -1,0 +1,184 @@
+[
+  {
+    "slug": "club-basketball-season-physical-education-fixture",
+    "title": "A club basketball season became PE credit (fixture)",
+    "dek": "One season of practices and games, logged as evidence, reviewed twice by a licensed teacher, and awarded 0.5 credit of Physical Education.",
+    "status": "fixture",
+    "published_at": "2026-09-01T16:00:00+00:00",
+    "updated_at": "2026-09-03T18:30:00+00:00",
+    "author": { "name": "Dr. Tanner Bowman", "title": "Founder and Head of School, Optio Academy" },
+    "student": { "label": "A high school student", "setting": "academy", "grade_band": "high" },
+    "activity": { "slug": null, "label": "club basketball season" },
+    "receipt": { "activity": "A season of club basketball", "course": "Physical Education", "credit": "0.5 credit", "icon": "ball" },
+    "subject": "Physical Education",
+    "subject_slug": "physical-education",
+    "subject_split": [{ "subject": "Physical Education", "xp": 500 }],
+    "xp_awarded": 500,
+    "credit_fraction": "0.5 credit",
+    "task_count": 1,
+    "sections": [
+      {
+        "kind": "what_they_did",
+        "body_md": "The student played a full club basketball season: three practices a week and a game most weekends from November through February.\n\nThe work they logged on Optio was the part a coach never sees on a stat sheet. They kept a **training log** with a short note after each practice, tracked their free-throw percentage across the season, and wrote a one-page reflection on what changed in their conditioning between the first week and the last.\n\nThe submission arrived as one task under the Physical Education course: the log, three photos from practice, and the reflection."
+      },
+      {
+        "kind": "evidence",
+        "items": [
+          {
+            "type": "image",
+            "url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/basketball.png",
+            "alt": "The basketball project as it appears in the Optio app, with the training log entries listed",
+            "caption": "The training log as submitted. Each entry is one practice.",
+            "width": 1206,
+            "height": 2622
+          },
+          {
+            "type": "quote",
+            "url": null,
+            "alt": null,
+            "caption": "In November I could not get through the full-court drill without stopping. By February I was the one asking to run it again. I did not notice the change until I read my own log back."
+          }
+        ]
+      },
+      {
+        "kind": "what_reviewer_looked_for",
+        "criteria": [
+          { "text": "Sustained physical activity across a full season, with dates", "verdict": "met", "note": "Fourteen weeks of dated log entries." },
+          { "text": "Evidence of a measurable fitness or skill change", "verdict": "met", "note": "Free-throw percentage tracked week by week, 54% to 71%." },
+          { "text": "A reflection that connects the activity to the student's own goals", "verdict": "partial", "note": "The first draft described the season. The second draft, after feedback, explained what the student would change next season." }
+        ]
+      },
+      {
+        "kind": "how_it_went",
+        "rounds": [
+          {
+            "round": 1,
+            "date": "2026-02-20T00:00:00+00:00",
+            "action": "Returned for revision",
+            "feedback_verbatim": "The log is excellent and the free-throw chart is exactly the kind of evidence we look for. The reflection tells me what happened. I want to know what you learned about yourself as an athlete. One more paragraph will do it.",
+            "what_changed": "The student added a paragraph on conditioning and on what they would change next season."
+          },
+          {
+            "round": 2,
+            "date": "2026-02-24T00:00:00+00:00",
+            "action": "Credit awarded",
+            "feedback_verbatim": "That paragraph is the reason this counts. Credit awarded.",
+            "what_changed": null
+          }
+        ]
+      },
+      {
+        "kind": "what_it_counted_for",
+        "body_md": "The task earned 500 XP in Physical Education, which is 0.5 credit on the student's Optio Academy transcript. It appears there as one line: *Physical Education, 0.5 credit, Earned*.\n\nNo seat time was counted. The season was already happening; the log and the reflection were the extra work, and a licensed teacher reviewed them."
+      }
+    ],
+    "faq": [
+      { "q": "Does a sports season count for PE credit?", "a": "Yes, when the student documents it. Optio asks for dated evidence of sustained activity, a measurable change, and a reflection. A licensed teacher reviews the submission and awards credit to an accredited transcript." },
+      { "q": "How long did the review take?", "a": "Two rounds over four days. The first round asked for one more paragraph in the reflection; the second awarded the credit." },
+      { "q": "Is the student named?", "a": "No. Stories are anonymized unless a family has recorded consent. This student is described by grade band only." }
+    ],
+    "hero_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/basketball.png",
+    "hero_alt": "The basketball project in the Optio app",
+    "og_image_url": null,
+    "source": { "type": "credit_submission" }
+  },
+  {
+    "slug": "stop-motion-film-project-fine-arts-computer-science-fixture",
+    "title": "A stop motion film project earned 1.5 credits (fixture)",
+    "dek": "Five tasks, one short film, and evidence across Fine Arts and Computer Science. What a whole project looks like when a homeschool student finishes it on Optio.",
+    "status": "fixture",
+    "published_at": "2026-08-20T15:00:00+00:00",
+    "updated_at": "2026-08-20T15:00:00+00:00",
+    "author": { "name": "Dr. Tanner Bowman", "title": "Founder and Head of School, Optio Academy" },
+    "student": { "label": "A middle schooler", "setting": "homeschool", "grade_band": "middle" },
+    "activity": { "slug": "art", "label": "stop motion film project" },
+    "receipt": { "activity": "A stop motion short film", "course": "Fine Arts", "credit": "1.0 credit", "icon": "brush" },
+    "subject": "Fine Arts",
+    "subject_slug": "fine-arts",
+    "subject_split": [
+      { "subject": "Fine Arts", "xp": 1000 },
+      { "subject": "Computer Science", "xp": 500 }
+    ],
+    "xp_awarded": 1500,
+    "credit_fraction": "1.5 credits",
+    "task_count": 5,
+    "sections": [
+      {
+        "kind": "what_they_did",
+        "body_md": "The student set out to make a two-minute stop motion film with clay characters. The project on Optio broke that into five tasks: a storyboard, a set build, the character models, the shoot, and the edit.\n\nThe shoot alone took eleven sessions. The student photographed **1,140 frames** on a phone clamped to a stack of books, then learned enough of a free editing tool to sequence them, add sound, and export a file that played on a television.\n\nEach task was submitted on its own, with its own evidence, and reviewed on its own."
+      },
+      {
+        "kind": "tasks",
+        "rows": [
+          { "title": "Storyboard the film", "subject": "Fine Arts", "xp": 200, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
+          { "title": "Build the set", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
+          { "title": "Model the characters", "subject": "Fine Arts", "xp": 300, "criteria_met": 4, "criteria_total": 4, "rounds": 2 },
+          { "title": "Shoot the frames", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
+          { "title": "Edit and export the film", "subject": "Computer Science", "xp": 500, "criteria_met": 4, "criteria_total": 4, "rounds": 2 }
+        ]
+      },
+      {
+        "kind": "evidence",
+        "items": [
+          {
+            "type": "image",
+            "url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
+            "alt": "The stop motion project as it appears in the Optio app, with its five tasks listed",
+            "caption": "The project page in the app. Five tasks, each with its own evidence."
+          },
+          {
+            "type": "quote",
+            "caption": "I thought the hard part would be the clay. The hard part was keeping the light the same for eleven days."
+          }
+        ]
+      },
+      {
+        "kind": "what_reviewer_looked_for",
+        "criteria": [
+          { "text": "A storyboard that plans the shots before the shoot", "verdict": "met", "note": "Twelve panels with camera notes." },
+          { "text": "Character models that hold a pose between frames", "verdict": "met", "note": "Wire armatures added after round one." },
+          { "text": "A finished edit with sound, exported in a playable format", "verdict": "met", "note": "MP4, two minutes and six seconds." },
+          { "text": "A written account of what the editing software does and why each tool was used", "verdict": "partial", "note": "The first submission listed the tools. The second explained frame rate and why 12 frames per second was chosen." }
+        ]
+      },
+      {
+        "kind": "how_it_went",
+        "rounds": [
+          {
+            "round": 1,
+            "date": "2026-07-28T00:00:00+00:00",
+            "action": "Returned for revision",
+            "feedback_verbatim": "The characters slump between frames in the second scene. Look up wire armatures. Everything else in this task is ready.",
+            "what_changed": "The student rebuilt two characters on wire armatures and reshot the scene."
+          },
+          {
+            "round": 2,
+            "date": "2026-08-06T00:00:00+00:00",
+            "action": "Returned for revision",
+            "feedback_verbatim": "For the editing task I need one thing more: tell me what frame rate you chose and why. A list of tools is not the same as knowing what they do.",
+            "what_changed": "The student added a paragraph on frame rate and export settings."
+          },
+          {
+            "round": 3,
+            "date": "2026-08-12T00:00:00+00:00",
+            "action": "Credit awarded",
+            "feedback_verbatim": "Both tasks finalized. The film plays, the characters hold, and you can explain your own export settings. Well done.",
+            "what_changed": null
+          }
+        ]
+      },
+      {
+        "kind": "what_it_counted_for",
+        "body_md": "The five tasks earned 1,500 XP: 1,000 in Fine Arts and 500 in Computer Science. On the transcript that is 1.0 credit of Fine Arts and 0.5 credit of Computer Science.\n\nThe family is homeschooling. The credit sits on an official Optio Academy transcript, ready for the day the student applies to a school that asks for one."
+      }
+    ],
+    "faq": [
+      { "q": "Can one project count toward two subjects?", "a": "Yes. Each task carries its own subject and XP. This project's editing task was Computer Science; the other four were Fine Arts. The transcript shows both." },
+      { "q": "Who decided the project was finished?", "a": "A licensed Optio teacher reviewed every task. Two tasks came back once for revision. The third round finalized both and awarded the credit." }
+    ],
+    "hero_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
+    "hero_alt": "The stop motion project in the Optio app",
+    "og_image_url": null,
+    "source": { "type": "quest" }
+  }
+]
