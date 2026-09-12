@@ -40,10 +40,19 @@ def _check_student_access(supabase, user_id, student_id):
     if user_id == student_id:
         return True
 
-    user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
-    user_role = user_result.data.get('role') if user_result.data else None
+    # Every role column: org staff carry role='org_managed' with the real role
+    # in org_role/org_roles, so reading `role` alone never ran the staff
+    # branches for them. org_scope resolves that and fails closed.
+    from utils.auth.org_scope import caller_org_and_role, user_org
+    user_role, caller_org, is_super = caller_org_and_role(supabase, user_id)
 
-    if user_role == 'superadmin':
+    if is_super:
+        return True
+
+    # An org admin over the student's school. They hold every capability a
+    # teacher holds, and the teacher branch below needs an assignment row an
+    # admin never has (Horizon, 2026-09-11).
+    if user_role == 'org_admin' and caller_org and user_org(supabase, student_id) == caller_org:
         return True
 
     # Observer link

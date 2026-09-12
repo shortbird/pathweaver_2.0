@@ -297,6 +297,14 @@ def register_routes(bp):
                         .execute()
                     has_access = bool(link.data)
 
+                # An org admin over the student's school: every capability a
+                # teacher holds, without the assignment row a teacher has.
+                if not has_access:
+                    from utils.auth.org_scope import caller_org_and_role, user_org
+                    caller_role, caller_org, _ = caller_org_and_role(supabase, user_id)
+                    if caller_role == 'org_admin' and caller_org and user_org(supabase, student_id) == caller_org:
+                        has_access = True
+
                 # Check advisor_student_assignments
                 if not has_access and user_role == 'advisor':
                     advisor_link = supabase.table('advisor_student_assignments') \
@@ -421,6 +429,14 @@ def register_routes(bp):
                         .execute()
 
                     if link.data:
+                        has_access = True
+
+                # An org admin over the student's school: every capability a
+                # teacher holds, without the assignment row a teacher has.
+                if not has_access:
+                    from utils.auth.org_scope import caller_org_and_role, user_org
+                    caller_role, caller_org, _ = caller_org_and_role(supabase, user_id)
+                    if caller_role == 'org_admin' and caller_org and user_org(supabase, student_id) == caller_org:
                         has_access = True
 
                 # Check advisor_student_assignments for advisors

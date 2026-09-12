@@ -425,8 +425,15 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // is not dependent on TeacherHome tiles to reach their own tools. On SIS orgs
   // class work lives in the console (the launcher below), so only the
   // verification queue — an LMS feature SIS teachers still use — stays here.
+  //
+  // An org admin holds every capability a teacher holds, so the section is
+  // theirs too. At a microschool the admin is the teacher (Horizon, 2026-09-11):
+  // the director created her own classes and then had no nav into them, because
+  // the teaching section read the advisor role alone. Superadmins are left out
+  // on purpose: these pages need an organization to answer for.
   const teachingItems = []
-  if (userHasRole('advisor')) {
+  const isTeachingAdmin = hasOrgAdminAccess && user?.role !== 'superadmin' && Boolean(user?.organization_id)
+  if (userHasRole('advisor') || isTeachingAdmin) {
     if (!sisEnabled) {
       teachingItems.push({
         name: 'My Classes',

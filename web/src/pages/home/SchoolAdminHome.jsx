@@ -5,6 +5,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTiles'
 import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
+import { moduleEnabled } from '../../modules/moduleEnabled'
+import { useTeacherHomeData, WaitingOnYou, MyClasses } from './TeacherHome'
 
 /**
  * School Home — the non-SIS org admin's landing (rendered by RoleHome at
@@ -15,6 +17,12 @@ import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
  * work awaiting credit review) that deep-links into the organization console,
  * then the doors. Every snapshot source reuses an endpoint the console already
  * calls and degrades silently on failure.
+ *
+ * Below the doors, the teacher's own home: the queue waiting on them and the
+ * classes they instruct. An org admin holds every capability a teacher holds,
+ * and at a microschool the admin is the teacher -- Horizon's director created
+ * her own classes and this page showed her a count of teachers instead of a
+ * way into them (2026-09-11). Same sections, same data sources as TeacherHome.
  */
 const DOORS = [
   {
@@ -47,6 +55,9 @@ export default function SchoolAdminHome() {
   const { user } = useAuth()
   const firstName = user?.first_name || 'there'
   const orgId = user?.organization_id
+  // Same module getPostLoginPath reads to front-door SIS staff into the console.
+  const sisEnabled = user?.organization ? moduleEnabled(user.organization, 'sis') : false
+  const teaching = useTeacherHomeData(user?.id, sisEnabled)
 
   // Same payload the organization console loads (users + quests + courses).
   const orgQuery = useQuery({
@@ -127,6 +138,12 @@ export default function SchoolAdminHome() {
       )}
 
       <HomeDoorGrid ariaLabel="School admin surfaces" doors={DOORS} />
+      <WaitingOnYou
+        verifications={teaching.verifications}
+        invitations={teaching.invitations}
+        showInvitations={!sisEnabled}
+      />
+      <MyClasses classes={teaching.classes} sisEnabled={sisEnabled} />
       {/* An admin can be assigned the school's own training like anybody else,
           and has no student dashboard to find it on. */}
       <MyEnrolledQuests className="mt-8" />

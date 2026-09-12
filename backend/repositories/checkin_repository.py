@@ -405,15 +405,23 @@ class CheckinRepository:
             user_id: UUID of the user
 
         Returns:
-            User role (admin, advisor, student, etc.) or None if not found
+            The EFFECTIVE role (superadmin, org_admin, advisor, student, ...) or
+            None if not found. Read from every role column: org staff carry
+            role='org_managed' with the real role in org_role/org_roles, so the
+            raw column alone answered 'org_managed' for every teacher and admin.
         """
+        from utils.roles import get_effective_role
         response = self.supabase.table('users')\
-            .select('role')\
+            .select('role, org_role, org_roles, is_org_admin')\
             .eq('id', user_id)\
             .single()\
             .execute()
 
-        return response.data.get('role') if response.data else None
+        return get_effective_role(response.data) if response.data else None
+
+    def _is_admin_tier(self, user_id: str) -> bool:
+        """Superadmin, or an org admin."""
+        return self.get_user_role(user_id) in ('superadmin', 'org_admin')
 
     def _verify_same_organization(self, user_id_1: str, user_id_2: str) -> bool:
         """
@@ -467,9 +475,11 @@ class CheckinRepository:
         if not self._verify_same_organization(advisor_id, student_id):
             return False
 
-        # Check if user is admin (admins can check in with any student in their org)
-        user_role = self.get_user_role(advisor_id)
-        if user_role == 'superadmin':
+        # Admins can check in with any student in their org. That includes an
+        # org admin: they hold every capability a teacher holds, and at a
+        # microschool the admin is the teacher and holds no assignment rows at
+        # all (Horizon, 2026-09-11). The org check above is what bounds them.
+        if self._is_admin_tier(advisor_id):
             return True
 
         # Check for active advisor-student assignment

@@ -27,7 +27,7 @@ matching the code.
 | Role | What it is |
 |---|---|
 | `superadmin` | Optio staff. Everything, in every school. |
-| `org_admin` | Runs the school. The only role that sees the money and the HR store. |
+| `org_admin` | Runs the school. The only role that sees the money and the HR store. Also holds everything `advisor` holds — the teacher portal (My Classes, My Schedule, My Time, My Profile), check-ins, notes, transcripts — because at a microschool the admin is the teacher (Horizon, 2026-09-11). |
 | `campus_coordinator` | Runs the campus. Everything `org_admin` has **minus the money and minus HR**. Org-only — it can never appear in `users.role`. |
 | `advisor` | A teacher. Their own classes, and the school-wide things everyone shares. |
 | `parent` | Their own children. Never a roster, never another family. |

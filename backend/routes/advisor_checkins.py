@@ -24,7 +24,7 @@ checkins_bp = Blueprint('advisor_checkins', __name__)
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def create_checkin(user_id):
     """
     Create a new advisor check-in.
@@ -85,7 +85,7 @@ def create_checkin(user_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/quests/<quest_id>/end', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 @require_relationship_to('student_id', allow=('advisor', 'org_staff'))
 def advisor_end_student_quest(user_id, student_id, quest_id):
     """
@@ -138,7 +138,7 @@ def advisor_end_student_quest(user_id, student_id, quest_id):
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_advisor_checkins(user_id):
     """
     Get all check-ins created by the current advisor.
@@ -160,7 +160,7 @@ def get_advisor_checkins(user_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 @require_relationship_to('student_id', allow=('advisor', 'org_staff'), discloses='checkins')
 def get_student_checkins(user_id, student_id):
     """
@@ -177,11 +177,16 @@ def get_student_checkins(user_id, student_id):
         if not repository._verify_same_organization(user_id, student_id):
             return jsonify({'error': 'Not authorized to view this student'}), 403
 
-        # Check if user is admin
+        # Check if user is admin. An org admin is an admin here too: they hold
+        # every capability a teacher holds, and the same-org check above has
+        # already bounded them to their own school.
         # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
+        from utils.roles import get_effective_role
+        user_response = (supabase.table('users')
+                         .select('role, org_role, org_roles, is_org_admin')
+                         .eq('id', user_id).single().execute())
+        is_admin = bool(user_response.data) and get_effective_role(user_response.data) in ('superadmin', 'org_admin')
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)
@@ -200,7 +205,7 @@ def get_student_checkins(user_id, student_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 @require_relationship_to('student_id', allow=('advisor', 'org_staff'), discloses='checkins')
 def get_checkin_data(user_id, student_id):
     """
@@ -217,11 +222,16 @@ def get_checkin_data(user_id, student_id):
         if not repository._verify_same_organization(user_id, student_id):
             return jsonify({'error': 'Not authorized to view this student'}), 403
 
-        # Check if user is admin
+        # Check if user is admin. An org admin is an admin here too: they hold
+        # every capability a teacher holds, and the same-org check above has
+        # already bounded them to their own school.
         # admin client justified: advisor check-ins on assigned students; cross-user writes gated by @require_advisor + advisor_student_assignments verification
         supabase = get_supabase_admin_client()
-        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
-        is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
+        from utils.roles import get_effective_role
+        user_response = (supabase.table('users')
+                         .select('role, org_role, org_roles, is_org_admin')
+                         .eq('id', user_id).single().execute())
+        is_admin = bool(user_response.data) and get_effective_role(user_response.data) in ('superadmin', 'org_admin')
 
         # If admin, don't filter by advisor_id (pass None)
         # If advisor, filter by their advisor_id (pass user_id)
@@ -245,7 +255,7 @@ def get_checkin_data(user_id, student_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_checkin_by_id(user_id, checkin_id):
     """
     Get a specific check-in by ID.
@@ -267,7 +277,7 @@ def get_checkin_by_id(user_id, checkin_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_checkin_analytics(user_id):
     """
     Get analytics for advisor's check-ins.
@@ -289,7 +299,7 @@ def get_checkin_analytics(user_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/generate-email', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def generate_checkin_email(user_id):
     """
     Generate a parent recap email from meeting notes using AI.
@@ -401,7 +411,7 @@ def generate_checkin_email(user_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/send-email', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def send_checkin_email(user_id):
     """
     Send the advisor-reviewed parent recap email.

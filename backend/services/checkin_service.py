@@ -213,12 +213,18 @@ class CheckinService(BaseService):
             if not checkin:
                 return None
 
-            # Verify advisor has permission to view this check-in
+            # Verify advisor has permission to view this check-in. Somebody
+            # else's check-in is readable by a superadmin, or by an org admin
+            # of the student's school (every teacher capability, bounded to
+            # their org). This used to compare against 'admin', which is not a
+            # role, so nobody but the author could ever read one.
             if checkin['advisor_id'] != advisor_id:
-                # Check if requesting user is admin (uses repository)
                 user_role = self.repository.get_user_role(advisor_id)
-
-                if user_role != 'admin':
+                allowed = user_role == 'superadmin' or (
+                    user_role == 'org_admin'
+                    and self.repository._verify_same_organization(advisor_id, checkin.get('student_id'))
+                )
+                if not allowed:
                     raise PermissionError("You don't have permission to view this check-in")
 
             return checkin

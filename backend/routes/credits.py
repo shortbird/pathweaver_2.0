@@ -93,20 +93,32 @@ def get_transcript(user_id, target_user_id):
         return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Get requesting user's role
-    requesting_user = supabase.table('users').select('role, org_role, organization_id').eq('id', user_id).single().execute()
+    requesting_user = (supabase.table('users')
+                       .select('role, org_role, org_roles, is_org_admin, organization_id')
+                       .eq('id', user_id).single().execute())
 
     if not requesting_user.data:
         raise AuthorizationError('Unauthorized access')
 
     user_role = requesting_user.data.get('role')
-    user_org_role = requesting_user.data.get('org_role')
-    # Get effective role for org_managed users
-    effective_role = user_org_role if user_role == 'org_managed' and user_org_role else user_role
+    # Every role column, not org_role alone: org staff carry the real role in
+    # org_role OR org_roles, and reading one of them missed the other.
+    from utils.roles import get_effective_role
+    effective_role = get_effective_role(requesting_user.data)
 
     # Admin/superadmin always has access
     if user_role == 'superadmin':
         transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
         return jsonify({'success': True, 'transcript': transcript}), 200
+
+    # An org admin reads any transcript in their own school. They hold every
+    # capability a teacher holds, and the teacher branch below needs an
+    # assignment row an admin never has (Horizon, 2026-09-11).
+    if effective_role == 'org_admin':
+        from utils.auth.org_scope import caller_can_access_user
+        if caller_can_access_user(supabase, user_id, target_user_id):
+            transcript = CreditMappingService.generate_transcript(target_user_id, format=format_type)
+            return jsonify({'success': True, 'transcript': transcript}), 200
 
     # Check if advisor is assigned to this student
     if effective_role == 'advisor':

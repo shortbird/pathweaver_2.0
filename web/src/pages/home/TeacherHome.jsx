@@ -28,6 +28,10 @@ import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
  * features — class cards hop to the console — and the LMS-only advisor
  * features are kept for programs that don't run the SIS.
  *
+ * The hook and the two sections are exported because SchoolAdminHome renders
+ * them too: an org admin holds every capability a teacher holds, and at a
+ * microschool the admin is the teacher (Horizon, 2026-09-11).
+ *
  * A lightweight triage page ("who needs me today"), deliberately NOT a heavy
  * dashboard: greeting -> waiting-on-you strip -> my classes. No door tiles —
  * every surface they linked to (Messages, quest invitations) is already one
@@ -38,7 +42,7 @@ import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
 
 const QUEUE_PREVIEW_COUNT = 3
 
-function useTeacherHomeData(userId, sisEnabled) {
+export function useTeacherHomeData(userId, sisEnabled) {
   const common = {
     enabled: !!userId,
     staleTime: 60 * 1000,
@@ -83,7 +87,7 @@ function useTeacherHomeData(userId, sisEnabled) {
 }
 
 /** "Waiting on you" — the triage strip. Failed sources drop out silently. */
-function WaitingOnYou({ verifications, invitations, showInvitations }) {
+export function WaitingOnYou({ verifications, invitations, showInvitations }) {
   const invitationsOut = !showInvitations || invitations.isError
   const bothFailed = verifications.isError && invitationsOut
 
@@ -217,7 +221,7 @@ function ClassCard({ children, sisEnabled, sisPath, learningPath }) {
 }
 
 /** The advisor's working set: compact link cards into each class. */
-function MyClasses({ classes, sisEnabled }) {
+export function MyClasses({ classes, sisEnabled }) {
   return (
     <section aria-labelledby="my-classes-heading" className="mt-8">
       <div className="flex items-center justify-between">

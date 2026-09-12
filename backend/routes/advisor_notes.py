@@ -18,8 +18,17 @@ logger = logging.getLogger(__name__)
 notes_bp = Blueprint('advisor_notes', __name__)
 
 
+def _is_org_admin_over(supabase, caller_id, subject_id):
+    """Is the caller an org admin of the subject's school? Fails closed."""
+    from utils.auth.org_scope import caller_org_and_role, user_org
+    role, org_id, _is_super = caller_org_and_role(supabase, caller_id)
+    if role != 'org_admin' or not org_id:
+        return False
+    return user_org(supabase, subject_id) == org_id
+
+
 @notes_bp.route('/api/advisor/notes/<subject_id>', methods=['GET', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def get_subject_notes(user_id, subject_id):
     """
     Get all notes for a specific subject (student or parent).
@@ -68,7 +77,7 @@ def get_subject_notes(user_id, subject_id):
 
 
 @notes_bp.route('/api/advisor/notes', methods=['POST', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def create_note(user_id):
     """
     Create a new advisor note.
@@ -104,8 +113,12 @@ def create_note(user_id):
 
         is_admin = user_response.data and user_response.data.get('role') == 'superadmin'
 
-        # If not admin, verify advisor-student relationship
-        if not is_admin:
+        # If not admin, verify advisor-student relationship. An org admin over
+        # the subject's school counts as a relationship: they hold every
+        # capability a teacher holds and, at a microschool, ARE the teacher
+        # with no assignment rows at all (Horizon, 2026-09-11). The note stays
+        # theirs alone -- reads still filter by advisor_id.
+        if not is_admin and not _is_org_admin_over(supabase, user_id, data['subject_id']):
             # Check if subject is a student assigned to this advisor
             assignment_response = supabase.table('advisor_student_assignments')\
                 .select('id')\
@@ -159,7 +172,7 @@ def create_note(user_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['PUT', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def update_note(user_id, note_id):
     """
     Update an advisor note.
@@ -213,7 +226,7 @@ def update_note(user_id, note_id):
 
 
 @notes_bp.route('/api/advisor/notes/<note_id>', methods=['DELETE', 'OPTIONS'])
-@require_role('advisor', 'superadmin')
+@require_role('advisor', 'org_admin', 'superadmin')
 def delete_note(user_id, note_id):
     """
     Delete an advisor note.

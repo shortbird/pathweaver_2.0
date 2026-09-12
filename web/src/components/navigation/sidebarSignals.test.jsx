@@ -372,6 +372,37 @@ describe('Sidebar — the teaching section', () => {
     expect(screen.queryByRole('link', { name: /^verifications$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^quest invitations$/i })).not.toBeInTheDocument()
   })
+
+  it('gives an org admin the same teaching section a teacher gets', () => {
+    // An org admin holds every capability a teacher holds. Horizon's director
+    // (org_admin, no advisor role) created her own classes and then had no nav
+    // into them (2026-09-11).
+    authState.user = teacher({ org_role: 'org_admin', org_roles: ['org_admin'], is_org_admin: true })
+    orgState = { organization: { id: 'org-1', slug: 'lms', feature_flags: {} }, school: null }
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^my classes$/i })).toHaveAttribute('href', '/org-classes')
+    expect(screen.getByRole('link', { name: /^verifications$/i })).toHaveAttribute('href', '/advisor/verification')
+    expect(screen.getByRole('link', { name: /^quest invitations$/i })).toBeInTheDocument()
+  })
+
+  it('moves an org admin\'s class work to the console on a SIS org, like a teacher\'s', () => {
+    authState.user = teacher({ org_role: 'org_admin', org_roles: ['org_admin'], is_org_admin: true })
+    orgState = {
+      organization: { id: 'org-1', slug: 'sis', feature_flags: { sis_enabled: true } },
+      school: null,
+    }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /^my classes$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^verifications$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /school admin/i })).toBeInTheDocument()
+  })
+
+  it('does not hand the teaching section to a superadmin, who has no school to teach at', () => {
+    authState.user = { id: 'sa', role: 'superadmin', email: 'sa@example.com' }
+    orgState = { organization: null, school: null }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /^verifications$/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('Sidebar — the observer feed', () => {

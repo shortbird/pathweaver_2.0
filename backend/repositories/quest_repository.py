@@ -1100,7 +1100,8 @@ class QuestRepository(BaseRepository):
             elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
                 can_edit = True
                 can_toggle_active = True
-            elif user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
+            elif is_org_admin or user_role == 'advisor' or (user_role == 'org_managed' and user_org_role == 'advisor'):
+                # The teacher rule; an org admin holds every teacher capability.
                 if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
                     can_edit = True
 

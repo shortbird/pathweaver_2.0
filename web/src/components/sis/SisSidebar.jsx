@@ -25,9 +25,19 @@ const icon = (path) => (
 
 // Section-grouped nav. `end` forces exact matching (Dashboard). `superadmin: true`
 // items render only for superadmins; `adminOnly: true` for org admins (and
-// superadmins); `teacherOnly: true` only for advisors — the teacher portal;
+// superadmins); `teacherOnly: true` hides an item from admins because the admin
+// nav already carries a superset of it (Directory is People without the tabs);
 // `financeOnly: true` for the money pages, which campus coordinators don't get.
 // Carved-out admin surfaces keep their original paths (registered in SisRoutes).
+//
+// The teacher portal (My Classes, My Schedule, My Time, My Profile) is NOT
+// teacherOnly. An org admin has every capability a teacher has, and at a
+// microschool the admin is usually the teacher: Horizon's director created her
+// own classes, then had no way into the class page where the quest builder
+// lives, because "My Classes" was hidden from admins and the admin Classes page
+// never linked there (2026-09-11: "it feels like we've lost the ability to make
+// quests ourselves"). The backend already answers these pages for admins
+// (/api/sis/teacher/* is STAFF_ROLES, scoped by who instructs the class).
 const ICONS = {
   home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
   users: 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z',
@@ -65,8 +75,8 @@ export const NAV_SECTIONS = [
     label: 'Academics',
     items: [
       { name: 'Classes', path: '/classes', adminOnly: true, d: ICONS.classes },
-      { name: 'My Classes', path: '/my-classes', teacherOnly: true, d: ICONS.classes },
-      { name: 'My Schedule', path: '/my-schedule', teacherOnly: true, d: ICONS.calendar },
+      { name: 'My Classes', path: '/my-classes', d: ICONS.classes },
+      { name: 'My Schedule', path: '/my-schedule', d: ICONS.calendar },
       { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc },
       { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
       { name: 'Attendance', path: '/attendance', adminOnly: true, d: ICONS.check },
@@ -132,7 +142,7 @@ export const NAV_SECTIONS = [
     // rather than leaving money links scattered through Operations.
     label: 'Time & Money',
     items: [
-      { name: 'My Time', path: '/time', teacherOnly: true, d: ICONS.clock },
+      { name: 'My Time', path: '/time', d: ICONS.clock },
       { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
       { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check },
       { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card },
@@ -142,7 +152,7 @@ export const NAV_SECTIONS = [
     label: 'Settings',
     items: [
       { name: 'Settings', path: '/settings', adminOnly: true, d: ICONS.gear },
-      { name: 'My Profile', path: '/my-profile', teacherOnly: true, d: ICONS.person },
+      { name: 'My Profile', path: '/my-profile', d: ICONS.person },
     ],
   },
 ]

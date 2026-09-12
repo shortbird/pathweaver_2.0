@@ -334,7 +334,9 @@ def _quest_edit_rights(supabase, user_id, quest):
         return True, True
     if effective_role in ADMIN_ROLES and quest_org_id and quest_org_id == user_org_id:
         return True, True
-    if effective_role != 'advisor':
+    # An org admin holds every capability a teacher holds, so the teacher rules
+    # below (your own quest, or one on a class you teach) apply to them too.
+    if effective_role not in ('advisor', 'org_admin'):
         return False, False
 
     # Their own quest, in their own school.
@@ -562,8 +564,9 @@ def delete_quest(user_id, quest_id):
             can_delete = True
         elif is_org_admin and quest_org_id and quest_org_id == user_org_id:
             can_delete = True
-        elif is_advisor:
-            # Advisors can only delete their own, unpublished quests
+        elif is_advisor or is_org_admin:
+            # Advisors (and org admins, who hold every teacher capability) can
+            # delete their own, unpublished quests
             if quest.data.get('created_by') == user_id and not quest.data.get('is_active'):
                 can_delete = True
 

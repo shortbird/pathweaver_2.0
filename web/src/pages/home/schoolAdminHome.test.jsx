@@ -40,7 +40,15 @@ const creditStatsPayload = {
   data: { pending_org_approval: 4, pending_review: 9, finalized: 12, merged_this_week: 0 },
 }
 
-function mockHappyApi() {
+// The admin's own teaching: the same feeds TeacherHome reads.
+const TASKS = [
+  { task_id: 't1', completion_id: 'c1', task_title: 'Write a sonnet', student_name: 'Jordan Rivera', quest_title: 'Poetry Lab' },
+]
+const MY_CLASSES = [
+  { id: 'class-1', name: 'Escape Room', student_count: 5, quest_count: 1 },
+]
+
+function mockHappyApi({ tasks = TASKS, myClasses = MY_CLASSES } = {}) {
   api.get.mockImplementation((url) => {
     if (url === `/api/admin/organizations/${ORG_ID}`) {
       return Promise.resolve({ data: orgPayload })
@@ -50,6 +58,15 @@ function mockHappyApi() {
     }
     if (url === '/api/credit-dashboard/stats') {
       return Promise.resolve({ data: creditStatsPayload })
+    }
+    if (url.includes('/api/teacher/pending-verifications')) {
+      return Promise.resolve({ data: { tasks } })
+    }
+    if (url.includes('/api/advisor/quest-invitations')) {
+      return Promise.resolve({ data: { invitations: [] } })
+    }
+    if (url.includes('/api/advisor/classes')) {
+      return Promise.resolve({ data: { classes: myClasses } })
     }
     return Promise.reject(new Error(`Unexpected GET ${url}`))
   })
@@ -121,6 +138,21 @@ describe('SchoolAdminHome', () => {
     expect(screen.getByText('Awaiting credit review').closest('a')).toHaveAttribute('href', '/organization?tab=credit-review')
   })
 
+  it('shows the admin their own teaching: the queue and the classes they instruct', async () => {
+    // An org admin holds every capability a teacher holds. Horizon's director
+    // (org_admin, no advisor role) created her own classes and this page
+    // showed her a count of teachers instead of a way into them (2026-09-11).
+    mockHappyApi()
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 submission waiting for review/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText('Write a sonnet')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /my classes/i })).toBeInTheDocument()
+    expect(screen.getByText('Escape Room').closest('a')).toHaveAttribute('href', '/org-classes/class-1')
+  })
+
   it('degrades silently when every stat source fails', async () => {
     api.get.mockRejectedValue(new Error('API down'))
     renderPage()
@@ -165,8 +197,11 @@ describe('SchoolAdminHome', () => {
     renderPage()
 
     // No ORG-scoped query fires without an org. The admin's own enrolled quests
-    // are not org-scoped — they belong to the account — so that card still asks.
-    const orgCalls = api.get.mock.calls.filter(([url]) => !url.startsWith('/api/quests/'))
+    // and their own teaching feeds (verifications, invitations, the classes
+    // they instruct) are not org-scoped — they belong to the account — so
+    // those still ask.
+    const accountScoped = ['/api/quests/', '/api/teacher/', '/api/advisor/']
+    const orgCalls = api.get.mock.calls.filter(([url]) => !accountScoped.some((p) => url.startsWith(p)))
     expect(orgCalls).toEqual([])
     expect(screen.queryByTestId('home-stat-skeleton')).not.toBeInTheDocument()
     expect(screen.getByText('Organization Console')).toBeInTheDocument()

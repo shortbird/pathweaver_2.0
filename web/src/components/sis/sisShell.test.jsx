@@ -123,7 +123,7 @@ describe('SisSidebar', () => {
     expect(screen.getByText('Classes')).toBeInTheDocument()
   })
 
-  it('gives a campus coordinator the admin nav, without the teacher or money pages', () => {
+  it('gives a campus coordinator the admin nav, without the money pages', () => {
     authState = {
       isAuthenticated: true,
       effectiveRole: 'campus_coordinator',
@@ -139,18 +139,45 @@ describe('SisSidebar', () => {
     // Documents link — iCreate, 2026-08-26 — is a tab of My Tasks now).
     expect(screen.getByText('My Tasks')).toBeInTheDocument()
     expect(screen.getByText('Task Center')).toBeInTheDocument()
-    // Not the teacher portal — a coordinator is not a teacher.
-    expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Schedule')).not.toBeInTheDocument()
+    // The teacher portal too: the admin tiers hold everything a teacher holds.
+    expect(screen.getByText('My Classes')).toBeInTheDocument()
+    expect(screen.getByText('My Schedule')).toBeInTheDocument()
+    expect(screen.getByText('My Time')).toBeInTheDocument()
+    expect(screen.getByText('My Profile')).toBeInTheDocument()
+    // Directory is People without the tabs, so admins get People instead.
     expect(screen.queryByText('Directory')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Time')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Profile')).not.toBeInTheDocument()
     // Not the money.
     expect(screen.queryByText('Billing')).not.toBeInTheDocument()
     expect(screen.queryByText('Tuition')).not.toBeInTheDocument()
     expect(screen.queryByText('Timesheets')).not.toBeInTheDocument()
     // Not the HR store (contracts, background checks).
     expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
+  })
+
+  it('gives an org admin the teacher portal alongside the admin console', () => {
+    // An org admin has every capability a teacher has. At a microschool the
+    // admin IS the teacher: Horizon's director created her own classes and then
+    // had no way into the class page where the quest builder lives, because
+    // My Classes was hidden from admins and the admin Classes page never links
+    // there (2026-09-11: "it feels like we've lost the ability to make quests
+    // ourselves").
+    authState = {
+      isAuthenticated: true,
+      effectiveRole: 'org_admin',
+      user: { id: 'u1', role: 'org_managed', org_role: 'org_admin' },
+      loading: false,
+    }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getByRole('link', { name: 'My Classes' })).toHaveAttribute('href', '/my-classes')
+    expect(screen.getByRole('link', { name: 'My Schedule' })).toHaveAttribute('href', '/my-schedule')
+    expect(screen.getByRole('link', { name: 'My Time' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My Profile' })).toBeInTheDocument()
+    // Still the admin console.
+    expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Classes')).toBeInTheDocument()
+    expect(screen.getByText('Billing')).toBeInTheDocument()
+    // One roster entry, not two: Directory is the teacher's stand-in for People.
+    expect(screen.queryByText('Directory')).not.toBeInTheDocument()
   })
 
   it('has no separate document entries — the stores live inside the two task pages', () => {
