@@ -33,6 +33,7 @@ from utils.validation.sanitizers import pgrst_uuid
 from services import marketing_site
 from services.stories import assets as assets_mod
 from services.stories import consent_service, generate, publish
+from services.stories import safety as safety_mod
 from services.stories.activities import normalize_activity_slug, valid_icon
 from services.stories.source import subject_key
 
@@ -209,7 +210,6 @@ def eligibility(user_id: str, completion_id: str):
         return error_response(code='NOT_FOUND', message='Submission not found.', status=404)
 
     student_id = completion.get('user_id')
-    student = source_repo.student(student_id) or {}
     reasons: List[str] = []
     if completion.get('diploma_status') != 'finalized':
         reasons.append('source_not_finalized')
@@ -217,8 +217,6 @@ def eligibility(user_id: str, completion_id: str):
         reasons.append('merged')
     if completion.get('is_confidential'):
         reasons.append('confidential')
-    if student.get('organization_id'):
-        reasons.append('org_student_phase2')
     has_access, _, _ = check_ai_access(student_id, strict=True)
     if not has_access:
         reasons.append('ai_disabled')
@@ -275,7 +273,9 @@ def get_story(user_id: str, story_id: str):
 def update_story(user_id: str, story_id: str):
     """Edit the words, the receipt, the hero, and which assets are included.
 
-    A superadmin may override an image's exclusion only in the named tier:
+    A superadmin may override an image's exclusion in the named tier, and in
+    either tier when the model found nothing and was merely not confident
+    (safety.overridable_in_any_tier). Otherwise only in the named tier:
     without a consent there is nobody to have said yes to a face.
     """
     story_repo, asset_repo, _ = _repos()
@@ -351,7 +351,7 @@ def update_story(user_id: str, story_id: str):
             wanted = bool(edit['included'])
             verdict = (asset.get('safety') or {}).get('verdict')
             if wanted and verdict != 'safe':
-                if story.get('tier') != 'named':
+                if story.get('tier') != 'named' and not safety_mod.overridable_in_any_tier(asset.get('safety')):
                     return error_response(
                         code='EXCLUSION_STANDS',
                         message='An excluded image cannot be included in an anonymized story.')
@@ -445,9 +445,10 @@ def _asset_view(asset: Dict[str, Any], thumbs: Dict[str, Optional[str]]) -> Dict
 
     An image gets a downscaled signed thumbnail. A video or a PDF gets
     `media_url`, a signed URL of the original, because the transform endpoint
-    only renders images and a poster frame would need ffmpeg; `thumb_url`
-    stays None so the picker knows to render a player or a link. Both URLs
-    are short-lived and the editor never stores them.
+    only renders images; `thumb_url` stays None so the picker knows to render
+    a player or a link. A published video also carries `poster_url`, the
+    public still the publish step extracted. The signed URLs are short-lived
+    and the editor never stores them.
     """
     is_file = asset.get('kind') in ('video', 'document')
     source_ref = asset.get('source_ref')
@@ -456,6 +457,7 @@ def _asset_view(asset: Dict[str, Any], thumbs: Dict[str, Optional[str]]) -> Dict
         'thumb_url': None if is_file or not source_ref else thumbs.get(source_ref),
         'media_url': sign_stored_url(asset.get('source_ref')) if is_file else None,
         'public_url': assets_mod.public_url_for(asset.get('public_path')),
+        'poster_url': assets_mod.public_url_for(asset.get('poster_path')),
     }
 
 

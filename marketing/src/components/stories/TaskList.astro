@@ -20,7 +20,6 @@ const { rows, class: className = '' } = Astro.props
         <th scope="col" class="px-4 py-3 font-semibold">Subject</th>
         <th scope="col" class="px-4 py-3 font-semibold text-right">XP</th>
         <th scope="col" class="px-4 py-3 font-semibold text-right">Criteria met</th>
-        <th scope="col" class="px-4 py-3 font-semibold text-right">Rounds</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-neutral-100">
@@ -30,7 +29,6 @@ const { rows, class: className = '' } = Astro.props
           <td class="px-4 py-3 text-neutral-700 font-medium whitespace-nowrap">{row.subject}</td>
           <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.xp.toLocaleString('en-US')}</td>
           <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.criteria_met} of {row.criteria_total}</td>
-          <td class="px-4 py-3 text-neutral-700 font-medium text-right tabular-nums">{row.rounds}</td>
         </tr>
       ))}
     </tbody>

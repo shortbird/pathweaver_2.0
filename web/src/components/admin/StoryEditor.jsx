@@ -13,8 +13,11 @@ import StoryFaqEditor from './stories/StoryFaqEditor'
 import StoryPreview from './stories/StoryPreview'
 import {
   ACTIVITY_SLUGS, RECEIPT_ICONS, SETTING_OPTIONS, GRADE_BAND_OPTIONS,
+  TITLE_TARGET_CHARS, DEK_TARGET_CHARS,
   applyTitleOption, publishBlockers, sectionByKind, updateSection,
 } from './stories/storyEditorState'
+
+const MARKETING_URL = import.meta.env.VITE_MARKETING_URL || 'https://www.optioeducation.com'
 
 const POLL_MS = 3000
 const MAX_POLLS = 100
@@ -22,9 +25,20 @@ const MAX_POLLS = 100
 const inputClass = 'w-full text-sm rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple'
 const labelClass = 'block text-xs font-medium text-gray-700 mb-1'
 
-const Field = ({ id, label, children }) => (
+const Field = ({ id, label, aside, children }) => (
   <div>
-    <label htmlFor={id} className={labelClass}>{label}</label>
+    <div className="flex items-center justify-between">
+      <label htmlFor={id} className={labelClass}>{label}</label>
+      {aside}
+    </div>
+    {children}
+  </div>
+)
+
+/** A labelled block whose control is a component, not one input. */
+const Group = ({ label, children }) => (
+  <div>
+    <p className={labelClass}>{label}</p>
     {children}
   </div>
 )
@@ -49,12 +63,38 @@ const Select = ({ id, value, options, onChange, allowEmpty = true }) => {
   )
 }
 
-const SectionHeading = ({ children }) => (
+const SectionHeading = ({ children, hint }) => (
   <div className="flex items-center gap-3 pt-2">
     <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{children}</h3>
+    {hint && <span className="text-xs text-gray-400 truncate">{hint}</span>}
     <div className="h-px flex-1 bg-gray-200" />
   </div>
 )
+
+/** A folded card for the parts an editor rarely touches. */
+const Folded = ({ title, hint, children }) => (
+  <details className="rounded-lg border border-gray-200 bg-white group">
+    <summary className="cursor-pointer select-none px-4 py-3 flex items-center gap-3">
+      <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{title}</span>
+      {hint && <span className="text-xs text-gray-400 truncate">{hint}</span>}
+    </summary>
+    <div className="px-4 pb-4 pt-1 space-y-4">{children}</div>
+  </details>
+)
+
+/**
+ * How long a title or a dek is against what a search result shows. Over the
+ * target is a nudge, not a blocker: the backend caps the hard limits.
+ */
+const CharCount = ({ value, target }) => {
+  const n = (value || '').length
+  const over = n > target
+  return (
+    <span className={`text-xs tabular-nums ${over ? 'text-amber-700' : 'text-gray-400'}`} aria-live="polite">
+      {n}/{target}
+    </span>
+  )
+}
 
 const editableBody = (story, assets) => ({
   title: story.title,
@@ -77,12 +117,16 @@ const editableBody = (story, assets) => ({
  * The editor for one story: fixes after the fact, and the review step for
  * a story that did not publish itself.
  *
- * Left is the form, right is the page as it will render. The form never
- * saves on its own; Save is a PUT of the editable subset, and Publish saves
- * first so the server checks what is on screen, not what was there a minute
- * ago. Blockers come from two places and both are shown: the ones this file
- * can see (`publishBlockers`) as the story is typed, and the server's list
- * from the last publish attempt or the load.
+ * Left is the form, right is the page as it will render. The form is in the
+ * order that matters for a page whose job is to rank: what a search result
+ * shows (title, URL, dek, the FAQ that becomes structured data), then the
+ * evidence the page leads with, then the words, then the facts, then the
+ * parts an editor rarely touches, folded. The form never saves on its own;
+ * Save is a PUT of the editable subset, and Publish saves first so the
+ * server checks what is on screen, not what was there a minute ago.
+ * Blockers come from two places and both are shown: the ones this file can
+ * see (`publishBlockers`) as the story is typed, and the server's list from
+ * the last publish attempt or the load.
  */
 const StoryEditor = () => {
   const { storyId } = useParams()
@@ -251,6 +295,7 @@ const StoryEditor = () => {
 
   const generating = status === 'generating'
   const titleOptions = story.ai_draft?.data?.title_options || []
+  const searchPhrases = story.body?.search_phrases || story.ai_draft?.data?.search_phrases || []
   const localBlockers = publishBlockers(story, assets)
   const serverCodes = new Set(serverBlockers.map(b => b.code))
   const blockers = [...serverBlockers, ...localBlockers.filter(b => !serverCodes.has(b.code))]
@@ -332,9 +377,9 @@ const StoryEditor = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
         <div className="space-y-4">
-          <SectionHeading>Story</SectionHeading>
+          <SectionHeading hint="What a search result shows">Search</SectionHeading>
 
-          <Field id="story-title" label="Title">
+          <Field id="story-title" label="Title" aside={<CharCount value={story.title} target={TITLE_TARGET_CHARS} />}>
             <input id="story-title" type="text" value={story.title || ''} onChange={e => patch({ title: e.target.value })} className={inputClass} />
             {titleOptions.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -356,59 +401,31 @@ const StoryEditor = () => {
             )}
           </Field>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field id="story-slug" label="Slug">
-              <input id="story-slug" type="text" value={story.slug || ''} onChange={e => patch({ slug: e.target.value })} className={`${inputClass} font-mono`} />
-            </Field>
-            <Field id="story-student-label" label="Student label">
-              <input id="story-student-label" type="text" value={story.student_label || ''} readOnly className={`${inputClass} bg-gray-50 text-gray-600`} />
-            </Field>
-          </div>
+          <Field id="story-slug" label="Slug">
+            <input id="story-slug" type="text" value={story.slug || ''} onChange={e => patch({ slug: e.target.value })} className={`${inputClass} font-mono`} />
+            <p className="mt-1 text-xs text-gray-400 font-mono truncate">{MARKETING_URL}/stories/{story.slug || ''}/</p>
+          </Field>
 
-          <Field id="story-dek" label="Dek">
+          <Field id="story-dek" label="Dek" aside={<span className="flex items-center gap-2 text-xs text-gray-400">meta description <CharCount value={story.dek} target={DEK_TARGET_CHARS} /></span>}>
             <textarea id="story-dek" rows={2} value={story.dek || ''} onChange={e => patch({ dek: e.target.value })} className={inputClass} />
           </Field>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field id="story-setting" label="Setting">
-              <Select id="story-setting" value={story.setting} options={SETTING_OPTIONS} onChange={v => patch({ setting: v })} />
-            </Field>
-            <Field id="story-grade-band" label="Grade band">
-              <Select id="story-grade-band" value={story.grade_band} options={GRADE_BAND_OPTIONS} onChange={v => patch({ grade_band: v })} />
-            </Field>
-            <Field id="story-activity" label="Activity">
-              <Select id="story-activity" value={story.activity_slug} options={ACTIVITY_SLUGS} onChange={v => patch({ activity_slug: v })} />
-            </Field>
-          </div>
+          <Group label="FAQ (structured data)">
+            <StoryFaqEditor faq={story.faq || []} onChange={faq => patch({ faq })} />
+          </Group>
 
-          <Field id="story-activity-label" label="Activity label">
-            <input id="story-activity-label" type="text" value={story.activity_label || ''} onChange={e => patch({ activity_label: e.target.value })} className={inputClass} />
-          </Field>
+          {searchPhrases.length > 0 && (
+            <div>
+              <p className={labelClass}>What the draft was written to answer</p>
+              <ul className="flex flex-wrap gap-1.5" aria-label="Search phrases">
+                {searchPhrases.map((phrase, i) => (
+                  <li key={i} className="text-xs text-gray-600 bg-gray-100 rounded-full px-2 py-1">{phrase}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <SectionHeading>Receipt</SectionHeading>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field id="receipt-activity" label="Activity">
-              <input id="receipt-activity" type="text" value={receipt.activity || ''} onChange={e => patch({ receipt: { ...receipt, activity: e.target.value } })} className={inputClass} />
-            </Field>
-            <Field id="receipt-course" label="Course">
-              <input id="receipt-course" type="text" value={receipt.course || ''} onChange={e => patch({ receipt: { ...receipt, course: e.target.value } })} className={inputClass} />
-            </Field>
-            <Field id="receipt-credit" label="Credit">
-              <input id="receipt-credit" type="text" value={receipt.credit || ''} onChange={e => patch({ receipt: { ...receipt, credit: e.target.value } })} className={inputClass} />
-            </Field>
-            <Field id="receipt-icon" label="Icon">
-              <Select id="receipt-icon" value={receipt.icon} options={RECEIPT_ICONS} onChange={v => patch({ receipt: { ...receipt, icon: v } })} />
-            </Field>
-          </div>
-
-          <SectionHeading>What the student did</SectionHeading>
-          <MarkdownEditor
-            value={whatTheyDid}
-            onChange={val => patchSection('what_they_did', { body_md: val })}
-            placeholder="What the student did, in plain words."
-          />
-
-          <SectionHeading>Evidence</SectionHeading>
+          <SectionHeading hint="The page leads with the hero">Hero and evidence</SectionHeading>
           <StoryEvidencePicker
             assets={assets}
             tier={story.tier}
@@ -419,25 +436,62 @@ const StoryEditor = () => {
             onStoryChange={next => { setStory(next); setDirty(true) }}
           />
 
-          <SectionHeading>From the review</SectionHeading>
-          <StoryCriteriaRounds story={story} onChange={next => { setStory(next); setDirty(true) }} />
+          <SectionHeading>Story</SectionHeading>
+          <Group label="What the student did">
+            <MarkdownEditor
+              value={whatTheyDid}
+              onChange={val => patchSection('what_they_did', { body_md: val })}
+              placeholder="What the student did, in plain words."
+            />
+          </Group>
+          <Group label="What it counted for">
+            <MarkdownEditor
+              value={whatItCountedFor}
+              onChange={val => patchSection('what_it_counted_for', { body_md: val })}
+              placeholder="Two or three sentences: the subject, one assignment among many, why the evidence earned it."
+            />
+          </Group>
 
-          <SectionHeading>What it counted for</SectionHeading>
-          <MarkdownEditor
-            value={whatItCountedFor}
-            onChange={val => patchSection('what_it_counted_for', { body_md: val })}
-            placeholder="What the work counted for on the transcript."
-          />
+          <SectionHeading>Facts</SectionHeading>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field id="story-setting" label="School">
+              <Select id="story-setting" value={story.setting} options={SETTING_OPTIONS} onChange={v => patch({ setting: v })} />
+            </Field>
+            <Field id="story-grade-band" label="Grade band">
+              <Select id="story-grade-band" value={story.grade_band} options={GRADE_BAND_OPTIONS} onChange={v => patch({ grade_band: v })} />
+            </Field>
+            <Field id="story-activity" label="Lander">
+              <Select id="story-activity" value={story.activity_slug} options={ACTIVITY_SLUGS} onChange={v => patch({ activity_slug: v })} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field id="story-activity-label" label="Activity">
+              <input id="story-activity-label" type="text" value={story.activity_label || ''} onChange={e => patch({ activity_label: e.target.value })} className={inputClass} />
+            </Field>
+            <Field id="receipt-activity" label="Receipt line">
+              <input id="receipt-activity" type="text" value={receipt.activity || ''} onChange={e => patch({ receipt: { ...receipt, activity: e.target.value } })} className={inputClass} />
+            </Field>
+            <Field id="receipt-icon" label="Receipt icon">
+              <Select id="receipt-icon" value={receipt.icon} options={RECEIPT_ICONS} onChange={v => patch({ receipt: { ...receipt, icon: v } })} />
+            </Field>
+          </div>
+          <p className="text-xs text-gray-500">
+            Receipt: {[receipt.course, receipt.credit].filter(Boolean).join(', ') || 'derived from the source'}.
+            {story.tier === 'named' && story.student_label && ` Student: ${story.student_label}.`}
+            {' '}The course, the credit and the label come from the source and cannot be edited here.
+          </p>
 
-          <SectionHeading>Questions</SectionHeading>
-          <StoryFaqEditor faq={story.faq || []} onChange={faq => patch({ faq })} />
+          <Folded title="Review criteria" hint="Copied from the review; switch a row off to leave it out">
+            <StoryCriteriaRounds story={story} onChange={next => { setStory(next); setDirty(true) }} />
+          </Folded>
 
-          <SectionHeading>Consent</SectionHeading>
-          <StoryConsentPanel
-            studentUserId={story.student_user_id}
-            consent={consent}
-            onChange={setConsent}
-          />
+          <Folded title="Consent" hint={consent?.active ? 'On file' : 'None recorded'}>
+            <StoryConsentPanel
+              studentUserId={story.student_user_id}
+              consent={consent}
+              onChange={setConsent}
+            />
+          </Folded>
         </div>
 
         <div className="xl:sticky xl:top-4 rounded-xl border border-gray-200 bg-white p-6 max-h-[calc(100vh-2rem)] overflow-y-auto">

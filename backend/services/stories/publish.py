@@ -29,6 +29,7 @@ from utils.error_reporting import report_error
 from utils.logger import get_logger
 from utils.timestamps import now_iso
 
+from generated.credits import XP_PER_CREDIT
 from services import marketing_site
 from services.stories import assets as assets_mod
 from services.stories.anonymize import is_generic_label
@@ -40,9 +41,13 @@ EVIDENCE_ITEM_KEYS = ('type', 'url', 'alt', 'caption', 'width', 'height')
 #: The two evidence item types that are not backed by a `story_assets` row.
 #: They carry their own `included` flag and `safety` record on the item.
 STANDALONE_ITEM_TYPES = ('quote', 'link')
-TASK_ROW_KEYS = ('title', 'subject', 'xp', 'criteria_met', 'criteria_total', 'rounds')
+TASK_ROW_KEYS = ('title', 'subject', 'xp', 'criteria_met', 'criteria_total')
 CRITERION_KEYS = ('text', 'verdict', 'note')
-ROUND_KEYS = ('round', 'date', 'action', 'feedback_verbatim', 'what_changed')
+#: Body sections the public page renders, in the order the drafter writes
+#: them. `how_it_went` (the review rounds) is still on older rows and is
+#: deliberately not here: the page stopped showing it on 2026-09-12.
+PUBLIC_SECTION_KINDS = ('what_they_did', 'tasks', 'evidence', 'what_reviewer_looked_for',
+                        'what_it_counted_for')
 
 _AGE_RE = re.compile(r'\b(?:aged?\s+\d{1,2}|\d{1,2}[\s-]year[\s-]old|\d{1,2}\s+years\s+old)\b',
                      re.IGNORECASE)
@@ -86,10 +91,21 @@ def _is_standalone(item: Any) -> bool:
     return isinstance(item, dict) and item.get('type') in STANDALONE_ITEM_TYPES
 
 
-def _hero_candidates(assets: List[Dict[str, Any]]) -> List[str]:
-    """Included IMAGE asset ids. A video or a PDF is never a hero: the page and
-    the og:image both want a still, and a <video> in an <Image> fails the build."""
-    return [a['id'] for a in assets if a.get('included') and _is_still(a)]
+def _is_frame(asset: Optional[Dict[str, Any]]) -> bool:
+    """An image or a video: something the page can lead with. A PDF is not."""
+    return bool(asset) and not _is_document(asset)
+
+
+def _hero_candidates(assets: List[Dict[str, Any]], *, published_only: bool = False) -> List[str]:
+    """Asset ids that may be the hero, images first, then videos, each in row
+    order, so `[0]` is the same fallback drafter.choose_hero picks. A document
+    is never a hero: the card and the og:image need a frame."""
+    def ok(a: Dict[str, Any]) -> bool:
+        return bool(a.get('included')) and _is_frame(a) and (
+            bool(a.get('public_path')) or not published_only)
+    stills = [a['id'] for a in assets if ok(a) and _is_still(a)]
+    videos = [a['id'] for a in assets if ok(a) and _is_video(a)]
+    return stills + videos
 
 
 def blockers(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> List[Dict[str, str]]:
@@ -117,10 +133,10 @@ def blockers(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> List[Dict[s
     hero = story.get('hero_asset_id')
     if hero and not (by_id.get(hero) or {}).get('included'):
         out.append(_blocker('hero_excluded', 'hero_asset_id',
-                            'The hero image is an excluded asset.'))
-    elif hero and not _is_still(by_id.get(hero)):
-        out.append(_blocker('hero_not_image', 'hero_asset_id',
-                            'The hero must be an image, not a video or a document.'))
+                            'The hero is an excluded asset.'))
+    elif hero and not _is_frame(by_id.get(hero)):
+        out.append(_blocker('hero_is_document', 'hero_asset_id',
+                            'The hero must be an image or a video, not a document.'))
 
     evidence = _section(story, 'evidence') or {}
     for item in evidence.get('items') or []:
@@ -168,10 +184,10 @@ def apply_verdicts(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
     """Make the row agree with the safety verdicts. Returns the updated pair.
 
     An asset whose verdict is not `safe` is not included, whatever the drafter
-    said. A hero that points at an excluded asset, or at a video, is re-pointed
-    at the first included image, or cleared. Evidence items for excluded
-    assets are dropped. Quotes and links carry their own `included` flag and
-    are left as they are.
+    said. A hero that points at an excluded asset, or at a document, is
+    re-pointed at the first included image, else the first included video, or
+    cleared. Evidence items for excluded assets are dropped. Quotes and links
+    carry their own `included` flag and are left as they are.
     """
     changed_assets: List[Dict[str, Any]] = []
     for asset in assets:
@@ -227,6 +243,7 @@ def _fill_urls(story: Dict[str, Any], assets: List[Dict[str, Any]]) -> Dict[str,
                 items.append({
                     **item,
                     'url': assets_mod.public_url_for(asset['public_path']),
+                    'poster_url': assets_mod.public_url_for(asset.get('poster_path')),
                     'width': asset.get('width'),
                     'height': asset.get('height'),
                     'alt': item.get('alt') or asset.get('alt') or '',
@@ -255,8 +272,7 @@ def _publish(story: Dict[str, Any], assets: List[Dict[str, Any]], *, admin=None,
 
     assets = assets_mod.copy_to_public(story, assets, admin=admin, repo=asset_repo)
     body = _fill_urls(story, assets)
-    hero_ids = [a['id'] for a in assets if a.get('included') and a.get('public_path')
-                and _is_still(a)]
+    hero_ids = _hero_candidates(assets, published_only=True)
     hero = story.get('hero_asset_id')
     if hero not in hero_ids:
         hero = hero_ids[0] if hero_ids else None
@@ -322,7 +338,7 @@ def unpublish(story_id: str, *, user_id: Optional[str] = None, reason: str = 'st
         # nightly reconcile retries the objects.
         report_error(e, 'Could not delete public story assets', story_id=story_id)
 
-    body = _fill_urls(story, [{**a, 'public_path': None} for a in assets])
+    body = _fill_urls(story, [{**a, 'public_path': None, 'poster_path': None} for a in assets])
     update = {
         'status': 'unpublished',
         'unpublished_at': now_iso(),
@@ -426,6 +442,10 @@ def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
         if not isinstance(section, dict):
             continue
         kind = section.get('kind')
+        if kind not in PUBLIC_SECTION_KINDS:
+            # how_it_went on rows drafted before 2026-09-12, or anything new
+            # the site does not know: not a public section.
+            continue
         if kind in ('what_they_did', 'what_it_counted_for'):
             sections.append({'kind': kind, 'body_md': section.get('body_md') or ''})
         elif kind == 'tasks':
@@ -434,6 +454,7 @@ def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
             sections.append({'kind': kind, 'rows': rows})
         elif kind == 'evidence':
             items = []
+            seen_assets: set = set()
             for item in section.get('items') or []:
                 if not isinstance(item, dict) or not _included(item):
                     continue
@@ -454,43 +475,89 @@ def _public_sections(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
                     continue
                 asset_id = item.get('asset_id')
                 asset = (by_id.get(asset_id) or {}) if asset_id else {}
-                url = (assets_mod.public_url_for(asset.get('public_path'))
-                       if asset.get('included') and asset.get('public_path')
-                       else asset.get('preview_url') or item.get('url'))
-                if not url:
+                if asset_id:
+                    seen_assets.add(asset_id)
+                public_item = _asset_public_item(asset, item)
+                if public_item is not None:
+                    items.append(public_item)
+            # An asset a superadmin included AFTER the draft (the model
+            # excluded it; a human looked and disagreed) has no body item,
+            # because the drafter writes items for included assets only.
+            # The asset row is the record of what is public, so it goes on
+            # the page too, after the drafted items, in upload order.
+            for asset_id, asset in by_id.items():
+                if asset_id in seen_assets or not asset.get('included'):
                     continue
-                # The asset row decides the type: a video is a video and a PDF
-                # a document whatever the item says, and neither carries a
-                # pixel size.
-                if _is_video(asset):
-                    item_type = 'video'
-                elif _is_document(asset):
-                    item_type = 'document'
-                else:
-                    item_type = item.get('type') or 'image'
-                public_item: Dict[str, Any] = {
-                    'type': item_type,
-                    'url': url,
-                    'alt': item.get('alt') or asset.get('alt') or '',
-                    'caption': item.get('caption') if item.get('caption') is not None else asset.get('caption'),
-                }
-                width = asset.get('width') or item.get('width')
-                height = asset.get('height') or item.get('height')
-                if width is not None:
-                    public_item['width'] = width
-                if height is not None:
-                    public_item['height'] = height
-                items.append(public_item)
+                public_item = _asset_public_item(asset, {})
+                if public_item is not None:
+                    items.append(public_item)
             sections.append({'kind': kind, 'items': items})
         elif kind == 'what_reviewer_looked_for':
             sections.append({'kind': kind,
                              'criteria': [_pick(c, CRITERION_KEYS)
                                           for c in section.get('criteria') or [] if _included(c)]})
-        elif kind == 'how_it_went':
-            sections.append({'kind': kind,
-                             'rounds': [_pick(r, ROUND_KEYS)
-                                        for r in section.get('rounds') or [] if _included(r)]})
     return sections, task_count
+
+
+def _asset_public_item(asset: Dict[str, Any], item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One image, video or document as the page shows it, or None when there
+    is nothing public to show. The asset row decides the type (a video is a
+    video and a PDF a document whatever the item says) and the URL; the body
+    item may carry the editor's alt and caption."""
+    url = (assets_mod.public_url_for(asset.get('public_path'))
+           if asset.get('included') and asset.get('public_path')
+           else asset.get('preview_url') or item.get('url'))
+    if not url:
+        return None
+    if _is_video(asset):
+        item_type = 'video'
+    elif _is_document(asset):
+        item_type = 'document'
+    else:
+        item_type = item.get('type') or 'image'
+    public_item: Dict[str, Any] = {
+        'type': item_type,
+        'url': url,
+        'alt': item.get('alt') or asset.get('alt') or '',
+        'caption': item.get('caption') if item.get('caption') is not None else asset.get('caption'),
+    }
+    width = asset.get('width') or item.get('width')
+    height = asset.get('height') or item.get('height')
+    if width is not None:
+        public_item['width'] = width
+    if height is not None:
+        public_item['height'] = height
+    if item_type == 'video':
+        public_item['thumb_url'] = (assets_mod.public_url_for(asset.get('poster_path'))
+                                    if asset.get('poster_path') else None)
+        public_item['duration_seconds'] = asset.get('duration_seconds')
+    return public_item
+
+
+def _public_hero(story: Dict[str, Any], by_id: Dict[str, Dict[str, Any]]
+                 ) -> Optional[Dict[str, Any]]:
+    """The page's lead evidence, or None. An image, or a video with its poster
+    frame when the publish step could extract one."""
+    hero_id = story.get('hero_asset_id')
+    hero = (by_id.get(str(hero_id)) if hero_id else None) or {}
+    if not _is_frame(hero) or not hero.get('included') or not hero.get('public_path'):
+        return None
+    url = assets_mod.public_url_for(hero.get('public_path'))
+    if not url:
+        return None
+    out: Dict[str, Any] = {
+        'type': 'video' if _is_video(hero) else 'image',
+        'url': url,
+        'alt': hero.get('alt') or None,
+        'caption': hero.get('caption') or None,
+        'width': hero.get('width'),
+        'height': hero.get('height'),
+    }
+    if _is_video(hero):
+        out['poster_url'] = (assets_mod.public_url_for(hero.get('poster_path'))
+                             if hero.get('poster_path') else None)
+        out['duration_seconds'] = hero.get('duration_seconds')
+    return out
 
 
 def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
@@ -516,11 +583,18 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
     faq = [{'q': f.get('q'), 'a': f.get('a')} for f in body.get('faq') or []
            if isinstance(f, dict) and f.get('q') and f.get('a')]
 
-    hero = by_id.get(story.get('hero_asset_id')) or {}
-    if not _is_still(hero):
-        hero = {}
-    hero_url = (assets_mod.public_url_for(hero.get('public_path'))
-                if hero.get('included') and hero.get('public_path') else None)
+    hero = _public_hero(story, by_id)
+    # The still the card, the og:image and Article.image use: the image
+    # itself, or a video's poster frame. `hero_image_url` is the name the
+    # site's schema had before `hero` existed and is kept for it.
+    still_url = None
+    if hero:
+        still_url = hero['url'] if hero['type'] == 'image' else hero.get('poster_url')
+
+    # An anonymized story names nobody, not even generically: the page says
+    # the grade band and the school in its facts instead. The stored label
+    # stays on the row for the prompt and the label_not_generic blocker.
+    named = (story.get('tier') or 'anonymized') == 'named'
 
     raw_receipt = story.get('receipt')
     receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
@@ -534,7 +608,7 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
         'updated_at': story.get('updated_at'),
         'author': {'name': story.get('author_name'), 'title': story.get('author_title')},
         'student': {
-            'label': story.get('student_label'),
+            'label': story.get('student_label') if named else None,
             'setting': story.get('setting'),
             'grade_band': story.get('grade_band'),
         },
@@ -552,12 +626,14 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
                           for r in (story.get('subject_split') or []) if isinstance(r, dict)],
         'xp_awarded': story.get('xp_awarded'),
         'credit_fraction': credit_display(story.get('credit_fraction')),
+        'credit_rule': {'xp_per_credit': XP_PER_CREDIT},
         'task_count': task_count,
         'sections': sections,
         'faq': faq,
-        'hero_image_url': hero_url,
-        'hero_alt': hero.get('alt') if hero_url else None,
-        'og_image_url': None,
+        'hero': hero,
+        'hero_image_url': still_url,
+        'hero_alt': (hero.get('alt') if hero else None) if still_url else None,
+        'og_image_url': still_url,
         'source': {'type': story.get('source_type')},
     }
 
@@ -581,7 +657,8 @@ def reconcile(*, admin=None) -> Dict[str, Any]:
                 assets = asset_repo.for_story(row['id'])
                 if row.get('status') == 'published':
                     missing = [a for a in assets if a.get('included') and not a.get('public_path')]
-                    stray = [a for a in assets if a.get('public_path') and not a.get('included')]
+                    stray = [a for a in assets if not a.get('included')
+                             and (a.get('public_path') or a.get('poster_path'))]
                     if missing:
                         story = story_repo.get(row['id']) or row
                         updated = assets_mod.copy_to_public(story, assets, admin=admin, repo=asset_repo)
@@ -595,7 +672,7 @@ def reconcile(*, admin=None) -> Dict[str, Any]:
                         assets = asset_repo.for_story(row['id'])
                         story_repo.patch(row['id'], {'body': _fill_urls(story, assets)})
                 else:
-                    if any(a.get('public_path') for a in assets):
+                    if any(a.get('public_path') or a.get('poster_path') for a in assets):
                         counts['removed'] += assets_mod.delete_public(
                             row, assets, admin=admin, repo=asset_repo)
             except Exception as e:  # noqa: BLE001

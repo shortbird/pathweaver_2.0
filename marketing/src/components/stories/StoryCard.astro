@@ -1,11 +1,13 @@
 ---
 /**
- * One story in a list: hero (or the receipt icon), title, dek, and the
- * transcript line it became. The whole card is the link.
+ * One story in a list: the student's evidence, then the title and dek. The
+ * whole card is the link, so a video hero is shown as its poster with a play
+ * badge (it plays on the page); a video with no poster is a muted, unplayed
+ * <video> so the browser paints its first frame. No hero: the receipt icon.
  */
 import { Image } from 'astro:assets'
 import type { StoryCardProps } from '../../lib/stories'
-import { storyUrl, SETTING_LABEL } from '../../lib/stories'
+import { storyUrl, videoType, SETTING_LABEL } from '../../lib/stories'
 import { RECEIPT_ICON_PATHS } from '../../data/receipt-icons'
 
 export interface Props {
@@ -19,6 +21,7 @@ const { story, headingLevel = 'h3', loading = 'lazy', class: className = '' } = 
 const Heading = headingLevel
 
 const icons = RECEIPT_ICON_PATHS
+const isVideo = story.hero?.type === 'video'
 ---
 
 <a
@@ -26,9 +29,9 @@ const icons = RECEIPT_ICON_PATHS
   class={`group flex flex-col bg-white rounded-2xl border border-neutral-100 shadow-lg overflow-hidden h-full transition-shadow hover:shadow-xl ${className}`}
 >
   <div class="aspect-[16/9] overflow-hidden bg-neutral-50 relative">
-    {story.hero_image_url ? (
+    {story.hero_still ? (
       <Image
-        src={story.hero_image_url}
+        src={story.hero_still}
         alt={story.hero_alt}
         widths={[480, 800]}
         sizes="(min-width: 768px) 400px, 100vw"
@@ -36,6 +39,10 @@ const icons = RECEIPT_ICON_PATHS
         loading={loading}
         class="w-full h-full object-cover object-top"
       />
+    ) : isVideo && story.hero ? (
+      <video muted playsinline preload="metadata" class="w-full h-full object-cover bg-neutral-900" aria-hidden="true" tabindex="-1">
+        <source src={story.hero.url} type={videoType(story.hero.url)} />
+      </video>
     ) : (
       <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-optio-purple/10 to-optio-pink/10">
         <span class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white text-optio-purple shadow-sm" aria-hidden="true">
@@ -44,6 +51,13 @@ const icons = RECEIPT_ICON_PATHS
           </svg>
         </span>
       </div>
+    )}
+    {isVideo && (
+      <span class="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white/90 text-optio-purple shadow-md">
+          <svg class="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+        </span>
+      </span>
     )}
   </div>
   <div class="px-5 pt-4 pb-3 flex-1 flex flex-col">
@@ -56,12 +70,12 @@ const icons = RECEIPT_ICON_PATHS
     <p class="text-sm text-neutral-500 font-medium leading-relaxed line-clamp-3">{story.dek}</p>
   </div>
   <div class="border-t border-dashed border-neutral-300 bg-neutral-50/60 px-5 py-3 flex items-center justify-between gap-2">
-    <span class="text-sm font-semibold text-neutral-900">{story.credit_fraction}</span>
+    <span class="text-sm font-semibold text-neutral-900">{isVideo ? 'Watch the work' : 'See the work'}</span>
     <span class="inline-flex items-center gap-1 text-sm font-semibold text-green-700 whitespace-nowrap">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
       </svg>
-      Earned
+      Earned credit
     </span>
   </div>
 </a>

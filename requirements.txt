@@ -72,6 +72,7 @@ beautifulsoup4==4.12.3  # HTML parsing for Khan Academy scraper
 lxml==6.1.0  # Fast XML/HTML parser for BeautifulSoup
 Pillow>=10.0.0,<13  # Image processing for curriculum images
 pillow-heif>=0.18.0,<2  # HEIF/HEIC support for Pillow (iPhone photos)
+imageio-ffmpeg>=0.5,<1  # bundled ffmpeg: one poster frame per story video (services/stories/video_poster.py); optional at runtime
 
 # Document Parsing (AI Curriculum Upload)
 pdfplumber>=0.10.0,<1  # PDF parsing with layout awareness

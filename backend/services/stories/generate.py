@@ -246,6 +246,10 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
         source.release_images()
 
     fields = assembled['story']
+    # A story that has been published has a URL, and a URL that changes on a
+    # regenerate is a broken link on the site and in the index. Keep it.
+    if row.get('published_at') and row.get('slug'):
+        fields['slug'] = row['slug']
     checked, text_report = safety.check_text(
         {k: fields.get(k) for k in ('title', 'dek', 'body', 'activity_label', 'receipt')},
         scrubber)

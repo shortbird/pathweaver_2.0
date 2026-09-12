@@ -113,20 +113,28 @@ class TestPublicView:
         assert set(view) == {
             'slug', 'title', 'dek', 'status', 'published_at', 'updated_at', 'author', 'student',
             'activity', 'receipt', 'subject', 'subject_slug', 'subject_split', 'xp_awarded',
-            'credit_fraction', 'task_count', 'sections', 'faq', 'hero_image_url', 'hero_alt',
-            'og_image_url', 'source'}
+            'credit_fraction', 'credit_rule', 'task_count', 'sections', 'faq', 'hero',
+            'hero_image_url', 'hero_alt', 'og_image_url', 'source'}
         assert view['status'] == 'published'
         assert view['author'] == {'name': 'Dr. Tanner Bowman', 'title': 'Founder, Optio'}
-        assert view['student'] == {'label': 'A high school student', 'setting': 'homeschool',
-                                   'grade_band': 'high'}
+        # An anonymized story names nobody, not even generically: the page
+        # shows the grade band and the school instead.
+        assert view['student'] == {'label': None, 'setting': 'homeschool', 'grade_band': 'high'}
         assert view['activity'] == {'slug': 'other', 'label': 'A bridge build'}
         assert view['receipt'] == {'activity': 'Backyard bridge', 'course': 'Science',
                                    'credit': '0.08 credit', 'icon': 'flask'}
         assert view['subject_slug'] == 'physical-education'
         assert view['credit_fraction'] == '0.08 credit'
+        assert view['credit_rule'] == {'xp_per_credit': 2000}
         assert view['task_count'] == 1
-        assert view['og_image_url'] is None
+        assert view['hero'] == {'type': 'image', 'url': view['hero_image_url'], 'alt': 'A bridge',
+                                'caption': 'The bridge', 'width': 1600, 'height': 900}
+        assert view['og_image_url'] == view['hero_image_url']
         assert view['source'] == {'type': 'credit_submission'}
+
+    def test_a_named_story_keeps_its_label(self):
+        view = public_view({**_story(), 'tier': 'named', 'student_label': 'Anna, 14'}, _assets())
+        assert view['student']['label'] == 'Anna, 14'
 
     def test_every_url_is_public_story_assets(self):
         view = public_view(_story(), _assets())
@@ -149,13 +157,14 @@ class TestPublicView:
         view = public_view(_story(), _assets())
         by_kind = {s['kind']: s for s in view['sections']}
         assert set(by_kind['tasks']['rows'][0]) == {'title', 'subject', 'xp', 'criteria_met',
-                                                    'criteria_total', 'rounds'}
+                                                    'criteria_total'}
         assert set(by_kind['what_reviewer_looked_for']['criteria'][0]) == {'text', 'verdict', 'note'}
-        assert set(by_kind['how_it_went']['rounds'][0]) == {'round', 'date', 'action',
-                                                            'feedback_verbatim', 'what_changed'}
+        # The review rounds live on the row (older stories still carry the
+        # section) and never reach the page.
+        assert 'how_it_went' not in by_kind
         assert [s['kind'] for s in view['sections']] == [
-            'what_they_did', 'tasks', 'evidence', 'what_reviewer_looked_for', 'how_it_went',
-            'what_it_counted_for']
+            'what_they_did', 'tasks', 'evidence', 'what_reviewer_looked_for', 'what_it_counted_for']
+        assert 'feedback_verbatim' not in _keys(view)
 
     def test_hero_pointing_at_an_excluded_asset_is_null(self):
         story = {**_story(), 'hero_asset_id': 'a2'}
@@ -181,8 +190,9 @@ class TestPublicView:
         items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
         assert [i['type'] for i in items] == ['image', 'video']
         video = items[1]
-        assert set(video) == {'type', 'url', 'alt', 'caption'}
+        assert set(video) == {'type', 'url', 'alt', 'caption', 'thumb_url', 'duration_seconds'}
         assert video['url'].endswith(f'/story-assets/stories/{STORY_ID}/a3.mp4')
+        assert video['thumb_url'] is None and video['duration_seconds'] is None
         assert video['alt'] == 'A dance routine' and video['caption'] == 'One take'
         for url in _urls(view):
             assert 'quest-evidence' not in url and '/sign/' not in url
@@ -235,18 +245,78 @@ class TestPublicView:
             assert forbidden not in keys, forbidden
         assert 'Anna' not in str(view) and 'instagram' not in str(view)
 
-    @pytest.mark.parametrize('kind, path', [('video', 'a3.mp4'), ('document', 'a3.pdf')])
-    def test_a_video_or_a_document_is_never_the_hero_image(self, kind, path):
-        story = {**_story(), 'hero_asset_id': 'a3'}
-        assets = _assets() + [{
+    def _file_asset(self, kind, path, **extra):
+        return {
             'id': 'a3', 'story_id': STORY_ID, 'source_ref': PRIVATE, 'kind': kind,
             'mime_type': 'video/mp4' if kind == 'video' else 'application/pdf',
-            'public_path': f'stories/{STORY_ID}/{path}',
+            'public_path': f'stories/{STORY_ID}/{path}', 'poster_path': None,
             'alt': 'A file', 'caption': None, 'width': None, 'height': None,
-            'order_index': 2, 'safety': {'verdict': 'safe'}, 'included': True,
-        }]
-        view = public_view(story, assets)
+            'order_index': 2, 'safety': {'verdict': 'safe'}, 'included': True, **extra,
+        }
+
+    def test_a_document_is_never_the_hero(self):
+        story = {**_story(), 'hero_asset_id': 'a3'}
+        view = public_view(story, _assets() + [self._file_asset('document', 'a3.pdf')])
+        assert view['hero'] is None
         assert view['hero_image_url'] is None and view['hero_alt'] is None
+        assert view['og_image_url'] is None
+
+    def test_a_video_hero_without_a_poster_has_no_still(self):
+        story = {**_story(), 'hero_asset_id': 'a3'}
+        view = public_view(story, _assets() + [self._file_asset('video', 'a3.mp4')])
+        assert view['hero'] == {'type': 'video', 'url': view['hero']['url'], 'alt': 'A file',
+                                'caption': None, 'width': None, 'height': None,
+                                'poster_url': None, 'duration_seconds': None}
+        assert view['hero']['url'].endswith(f'/story-assets/stories/{STORY_ID}/a3.mp4')
+        assert view['hero_image_url'] is None and view['hero_alt'] is None
+        assert view['og_image_url'] is None
+
+    def test_a_video_hero_with_a_poster_uses_the_poster_as_the_still(self):
+        story = {**_story(), 'hero_asset_id': 'a3'}
+        asset = self._file_asset('video', 'a3.mp4', poster_path=f'stories/{STORY_ID}/a3.poster.jpg',
+                                 width=640, height=360, duration_seconds=4.5)
+        view = public_view(story, _assets() + [asset])
+        assert view['hero']['type'] == 'video'
+        assert view['hero']['poster_url'].endswith(f'/story-assets/stories/{STORY_ID}/a3.poster.jpg')
+        assert view['hero']['duration_seconds'] == 4.5
+        assert (view['hero']['width'], view['hero']['height']) == (640, 360)
+        assert view['hero_image_url'] == view['hero']['poster_url'] == view['og_image_url']
+        assert view['hero_alt'] == 'A file'
+        for url in _urls(view):
+            assert 'quest-evidence' not in url and '/sign/' not in url
+
+    def test_an_asset_included_after_the_draft_is_on_the_page_without_a_body_item(self):
+        """The drafter writes evidence items for included assets only. A
+        superadmin who includes an excluded asset later (the model was unsure,
+        a human looked) has no body item to edit; the asset row is what says
+        it is public, and the page follows the row."""
+        story = _story()
+        assets = _assets() + [self._file_asset('video', 'a3.mp4', alt='The loop',
+                                               poster_path=f'stories/{STORY_ID}/a3.poster.jpg')]
+        view = public_view(story, assets)
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image', 'video']   # drafted first, then the row
+        assert items[1]['url'].endswith('a3.mp4') and items[1]['alt'] == 'The loop'
+        assert items[1]['thumb_url'].endswith('a3.poster.jpg')
+
+    def test_an_excluded_asset_without_a_body_item_stays_off_the_page(self):
+        story = _story()
+        assets = _assets() + [self._file_asset('video', 'a3.mp4', included=False)]
+        view = public_view(story, assets)
+        items = next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+        assert [i['type'] for i in items] == ['image']
+
+    def test_a_video_evidence_item_carries_its_poster_as_thumb(self):
+        story = _story()
+        evidence = next(s for s in story['body']['sections'] if s['kind'] == 'evidence')
+        evidence['items'].append({'type': 'video', 'asset_id': 'a3', 'url': None,
+                                  'alt': 'x', 'caption': None, 'width': None, 'height': None})
+        asset = self._file_asset('video', 'a3.mp4', poster_path=f'stories/{STORY_ID}/a3.poster.jpg',
+                                 duration_seconds=12)
+        view = public_view(story, _assets() + [asset])
+        video = next(i for i in next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
+                     if i['type'] == 'video')
+        assert video['thumb_url'].endswith('a3.poster.jpg') and video['duration_seconds'] == 12
 
 
 # ── the endpoint ─────────────────────────────────────────────────────────────
@@ -368,7 +438,7 @@ def test_rows_an_editor_switched_off_are_not_published():
     view = public_view(story, [])
     by_kind = {s['kind']: s for s in view['sections']}
     assert [c['text'] for c in by_kind['what_reviewer_looked_for']['criteria']] == ['kept']
-    assert [r['round'] for r in by_kind['how_it_went']['rounds']] == [2]
+    assert 'how_it_went' not in by_kind                     # never public, on or off
     assert [r['title'] for r in by_kind['tasks']['rows']] == ['b']
     assert 'included' not in str(view)
 

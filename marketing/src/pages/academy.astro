@@ -9,6 +9,7 @@ import WascBadge from '../components/WascBadge.astro'
 import { SITE, OFFER, SOCIAL_LINKS, appLink } from '../data/site'
 import { testimonials } from '../data/testimonials'
 import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
+import { HOW_IT_WORKS } from '../data/howItWorks'
 
 const SCREENSHOTS = [
   {
@@ -180,20 +181,7 @@ const schema = [
       <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 text-center mb-12">How it works</h2>
       <div class="grid md:grid-cols-2 gap-12 items-center">
         <ol class="space-y-8">
-          {[
-            {
-              title: 'They pick the project.',
-              body: 'Something they already care about: the sport, the song, the code, the business.',
-            },
-            {
-              title: 'They do it and capture it.',
-              body: 'Photos, videos, drafts, logged in the app as they go.',
-            },
-            {
-              title: 'A licensed teacher makes it count.',
-              body: 'Evidence reviewed, credit awarded, straight onto a WASC-accredited transcript.',
-            },
-          ].map((step, i) => (
+          {HOW_IT_WORKS.map((step, i) => (
             <li class="flex items-start gap-5">
               <span class="flex-shrink-0 w-10 h-10 rounded-full bg-optio-purple text-white flex items-center justify-center text-base font-bold">
                 {i + 1}

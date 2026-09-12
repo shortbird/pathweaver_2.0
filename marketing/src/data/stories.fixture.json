@@ -110,7 +110,7 @@
     "published_at": "2026-08-20T15:00:00+00:00",
     "updated_at": "2026-08-20T15:00:00+00:00",
     "author": { "name": "Dr. Tanner Bowman", "title": "Founder and Head of School, Optio Academy" },
-    "student": { "label": "A middle schooler", "setting": "homeschool", "grade_band": "middle" },
+    "student": { "label": null, "setting": "homeschool", "grade_band": "middle" },
     "activity": { "slug": "art", "label": "stop motion film project" },
     "receipt": { "activity": "A stop motion short film", "course": "Fine Arts", "credit": "1.0 credit", "icon": "brush" },
     "subject": "Fine Arts",
@@ -130,11 +130,11 @@
       {
         "kind": "tasks",
         "rows": [
-          { "title": "Storyboard the film", "subject": "Fine Arts", "xp": 200, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
-          { "title": "Build the set", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
-          { "title": "Model the characters", "subject": "Fine Arts", "xp": 300, "criteria_met": 4, "criteria_total": 4, "rounds": 2 },
-          { "title": "Shoot the frames", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3, "rounds": 1 },
-          { "title": "Edit and export the film", "subject": "Computer Science", "xp": 500, "criteria_met": 4, "criteria_total": 4, "rounds": 2 }
+          { "title": "Storyboard the film", "subject": "Fine Arts", "xp": 200, "criteria_met": 3, "criteria_total": 3 },
+          { "title": "Build the set", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3 },
+          { "title": "Model the characters", "subject": "Fine Arts", "xp": 300, "criteria_met": 4, "criteria_total": 4 },
+          { "title": "Shoot the frames", "subject": "Fine Arts", "xp": 250, "criteria_met": 3, "criteria_total": 3 },
+          { "title": "Edit and export the film", "subject": "Computer Science", "xp": 500, "criteria_met": 4, "criteria_total": 4 }
         ]
       },
       {
@@ -169,32 +169,6 @@
         ]
       },
       {
-        "kind": "how_it_went",
-        "rounds": [
-          {
-            "round": 1,
-            "date": "2026-07-28T00:00:00+00:00",
-            "action": "Returned for revision",
-            "feedback_verbatim": "The characters slump between frames in the second scene. Look up wire armatures. Everything else in this task is ready.",
-            "what_changed": "The student rebuilt two characters on wire armatures and reshot the scene."
-          },
-          {
-            "round": 2,
-            "date": "2026-08-06T00:00:00+00:00",
-            "action": "Returned for revision",
-            "feedback_verbatim": "For the editing task I need one thing more: tell me what frame rate you chose and why. A list of tools is not the same as knowing what they do.",
-            "what_changed": "The student added a paragraph on frame rate and export settings."
-          },
-          {
-            "round": 3,
-            "date": "2026-08-12T00:00:00+00:00",
-            "action": "Credit awarded",
-            "feedback_verbatim": "Both tasks finalized. The film plays, the characters hold, and you can explain your own export settings. Well done.",
-            "what_changed": null
-          }
-        ]
-      },
-      {
         "kind": "what_it_counted_for",
         "body_md": "The five tasks earned 1,500 XP: 1,000 in Fine Arts and 500 in Computer Science. On the transcript that is 1.0 credit of Fine Arts and 0.5 credit of Computer Science.\n\nThe family is homeschooling. The credit sits on an official Optio Academy transcript, ready for the day the student applies to a school that asks for one."
       }
@@ -203,9 +177,20 @@
       { "q": "Can one project count toward two subjects?", "a": "Yes. Each task carries its own subject and XP. This project's editing task was Computer Science; the other four were Fine Arts. The transcript shows both." },
       { "q": "Who decided the project was finished?", "a": "A licensed Optio teacher reviewed every task. Two tasks came back once for revision. The third round finalized both and awarded the credit." }
     ],
+    "credit_rule": { "xp_per_credit": 2000 },
+    "hero": {
+      "type": "video",
+      "url": "https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/story-assets/stories/fixture/stop-motion.mp4",
+      "alt": "The finished stop motion film",
+      "caption": "The finished film. Four hundred frames, one afternoon of editing.",
+      "poster_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
+      "width": null,
+      "height": null,
+      "duration_seconds": 12
+    },
     "hero_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
-    "hero_alt": "The stop motion project in the Optio app",
-    "og_image_url": null,
+    "hero_alt": "The finished stop motion film",
+    "og_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
     "source": { "type": "quest" }
   }
 ]

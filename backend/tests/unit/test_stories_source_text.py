@@ -76,7 +76,7 @@ class FakeRepo:
                 'preferred_name': None, 'role': 'student', 'organization_id': None,
                 'date_of_birth': None} if uid == STUDENT_ID else None
     def parent_rows(self, student): return []
-    def org_name(self, org_id): return None
+    def org_row(self, org_id): return None
     def active_academy_enrollment(self, uid): return None
 
 
@@ -341,7 +341,7 @@ def test_the_prompt_labels_quotes_and_does_not_print_them_twice():
     assert text.count('It held 12 kg.') == 1
     assert text.count('Some notes.') == 1
     assert 'Do not invent quotations.' in text
-    assert prompt_mod.PROMPT_VERSION == 'story-draft/2026-09-11.3'
+    assert prompt_mod.PROMPT_VERSION == 'story-draft/2026-09-12.1'
 
 
 def test_strip_extension_and_hostname_helpers():

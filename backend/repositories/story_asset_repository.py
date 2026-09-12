@@ -10,7 +10,9 @@ the story body's evidence items.
 It exists so an editor can be shown a thumbnail and so the publish step can
 download the bytes; it never reaches the public endpoint. `public_path` is
 where the scrubbed copy sits in the public `story-assets` bucket once the story
-is published, and it is null until then.
+is published, and it is null until then. `poster_path` is the still frame the
+publish step extracted from a video, beside it in the same bucket; null for
+anything that is not a video, and for a video ffmpeg could not read.
 """
 
 from __future__ import annotations
@@ -21,8 +23,8 @@ from repositories.base_repository import BaseRepository
 
 COLUMNS = (
     'id, story_id, source_block_id, source_item_index, source_ref, kind, mime_type, '
-    'duration_seconds, public_path, alt, caption, width, height, order_index, safety, '
-    'included, created_at, updated_at'
+    'duration_seconds, public_path, poster_path, alt, caption, width, height, order_index, '
+    'safety, included, created_at, updated_at'
 )
 
 
@@ -66,6 +68,7 @@ class StoryAssetRepository(BaseRepository):
         return rows[0] if rows else None
 
     def clear_public_paths(self, story_id: str) -> None:
-        """After the public copies are deleted, forget where they were."""
-        self.client.table(self.table_name).update({'public_path': None}).eq(
-            'story_id', story_id).execute()
+        """After the public copies are deleted, forget where they were. The
+        poster goes with the video it came from."""
+        self.client.table(self.table_name).update(
+            {'public_path': None, 'poster_path': None}).eq('story_id', story_id).execute()

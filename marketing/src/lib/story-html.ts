@@ -7,7 +7,8 @@
 import type { Story } from '../data/stories.schema'
 import { SITE } from '../data/site'
 import { absolute } from '../data/schema'
-import { formatDate, hostnameOf, reviewStats, sectionsByKind, summarySentence, SETTING_LABEL, GRADE_BAND_LABEL, landerFor, storyUrl } from './stories'
+import { creditExplainer } from '../data/howItWorks'
+import { evidenceBesidesHero, heroOf, heroStill, hostnameOf, sectionsByKind, SETTING_LABEL, GRADE_BAND_LABEL, landerFor, storyUrl, xpPerCredit } from './stories'
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -15,27 +16,32 @@ const esc = (s: string) =>
 const p = (text: string) => `<p>${esc(text)}</p>`
 
 export function storyHtml(story: Story): string {
-  const { whatTheyDid, tasks, evidence, criteria, howItWent, whatItCountedFor } = sectionsByKind(story)
-  const stats = reviewStats(story)
+  const { whatTheyDid, tasks, criteria, whatItCountedFor } = sectionsByKind(story)
   const lander = landerFor(story)
+  const hero = heroOf(story)
+  const still = heroStill(story)
   const parts: string[] = []
 
-  parts.push(`<p><strong>${esc(summarySentence(story))}</strong></p>`)
-  parts.push(p(story.dek))
+  parts.push(`<p><strong>${esc(story.dek)}</strong></p>`)
 
-  const facts: [string, string][] = [
-    ['Student', story.student.label],
-    ['Setting', SETTING_LABEL[story.student.setting]],
-    ['Activity', story.activity.label],
-    [story.subject_split.length > 1 ? 'Subjects' : 'Subject', story.subject_split.map((s) => `${s.subject} (${s.xp} XP)`).join(', ') || story.subject],
-    ['Credit', story.credit_fraction],
-    ['XP', String(story.xp_awarded)],
-  ]
-  if (story.student.grade_band && !/elementary|middle|high school/i.test(story.student.label)) {
-    facts.splice(1, 0, ['Grade band', GRADE_BAND_LABEL[story.student.grade_band]])
+  // The work first, as on the page. A video is a link (feed readers rarely
+  // play inline), with its poster shown when there is one.
+  if (hero?.type === 'video') {
+    const label = hero.caption || hero.alt || 'Watch the video'
+    const poster = still ? `<p><img src="${esc(still)}" alt="${esc(hero.alt ?? '')}" /></p>` : ''
+    parts.push(`${poster}<p><a href="${esc(hero.url)}">${esc(label)}</a></p>`)
+  } else if (hero) {
+    const size = hero.width && hero.height ? ` width="${hero.width}" height="${hero.height}"` : ''
+    parts.push(`<figure><img src="${esc(hero.url)}" alt="${esc(hero.alt ?? '')}"${size} />${hero.caption ? `<figcaption>${esc(hero.caption)}</figcaption>` : ''}</figure>`)
   }
+
+  const facts: [string, string][] = []
+  if (story.student.label) facts.push(['Student', story.student.label])
+  facts.push(['School', SETTING_LABEL[story.student.setting]])
+  if (story.student.grade_band) facts.push(['Grade', GRADE_BAND_LABEL[story.student.grade_band]])
+  facts.push([story.subject_split.length > 1 ? 'Subjects' : 'Subject', story.subject_split.map((s) => s.subject).join(', ') || story.subject])
+  facts.push(['Activity', story.activity.label])
   if (story.task_count > 1) facts.push(['Tasks', String(story.task_count)])
-  if (stats.rounds > 0) facts.push(['Review rounds', String(stats.rounds)])
   parts.push(`<ul>${facts.map(([k, v]) => `<li><strong>${esc(k)}:</strong> ${esc(v)}</li>`).join('')}</ul>`)
 
   if (whatTheyDid) {
@@ -52,9 +58,10 @@ export function storyHtml(story: Story): string {
     )
   }
 
-  if (evidence && evidence.items.length > 0) {
-    parts.push('<h2>What the student submitted as evidence</h2>')
-    for (const item of evidence.items) {
+  const more = evidenceBesidesHero(story)
+  if (more.length > 0) {
+    parts.push(hero ? '<h2>More of the evidence</h2>' : '<h2>What the student submitted as evidence</h2>')
+    for (const item of more) {
       if (item.type === 'image' && item.url) {
         const size = item.width && item.height ? ` width="${item.width}" height="${item.height}"` : ''
         parts.push(`<figure><img src="${esc(item.url)}" alt="${esc(item.alt ?? '')}"${size} />${item.caption ? `<figcaption>${esc(item.caption)}</figcaption>` : ''}</figure>`)
@@ -75,7 +82,7 @@ export function storyHtml(story: Story): string {
   }
 
   if (criteria && criteria.criteria.length > 0) {
-    parts.push('<h2>What the reviewer looked for</h2>')
+    parts.push('<h2>What the teacher checked</h2>')
     parts.push(
       `<ul>${criteria.criteria
         .map((c) => `<li>${esc(c.text)} (${c.verdict === 'met' ? 'Met' : 'Partial'})${c.note ? `: ${esc(c.note)}` : ''}</li>`)
@@ -83,21 +90,12 @@ export function storyHtml(story: Story): string {
     )
   }
 
-  if (howItWent && howItWent.rounds.length > 0) {
-    parts.push('<h2>How the review went</h2>')
-    for (const round of howItWent.rounds) {
-      parts.push(`<h3>Round ${round.round}: ${esc(round.action)} (${esc(formatDate(round.date))})</h3>`)
-      if (round.feedback_verbatim) {
-        parts.push(`<p><em>Reviewer feedback, verbatim:</em></p><blockquote>${esc(round.feedback_verbatim)}</blockquote>`)
-      }
-      if (round.what_changed) parts.push(p(`What changed: ${round.what_changed}`))
-    }
-  }
-
+  parts.push('<h2>What it counted for</h2>')
   if (whatItCountedFor) {
-    parts.push('<h2>What it counted for</h2>')
     parts.push(whatItCountedFor.body_html ?? p(whatItCountedFor.body_md))
   }
+  parts.push(p(creditExplainer(xpPerCredit(story))))
+  parts.push(p(`${story.receipt.activity}: ${story.receipt.course}, ${story.receipt.credit}, earned.`))
   if (lander) {
     parts.push(`<p><a href="${esc(absolute(`/l/${lander.slug}/`))}">${esc(lander.headline)}</a></p>`)
   }
@@ -108,7 +106,7 @@ export function storyHtml(story: Story): string {
   }
 
   parts.push(
-    p(`Written by ${story.author.name}, ${story.author.title}, from a real submission reviewed by a licensed Optio teacher. Student details are anonymized.`)
+    p(`Written by ${story.author.name}, ${story.author.title}, from a real submission reviewed by a licensed Optio teacher. Student details are anonymized unless a family has recorded consent.`)
   )
   parts.push(`<p><a href="${esc(absolute(storyUrl(story)))}">Read this story on ${esc(SITE.name)}</a></p>`)
 

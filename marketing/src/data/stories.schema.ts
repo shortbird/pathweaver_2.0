@@ -30,7 +30,8 @@ export const taskRow = z.object({
   xp: z.number().int().nonnegative(),
   criteria_met: z.number().int().nonnegative(),
   criteria_total: z.number().int().nonnegative(),
-  rounds: z.number().int().nonnegative(),
+  /** Sent by the API until 2026-09-12; never rendered. */
+  rounds: z.number().int().nonnegative().optional(),
 })
 
 export const evidenceItem = z.object({
@@ -52,6 +53,25 @@ export const evidenceItem = z.object({
   thumb_url: z.string().nullable().optional(),
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
+  /** A video's length, when the publish step could probe it. */
+  duration_seconds: z.number().nonnegative().nullable().optional(),
+})
+
+/**
+ * What the page leads with: the student's own work. An image, or a video
+ * with the poster frame the backend extracted at publish time (null when
+ * ffmpeg could not read the clip; the browser paints its own first frame).
+ * Never a document. Absent from payloads older than 2026-09-12.
+ */
+export const storyHero = z.object({
+  type: z.enum(['image', 'video']),
+  url: z.string().url(),
+  alt: z.string().nullable().optional(),
+  caption: z.string().nullable().optional(),
+  poster_url: z.string().url().nullable().optional(),
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
+  duration_seconds: z.number().nonnegative().nullable().optional(),
 })
 
 export const criterion = z.object({
@@ -68,6 +88,11 @@ export const reviewRound = z.object({
   what_changed: z.string().nullable().optional(),
 })
 
+/**
+ * `how_it_went` stays in the union so a payload from before 2026-09-12 still
+ * validates; no page renders it. The review rounds are paperwork, and a
+ * visitor is here for the work.
+ */
 export const storySection = z.discriminatedUnion('kind', [
   markdownSection('what_they_did'),
   z.object({ kind: z.literal('tasks'), rows: z.array(taskRow) }),
@@ -87,7 +112,8 @@ export const storySchema = z.object({
   updated_at: z.coerce.date(),
   author: z.object({ name: z.string(), title: z.string() }),
   student: z.object({
-    label: z.string(),
+    /** A first name (with consent). Null on an anonymized story: the page says the grade band and the school instead. */
+    label: z.string().nullable(),
     setting: z.enum(['homeschool', 'academy', 'org']),
     grade_band: z.enum(['elementary', 'middle', 'high']).nullable(),
   }),
@@ -108,9 +134,13 @@ export const storySchema = z.object({
   xp_awarded: z.number().int().nonnegative(),
   /** Display string, e.g. "0.5 credit" or "1.5 credits". */
   credit_fraction: z.string(),
+  /** The platform rule the explainer quotes. Absent from payloads older than 2026-09-12. */
+  credit_rule: z.object({ xp_per_credit: z.number().int().positive() }).optional(),
   task_count: z.number().int().nonnegative(),
   sections: z.array(storySection),
   faq: z.array(z.object({ q: z.string(), a: z.string() })),
+  hero: storyHero.nullable().optional(),
+  /** The hero's still: the image itself, or a video's poster. What the card and the og:image use. */
   hero_image_url: z.string().url().nullable(),
   hero_alt: z.string().nullable().optional(),
   og_image_url: z.string().url().nullable().optional(),
@@ -119,6 +149,7 @@ export const storySchema = z.object({
 
 export type Story = z.infer<typeof storySchema>
 export type StorySection = z.infer<typeof storySection>
+export type StoryHero = z.infer<typeof storyHero>
 export type EvidenceItem = z.infer<typeof evidenceItem>
 export type TaskRow = z.infer<typeof taskRow>
 export type Criterion = z.infer<typeof criterion>

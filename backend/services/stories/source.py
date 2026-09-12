@@ -183,7 +183,7 @@ class StudentSource:
     first_name: Optional[str]
     date_of_birth: Optional[str]
     grade_level: Optional[str]
-    setting: str                  # academy | homeschool
+    setting: str                  # academy | homeschool | org
     is_org_student: bool
     organization_id: Optional[str]
     identity_names: List[str]
@@ -366,6 +366,27 @@ def _name_fields(row: Optional[Dict[str, Any]]) -> List[str]:
             if row.get(k)]
 
 
+#: The slug of Optio's own school's organization row. A member of it is an
+#: Optio Academy student whether or not an `academy_enrollments` row exists:
+#: production carried twelve Academy students and zero enrollment rows on
+#: 2026-09-12, and every one of them was being published as "homeschool".
+OPTIO_ACADEMY_ORG_SLUG = 'optio-academy'
+
+
+def student_setting(*, enrollment: Optional[Dict[str, Any]], org: Optional[Dict[str, Any]]) -> str:
+    """academy | org | homeschool.
+
+    An active enrollment or membership of the Optio Academy org is `academy`;
+    any other org is `org` (a partner school the story must not name);
+    nobody's org is `homeschool`.
+    """
+    if enrollment or (org and org.get('slug') == OPTIO_ACADEMY_ORG_SLUG):
+        return 'academy'
+    if org:
+        return 'org'
+    return 'homeschool'
+
+
 def build_student(repo, user_id: str) -> Optional[StudentSource]:
     student = repo.student(user_id)
     if not student:
@@ -374,14 +395,20 @@ def build_student(repo, user_id: str) -> Optional[StudentSource]:
     for parent in repo.parent_rows(student):
         names.extend(_name_fields(parent))
     org_id = student.get('organization_id')
-    org_name = repo.org_name(org_id) if org_id else None
+    org = repo.org_row(org_id) if org_id else None
     enrollment = repo.active_academy_enrollment(user_id)
+    setting = student_setting(enrollment=enrollment, org=org)
+    # Optio Academy's own name is not scrubbed: it is our school, and the
+    # receipt on every story page names it anyway. Any other org's is, even
+    # for a student who is also enrolled with us through that partner.
+    is_our_org = bool(org and org.get('slug') == OPTIO_ACADEMY_ORG_SLUG)
+    org_name = org.get('name') if org and not is_our_org else None
     return StudentSource(
         user_id=user_id,
         first_name=(student.get('preferred_name') or student.get('first_name') or None),
         date_of_birth=student.get('date_of_birth'),
         grade_level=(enrollment or {}).get('grade_level'),
-        setting='academy' if enrollment else 'homeschool',
+        setting=setting,
         is_org_student=bool(org_id),
         organization_id=org_id,
         identity_names=list(dict.fromkeys(n for n in names if n)),

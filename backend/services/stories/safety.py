@@ -293,6 +293,31 @@ def decide(raw: Dict[str, Any], *, tier: str, scope: Optional[Dict[str, Any]],
     return 'safe', None
 
 
+#: Exclusion reasons a superadmin may override in EITHER tier: the model
+#: found nothing (no face, no name, no text, no identifying detail) and was
+#: merely not sure enough, or would not commit. A human looking at the file
+#: is doing exactly the check the model declined to certify. Every other
+#: reason names something the model DID see, and only a named-tier consent
+#: can cover a face; nothing covers a location atom.
+HUMAN_JUDGMENT_REASONS = frozenset({'low_confidence', 'model_uncertain'})
+
+
+def overridable_in_any_tier(safety: Optional[Dict[str, Any]]) -> bool:
+    """True when the exclusion is a confidence call, not a finding."""
+    record = safety or {}
+    if record.get('reason') not in HUMAN_JUDGMENT_REASONS:
+        return False
+    try:
+        if int(record.get('faces') or 0) > 0:
+            return False
+    except (TypeError, ValueError):
+        return False
+    for key in ('names_person', 'names_place_or_team', 'identifying_detail', 'readable_text'):
+        if _strings(record.get(key)):
+            return False
+    return True
+
+
 def _batches(items: List[Any], size: int) -> Iterable[List[Any]]:
     for start in range(0, len(items), size):
         yield items[start:start + size]

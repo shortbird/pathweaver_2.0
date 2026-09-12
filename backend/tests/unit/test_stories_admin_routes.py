@@ -44,8 +44,11 @@ class FakeStoryRepo:
 
 
 class FakeAssetRepo:
-    def for_story(self, sid): return []
-    def patch(self, aid, changes): return None
+    def __init__(self): self.rows = {}
+    def for_story(self, sid): return [dict(a) for a in self.rows.values() if a['story_id'] == sid]
+    def patch(self, aid, changes):
+        self.rows[aid].update(changes)
+        return dict(self.rows[aid])
 
 
 class FakeSourceRepo:
@@ -62,8 +65,9 @@ class FakeSourceRepo:
 @pytest.fixture
 def world(monkeypatch):
     story_repo, asset_repo, source_repo = FakeStoryRepo(), FakeAssetRepo(), FakeSourceRepo()
-    state: Dict[str, Any] = {'story_repo': story_repo, 'kicked': [], 'identity': ADMIN,
-                             'role': 'superadmin', 'sweeps': 0, 'fired': 0, 'reconciled': 0}
+    state: Dict[str, Any] = {'story_repo': story_repo, 'asset_repo': asset_repo, 'kicked': [],
+                             'identity': ADMIN, 'role': 'superadmin', 'sweeps': 0, 'fired': 0,
+                             'reconciled': 0}
 
     monkeypatch.setattr('routes.stories.admin._repos', lambda: (story_repo, asset_repo, source_repo))
     monkeypatch.setattr(generate, 'kick_background', lambda ids, admin=None: state['kicked'].extend(ids) or True)
@@ -277,6 +281,56 @@ class TestEditQuotesAndLinks:
         quote = next(i for s in saved['body']['sections'] if s['kind'] == 'evidence'
                      for i in s['items'] if i['type'] == 'quote')
         assert quote['included'] is False
+
+
+def _excluded_asset(story_id, reason, **safety):
+    record = {'verdict': 'excluded', 'reason': reason, 'faces': 0, 'names_person': [],
+              'names_place_or_team': [], 'identifying_detail': [], 'readable_text': [],
+              'model_verdict': 'safe', 'confidence': 0.75, **safety}
+    return {'id': 'v1', 'story_id': story_id, 'kind': 'video', 'mime_type': 'video/mp4',
+            'source_ref': PRIVATE_COPY, 'public_path': None, 'poster_path': None,
+            'alt': 'The loop', 'caption': None, 'included': False, 'safety': record}
+
+
+class TestAssetOverride:
+    """Which exclusions a human may reverse.
+
+    The first live story's only evidence was a clean twelve-frame animation
+    the model called safe at 0.75 confidence, under the 0.8 floor. Nothing
+    was found; the model was not sure. That is a judgment a superadmin may
+    make in either tier. A face, a name, a jersey, or a location atom is not.
+    """
+
+    def _put_include(self, client, story_id):
+        return client.put(f'/api/admin/stories/{story_id}',
+                          json={'assets': [{'id': 'v1', 'included': True}]})
+
+    def test_a_low_confidence_exclusion_may_be_included_in_the_anonymized_tier(self, client, editable, world):
+        world['asset_repo'].rows['v1'] = _excluded_asset(editable['id'], 'low_confidence')
+        response = self._put_include(client, editable['id'])
+        assert response.status_code == 200, response.get_json()
+        row = world['asset_repo'].rows['v1']
+        assert row['included'] is True
+        assert row['safety']['override'] == ADMIN
+
+    def test_a_model_uncertain_verdict_may_be_included_too(self, client, editable, world):
+        world['asset_repo'].rows['v1'] = _excluded_asset(editable['id'], 'model_uncertain',
+                                                         model_verdict='uncertain')
+        assert self._put_include(client, editable['id']).status_code == 200
+
+    @pytest.mark.parametrize('reason, extra', [
+        ('faces', {'faces': 1}),
+        ('names_place_or_team', {'names_place_or_team': ['Hearthwood']}),
+        ('low_confidence', {'faces': 1}),                      # the reason says confidence, the record says a face
+        ('low_confidence', {'readable_text': ['Anna']}),
+        ('video_location_metadata', {}),
+    ])
+    def test_a_finding_stays_excluded_in_the_anonymized_tier(self, client, editable, world, reason, extra):
+        world['asset_repo'].rows['v1'] = _excluded_asset(editable['id'], reason, **extra)
+        response = self._put_include(client, editable['id'])
+        assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'EXCLUSION_STANDS'
+        assert world['asset_repo'].rows['v1']['included'] is False
 
 
 class TestInternal:

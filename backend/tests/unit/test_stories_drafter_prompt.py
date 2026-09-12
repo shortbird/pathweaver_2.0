@@ -107,7 +107,7 @@ class FakeSourceRepo:
     def parent_rows(self, student):
         pid = student.get('managed_by_parent_id')
         return [self.students[pid]] if pid in self.students else []
-    def org_name(self, org_id): return 'Hearthwood Academy' if org_id else None
+    def org_row(self, org_id): return {'id': org_id, 'name': 'Hearthwood Academy', 'slug': 'hearthwood'} if org_id else None
     def active_academy_enrollment(self, uid): return {'id': 'e1', 'status': 'active', 'grade_level': '8'}
 
 
@@ -174,12 +174,15 @@ class TestThePrompt:
             assert token not in text, token
         assert not UUID_RE.search(text)
 
-    def test_the_label_and_the_facts_are_in_it(self, source):
+    def test_the_facts_and_the_credit_rule_are_in_it(self, source):
         text = prompt_mod.build_prompt(source, student_label='A high school student',
                                        safe_images=[_image()])
-        assert 'Call the student: "A high school student"' in text
         assert 'Science: 150 XP, Mathematics: 50 XP' in text
-        assert 'Credit earned: 0.1 credit' in text
+        assert 'This assignment earned 200 XP, which is 0.1 credit of Science.' in text
+        assert 'Optio uses XP instead of letter grades.' in text
+        assert '2000 XP is one high school credit.' in text
+        assert 'Credit is never based\non hours, seat time or logged time. Do not say it is.' in text
+        assert 'Setting: Optio Academy, a WASC-accredited online private school.' in text
         assert '[T1] [name] load test' in text
         assert '[C1] Built the bridge' in text
         assert '[I1]' in text
@@ -187,6 +190,29 @@ class TestThePrompt:
         assert 'GUARDRAILS' in text
         assert 'No em dashes' in text
         assert 'Return "tasks" as an empty list' in text
+        assert 'under 155 characters' in text                         # the dek is the meta description
+
+    def test_an_anonymized_story_names_nobody_not_even_generically(self, source):
+        text = prompt_mod.build_prompt(source, student_label='A high school student',
+                                       safe_images=[_image()])
+        assert 'Call the student' not in text
+        assert 'Refer to the student as "the student"' in text
+        assert 'You may say "a high school student" at most once' in text
+        assert 'ONLY the student label' not in text
+
+    def test_a_named_story_uses_the_label(self, source):
+        text = prompt_mod.build_prompt(source, student_label='Anna, 14',
+                                       safe_images=[_image()], tier='named')
+        assert 'Call the student: "Anna, 14". That is the only way to refer to them.' in text
+        assert 'Refer to the student as "the student"' not in text
+
+    def test_the_setting_line_never_names_a_partner_school(self, source):
+        source.student.setting = 'org'
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
+        assert 'Setting: a partner school that runs on Optio. Do not name it.' in text
+        source.student.setting = 'homeschool'
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
+        assert 'Setting: homeschool, taking Optio classes.' in text
 
     def test_quest_stories_ask_for_task_summaries(self, source):
         source.source_type = 'quest'
@@ -206,7 +232,7 @@ class TestThePrompt:
     def test_prompt_version_is_pinned(self):
         assert prompt_mod.PROMPT_VERSION.startswith('story-draft/')
 
-    def test_a_video_is_described_not_attached_and_may_not_be_the_hero(self, source):
+    def test_a_video_is_described_not_attached_and_may_be_the_hero(self, source):
         source.tasks[0].images = [_image(1), _video(3)]
         text = prompt_mod.build_prompt(source, student_label='A student',
                                        safe_images=[_image(1), _video(3)])
@@ -214,7 +240,9 @@ class TestThePrompt:
         assert 'VIDEOS (1 passed the safety check; not attached):' in text
         assert ('[I3] Load test (a short video the student submitted; it passed the safety '
                 'check; you cannot watch it here, write the alt from the task and label)') in text
-        assert 'A video can never be the hero.' in text
+        assert 'Pick the best image or video as hero_index' in text
+        assert 'A document can never be the hero.' in text
+        assert 'A video can never be the hero' not in text
         assert 'Videos attached to this task: [I3]' in text
         for token in FORBIDDEN + ('anna_load_test', '.MP4'):
             assert token not in text, token
@@ -222,11 +250,20 @@ class TestThePrompt:
         parts = prompt_mod.build_parts(text, [_image(1), _video(3)])
         assert parts == [text, '[I1]:', {'mime_type': 'image/jpeg', 'data': b'\xff\xd8jpeg'}]
 
-    def test_only_a_video_means_hero_index_zero(self, source):
+    def test_only_a_video_still_offers_a_hero(self, source):
         text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[_video(3)])
         assert 'No image passed the safety check.' in text
-        assert 'There is no image, so hero_index must be 0.' in text
+        assert 'Pick the best image or video as hero_index' in text
+        assert 'hero_index must be 0' not in text
         assert prompt_mod.build_parts(text, [_video(3)]) == [text]
+
+    def test_only_a_document_means_hero_index_zero(self, source):
+        from services.stories.source import ImageCandidate
+        doc = ImageCandidate(index=4, task_index=1, block_id='d4', item_index=1,
+                             source_ref=PRIVATE_URL, mime_type='application/pdf',
+                             data=b'%PDF', label='Lab report', kind='document', excerpt='x')
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[doc])
+        assert 'There is no image or video, so hero_index must be 0.' in text
 
 
 # ── assembly ─────────────────────────────────────────────────────────────────
@@ -304,14 +341,15 @@ class TestAssemble:
         assert out['story']['hero_asset_id'] == assets[0]['id']
         assert assets[0]['source_ref'] == PRIVATE_URL                   # admin-only pointer
 
-    def test_criteria_and_rounds_are_copied_verbatim(self, source):
+    def test_criteria_are_copied_verbatim_and_the_rounds_stay_off_the_page(self, source):
         sections = {s['kind']: s for s in _assemble(source)['story']['body']['sections']}
         assert [c['verdict'] for c in sections['what_reviewer_looked_for']['criteria']] == ['met', 'met']
         assert sections['what_reviewer_looked_for']['criteria'][0]['text'] == 'Built the bridge'
-        rounds = sections['how_it_went']['rounds']
-        assert [r['round'] for r in rounds] == [1, 2]
-        assert rounds[0]['feedback_verbatim'] == '[name], add the load numbers. [name] can help.'
-        assert rounds[1]['action'] == 'approved'
+        # The rounds inform the prompt (the reviewer's words are context) but
+        # are not a section: a visitor reads the work, not the paperwork.
+        assert 'how_it_went' not in sections
+        assert list(sections) == ['what_they_did', 'evidence', 'what_reviewer_looked_for',
+                                  'what_it_counted_for']
         assert 'tasks' not in sections
 
     def test_quest_story_gets_a_tasks_section(self, source):
@@ -322,13 +360,14 @@ class TestAssemble:
         assert row['title'] == '[name] load test'
         assert row['subject'] == 'Science'
         assert row['xp'] == 200
-        assert (row['criteria_met'], row['criteria_total'], row['rounds']) == (2, 2, 2)
+        assert (row['criteria_met'], row['criteria_total']) == (2, 2)
+        assert 'rounds' not in row
         assert row['summary'] == 'Built and tested a bridge.'
 
     def test_faq_drops_empty_rows(self, source):
         assert _assemble(source)['story']['body']['faq'] == [{'q': 'Can a bridge count?', 'a': 'Yes.'}]
 
-    def test_a_video_asset_carries_its_kind_and_is_never_the_hero(self, source):
+    def test_a_video_asset_carries_its_kind_and_is_the_hero_when_the_model_picks_it(self, source):
         source.tasks[0].images = [_image(1), _video(3)]
         draft = {**DRAFT, 'images': [
             {'index': 1, 'use': True, 'alt': 'A wooden bridge', 'caption': 'The bridge'},
@@ -347,17 +386,33 @@ class TestAssemble:
         assert video['source_ref'] == VIDEO_URL
         evidence = next(s for s in out['story']['body']['sections'] if s['kind'] == 'evidence')
         assert [i['type'] for i in evidence['items'] if 'asset_id' in i] == ['image', 'video']
-        # The model wanted the video as hero. The hero is the first included image.
-        assert out['story']['hero_asset_id'] == image['id']
+        # The model wanted the video as hero, and the page leads with it.
+        assert out['story']['hero_asset_id'] == video['id']
 
-    def test_with_only_a_video_the_hero_is_none(self, source):
+    def test_with_only_a_video_the_video_is_the_hero(self, source):
         source.tasks[0].images = [_video(3)]
         draft = {**DRAFT, 'images': [{'index': 3, 'use': True, 'alt': 'Filmed', 'caption': ''}],
-                 'hero_index': 3}
+                 'hero_index': 0}                                       # the model chose nothing
         result = DraftResult(data=draft, model='gemini-test', prompt_version='story-draft/test',
                              usage={}, drafted_at='2026-09-11T00:00:00+00:00')
         out = assemble(source, result, student_label='A high school student', tier='anonymized',
                        verdicts=[_verdict(3, 'safe')], scrubber=Scrubber([]),
+                       slug_exists=lambda s: False, story_id='story-1')
+        assert out['assets'][0]['included'] is True
+        assert out['story']['hero_asset_id'] == out['assets'][0]['id']
+
+    def test_a_document_is_never_the_hero(self, source):
+        from services.stories.source import ImageCandidate
+        doc = ImageCandidate(index=4, task_index=1, block_id='d4', item_index=1,
+                             source_ref=PRIVATE_URL, mime_type='application/pdf',
+                             data=b'%PDF', label='Lab report', kind='document', excerpt='x')
+        source.tasks[0].images = [doc]
+        draft = {**DRAFT, 'images': [{'index': 4, 'use': True, 'alt': 'Report', 'caption': ''}],
+                 'hero_index': 4}
+        result = DraftResult(data=draft, model='gemini-test', prompt_version='story-draft/test',
+                             usage={}, drafted_at='2026-09-11T00:00:00+00:00')
+        out = assemble(source, result, student_label='A high school student', tier='anonymized',
+                       verdicts=[_verdict(4, 'safe')], scrubber=Scrubber([]),
                        slug_exists=lambda s: False, story_id='story-1')
         assert out['assets'][0]['included'] is True
         assert out['story']['hero_asset_id'] is None

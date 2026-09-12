@@ -97,6 +97,7 @@ class FakeAssetRepo:
         for a in self.rows.values():
             if a['story_id'] == sid:
                 a['public_path'] = None
+                a['poster_path'] = None
 
 
 class FakeSourceRepo:
@@ -277,6 +278,23 @@ class TestAutoPublish:
         assert 'Check the caption.' in email['text_body']
         assert f'https://app.optioeducation.com/admin/stories/{STORY_ID}' in email['text_body']
 
+    def test_a_regenerate_keeps_the_slug_the_story_was_published_under(self, world):
+        """A regenerate re-titles freely; the URL is not the title's to change
+        once the page has been live and linked."""
+        world['story_repo'].rows[STORY_ID].update({
+            'slug': 'learning-2d-animation', 'published_at': '2026-09-11T22:04:44+00:00',
+            'status': 'generating',
+        })
+        generate.run(STORY_ID)
+        story = _story(world)
+        assert story['title'] == 'A bridge that held 12 kg'          # the new title
+        assert story['slug'] == 'learning-2d-animation'               # the old URL
+
+    def test_a_never_published_story_takes_the_new_slug(self, world):
+        world['story_repo'].rows[STORY_ID].update({'slug': 'first-draft-slug', 'published_at': None})
+        generate.run(STORY_ID)
+        assert _story(world)['slug'] == 'a-bridge-that-held-12-kg'
+
     def test_the_drafter_sees_only_safe_images_and_the_generic_label(self, world):
         generate.run(STORY_ID)
         assert world['drafter'].seen == {'label': 'A high school student', 'safe': [1],
@@ -311,7 +329,9 @@ class TestAutoPublish:
 
 
 class TestVideoEvidence:
-    """A safe video publishes as a `video` evidence item; it is never the hero."""
+    """A safe video publishes as a `video` evidence item, and may be the hero:
+    the page leads with the student's work, and a bouncing-ball animation IS
+    the work. A document never is."""
 
     def _with_video(self, world):
         source = world['source']
@@ -342,26 +362,48 @@ class TestVideoEvidence:
         assert by_type['video']['url'].endswith(f'/story-assets/stories/{STORY_ID}/{video["id"]}.mp4')
         assert by_type['video']['alt'] == 'A dance routine'
 
-        # The model asked for the video as hero; the hero is the first image.
-        assert story['hero_asset_id'] == assets['b1']['id']
+        # The model asked for the video as hero, and gets it.
+        assert story['hero_asset_id'] == video['id']
 
         view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
         item = next(i for i in next(s for s in view['sections'] if s['kind'] == 'evidence')['items']
                     if i['type'] == 'video')
-        assert set(item) == {'type', 'url', 'alt', 'caption'}     # no width, no height
+        # No width, no height; a poster slot and a duration, both unknown here.
+        assert set(item) == {'type', 'url', 'alt', 'caption', 'thumb_url', 'duration_seconds'}
         assert item['url'].endswith('.mp4')
-        assert view['hero_image_url'].endswith('.jpg')
+        assert view['hero']['type'] == 'video' and view['hero']['url'].endswith('.mp4')
+        assert view['hero']['poster_url'] is None
+        # No poster frame was made (the copy step is faked), so there is no still.
+        assert view['hero_image_url'] is None and view['og_image_url'] is None
 
-    def test_a_video_alone_is_never_a_hero(self, world):
+    def test_the_model_pick_is_ignored_when_it_is_not_included(self, world):
         self._with_video(world)
-        world['verdicts'][0] = ImageVerdict(1, 'b1', 1, REF.format(n=1), 'excluded', 'faces', faces=1)
+        world['verdicts'][-1] = ImageVerdict(3, 'v3', 1, VIDEO_REF.format(n=3), 'excluded',
+                                             'video_location_metadata')
         assert generate.run(STORY_ID)['status'] == 'published'
         story = _story(world)
-        assert story['hero_asset_id'] is None
+        assets = {a['source_block_id']: a for a in world['asset_repo'].for_story(STORY_ID)}
+        assert story['hero_asset_id'] == assets['b1']['id']
+
+    def test_a_video_alone_is_the_hero(self, world):
+        self._with_video(world)
+        world['verdicts'][0] = ImageVerdict(1, 'b1', 1, REF.format(n=1), 'excluded', 'faces', faces=1)
+        world['drafter'].data['hero_index'] = 0                    # the model chose nothing
+        assert generate.run(STORY_ID)['status'] == 'published'
+        story = _story(world)
         included = [a for a in world['asset_repo'].for_story(STORY_ID) if a['included']]
         assert [a['kind'] for a in included] == ['video']
+        assert story['hero_asset_id'] == included[0]['id']
         view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        assert view['hero']['type'] == 'video'
         assert view['hero_image_url'] is None
+
+    def test_an_image_beats_a_video_when_the_model_chose_nothing(self, world):
+        self._with_video(world)
+        world['drafter'].data['hero_index'] = 0
+        assert generate.run(STORY_ID)['status'] == 'published'
+        assets = {a['source_block_id']: a for a in world['asset_repo'].for_story(STORY_ID)}
+        assert _story(world)['hero_asset_id'] == assets['b1']['id']
 
     def test_the_video_bytes_are_dropped_after_the_safety_pass(self, world, monkeypatch):
         self._with_video(world)
@@ -564,37 +606,92 @@ class TestCopyToPublic:
         def storage(self): return self
         def from_(self, name): return self.buckets[name]
 
-    def _world(self, monkeypatch, *, private_objects):
+    POSTER_JPEG = b'\xff\xd8poster'
+
+    def _world(self, monkeypatch, *, private_objects, poster=None):
         private = self.FakeBucket(private_objects)
         public = self.FakeBucket({})
         admin = self.FakeAdmin({'quest-evidence': private, 'story-assets': public})
         repo = FakeAssetRepo()
 
-        def no_pillow(blob):
-            raise AssertionError('prepare_public_image must not run for a video')
-        monkeypatch.setattr(assets_mod, 'prepare_public_image', no_pillow)
+        def only_the_poster(blob):
+            # The video bytes never go through Pillow; a poster frame does,
+            # like every other image that reaches the public bucket.
+            assert blob == self.POSTER_JPEG, 'prepare_public_image must not run for a video'
+            return b'\xff\xd8prepared', 640, 360
+        monkeypatch.setattr(assets_mod, 'prepare_public_image', only_the_poster)
+        from services.stories import video_poster
+        monkeypatch.setattr(video_poster, 'extract', lambda blob, **k: poster)
         return admin, public, repo
+
+    def _video_asset(self, mime='video/quicktime'):
+        return {'id': 'a-video', 'story_id': STORY_ID, 'source_ref': VIDEO_REF.format(n=3),
+                'kind': 'video', 'mime_type': mime, 'included': True,
+                'public_path': None, 'poster_path': None, 'safety': {'verdict': 'safe'}}
 
     def test_video_uploads_the_original_bytes_with_its_content_type(self, monkeypatch):
         admin, public, repo = self._world(monkeypatch, private_objects={
             'evidence-tasks/x/3_Dream.MP4': MP4})
-        asset = {'id': 'a-video', 'story_id': STORY_ID, 'source_ref': VIDEO_REF.format(n=3),
-                 'kind': 'video', 'mime_type': 'video/quicktime', 'included': True,
-                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        asset = self._video_asset()
         repo.rows[asset['id']] = dict(asset)
         out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
         path = f'stories/{STORY_ID}/a-video.mov'
         assert public.uploads == [(path, MP4, {'content-type': 'video/quicktime', 'upsert': 'true'})]
         assert out[0]['public_path'] == path
         assert out[0]['width'] is None and out[0]['height'] is None
+        assert out[0]['poster_path'] is None                       # no ffmpeg, no poster
         assert repo.rows['a-video']['public_path'] == path
+
+    def test_a_video_gets_a_poster_frame_beside_it(self, monkeypatch):
+        from services.stories.video_poster import Poster
+        admin, public, repo = self._world(
+            monkeypatch, private_objects={'evidence-tasks/x/3_Dream.MP4': MP4},
+            poster=Poster(jpeg=self.POSTER_JPEG, duration_seconds=4.5))
+        asset = self._video_asset(mime='video/mp4')
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        video_path = f'stories/{STORY_ID}/a-video.mp4'
+        poster_path = f'stories/{STORY_ID}/a-video.poster.jpg'
+        assert [(u[0], u[2]['content-type']) for u in public.uploads] == [
+            (video_path, 'video/mp4'), (poster_path, 'image/jpeg')]
+        assert public.uploads[1][1] == b'\xff\xd8prepared'            # through Pillow, not raw
+        row = repo.rows['a-video']
+        assert row['public_path'] == video_path and row['poster_path'] == poster_path
+        assert (row['width'], row['height']) == (640, 360)          # the frame's size
+        assert row['duration_seconds'] == 4.5
+        assert out[0]['poster_path'] == poster_path
+
+    def test_a_poster_upload_failure_still_publishes_the_video(self, monkeypatch):
+        from services.stories.video_poster import Poster
+        admin, public, repo = self._world(
+            monkeypatch, private_objects={'evidence-tasks/x/3_Dream.MP4': MP4},
+            poster=Poster(jpeg=self.POSTER_JPEG, duration_seconds=None))
+        real_upload = public.upload
+
+        def flaky(path, blob, options):
+            if path.endswith('.poster.jpg'):
+                raise RuntimeError('bucket said no')
+            real_upload(path, blob, options)
+        public.upload = flaky
+        asset = self._video_asset(mime='video/mp4')
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        assert out[0]['included'] is True
+        assert out[0]['public_path'] == f'stories/{STORY_ID}/a-video.mp4'
+        assert out[0]['poster_path'] is None
+
+    def test_a_dropped_asset_forgets_its_poster_too(self, monkeypatch):
+        admin, public, repo = self._world(monkeypatch, private_objects={
+            'evidence-tasks/x/3_Dream.MP4': MP4})
+        asset = {**self._video_asset(mime='video/x-msvideo'), 'poster_path': 'stale.jpg'}
+        repo.rows[asset['id']] = dict(asset)
+        out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
+        assert out[0]['included'] is False and out[0]['poster_path'] is None
 
     def test_a_video_type_the_bucket_refuses_is_dropped_with_a_reason(self, monkeypatch):
         admin, public, repo = self._world(monkeypatch, private_objects={
             'evidence-tasks/x/3_Dream.MP4': MP4})
-        asset = {'id': 'a-video', 'story_id': STORY_ID, 'source_ref': VIDEO_REF.format(n=3),
-                 'kind': 'video', 'mime_type': 'video/x-msvideo', 'included': True,
-                 'public_path': None, 'safety': {'verdict': 'safe'}}
+        asset = self._video_asset(mime='video/x-msvideo')
         repo.rows[asset['id']] = dict(asset)
         out = assets_mod.copy_to_public({'id': STORY_ID}, [asset], admin=admin, repo=repo)
         assert public.uploads == []

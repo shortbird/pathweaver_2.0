@@ -87,6 +87,35 @@ export function faqNode(faqs: { q: string; a: string }[], id?: string) {
   }
 }
 
+/**
+ * A story's video hero as a VideoObject, so Google can show it as a video
+ * result. `thumbnailUrl`, `uploadDate`, `name` and `description` are the
+ * required properties; `duration` is ISO 8601 when the backend probed it.
+ */
+export function videoNode(opts: {
+  id: string
+  name: string
+  description: string
+  contentUrl: string
+  thumbnailUrl: string
+  uploadDate: string
+  duration?: string | null
+}) {
+  return {
+    '@type': 'VideoObject',
+    '@id': opts.id,
+    name: opts.name,
+    description: opts.description,
+    contentUrl: opts.contentUrl,
+    thumbnailUrl: opts.thumbnailUrl,
+    uploadDate: opts.uploadDate,
+    ...(opts.duration ? { duration: opts.duration } : {}),
+    inLanguage: 'en-US',
+    isFamilyFriendly: true,
+    publisher: { '@id': ORG_ID },
+  }
+}
+
 export function graph(...nodes: object[]) {
   return { '@context': 'https://schema.org', '@graph': nodes }
 }

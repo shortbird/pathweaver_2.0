@@ -7,9 +7,14 @@ prose, not a checklist; the response schema keeps the shape honest.
 
 `assemble` turns the answer into the row. The model wrote the words; Python
 supplies every fact -- label, subject, XP, credit, grade band, setting, the
-criteria and the rounds copied verbatim from the source -- and validates the
-closed choices (activity slug, receipt icon). A drafter cannot misstate the
-credit a story is about, because it never gets to state it.
+criteria copied verbatim from the source -- and validates the closed choices
+(activity slug, receipt icon). A drafter cannot misstate the credit a story is
+about, because it never gets to state it.
+
+The review rounds go INTO the prompt (the reviewer's feedback informs what
+the student did) but not onto the page: a visitor is here for the work, not
+the paperwork behind the credit. Removed 2026-09-12 on the founder's review
+of the first live story.
 """
 
 from __future__ import annotations
@@ -174,18 +179,6 @@ def _criteria_rows(source: StorySource) -> List[Dict[str, Any]]:
     return rows
 
 
-def _round_rows(source: StorySource) -> List[Dict[str, Any]]:
-    if len(source.tasks) != 1:
-        return []
-    return [{
-        'round': r.round_number,
-        'date': r.date,
-        'action': r.action,
-        'feedback_verbatim': r.feedback,
-        'what_changed': r.what_changed,
-    } for r in source.tasks[0].rounds]
-
-
 def _task_rows(source: StorySource, summaries: Dict[int, str]) -> List[Dict[str, Any]]:
     rows = []
     for task in source.tasks:
@@ -195,10 +188,27 @@ def _task_rows(source: StorySource, summaries: Dict[int, str]) -> List[Dict[str,
             'xp': task.xp,
             'criteria_met': task.criteria_met if task.ai_criteria else len(task.criteria),
             'criteria_total': len(task.ai_criteria) if task.ai_criteria else len(task.criteria),
-            'rounds': len(task.rounds),
             'summary': summaries.get(task.index) or None,
         })
     return rows
+
+
+def choose_hero(evidence_items: List[Dict[str, Any]], *, model_pick: Optional[str]) -> Optional[str]:
+    """The asset id the page leads with.
+
+    The model's pick when it is an included image or video; else the first
+    included image; else the first included video. Never a document: the card,
+    the Open Graph image and the VideoObject thumbnail all need a frame, and a
+    PDF has none. publish._hero_candidates applies the same order to the rows.
+    """
+    by_type = {'image': None, 'video': None}
+    for item in evidence_items:
+        kind = item.get('type')
+        if item.get('asset_id') == model_pick and kind in by_type:
+            return model_pick
+        if kind in by_type and by_type[kind] is None:
+            by_type[kind] = item.get('asset_id')
+    return by_type['image'] or by_type['video']
 
 
 def _quote_items(source: StorySource, verdicts: List[ItemVerdict]
@@ -314,7 +324,7 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
 
     assets: List[Dict[str, Any]] = []
     evidence_items: List[Dict[str, Any]] = []
-    hero_asset_id: Optional[str] = None
+    model_pick: Optional[str] = None
     try:
         hero_index = int(data.get('hero_index') or 0)
     except (TypeError, ValueError):
@@ -358,12 +368,9 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
                 'type': kind, 'asset_id': asset_id, 'url': None,
                 'alt': alt or '', 'caption': caption, 'width': None, 'height': None,
             })
-            # The hero is a still. The model was told so; this is the rule.
-            if candidate.index == hero_index and candidate.is_image:
-                hero_asset_id = asset_id
-    if hero_asset_id is None:
-        first_image = next((i for i in evidence_items if i['type'] == 'image'), None)
-        hero_asset_id = first_image['asset_id'] if first_image else None
+            if candidate.index == hero_index:
+                model_pick = asset_id
+    hero_asset_id = choose_hero(evidence_items, model_pick=model_pick)
 
     quote_items, quote_concerns = _quote_items(source, quote_verdicts)
     link_items, link_concerns = _link_items(source, link_verdicts)
@@ -388,9 +395,6 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
         sections.append({'kind': 'tasks', 'rows': _task_rows(source, summaries)})
     sections.append({'kind': 'evidence', 'items': evidence_items})
     sections.append({'kind': 'what_reviewer_looked_for', 'criteria': _criteria_rows(source)})
-    rounds = _round_rows(source)
-    if rounds:
-        sections.append({'kind': 'how_it_went', 'rounds': rounds})
     sections.append({'kind': 'what_it_counted_for', 'body_md': _md(data.get('what_it_counted_for'))})
 
     concerns = [_plain(c, 300) for c in (data.get('concerns') or []) if isinstance(c, str)]

@@ -1,0 +1,68 @@
+---
+/**
+ * The evidence a story leads with: the student's own work, above every word
+ * about it. A video plays inline with the poster frame the backend extracted
+ * (or the browser's first frame when there is none); an image goes through
+ * astro:assets. Eager, because it is the largest thing above the fold.
+ */
+import { Image } from 'astro:assets'
+import type { StoryHero as Hero } from '../../data/stories.schema'
+import { videoType } from '../../lib/stories'
+
+export interface Props {
+  hero: Hero
+  /** Fallback alt when the hero has none. */
+  fallbackAlt: string
+  class?: string
+}
+const { hero, fallbackAlt, class: className = '' } = Astro.props
+const alt = hero.alt ?? fallbackAlt
+const sized = Boolean(hero.width && hero.height)
+---
+
+<figure class={`rounded-2xl border border-neutral-100 bg-neutral-50 overflow-hidden shadow-lg ${className}`}>
+  {hero.type === 'video' ? (
+    <video
+      controls
+      playsinline
+      preload="metadata"
+      poster={hero.poster_url ?? undefined}
+      class="w-full bg-neutral-900 max-h-[36rem] mx-auto"
+      aria-label={alt}
+      data-track="story_hero_video"
+    >
+      <source src={hero.url} type={videoType(hero.url)} />
+      <a href={hero.url} rel="noopener">Watch the video</a>
+    </video>
+  ) : (
+    <div class="overflow-hidden max-h-[36rem] flex items-center justify-center">
+      {sized ? (
+        <Image
+          src={hero.url}
+          alt={alt}
+          width={hero.width!}
+          height={hero.height!}
+          widths={[640, 960, 1280]}
+          sizes="(min-width: 1024px) 896px, 100vw"
+          loading="eager"
+          fetchpriority="high"
+          class="w-full h-auto object-contain"
+        />
+      ) : (
+        <Image
+          src={hero.url}
+          alt={alt}
+          inferSize
+          widths={[640, 960, 1280]}
+          sizes="(min-width: 1024px) 896px, 100vw"
+          loading="eager"
+          fetchpriority="high"
+          class="w-full h-auto object-contain"
+        />
+      )}
+    </div>
+  )}
+  {hero.caption && (
+    <figcaption class="px-5 py-3 text-sm text-neutral-500 font-medium border-t border-neutral-100 bg-white">{hero.caption}</figcaption>
+  )}
+</figure>

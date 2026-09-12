@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast'
 import { storiesApi, errorDetails } from '../../services/storiesApi'
 import { Spinner } from '../ui/Spinner'
 import {
-  STORY_STATUSES, STORY_STATUS_LABELS, STORY_STATUS_STYLES,
+  STORY_STATUSES, STORY_STATUS_LABELS, STORY_STATUS_STYLES, SETTING_OPTIONS,
 } from './stories/storyEditorState'
 
 /** One pill per story status, shared by the list and the editor header. */
@@ -154,7 +154,7 @@ const StoriesManager = () => {
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                 <tr>
                   <th className="px-6 py-2.5 font-medium">Title</th>
-                  <th className="px-3 py-2.5 font-medium">Student</th>
+                  <th className="px-3 py-2.5 font-medium">School</th>
                   <th className="px-3 py-2.5 font-medium">Subject</th>
                   <th className="px-3 py-2.5 font-medium">Source</th>
                   <th className="px-3 py-2.5 font-medium">Tier</th>
@@ -179,7 +179,12 @@ const StoriesManager = () => {
                       </button>
                       {story.slug && <div className="text-xs text-gray-400 font-mono">{story.slug}</div>}
                     </td>
-                    <td className="px-3 py-3 text-gray-700">{story.student_label}</td>
+                    <td className="px-3 py-3 text-gray-700 whitespace-nowrap">
+                      {SETTING_OPTIONS.find(o => o.value === story.setting)?.label || story.setting || ''}
+                      {story.tier === 'named' && story.student_label && (
+                        <span className="text-gray-400"> · {story.student_label}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-3 text-gray-700">{story.subject}</td>
                     <td className="px-3 py-3 text-gray-700">{SOURCE_LABELS[story.source_type] || story.source_type}</td>
                     <td className="px-3 py-3 text-gray-700">

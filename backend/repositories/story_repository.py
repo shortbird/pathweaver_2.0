@@ -43,8 +43,8 @@ PUBLIC_COLUMNS = (
 
 LIST_COLUMNS = (
     'id, slug, status, source_type, source_id, student_user_id, tier, mode, title, '
-    'subject, activity_slug, published_at, unpublished_at, blockers, error, '
-    'created_at, updated_at'
+    'subject, activity_slug, setting, student_label, published_at, unpublished_at, '
+    'blockers, error, created_at, updated_at'
 )
 
 

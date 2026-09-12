@@ -1,32 +1,40 @@
 ---
 /**
- * One story. Answer first: the computed sentence and the receipt sit above
- * the fold, then the facts, then the long form. Every section heading is
- * a question a parent (or an answer engine) would ask about the story.
+ * One story. The student's evidence first, then how Optio works for a
+ * visitor who has never heard of it, then the facts, then the long form.
+ * Every section heading is a question a parent (or an answer engine) would
+ * ask about the story. Credit appears once, in the receipt, with the XP rule
+ * spelled out beside it.
  *
  * Fixture entries (STORIES_SOURCE=fixture, never on Render) render here
  * with noindex so the layout can be checked on a developer's machine.
  */
 import { getCollection } from 'astro:content'
-import { Image, getImage } from 'astro:assets'
+import { getImage } from 'astro:assets'
 import Marketing from '../../layouts/Marketing.astro'
 import Breadcrumbs from '../../components/Breadcrumbs.astro'
 import Receipt from '../../components/Receipt.astro'
 import FaqList from '../../components/FaqList.astro'
 import FreeClassForm from '../../components/FreeClassForm.astro'
+import StoryHero from '../../components/stories/StoryHero.astro'
+import HowItWorksStrip from '../../components/stories/HowItWorksStrip.astro'
 import StoryFacts from '../../components/stories/StoryFacts.astro'
 import TaskList from '../../components/stories/TaskList.astro'
 import EvidenceGrid from '../../components/stories/EvidenceGrid.astro'
 import CriteriaList from '../../components/stories/CriteriaList.astro'
-import ReviewTimeline from '../../components/stories/ReviewTimeline.astro'
 import RelatedStories from '../../components/stories/RelatedStories.astro'
 import { OFFER } from '../../data/site'
-import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizationNode, personNode } from '../../data/schema'
+import { creditExplainer } from '../../data/howItWorks'
+import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizationNode, personNode, videoNode } from '../../data/schema'
 import type { Story } from '../../data/stories.schema'
 import {
   cardProps,
+  evidenceBesidesHero,
   formatDate,
+  heroOf,
+  heroStill,
   isPublished,
+  isoDuration,
   landerFor,
   listable,
   ogImagePath,
@@ -34,7 +42,8 @@ import {
   sectionsByKind,
   storyUrl,
   subjectUrl,
-  summarySentence,
+  xpPerCredit,
+  SETTING_LABEL,
 } from '../../lib/stories'
 
 export async function getStaticPaths() {
@@ -64,23 +73,37 @@ const hubs = new Set(hubSlugs)
 const published = isPublished(story)
 const sections = sectionsByKind(story)
 const lander = landerFor(story)
-const summary = summarySentence(story)
+const hero = heroOf(story)
+const still = heroStill(story)
+const moreEvidence = evidenceBesidesHero(story)
 const url = absolute(storyUrl(story))
 const ogImage = ogImagePath(story)
+const hasHub = hubs.has(story.subject_slug)
 
 const crumbs = [
   { name: 'Home', href: '/' },
   { name: 'Stories', href: '/stories/' },
-  ...(hubs.has(story.subject_slug) ? [{ name: story.subject, href: subjectUrl(story.subject_slug) }] : []),
+  ...(hasHub ? [{ name: story.subject, href: subjectUrl(story.subject_slug) }] : []),
   { name: story.title, href: storyUrl(story) },
 ]
 
-// Article.image: the hero as astro:assets built it (a www URL) plus the OG
-// card. Both are absolute; Google requires it.
-const heroBuilt = story.hero_image_url
-  ? await getImage({ src: story.hero_image_url, inferSize: true, width: 1200, format: 'jpg' })
-  : null
-const images = [heroBuilt ? absolute(heroBuilt.src) : null, absolute(ogImage)].filter(Boolean)
+// Article.image: the hero's still (the image, or a video's poster) as
+// astro:assets built it, plus the OG card. Both absolute; Google requires it.
+const stillBuilt = still ? await getImage({ src: still, inferSize: true, width: 1200, format: 'jpg' }) : null
+const images = [stillBuilt ? absolute(stillBuilt.src) : null, absolute(ogImage)].filter(Boolean)
+
+const video =
+  hero?.type === 'video'
+    ? videoNode({
+        id: `${url}#video`,
+        name: story.title,
+        description: hero.caption || hero.alt || story.dek,
+        contentUrl: hero.url,
+        thumbnailUrl: stillBuilt ? absolute(stillBuilt.src) : absolute(ogImage),
+        uploadDate: story.published_at.toISOString(),
+        duration: isoDuration(hero.duration_seconds),
+      })
+    : null
 
 const article = {
   '@type': 'Article',
@@ -88,6 +111,7 @@ const article = {
   headline: story.title,
   description: story.dek,
   image: images,
+  ...(video ? { video: { '@id': video['@id'] } } : {}),
   datePublished: story.published_at.toISOString(),
   dateModified: story.updated_at.toISOString(),
   author: { '@id': PERSON_ID },
@@ -109,10 +133,37 @@ const schema = [
     organizationNode(),
     personNode(),
     article,
+    ...(video ? [video] : []),
     breadcrumbNode(crumbs),
     ...(story.faq.length > 0 ? [faqNode(story.faq, `${url}#faq`)] : [])
   ),
 ]
+
+// Where "What it counted for" sends a parent: the matching lander, else the
+// subject hub, else the Academy page.
+const counted = lander
+  ? {
+      href: `/l/${lander.slug}/`,
+      eyebrow: `Your ${lander.activity} could count too`,
+      headline: lander.headline,
+      detail: `How ${lander.activity} becomes ${lander.subject} credit. ${OFFER.freeClassLine}`,
+      track: 'story_lander',
+    }
+  : hasHub
+    ? {
+        href: subjectUrl(story.subject_slug),
+        eyebrow: `More ${story.subject} stories`,
+        headline: `Other students who earned ${story.subject} credit`,
+        detail: 'Every story in this subject, and what counted.',
+        track: 'story_subject_hub',
+      }
+    : {
+        href: '/academy',
+        eyebrow: 'Your kid\'s work could count too',
+        headline: 'How Optio Academy turns real work into credit',
+        detail: `An accredited online private school built around what students already do. ${OFFER.freeClassLine}`,
+        track: 'story_academy',
+      }
 ---
 
 <Marketing
@@ -128,16 +179,17 @@ const schema = [
   <article>
     <!-- ========== HEADER ========== -->
     <header class="bg-white">
-      <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-10">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-8">
         <Breadcrumbs items={crumbs} class="mb-6" />
         {!published && (
           <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-            Fixture story. This page exists to check the layout and is never published.
+            {story.status === 'fixture'
+              ? 'Fixture story. This page exists to check the layout and is never published.'
+              : 'Draft. This story is in review and is not on the live site.'}
           </p>
         )}
         <p class="text-xs text-neutral-500 font-semibold uppercase tracking-wider mb-4">
-          <time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time>
-          &middot; {story.subject}
+          {story.subject} &middot; {SETTING_LABEL[story.student.setting]}
         </p>
         <h1 class="text-3xl sm:text-5xl font-bold text-neutral-900 leading-tight mb-5 max-w-3xl">{story.title}</h1>
         <p class="text-lg sm:text-xl text-neutral-500 font-medium leading-relaxed mb-8 max-w-3xl">{story.dek}</p>
@@ -151,44 +203,29 @@ const schema = [
           />
           <div>
             <p class="text-sm font-semibold text-neutral-900">{story.author.name}</p>
-            <p class="text-xs text-neutral-500 font-medium">{story.author.title} &middot; Reviewed by a licensed Optio teacher</p>
+            <p class="text-xs text-neutral-500 font-medium">
+              Reviewed by a licensed Optio teacher &middot; <time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time>
+            </p>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- ========== ANSWER BOX ========== -->
-    <section class="bg-neutral-50 border-y border-neutral-100" aria-labelledby="in-one-sentence">
-      <div class="max-w-5xl mx-auto px-4 sm:px-6 py-12 sm:py-14">
-        <div class="grid md:grid-cols-[1fr_minmax(0,22rem)] gap-8 lg:gap-12 items-start">
-          <div>
-            <h2 id="in-one-sentence" class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">In one sentence</h2>
-            <p class="text-2xl sm:text-3xl font-bold text-neutral-900 leading-snug mb-8">{summary}</p>
-            <StoryFacts story={story} hubSlugs={hubs} />
-          </div>
-          {story.hero_image_url ? (
-            <Receipt {...story.receipt}>
-              <Fragment slot="media">
-                <Image
-                  src={story.hero_image_url}
-                  alt={story.hero_alt ?? story.receipt.activity}
-                  inferSize
-                  widths={[480, 800]}
-                  sizes="(min-width: 768px) 352px, 100vw"
-                  loading="eager"
-                  class="w-full h-full object-cover object-top"
-                />
-              </Fragment>
-            </Receipt>
-          ) : (
-            <Receipt {...story.receipt} />
-          )}
-        </div>
+    <!-- ========== THE WORK ========== -->
+    <section class="bg-white" aria-label="The student's work">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 pb-10 space-y-8">
+        {hero ? (
+          <StoryHero hero={hero} fallbackAlt={story.receipt.activity} />
+        ) : (
+          <Receipt {...story.receipt} class="max-w-sm" />
+        )}
+        <HowItWorksStrip />
+        <StoryFacts story={story} hubSlugs={hubs} />
       </div>
     </section>
 
     <!-- ========== BODY ========== -->
-    <div class="bg-white">
+    <div class="bg-neutral-50 border-t border-neutral-100">
       <div class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-16 space-y-14 sm:space-y-16">
         {sections.whatTheyDid && (
           <section aria-labelledby="what-they-did">
@@ -201,25 +238,27 @@ const schema = [
           <section aria-labelledby="the-tasks">
             <h2 id="the-tasks" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">The tasks</h2>
             <p class="text-neutral-500 font-medium mb-5">
-              Each task was submitted, reviewed, and finalized on its own. XP is earned per task; the credit is the sum.
+              Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.
             </p>
             <TaskList rows={sections.tasks.rows} />
           </section>
         )}
 
-        {sections.evidence && sections.evidence.items.length > 0 && (
+        {moreEvidence.length > 0 && (
           <section aria-labelledby="evidence">
-            <h2 id="evidence" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the student submitted as evidence</h2>
+            <h2 id="evidence" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">
+              {hero ? 'More of the evidence' : 'What the student submitted as evidence'}
+            </h2>
             <p class="text-neutral-500 font-medium mb-6">
               Shown as submitted, minus anything the family did not agree to share.
             </p>
-            <EvidenceGrid items={sections.evidence.items} />
+            <EvidenceGrid items={moreEvidence} />
           </section>
         )}
 
         {sections.criteria && sections.criteria.criteria.length > 0 && (
           <section aria-labelledby="criteria">
-            <h2 id="criteria" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the reviewer looked for</h2>
+            <h2 id="criteria" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the teacher checked</h2>
             <p class="text-neutral-500 font-medium mb-6">
               The criteria belong to the task. A licensed Optio teacher marked each one from the evidence.
             </p>
@@ -227,38 +266,33 @@ const schema = [
           </section>
         )}
 
-        {sections.howItWent && sections.howItWent.rounds.length > 0 && (
-          <section aria-labelledby="how-it-went">
-            <h2 id="how-it-went" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">How the review went</h2>
-            <p class="text-neutral-500 font-medium mb-8">
-              Reviewer feedback is quoted word for word. Nothing here was written for this page.
-            </p>
-            <ReviewTimeline rounds={sections.howItWent.rounds} />
-          </section>
-        )}
-
-        {sections.whatItCountedFor && (
-          <section aria-labelledby="what-it-counted-for">
-            <h2 id="what-it-counted-for" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-5">What it counted for</h2>
+        <section aria-labelledby="what-it-counted-for">
+          <h2 id="what-it-counted-for" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-5">What it counted for</h2>
+          {sections.whatItCountedFor && (
             <div class="prose-optio" set:html={sections.whatItCountedFor.body_html ?? ''} />
-            {lander && (
-              <a
-                href={`/l/${lander.slug}/`}
-                data-track="story_lander"
-                class="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-optio-purple/20 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 p-5 group"
-              >
-                <span>
-                  <span class="block text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1">Your {lander.activity} could count too</span>
-                  <span class="block text-lg font-bold text-neutral-900 group-hover:text-optio-purple transition-colors">{lander.headline}</span>
-                  <span class="block text-sm text-neutral-500 font-medium mt-1">{lander.subject}, {lander.credit}. First class free.</span>
-                </span>
-                <svg class="w-5 h-5 text-optio-purple flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          )}
+          <p class="mt-5 text-neutral-700 font-medium leading-relaxed">{creditExplainer(xpPerCredit(story))}</p>
+          <div class="mt-8 grid gap-5 sm:grid-cols-2 items-stretch">
+            <Receipt {...story.receipt} />
+            <a
+              href={counted.href}
+              data-track={counted.track}
+              class="flex flex-col justify-between gap-4 rounded-2xl border border-optio-purple/20 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 p-5 group"
+            >
+              <span>
+                <span class="block text-xs font-semibold uppercase tracking-wider text-optio-purple mb-1">{counted.eyebrow}</span>
+                <span class="block text-lg font-bold text-neutral-900 group-hover:text-optio-purple transition-colors">{counted.headline}</span>
+                <span class="block text-sm text-neutral-500 font-medium mt-1">{counted.detail}</span>
+              </span>
+              <span class="inline-flex items-center gap-1 text-sm font-semibold text-optio-purple">
+                Read more
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
-              </a>
-            )}
-          </section>
-        )}
+              </span>
+            </a>
+          </div>
+        </section>
 
         {story.faq.length > 0 && (
           <section aria-labelledby="questions">
@@ -267,10 +301,10 @@ const schema = [
           </section>
         )}
 
-        <p class="text-sm text-neutral-500 font-medium border-t border-neutral-100 pt-6">
+        <p class="text-sm text-neutral-500 font-medium border-t border-neutral-200 pt-6">
           Stories are written from real submissions on Optio. Student details are anonymized unless a family has
-          recorded consent, reviewer feedback is quoted verbatim, and a person edits every story before it is
-          published. Published {formatDate(story.published_at)}{story.updated_at.valueOf() > story.published_at.valueOf() ? `, updated ${formatDate(story.updated_at)}` : ''}.
+          recorded consent, and evidence is shown as submitted, minus anything a family did not agree to share.
+          Published {formatDate(story.published_at)}{story.updated_at.valueOf() > story.published_at.valueOf() ? `, updated ${formatDate(story.updated_at)}` : ''}.
         </p>
       </div>
     </div>
@@ -279,7 +313,7 @@ const schema = [
   <RelatedStories
     stories={relatedStories}
     subject={story.subject}
-    subjectSlug={hubs.has(story.subject_slug) ? story.subject_slug : null}
+    subjectSlug={hasHub ? story.subject_slug : null}
   />
 
   <!-- ========== CTA ========== -->

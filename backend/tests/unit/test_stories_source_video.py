@@ -73,7 +73,7 @@ class FakeRepo:
                 'preferred_name': None, 'role': 'student', 'organization_id': None,
                 'date_of_birth': None} if uid == STUDENT_ID else None
     def parent_rows(self, student): return []
-    def org_name(self, org_id): return None
+    def org_row(self, org_id): return None
     def active_academy_enrollment(self, uid): return None
 
 

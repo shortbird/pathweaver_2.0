@@ -1,3 +1,5 @@
+import { XP_PER_CREDIT } from '../../../utils/creditRequirements'
+
 /**
  * Pure helpers for the story editor. No React, no network.
  *
@@ -27,24 +29,40 @@ export const STORY_STATUS_STYLES = {
   failed: 'bg-red-100 text-red-800',
 }
 
-/** Order the marketing site renders the sections in (plan section 1d). */
+/**
+ * Order the marketing site renders the sections in. `how_it_went` (the
+ * review rounds) left the page on 2026-09-12; older rows still carry it in
+ * `body.sections`, and it is preserved on save but never rendered.
+ */
 export const SECTION_ORDER = [
   'what_they_did',
   'tasks',
   'evidence',
   'what_reviewer_looked_for',
-  'how_it_went',
   'what_it_counted_for',
 ]
 
 export const SECTION_TITLES = {
   what_they_did: 'What the student did',
   tasks: 'The tasks',
-  evidence: 'What the student submitted as evidence',
-  what_reviewer_looked_for: 'What the reviewer looked for',
-  how_it_went: 'How the review went',
+  evidence: 'More of the evidence',
+  what_reviewer_looked_for: 'What the teacher checked',
   what_it_counted_for: 'What it counted for',
 }
+
+/** What the page shows a title and a dek as; Google truncates past these. */
+export const TITLE_TARGET_CHARS = 60
+export const DEK_TARGET_CHARS = 155
+
+/**
+ * The sentence the page prints under "What it counted for", so the preview
+ * says what the site says. Mirrors marketing/src/data/howItWorks.ts; the
+ * site reads the number from the API, this preview from the shared table.
+ */
+export const creditExplainer = (xpPerCredit = XP_PER_CREDIT) =>
+  'Optio students earn XP for finished work instead of letter grades. A licensed teacher '
+  + "reviews the evidence against the task's criteria and awards the XP. "
+  + `${xpPerCredit.toLocaleString('en-US')} XP is one high school credit on an Optio Academy transcript.`
 
 /** Mirrors marketing/src/data/landers.ts plus `other`. */
 export const ACTIVITY_SLUGS = ['piano', 'soccer', 'camp', 'art', 'coding', 'volunteering', 'other']
@@ -89,6 +107,21 @@ export const sectionByKind = (story, kind) =>
   sections(story).find(s => s?.kind === kind) || null
 
 /** Evidence items that are not backed by an asset row: quotes and links. */
+/**
+ * Exclusion reasons a superadmin may override in either tier: the model
+ * found nothing (no face, no name, no text, no identifying detail) and was
+ * merely not confident, or would not commit. Mirrors
+ * backend/services/stories/safety.py `overridable_in_any_tier`; the server
+ * enforces it.
+ */
+const HUMAN_JUDGMENT_REASONS = new Set(['low_confidence', 'model_uncertain'])
+const nonEmpty = (v) => Array.isArray(v) && v.some(x => x != null && String(x).trim())
+export const overridableInAnyTier = (safety) => {
+  if (!safety || !HUMAN_JUDGMENT_REASONS.has(safety.reason)) return false
+  if (Number(safety.faces || 0) > 0) return false
+  return !['names_person', 'names_place_or_team', 'identifying_detail', 'readable_text'].some(k => nonEmpty(safety[k]))
+}
+
 export const STANDALONE_ITEM_TYPES = ['quote', 'link']
 
 export const isStandaloneItem = (item) =>
@@ -142,10 +175,11 @@ export const hostnameOf = (url) => {
 export const updateSection = (story, kind, patch) => {
   const current = sections(story)
   const exists = current.some(s => s?.kind === kind)
+  // A kind the page no longer renders (how_it_went on an older row) sorts last.
+  const rank = (s) => { const i = SECTION_ORDER.indexOf(s?.kind); return i === -1 ? SECTION_ORDER.length : i }
   const next = exists
     ? current.map(s => (s?.kind === kind ? { ...s, ...patch } : s))
-    : [...current, { kind, ...patch }].sort(
-      (a, b) => SECTION_ORDER.indexOf(a.kind) - SECTION_ORDER.indexOf(b.kind))
+    : [...current, { kind, ...patch }].sort((a, b) => rank(a) - rank(b))
   return { ...story, body: { ...(story?.body || {}), sections: next } }
 }
 
@@ -187,13 +221,19 @@ export const publishBlockers = (story, assets = []) => {
       out.push({
         code: 'hero_missing',
         field: 'hero_asset_id',
-        message: 'The hero image is not one of this story\'s assets.',
+        message: 'The hero is not one of this story\'s assets.',
       })
     } else if (!hero.included) {
       out.push({
         code: 'hero_excluded',
         field: 'hero_asset_id',
-        message: 'The hero image is excluded. Include it or pick another.',
+        message: 'The hero is excluded. Include it or pick another.',
+      })
+    } else if (hero.kind === 'document') {
+      out.push({
+        code: 'hero_is_document',
+        field: 'hero_asset_id',
+        message: 'The hero must be an image or a video, not a document.',
       })
     }
   }

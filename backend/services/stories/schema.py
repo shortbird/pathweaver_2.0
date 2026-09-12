@@ -26,7 +26,8 @@ RESPONSE_SCHEMA = {
         },
         'dek': {
             'type': 'STRING',
-            'description': 'One or two sentences under the headline. Plain text.',
+            'description': 'One sentence under the headline, under 155 characters; it is '
+                           'also the meta description. Plain text.',
         },
         'activity_slug': {
             'type': 'STRING',
@@ -70,13 +71,15 @@ RESPONSE_SCHEMA = {
         },
         'what_it_counted_for': {
             'type': 'STRING',
-            'description': 'One or two paragraphs of markdown: how this work became transcript '
-                           'credit, and what that means for a family.',
+            'description': 'Two or three sentences of markdown: which subject this counted '
+                           'toward, that it was one assignment or project among many toward a '
+                           'full credit, and why the evidence earned it. Never hours or time.',
         },
         'faq': {
             'type': 'ARRAY',
             'description': 'Exactly three questions a parent searching for this would ask, '
-                           'each with a two or three sentence answer.',
+                           'each with a two or three sentence answer: one on whether the '
+                           'activity can count for credit, one on what evidence is submitted.',
             'items': {
                 'type': 'OBJECT',
                 'properties': {
@@ -105,7 +108,8 @@ RESPONSE_SCHEMA = {
         },
         'hero_index': {
             'type': 'INTEGER',
-            'description': 'The [I<n>] to use as the hero image, or 0 for none.',
+            'description': 'The [I<n>] the page leads with: an image or a video, never a '
+                           'document. 0 for none.',
         },
         'search_phrases': {
             'type': 'ARRAY',
@@ -126,16 +130,16 @@ RESPONSE_SCHEMA = {
 }
 
 JSON_EXAMPLE = """{
-  "title": "Plain headline under 70 characters",
+  "title": "Plain headline under 60 characters",
   "title_options": ["...", "...", "..."],
-  "dek": "One or two sentences.",
+  "dek": "One sentence under 155 characters.",
   "activity_slug": "soccer | piano | camp | art | coding | volunteering | other",
   "activity_label": "A season of club soccer",
   "receipt": {"activity": "Fall club soccer season", "course": "Physical Education",
               "credit": "0.5 credit", "icon": "ball"},
   "what_they_did": "Two to four short markdown paragraphs.",
   "tasks": [{"index": 1, "summary": "One sentence."}],
-  "what_it_counted_for": "One or two markdown paragraphs.",
+  "what_it_counted_for": "Two or three sentences of markdown.",
   "faq": [{"q": "...", "a": "..."}, {"q": "...", "a": "..."}, {"q": "...", "a": "..."}],
   "images": [{"index": 1, "use": true, "alt": "...", "caption": "..."}],
   "hero_index": 1,

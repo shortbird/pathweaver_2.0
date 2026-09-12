@@ -15,7 +15,7 @@
  */
 import { Image } from 'astro:assets'
 import type { EvidenceItem } from '../../data/stories.schema'
-import { hostnameOf, videoEmbed } from '../../lib/stories'
+import { hostnameOf, videoEmbed, videoType } from '../../lib/stories'
 
 export interface Props {
   items: EvidenceItem[]
@@ -37,13 +37,6 @@ const isOurs = (url: string | null | undefined): boolean => {
 
 const inlineVideo = (i: EvidenceItem) => i.type === 'video' && isOurs(i.url)
 
-/** The bucket publishes mp4, mov and webm; the extension is the backend's own, from the MIME it sniffed. */
-const videoType = (url: string): string => {
-  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
-  if (ext === 'webm') return 'video/webm'
-  if (ext === 'mov') return 'video/quicktime'
-  return 'video/mp4'
-}
 const media = items.filter((i) => Boolean(i.url) && (i.type === 'image' || inlineVideo(i)))
 const quotes = items.filter((i) => i.type === 'quote' && i.text)
 const documents = items.filter((i) => i.type === 'document' && i.url)
@@ -60,7 +53,7 @@ const wide = media.length === 1
           return (
             <li class="col-span-full md:col-span-1">
               <figure class="rounded-2xl border border-neutral-100 bg-neutral-50 overflow-hidden">
-                <video controls preload="metadata" playsinline class="w-full rounded-xl bg-neutral-900" aria-label={item.alt ?? 'Video the student submitted'}>
+                <video controls preload="metadata" playsinline poster={item.thumb_url ?? undefined} class="w-full rounded-xl bg-neutral-900" aria-label={item.alt ?? 'Video the student submitted'}>
                   <source src={item.url!} type={videoType(item.url!)} />
                   <a href={item.url!} rel="noopener">Watch the video</a>
                 </video>

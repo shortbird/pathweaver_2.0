@@ -21,7 +21,7 @@ const crumbs = [
 ]
 const pageUrl = absolute('/stories/')
 const description =
-  'Real student work that became accredited credit: what they did, what they submitted, what the reviewer looked for, and what it counted for. Anonymized, with reviewer feedback quoted verbatim.'
+  'Real student work that became accredited credit: the video, the photos, the project, and what a licensed teacher awarded for it. Anonymized unless a family has agreed to share.'
 
 const schema = [
   graph(
@@ -59,10 +59,9 @@ const schema = [
       <Breadcrumbs items={crumbs} class="mb-6" />
       <h1 class="text-4xl sm:text-5xl font-bold text-neutral-900 mb-4">Stories</h1>
       <p class="text-lg text-neutral-500 font-medium leading-relaxed max-w-3xl">
-        Each story is one real submission on Optio, written up after a licensed teacher awarded the credit. The
-        student is anonymized, the reviewer's feedback is quoted verbatim, and a person edits every story before
-        it is published. Read what the student did, what they submitted, what the reviewer looked for, and what
-        it counted for.
+        Each story is one real submission on Optio, published after a licensed teacher awarded the credit. Watch
+        or see what the student made, read what they did and what the teacher checked, and see what it counted
+        for on an accredited transcript. Students are anonymized unless a family has agreed to share.
       </p>
       {groups.length > 0 && (
         <nav aria-label="Subjects" class="mt-8">
@@ -123,8 +122,8 @@ const schema = [
       <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">How a story gets here</p>
       <p class="text-neutral-500 font-medium leading-relaxed">
         A student submits evidence for a task. A licensed Optio teacher reviews it against the task's criteria,
-        sends it back when it needs more, and awards credit when it is ready. When a family has agreed, or the
-        story can be told with no identifying detail at all, we write it up and publish it here.
+        sends it back when it needs more, and awards XP when it is ready; the XP becomes credit on the transcript.
+        When a family has agreed, or the story can be told with no identifying detail at all, it is published here.
         <a href="/stories/rss.xml" class="text-optio-purple underline">Subscribe to the feed</a> to get each one.
       </p>
     </div>

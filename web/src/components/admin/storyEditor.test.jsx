@@ -6,9 +6,10 @@
  * is one click, Save PUTs the editable subset (assets included), Publish
  * saves first and shows the server's blockers when it refuses, the
  * evidence picker locks an excluded image in the anonymized tier, a video
- * asset renders as a player rather than a thumbnail, a PDF as a link, and
- * the "Words and links" list carries the student's quotations and external
- * links with the same include rules the server enforces.
+ * asset renders as a player rather than a thumbnail and may be the hero, a
+ * PDF as a link and never the hero, and the "Words and links" list carries
+ * the student's quotations and external links with the same include rules
+ * the server enforces.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -104,16 +105,39 @@ describe('loading', () => {
 
     const preview = screen.getByRole('article', { name: 'Story preview' })
     const headings = within(preview).getAllByRole('heading', { level: 2 }).map(h => h.textContent)
+    // The hero (a1) sits above the sections; the one other asset is excluded,
+    // so there is no evidence section. The review rounds are never shown.
     expect(headings).toEqual([
       'What the student did',
-      'What the student submitted as evidence',
-      'What the reviewer looked for',
-      'How the review went',
+      'What the teacher checked',
       'What it counted for',
       'Questions',
     ])
     expect(within(preview).getByText('a season')).toBeInTheDocument()
-    expect(within(preview).getByText('Add the schedule.')).toBeInTheDocument()
+    expect(within(preview).queryByText('Add the schedule.')).toBeNull()
+    expect(within(preview).getByText(/2,000 XP is one high school credit/)).toBeInTheDocument()
+    // The hero image, once, at the top.
+    expect(within(preview).getByRole('img', { name: 'A ball on grass' })).toBeInTheDocument()
+    // An anonymized story shows no student label in the facts.
+    expect(within(preview).queryByText('A middle schooler')).toBeNull()
+    expect(within(preview).getByText('Optio Academy')).toBeInTheDocument()
+  })
+
+  it('puts the search fields first, with the URL and the character counts', async () => {
+    renderEditor()
+    await screen.findByLabelText('Title')
+    expect(screen.getByText('16/60')).toBeInTheDocument()                    // "A fall of soccer"
+    expect(screen.getByText(`${STORY.dek.length}/155`)).toBeInTheDocument()
+    expect(screen.getByText(/\/stories\/a-fall-of-soccer\//)).toBeInTheDocument()
+    const headings = screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)
+    expect(headings.slice(0, 4)).toEqual(['Search', 'Hero and evidence', 'Story', 'Facts'])
+  })
+
+  it('shows the search phrases the draft was written to answer', async () => {
+    loaded = response({ story: { body: { ...STORY.body, search_phrases: ['does club soccer count for PE'] } } })
+    renderEditor()
+    const list = await screen.findByRole('list', { name: 'Search phrases' })
+    expect(within(list).getByText('does club soccer count for PE')).toBeInTheDocument()
   })
 
   it('offers the AI title options and re-slugs on a click', async () => {
@@ -231,7 +255,7 @@ describe('the evidence picker', () => {
     expect(api.put.mock.calls[0][1].assets[1].included).toBe(true)
   })
 
-  it('renders a video asset as a player, with include and captions but no hero radio', async () => {
+  it('renders a video asset as a player, with include, captions and a hero radio', async () => {
     loaded = response({
       assets: [
         ...ASSETS,
@@ -244,7 +268,9 @@ describe('the evidence picker', () => {
     const box = await screen.findByLabelText('Include video A dance routine')
     expect(box).toBeEnabled()
     expect(box).toBeChecked()
-    expect(screen.queryByLabelText('Use as hero image A dance routine')).toBeNull()
+    const hero = screen.getByLabelText('Use as hero video A dance routine')
+    expect(hero).toBeEnabled()
+    expect(hero).not.toBeChecked()                                  // a1 is the hero
     expect(screen.getByLabelText('Caption for video v1')).toHaveValue('One take')
 
     // The picker's player and the preview's player, both over the signed URL.
@@ -263,6 +289,79 @@ describe('the evidence picker', () => {
     await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
     expect(api.put.mock.calls[0][1].assets[2]).toEqual(
       { id: 'v1', included: true, alt: 'A dance routine', caption: 'Three minutes.' })
+  })
+
+  it('makes a video the hero and shows it first in the preview, with its poster', async () => {
+    loaded = response({
+      story: { hero_asset_id: 'v1' },
+      assets: [
+        ...ASSETS,
+        { id: 'v1', kind: 'video', mime_type: 'video/mp4', thumb_url: null,
+          media_url: 'https://signed.test/v1.mp4?token=abc', poster_url: 'https://public.test/v1.poster.jpg',
+          alt: 'A dance routine', caption: 'One take',
+          included: true, safety: { verdict: 'safe', reason: null, faces: 0, readable_text: [] } },
+      ],
+    })
+    renderEditor()
+    expect(await screen.findByLabelText('Use as hero video A dance routine')).toBeChecked()
+    const preview = screen.getByRole('article', { name: 'Story preview' })
+    const player = preview.querySelector('video')
+    expect(player.getAttribute('poster')).toBe('https://public.test/v1.poster.jpg')
+    // The hero comes before the first section heading, and the other image
+    // is the evidence section below it.
+    const firstHeading = within(preview).getAllByRole('heading', { level: 2 })[0]
+    expect(player.compareDocumentPosition(firstHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(preview).getByText('More of the evidence')).toBeInTheDocument()
+    expect(within(preview).getByRole('img', { name: 'A ball on grass' })).toBeInTheDocument()
+    // Switching the hero to the image is one click and marks the form dirty.
+    fireEvent.click(screen.getByLabelText('Use as hero image A ball on grass'))
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    expect(api.put.mock.calls[0][1].hero_asset_id).toBe('a1')
+  })
+
+  it('lets a superadmin include a clean video the model was merely unsure about, in the anonymized tier', async () => {
+    loaded = response({
+      assets: [
+        ...ASSETS,
+        { id: 'v3', kind: 'video', mime_type: 'video/mp4', thumb_url: null,
+          media_url: 'https://signed.test/v3.mp4?token=abc', alt: 'The loop', caption: '', included: false,
+          safety: { verdict: 'excluded', reason: 'low_confidence', faces: 0, readable_text: [],
+                    names_person: [], names_place_or_team: [], identifying_detail: [], confidence: 0.75 } },
+      ],
+    })
+    renderEditor()
+    const box = await screen.findByLabelText('Include video The loop')
+    expect(box).toBeEnabled()
+    expect(box).not.toBeChecked()
+    const row = box.closest('li')
+    expect(within(row).getByText(/The model found nothing but was not sure/)).toBeInTheDocument()
+    expect(within(row).queryByText('Locked out in the anonymized tier.')).toBeNull()
+    // The image with two faces (a2) stays locked beside it.
+    expect(screen.getByLabelText('Include image The team')).toBeDisabled()
+    fireEvent.click(box)
+    expect(box).toBeChecked()
+    // Once included, a video can be the hero.
+    fireEvent.click(screen.getByLabelText('Use as hero video The loop'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
+    const body = api.put.mock.calls[0][1]
+    expect(body.assets[2].included).toBe(true)
+    expect(body.hero_asset_id).toBe('v3')
+  })
+
+  it('keeps a low-confidence exclusion locked when the record also shows a face', async () => {
+    loaded = response({
+      assets: [
+        { id: 'v4', kind: 'video', mime_type: 'video/mp4', thumb_url: null, media_url: null,
+          alt: 'A face', caption: '', included: false,
+          safety: { verdict: 'excluded', reason: 'low_confidence', faces: 1, readable_text: [] } },
+      ],
+    })
+    renderEditor()
+    expect(await screen.findByLabelText('Include video A face')).toBeDisabled()
+    expect(screen.getByText('Locked out in the anonymized tier.')).toBeInTheDocument()
   })
 
   it('keeps a video with location metadata locked even in the named tier', async () => {
@@ -293,7 +392,7 @@ describe('the evidence picker', () => {
     renderEditor()
     const box = await screen.findByLabelText('Include document Lab report')
     expect(box).toBeChecked()
-    expect(screen.queryByLabelText('Use as hero image Lab report')).toBeNull()
+    expect(screen.queryByLabelText(/Use as hero .* Lab report/)).toBeNull()
     const links = screen.getAllByRole('link', { name: 'Open the PDF' })
     expect(links.length).toBe(2)                                   // the picker and the preview
     links.forEach(a => expect(a).toHaveAttribute('href', 'https://signed.test/d1.pdf?token=abc'))
@@ -399,15 +498,19 @@ describe('words and links', () => {
   })
 })
 
-describe('review rounds', () => {
-  it('leaves a review round out of the story on a toggle', async () => {
+describe('review criteria', () => {
+  it('leaves a criterion out of the story on a toggle, and keeps the old rounds section on save', async () => {
     renderEditor()
-    fireEvent.click(await screen.findByLabelText('Include round 1'))
+    fireEvent.click(await screen.findByLabelText('Include criterion 1'))
     const preview = screen.getByRole('article', { name: 'Story preview' })
-    expect(within(preview).queryByText('How the review went')).toBeNull()
+    expect(within(preview).queryByText('What the teacher checked')).toBeNull()
+    expect(screen.queryByLabelText('Include round 1')).toBeNull()      // rounds are not editable: not shown
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(api.put).toHaveBeenCalledTimes(1))
-    const rounds = api.put.mock.calls[0][1].body.sections.find(s => s.kind === 'how_it_went').rounds
-    expect(rounds[0].included).toBe(false)
+    const sections = api.put.mock.calls[0][1].body.sections
+    expect(sections.find(s => s.kind === 'what_reviewer_looked_for').criteria[0].included).toBe(false)
+    // A row drafted before 2026-09-12 keeps its how_it_went section; the
+    // public projection ignores it, and the editor must not delete it.
+    expect(sections.find(s => s.kind === 'how_it_went')).toBeTruthy()
   })
 })

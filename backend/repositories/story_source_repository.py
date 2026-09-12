@@ -130,12 +130,15 @@ class StorySourceRepository(BaseRepository):
         return self.client.table('users').select(NAME_COLUMNS).in_(
             'id', guardian_ids).execute().data or []
 
-    def org_name(self, org_id: Optional[str]) -> Optional[str]:
+    def org_row(self, org_id: Optional[str]) -> Optional[Dict[str, Any]]:
+        """The organization's id, name and slug. The slug is how the pipeline
+        recognises Optio Academy's own org (services/stories/source.py); the
+        name is what the scrubber removes for every other org."""
         if not org_id:
             return None
-        rows = self.client.table('organizations').select('id, name').eq(
+        rows = self.client.table('organizations').select('id, name, slug').eq(
             'id', org_id).limit(1).execute().data
-        return (rows[0].get('name') if rows else None) or None
+        return rows[0] if rows else None
 
     def active_academy_enrollment(self, user_id: str) -> Optional[Dict[str, Any]]:
         rows = self.client.table('academy_enrollments').select(

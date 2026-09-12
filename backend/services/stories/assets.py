@@ -6,10 +6,13 @@ reaches the public `story-assets` bucket, and it runs only for assets marked
 nobody excluded it since. Every image goes through `prepare_public_image`, so
 what lands in the bucket is a fresh JPEG with no EXIF, at most 1600 px.
 
-A video is copied as it was uploaded. There is no ffmpeg in production to
-re-encode it or strip its metadata, which is why the safety pass refuses any
-video carrying a location atom before it gets this far (safety.py); the only
-transformation here is a content type the bucket accepts.
+A video is copied as it was uploaded. Nothing re-encodes it or strips its
+metadata, which is why the safety pass refuses any video carrying a location
+atom before it gets this far (safety.py); the only transformation here is a
+content type the bucket accepts. What a video does get is a poster: one frame
+through video_poster.py (the bundled ffmpeg, optional), published beside it as
+`<asset_id>.poster.jpg` after the same `prepare_public_image` every image
+goes through, and recorded in `poster_path`. No poster is not a failure.
 
 A PDF is copied as it was uploaded too. The safety pass read its text and its
 metadata with the scrubber and had the model read its pages before the row
@@ -22,8 +25,9 @@ picks up a changed crop rule), and a delete of something already gone is
 success.
 
 The public path is `stories/<story_id>/<asset_id>.<ext>` -- `.jpg` for an
-image, `.mp4` / `.mov` / `.webm` for a video, `.pdf` for a document. The asset
-id is a uuid, so the URL says nothing about the student or the original file.
+image, `.mp4` / `.mov` / `.webm` for a video (plus `.poster.jpg`), `.pdf` for
+a document. The asset id is a uuid, so the URL says nothing about the student
+or the original file.
 """
 
 from __future__ import annotations
@@ -58,6 +62,10 @@ def public_path_for(story_id: str, asset_id: str, *, kind: str = 'image',
     if kind == 'document':
         return f'stories/{story_id}/{asset_id}.pdf'
     return f'stories/{story_id}/{asset_id}.jpg'
+
+
+def poster_path_for(story_id: str, asset_id: str) -> str:
+    return f'stories/{story_id}/{asset_id}.poster.jpg'
 
 
 def public_url_for(path: Optional[str]) -> Optional[str]:
@@ -196,17 +204,45 @@ def copy_to_public(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
             updated.append(_drop(repo, asset, 'upload_failed'))
             continue
 
-        changes = {'public_path': path, 'width': width, 'height': height}
+        changes: Dict[str, Any] = {'public_path': path, 'width': width, 'height': height}
+        if asset.get('kind') == 'video':
+            changes.update(_publish_poster(admin, story_id, asset, blob))
         repo.patch(asset['id'], changes)
         updated.append({**asset, **changes})
 
     return updated
 
 
+def _publish_poster(admin, story_id: str, asset: Dict[str, Any], blob: bytes) -> Dict[str, Any]:
+    """The still beside a video: `poster_path`, its size, and the clip's
+    duration. Empty (poster_path None) when there is no ffmpeg or it failed;
+    the video is published either way."""
+    from services.stories import video_poster
+
+    none: Dict[str, Any] = {'poster_path': None}
+    poster = video_poster.extract(blob)
+    if poster is None:
+        return none
+    try:
+        jpeg, width, height = prepare_public_image(poster.jpeg)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Story poster frame could not be prepared: {e}')
+        return none
+    path = poster_path_for(story_id, asset['id'])
+    try:
+        admin.storage.from_(PUBLIC_BUCKET).upload(
+            path, jpeg, {'content-type': 'image/jpeg', 'upsert': 'true'})
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Story poster upload failed: {e}')
+        return none
+    return {'poster_path': path, 'width': width, 'height': height,
+            'duration_seconds': poster.duration_seconds}
+
+
 def _drop(repo, asset: Dict[str, Any], reason: str) -> Dict[str, Any]:
     safety = dict(asset.get('safety') or {})
     safety['copy_error'] = reason
-    changes = {'included': False, 'public_path': None, 'safety': safety}
+    changes = {'included': False, 'public_path': None, 'poster_path': None, 'safety': safety}
     repo.patch(asset['id'], changes)
     return {**asset, **changes}
 
@@ -224,6 +260,7 @@ def delete_public(story: Dict[str, Any], assets: List[Dict[str, Any]], *,
     admin = _admin_client(admin)
     repo = repo or StoryAssetRepository(client=admin)
     paths = [a['public_path'] for a in assets if a.get('public_path')]
+    paths += [a['poster_path'] for a in assets if a.get('poster_path')]
     # Belt and braces: whatever the rows say, the story's whole prefix goes.
     prefix = f'stories/{story["id"]}'
     try:

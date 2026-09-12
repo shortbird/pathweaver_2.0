@@ -1,24 +1,28 @@
 import React from 'react'
 import StorySafetyReport from './StorySafetyReport'
-import { hostnameOf, isStandaloneItem, sectionByKind, standaloneLockReason, updateSection } from './storyEditorState'
+import { hostnameOf, isStandaloneItem, overridableInAnyTier, sectionByKind, standaloneLockReason, updateSection } from './storyEditorState'
 
 /**
  * Which evidence goes public, and what it says.
  *
  * Two lists. The media grid is every file the source had -- image, video,
  * PDF -- with the safety pass's verdict on each. An image the pass excluded
- * can only be brought back in the named tier, where a recorded consent
- * covers faces; in the anonymized tier the checkbox is locked and the reason
- * sits beside it, because there is no consent to lean on and the whole point
- * of that tier is that nobody has to be asked.
+ * because it SAW something (a face, a name, a jersey) can only be brought
+ * back in the named tier, where a recorded consent covers it; in the
+ * anonymized tier the checkbox is locked and the reason sits beside it,
+ * because there is no consent to lean on and the whole point of that tier
+ * is that nobody has to be asked. An exclusion the model made because it
+ * found nothing and was merely not confident is a judgment call, and a
+ * superadmin looking at the file may make it in either tier.
  *
- * A video shows as a player over its signed `media_url` (there is no poster
- * frame: the server has no ffmpeg). A PDF shows as a link to open it. Both
- * take the same include checkbox, alt and caption, but never the hero radio
- * -- the hero is the page's still and its og:image, and the server refuses
- * either there too. A video the pass excluded for location metadata stays
- * locked in both tiers: the file itself says where the child was, and it is
- * published byte for byte.
+ * A video shows as a player over its signed `media_url`, or as the poster
+ * frame the publish step extracted once it has one. A PDF shows as a link
+ * to open it. Both take the same include checkbox, alt and caption. A video
+ * may be the hero (the page leads with the student's work, and often the
+ * work IS the video); a PDF never can, and the server refuses it there too.
+ * A video the pass excluded for location metadata stays locked in both
+ * tiers: the file itself says where the child was, and it is published byte
+ * for byte.
  *
  * "Words and links" is the second list: the student's quotations and the
  * external links they submitted. These are not assets -- nothing is copied
@@ -38,11 +42,12 @@ const Thumb = ({ asset, included }) => {
   if (isVideo(asset)) {
     return (
       <div className={`shrink-0 w-full sm:w-64 rounded-md overflow-hidden bg-black border border-gray-200 ${included ? '' : 'opacity-60'}`}>
-        {asset.media_url ? (
+        {asset.media_url || asset.public_url ? (
           <video
             controls
             preload="metadata"
-            src={asset.media_url}
+            src={asset.media_url || asset.public_url}
+            poster={asset.poster_url || undefined}
             className="w-full rounded-lg bg-black"
             aria-label={`Video ${asset.alt || asset.id}`}
           />
@@ -98,7 +103,8 @@ const MediaList = ({ assets, named, heroAssetId, onChange, onHeroChange }) => {
       {assets.map((asset) => {
         const excluded = asset.safety?.verdict === 'excluded'
         const located = asset.safety?.reason === 'video_location_metadata'
-        const locked = excluded && (!named || located)
+        const judgment = excluded && overridableInAnyTier(asset.safety)
+        const locked = excluded && (located || (!named && !judgment))
         const included = !!asset.included && !locked
         return (
           <li
@@ -120,7 +126,7 @@ const MediaList = ({ assets, named, heroAssetId, onChange, onHeroChange }) => {
                   />
                   Include
                 </label>
-                {!isVideo(asset) && !isDocument(asset) && (
+                {!isDocument(asset) && (
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                       type="radio"
@@ -129,7 +135,7 @@ const MediaList = ({ assets, named, heroAssetId, onChange, onHeroChange }) => {
                       disabled={!included}
                       onChange={() => onHeroChange?.(asset.id)}
                       className="text-optio-purple focus:ring-optio-purple disabled:opacity-50"
-                      aria-label={`Use as hero image ${asset.alt || asset.id}`}
+                      aria-label={`Use as hero ${noun(asset)} ${asset.alt || asset.id}`}
                     />
                     Hero
                   </label>
@@ -139,6 +145,11 @@ const MediaList = ({ assets, named, heroAssetId, onChange, onHeroChange }) => {
                     {located
                       ? 'Locked: the video carries location metadata.'
                       : 'Locked out in the anonymized tier.'}
+                  </span>
+                )}
+                {!locked && judgment && !included && (
+                  <span className="text-xs text-gray-500">
+                    The model found nothing but was not sure. Look at it; you can include it.
                   </span>
                 )}
               </div>

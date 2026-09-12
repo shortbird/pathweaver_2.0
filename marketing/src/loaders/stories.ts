@@ -111,6 +111,11 @@ function loadFixture(): RawStory[] {
 function imageUrls(story: RawStory): string[] {
   const urls: string[] = []
   if (typeof story.hero_image_url === 'string') urls.push(story.hero_image_url)
+  const hero = story.hero
+  if (hero && typeof hero === 'object') {
+    if (hero.type === 'image' && typeof hero.url === 'string') urls.push(hero.url)
+    if (typeof hero.poster_url === 'string') urls.push(hero.poster_url)
+  }
   for (const section of story.sections ?? []) {
     if (section?.kind !== 'evidence') continue
     for (const item of section.items ?? []) {

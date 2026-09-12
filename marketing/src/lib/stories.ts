@@ -1,9 +1,8 @@
 /**
  * Pure helpers over the Story shape. Pages and components call these; none
- * of them touch the collection, so they are cheap to reason about and the
- * summary sentence can be checked by reading it.
+ * of them touch the collection, so they are cheap to reason about.
  */
-import type { Story, StorySection, EvidenceItem, ReviewRound } from '../data/stories.schema'
+import type { Story, StorySection, StoryHero, EvidenceItem } from '../data/stories.schema'
 import { landers, type Lander } from '../data/landers'
 
 export type SectionOf<K extends StorySection['kind']> = Extract<StorySection, { kind: K }>
@@ -58,10 +57,57 @@ export function sectionsByKind(story: Story) {
     tasks: find('tasks'),
     evidence: find('evidence'),
     criteria: find('what_reviewer_looked_for'),
-    howItWent: find('how_it_went'),
     whatItCountedFor: find('what_it_counted_for'),
   }
 }
+
+/**
+ * The evidence the page leads with. The API's `hero` when it sends one;
+ * for a payload from before 2026-09-12, the old still as an image hero.
+ */
+export function heroOf(story: Story): StoryHero | null {
+  if (story.hero) return story.hero
+  if (story.hero_image_url) {
+    return { type: 'image', url: story.hero_image_url, alt: story.hero_alt ?? null, caption: null }
+  }
+  return null
+}
+
+/** The hero's still: the image, or the video's poster. Null for a video with no poster. */
+export function heroStill(story: Story): string | null {
+  const hero = heroOf(story)
+  if (!hero) return null
+  return hero.type === 'image' ? hero.url : (hero.poster_url ?? null)
+}
+
+/** The evidence items that are not the hero, so the page does not show it twice. */
+export function evidenceBesidesHero(story: Story): EvidenceItem[] {
+  const items = sectionsByKind(story).evidence?.items ?? []
+  const hero = heroOf(story)
+  if (!hero) return items
+  return items.filter((i) => i.url !== hero.url)
+}
+
+/** The bucket publishes mp4, mov and webm; the extension is the backend's own, from the MIME it sniffed. */
+export function videoType(url: string): string {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
+  if (ext === 'webm') return 'video/webm'
+  if (ext === 'mov') return 'video/quicktime'
+  return 'video/mp4'
+}
+
+/** Seconds as the ISO 8601 duration schema.org wants ("PT1M5S"). Null when unknown. */
+export function isoDuration(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null
+  const whole = Math.round(seconds)
+  const h = Math.floor(whole / 3600)
+  const m = Math.floor((whole % 3600) / 60)
+  const sec = whole % 60
+  return `PT${h ? `${h}H` : ''}${m ? `${m}M` : ''}${sec || (!h && !m) ? `${sec}S` : ''}`
+}
+
+/** The platform rule, from the payload when it carries one. */
+export const xpPerCredit = (story: Story) => story.credit_rule?.xp_per_credit ?? 2000
 
 /** Subjects grouped for the index page: [{ subject, slug, stories }], largest group first. */
 export function groupBySubject(stories: Story[]) {
@@ -72,48 +118,6 @@ export function groupBySubject(stories: Story[]) {
     groups.set(story.subject_slug, group)
   }
   return [...groups.values()].sort((a, b) => b.stories.length - a.stories.length || a.subject.localeCompare(b.subject))
-}
-
-export interface ReviewStats {
-  rounds: number
-  firstSubmission: Date | null
-  awarded: Date | null
-  /** Calendar days from the first submission to the award, when both dates exist. */
-  daysToAward: number | null
-}
-
-export function reviewStats(story: Story): ReviewStats {
-  const rounds: ReviewRound[] = sectionsByKind(story).howItWent?.rounds ?? []
-  if (rounds.length === 0) return { rounds: 0, firstSubmission: null, awarded: null, daysToAward: null }
-  const dates = rounds.map((r) => r.date.valueOf())
-  const first = new Date(Math.min(...dates))
-  const last = new Date(Math.max(...dates))
-  const days = Math.round((last.valueOf() - first.valueOf()) / 86_400_000)
-  return { rounds: rounds.length, firstSubmission: first, awarded: last, daysToAward: days }
-}
-
-const SMALL_NUMBERS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']
-
-export function numberWord(n: number): string {
-  return n >= 0 && n < SMALL_NUMBERS.length ? SMALL_NUMBERS[n] : String(n)
-}
-
-function withArticle(label: string): string {
-  const trimmed = label.trim()
-  if (/^(a|an|the)\s/i.test(trimmed)) return trimmed
-  const article = /^[aeiou]/i.test(trimmed) ? 'An' : 'A'
-  return `${article} ${trimmed}`
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-export function joinNames(names: string[]): string {
-  const unique = [...new Set(names)]
-  if (unique.length <= 1) return unique[0] ?? ''
-  if (unique.length === 2) return `${unique[0]} and ${unique[1]}`
-  return `${unique.slice(0, -1).join(', ')}, and ${unique[unique.length - 1]}`
 }
 
 export const SETTING_LABEL: Record<Story['student']['setting'], string> = {
@@ -128,44 +132,9 @@ export const GRADE_BAND_LABEL: Record<NonNullable<Story['student']['grade_band']
   high: 'High school',
 }
 
-function settingClause(setting: Story['student']['setting']): string {
-  switch (setting) {
-    case 'academy':
-      return 'at Optio Academy'
-    case 'org':
-      return 'at an Optio partner school'
-    default:
-      return 'through Optio'
-  }
-}
-
-/**
- * The one-sentence answer at the top of a story page, built from fields the
- * backend fixes deterministically (never from the AI draft), so the sentence
- * an answer engine quotes is the same fact the transcript shows.
- */
-export function summarySentence(story: Story): string {
-  const subjects = story.subject_split.length > 0 ? story.subject_split.map((s) => s.subject) : [story.subject]
-  const unique = [...new Set(subjects)]
-  const subjectPhrase = unique.length > 1 ? `across ${joinNames(unique)}` : `of ${unique[0]}`
-
-  if (story.source.type === 'quest') {
-    const label = story.activity.label.trim().replace(/^(a|an|the)\s+/i, '')
-    const tasks = story.task_count > 0 ? `${numberWord(story.task_count)}-task ` : ''
-    const article = /^[aeiou]/i.test(tasks || label) ? 'An' : 'A'
-    return `${article} ${tasks}${label} earned ${story.credit_fraction} ${subjectPhrase}.`
-  }
-
-  const { rounds } = reviewStats(story)
-  const roundsClause = rounds > 0 ? ` after ${numberWord(rounds)} review round${rounds === 1 ? '' : 's'}` : ''
-  return `${capitalize(withArticle(story.activity.label))} earned ${story.credit_fraction} ${subjectPhrase} ${settingClause(story.student.setting)}${roundsClause}.`
-}
-
 export function formatDate(date: Date): string {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
 }
-
-export const isImage = (item: EvidenceItem) => item.type === 'image' && typeof item.url === 'string'
 
 const YOUTUBE_ID_RE = /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?|shorts|live)\/|.*[?&]v=)|youtu\.be\/)([A-Za-z0-9_-]{11})/
 const VIMEO_ID_RE = /vimeo\.com\/(?:video\/)?(\d+)/
@@ -203,14 +172,15 @@ export function hostnameOf(url: string | null | undefined): string {
 
 /** Only the fields a card needs, so a listing page's props stay small. */
 export function cardProps(story: Story) {
+  const hero = heroOf(story)
   return {
     slug: story.slug,
     title: story.title,
     dek: story.dek,
     subject: story.subject,
-    credit_fraction: story.credit_fraction,
-    hero_image_url: story.hero_image_url,
-    hero_alt: story.hero_alt ?? story.receipt.activity,
+    hero,
+    hero_still: heroStill(story),
+    hero_alt: hero?.alt ?? story.receipt.activity,
     icon: story.receipt.icon,
     setting: story.student.setting,
     published_at: story.published_at,

@@ -2,22 +2,25 @@ import React from 'react'
 import DocsMarkdown from '../../docs/DocsMarkdown'
 import {
   SECTION_ORDER, SECTION_TITLES, sectionByKind, GRADE_BAND_OPTIONS, SETTING_OPTIONS,
-  hostnameOf, isStandaloneItem, videoEmbed,
+  creditExplainer, hostnameOf, isStandaloneItem, videoEmbed,
 } from './storyEditorState'
 
 const isIncluded = (row) => row?.included !== false
 
 const optionLabel = (options, value) => options.find(o => o.value === value)?.label || value
 
+/**
+ * The facts as the page lists them: the school, the grade, the subject, the
+ * activity. The student label only in the named tier (an anonymized page
+ * names nobody). No credit or XP here; those sit in the receipt, once.
+ */
 const Facts = ({ story }) => {
   const facts = [
-    ['Student', story.student_label],
-    ['Setting', optionLabel(SETTING_OPTIONS, story.setting)],
-    ['Grade band', optionLabel(GRADE_BAND_OPTIONS, story.grade_band)],
-    ['Activity', story.activity_label || story.activity_slug],
+    ['Student', story.tier === 'named' ? story.student_label : null],
+    ['School', optionLabel(SETTING_OPTIONS, story.setting)],
+    ['Grade', optionLabel(GRADE_BAND_OPTIONS, story.grade_band)],
     ['Subject', story.subject],
-    ['Credit', story.credit_fraction],
-    ['XP', story.xp_awarded],
+    ['Activity', story.activity_label || story.activity_slug],
   ].filter(([, v]) => v != null && v !== '')
   if (facts.length === 0) return null
   return (
@@ -63,18 +66,40 @@ const Section = ({ title, children }) => (
 const isVideo = (asset) => asset?.kind === 'video'
 const isDocument = (asset) => asset?.kind === 'document'
 
-const VideoFigure = ({ src, caption, label }) => (
+const VideoFigure = ({ src, poster, caption, label }) => (
   <figure className="space-y-1">
     <video
       controls
       preload="metadata"
       src={src}
+      poster={poster || undefined}
       className="w-full rounded-lg border border-gray-200 bg-black"
       aria-label={label}
     />
     {caption && <figcaption className="text-xs text-gray-500">{caption}</figcaption>}
   </figure>
 )
+
+/**
+ * The evidence the page leads with. A video plays here the way it will on
+ * the page, with its poster once the publish step has made one; an image
+ * shows its thumbnail. A document is never the hero.
+ */
+const Hero = ({ asset }) => {
+  if (!asset) return null
+  if (isVideo(asset)) {
+    const src = asset.media_url || asset.public_url
+    if (!src) return <p className="text-sm text-gray-500">{asset.caption || asset.alt || 'The hero video'}</p>
+    return <VideoFigure src={src} poster={asset.poster_url} caption={asset.caption} label={asset.alt || 'The hero video'} />
+  }
+  if (!asset.thumb_url) return null
+  return (
+    <figure className="space-y-1">
+      <img src={asset.thumb_url} alt={asset.alt || ''} className="w-full rounded-xl border border-gray-200 object-cover" />
+      {asset.caption && <figcaption className="text-xs text-gray-500">{asset.caption}</figcaption>}
+    </figure>
+  )
+}
 
 /** A PDF the page will offer as a file: a card with the title and "Open the PDF". */
 const DocumentCard = ({ href, title, caption }) => (
@@ -128,18 +153,19 @@ const LinkCard = ({ item }) => {
 const StoryPreview = ({ story, assets = [] }) => {
   if (!story) return null
   const included = assets.filter(a => a.included)
-  const images = included.filter(a => !isVideo(a) && !isDocument(a))
-  const videos = included.filter(isVideo)
-  const documents = included.filter(isDocument)
   const byId = Object.fromEntries(assets.map(a => [a.id, a]))
-  const hero = images.find(a => a.id === story.hero_asset_id) || null
+  const hero = included.find(a => a.id === story.hero_asset_id && !isDocument(a)) || null
+  // The page shows the hero once, at the top; the evidence section is the rest.
+  const rest = included.filter(a => a.id !== hero?.id)
+  const images = rest.filter(a => !isVideo(a) && !isDocument(a))
+  const videos = rest.filter(isVideo)
+  const documents = rest.filter(isDocument)
 
   const renderSection = (kind) => {
     const section = sectionByKind(story, kind)
     if (!section) return null
     switch (kind) {
       case 'what_they_did':
-      case 'what_it_counted_for':
         if (!section.body_md) return null
         return (
           <Section key={kind} title={SECTION_TITLES[kind]}>
@@ -164,11 +190,12 @@ const StoryPreview = ({ story, assets = [] }) => {
         )
       }
       case 'evidence': {
-        // Images, videos and PDFs render from the included assets, so a
-        // toggle in the picker shows up here at once. Quotes and links are
-        // the body's own items, shown when their `included` flag is on. A
-        // video item the body carries without an asset of its own still gets
-        // a player when it has a URL; items whose asset is excluded are gone.
+        // Images, videos and PDFs render from the included assets (minus the
+        // hero, shown above), so a toggle in the picker shows up here at
+        // once. Quotes and links are the body's own items, shown when their
+        // `included` flag is on. A video item the body carries without an
+        // asset of its own still gets a player when it has a URL; items
+        // whose asset is excluded are gone.
         const words = (section.items || []).filter(item => isStandaloneItem(item) && item.included !== false)
         const loose = (section.items || []).filter((item) => {
           if (!item || isStandaloneItem(item) || item.type === 'image' || item.type === 'document') return false
@@ -177,7 +204,7 @@ const StoryPreview = ({ story, assets = [] }) => {
         if (images.length === 0 && videos.length === 0 && documents.length === 0
             && words.length === 0 && loose.length === 0) return null
         return (
-          <Section key={kind} title={SECTION_TITLES[kind]}>
+          <Section key={kind} title={hero ? SECTION_TITLES[kind] : 'What the student submitted as evidence'}>
             {images.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 {images.map(a => (
@@ -195,6 +222,7 @@ const StoryPreview = ({ story, assets = [] }) => {
                 <VideoFigure
                   key={a.id}
                   src={a.media_url || a.public_url}
+                  poster={a.poster_url}
                   caption={a.caption}
                   label={a.alt || 'Video evidence'}
                 />
@@ -243,27 +271,14 @@ const StoryPreview = ({ story, assets = [] }) => {
           </Section>
         )
       }
-      case 'how_it_went': {
-        const rows = (section.rounds || []).filter(isIncluded)
-        if (rows.length === 0) return null
+      case 'what_it_counted_for': {
+        // The drafted sentences, then the platform rule, then the receipt:
+        // credit appears here once, where the page can say what it means.
         return (
           <Section key={kind} title={SECTION_TITLES[kind]}>
-            <ol className="space-y-3 text-sm">
-              {rows.map((row, i) => (
-                <li key={i} className="space-y-1">
-                  <p className="text-xs text-gray-500">
-                    {[row.round != null && `Round ${row.round}`, row.date && new Date(row.date).toLocaleDateString(), row.action]
-                      .filter(Boolean).join(' · ')}
-                  </p>
-                  {row.feedback_verbatim && (
-                    <blockquote className="border-l-2 border-gray-200 pl-3 text-gray-700 whitespace-pre-wrap">
-                      {row.feedback_verbatim}
-                    </blockquote>
-                  )}
-                  {row.what_changed && <p className="text-gray-700">{row.what_changed}</p>}
-                </li>
-              ))}
-            </ol>
+            {section.body_md && <DocsMarkdown content={section.body_md} />}
+            <p className="text-sm text-gray-700">{creditExplainer()}</p>
+            <Receipt receipt={story.receipt} />
           </Section>
         )
       }
@@ -284,14 +299,9 @@ const StoryPreview = ({ story, assets = [] }) => {
         </p>
       </header>
 
-      {hero?.thumb_url && (
-        <img src={hero.thumb_url} alt={hero.alt || ''} className="w-full rounded-xl border border-gray-200 object-cover" />
-      )}
+      <Hero asset={hero} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Receipt receipt={story.receipt} />
-        <Facts story={story} />
-      </div>
+      <Facts story={story} />
 
       {SECTION_ORDER.map(renderSection)}
 

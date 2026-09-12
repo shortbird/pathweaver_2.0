@@ -18,14 +18,17 @@ const ToggleRow = ({ included, onToggle, label, children }) => (
 
 /**
  * The parts of a story copied verbatim from the review: the criteria the
- * reviewer looked for, the rounds it took, and (for a quest story) the
- * tasks. None of it is editable here. The rows are the record of what
- * happened, and a story that paraphrased the reviewer would stop being one.
- * What a superadmin can do is leave a row out.
+ * teacher checked and (for a quest story) the tasks. None of it is editable
+ * here. The rows are the record of what happened, and a story that
+ * paraphrased the teacher would stop being one. What a superadmin can do is
+ * leave a row out.
+ *
+ * The review rounds are not here. They stopped being part of the page on
+ * 2026-09-12: a visitor is here for the work, not the paperwork behind the
+ * credit. Older rows still carry a `how_it_went` section; nothing reads it.
  */
 const StoryCriteriaRounds = ({ story, onChange }) => {
   const criteria = sectionByKind(story, 'what_reviewer_looked_for')?.criteria || []
-  const rounds = sectionByKind(story, 'how_it_went')?.rounds || []
   const tasks = sectionByKind(story, 'tasks')?.rows || []
 
   const toggle = (kind, listKey, index) => {
@@ -55,7 +58,6 @@ const StoryCriteriaRounds = ({ story, onChange }) => {
                     row.subject,
                     row.xp != null && `${row.xp} XP`,
                     row.criteria_total != null && `${row.criteria_met ?? 0} of ${row.criteria_total} criteria`,
-                    row.rounds != null && `${row.rounds} ${row.rounds === 1 ? 'round' : 'rounds'}`,
                   ].filter(Boolean).join(' · ')}
                 </p>
               </ToggleRow>
@@ -65,7 +67,7 @@ const StoryCriteriaRounds = ({ story, onChange }) => {
       )}
 
       <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-2">What the reviewer looked for</h4>
+        <h4 className="text-sm font-medium text-gray-700 mb-2">What the teacher checked</h4>
         {criteria.length === 0 ? (
           <p className="text-sm text-gray-500">No criteria on this story.</p>
         ) : (
@@ -82,40 +84,6 @@ const StoryCriteriaRounds = ({ story, onChange }) => {
                   {row.verdict === 'met' ? 'Met' : row.verdict === 'partial' ? 'Partly met' : row.verdict}
                   {row.note && ` · ${row.note}`}
                 </p>
-              </ToggleRow>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-2">How the review went</h4>
-        {rounds.length === 0 ? (
-          <p className="text-sm text-gray-500">No review rounds on this story.</p>
-        ) : (
-          <ul className="space-y-2">
-            {rounds.map((row, i) => (
-              <ToggleRow
-                key={i}
-                included={isIncluded(row)}
-                onToggle={() => toggle('how_it_went', 'rounds', i)}
-                label={`Include round ${row.round ?? i + 1}`}
-              >
-                <p className="text-xs text-gray-500">
-                  {[
-                    row.round != null && `Round ${row.round}`,
-                    row.date && new Date(row.date).toLocaleDateString(),
-                    row.action,
-                  ].filter(Boolean).join(' · ')}
-                </p>
-                {row.feedback_verbatim && (
-                  <blockquote className="mt-1 border-l-2 border-gray-200 pl-2 text-gray-700 whitespace-pre-wrap">
-                    {row.feedback_verbatim}
-                  </blockquote>
-                )}
-                {row.what_changed && (
-                  <p className="mt-1 text-gray-700">{row.what_changed}</p>
-                )}
               </ToggleRow>
             ))}
           </ul>

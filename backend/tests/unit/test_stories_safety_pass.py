@@ -155,6 +155,41 @@ class TestDecide:
             ('excluded', 'low_confidence')
 
 
+class TestOverridableInAnyTier:
+    """An exclusion a human may reverse in either tier is one where the model
+    found nothing and was merely not sure. A finding is not."""
+
+    def _record(self, **kw):
+        base = {'verdict': 'excluded', 'reason': 'low_confidence', 'faces': 0, 'names_person': [],
+                'names_place_or_team': [], 'identifying_detail': [], 'readable_text': [],
+                'confidence': 0.75, 'model_verdict': 'safe'}
+        return {**base, **kw}
+
+    def test_low_confidence_with_nothing_found(self):
+        assert safety.overridable_in_any_tier(self._record()) is True
+
+    def test_model_uncertain_with_nothing_found(self):
+        assert safety.overridable_in_any_tier(self._record(reason='model_uncertain')) is True
+
+    @pytest.mark.parametrize('kw', [
+        {'reason': 'faces', 'faces': 1},
+        {'reason': 'low_confidence', 'faces': 1},
+        {'reason': 'low_confidence', 'faces': 'many'},
+        {'reason': 'names_person', 'names_person': ['Anna']},
+        {'reason': 'low_confidence', 'readable_text': ['Hearthwood']},
+        {'reason': 'identifying_detail', 'identifying_detail': ['a jersey number']},
+        {'reason': 'video_location_metadata'},
+        {'reason': 'safety_check_failed'},
+        {'reason': 'not_checked'},
+    ])
+    def test_a_finding_or_a_failure_is_not(self, kw):
+        assert safety.overridable_in_any_tier(self._record(**kw)) is False
+
+    def test_no_record_is_not(self):
+        assert safety.overridable_in_any_tier(None) is False
+        assert safety.overridable_in_any_tier({}) is False
+
+
 class TestCheckImages:
     def test_batches_of_eight_one_call_each(self):
         images = [_img(n) for n in range(1, 11)]
