@@ -72,7 +72,7 @@ jobs:
       - name: Check out the repo
         # Only needed for scripts/check_backup_lifecycle.py at the end. The
         # sync itself touches nothing in the working tree.
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check configuration
         # Fail loudly and BY NAME, the way backup-db.yml does. A backup job that
