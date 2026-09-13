@@ -58,13 +58,13 @@ CARPOOL_POST = {
 
 
 def _feed(announcements=(ANNOUNCEMENT,), lost=(LOST_ITEM,), recognition=(SHOUT_OUT,),
-          events=(EVENT,), carpool=(CARPOOL_POST,), viewer_id=None):
+          events=(EVENT,), carpool=(CARPOOL_POST,), viewer_id=None, is_student=False):
     with patch.object(community, 'list_announcements', return_value=list(announcements)) as la, \
          patch.object(community, 'list_lost_found', return_value=list(lost)) as lf, \
          patch.object(community, 'list_recognition', return_value=list(recognition)), \
          patch.object(community, 'upcoming_events', return_value=list(events)), \
          patch.object(community, 'list_carpool', return_value=list(carpool)):
-        out = community.family_feed('org-1', viewer_id=viewer_id)
+        out = community.family_feed('org-1', viewer_id=viewer_id, is_student=is_student)
     return out, la, lf
 
 
@@ -121,11 +121,15 @@ class TestWhatStaysInTheOffice:
                                            'audience': 'teachers'}))
         assert [e['title'] for e in feed['events']] == ['Open house']
 
-    def test_admin_and_teacher_announcements_do_not_reach_families(self):
+    def test_staff_announcements_do_not_reach_families(self):
         """Events have always carried an audience; board announcements did not,
         so a post written for staff was readable by every family in the app
         (iCreate, 2026-08-26: "things Sent to teachers should not be showing up
-        for Families")."""
+        for Families").
+
+        'admins' retired on 2026-09-13 and rows written before it must stay out
+        of the feed on the value they were stored with.
+        """
         feed, _, _ = _feed(announcements=(
             ANNOUNCEMENT,
             {**ANNOUNCEMENT, 'id': 'a2', 'title': 'Staff PD Friday', 'audience': 'teachers'},
@@ -138,6 +142,42 @@ class TestWhatStaysInTheOffice:
         the migration defaults them to 'school' and this holds that default."""
         feed, _, _ = _feed(announcements=({**ANNOUNCEMENT, 'audience': None},))
         assert [a['title'] for a in feed['announcements']] == ['Early dismissal']
+
+
+NEWSLETTER = {**ANNOUNCEMENT, 'id': 'a9', 'title': 'Weekly newsletter',
+              'audience': 'families'}
+
+
+@pytest.mark.unit
+class TestTheFamiliesAudience:
+    """'families' means the parents.
+
+    It exists because the weekly newsletter had nowhere to go but "everyone at
+    the school", which notified every teacher. The label has to hold on the
+    board as well as in the notification: one audience asked once is the whole
+    design, and a post the students can read on a board is not parents-only in
+    any sense a school would recognise.
+    """
+
+    def test_the_parents_read_it(self):
+        feed, _, _ = _feed(announcements=(NEWSLETTER,))
+        assert [a['title'] for a in feed['announcements']] == ['Weekly newsletter']
+
+    def test_a_student_does_not(self):
+        feed, _, _ = _feed(announcements=(NEWSLETTER,), is_student=True)
+        assert feed['announcements'] == []
+
+    def test_a_student_still_reads_the_whole_school_board(self):
+        """Only the parents-only posts are withheld — the rest of the board is
+        the same board."""
+        feed, _, _ = _feed(announcements=(ANNOUNCEMENT, NEWSLETTER), is_student=True)
+        assert [a['title'] for a in feed['announcements']] == ['Early dismissal']
+
+    def test_the_household_view_is_the_default(self):
+        """family_feed is called from one route, but a caller that cannot tell
+        who is reading should show the household the notice, not hide it."""
+        feed, _, _ = _feed(announcements=(NEWSLETTER,))
+        assert len(feed['announcements']) == 1
 
     def test_birthdays_are_not_part_of_the_family_feed(self):
         """Highlights shows them to the office; a broadcast of children's
