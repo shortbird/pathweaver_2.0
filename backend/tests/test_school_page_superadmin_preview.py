@@ -26,6 +26,18 @@ from routes.sis import community as community_routes
 from routes.sis import school as school_routes
 
 
+def _admin_client_for_role(role):
+    """Fake admin client whose users lookup answers require_role."""
+    client = Mock()
+    table = Mock()
+    client.table.return_value = table
+    for chained in ('select', 'eq', 'limit', 'single'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(
+        data=[{'id': 'test-user-123', 'role': role, 'org_role': None, 'org_roles': None}])
+    return client
+
+
 def _table_returning(rows):
     table = Mock()
     for chained in ('select', 'eq', 'in_', 'limit', 'order', 'lt', 'or_', 'range'):
@@ -134,6 +146,73 @@ class TestFeedAffordances:
              patch('services.sis_service.caller_is_admin', return_value=False):
             out = community_routes._feed_affordances('stu-1', False, None)
         assert out == {'can_post_carpool': False, 'can_moderate': False}
+
+    def test_an_answer_the_route_already_has_is_not_looked_up_again(self):
+        """The feed needs the same answer for the announcement audiences — a
+        'families' post is addressed to the parents — so the route resolves it
+        once and hands it over. Two reads of one row per feed load is the kind
+        of thing that never gets noticed."""
+        with patch.object(community_routes, '_is_student') as lookup, \
+             patch('services.sis_service.caller_is_admin', return_value=False):
+            out = community_routes._feed_affordances('stu-1', False, None, True)
+        lookup.assert_not_called()
+        assert out == {'can_post_carpool': False, 'can_moderate': False}
+
+
+@pytest.mark.unit
+class TestWhoTheFeedTreatsAsAStudent:
+    """The board audience a feed request is served with.
+
+    'families' means the parents, so the student reading the same board does
+    not get those posts. The route is the only place that knows which of the
+    two is asking; family_feed defaults to the household view, so forgetting to
+    pass it shows a newsletter to the students rather than hiding one from the
+    parents — but it is still wiring worth holding down.
+    """
+
+    @staticmethod
+    def _feed_call(client, headers, *, is_student, preview=False, view_as=None,
+                   org='org-1'):
+        url = '/api/sis/community/feed'
+        if view_as:
+            url += f'?view_as={view_as}'
+        # The admin client serves require_role's own users lookup; the role only
+        # has to clear the gate, since _is_student is patched alongside it.
+        with (
+            patch('database.get_supabase_admin_client',
+                  return_value=_admin_client_for_role('parent')),
+            patch.object(community_routes, '_feed_org_for',
+                         return_value=(org, None, preview)),
+            patch.object(community_routes, '_is_student', return_value=is_student),
+            patch.object(community_routes, '_org_name', return_value='Org'),
+            patch('services.sis_service.caller_is_admin', return_value=False),
+            patch.object(community_routes.community, 'family_feed',
+                         return_value={}) as feed,
+        ):
+            resp = client.get(url, headers=headers)
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        return feed.call_args.kwargs
+
+    def test_a_student_is_served_the_student_view(self, client, auth_headers,
+                                                  mock_verify_token):
+        kwargs = self._feed_call(client, auth_headers, is_student=True)
+        assert kwargs['is_student'] is True
+
+    def test_a_parent_is_served_the_household_view(self, client, auth_headers,
+                                                   mock_verify_token):
+        kwargs = self._feed_call(client, auth_headers, is_student=False)
+        assert kwargs['is_student'] is False
+
+    def test_the_preview_models_the_role_it_names(self, client, auth_headers,
+                                                  mock_verify_token):
+        """A superadmin belongs to no school, so their own role says nothing
+        about which view to show — ?view_as does."""
+        kwargs = self._feed_call(client, auth_headers, is_student=False,
+                                 preview=True, view_as='student')
+        assert kwargs['is_student'] is True
+        kwargs = self._feed_call(client, auth_headers, is_student=True,
+                                 preview=True, view_as='parent')
+        assert kwargs['is_student'] is False
 
 
 @pytest.mark.unit

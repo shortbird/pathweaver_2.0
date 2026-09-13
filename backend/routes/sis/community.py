@@ -321,15 +321,22 @@ def _feed_org_for(user_id, requested_org):
     return None, 'forbidden', False
 
 
-def _feed_affordances(user_id, preview, view_as):
+def _feed_affordances(user_id, preview, view_as, is_student=None):
     """Carpool affordances on the feed: adults post, admins moderate. A
     superadmin preview models a member of the chosen role instead — students
-    read without posting, family members don't moderate, admins do both."""
+    read without posting, family members don't moderate, admins do both.
+
+    `is_student` is the caller's already-resolved answer; the feed route needs
+    it for the announcement audiences too and one role lookup per request is
+    enough. Left out, it is resolved here as before.
+    """
     from services import sis_service
     if preview:
         return {'can_post_carpool': view_as != 'student',
                 'can_moderate': view_as == 'admin'}
-    return {'can_post_carpool': not _is_student(user_id),
+    if is_student is None:
+        is_student = _is_student(user_id)
+    return {'can_post_carpool': not is_student,
             'can_moderate': sis_service.caller_is_admin(user_id)}
 
 
@@ -353,9 +360,15 @@ def family_feed(user_id):
                                                   'recognition': [], 'events': [],
                                                   'carpool': []},
                         'organization_name': None})
-    return jsonify({'success': True, 'feed': community.family_feed(org_id, viewer_id=user_id),
+    view_as = request.args.get('view_as')
+    # A 'families' post is addressed to the parents, so the student reading the
+    # same board does not get it. The preview models the role it names.
+    is_student = (view_as == 'student') if preview else _is_student(user_id)
+    return jsonify({'success': True,
+                    'feed': community.family_feed(org_id, viewer_id=user_id,
+                                                  is_student=is_student),
                     'organization_name': _org_name(org_id),
-                    **_feed_affordances(user_id, preview, request.args.get('view_as'))})
+                    **_feed_affordances(user_id, preview, view_as, is_student)})
 
 
 def _is_student(user_id):

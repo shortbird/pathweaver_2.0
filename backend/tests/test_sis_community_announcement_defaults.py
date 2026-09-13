@@ -115,11 +115,21 @@ class TestNotifying:
         _, _, publish = _create({'title': 'x', 'audience': 'teachers', 'notify': True})
         assert publish.call_args.args[4] == ['advisors']
 
-    def test_an_admin_only_post_notifies_nobody(self):
-        """There is no admin role audience to send to. The composer says so
-        rather than posting to the board and silently sending nothing."""
-        _, _, publish = _create({'title': 'x', 'audience': 'admins', 'notify': True})
-        publish.assert_not_called()
+    def test_a_families_post_notifies_the_parents_only(self):
+        """The weekly newsletter. Reaching families without the staff went with
+        the targeted send on 2026-09-10 and the messaging composer that replaced
+        it can only pick staff, so a newsletter notified every teacher."""
+        _, _, publish = _create({'title': 'x', 'audience': 'families', 'notify': True})
+        assert publish.call_args.args[4] == ['parents']
+
+    def test_a_retired_admins_audience_is_stored_as_staff_only(self):
+        """'admins' read the same as staff-only on the board and had nobody to
+        notify. Editing a post written before it retired sends the stored value
+        back, and falling through to the default would put a staff notice in
+        front of every family."""
+        _, inserted, publish = _create({'title': 'x', 'audience': 'admins', 'notify': True})
+        assert inserted['audience'] == 'teachers'
+        assert publish.call_args.args[4] == ['advisors']
 
     def test_the_channels_are_passed_through(self):
         _, _, publish = _create({'title': 'x', 'audience': 'school', 'notify': True,

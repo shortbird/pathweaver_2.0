@@ -34,11 +34,28 @@ logger = get_logger(__name__)
 DONATION_WINDOW_DAYS = 14
 
 ANNOUNCEMENT_PRIORITIES = ('normal', 'urgent')
-# Mirrors sis_events.audience, including the default. Board posts had no
-# audience at all, so a note written for teachers reached every family
-# (iCreate, 2026-08-26: "things Sent to teachers should not be showing up for
-# Families").
-ANNOUNCEMENT_AUDIENCES = ('school', 'teachers', 'admins')
+# Who a board post is for. Board posts had no audience at all, so a note written
+# for teachers reached every family (iCreate, 2026-08-26: "things Sent to
+# teachers should not be showing up for Families").
+#
+# 'families' means the parents. It is the weekly newsletter: the composer that
+# could reach families without the staff went with the targeted send on
+# 2026-09-10 (fd5f13e, which listed a narrowed audience among the four things it
+# removed with no replacement), and the messaging composer offered in its place
+# can only pick staff. So the newsletter went to every teacher, and there was no
+# way to say otherwise.
+#
+# 'admins' is gone. It read identically to 'teachers' on the board -- the staff
+# list is not filtered by audience, so every staff member saw both -- and it was
+# the one value with no role to notify, which the composer had to grey a
+# checkbox out to explain. A stored 'admins' row is read as 'teachers'.
+ANNOUNCEMENT_AUDIENCES = ('school', 'families', 'teachers')
+
+# Retired audience values, mapped to their nearest survivor. Mapped rather than
+# dropped: the fallback for an unrecognised audience is 'school', and quietly
+# widening a staff notice to every family is the mistake this column exists to
+# prevent.
+_LEGACY_AUDIENCES = {'admins': 'teachers'}
 LOST_FOUND_STATUSES = ('unclaimed', 'claimed', 'donated')
 
 # Lost & Found photos are taken inside the school and routinely have children in
@@ -117,11 +134,10 @@ def list_announcements(org_id: str, include_hidden: bool = True) -> List[Dict[st
 #: came to exist in the first place.
 _NOTIFY_ROLES = {
     'school': ('parents', 'students', 'advisors'),
+    # Families are the parents. Students read the board and are not the audience
+    # of a notice addressed to the people who run the household.
+    'families': ('parents',),
     'teachers': ('advisors',),
-    # No admin audience exists in announcement_service.ROLE_AUDIENCES, so an
-    # admins-only post cannot be notified. The composer says so rather than
-    # silently posting to the board and sending nothing.
-    'admins': (),
 }
 
 
@@ -138,6 +154,20 @@ def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
     if data.get('notify'):
         return list(_NOTIFY_ROLES.get(audience, ()))
     return []
+
+
+def _audience(value: Any) -> str:
+    """The audience to store for a requested one.
+
+    A recognised value as written, a retired one mapped (see
+    _LEGACY_AUDIENCES), and anything else the default. Editing a post sends its
+    audience back unchanged, so a row written before a value retired must not
+    fall through to 'school' -- that would widen a staff notice to every family
+    on a title fix.
+    """
+    text = str(value or '').strip()
+    text = _LEGACY_AUDIENCES.get(text, text)
+    return text if text in ANNOUNCEMENT_AUDIENCES else 'school'
 
 
 def _default_expires_at(org_id: str) -> Optional[str]:
@@ -176,9 +206,7 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
     priority = data.get('priority') or 'normal'
     if priority not in ANNOUNCEMENT_PRIORITIES:
         priority = 'normal'
-    audience = data.get('audience') or 'school'
-    if audience not in ANNOUNCEMENT_AUDIENCES:
-        audience = 'school'
+    audience = _audience(data.get('audience'))
     fields = {
         'organization_id': org_id,
         'title': title,
@@ -238,7 +266,7 @@ def update_announcement(org_id: str, announcement_id: str, data: Dict[str, Any])
     if 'priority' in data:
         fields['priority'] = data['priority'] if data['priority'] in ANNOUNCEMENT_PRIORITIES else 'normal'
     if 'audience' in data:
-        fields['audience'] = data['audience'] if data['audience'] in ANNOUNCEMENT_AUDIENCES else 'school'
+        fields['audience'] = _audience(data['audience'])
     for k in ('publish_at', 'expires_at'):
         if k in data:
             fields[k] = (str(data[k]).strip() or None) if data.get(k) else None
@@ -727,17 +755,32 @@ def _project(rows: List[Dict[str, Any]], fields) -> List[Dict[str, Any]]:
     return [{k: r.get(k) for k in fields} for r in rows]
 
 
-def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
+#: The board audiences a family-side viewer may read, by whether they are the
+#: student or the household. A 'families' post says the parents, so it is the
+#: one the student does not get -- the alternative is a label that means one
+#: thing in the notification and another on the board.
+_FAMILY_READABLE = ('school', 'families')
+_STUDENT_READABLE = ('school',)
+
+
+def family_feed(org_id: str, viewer_id: Optional[str] = None,
+                is_student: bool = False) -> Dict[str, Any]:
     """The Community Hub as a family sees it.
 
     Same posts, fewer columns, and three things left out entirely: scheduled or
     expired announcements (not published yet, or over), claimed lost & found (not
-    yours to collect, and the claim names a family), and admin/teacher-only
-    events. Birthdays stay in the office — a staff convenience, not a broadcast.
+    yours to collect, and the claim names a family), and staff-only events.
+    Birthdays stay in the office — a staff convenience, not a broadcast.
 
     `viewer_id` marks the viewer's own carpool posts (`mine`) so the frontend
     can offer "remove" on exactly those.
+
+    `is_student` drops the announcements addressed to the parents. It defaults
+    to False so a caller that cannot tell shows the household view; the route
+    resolves it, and fails closed to the student view when the role lookup
+    breaks — a newsletter the parents see late beats one the students see first.
     """
+    readable = _STUDENT_READABLE if is_student else _FAMILY_READABLE
     carpool_rows = list_carpool(org_id)
     carpool = _project(carpool_rows, _FAMILY_CARPOOL)
     for projected, raw in zip(carpool, carpool_rows, strict=False):
@@ -746,7 +789,7 @@ def family_feed(org_id: str, viewer_id: Optional[str] = None) -> Dict[str, Any]:
     return {
         'announcements': _project(
             [a for a in list_announcements(org_id, include_hidden=False)
-             if (a.get('audience') or 'school') == 'school'][:20],
+             if (a.get('audience') or 'school') in readable][:20],
             _FAMILY_ANNOUNCEMENT),
         'lost_found': _project(
             list_lost_found(org_id, status='unclaimed')[:50], _FAMILY_LOST_FOUND),

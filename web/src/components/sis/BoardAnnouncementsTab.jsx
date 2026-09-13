@@ -32,6 +32,23 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
+// Who can READ the board post, and -- because it is one vocabulary, not two --
+// who "Also notify people" reaches. Kept in step with _NOTIFY_ROLES in
+// services/sis_community_service.py: the server derives the send from this same
+// choice, so a label here that disagrees with it is a lie about what Post does.
+const AUDIENCES = [
+  { value: 'school', label: 'Everyone at the school', reach: 'parents, students and teachers' },
+  { value: 'families', label: 'Families', reach: 'parents' },
+  { value: 'teachers', label: 'Staff only', reach: 'teachers' },
+]
+
+// "Admins only" was retired on 2026-09-13; it read the same as staff-only on the
+// board and had nobody to notify. Editing a post written before that must not
+// drop it back to the default, which is everyone at the school.
+const LEGACY_AUDIENCE = { admins: 'teachers' }
+
+const reachOf = (value) => AUDIENCES.find((a) => a.value === value)?.reach
+
 const isDateOnly = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
 
 const fmtDate = (v, { utc = false } = {}) => {
@@ -126,7 +143,7 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
     body: announcement?.body || '',
     pinned: Boolean(announcement?.pinned),
     priority: announcement?.priority || 'normal',
-    audience: announcement?.audience || 'school',
+    audience: LEGACY_AUDIENCE[announcement?.audience] || announcement?.audience || 'school',
     publish_at: announcement?.publish_at ? announcement.publish_at.slice(0, 16) : '',
     expires_at: announcement?.expires_at ? announcement.expires_at.slice(0, 16) : '',
     // Whether to ALSO push it, beyond the board. The board audience above
@@ -189,36 +206,42 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
           />
         </div>
       </div>
-      {/* Posting to the board publishes it — families and students read the same
-          board in the app. Sending is the separate, louder act: a notification
-          and an email that arrive whether or not anyone opens the board. */}
+      {/* Posting to the board publishes it, to whoever "Visible to" names.
+          Sending is the separate, louder act: a notification and an email that
+          arrive whether or not anyone opens the board. Who it reaches is that
+          same setting and nothing else — one audience, asked once. Saying the
+          answer back here is what the office was missing: "does the newsletter
+          go to the teachers?" had no answer anywhere on the form. */}
       {!announcement && (
         <div className="rounded-lg border border-gray-200 bg-neutral-50 p-3">
           <label className="flex items-start gap-2 text-sm text-neutral-700">
             <input type="checkbox" checked={f.notify} className="mt-0.5"
-              disabled={f.audience === 'admins'}
               onChange={(e) => set('notify', e.target.checked)} />
             <span>
               Also notify people
               <span className="block text-xs text-neutral-500">
-                {f.audience === 'admins'
-                  ? 'Admin-only posts stay on the board — there is nobody to notify.'
-                  : 'The board is where people come and read. Tick this for something that cannot wait.'}
+                The board is where people come and read. Tick this for something
+                that cannot wait.
               </span>
             </span>
           </label>
-          {f.notify && f.audience !== 'admins' && (
-            <div className="flex flex-wrap gap-4 mt-2 pl-6">
-              <label className="flex items-center gap-1.5 text-sm text-neutral-700">
-                <input type="checkbox" checked={f.notify_app}
-                  onChange={(e) => set('notify_app', e.target.checked)} />
-                In the app
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-neutral-700">
-                <input type="checkbox" checked={f.notify_email}
-                  onChange={(e) => set('notify_email', e.target.checked)} />
-                By email
-              </label>
+          {f.notify && (
+            <div className="mt-2 pl-6">
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-1.5 text-sm text-neutral-700">
+                  <input type="checkbox" checked={f.notify_app}
+                    onChange={(e) => set('notify_app', e.target.checked)} />
+                  In the app
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-neutral-700">
+                  <input type="checkbox" checked={f.notify_email}
+                    onChange={(e) => set('notify_email', e.target.checked)} />
+                  By email
+                </label>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1.5">
+                Goes to {reachOf(f.audience)}.
+              </p>
             </div>
           )}
         </div>
@@ -234,15 +257,16 @@ const AnnouncementForm = ({ orgId, announcement, onDone, onCancel }) => {
             <option value="urgent">Urgent</option>
           </select>
         </label>
-        {/* Who can READ the board post. Separate from "send it to", below:
-            posting to the board and sending a notification are two acts. Board
-            posts had no audience at all, so a note for teachers was readable by
-            every family in the app (iCreate, 2026-08-26). */}
+        {/* Who can READ the board post, and who "Also notify people" above
+            reaches. Board posts had no audience at all, so a note for teachers
+            was readable by every family in the app (iCreate, 2026-08-26).
+            "Families" means the parents: the weekly newsletter is not news a
+            teacher needs pushed to their phone. */}
         <label className="text-xs text-neutral-500 block">Visible to
           <select value={f.audience} onChange={(e) => set('audience', e.target.value)} className={field}>
-            <option value="school">Everyone at the school</option>
-            <option value="teachers">Staff only</option>
-            <option value="admins">Admins only</option>
+            {AUDIENCES.map((a) => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
           </select>
         </label>
       </div>
