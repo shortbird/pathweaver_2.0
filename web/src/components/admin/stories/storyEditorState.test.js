@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  slugify, sectionByKind, updateSection, applyTitleOption, publishBlockers,
+  slugify, sectionByKind, updateSection, applyTitleOption, publishBlockers, receiptCreditLine,
   SECTION_ORDER,
 } from './storyEditorState'
 
@@ -94,5 +94,17 @@ describe('publishBlockers', () => {
   it('carries the server shape so both lists render the same way', () => {
     const [b] = publishBlockers(story({ title: '' }), [])
     expect(b).toEqual({ code: 'empty_title', field: 'title', message: expect.any(String) })
+  })
+})
+
+describe('receiptCreditLine', () => {
+  const sliver = { receipt: { credit: '0.05 credit' }, credit_fraction: 0.05, xp_awarded: 100 }
+  it('says the XP below half a credit', () => {
+    expect(receiptCreditLine(sliver)).toBe('100 XP')
+    expect(receiptCreditLine({ ...sliver, credit_fraction: '0.49', xp_awarded: 980 })).toBe('980 XP')
+  })
+  it('keeps the credit line from half a credit up, and when the XP is unknown', () => {
+    expect(receiptCreditLine({ ...sliver, credit_fraction: 0.5, receipt: { credit: '0.5 credit' } })).toBe('0.5 credit')
+    expect(receiptCreditLine({ ...sliver, xp_awarded: null })).toBe('0.05 credit')
   })
 })

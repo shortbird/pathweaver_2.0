@@ -59,6 +59,19 @@ export const DEK_TARGET_CHARS = 155
  * says what the site says. Mirrors marketing/src/data/howItWorks.ts; the
  * site reads the number from the API, this preview from the shared table.
  */
+/**
+ * The receipt's second line as the page prints it: the XP when the credit is
+ * a sliver of one (a task is 0.05 credit, which reads as a joke), the credit
+ * line from half a credit up. Mirrors publish.receipt_credit_line.
+ */
+export const RECEIPT_XP_BELOW_CREDITS = 0.5
+export const receiptCreditLine = (story) => {
+  const fraction = Number(story?.credit_fraction || 0)
+  const xp = Number(story?.xp_awarded || 0)
+  if (xp > 0 && fraction > 0 && fraction < RECEIPT_XP_BELOW_CREDITS) return `${xp.toLocaleString('en-US')} XP`
+  return story?.receipt?.credit
+}
+
 export const creditExplainer = (xpPerCredit = XP_PER_CREDIT) =>
   'Optio students earn XP for finished work instead of letter grades. A licensed teacher '
   + "reviews the evidence against the task's criteria and awards the XP. "

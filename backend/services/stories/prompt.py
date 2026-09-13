@@ -40,7 +40,7 @@ from services.stories.source import (
 )
 
 #: Bumped whenever the prompt or the schema changes.
-PROMPT_VERSION = 'story-draft/2026-09-12.1'
+PROMPT_VERSION = 'story-draft/2026-09-12.2'
 
 MAX_EVIDENCE_TEXT_CHARS = 2500
 MAX_REFLECTION_CHARS = 1500
@@ -99,6 +99,8 @@ def build_prompt(source: StorySource, *, student_label: str,
                   else 'Return "tasks" as an empty list: this story is about one task.')
 
     unit = 'project' if is_quest else 'assignment'
+    credit_words = (f'{credit} of {primary}' if credit_fraction_for(source.xp_total) >= CREDIT_IN_PROSE_FROM
+                    else f'{source.xp_total} XP toward a {primary} credit')
     return f"""You are writing a short case study for a school's public website. It tells
 parents what one student did and how that work became credit on a transcript.
 The story is {shape}.
@@ -122,7 +124,7 @@ WHAT IT COUNTED FOR (facts; copy the numbers exactly)
 Optio uses XP instead of letter grades. A licensed teacher reviews the
 evidence against the task's criteria and awards the XP.
 {XP_PER_CREDIT} XP is one high school credit.
-This {unit} earned {source.xp_total} XP, which is {credit} of {primary}.
+This {unit} earned {credit_words}.
 Subject credit: {subjects_str}
 Primary subject: {primary}
 Tasks finalized: {len(source.tasks)}
@@ -131,6 +133,7 @@ subject this counted toward, that it was one {unit} among many on the way to
 a full credit, and why the evidence is what earned it. Credit is never based
 on hours, seat time or logged time. Do not say it is. The reviewer is "a
 licensed teacher", never "certified".
+{_credit_number_rule(source)}
 
 {_tasks_section(source.tasks)}
 {_reflections_section(source.reflections)}
@@ -154,11 +157,18 @@ ACTIVITY AND RECEIPT
 - receipt.icon: the one that fits the activity.
 
 FAQ
-Exactly three questions a parent might type into a search engine that this
-story answers, with a two or three sentence answer each. Concrete, specific to
-this activity and this subject. One must ask whether this activity can count
-for school credit; one must ask what evidence a student submits. No answer
-may mention hours, seat time or logged time.
+Exactly three questions a parent might type into a search engine about how
+Optio works, each answered in two or three sentences with this story as the
+example, never as the rule. Optio is built for students to create their own
+assignments from their own interests; almost no other student will do this
+exact project, so a question or an answer about this assignment's steps,
+tools, software or materials helps nobody. Ask and answer about Optio:
+- One asks whether an activity like this (the kind of activity, broadly, not
+  this one) can count for school credit.
+- One asks how a student's own project becomes an assignment and how a
+  licensed teacher reviews the evidence.
+- One asks what the XP and the credit mean on a transcript.
+No answer may mention hours, seat time or logged time.
 
 {GUARDRAILS}
 
@@ -167,6 +177,21 @@ may mention hours, seat time or logged time.
 Return JSON in exactly this shape:
 {JSON_EXAMPLE}
 """
+
+
+#: Below this many credits the prose says the XP, never the decimal. One task
+#: is 0.05 credit, which is true and reads as a joke in a title or a dek; the
+#: receipt on the page makes the same call (publish.RECEIPT_XP_BELOW_CREDITS).
+CREDIT_IN_PROSE_FROM = 0.5
+
+
+def _credit_number_rule(source: StorySource) -> str:
+    fraction = credit_fraction_for(source.xp_total)
+    if fraction >= CREDIT_IN_PROSE_FROM:
+        return ''
+    return (f'Say the XP ({source.xp_total} XP), never "{credit_display(fraction)}": a decimal '
+            'that small reads as a joke. No credit number in the title, the dek, the body '
+            'or the FAQ. "Toward a credit" is fine.')
 
 
 def _student_block(source: StorySource, *, student_label: str, tier: str) -> str:

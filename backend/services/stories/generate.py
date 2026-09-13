@@ -263,6 +263,7 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
         'tier': tier,
         'checked_at': now_iso(),
     }
+    carry_overrides(asset_repo.for_story(story_id), assembled['assets'])
     asset_repo.replace_for_story(story_id, assembled['assets'])
 
     update = {
@@ -294,6 +295,34 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
 
 
 # ── the sweep ────────────────────────────────────────────────────────────────
+
+def carry_overrides(previous: List[Dict[str, Any]], fresh: List[Dict[str, Any]]) -> int:
+    """Keep a human's include decision across a regenerate. Returns how many.
+
+    A regenerate starts the asset rows over, and the model may again exclude
+    a clean file for confidence alone (it did, at 0.75, on the first live
+    story's only video). A superadmin who looked and included it should not
+    have to look again. The decision carries forward only when the new
+    verdict is still a confidence call (safety.overridable_in_any_tier):
+    a face, a name or a location atom the model finds this time stands.
+    """
+    overrides = {
+        (row.get('source_block_id'), row.get('source_item_index')): row['safety']['override']
+        for row in previous or []
+        if isinstance(row.get('safety'), dict) and row['safety'].get('override')
+    }
+    carried = 0
+    for asset in fresh:
+        who = overrides.get((asset.get('source_block_id'), asset.get('source_item_index')))
+        if not who or asset.get('included'):
+            continue
+        if not safety.overridable_in_any_tier(asset.get('safety')):
+            continue
+        asset['included'] = True
+        asset['safety'] = {**(asset.get('safety') or {}), 'override': who}
+        carried += 1
+    return carried
+
 
 def requeue_stale(admin=None, *, stale_minutes: int = STALE_MINUTES) -> int:
     """Rows claiming to be generating for too long go back to the queue once."""

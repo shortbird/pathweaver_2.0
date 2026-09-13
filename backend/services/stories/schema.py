@@ -77,9 +77,11 @@ RESPONSE_SCHEMA = {
         },
         'faq': {
             'type': 'ARRAY',
-            'description': 'Exactly three questions a parent searching for this would ask, '
-                           'each with a two or three sentence answer: one on whether the '
-                           'activity can count for credit, one on what evidence is submitted.',
+            'description': 'Exactly three questions a parent would search about how Optio '
+                           'works, answered with this story as the example, never about this '
+                           "assignment's own steps or tools: can this kind of activity count, "
+                           'how a student\'s own project becomes an assignment and is reviewed, '
+                           'what the XP and credit mean on a transcript.',
             'items': {
                 'type': 'OBJECT',
                 'properties': {

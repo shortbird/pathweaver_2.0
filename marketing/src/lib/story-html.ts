@@ -101,12 +101,12 @@ export function storyHtml(story: Story): string {
   }
 
   if (story.faq.length > 0) {
-    parts.push('<h2>Questions about this story</h2>')
+    parts.push('<h2>Questions about Optio</h2>')
     for (const f of story.faq) parts.push(`<h3>${esc(f.q)}</h3>${p(f.a)}`)
   }
 
   parts.push(
-    p(`Written by ${story.author.name}, ${story.author.title}, from a real submission reviewed by a licensed Optio teacher. Student details are anonymized unless a family has recorded consent.`)
+    p(`Written by ${story.author.name}, ${story.author.title}, from a real submission on Optio. Student details are anonymized unless a family has recorded consent.`)
   )
   parts.push(`<p><a href="${esc(absolute(storyUrl(story)))}">Read this story on ${esc(SITE.name)}</a></p>`)
 

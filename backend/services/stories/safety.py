@@ -165,7 +165,9 @@ team, club, town, neighbourhood or business: a personal name or initial, a
 school or team name, a street or town, a business, a distinctive event name, a
 handle, or a detail that narrows the student down to one identifiable child.
 Generic words ("the student", "a coach", "the school", "our town") are fine
-and must not be listed. Return the phrases exactly as they appear.
+and must not be listed. "Optio" and "Optio Academy" are the school publishing
+the story and must not be listed. An id or a URL is not a phrase. Return the
+phrases exactly as they appear.
 
 Return JSON: {"phrases": ["..."]}. Return {"phrases": []} when nothing
 identifies anyone.
@@ -629,6 +631,26 @@ def check_links(links: List[LinkCandidate], *, tier: str,
 
 REMOVED_TOKEN = '[removed]'
 
+#: The publisher's own names. The phrase pass once listed "Optio" as a school
+#: name and the story went out saying "[removed] uses XP". Ours is the one
+#: school a story may name.
+PUBLISHER_NAMES = frozenset({'optio', 'optio academy'})
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+
+
+def _phrase_is_removable(phrase: str) -> bool:
+    """A phrase the model listed that a scrub may act on: has letters, is not
+    one of the scrubber's placeholders, is not the publisher, is not an id."""
+    text = (phrase or '').strip()
+    if not re.search(r'[A-Za-z]', text) or text.startswith('['):
+        return False
+    if text.lower().strip('.,;:!?"\'') in PUBLISHER_NAMES:
+        return False
+    if _UUID_RE.match(text):
+        return False
+    return True
+
 #: Keys the model's phrase list may not rewrite. A URL is not prose: cutting a
 #: phrase out of one leaves a link that goes nowhere while still claiming to
 #: be included. What a URL may say is the link rules' business (decide_link).
@@ -743,9 +765,10 @@ def check_text(fields: Dict[str, Any], scrubber: Scrubber, *,
             report['error'] = str(e)[:300]
     # Generic words the prompt was told to leave alone still come back from
     # time to time; scrubbing "the student" out of a story about the student
-    # would gut it. Anything that IS one of the scrubber's placeholders, or that
-    # has no letters, is not a phrase to remove.
-    phrases = [p for p in phrases if re.search(r'[A-Za-z]', p) and not p.startswith('[')]
+    # would gut it, and scrubbing "Optio" out of a story Optio publishes did
+    # happen. Anything that is a placeholder, the publisher, an id, or has no
+    # letters is not a phrase to remove.
+    phrases = [p for p in phrases if _phrase_is_removable(p)]
     report['ai_phrases'] = phrases
     if phrases:
         cleaned = _replace_phrases(cleaned, phrases)

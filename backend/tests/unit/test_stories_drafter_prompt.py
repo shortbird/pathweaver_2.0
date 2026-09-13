@@ -178,7 +178,8 @@ class TestThePrompt:
         text = prompt_mod.build_prompt(source, student_label='A high school student',
                                        safe_images=[_image()])
         assert 'Science: 150 XP, Mathematics: 50 XP' in text
-        assert 'This assignment earned 200 XP, which is 0.1 credit of Science.' in text
+        assert 'This assignment earned 200 XP toward a Science credit.' in text
+        assert 'never "0.1 credit"' in text                            # a sliver of credit is said as XP
         assert 'Optio uses XP instead of letter grades.' in text
         assert '2000 XP is one high school credit.' in text
         assert 'Credit is never based\non hours, seat time or logged time. Do not say it is.' in text
@@ -191,6 +192,16 @@ class TestThePrompt:
         assert 'No em dashes' in text
         assert 'Return "tasks" as an empty list' in text
         assert 'under 155 characters' in text                         # the dek is the meta description
+        # The FAQ is about Optio, with the story as the example, never the assignment's own steps.
+        assert 'never as the rule' in text
+        assert "this assignment's steps,\ntools, software or materials helps nobody" in text
+
+    def test_half_a_credit_and_up_is_said_as_credit(self, source):
+        source.tasks[0].xp = 1000
+        source.tasks[0].subject_split = {'science': 1000}
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
+        assert 'This assignment earned 0.5 credit of Science.' in text
+        assert 'reads as a joke' not in text
 
     def test_an_anonymized_story_names_nobody_not_even_generically(self, source):
         text = prompt_mod.build_prompt(source, student_label='A high school student',

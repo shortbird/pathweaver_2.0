@@ -204,7 +204,7 @@ const counted = lander
           <div>
             <p class="text-sm font-semibold text-neutral-900">{story.author.name}</p>
             <p class="text-xs text-neutral-500 font-medium">
-              Reviewed by a licensed Optio teacher &middot; <time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time>
+              {story.author.title} &middot; <time datetime={story.published_at.toISOString()}>{formatDate(story.published_at)}</time>
             </p>
           </div>
         </div>
@@ -296,7 +296,7 @@ const counted = lander
 
         {story.faq.length > 0 && (
           <section aria-labelledby="questions">
-            <h2 id="questions" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Questions about this story</h2>
+            <h2 id="questions" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Questions about Optio</h2>
             <FaqList faqs={story.faq} />
           </section>
         )}

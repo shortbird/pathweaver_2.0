@@ -155,6 +155,28 @@ class TestDecide:
             ('excluded', 'low_confidence')
 
 
+class TestPhraseFilter:
+    """What the text pass may act on from the model's phrase list."""
+
+    @pytest.mark.parametrize('phrase', ['Optio', 'optio', 'Optio Academy', 'Optio Academy.',
+                                        '594dd291-14c7-4217-8d61-c2a5ec4e658f', '[name]', '12', ''])
+    def test_the_publisher_an_id_and_a_placeholder_are_left_alone(self, phrase):
+        assert safety._phrase_is_removable(phrase) is False
+
+    @pytest.mark.parametrize('phrase', ['Hearthwood Academy', 'Anna L', 'Coach Mike', 'Optio Prep'])
+    def test_a_real_phrase_is_removed(self, phrase):
+        assert safety._phrase_is_removable(phrase) is True
+
+    def test_check_text_keeps_optio_when_the_model_lists_it(self):
+        class Checker:
+            def identifying_phrases(self, text):
+                return ['Optio', 'Hearthwood Academy'], 'gemini-test'
+        fields = {'title': 'x', 'dek': 'Optio uses XP. Filmed at Hearthwood Academy.', 'body': {}}
+        cleaned, report = safety.check_text(fields, Scrubber([]), checker=Checker())
+        assert cleaned['dek'] == 'Optio uses XP. Filmed at [removed].'
+        assert report['ai_phrases'] == ['Hearthwood Academy']
+
+
 class TestOverridableInAnyTier:
     """An exclusion a human may reverse in either tier is one where the model
     found nothing and was merely not sure. A finding is not."""

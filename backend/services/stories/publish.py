@@ -49,6 +49,29 @@ CRITERION_KEYS = ('text', 'verdict', 'note')
 PUBLIC_SECTION_KINDS = ('what_they_did', 'tasks', 'evidence', 'what_reviewer_looked_for',
                         'what_it_counted_for')
 
+#: Below this many credits the receipt's transcript row says the XP instead.
+#: One task is 0.05 credit, which is true and reads as a joke; "100 XP" is the
+#: same fact in the unit Optio actually awards, and the explainer beside the
+#: receipt says what the XP is worth. A semester class (0.5) and up keeps the
+#: credit, because that is what a transcript row really shows.
+RECEIPT_XP_BELOW_CREDITS = 0.5
+
+
+def receipt_credit_line(story: Dict[str, Any]) -> Optional[str]:
+    """What the receipt's second line says: the stored credit line, or the XP
+    when the credit is a sliver of one."""
+    raw_receipt = story.get('receipt')
+    receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
+    try:
+        fraction = float(story.get('credit_fraction') or 0)
+    except (TypeError, ValueError):
+        fraction = 0.0
+    xp = story.get('xp_awarded')
+    if xp and 0 < fraction < RECEIPT_XP_BELOW_CREDITS:
+        return f'{int(xp):,} XP'
+    return receipt.get('credit')
+
+
 _AGE_RE = re.compile(r'\b(?:aged?\s+\d{1,2}|\d{1,2}[\s-]year[\s-]old|\d{1,2}\s+years\s+old)\b',
                      re.IGNORECASE)
 
@@ -617,7 +640,7 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
         'receipt': {
             'activity': receipt.get('activity'),
             'course': receipt.get('course'),
-            'credit': receipt.get('credit'),
+            'credit': receipt_credit_line(story),
             'icon': receipt.get('icon'),
         },
         'subject': subject,

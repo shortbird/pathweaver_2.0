@@ -121,8 +121,9 @@ class TestPublicView:
         # shows the grade band and the school instead.
         assert view['student'] == {'label': None, 'setting': 'homeschool', 'grade_band': 'high'}
         assert view['activity'] == {'slug': 'other', 'label': 'A bridge build'}
+        # 0.08 credit is true and reads as a joke; the receipt says the XP.
         assert view['receipt'] == {'activity': 'Backyard bridge', 'course': 'Science',
-                                   'credit': '0.08 credit', 'icon': 'flask'}
+                                   'credit': '150 XP', 'icon': 'flask'}
         assert view['subject_slug'] == 'physical-education'
         assert view['credit_fraction'] == '0.08 credit'
         assert view['credit_rule'] == {'xp_per_credit': 2000}
@@ -131,6 +132,18 @@ class TestPublicView:
                                 'caption': 'The bridge', 'width': 1600, 'height': 900}
         assert view['og_image_url'] == view['hero_image_url']
         assert view['source'] == {'type': 'credit_submission'}
+
+    @pytest.mark.parametrize('fraction, xp, expected', [
+        (0.05, 100, '100 XP'),
+        (0.49, 980, '980 XP'),
+        (0.5, 1000, '0.08 credit'),         # a semester class keeps the stored credit line
+        (1.5, 3000, '0.08 credit'),
+        (0.05, None, '0.08 credit'),        # no XP recorded: the stored line
+        (0, 0, '0.08 credit'),
+    ])
+    def test_the_receipt_says_xp_below_half_a_credit(self, fraction, xp, expected):
+        story = {**_story(), 'credit_fraction': fraction, 'xp_awarded': xp}
+        assert public_view(story, _assets())['receipt']['credit'] == expected
 
     def test_a_named_story_keeps_its_label(self):
         view = public_view({**_story(), 'tier': 'named', 'student_label': 'Anna, 14'}, _assets())

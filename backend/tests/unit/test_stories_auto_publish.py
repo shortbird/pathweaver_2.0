@@ -290,6 +290,37 @@ class TestAutoPublish:
         assert story['title'] == 'A bridge that held 12 kg'          # the new title
         assert story['slug'] == 'learning-2d-animation'               # the old URL
 
+    def test_a_regenerate_keeps_a_human_include_when_the_model_is_again_only_unsure(self, world):
+        """The first run excluded a clean video at 0.75; a superadmin included
+        it. The second run must not undo that, and must not keep it when the
+        model finds a face this time."""
+        world['source'].tasks[0].images.append(_video(3))
+        low = ImageVerdict(3, 'v3', 1, VIDEO_REF.format(n=3), 'excluded', 'low_confidence',
+                           checked_by='g')
+        world['verdicts'].append(low)
+        world['drafter'] = FakeDrafter({**DRAFT, 'hero_index': 0})
+        generate.run(STORY_ID)
+        video = next(a for a in world['asset_repo'].for_story(STORY_ID) if a['kind'] == 'video')
+        assert video['included'] is False
+        world['asset_repo'].patch(video['id'], {'included': True,
+                                                'safety': {**video['safety'], 'override': 'admin-1'}})
+
+        world['story_repo'].rows[STORY_ID].update({'status': 'generating', 'claim_token': None})
+        generate.run(STORY_ID)
+        video = next(a for a in world['asset_repo'].for_story(STORY_ID) if a['kind'] == 'video')
+        assert video['included'] is True
+        assert video['safety']['override'] == 'admin-1'
+        # The safe image still beats it for hero when the model chose nothing.
+        image = next(a for a in world['asset_repo'].for_story(STORY_ID) if a['source_block_id'] == 'b1')
+        assert _story(world)['hero_asset_id'] == image['id']
+
+        world['verdicts'][-1] = ImageVerdict(3, 'v3', 1, VIDEO_REF.format(n=3), 'excluded', 'faces',
+                                             faces=1, checked_by='g')
+        world['story_repo'].rows[STORY_ID].update({'status': 'generating', 'claim_token': None})
+        generate.run(STORY_ID)
+        video = next(a for a in world['asset_repo'].for_story(STORY_ID) if a['kind'] == 'video')
+        assert video['included'] is False                          # a finding stands
+
     def test_a_never_published_story_takes_the_new_slug(self, world):
         world['story_repo'].rows[STORY_ID].update({'slug': 'first-draft-slug', 'published_at': None})
         generate.run(STORY_ID)

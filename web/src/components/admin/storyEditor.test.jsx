@@ -111,7 +111,7 @@ describe('loading', () => {
       'What the student did',
       'What the teacher checked',
       'What it counted for',
-      'Questions',
+      'Questions about Optio',
     ])
     expect(within(preview).getByText('a season')).toBeInTheDocument()
     expect(within(preview).queryByText('Add the schedule.')).toBeNull()

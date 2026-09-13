@@ -2,7 +2,7 @@ import React from 'react'
 import DocsMarkdown from '../../docs/DocsMarkdown'
 import {
   SECTION_ORDER, SECTION_TITLES, sectionByKind, GRADE_BAND_OPTIONS, SETTING_OPTIONS,
-  creditExplainer, hostnameOf, isStandaloneItem, videoEmbed,
+  creditExplainer, hostnameOf, isStandaloneItem, receiptCreditLine, videoEmbed,
 } from './storyEditorState'
 
 const isIncluded = (row) => row?.included !== false
@@ -278,7 +278,7 @@ const StoryPreview = ({ story, assets = [] }) => {
           <Section key={kind} title={SECTION_TITLES[kind]}>
             {section.body_md && <DocsMarkdown content={section.body_md} />}
             <p className="text-sm text-gray-700">{creditExplainer()}</p>
-            <Receipt receipt={story.receipt} />
+            <Receipt receipt={story.receipt ? { ...story.receipt, credit: receiptCreditLine(story) } : null} />
           </Section>
         )
       }
@@ -295,7 +295,7 @@ const StoryPreview = ({ story, assets = [] }) => {
         <h1 className="text-2xl font-bold text-gray-900">{story.title || 'Untitled story'}</h1>
         {story.dek && <p className="text-gray-600">{story.dek}</p>}
         <p className="text-xs text-gray-400">
-          By {story.author_name || 'Dr. Tanner Bowman'} · reviewed by a licensed Optio teacher
+          By {story.author_name || 'Dr. Tanner Bowman'}{story.author_title ? ` · ${story.author_title}` : ''}
         </p>
       </header>
 
@@ -306,7 +306,7 @@ const StoryPreview = ({ story, assets = [] }) => {
       {SECTION_ORDER.map(renderSection)}
 
       {faq.length > 0 && (
-        <Section title="Questions">
+        <Section title="Questions about Optio">
           {faq.map((row, i) => (
             <details key={i} className="rounded-lg border border-gray-200 p-3">
               <summary className="cursor-pointer text-sm font-medium text-gray-900">{row.q}</summary>
