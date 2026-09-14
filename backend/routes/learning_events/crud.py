@@ -1,6 +1,7 @@
 """Learning event CRUD + quick create + AI suggestions."""
 from flask import request, jsonify
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from middleware.error_handler import AuthorizationError
 from services.learning_events_service import LearningEventsService
 
@@ -173,16 +174,25 @@ def create_quick_learning_event(user_id):
 
         # Parent/guardian capturing for a child: the app's parent capture flow
         # sends student_id. Own the moment under the CHILD (attributed to the
-        # caller) instead of the caller's own account. Authorization mirrors
-        # POST /api/parent/children/<id>/learning-moments. Without this branch
-        # the moment silently landed on the parent's account as 'realtime'.
+        # caller) instead of the caller's own account. Without this branch the
+        # moment silently landed on the parent's account as 'realtime'.
+        #
+        # The gate is the one every student-scoped route uses
+        # (utils/guardian_scope, which is relationship_between('self',
+        # 'parent') plus platform staff). It replaced verify_parent_access here
+        # so that a household guardian -- the third family link, the one the
+        # SIS registration funnel writes -- is admitted the same way they are
+        # everywhere else; observers are refused, this being a write.
         student_id = data.get('student_id')
         if student_id and student_id != user_id:
             from database import get_supabase_admin_client
-            from routes.parent.dashboard_overview import verify_parent_access
-            # admin client justified: cross-user write (moment owned by child) gated by verify_parent_access(parent -> child)
+            from utils.guardian_scope import GuardianAccessError, resolve_student_scope
+            try:
+                student_id = resolve_student_scope(user_id, student_id)
+            except GuardianAccessError as e:
+                return jsonify({'success': False, 'error': str(e)}), 403
+            # admin client justified: cross-user write (moment owned by child) gated by resolve_student_scope(parent -> child)
             supabase = get_supabase_admin_client()
-            verify_parent_access(supabase, user_id, student_id, allow_observer=False)  # IDOR-H5: write; raises if not a guardian
             event_data = {
                 'user_id': student_id,
                 'captured_by_user_id': user_id,
@@ -270,6 +280,7 @@ def get_ai_suggestions(user_id):
 
 @learning_events_bp.route('/api/learning-events', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_learning_events(user_id):
     """Get all learning events for the authenticated user."""
     try:
@@ -306,6 +317,7 @@ def get_learning_events(user_id):
 
 @learning_events_bp.route('/api/learning-events/<event_id>', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_learning_event(user_id, event_id):
     """Get a specific learning event with evidence."""
     try:
@@ -333,6 +345,7 @@ def get_learning_event(user_id, event_id):
 
 @learning_events_bp.route('/api/learning-events/<event_id>', methods=['PUT'])
 @require_auth
+@student_scope()
 def update_learning_event(user_id, event_id):
     """Update a learning event."""
     try:
@@ -390,6 +403,7 @@ def update_learning_event(user_id, event_id):
 
 @learning_events_bp.route('/api/learning-events/<event_id>', methods=['DELETE'])
 @require_auth
+@student_scope()
 def delete_learning_event(user_id, event_id):
     """Delete a learning event."""
     try:

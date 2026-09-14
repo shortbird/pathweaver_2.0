@@ -1,31 +1,59 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
 import {
   UserGroupIcon, ChevronRightIcon, ClipboardDocumentListIcon,
-  DocumentTextIcon, CreditCardIcon, BuildingLibraryIcon,
+  DocumentTextIcon, CreditCardIcon, BuildingLibraryIcon, Cog6ToothIcon, PlusIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
-import { useActingAs } from '../../contexts/ActingAsContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
+import { useFamilyScope } from '../../contexts/FamilyScopeContext'
+import { useInvalidateFamilyChildren } from '../../hooks/api/useFamilyChildren'
 import { PageLoader } from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
-import MyEnrolledQuests from '../../components/home/MyEnrolledQuests'
+import AddChildModal from '../../components/parent/AddChildModal'
+import ChildCard from '../../components/parent/ChildCard'
+import FamilyCover from '../../components/parent/FamilyCover'
+import FamilyQuestsSection from '../../components/parent/FamilyQuestsSection'
+import FamilySettingsModal from '../../components/parent/FamilySettingsModal'
+import ParentMomentCaptureButton from '../../components/parent/ParentMomentCaptureButton'
+import VisibilityApprovalSection from '../../components/parent/VisibilityApprovalSection'
 import { htmlToText } from '../../utils/richText'
 import { inOptioAcademy } from '../../config/optioAcademy'
-import {
-  useFamilyChildren, useChildActivity, useFamilyAttention, useSchoolSection, weekXpFrom,
-} from './FamilyHomeData'
+import { useFamilyAttention, useSchoolSection } from './FamilyHomeData'
 
 /**
- * Family Home — the parent role's landing (rendered by RoleHome at /dashboard).
+ * Family Home — the ONE parent dashboard, at /family (2026-09-15).
  *
- * The question it answers: "how are my kids, and what do I owe the school."
- * Shared home skeleton: greeting → needs-attention → child cards → school
- * digest. Everything here is a digest over existing endpoints (see
- * FamilyHomeData.js) that deep-links into the pages that own each concern:
- * /parent/dashboard remains the full management surface (settings, evidence,
- * acting-as wiring, adding children), /family/* the school paperwork, /school
- * the school's own page.
+ * The question it answers: "how are my kids, what do I owe the school, and
+ * how do I get into each child's account." Shared home skeleton: greeting →
+ * needs-attention → child cards → family quests → school digest. Everything
+ * here is a digest over existing endpoints (see FamilyHomeData.js and
+ * hooks/api) that deep-links into the pages that own each concern: /family/*
+ * the school paperwork, /school the school's own page -- and, for each
+ * child, the child's OWN pages. "Open" enters family scope
+ * (contexts/FamilyScopeContext) and the dashboard, quests, journal and
+ * portfolio then render pointed at that child, with the parent still signed
+ * in as themselves.
+ *
+ * Each child is a card (components/parent/ChildCard) in a grid that goes
+ * one, two, three across with the viewport: picture, the numbers that move,
+ * the quests they are on with their rhythm on each (a quest opens the
+ * child's copy of it), the weekly goal, and the peer-connection requests
+ * waiting on the parent -- which used to be a page of their own under "Student
+ * connections" in the sidebar. Family quests
+ * (components/parent/FamilyQuestsSection) are the ones the parent set up or
+ * is on themselves, with who is on each. Settings is ONE modal
+ * (components/parent/FamilySettingsModal) with a tab per child; adding a
+ * child lives there too, so the cards carry only Open.
+ *
+ * Until 2026-09-15 there were two parent pages: this digest at /dashboard and
+ * a tabbed /parent/dashboard with a hero, a schedule, classes, attendance and
+ * five collapsible sections per child -- a second, thinner copy of the pages
+ * the child already has. That page is gone; what it owned that this one did
+ * not (Family Settings, adding a child, per-child settings, portfolio
+ * visibility approvals, capturing a moment) lives here now. The "Act as"
+ * button went with it: a parent no longer switches accounts to help.
  *
  * For orgs that had the school-homepage opt-in (school.homepage — their old
  * landing page was /school), the school section renders ABOVE the child cards,
@@ -69,61 +97,6 @@ function AttentionStrip({ items }) {
         })}
       </div>
     </section>
-  )
-}
-
-/**
- * The compact recent-activity line on a child card, from the same 30-day
- * completions feed the parent evidence view reads. Loading and errors render
- * nothing — the card stands on its own.
- */
-function ChildActivityLine({ studentId }) {
-  const { data: completions } = useChildActivity(studentId)
-  if (!completions) return null
-  const weekXp = weekXpFrom(completions)
-  if (weekXp > 0) {
-    return <p className="text-xs text-gray-500 truncate">{weekXp} XP earned this week</p>
-  }
-  const last = completions[0]
-  if (last?.task?.title) {
-    return <p className="text-xs text-gray-500 truncate">Last completed: {last.task.title}</p>
-  }
-  return <p className="text-xs text-gray-400 truncate">No activity in the last 30 days</p>
-}
-
-function ChildCard({ child }) {
-  const { setActingAs } = useActingAs()
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
-      {child.avatarUrl ? (
-        <img src={child.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-      ) : (
-        <span
-          aria-hidden="true"
-          className="w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex items-center justify-center flex-shrink-0 text-sm font-semibold"
-        >
-          {(child.name || '?').charAt(0).toUpperCase()}
-        </span>
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-900 truncate">{child.name}</p>
-        <ChildActivityLine studentId={child.id} />
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {child.isDependent && (
-          <button
-            type="button"
-            onClick={() => setActingAs(child.raw)}
-            className="btn-ghost px-3 py-1.5 text-sm"
-          >
-            Act as
-          </button>
-        )}
-        <Link to={`/parent/dashboard/${child.id}`} className="btn-quiet px-3 py-1.5">
-          View
-        </Link>
-      </div>
-    </div>
   )
 }
 
@@ -181,9 +154,12 @@ function SchoolSection({ schoolName, announcements }) {
 }
 
 export default function FamilyHome() {
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const { school } = useOrganization()
-  const childrenQuery = useFamilyChildren()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { children, isLoading, enterScope } = useFamilyScope()
+  const invalidateFamily = useInvalidateFamilyChildren()
   const { items: attentionItems } = useFamilyAttention()
   // Optio Academy runs none of the school surfaces the section links to
   // (calendar, resources, directory are all in its hidden_modules), so the
@@ -192,13 +168,66 @@ export default function FamilyHome() {
   const inSchool = Boolean(school) && !inOptioAcademy({ user, school })
   const { schoolOrg, announcements } = useSchoolSection(inSchool)
 
+  const [showAddChild, setShowAddChild] = useState(false)
+  const [showFamilySettings, setShowFamilySettings] = useState(false)
+  const [familySettingsTab, setFamilySettingsTab] = useState('you')
+
+  const openSettings = (tab) => {
+    setFamilySettingsTab(tab)
+    setShowFamilySettings(true)
+  }
+
+  // ?settings=<tab> opens Family Settings on that tab -- 'you', 'observers',
+  // 'parents' or a child's id. The account menu links here with
+  // ?settings=you, because a parent has no /overview to change their own name
+  // on. The param is cleared once consumed so a refresh (or the back button)
+  // doesn't reopen the modal.
+  useEffect(() => {
+    const tab = searchParams.get('settings')
+    if (!tab) return
+    setFamilySettingsTab(tab)
+    setShowFamilySettings(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('settings')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const firstName = user?.first_name || 'there'
-  const children = childrenQuery.data || []
   // Orgs that used the school-homepage opt-in landed on /school; their school
   // content now leads this page instead.
   const schoolFirst = Boolean(school?.homepage)
 
-  if (childrenQuery.isLoading) {
+  const openChild = (child) => {
+    enterScope(child.id)
+    navigate('/dashboard')
+  }
+
+  // A quest on a child's card opens THAT child's copy of it: the parent is
+  // working with the child, on the page the child would see.
+  const openChildQuest = (child, questId) => {
+    enterScope(child.id)
+    navigate(`/quests/${questId}`)
+  }
+
+  // The child's name opens their full profile (/overview in their scope).
+  const openChildProfile = (child) => {
+    enterScope(child.id)
+    navigate('/overview')
+  }
+
+  const handleChildAdded = async (result) => {
+    toast.success(result.message || 'Child added')
+    // has_dependents / has_linked_students drive the sidebar; refresh them.
+    await refreshUser()
+    invalidateFamily()
+    setShowAddChild(false)
+  }
+
+  // ParentMomentCaptureButton reads the two raw lists the endpoints return.
+  const linkedRaw = children.filter((c) => !c.isDependent).map((c) => c.raw)
+  const dependentsRaw = children.filter((c) => c.isDependent).map((c) => c.raw)
+
+  if (isLoading) {
     return <PageLoader className="min-h-[60vh]" />
   }
 
@@ -210,55 +239,87 @@ export default function FamilyHome() {
   ) : null
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
-      <p className="text-sm text-gray-500 mt-1">Here's how your family is doing.</p>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* The family's own photo, above everything. */}
+      <FamilyCover className="mb-6" />
+
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
+          <p className="text-sm text-gray-500 mt-1">Here's how your family is doing.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => openSettings('you')}
+          className="btn-quiet flex-shrink-0"
+        >
+          <Cog6ToothIcon className="w-5 h-5" />
+          Family settings
+        </button>
+      </div>
 
       <AttentionStrip items={attentionItems} />
 
+      {/* FERPA: a child's portfolio goes public only with a guardian's yes. */}
+      <VisibilityApprovalSection />
+
       {schoolFirst && schoolSection}
 
+      {/* Adding a child, and each child's settings, live in Family Settings
+          (the header button); the cards carry only Open. */}
       <section aria-label="Your children" className="mt-8">
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <UserGroupIcon className="w-4 h-4 text-optio-purple" />
-            Your family
-          </h2>
-          {children.length > 0 && (
-            <Link
-              to="/parent/dashboard"
-              className="text-sm font-medium text-optio-purple hover:underline flex-shrink-0"
-            >
-              Family dashboard
-            </Link>
-          )}
-        </div>
+        <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-2">
+          <UserGroupIcon className="w-4 h-4 text-optio-purple" />
+          Your family
+        </h2>
         {children.length === 0 ? (
           <EmptyState
             icon={UserGroupIcon}
             title="No children on your account yet"
-            hint="Add a child profile, or connect to your student's account."
+            hint="Set up any of your children — we'll ask their birth date and take it from there. Under 13: you manage their profile, no email needed. 13 and older: they get their own login, you stay connected."
             action={
-              <Link to="/parent/dashboard" className="btn-primary">
-                Add your children
-              </Link>
+              <button type="button" onClick={() => setShowAddChild(true)} className="btn-primary">
+                <PlusIcon className="w-5 h-5" />
+                Add your child
+              </button>
             }
           />
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {children.map((child) => (
-              <ChildCard key={child.id} child={child} />
+              <ChildCard key={child.id} child={child} onOpen={openChild} onOpenQuest={openChildQuest} onOpenProfile={openChildProfile} />
             ))}
           </div>
         )}
       </section>
 
+      {/* Quests the parent set up for the children, and any on the parent's
+          own account (a school's family training quest lands there). */}
+      <FamilyQuestsSection className="mt-8" />
+
       {!schoolFirst && schoolSection}
 
-      {/* A quest the school set for FAMILIES is the guardian's own work, held on
-          their own account. They have no student dashboard to meet it on, and
-          the school card above only links out to the portal. */}
-      <MyEnrolledQuests className="mt-8" />
+      {/* Capture a moment for a child from here, without opening their journal. */}
+      <ParentMomentCaptureButton
+        children={linkedRaw}
+        dependents={dependentsRaw}
+        onSuccess={invalidateFamily}
+      />
+
+      <AddChildModal
+        isOpen={showAddChild}
+        onClose={() => setShowAddChild(false)}
+        onSuccess={handleChildAdded}
+      />
+
+      <FamilySettingsModal
+        isOpen={showFamilySettings}
+        onClose={() => setShowFamilySettings(false)}
+        family={children}
+        initialTab={familySettingsTab}
+        onAddChild={() => { setShowFamilySettings(false); setShowAddChild(true) }}
+        onRefresh={invalidateFamily}
+      />
     </div>
   )
 }

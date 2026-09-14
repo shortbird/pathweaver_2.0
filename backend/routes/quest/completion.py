@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 from utils.quest_status import is_enrollment_complete, enrollment_completed_at
@@ -138,6 +139,7 @@ def get_user_active_quests(user_id: str):
 
 @bp.route('/completed', methods=['GET'])
 @require_auth
+@student_scope('quests')
 def get_user_completed_quests(user_id: str):
     """
     Get all completed and in-progress quests for the current user.
@@ -450,6 +452,7 @@ def get_user_completed_quests(user_id: str):
 
 @bp.route('/<quest_id>/end', methods=['POST'])
 @require_auth
+@student_scope()
 def end_quest(user_id: str, quest_id: str):
     """
     End an active quest enrollment.
@@ -669,6 +672,7 @@ def end_quest(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/reopen', methods=['POST'])
 @require_auth
+@student_scope()
 def reopen_quest(user_id: str, quest_id: str):
     """Re-activate a previously-ended quest enrollment.
 
@@ -726,6 +730,7 @@ def reopen_quest(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])
 @require_auth
+@student_scope()
 def reorder_quest_tasks(user_id: str, quest_id: str):
     """
     Reorder tasks for a quest.
@@ -795,6 +800,7 @@ def reorder_quest_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/display-mode', methods=['PUT'])
 @require_auth
+@student_scope()
 def update_display_mode(user_id: str, quest_id: str):
     """
     Update the display mode for a quest (timeline or flexible).

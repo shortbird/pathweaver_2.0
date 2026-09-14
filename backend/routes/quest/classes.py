@@ -16,6 +16,7 @@ from flask import Blueprint, request
 from datetime import datetime, timezone
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from utils.api_response_v1 import success_response, error_response
 from utils.school_subjects import SCHOOL_SUBJECTS, get_display_name
@@ -111,6 +112,7 @@ def _compute_class_progress(supabase, quest_id: str, user_id: str, transcript_su
 
 @bp.route('/my-classes', methods=['GET'])
 @require_auth
+@student_scope('quests')
 def list_my_classes(user_id: str):
     """List the student's credit-classes (quest_type='class'), INCLUDING completed /
     credit-awarded ones.
@@ -178,7 +180,7 @@ def get_class_progress(user_id: str, quest_id: str):
     class for final review stays the student's own milestone.
     """
     try:
-        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'), discloses='progress')
 
         # admin client justified: quest fetch feeds the owner-or-superadmin authz check itself; superadmin path then reads the OWNER's completions/tasks (cross-user)
         supabase = get_supabase_admin_client()
@@ -234,6 +236,7 @@ def get_class_progress(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/submit-class-for-review', methods=['POST'])
 @require_auth
+@student_scope()
 def submit_class_for_review(user_id: str, quest_id: str):
     """
     Student submits a class for holistic Optio review at >=1000 approved subject XP.

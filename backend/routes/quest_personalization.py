@@ -33,9 +33,8 @@ from routes.personalization_validators import (
     validate_adjust_task_request,
     VALID_CHALLENGE_LEVELS
 )
-from utils.guardian_scope import GuardianAccessError, resolve_student_scope
+from utils.auth.relationships import current_student_scope, student_scope
 from utils.personalization_helpers import (
-    get_effective_user_id,
     check_and_complete_personalization,
     normalize_diploma_subjects,
     get_or_create_enrollment,
@@ -50,23 +49,12 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 # CORS headers are set globally in app.py - do not duplicate here
 
 
-def _personalization_subject(caller_id: str, data: dict) -> str:
-    """Whose learning is being personalized: the caller, or a child of theirs.
-
-    A parent generating tasks on a kid's quest sends `student_id`, the same way
-    the delegated quest READ does, and everything downstream has to follow it —
-    the AI consent toggle, the vision statement the prompt is built from, the
-    remembered challenge level, the age band. Reading those off the caller
-    tailored a 16-year-old's tasks to his mother's profile and wrote her
-    challenge preference over his.
-
-    `resolve_student_scope` is deliberately the same gate: it admits a managed
-    dependent AND an approved parent_student_link, which is exactly the set the
-    write endpoints under /api/family accept. `get_effective_user_id`'s
-    `acting_as_dependent_id` is NOT — it is managed-dependents only, so it 403s
-    for a linked student who keeps their own login.
-    """
-    return resolve_student_scope(caller_id, (data or {}).get('student_id'))
+def _created_by() -> str:
+    """The guardian behind a delegated wizard write, else None (= the student
+    themselves). Read off the request so the three task-writing routes and
+    persist_accepted_task agree without threading a parameter through each."""
+    scope = current_student_scope()
+    return scope.caller_id if scope and scope.delegated else None
 
 
 def _first_subject(diploma_subjects):
@@ -174,7 +162,8 @@ def _session_task_xp(supabase, session_id: str, title: str):
 
 def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_id: str,
                           task: dict, *, save_to_library: bool = True,
-                          caller_role: str = None, server_xp: int = None):
+                          caller_role: str = None, server_xp: int = None,
+                          created_by_user_id: str = None):
     """Shared persistence for an accepted/created quest task.
 
     Single source of truth for turning a task dict (AI-suggested or hand-built)
@@ -183,7 +172,10 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
     (family_quests.create_task_for_dependent) store IDENTICAL data — including
     success_criteria (the Definition of Done), AI subject classification, diploma
     subjects, and the class-XP override. `target_user_id` is whose enrollment the
-    task is written to (self, or the managed child); callers own authorization.
+    task is written to (self, or a child); callers own authorization.
+    `created_by_user_id` is the guardian who added it when that was not the
+    student -- stamped on the task and, if this call creates the enrollment,
+    on the enrollment too. None = the student themselves.
 
     `caller_role` is the acting user's effective role and `server_xp` the
     platform-generated XP for this task (the AI's suggestion), both used to apply
@@ -214,7 +206,8 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
         )
     task['xp_value'] = resolved_xp
 
-    user_quest_id = get_or_create_enrollment(target_user_id, quest_id)
+    user_quest_id = get_or_create_enrollment(target_user_id, quest_id,
+                                             enrolled_by_user_id=created_by_user_id)
 
     raw_pillar = task.get('pillar')
     pillar_key = None
@@ -292,7 +285,9 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
         'is_required': False,
         'is_manual': False,
         'approval_status': 'approved',
-        'created_at': datetime.utcnow().isoformat()
+        'created_at': datetime.utcnow().isoformat(),
+        # NULL = the student themselves (migration 20260915120000)
+        'created_by_user_id': created_by_user_id,
     }
 
     result = supabase.table('user_quest_tasks').insert(user_task).execute()
@@ -319,13 +314,21 @@ def persist_accepted_task(supabase, subject_service, target_user_id: str, quest_
 
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
+@student_scope()
 def start_personalization(user_id: str, quest_id: str):
     """
     Begin the personalization flow for a quest.
     Creates or resumes a personalization session.
 
     Optional body parameter:
-        acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
+        student_id: a child of the caller's, when a parent drives the wizard
+            on that child's quest. @student_scope resolves it (and the older
+            `acting_as_dependent_id` name) so `user_id` here is already the
+            learner whose session this is. Everything personal to the learner
+            -- the AI consent toggle, the vision statement, the challenge
+            level, the age band -- is then read off the CHILD. Reading them
+            off the caller tailored a 16-year-old's tasks to his mother's
+            profile and wrote her challenge preference over his.
     """
     try:
         # admin client justified: reads one quests row's allow_custom_tasks flag to
@@ -334,21 +337,10 @@ def start_personalization(user_id: str, quest_id: str):
         if blocked:
             return blocked
 
-        # Get optional acting_as_dependent_id from request body
-        data = request.get_json() or {}
-        acting_as_dependent_id = data.get('acting_as_dependent_id')
-
-        # Determine effective user ID (handles parent -> dependent delegation).
-        # `student_id` is the newer, wider form used by the mobile parent quest
-        # view: it also covers a student with their own login whom the caller is
-        # linked to, whereas acting_as_dependent_id is managed-dependents only.
-        if data.get('student_id'):
-            effective_user_id = _personalization_subject(user_id, data)
-        else:
-            effective_user_id = get_effective_user_id(user_id, acting_as_dependent_id)
+        scope = current_student_scope()
 
         result = personalization_service.start_personalization_session(
-            user_id=effective_user_id,
+            user_id=user_id,
             quest_id=quest_id
         )
 
@@ -360,13 +352,10 @@ def start_personalization(user_id: str, quest_id: str):
             'session_id': result['session']['id'],
             'session': result['session'],
             'resumed': result.get('resumed', False),
-            'acting_as_dependent': acting_as_dependent_id is not None,
+            'acting_as_dependent': bool(scope and scope.delegated),
             'message': 'Personalization session started' if not result.get('resumed') else 'Resuming personalization session'
         })
 
-    except GuardianAccessError as e:
-        logger.warning(f"Guardian access denied in start_personalization: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 403
     except PermissionError as e:
         logger.warning(f"Permission denied in start_personalization: {str(e)}")
         return jsonify({
@@ -383,6 +372,7 @@ def start_personalization(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/generate-tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def generate_tasks(user_id: str, quest_id: str):
     """
     Generate AI task suggestions based on student inputs.
@@ -398,9 +388,10 @@ def generate_tasks(user_id: str, quest_id: str):
             cross_curricular_subjects and nothing else, instead of merely
             preferring them.
         "student_id": "uuid" (optional) - a child of the caller's, when a parent
-            is generating tasks on that child's quest. Everything personal to
-            the learner is then read off the CHILD: the AI consent toggle, the
-            vision statement, the challenge level, the age band.
+            is generating tasks on that child's quest (resolved by
+            @student_scope). Everything personal to the learner is then read
+            off the CHILD: the AI consent toggle, the vision statement, the
+            challenge level, the age band.
     }
     """
     try:
@@ -418,8 +409,9 @@ def generate_tasks(user_id: str, quest_id: str):
             return jsonify({'success': False, 'error': error}), 400
 
         # Whose learning this is. A parent generating on a kid's quest sends
-        # student_id; everyone else is personalizing for themselves.
-        subject_id = _personalization_subject(user_id, data)
+        # student_id, and @student_scope has already made `user_id` the child;
+        # everyone else is personalizing for themselves.
+        subject_id = user_id
 
         # Check AI access before proceeding. Against the STUDENT, not the
         # caller: the toggle being honored is the parent's answer to "may my
@@ -548,9 +540,6 @@ def generate_tasks(user_id: str, quest_id: str):
             'message': 'Tasks generated successfully' + (' (from cache)' if result.get('cached') else '')
         })
 
-    except GuardianAccessError as e:
-        logger.warning(f"Guardian access denied in generate_tasks: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         payload, status = ai_failure_response(e, 'Failed to generate tasks. Please try again.')
         return jsonify(payload), status
@@ -558,6 +547,7 @@ def generate_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/refine-tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def refine_tasks(user_id: str, quest_id: str):
     """
     Regenerate tasks with different interests/subjects.
@@ -611,6 +601,7 @@ def refine_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/edit-task', methods=['POST'])
 @require_auth
+@student_scope()
 def edit_task(user_id: str, quest_id: str):
     """
     Student edits a task description. AI reformats and enhances it.
@@ -657,6 +648,7 @@ def edit_task(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/adjust-task-difficulty', methods=['POST'])
 @require_auth
+@student_scope()
 def adjust_task_difficulty(user_id: str, quest_id: str):
     """
     Rewrite a suggested task one step easier or harder (the per-task
@@ -709,6 +701,7 @@ def adjust_task_difficulty(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/analyze-manual-task', methods=['POST'])
 @require_auth
+@student_scope()
 def analyze_manual_task(user_id: str, quest_id: str):
     """
     Generate helpful suggestions for a student-created task using AI.
@@ -766,6 +759,7 @@ def analyze_manual_task(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/add-manual-tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def add_manual_tasks_batch(user_id: str, quest_id: str):
     """
     Add multiple student-created tasks at once.
@@ -794,7 +788,8 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
             return jsonify({'success': False, 'error': error}), 400
 
         # Get or create enrollment
-        user_quest_id = get_or_create_enrollment(user_id, quest_id)
+        created_by = _created_by()
+        user_quest_id = get_or_create_enrollment(user_id, quest_id, enrolled_by_user_id=created_by)
 
         # Get next order_index
         next_order = get_next_order_index(user_id, quest_id)
@@ -901,7 +896,8 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 'is_required': False,
                 'is_manual': True,
                 'approval_status': 'approved',
-                'created_at': datetime.utcnow().isoformat()
+                'created_at': datetime.utcnow().isoformat(),
+                'created_by_user_id': created_by,
             }
 
             result = supabase.table('user_quest_tasks')\
@@ -931,6 +927,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/add-path-tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def add_path_tasks(user_id: str, quest_id: str):
     """
     Create the tasks for a pre-authored "path" (a quests.approach_examples entry).
@@ -1015,7 +1012,8 @@ def add_path_tasks(user_id: str, quest_id: str):
             subj = (PILLAR_TO_SUBJECTS.get(pillar_key) or ['electives'])[0]
             return {subj: xp}, {subj: xp}
 
-        user_quest_id = get_or_create_enrollment(user_id, quest_id)
+        created_by = _created_by()
+        user_quest_id = get_or_create_enrollment(user_id, quest_id, enrolled_by_user_id=created_by)
         next_order = get_next_order_index(user_id, quest_id)
 
         rows = []
@@ -1047,7 +1045,8 @@ def add_path_tasks(user_id: str, quest_id: str):
                 'is_required': False,
                 'is_manual': False,
                 'approval_status': 'approved',
-                'created_at': datetime.utcnow().isoformat()
+                'created_at': datetime.utcnow().isoformat(),
+                'created_by_user_id': created_by,
             })
 
         if not rows:
@@ -1089,6 +1088,7 @@ def add_path_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/finalize-tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def finalize_tasks(user_id: str, quest_id: str):
     """
     Finalize personalization and create user-specific tasks.
@@ -1152,6 +1152,7 @@ def finalize_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/personalization/accept-task', methods=['POST'])
 @require_auth
+@student_scope()
 def accept_task_immediate(user_id: str, quest_id: str):
     """
     Immediately accept and add a single task during one-at-a-time review.
@@ -1197,6 +1198,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
             supabase, subject_service, user_id, quest_id, task,
             caller_role=get_effective_role_for(user_id),
             server_xp=server_xp,
+            created_by_user_id=_created_by(),
         )
         if inserted is None:
             return jsonify({
@@ -1225,6 +1227,7 @@ def accept_task_immediate(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/personalization/skip-task', methods=['POST'])
 @require_auth
+@student_scope()
 def skip_task_save_to_library(user_id: str, quest_id: str):
     """
     Save a skipped task to the library so other users can find it.
@@ -1297,6 +1300,7 @@ def skip_task_save_to_library(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/personalization-status', methods=['GET'])
 @require_auth
+@student_scope()
 def get_personalization_status(user_id: str, quest_id: str):
     """
     Check if user has completed personalization for a quest.

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Modal, Alert, FormField, FormFooter } from './ui';
+import { useStudentScope } from '../hooks/useStudentScope';
+import { useCreateFamilyQuest } from '../hooks/api/useFamilyQuests';
+import { Modal, Alert, FormFooter } from './ui';
 import SimilarQuestAutocomplete from './SimilarQuestAutocomplete';
 import { useConfirm } from '../contexts/ConfirmContext'
 
@@ -10,10 +12,27 @@ import { useConfirm } from '../contexts/ConfirmContext'
  *
  * Users can create quests directly, which are private by default (visible only to them)
  * until an admin makes them public. Created quests are immediately available for use.
+ *
+ * Two callers, one form:
+ *  - a learner (or a parent in family scope, for one child): POST
+ *    /api/quests/create, which enrolls the account it is made on;
+ *  - the family dashboard, with `familyChildren`: a FAMILY quest -- created
+ *    on the parent's account and the chosen children enrolled in it, each
+ *    with their own copy (hooks/api/useFamilyQuests). The picker below is the
+ *    only difference the parent sees.
  */
-const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
+const CreateQuestModal = ({ isOpen, onClose, onSuccess, familyChildren = null }) => {
+  const { params: scope } = useStudentScope();
   const confirm = useConfirm()
   const navigate = useNavigate();
+  const forFamily = Array.isArray(familyChildren);
+  const createFamilyQuest = useCreateFamilyQuest();
+  const [childIds, setChildIds] = useState([]);
+  // Every child starts ticked: a family quest is usually for everyone, and
+  // unticking one is less work than ticking three.
+  useEffect(() => {
+    if (isOpen && forFamily) setChildIds(familyChildren.map((c) => c.id));
+  }, [isOpen, forFamily, familyChildren]);
   const [formData, setFormData] = useState({
     title: '',
     description: ''
@@ -59,11 +78,31 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
       return;
     }
 
+    if (forFamily && childIds.length === 0) {
+      setError('Pick at least one child');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      if (forFamily) {
+        const result = await createFamilyQuest.mutateAsync({
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          childIds,
+        });
+        setFormData({ title: '', description: '' });
+        onSuccess?.(result.quest, result);
+        onClose();
+        return;
+      }
+
       // Call the new user quest creation endpoint
+      // In family scope the quest is created on the CHILD's account, the way
+      // the child would have made it (backend @student_scope).
       const response = await api.post('/api/quests/create', {
+        ...scope,
         title: formData.title.trim(),
         big_idea: formData.description.trim()
       });
@@ -94,13 +133,15 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create Your Own Quest"
+      title={forFamily ? 'New family quest' : 'Create Your Own Quest'}
       className="max-w-full sm:max-w-2xl mx-2 sm:mx-0"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Info box */}
         <Alert variant="purple">
-          Create your own quest and start working right away!
+          {forFamily
+            ? 'Set up a quest for your children. Each of them gets their own copy to work through, and you can add tasks from their quest page.'
+            : 'Create your own quest and start working right away!'}
         </Alert>
 
         {/* Error message */}
@@ -163,12 +204,47 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
           </p>
         </div>
 
+        {forFamily && (
+          <fieldset>
+            <legend className="block text-sm font-semibold text-gray-700 mb-2">Who is it for? *</legend>
+            <div className="flex flex-wrap gap-2">
+              {familyChildren.map((child) => {
+                const on = childIds.includes(child.id);
+                return (
+                  <label
+                    key={child.id}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
+                      on ? 'border-optio-purple bg-optio-purple/5 text-optio-purple' : 'border-gray-300 text-gray-700 hover:border-optio-purple'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={on}
+                      disabled={isSubmitting}
+                      onChange={() => setChildIds((prev) => (on ? prev.filter((id) => id !== child.id) : [...prev, child.id]))}
+                    />
+                    {child.avatarUrl ? (
+                      <img src={child.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    ) : (
+                      <span aria-hidden="true" className="w-5 h-5 rounded-full bg-optio-purple/10 text-optio-purple text-[10px] font-semibold flex items-center justify-center">
+                        {(child.firstName || '?').charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    {child.firstName}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
         {/* Footer buttons */}
         <FormFooter
           onCancel={onClose}
           onSubmit={handleSubmit}
           cancelText="Cancel"
-          submitText={isSubmitting ? 'Creating...' : 'Create Quest'}
+          submitText={isSubmitting ? 'Creating...' : (forFamily ? 'Create family quest' : 'Create Quest')}
           isSubmitting={isSubmitting}
         />
       </form>

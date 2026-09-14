@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useFamilyScope } from '../../contexts/FamilyScopeContext'
+import { useStudentScope } from '../../hooks/useStudentScope'
 import { getSubjectName } from '../../constants/subjects'
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 import { PageLoader } from '../../components/ui/Spinner'
@@ -15,10 +17,13 @@ const REVIEW_STATUS_LABEL = {
 
 const MyClasses = () => {
   const { user } = useAuth()
+  // Family scope: the child's classes, and the child's age for the 13+ gate.
+  const { selectedChild } = useFamilyScope()
+  const { params: scopeParams, studentId: scopedStudentId } = useStudentScope()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const age = ageFromDob(user?.date_of_birth)
+  const age = ageFromDob(selectedChild ? selectedChild.dateOfBirth : user?.date_of_birth)
   const isUnderage = age !== null && age < CLASS_MIN_AGE
 
   const loadClasses = useCallback(async () => {
@@ -26,7 +31,7 @@ const MyClasses = () => {
     try {
       // Dedicated endpoint: includes credit-awarded (completed) classes, which the
       // dashboard's active_quests filters out.
-      const res = await api.get('/api/quests/my-classes')
+      const res = await api.get('/api/quests/my-classes', { params: scopeParams })
       const list = res.data?.data?.classes || []
       setClasses(
         list.map((c) => ({
@@ -42,7 +47,7 @@ const MyClasses = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [scopedStudentId])
 
   useEffect(() => {
     loadClasses()

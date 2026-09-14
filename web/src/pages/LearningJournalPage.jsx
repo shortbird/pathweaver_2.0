@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useStudentScope } from '../hooks/useStudentScope';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import InterestTracksList from '../components/interest-tracks/InterestTracksList';
@@ -25,11 +26,10 @@ import { PageLoader } from '../components/ui/Spinner';
 const LearningJournalPage = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { childId } = useParams(); // Optional - when parent views child's journal
-
-  // Parent viewing mode
-  const isParentView = !!childId;
-  const [childInfo, setChildInfo] = useState(null);
+  // Family scope: a parent reads and organizes a CHILD's journal. The child
+  // comes from the scope the parent picked on the Family page, not from the
+  // URL -- /parent/child/:id/journal used to carry it and now redirects here.
+  const { studentId: childId, isDelegated: isParentView, studentName } = useStudentScope();
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [selectedQuestId, setSelectedQuestId] = useState(null);
   const [showUnassigned, setShowUnassigned] = useState(true); // Default to unassigned view
@@ -50,23 +50,6 @@ const LearningJournalPage = () => {
   // Capture modal (self-view only) - shared between the header CTA, the
   // floating button, and the Ctrl+Shift+L shortcut via QuickCaptureButton.
   const [showCapture, setShowCapture] = useState(false);
-
-  // Fetch child info when in parent mode
-  useEffect(() => {
-    if (isParentView && childId) {
-      const fetchChildInfo = async () => {
-        try {
-          const response = await api.get(`/api/parent/child-overview/${childId}`);
-          if (response.data?.student) {
-            setChildInfo(response.data.student);
-          }
-        } catch (error) {
-          console.error('Failed to fetch child info:', error);
-        }
-      };
-      fetchChildInfo();
-    }
-  }, [isParentView, childId]);
 
   const fetchUnassignedMoments = useCallback(async () => {
     try {
@@ -192,8 +175,8 @@ const LearningJournalPage = () => {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">
-              {isParentView && childInfo
-                ? `${childInfo.first_name || childInfo.display_name}'s Learning Journal`
+              {isParentView && studentName
+                ? `${studentName}'s Learning Journal`
                 : 'Learning Journal'}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
@@ -394,7 +377,7 @@ const LearningJournalPage = () => {
       {isParentView ? (
         <ParentMomentCaptureButton
           children={[]}
-          dependents={childInfo ? [{ id: childId, display_name: childInfo.first_name || childInfo.display_name }] : []}
+          dependents={[{ id: childId, display_name: studentName || 'your child' }]}
           selectedChildId={childId}
           onSuccess={handleCaptureSuccess}
         />
@@ -412,6 +395,7 @@ const LearningJournalPage = () => {
         onClose={() => setShowEvolveModal(false)}
         track={trackToEvolve}
         onSuccess={handleEvolveSuccess}
+        studentId={isParentView ? childId : null}
       />
 
       {/* Bulk Import Modal (self-view only) */}

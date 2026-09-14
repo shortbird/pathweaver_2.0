@@ -300,12 +300,12 @@ describe('LoginPage', () => {
       })
     })
 
-    it('forwards a parent to the role home (/dashboard)', async () => {
+    it('forwards a parent to the family dashboard (/family)', async () => {
       authState = { ...authState, user: { id: '1', role: 'parent', first_name: 'Bob' }, effectiveRole: 'parent' }
       renderLoginPage()
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true })
+        expect(mockNavigate).toHaveBeenCalledWith('/family', { replace: true })
       })
     })
 
@@ -348,7 +348,7 @@ describe('LoginPage', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates to parent dashboard when Continue is clicked (org-managed parent)', async () => {
+    it('navigates to the family dashboard when Continue is clicked (org-managed parent)', async () => {
       authState = {
         ...authState,
         // Org parents have role 'org_managed'; effectiveRole resolves org_role
@@ -358,7 +358,7 @@ describe('LoginPage', () => {
       renderLoginPage()
 
       fireEvent.click(await screen.findByText('Continue as Bob'))
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/family')
     })
 
     it('navigates observer straight to the feed when Continue is clicked', async () => {

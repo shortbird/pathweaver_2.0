@@ -37,10 +37,11 @@ Policy notes:
     admin viewing as a student is that student for the duration.
 """
 
+import json
 from functools import wraps
 from typing import Callable, Dict, Optional, Sequence
 
-from flask import request
+from flask import g, request
 
 # The auth error types are re-exported through the sibling decorator module
 # rather than imported from middleware.error_handler directly. utils -> middleware
@@ -178,12 +179,16 @@ def _is_platform_staff(caller_id: str) -> bool:
     return bool(rows) and is_optio_platform_user(rows[0])
 
 
-def _log_disclosure(caller_id: str, student_id: str, data_type: str,
-                    matched: Optional[str]) -> None:
+def log_disclosure(caller_id: str, student_id: str, data_type: str,
+                   matched: Optional[str]) -> None:
     """Record a FERPA disclosure. Never raises, never blocks the read.
 
     A compliance log that can take the feature down with it gets removed the
     first time it misfires, and then there is no log at all.
+
+    Public because it has two callers now: the URL gate below, and
+    utils.guardian_scope for reads that name the student in a `student_id`
+    parameter instead. Same event, same log, whichever way the id arrived.
     """
     if matched == 'self':
         return  # reading your own record is not a disclosure
@@ -351,7 +356,7 @@ def require_relationship_to(param: str, allow: Sequence[str],
                 matched = None  # got in as staff, not by a declared relationship
 
             if discloses:
-                _log_disclosure(caller_id, target_id, discloses, matched)
+                log_disclosure(caller_id, target_id, discloses, matched)
 
             return f(*args, **kwargs)
 
@@ -359,3 +364,101 @@ def require_relationship_to(param: str, allow: Sequence[str],
         return decorated_function
 
     return decorator
+
+
+#: Marker attribute for the student-scope guard test
+#: (tests/unit/test_student_scoped_routes_declare.py). Same convention as
+#: ENFORCED_ATTR: set on the wrapper, propagated outward by functools.wraps.
+STUDENT_SCOPE_ATTR = '_student_scope_enforced'
+
+
+def student_scope(discloses: Optional[str] = None):
+    """Let a guardian make this request ABOUT their child.
+
+    The URL gate above answers "what is this caller to the person in the
+    path". This one answers the same question for the routes that have no
+    person in the path -- the student's own dashboard, quest list, journal,
+    task completion -- where the subject is the caller unless the request
+    names a `student_id` (query string, JSON body, or form field). Stack it
+    BELOW the authentication decorator::
+
+        @bp.route('/dashboard')
+        @require_auth
+        @student_scope('progress')
+        def get_dashboard(user_id):
+            ...  # user_id is the STUDENT; g.student_scope.caller_id the parent
+
+    It swaps the positional `user_id` the auth decorator passes for the
+    resolved student's id, so the body of the route reads and writes the
+    student's rows without knowing a parent is behind the request. The caller
+    is kept on `g.student_scope` for the routes that stamp who did it
+    (completed_by_user_id and friends). Without a `student_id` the request is
+    exactly what it was: the caller, about themselves, nothing logged.
+
+    Who may pass is decided by `utils.guardian_scope`, which delegates to
+    `relationship_between(allow=('self', 'parent'))` -- the same predicates,
+    the same order, the same staff fallback as every declared gate. A refusal
+    is the 403 the relationship gate speaks, raised before the view runs.
+
+    `discloses` works as it does on require_relationship_to: name the record
+    and a delegated read is logged as a FERPA disclosure; a self read is not.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(user_id, *args, **kwargs):
+            if request.method == 'OPTIONS':
+                return ('', 200)
+
+            # Deferred: guardian_scope imports database; this module is
+            # imported by decorators that database's callers depend on.
+            from utils.guardian_scope import (
+                GuardianAccessError, resolve_student_scope_from_request,
+            )
+            try:
+                scope = resolve_student_scope_from_request(user_id, discloses=discloses)
+            except GuardianAccessError as e:
+                raise AuthorizationError(str(e)) from e
+
+            g.student_scope = scope
+            response = f(scope.student_id, *args, **kwargs)
+            if scope.delegated:
+                _mark_delegated(response, scope)
+            return response
+
+        setattr(decorated_function, STUDENT_SCOPE_ATTR, discloses or True)
+        return decorated_function
+
+    return decorator
+
+
+def _mark_delegated(response, scope) -> None:
+    """Stamp a delegated JSON payload with whose it is.
+
+    The mobile app calls the same URL for its own rows and for a child's, and
+    an app that ships before the backend it talks to (a preview OTA against a
+    stale dev backend) would get the PARENT's rows back from a backend that
+    ignored `student_id`, with nothing in the response to say so. It trusts a
+    scoped read only when this marker names the student it asked for.
+    Best-effort: a response that is not a JSON object is left alone.
+    """
+    body = response[0] if isinstance(response, tuple) else response
+    try:
+        if not getattr(body, 'is_json', False):
+            return
+        payload = body.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return
+        payload['scope'] = {'student_id': scope.student_id, 'delegated': True}
+        body.set_data(json.dumps(payload))
+    except Exception:
+        logger.exception('student scope: could not mark delegated response on %s',
+                         _request_path())
+
+
+def current_student_scope():
+    """The StudentScope `@student_scope` resolved for this request, or None
+    when the route is not scoped (or is being called outside a request)."""
+    try:
+        return getattr(g, 'student_scope', None)
+    except RuntimeError:
+        return None

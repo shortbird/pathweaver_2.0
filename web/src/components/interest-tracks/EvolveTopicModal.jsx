@@ -23,7 +23,8 @@ const EvolveTopicModal = ({
   isOpen,
   onClose,
   track,
-  onSuccess
+  onSuccess,
+  studentId = null  // family scope: evolve a CHILD's topic into a quest on their account
 }) => {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +49,7 @@ const EvolveTopicModal = ({
     setPreview(null);
 
     try {
-      const response = await api.get(`/api/interest-tracks/${track.id}/evolve/preview`);
+      const response = await api.get(`/api/interest-tracks/${track.id}/evolve/preview`, studentId ? { params: { student_id: studentId } } : undefined);
 
       if (response.data.success) {
         const previewData = response.data.preview;
@@ -78,6 +79,7 @@ const EvolveTopicModal = ({
     setIsSubmitting(true);
     try {
       const response = await api.post(`/api/interest-tracks/${track.id}/evolve`, {
+        ...(studentId ? { student_id: studentId } : {}),
         title: title.trim(),
         description: description.trim() || null,
         tasks: tasks

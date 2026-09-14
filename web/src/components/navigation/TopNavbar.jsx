@@ -75,14 +75,14 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const profileItem = effectiveRole === 'observer'
     ? { label: 'My Feed', path: '/observer/feed' }
     : effectiveRole === 'parent'
-      ? { label: 'Family Dashboard', path: '/parent/dashboard' }
+      ? { label: 'Family', path: '/family' }
       : { label: 'Profile', path: '/overview' }
 
   // Parents have no /overview, so "where do I change my name" had no answer in
   // this menu — the one place people look for it. Deep-link straight into the
   // Family Settings "You" tab rather than leaving them to find the modal.
   const accountItem = effectiveRole === 'parent'
-    ? { label: 'Your account', path: '/parent/dashboard?settings=you' }
+    ? { label: 'Your account', path: '/family?settings=you' }
     : null
 
   return (

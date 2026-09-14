@@ -6,35 +6,67 @@ import FamilyHome from './FamilyHome'
 import { OPTIO_ACADEMY_ORG_ID } from '../../config/optioAcademy'
 
 let authState = {}
-let actingAsState = {}
 let orgState = {}
+let scopeState = {}
+const navigateMock = vi.fn()
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState,
-}))
-
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => actingAsState,
 }))
 
 vi.mock('../../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
 
+// The children come from the family scope context (one fetch for every
+// parent surface); the page itself no longer loads them.
+vi.mock('../../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => scopeState,
+}))
+
+let summaries = {}
+vi.mock('../../hooks/api/useFamilyChildren', () => ({
+  useInvalidateFamilyChildren: () => vi.fn(),
+  useChildSummary: (id) => ({ data: summaries[id] || null }),
+  useUploadChildAvatar: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
+// Peer-connection approvals are the child card's own concern, tested with it.
+vi.mock('../../hooks/api/useConnectionApprovals', () => ({
+  useConnectionApprovals: () => ({ data: { pending: [], approved: [] } }),
+  useDecideConnection: () => ({ mutate: vi.fn(), isPending: false }),
+  useRevokeConnection: () => ({ mutate: vi.fn(), isPending: false }),
+  forChild: () => ({ pending: [], approved: [] }),
+}))
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual, useNavigate: () => navigateMock }
+})
+
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn() },
-  parentAPI: {
-    getMyChildren: vi.fn(),
-    getRecentCompletions: vi.fn(),
-  },
 }))
 
-vi.mock('../../services/dependentAPI', () => ({
-  getMyDependents: vi.fn(),
+// The modals and sections the page hosts are their own components with their
+// own tests. FamilySettingsModal is kept real enough to assert which tab the
+// page opens it on.
+const settingsModal = vi.fn()
+vi.mock('../../components/parent/AddChildModal', () => ({ default: () => null }))
+vi.mock('../../components/parent/FamilySettingsModal', () => ({
+  default: (props) => { settingsModal(props); return props.isOpen ? <div data-testid="family-settings" data-tab={props.initialTab} /> : null },
 }))
+vi.mock('../../components/parent/FamilyQuestsSection', () => ({ default: () => <div data-testid="family-quests" /> }))
+vi.mock('../../components/parent/FamilyCover', () => ({ default: () => <div data-testid="family-cover" /> }))
+vi.mock('../../components/parent/ParentMomentCaptureButton', () => ({ default: () => null }))
+vi.mock('../../components/parent/VisibilityApprovalSection', () => ({ default: () => null }))
+vi.mock('../../components/overview/WeeklyXpGoalCard', () => ({ default: () => null }))
 
-import api, { parentAPI } from '../../services/api'
-import { getMyDependents } from '../../services/dependentAPI'
+import api from '../../services/api'
+
+const child = (id, name, extra = {}) => ({
+  id, name, firstName: name.split(' ')[0], avatarUrl: null, isDependent: false, dateOfBirth: null, raw: { id }, ...extra,
+})
 
 function renderFamilyHome() {
   const queryClient = new QueryClient({
@@ -42,7 +74,7 @@ function renderFamilyHome() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/dashboard']}>
+      <MemoryRouter initialEntries={['/family']}>
         <FamilyHome />
       </MemoryRouter>
     </QueryClientProvider>
@@ -61,13 +93,10 @@ function mockApiRoutes(routes = {}) {
 describe('FamilyHome', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    authState = { user: { id: 'parent-1', role: 'parent', first_name: 'Dana', has_dependents: true } }
-    actingAsState = { setActingAs: vi.fn(), actingAsDependent: null, clearActingAs: vi.fn() }
+    authState = { user: { id: 'parent-1', role: 'parent', first_name: 'Dana', has_dependents: true }, refreshUser: vi.fn() }
     orgState = { school: null, loading: false }
-
-    parentAPI.getMyChildren.mockResolvedValue({ data: { children: [] } })
-    parentAPI.getRecentCompletions.mockResolvedValue({ data: { completions: [] } })
-    getMyDependents.mockResolvedValue({ dependents: [] })
+    scopeState = { children: [], isLoading: false, enterScope: vi.fn(), exitScope: vi.fn(), isScoped: false }
+    summaries = {}
     mockApiRoutes()
   })
 
@@ -78,72 +107,110 @@ describe('FamilyHome', () => {
 
   describe('child cards', () => {
     beforeEach(() => {
-      parentAPI.getMyChildren.mockResolvedValue({
-        data: {
-          children: [
-            { student_id: 'child-1', student_first_name: 'Emma', student_last_name: 'Smith' },
-          ],
-        },
-      })
-      getMyDependents.mockResolvedValue({
-        dependents: [{ id: 'dep-1', display_name: 'Little Timmy', first_name: 'Timmy' }],
-      })
+      scopeState.children = [
+        child('child-1', 'Emma Smith'),
+        child('dep-1', 'Timmy', { isDependent: true, dateOfBirth: '2018-05-01' }),
+      ]
     })
 
-    it('renders one card per child and dependent, with View links into the parent dashboard', async () => {
+    it('renders one card per child, each with an Open that enters family scope', async () => {
       renderFamilyHome()
       expect(await screen.findByText('Emma Smith')).toBeInTheDocument()
       expect(screen.getByText('Timmy')).toBeInTheDocument()
 
-      const viewLinks = screen.getAllByRole('link', { name: 'View' })
-      expect(viewLinks.map((l) => l.getAttribute('href'))).toEqual([
-        '/parent/dashboard/child-1',
-        '/parent/dashboard/dep-1',
-      ])
+      const open = screen.getAllByRole('button', { name: 'Open' })
+      expect(open).toHaveLength(2)
+      open[1].click()
+      expect(scopeState.enterScope).toHaveBeenCalledWith('dep-1')
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('offers Act as only on dependent cards, wired to setActingAs', async () => {
+    it('never offers Act as', async () => {
+      // A parent works on a child's account as themselves now (family scope);
+      // the token-swapping act-as button is gone for every child, whatever
+      // their age or login.
       renderFamilyHome()
       await screen.findByText('Emma Smith')
-      const actAs = screen.getAllByRole('button', { name: 'Act as' })
-      expect(actAs).toHaveLength(1)
-      actAs[0].click()
-      expect(actingAsState.setActingAs).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'dep-1' })
+      expect(screen.queryByRole('button', { name: /act as/i })).not.toBeInTheDocument()
+    })
+
+    it('summarises each child from their dashboard read', async () => {
+      summaries['child-1'] = {
+        student: { total_xp: 1250, streak_days: 4 },
+        stats: { active_quests_count: 2 },
+        learning_rhythm: { last_activity_date: new Date().toISOString() },
+        active_quests: [{
+          quest_id: 'q1', title: 'Pack for the trip',
+          progress: { completed_tasks: 1, total_tasks: 2, percentage: 50 },
+          rhythm: { state: 'in_flow', state_display: 'In Flow', last_7_days: [] },
+        }],
+        recent_completions: [{ task_title: 'Make a packing list', quest_title: 'Pack for the trip', xp_earned: 50, completed_at: new Date().toISOString() }],
+      }
+      renderFamilyHome()
+      expect(await screen.findByText(/1,250 XP · 2 active quests · 4-day streak · Active Just now/)).toBeInTheDocument()
+      expect(screen.getByText('Pack for the trip')).toBeInTheDocument()
+      // The quest carries the child's rhythm on it, not a progress bar.
+      expect(screen.getByText('In Flow')).toBeInTheDocument()
+      expect(screen.queryByText('1/2 tasks')).not.toBeInTheDocument()
+      // No completions feed on the card, and no age chip.
+      expect(screen.queryByText('Make a packing list')).not.toBeInTheDocument()
+      expect(screen.queryByText('Under 13')).not.toBeInTheDocument()
+    })
+
+    it("the child's name opens their full profile in their scope", async () => {
+      renderFamilyHome()
+      ;(await screen.findByRole('button', { name: 'Emma Smith' })).click()
+      expect(scopeState.enterScope).toHaveBeenCalledWith('child-1')
+      expect(navigateMock).toHaveBeenCalledWith('/overview')
+    })
+
+    it("a quest on a child's card opens that child's copy of it", async () => {
+      summaries['child-1'] = {
+        student: { total_xp: 10 }, stats: {}, learning_rhythm: {},
+        active_quests: [{ quest_id: 'q1', title: 'Pack for the trip', progress: {}, rhythm: { state: 'in_flow', state_display: 'In Flow', last_7_days: [] } }],
+        recent_completions: [],
+      }
+      renderFamilyHome()
+      ;(await screen.findByRole('button', { name: /Pack for the trip/ })).click()
+      expect(scopeState.enterScope).toHaveBeenCalledWith('child-1')
+      expect(navigateMock).toHaveBeenCalledWith('/quests/q1')
+    })
+
+    it('keeps settings and add-a-child in Family Settings, off the cards', async () => {
+      renderFamilyHome()
+      await screen.findByText('Emma Smith')
+      expect(screen.queryByRole('button', { name: /settings for/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add a child' })).not.toBeInTheDocument()
+      screen.getByRole('button', { name: /Family settings/ }).click()
+      expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'you')
+    })
+
+    it('opens Family Settings on the tab ?settings= names', async () => {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/family?settings=you']}>
+            <FamilyHome />
+          </MemoryRouter>
+        </QueryClientProvider>
       )
+      expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'you')
     })
 
-    it('shows XP earned this week from recent completions', async () => {
-      parentAPI.getRecentCompletions.mockResolvedValue({
-        data: {
-          completions: [
-            { completed_at: new Date().toISOString(), task: { title: 'Build a kite', xp_value: 50 } },
-          ],
-        },
-      })
+    it('renders the family photo above everything and the family quests section', async () => {
       renderFamilyHome()
-      expect((await screen.findAllByText('50 XP earned this week')).length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('deduplicates linked students returned again by the dependents RPC', async () => {
-      getMyDependents.mockResolvedValue({
-        dependents: [
-          { id: 'child-1', first_name: 'Emma', last_name: 'Smith' },
-          { id: 'dep-1', display_name: 'Little Timmy', first_name: 'Timmy' },
-        ],
-      })
-      renderFamilyHome()
-      await screen.findByText('Emma Smith')
-      expect(screen.getAllByText('Emma Smith')).toHaveLength(1)
+      const cover = await screen.findByTestId('family-cover')
+      expect(await screen.findByTestId('family-quests')).toBeInTheDocument()
+      const greeting = screen.getByText('Welcome back, Dana')
+      // eslint-disable-next-line no-bitwise
+      expect(cover.compareDocumentPosition(greeting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
   })
 
   describe('empty state', () => {
-    it('shows an EmptyState with a CTA to the parent dashboard when there are no children', async () => {
+    it('shows an EmptyState with an Add-your-child button when there are no children', async () => {
       renderFamilyHome()
       expect(await screen.findByText('No children on your account yet')).toBeInTheDocument()
-      const cta = screen.getByRole('link', { name: 'Add your children' })
-      expect(cta).toHaveAttribute('href', '/parent/dashboard')
+      expect(screen.getByRole('button', { name: 'Add your child' })).toBeInTheDocument()
     })
   })
 
@@ -257,9 +324,7 @@ describe('FamilyHome', () => {
     it('renders the school section above the child cards for school-homepage orgs', async () => {
       orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
       mockApiRoutes(schoolRoutes)
-      parentAPI.getMyChildren.mockResolvedValue({
-        data: { children: [{ student_id: 'child-1', student_first_name: 'Emma', student_last_name: 'Smith' }] },
-      })
+      scopeState.children = [child('child-1', 'Emma Smith')]
       renderFamilyHome()
 
       const school = await screen.findByText('From iCreate')

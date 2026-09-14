@@ -43,8 +43,11 @@ def get_all_student_conversations(user_id, student_id):
             last_message_preview, created_at
         ''').eq('participant_2_id', student_id).execute()
 
-        # Get other participant info for DMs
-        all_dm_convos = (dm_convos_p1.data or []) + (dm_convos_p2.data or [])
+        # Get other participant info for DMs. Only conversations with a
+        # message in them: opening a thread creates the row before anything
+        # is said, and a parent reading "DM with Tyler" over an empty thread
+        # assumed there was something there (Paige, 2026-09-15).
+        all_dm_convos = [dm for dm in (dm_convos_p1.data or []) + (dm_convos_p2.data or []) if dm.get('last_message_at')]
         for dm in all_dm_convos:
             other_user_id = dm['participant_2_id'] if dm['participant_1_id'] == student_id else dm['participant_1_id']
             user_info = _get_user_display_info(supabase, other_user_id)
@@ -66,7 +69,7 @@ def get_all_student_conversations(user_id, student_id):
 
         for membership in (group_memberships.data or []):
             group = membership.get('group_conversations')
-            if group:
+            if group and group.get('last_message_at'):
                 conversations.append({
                     'id': group['id'],
                     'type': 'group',
@@ -79,8 +82,8 @@ def get_all_student_conversations(user_id, student_id):
 
         # 3. Get AI tutor conversations
         tutor_convos = supabase.table('tutor_conversations').select('''
-            id, title, conversation_mode, created_at, updated_at, last_message_at
-        ''').eq('user_id', student_id).order('updated_at', desc=True).limit(50).execute()
+            id, title, conversation_mode, created_at, updated_at, last_message_at, message_count
+        ''').eq('user_id', student_id).gt('message_count', 0).order('updated_at', desc=True).limit(50).execute()
 
         for tutor in (tutor_convos.data or []):
             conversations.append({
@@ -138,7 +141,10 @@ def get_student_dm_conversations(user_id, student_id):
         ''').eq('participant_2_id', student_id).execute()
 
         conversations = []
+        # Threads with a message in them only -- see the /all route above.
         for dm in (dm_convos_p1.data or []) + (dm_convos_p2.data or []):
+            if not dm.get('last_message_at'):
+                continue
             other_user_id = dm['participant_2_id'] if dm['participant_1_id'] == student_id else dm['participant_1_id']
             user_info = _get_user_display_info(supabase, other_user_id)
             conversations.append({

@@ -3,7 +3,7 @@
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { useMyChildren, useChildDashboard, useChildEngagement } from '../useParent';
+import { useMyChildren, useChildDashboard } from '../useParent';
 import api from '@/src/services/api';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { useHoldStore, holdLifted } from '@/src/stores/holdStore';
@@ -124,21 +124,6 @@ describe('useChildDashboard', () => {
 
     expect(api.get).toHaveBeenCalledWith('/api/parent/dashboard/child-13plus');
     expect(result.current.data?.stats.total_xp).toBe(850);
-  });
-});
-
-describe('useChildEngagement', () => {
-  it('fetches engagement data from /api/parent/{id}/engagement', async () => {
-    const engData = { engagement: { rhythm: { level: 'steady' }, calendar: { days: [] } } };
-    (api.get as jest.Mock).mockResolvedValueOnce({ data: engData });
-
-    const { result } = renderHook(() => useChildEngagement('child-13plus'));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(api.get).toHaveBeenCalledWith('/api/parent/child-13plus/engagement', { timeout: 30000 });
   });
 });
 

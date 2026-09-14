@@ -55,7 +55,7 @@ const InterestTrackDetail = ({
 
   const handleUpdate = async (trackData) => {
     try {
-      const response = await api.put(`/api/interest-tracks/${trackId}`, trackData);
+      const response = await api.put(`/api/interest-tracks/${trackId}`, studentId ? { ...trackData, student_id: studentId } : trackData);
       if (response.data.success) {
         toast.success('Topic updated!');
         setShowEditModal(false);
@@ -69,7 +69,7 @@ const InterestTrackDetail = ({
 
   const handleDelete = async () => {
     try {
-      const response = await api.delete(`/api/interest-tracks/${trackId}`);
+      const response = await api.delete(`/api/interest-tracks/${trackId}`, studentId ? { params: { student_id: studentId } } : undefined);
       if (response.data.success) {
         toast.success('Topic deleted');
         setShowDeleteConfirm(false);

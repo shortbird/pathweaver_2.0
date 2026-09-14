@@ -36,9 +36,10 @@ describe('BackButton deep-link fallback', () => {
   })
 
   it('sends a signed-in user to their role home from a single-segment page', () => {
+    // a parent's home is the family dashboard
     renderAt('/absences')
     fireEvent.click(screen.getByLabelText('Go back'))
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+    expect(mockNavigate).toHaveBeenCalledWith('/family')
   })
 
   it('sends an anonymous visitor to the homepage', () => {

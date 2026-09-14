@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from repositories.base_repository import NotFoundError
 from routes.tasks import bp
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -68,6 +69,7 @@ def _mark_enrollment_emptied_if_last_task(user_quest_id, user_id: str) -> bool:
 
 @bp.route('/<task_id>', methods=['PUT'])
 @require_auth
+@student_scope()
 def update_task(user_id: str, task_id: str):
     """
     Update a task's details (title, description, pillar, xp_value, evidence_prompt).
@@ -352,6 +354,7 @@ def update_task(user_id: str, task_id: str):
 
 @bp.route('/<task_id>', methods=['DELETE'])
 @require_auth
+@student_scope()
 def drop_task(user_id: str, task_id: str):
     """
     Drop/remove a task from user's active quest.

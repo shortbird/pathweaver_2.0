@@ -53,6 +53,20 @@ def list_quests():
                     logger.error(f"Auth check failed: {e}")
                     pass  # Continue without auth
 
+        # A parent browsing the catalog FOR a child asks for the child's
+        # enrollment overlay ("already started", "completed") with
+        # ?student_id=. Function form rather than @student_scope because this
+        # route has no auth decorator: an anonymous caller has no id to be a
+        # guardian with, so the parameter is simply ignored for them, and a
+        # signed-in stranger is refused the way every scoped route refuses.
+        if user_id and request.args.get('student_id'):
+            from utils.guardian_scope import GuardianAccessError, resolve_student_scope
+            try:
+                user_id = resolve_student_scope(user_id, request.args.get('student_id'),
+                                                discloses='quests')
+            except GuardianAccessError as e:
+                return error_response('FORBIDDEN', str(e), status=403)
+
         supabase = get_supabase_client()
 
         # Detect pagination mode: cursor or page-based

@@ -64,7 +64,7 @@ describe('GryffinPage role branching', () => {
     renderAs(['parent'])
     expect(screen.queryByTestId('class-manager')).not.toBeInTheDocument()
     expect(screen.getByText('Go to my children')).toHaveAttribute(
-      'href', '/parent/dashboard'
+      'href', '/family'
     )
   })
 

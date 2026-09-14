@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 
 const STATUS_STYLES = {
   not_started: { label: 'Not started', className: 'bg-gray-100 text-gray-600' },
@@ -8,13 +9,17 @@ const STATUS_STYLES = {
   completed: { label: 'Complete', className: 'bg-green-100 text-green-700' }
 };
 
-const QuestRow = ({ quest, index, studentId, isDependent }) => {
+const QuestRow = ({ quest, index, studentId, viewerMode }) => {
   const status = STATUS_STYLES[quest.status] || STATUS_STYLES.not_started;
   const { completed_tasks: completedTasks = 0, total_tasks: totalTasks = 0 } = quest.progress || {};
+  const navigate = useNavigate();
+  const { enterScope } = useFamilyScope();
 
-  // Linked students (13+) get the read-only parent quest view. Dependents use
-  // act-as from the Learning Snapshot cards instead, so their rows stay static.
-  const linkable = studentId && !isDependent && quest.status !== 'not_started';
+  // A parent opens the child's quest in family scope (the same page the child
+  // sees, pointed at the child). Observers have no per-quest page, so their
+  // rows stay static. This used to link linked students to the thinner
+  // ParentQuestView and leave dependents to the act-as flow (2026-09-15).
+  const linkable = viewerMode === 'parent' && studentId && quest.status !== 'not_started';
 
   const row = (
     <div className="flex items-center gap-3 py-2.5 px-3">
@@ -40,12 +45,13 @@ const QuestRow = ({ quest, index, studentId, isDependent }) => {
 
   if (linkable) {
     return (
-      <Link
-        to={`/parent/quest/${studentId}/${quest.quest_id}`}
-        className="block rounded-lg hover:bg-optio-purple/5 transition-colors"
+      <button
+        type="button"
+        onClick={() => { enterScope(studentId); navigate(`/quests/${quest.quest_id}`); }}
+        className="block w-full text-left rounded-lg hover:bg-optio-purple/5 transition-colors"
       >
         {row}
-      </Link>
+      </button>
     );
   }
   return <div className="rounded-lg">{row}</div>;
@@ -55,7 +61,7 @@ QuestRow.propTypes = {
   quest: PropTypes.object.isRequired,
   index: PropTypes.number.isRequired,
   studentId: PropTypes.string,
-  isDependent: PropTypes.bool
+  viewerMode: PropTypes.string
 };
 
 /**
@@ -65,7 +71,7 @@ QuestRow.propTypes = {
  * so a parent can see what their child is enrolled in even before any work has
  * been completed. Rendered on the parent Family Dashboard child view.
  */
-const EnrolledCoursesSection = ({ courses, studentId = null, isDependent = false }) => {
+const EnrolledCoursesSection = ({ courses, studentId = null, viewerMode = 'student' }) => {
   if (!courses?.length) return null;
 
   return (
@@ -111,7 +117,7 @@ const EnrolledCoursesSection = ({ courses, studentId = null, isDependent = false
                   quest={quest}
                   index={index}
                   studentId={studentId}
-                  isDependent={isDependent}
+                  viewerMode={viewerMode}
                 />
               ))}
             </div>
@@ -125,7 +131,7 @@ const EnrolledCoursesSection = ({ courses, studentId = null, isDependent = false
 EnrolledCoursesSection.propTypes = {
   courses: PropTypes.array,
   studentId: PropTypes.string,
-  isDependent: PropTypes.bool
+  viewerMode: PropTypes.string
 };
 
 export default EnrolledCoursesSection;

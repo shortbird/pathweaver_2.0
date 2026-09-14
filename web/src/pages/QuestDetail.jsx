@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetailData } from '../hooks/useQuestDetailData';
+import { useStudentScope } from '../hooks/useStudentScope';
 import { queryKeys } from '../utils/queryKeys';
 import api from '../services/api';
 import QuestDetailHeader from '../components/quest/QuestDetailHeader';
@@ -105,6 +106,11 @@ const QuestDetail = () => {
     queryClient
   } = useQuestDetailData(id);
 
+  // Family scope: a parent on a child's quest. Cache entries are keyed by the
+  // child and every raw write below names them (hooks/useStudentScope).
+  const { scopeId, params: scopeParams, isDelegated: inFamilyScope, studentName: scopedStudentName } = useStudentScope();
+  const detailKey = queryKeys.quests.detail(id, scopeId);
+
   const deleteEnrollmentMutation = useDeleteEnrollment();
   const programQuest = useProgramQuestView(quest);   // program-specific quest UI + behavior (e.g. Treehouse)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
@@ -133,7 +139,7 @@ const QuestDetail = () => {
 
     enrollMutation.mutate({ questId: id, options }, {
       onSuccess: async (data) => {
-        queryClient.invalidateQueries(queryKeys.quests.detail(id));
+        queryClient.invalidateQueries(queryKeys.quests.detailAll(id));
         await refetchQuest();
 
         setIsEnrollmentLoading(false);
@@ -181,7 +187,7 @@ const QuestDetail = () => {
 
   const handlePersonalizationComplete = async () => {
     setShowPersonalizationWizard(false);
-    queryClient.invalidateQueries(queryKeys.quests.detail(id));
+    queryClient.invalidateQueries(queryKeys.quests.detailAll(id));
     await refetchQuest();
     toast.success('Quest personalized successfully!');
   };
@@ -208,8 +214,8 @@ const QuestDetail = () => {
     setDroppingTaskId(taskId);
 
     // Optimistically update cache to remove the task immediately
-    const previousData = queryClient.getQueryData(queryKeys.quests.detail(id));
-    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+    const previousData = queryClient.getQueryData(detailKey);
+    queryClient.setQueryData(detailKey, (oldData) => {
       if (!oldData) return oldData;
       const updatedTasks = (oldData.quest_tasks || []).filter(t => t.id !== taskId);
       const completedCount = updatedTasks.filter(t => t.is_completed).length;
@@ -232,8 +238,8 @@ const QuestDetail = () => {
     }
 
     try {
-      const { data: dropResult } = await api.delete(`/api/tasks/${taskId}`);
-      queryClient.invalidateQueries(queryKeys.quests.detail(id));
+      const { data: dropResult } = await api.delete(`/api/tasks/${taskId}`, { params: scopeParams });
+      queryClient.invalidateQueries(queryKeys.quests.detailAll(id));
       await refetchQuest();
       toast.success('Task removed from your quest');
 
@@ -241,13 +247,13 @@ const QuestDetail = () => {
       // done - open the completion flow (add more tasks, or finish the quest).
       // The backend decides this, not the refetched cache: it counted the
       // remaining rows in the same request that did the delete.
-      const updatedData = queryClient.getQueryData(queryKeys.quests.detail(id));
+      const updatedData = queryClient.getQueryData(detailKey);
       if (dropResult?.quest_now_empty && updatedData?.user_enrollment) {
         setShowQuestCompletionCelebration(true);
       }
     } catch (err) {
       // Revert optimistic update on error
-      queryClient.setQueryData(queryKeys.quests.detail(id), previousData);
+      queryClient.setQueryData(detailKey, previousData);
       console.error('Error removing task:', err);
       toast.error(err.response?.data?.error || 'Failed to remove task');
     } finally {
@@ -331,7 +337,7 @@ const QuestDetail = () => {
     if (submittingClassReview) return;
     setSubmittingClassReview(true);
     try {
-      await api.post(`/api/quests/${quest.id}/submit-class-for-review`, {});
+      await api.post(`/api/quests/${quest.id}/submit-class-for-review`, { ...scopeParams });
       toast.success('Submitted to Optio for review');
       setShowQuestCompletionCelebration(false);
       setClassProgressKey((k) => k + 1);
@@ -350,7 +356,7 @@ const QuestDetail = () => {
   const handleTaskUpdate = (updatedTask) => {
     if (!updatedTask?.id) return;
     setSelectedTask(prev => (prev && prev.id === updatedTask.id ? { ...prev, ...updatedTask } : prev));
-    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+    queryClient.setQueryData(detailKey, (oldData) => {
       if (!oldData?.quest_tasks) return oldData;
       return {
         ...oldData,
@@ -387,7 +393,7 @@ const QuestDetail = () => {
         });
 
         logger.debug('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
-        queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+        queryClient.setQueryData(detailKey, (oldData) => {
           if (!oldData) {
             logger.debug('[QUEST_DETAIL] No oldData in cache, returning null');
             return oldData;
@@ -484,7 +490,7 @@ const QuestDetail = () => {
       order_index: index
     }));
 
-    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+    queryClient.setQueryData(detailKey, (oldData) => {
       if (!oldData) return oldData;
       return {
         ...oldData,
@@ -494,6 +500,7 @@ const QuestDetail = () => {
 
     try {
       await api.put(`/api/quests/${id}/tasks/reorder`, {
+        ...scopeParams,
         task_ids: updatedTasks.map(t => t.id)
       });
     } catch (err) {
@@ -512,6 +519,7 @@ const QuestDetail = () => {
 
     try {
       await api.put(`/api/quests/${id}/display-mode`, {
+        ...scopeParams,
         display_mode: newMode
       });
     } catch (err) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -17,6 +17,14 @@ vi.mock('../../contexts/OrganizationContext', () => ({
 vi.mock('../../contexts/ActingAsContext', () => ({
   useActingAs: () => ({ actingAsDependent: null, clearActingAs: vi.fn() }),
 }))
+
+// Family scope: which child a parent is working for. Unscoped by default;
+// the family-scope describe below picks one.
+let scopeState = { isScoped: false, selectedChild: null, hasFamily: false, children: [], isLoading: false }
+vi.mock('../../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => scopeState,
+}))
+vi.mock('../parent/ProfileSwitcher', () => ({ default: () => <div data-testid="profile-switcher" /> }))
 
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn().mockResolvedValue({ data: { courses: [] } }) },
@@ -262,11 +270,10 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
   })
 
   it('keeps the things that are not the school', () => {
-    // Home is the role home (/dashboard, the Family Home for parents); the
-    // family management dashboard stays reachable as its own Family item.
+    // A parent's home is the family dashboard.
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute(
-      'href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
+      'href', '/family')
     expect(screen.getByRole('link', { name: /^messages$/i })).toBeInTheDocument()
   })
 
@@ -291,20 +298,64 @@ describe('Sidebar — Home and Quests (the retired top-navbar toggle)', () => {
     expect(screen.getByRole('link', { name: /^quests$/i })).toHaveAttribute('href', '/quests')
   })
 
-  it('points a parent Home at the role home and hides Quests', () => {
+  it('gives an unscoped parent Family -> /family and no Quests', () => {
     authState.user = { id: 'p1', role: 'parent', email: 'p@example.com' }
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute('href', '/family')
+    expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^quests$/i })).not.toBeInTheDocument()
   })
 
-  it('lists each destination once — Home absorbs the role-home item', () => {
+  it('lists the family dashboard once — the home slot absorbs the Family item', () => {
     authState.user = { id: 'p1', role: 'parent', has_dependents: true, email: 'p@example.com' }
     renderSidebar()
     const familyLinks = screen.getAllByRole('link').filter(
-      (l) => l.getAttribute('href') === '/parent/dashboard'
+      (l) => l.getAttribute('href') === '/family'
     )
     expect(familyLinks).toHaveLength(1)
+  })
+})
+
+describe('Sidebar — family scope: a parent working on a child\'s account', () => {
+  // Once a parent has picked a child on the family dashboard, the child's own
+  // surfaces appear -- Home, Quests, Journal, Portfolio -- pointed at the
+  // child (contexts/FamilyScopeContext). This replaced the act-as token swap.
+  beforeEach(() => {
+    localStorage.clear()
+    authState = {
+      user: { id: 'p1', role: 'parent', has_dependents: true, email: 'p@example.com' },
+      logout: vi.fn(), isAuthenticated: true,
+    }
+    orgState = { organization: null }
+    scopeState = {
+      isScoped: true, hasFamily: true, isLoading: false,
+      selectedChild: { id: 'kid-1', firstName: 'Romney', dateOfBirth: '2014-03-21' },
+      children: [{ id: 'kid-1', firstName: 'Romney' }],
+    }
+  })
+
+  afterEach(() => {
+    scopeState = { isScoped: false, selectedChild: null, hasFamily: false, children: [], isLoading: false }
+  })
+
+  it('adds the child\'s home, quests, journal and portfolio', () => {
+    renderSidebar()
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute('href', '/family')
+    expect(screen.getByRole('link', { name: /romney's home/i })).toHaveAttribute('href', '/dashboard')
+    expect(screen.getByRole('link', { name: /^quests$/i })).toHaveAttribute('href', '/quests')
+    expect(screen.getByRole('link', { name: /^journal$/i })).toHaveAttribute('href', '/learning-journal')
+    expect(screen.getByRole('link', { name: /^portfolio$/i })).toHaveAttribute('href', '/overview')
+  })
+
+  it('renders the scope switcher for anyone with a family', () => {
+    renderSidebar()
+    expect(screen.getByTestId('profile-switcher')).toBeInTheDocument()
+  })
+
+  it('gates Custom Class on the CHILD\'s age, not the parent\'s', () => {
+    scopeState.selectedChild = { id: 'kid-2', firstName: 'Hope', dateOfBirth: '2018-10-28' }
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: /^custom class$/i })).not.toBeInTheDocument()
   })
 })
 
@@ -334,7 +385,10 @@ describe('Sidebar — the two feeds have distinct names', () => {
   })
 })
 
-describe('Sidebar — Optio Academy parents: the Family tab is the home tab', () => {
+describe('Sidebar — every parent: the Family tab is the home tab', () => {
+  // Until 2026-09-15 only Optio Academy parents had Family in the home slot;
+  // other parents got a Home digest plus a separate Family item. One parent
+  // page now, at /family, for every school.
   beforeEach(() => {
     localStorage.clear()
     authState = { user: null, logout: vi.fn(), isAuthenticated: true }
@@ -353,8 +407,7 @@ describe('Sidebar — Optio Academy parents: the Family tab is the home tab', ()
   it('puts Family in the home slot and drops the separate Home item', () => {
     authState.user = academyParent
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
-      'href', '/parent/dashboard')
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute('href', '/family')
     expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
   })
 
@@ -362,7 +415,7 @@ describe('Sidebar — Optio Academy parents: the Family tab is the home tab', ()
     authState.user = academyParent
     renderSidebar()
     const links = screen.getAllByRole('link').filter(
-      (l) => l.getAttribute('href') === '/parent/dashboard'
+      (l) => l.getAttribute('href') === '/family'
     )
     expect(links).toHaveLength(1)
   })
@@ -376,12 +429,11 @@ describe('Sidebar — Optio Academy parents: the Family tab is the home tab', ()
     expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
   })
 
-  it('leaves parents at other schools on the ordinary Home', () => {
+  it('gives parents at other schools the same Family home', () => {
     authState.user = { ...academyParent, organization_id: 'some-other-org' }
     renderSidebar()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/dashboard')
-    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute(
-      'href', '/parent/dashboard')
+    expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^family$/i })).toHaveAttribute('href', '/family')
   })
 })
 

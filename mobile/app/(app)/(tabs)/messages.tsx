@@ -17,10 +17,10 @@ import {
   useConversations,
   useContacts,
   useGroups,
-  useChildren,
   type Contact,
   type Group,
 } from '@/src/hooks/useMessages';
+import { useMyChildren } from '@/src/hooks/useParent';
 import { ConversationList } from '@/src/components/communication/ConversationList';
 import { ChatWindow } from '@/src/components/communication/ChatWindow';
 import { GroupChatWindow } from '@/src/components/communication/GroupChatWindow';
@@ -52,7 +52,9 @@ export default function MessagesScreen() {
   const { conversations, loading: convoLoading, refetch: refetchConversations } = useConversations();
   const { contacts, loading: contactsLoading } = useContacts();
   const { groups, loading: groupsLoading, refetch: refetchGroups } = useGroups();
-  const { children: parentChildren } = useChildren(isParent || isSuperadmin);
+  // The family list (dependents + linked students); useMyChildren is empty
+  // for students, so no gate is needed here.
+  const { children: parentChildren } = useMyChildren();
 
   const [selected, setSelected] = useState<SelectedConversation | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);

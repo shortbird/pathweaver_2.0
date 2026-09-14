@@ -180,7 +180,7 @@ function ParentView() {
           </p>
           <button
             type="button"
-            onClick={() => navigate('/parent/dashboard')}
+            onClick={() => navigate('/family')}
             className="min-h-[44px] px-5 rounded-lg font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink"
           >
             Go to my family

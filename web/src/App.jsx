@@ -1,5 +1,5 @@
 import React, { useEffect, useState, lazy, Suspense, startTransition } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider, Helmet } from 'react-helmet-async'
@@ -8,6 +8,7 @@ import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
 import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
+import { FamilyScopeProvider, useFamilyScope } from './contexts/FamilyScopeContext'
 import { ConfirmProvider } from './contexts/ConfirmContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { PageLoader as SharedPageLoader } from './components/ui/Spinner'
@@ -68,6 +69,23 @@ const CommunicationRedirect = () => {
   const { search } = useLocation()
   return <Navigate to={`/messages${search}`} replace />
 }
+// The three parent routes that used to carry the child in the URL
+// (/parent/dashboard/:studentId, /parent/quest/:studentId/:questId,
+// /parent/child/:childId/journal). Bookmarks and notification emails still
+// point at them. Each enters family scope for that child and lands on the
+// child's own page (contexts/FamilyScopeContext); the query string survives
+// so /parent/dashboard?settings=you still opens Family Settings.
+const ScopeRedirect = ({ to }) => {
+  const params = useParams()
+  const { search } = useLocation()
+  const { enterScope } = useFamilyScope()
+  const childId = params.studentId || params.childId
+  React.useEffect(() => {
+    if (childId) enterScope(childId)
+  }, [childId, enterScope])
+  const target = to.replace(':questId', params.questId || '')
+  return <Navigate to={`${target}${search}`} replace />
+}
 // RoleHome renders each role's own home at /dashboard (it bundles the student
 // DashboardPage internally) — see pages/home/RoleHome.jsx.
 const RoleHome = lazy(() => import('./pages/home/RoleHome'))
@@ -104,8 +122,8 @@ const OrgStudentOverviewPage = lazy(() => import('./pages/admin/OrgStudentOvervi
 const AdvisorClassesPage = lazy(() => import('./pages/AdvisorClassesPage'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const TeacherVerificationPage = lazy(() => import('./pages/TeacherVerificationPage'))
-const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
-const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
+// The one parent dashboard (2026-09-15). RoleHome sends an unscoped parent here.
+const FamilyHome = lazy(() => import('./pages/home/FamilyHome'))
 // Observer Pages (January 2025)
 const ObserverAcceptInvitationPage = lazy(() => import('./pages/ObserverAcceptInvitationPage'))
 const ObserverWelcomePage = lazy(() => import('./pages/ObserverWelcomePage'))
@@ -450,6 +468,7 @@ function App() {
             <AIAccessProvider>
             <OrganizationProvider>
             <ActingAsProvider>
+            <FamilyScopeProvider>
             {/* Serves useConfirm() — the app-wide replacement for
                 `window.confirm`, which silently returns false inside iOS
                 in-app browsers. See contexts/ConfirmContext.jsx. */}
@@ -571,21 +590,27 @@ function App() {
                 <Route element={<PrivateRoute blockRoles={['observer']} />}>
                   <Route path="quests/:id" element={<QuestDetail />} />
                 </Route>
-                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                {/* Student surfaces a parent may work in FOR a child. Family
+                    scope (contexts/FamilyScopeContext) points them at the child;
+                    an unscoped parent is sent to /family to pick one rather
+                    than shown their own empty library. Observers stay out. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
                   {/* Quest Routes */}
                   <Route path="quests" element={<QuestDiscovery />} />
                   <Route path="quests/:id/curriculum" element={<CurriculumPage />} />
                   <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
+                </Route>
+                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
                   {/* Peer connections. Student-only surface: a parent reaches
                       the approval side below, not this one. Shown to 13+ and to
                       students whose age we don't know yet — the page itself
                       handles the age screen and the under-13 dead end. */}
                   <Route path="connections" element={<ConnectionsPage />} />
                 </Route>
-                {/* The grown-up's side of a peer connection. Open to any signed-in
-                    user because the approver may be a parent OR (same-org only) a
-                    school admin; the endpoint returns only rows naming the caller
-                    as approver, so it is empty for everyone else. */}
+                {/* The grown-up's side of a peer connection, for a SCHOOL ADMIN
+                    approver (same-org, no guardian linked) and as the landing for
+                    the notification email. A parent's copy is on the family
+                    dashboard, per child; the page sends parents there. */}
                 <Route path="connections/approvals" element={<ConnectionApprovalsPage />} />
                 {/* Course Routes */}
                 <Route path="courses" element={<CourseCatalog />} />
@@ -594,7 +619,9 @@ function App() {
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 <Route path="courses/new" element={<CourseBuilder />} />
                 {/* Credit classes (quest_type='class') progress page */}
-                <Route path="my-classes" element={<MyClasses />} />
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="my-classes" element={<MyClasses />} />
+                </Route>
                 {/* Guided class creation — doubles as the tutorial for how classes work */}
                 <Route path="my-classes/new" element={<StartClassPage />} />
                 {/* Parent/guardian self-service: register your own children for SIS
@@ -609,6 +636,11 @@ function App() {
                 <Route path="absences" element={<AbsenceReportingPage />} />
                 {/* Parent/guardian self-service: submit a request to the school */}
                 <Route path="family/forms" element={<FamilyFormsPage />} />
+                {/* The family dashboard: every parent's home (2026-09-15). Open
+                    to anyone with children on their account -- the page itself
+                    is empty-state for an account with none. The SIS family
+                    pages below are its siblings, not its children. */}
+                <Route path="family" element={<FamilyHome />} />
                 {/* Family portal: checklists the school assigns to the guardian */}
                 <Route path="family/portal" element={<FamilyPortalPage />} />
                 {/* Prior learning: a guardian files evidence of learning done
@@ -630,10 +662,10 @@ function App() {
                 <Route path="credits" element={<CreditTrackerPage />} />
                 <Route path="transcript" element={<TranscriptPage />} />
                 {/* Student Overview - Unified page combining profile, diploma, and constellation.
-                    Blocked for parents/observers: it renders the viewer's OWN (empty) student
-                    portfolio, which reads as "the app thinks I'm a student". Parents see their
-                    child's overview inside /parent/dashboard instead. */}
-                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                    Renders the viewer's OWN student portfolio -- or, for a parent in family
+                    scope, the child's. An unscoped parent is sent to /family, because their
+                    own (empty) portfolio reads as "the app thinks I'm a student". */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
                   <Route path="overview" element={<StudentOverviewPage />} />
                 </Route>
                 {/* Legacy routes - redirect to overview with hash anchors */}
@@ -646,9 +678,9 @@ function App() {
                     "/communication?user=<sender>", and dropping the param
                     landed the reader on the list instead of the thread. */}
                 <Route path="communication" element={<CommunicationRedirect />} />
-                {/* Personal student journal — parents use the child journal at
-                    /parent/child/:childId/journal instead. */}
-                <Route element={<PrivateRoute blockRoles={['parent', 'observer']} />}>
+                {/* The learning journal: the student's own, or -- in family
+                    scope -- the child's. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
                   <Route path="learning-journal" element={<LearningJournalPage />} />
                 </Route>
                 {/* LMS Features */}
@@ -735,10 +767,11 @@ function App() {
               </Route>
 
               <Route element={<PrivateRoute requiredRole="parent" />}>
-                <Route path="parent/dashboard" element={<ParentDashboardPage />} />
-                <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
-                <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
-                <Route path="parent/child/:childId/journal" element={<LearningJournalPage />} />
+                {/* Retired parent routes -> the child's own pages, in family scope. */}
+                <Route path="parent/dashboard" element={<ScopeRedirect to="/family" />} />
+                <Route path="parent/dashboard/:studentId" element={<ScopeRedirect to="/family" />} />
+                <Route path="parent/quest/:studentId/:questId" element={<ScopeRedirect to="/quests/:questId" />} />
+                <Route path="parent/child/:childId/journal" element={<ScopeRedirect to="/learning-journal" />} />
                 {/* LMS Features - Parent */}
                 <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
               </Route>
@@ -809,6 +842,7 @@ function App() {
             )} />
           </Suspense>
             </ConfirmProvider>
+            </FamilyScopeProvider>
             </ActingAsProvider>
             </OrganizationProvider>
             </AIAccessProvider>

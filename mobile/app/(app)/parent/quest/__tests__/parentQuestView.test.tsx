@@ -18,6 +18,10 @@ import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStore
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
+jest.mock('@/src/utils/alerts', () => ({
+  showAlert: jest.fn(),
+  confirmAlert: jest.fn().mockResolvedValue(true),
+}));
 jest.mock('@/src/services/tokenStore', () => ({
   tokenStore: {
     restore: jest.fn(),
@@ -64,8 +68,15 @@ const dependentContext = {
   can_remove_tasks: true,
 };
 
-/** ...and for a student who keeps their own login (an approved link). */
+/** ...and for a student who keeps their own login (an approved link), as a
+ *  backend from BEFORE 2026-09-15 answered it: adding only. The backend now
+ *  grants every verified guardian the full set; this shape is what a preview
+ *  build sees against a stale backend, and the screen must still respect it. */
 const linkedContext = { ...dependentContext, is_dependent: false, can_complete_tasks: false, can_remove_tasks: false };
+
+/** The same student, as the backend answers since 2026-09-15 (Paige's case:
+ *  her son is 12 and has his own login; she may finish his tasks). */
+const linkedContextNow = { ...dependentContext, is_dependent: false };
 
 function mockQuestRead(viewer_context: typeof dependentContext, quest: any = baseQuest) {
   (api.get as jest.Mock).mockImplementation((url: string) => {
@@ -147,6 +158,22 @@ describe('ParentQuestViewPage', () => {
     expect(result.getByText('Remove from quest')).toBeTruthy();
   });
 
+  it("lets a parent END the child's quest, work kept, beside the destructive remove", async () => {
+    // "Remove quest" deletes the enrollment and reverses XP. A parent tidying
+    // up a quest her son has moved on from wants the gentle exit: end it,
+    // keep the work. Same route as the student's own End, with student_id.
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByText('End quest')).toBeTruthy());
+    expect(result.getByText('Remove quest')).toBeTruthy();
+    fireEvent.press(result.getByText('End quest'));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/quests/quest-1/end', { student_id: 'kid-1' });
+    });
+  });
+
   it('offers to generate tasks when the quest is empty', async () => {
     // A parent creates a quest for her kid and lands here with nothing on it.
     // The offer has to be ON this screen: hiding AI generation behind the small
@@ -183,7 +210,19 @@ describe('ParentQuestViewPage', () => {
     expect(result.getByText('Three sketches, front and side.')).toBeTruthy();
   });
 
-  it('withholds both from the parent of a student with their own login', async () => {
+  it('lets the parent of a student with their own login finish and remove a task', async () => {
+    mockQuestRead(linkedContextNow);
+    const result = renderScreen();
+
+    await waitFor(() => expect(result.getByText('Sketch three designs')).toBeTruthy());
+    fireEvent.press(result.getByText('Sketch three designs'));
+
+    await waitFor(() => expect(result.getByText('Complete task')).toBeTruthy());
+    expect(result.getByText('Remove from quest')).toBeTruthy();
+    expect(result.queryByText('Anything you add here is theirs to finish — they mark the task complete.')).toBeNull();
+  });
+
+  it('hides complete and remove when an older backend says no', async () => {
     mockQuestRead(linkedContext);
     const result = renderScreen();
 

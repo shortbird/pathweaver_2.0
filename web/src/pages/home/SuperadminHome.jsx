@@ -29,7 +29,7 @@ const DOORS = [
     description: 'Transcripts and credit waiting on review.',
   },
   {
-    name: 'Family Dashboard', path: '/parent/dashboard', Icon: UsersIcon,
+    name: 'Family Dashboard', path: '/family', Icon: UsersIcon,
     description: 'Your own family, as a parent sees it.',
   },
   {

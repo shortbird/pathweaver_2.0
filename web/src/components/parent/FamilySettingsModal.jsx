@@ -9,38 +9,47 @@ import {
   LinkIcon,
   UserGroupIcon,
   TrashIcon,
-  UserPlusIcon,
   UserIcon,
-  IdentificationIcon,
-  Cog6ToothIcon,
   PlusIcon,
-  LockClosedIcon,
   ArrowUpCircleIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import ChildPrivacyCard from './ChildPrivacyCard';
+import GlassTabBar from '../ui/GlassTabBar';
+import ChildSettingsPanel from './ChildSettingsPanel';
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
- * FamilySettingsModal - Unified family management modal.
- * Combines: You, Children, Family Observers, and Parents/Guardians management.
- * Per-child settings (profile, login, AI features) live in the child's own
- * settings modal, reached from the Children tab -- not duplicated here.
+ * FamilySettingsModal - the ONE settings surface for a family.
+ *
+ * Tabs: You, then one tab per child, then Observers and Parents. A child's
+ * tab is ChildSettingsPanel (profile, login, AI features, privacy) rendered
+ * in place.
+ *
+ * Until 2026-09-15 there were two modals: this one with You / Children /
+ * Privacy / Observers / Parents, and a second (DependentSettingsModal) with
+ * Profile / Login / AI / Observers that the Children tab opened per child,
+ * closing this one to do it. Privacy here was one card per child, Observers
+ * appeared in both. Nine tabs across two modals to change a child's name.
+ * The child tabs replace the Children list and the Privacy tab; the second
+ * modal's Observers tab is dropped because the family Observers tab already
+ * has a per-child access switch on every observer.
  *
  * The "You" tab exists because a parent had nowhere else: /overview is the
  * student portfolio and is blocked for parents, and the account menu sends them
  * here to the Family Dashboard instead. So a parent whose own name was entered
  * wrong at enrolment could not fix it anywhere in the product (2026-08-25).
+ *
+ * `family` is the list hooks/api/useFamilyChildren returns (one shape for
+ * both kinds of child); `initialTab` may be 'you', 'observers', 'parents'
+ * or a child's id.
  */
 const FamilySettingsModal = ({
   isOpen,
   onClose,
-  children = [],
-  dependents = [],
+  family = [],
   onAddChild,
-  onChildSettingsClick,
   onRefresh,
-  initialTab = 'children'
+  initialTab = 'you'
 }) => {
   const confirm = useConfirm()
   const { user, refreshUser } = useAuth();
@@ -65,21 +74,13 @@ const FamilySettingsModal = ({
   const [loadingParents, setLoadingParents] = useState(false);
   const [promotingObserver, setPromotingObserver] = useState(null);
 
-  // All children combined
-  const allChildren = [
-    ...dependents.map(d => ({
-      id: d.id,
-      name: d.display_name,
-      avatar_url: d.avatar_url,
-      type: 'dependent'
-    })),
-    ...children.map(c => ({
-      id: c.student_id,
-      name: `${c.student_first_name} ${c.student_last_name || ''}`.trim(),
-      avatar_url: c.student_avatar_url,
-      type: 'linked'
-    }))
-  ];
+  // The observer tab's child list, in the shape it has always read.
+  const allChildren = family.map((c) => ({
+    id: c.id,
+    name: c.name,
+    avatar_url: c.avatarUrl,
+    type: c.isDependent ? 'dependent' : 'linked',
+  }));
 
   // Honour the caller's tab each time the modal opens (the account menu deep
   // links to 'you'), without stranding the user there if they switch tabs.
@@ -263,13 +264,26 @@ const FamilySettingsModal = ({
     });
   };
 
+  const childTab = (c) => ({
+    id: c.id,
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        {c.avatarUrl ? (
+          <img src={c.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+        ) : (
+          <UserIcon className="w-3.5 h-3.5" />
+        )}
+        {c.firstName}
+      </span>
+    ),
+  });
   const tabs = [
-    { id: 'you', label: 'You', icon: IdentificationIcon },
-    { id: 'children', label: 'Children', icon: UserIcon, count: allChildren.length },
-    { id: 'privacy', label: 'Privacy', icon: LockClosedIcon },
-    { id: 'observers', label: 'Observers', icon: UserGroupIcon, count: observers.length },
-    { id: 'parents', label: 'Parents', icon: UserPlusIcon, count: parents.length }
+    { id: 'you', label: 'You' },
+    ...family.map(childTab),
+    { id: 'observers', label: 'Observers', badge: observers.length || undefined },
+    { id: 'parents', label: 'Parents', badge: parents.length || undefined },
   ];
+  const activeChild = family.find((c) => c.id === activeTab) || null;
 
   return (
     <Modal
@@ -279,30 +293,16 @@ const FamilySettingsModal = ({
       size="lg"
     >
       <div className="min-h-[200px] sm:min-h-[400px]">
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-4 sm:mb-6 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 min-h-[44px] font-medium text-sm border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
-                activeTab === tab.id
-                  ? 'border-optio-purple text-optio-purple'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-              {tab.count > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                  activeTab === tab.id ? 'bg-optio-purple/10' : 'bg-gray-100'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
+        <div className="mb-4 sm:mb-6 space-y-3">
+          <GlassTabBar tabs={tabs} active={activeTab} onSelect={setActiveTab} aria-label="Family settings" />
+          {/* One add-child door for both ages: the shared AddChildModal asks
+              the birth date and decides dependent vs. own account. */}
+          <div className="flex justify-end">
+            <button type="button" onClick={onAddChild} className="btn-ghost px-3 py-1.5 text-sm">
+              <PlusIcon className="w-4 h-4" />
+              Add a child
             </button>
-          ))}
+          </div>
         </div>
 
         {/* Your own account. Name only — email and password changes go through
@@ -366,88 +366,21 @@ const FamilySettingsModal = ({
               {savingMyName ? 'Saving...' : 'Save name'}
             </button>
 
-            <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
-              To correct a child&apos;s name, open their settings from the Children tab.
-            </p>
+            {family.length > 0 && (
+              <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                To correct a child&apos;s name, open their tab above.
+              </p>
+            )}
           </div>
         )}
 
-        {/* Children Tab */}
-        {activeTab === 'children' && (
-          <div className="space-y-4">
-            {/* Children List */}
-            {allChildren.length > 0 ? (
-              <div className="space-y-2">
-                {allChildren.map(child => (
-                  <div
-                    key={child.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      {child.avatar_url ? (
-                        <img src={child.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
-                          {(child.name || 'C').charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium text-gray-900">{child.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {child.type === 'dependent' ? 'Under 13 (managed)' : 'Linked student'}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => onChildSettingsClick?.(child)}
-                      className="p-2 text-gray-400 hover:text-optio-purple hover:bg-optio-purple/10 rounded-lg transition-colors"
-                      title="Child settings"
-                    >
-                      <Cog6ToothIcon className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <UserIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>No children added yet</p>
-              </div>
-            )}
-
-            {/* One add-child door for both ages: the shared AddChildModal asks
-                the birth date and decides dependent vs. own account, so no
-                under-13-only form (or "email support" detour) lives here. */}
-            <button
-              onClick={onAddChild}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors"
-            >
-              <PlusIcon className="w-5 h-5" />
-              Add Child
-            </button>
-          </div>
-        )}
-
-        {/* Privacy Tab: who can see each child's work, and the links that
-            grant access. Lived on the dashboard itself until it proved too
-            prominent for a setting most parents only need to check. */}
-        {activeTab === 'privacy' && (
-          <div className="space-y-3">
-            {allChildren.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <LockClosedIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Add children first to manage portfolio privacy</p>
-              </div>
-            ) : (
-              allChildren.map(child => (
-                <ChildPrivacyCard
-                  key={child.id}
-                  studentId={child.id}
-                  studentName={(child.name || '').split(' ')[0] || 'your child'}
-                />
-              ))
-            )}
-          </div>
+        {activeChild && (
+          <ChildSettingsPanel
+            key={activeChild.id}
+            child={activeChild.raw}
+            isDependent={activeChild.isDependent}
+            onUpdate={onRefresh}
+          />
         )}
 
         {/* Observers Tab */}
@@ -729,10 +662,8 @@ const FamilySettingsModal = ({
 FamilySettingsModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  children: PropTypes.array,
-  dependents: PropTypes.array,
+  family: PropTypes.array,
   onAddChild: PropTypes.func,
-  onChildSettingsClick: PropTypes.func,
   onRefresh: PropTypes.func,
   initialTab: PropTypes.string
 };

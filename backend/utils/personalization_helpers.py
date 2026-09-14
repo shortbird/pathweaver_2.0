@@ -9,48 +9,6 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_effective_user_id(parent_user_id: str, acting_as_dependent_id: str = None) -> str:
-    """
-    Determine the effective user ID for quest operations.
-
-    If acting_as_dependent_id is provided, verify parent owns the dependent
-    and return the dependent's ID. Otherwise, return the parent's ID.
-
-    Args:
-        parent_user_id: The authenticated user's ID
-        acting_as_dependent_id: Optional dependent user ID
-
-    Returns:
-        The effective user ID to use for operations
-
-    Raises:
-        PermissionError: If parent doesn't own the dependent
-    """
-    if not acting_as_dependent_id:
-        return parent_user_id
-
-    from repositories.dependent_repository import DependentRepository
-    from repositories.base_repository import PermissionError as RepoPermissionError
-
-    try:
-        # admin client justified: shared utility — operates on caller-supplied IDs; caller enforces access control
-        supabase = get_supabase_admin_client()
-        dependent_repo = DependentRepository(client=supabase)
-
-        # This will raise PermissionError if parent doesn't own dependent
-        dependent_repo.get_dependent(acting_as_dependent_id, parent_user_id)
-
-        logger.info(f"Parent {parent_user_id[:8]} acting as dependent {acting_as_dependent_id[:8]}")
-        return acting_as_dependent_id
-
-    except RepoPermissionError as e:
-        logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
-        raise PermissionError("You do not have permission to manage this dependent profile") from e
-    except Exception as e:
-        logger.error(f"Error verifying dependent ownership: {str(e)}")
-        raise PermissionError("Failed to verify dependent ownership") from e
-
-
 def check_and_complete_personalization(user_id: str, quest_id: str, session_id: str):
     """
     Check if user has processed all AI-generated tasks and mark personalization complete.
@@ -219,13 +177,17 @@ def normalize_diploma_subjects(diploma_subjects: Any, total_xp: int,
         return {default_subjects_for_pillar(pillar)[0]: total_xp}
 
 
-def get_or_create_enrollment(user_id: str, quest_id: str) -> str:
+def get_or_create_enrollment(user_id: str, quest_id: str,
+                             enrolled_by_user_id: str = None) -> str:
     """
     Get existing enrollment or create new one.
 
     Args:
         user_id: User ID
         quest_id: Quest ID
+        enrolled_by_user_id: the guardian who caused this enrollment, when it
+            was not the student. Stamped only on a NEW row; an existing
+            enrollment keeps whoever made it. None = the student themselves.
 
     Returns:
         user_quest_id (UUID string)
@@ -255,7 +217,8 @@ def get_or_create_enrollment(user_id: str, quest_id: str) -> str:
             'user_id': user_id,
             'quest_id': quest_id,
             'started_at': datetime.utcnow().isoformat(),
-            'is_active': True
+            'is_active': True,
+            'enrolled_by_user_id': enrolled_by_user_id,
         })\
         .execute()
 

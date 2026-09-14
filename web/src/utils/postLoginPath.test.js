@@ -6,7 +6,9 @@ import { OPTIO_ACADEMY_ORG_ID } from '../config/optioAcademy'
  * The post-login landing map after the role-homes rewrite (2026-08-10):
  * every in-app role lands on /dashboard (which renders that role's Home);
  * the only forks left hop surfaces — SIS staff via /sis-launch, simplified
- * partner org admins via /onfire — plus observers straight to their feed.
+ * partner org admins via /onfire — plus observers straight to their feed,
+ * and, since 2026-09-15, parents to the family dashboard at /family (their
+ * /dashboard is a CHILD's dashboard, reachable once a child is picked).
  */
 
 const SIS_ORG = { feature_flags: { sis_enabled: true } }
@@ -19,13 +21,13 @@ describe('role homes landing', () => {
     expect(getPostLoginPath({ role: 'org_managed', org_role: 'student' })).toBe('/dashboard')
   })
 
-  it('lands parents on the home route (family home)', () => {
-    expect(getPostLoginPath({ role: 'parent' })).toBe('/dashboard')
-    expect(getPostLoginPath({ role: 'org_managed', org_role: 'parent' })).toBe('/dashboard')
+  it('lands parents on the family dashboard', () => {
+    expect(getPostLoginPath({ role: 'parent' })).toBe('/family')
+    expect(getPostLoginPath({ role: 'org_managed', org_role: 'parent' })).toBe('/family')
   })
 
   it('no longer swaps the landing for school-homepage orgs — the school section lives inside Home', () => {
-    expect(getPostLoginPath({ role: 'parent', school: SCHOOL_HOME })).toBe('/dashboard')
+    expect(getPostLoginPath({ role: 'parent', school: SCHOOL_HOME })).toBe('/family')
     expect(getPostLoginPath({
       role: 'org_managed', org_role: 'student',
       organization_id: 'org-1', school: SCHOOL_HOME,
@@ -69,24 +71,27 @@ describe('SIS surface hops', () => {
     })).toBe('/dashboard')
     expect(getPostLoginPath({
       role: 'org_managed', org_role: 'parent', organization: SIS_ORG,
-    })).toBe('/dashboard')
+    })).toBe('/family')
   })
 })
 
-describe('Optio Academy parents: the Family tab is the home tab', () => {
+describe('parents: the family dashboard is the home, at every school', () => {
+  // Until 2026-09-15 only Optio Academy parents landed on the family
+  // dashboard; everyone else got the /dashboard digest. There is one parent
+  // page now, so the fork is gone.
   const academyParent = {
     role: 'org_managed', org_role: 'parent', organization_id: OPTIO_ACADEMY_ORG_ID,
   }
 
-  it('lands them on the family dashboard', () => {
-    expect(getPostLoginPath(academyParent)).toBe('/parent/dashboard')
-    expect(parentHomePath(academyParent)).toBe('/parent/dashboard')
+  it('lands Optio Academy parents on the family dashboard', () => {
+    expect(getPostLoginPath(academyParent)).toBe('/family')
+    expect(parentHomePath(academyParent)).toBe('/family')
   })
 
-  it('resolves the school through the child for a platform parent', () => {
+  it('and a platform parent whose school is resolved through the child', () => {
     const platformParent = { role: 'parent', school: { id: OPTIO_ACADEMY_ORG_ID } }
-    expect(getPostLoginPath(platformParent)).toBe('/parent/dashboard')
-    expect(parentHomePath({ role: 'parent' }, { id: OPTIO_ACADEMY_ORG_ID })).toBe('/parent/dashboard')
+    expect(getPostLoginPath(platformParent)).toBe('/family')
+    expect(parentHomePath({ role: 'parent' }, { id: OPTIO_ACADEMY_ORG_ID })).toBe('/family')
   })
 
   it('leaves every other role in the org on the shared home', () => {
@@ -95,11 +100,11 @@ describe('Optio Academy parents: the Family tab is the home tab', () => {
     })).toBe('/dashboard')
   })
 
-  it('leaves parents at other schools on the shared home', () => {
+  it('and parents at other schools land there too', () => {
     expect(getPostLoginPath({
       role: 'org_managed', org_role: 'parent', organization_id: 'some-other-org',
-    })).toBe('/dashboard')
-    expect(parentHomePath({ role: 'parent', school: SCHOOL_HOME })).toBe('/dashboard')
+    })).toBe('/family')
+    expect(parentHomePath({ role: 'parent', school: SCHOOL_HOME })).toBe('/family')
   })
 
   it('does not hop Academy STAFF out of the console', () => {
@@ -111,9 +116,9 @@ describe('Optio Academy parents: the Family tab is the home tab', () => {
 })
 
 describe('roleHomePath (in-app fallback, never hops surfaces)', () => {
-  it('is /dashboard for every role except observers', () => {
+  it('is /dashboard for every role except observers and parents', () => {
     expect(roleHomePath('student')).toBe('/dashboard')
-    expect(roleHomePath('parent')).toBe('/dashboard')
+    expect(roleHomePath('parent')).toBe('/family')
     expect(roleHomePath('advisor')).toBe('/dashboard')
     expect(roleHomePath('org_admin')).toBe('/dashboard')
     expect(roleHomePath('superadmin')).toBe('/dashboard')

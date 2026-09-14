@@ -51,25 +51,56 @@ export interface DashboardData {
   };
 }
 
-export function useDashboard() {
+/**
+ * Did a delegated read come back as the CHILD's rows?
+ *
+ * A parent's scoped read carries `?student_id=`, and the backend's
+ * @student_scope answers with the child's payload plus a `scope` marker
+ * naming the student. An app that ships before the backend it talks to (a
+ * preview OTA against a stale dev backend) would get the PARENT's rows from a
+ * backend that ignored the parameter, with nothing in the shape to say so.
+ * So a scoped read is trusted only when the marker names the child asked for.
+ */
+export function scopedTo(payload: unknown, studentId: string | null | undefined): boolean {
+  if (!studentId) return true;
+  const scope = (payload as { scope?: { delegated?: boolean; student_id?: string } } | null)?.scope;
+  return scope?.delegated === true && scope?.student_id === studentId;
+}
+
+/**
+ * @param studentId Family scope: read this child's dashboard from the same
+ *  route the child uses. `unsupported` is true when the backend ignored the
+ *  scope (see scopedTo); the screen then shows nothing rather than the
+ *  parent's own rows under the child's name.
+ */
+export function useDashboard(studentId?: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unsupported, setUnsupported] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
       setLoading(true);
-      const { data: result } = await api.get('/api/users/dashboard');
-      setData(result);
+      const { data: result } = await api.get('/api/users/dashboard', {
+        params: studentId ? { student_id: studentId } : undefined,
+      });
+      if (!scopedTo(result, studentId)) {
+        setUnsupported(true);
+        setData(null);
+      } else {
+        setUnsupported(false);
+        setData(result);
+      }
       setError(null);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, studentId]);
 
   useEffect(() => {
     fetchData();
@@ -77,21 +108,34 @@ export function useDashboard() {
 
   useRefetchOnForeground(fetchData);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, unsupported, refetch: fetchData };
 }
 
-export function useGlobalEngagement() {
+/**
+ * @param studentId Family scope: the child's rhythm across all quests. Read
+ *  from the child's own route; against a backend that ignores the scope, fall
+ *  back to the parent-shaped endpoint, which answers the same shape. (That
+ *  fallback was its own hook, useChildEngagement, until 2026-09-15.)
+ */
+export function useGlobalEngagement(studentId?: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [data, setData] = useState<EngagementData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    setLoading(true);
     (async () => {
       try {
         // 30s timeout: non-critical widget, cold-start tolerant (see note on
         // useQuestEngagement). Failure stays silent via the catch below.
-        const { data: result } = await api.get('/api/users/me/engagement', { timeout: 30000 });
+        let { data: result } = await api.get('/api/users/me/engagement', {
+          timeout: 30000,
+          params: studentId ? { student_id: studentId } : undefined,
+        });
+        if (!scopedTo(result, studentId)) {
+          ({ data: result } = await api.get(`/api/parent/${studentId}/engagement`, { timeout: 30000 }));
+        }
         setData(result.engagement || result);
       } catch {
         // Non-critical
@@ -99,7 +143,7 @@ export function useGlobalEngagement() {
         setLoading(false);
       }
     })();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, studentId]);
 
   return { data, loading };
 }

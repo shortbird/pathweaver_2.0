@@ -3,13 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuestEngagement, useArchiveEnrollment } from '../../hooks/api/useQuests';
 import ModalOverlay from '../ui/ModalOverlay';
 import { dueStatus, dueChipOverlayClasses } from '../../utils/dueDate';
-import {
-  BoltIcon,
-  ArrowTrendingUpIcon,
-  MoonIcon,
-  ArrowPathIcon,
-  PlayCircleIcon
-} from '@heroicons/react/24/solid';
+import { MiniHeatMap, rhythmConfig } from './RhythmBadge';
 
 // H1: friendly exit-survey reasons captured when a learner archives a quest.
 // Stored on the enrollment to inform future AI task suggestions.
@@ -63,85 +57,6 @@ const ArchiveModal = ({ questTitle, onClose, onConfirm, busy }) => {
         </div>
       </div>
     </ModalOverlay>
-  );
-};
-
-// Rhythm state configuration
-const rhythmConfig = {
-  in_flow: {
-    icon: BoltIcon,
-    bgClass: 'bg-gradient-to-r from-optio-purple/10 to-optio-pink/10',
-    textClass: 'text-optio-purple'
-  },
-  building: {
-    icon: ArrowTrendingUpIcon,
-    bgClass: 'bg-blue-50',
-    textClass: 'text-blue-700'
-  },
-  resting: {
-    icon: MoonIcon,
-    bgClass: 'bg-green-50',
-    textClass: 'text-green-700'
-  },
-  fresh_return: {
-    icon: ArrowPathIcon,
-    bgClass: 'bg-amber-50',
-    textClass: 'text-amber-700'
-  },
-  ready_to_begin: {
-    icon: PlayCircleIcon,
-    bgClass: 'bg-gray-50',
-    textClass: 'text-gray-600'
-  },
-  ready_when_you_are: {
-    icon: PlayCircleIcon,
-    bgClass: 'bg-gray-50',
-    textClass: 'text-gray-600'
-  },
-  finding_rhythm: {
-    icon: ArrowTrendingUpIcon,
-    bgClass: 'bg-blue-50',
-    textClass: 'text-blue-700'
-  }
-};
-
-// Mini heat map component for 7-day activity
-const MiniHeatMap = ({ days }) => {
-  const today = new Date();
-  const last7Days = [];
-
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    const dayData = days?.find(d => d.date === dateStr);
-    last7Days.push({
-      date: dateStr,
-      intensity: dayData?.intensity || 0
-    });
-  }
-
-  const getIntensityClass = (intensity) => {
-    switch (intensity) {
-      case 0: return 'bg-gray-200';
-      case 1: return 'bg-optio-purple/20';
-      case 2: return 'bg-optio-purple-light';
-      case 3: return 'bg-optio-purple';
-      case 4: return 'bg-gradient-primary';
-      default: return 'bg-gray-200';
-    }
-  };
-
-  return (
-    <div className="flex gap-1">
-      {last7Days.map((day) => (
-        <div
-          key={day.date}
-          className={`w-3 h-3 rounded-sm ${getIntensityClass(day.intensity)}`}
-          title={day.date}
-        />
-      ))}
-    </div>
   );
 };
 

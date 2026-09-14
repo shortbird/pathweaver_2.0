@@ -49,11 +49,11 @@ describe('MarketingNav auth awareness', () => {
     expect(screen.queryByRole('link', { name: 'Create Free Account' })).not.toBeInTheDocument()
   })
 
-  it('points the dashboard link at the role home (parent)', () => {
+  it('points the dashboard link at the family dashboard (parent)', () => {
     authState = { isAuthenticated: true, loading: false, user: { id: 'u1', role: 'parent' } }
     renderNav()
     screen.getAllByRole('link', { name: 'Go to my dashboard' })
-      .forEach((link) => expect(link).toHaveAttribute('href', '/dashboard'))
+      .forEach((link) => expect(link).toHaveAttribute('href', '/family'))
   })
 
   it('shows neither CTA while a probable session is still resolving', () => {

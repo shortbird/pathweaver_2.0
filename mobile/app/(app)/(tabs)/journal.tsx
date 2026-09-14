@@ -26,11 +26,10 @@ import { EvolveTopicModal } from '@/src/components/journal/EvolveTopicModal';
 import { ScrollToTopFab } from '@/src/components/ui/ScrollToTopFab';
 import {
   useUnifiedTopics, useUnassignedMoments, useTrackMoments, useQuestMoments, useQuestTasks,
-  deleteInterestTrack, updateInterestTrack,
+  deleteInterestTrack, updateInterestTrack, createTopic,
 } from '@/src/hooks/useJournal';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { onUploadComplete } from '@/src/services/uploadQueue';
-import api from '@/src/services/api';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useAuthStore } from '@/src/stores/authStore';
@@ -47,8 +46,11 @@ type MobileTab = 'topics' | 'detail';
  * as the parent's view of a child's journal (pass `studentId`). In parent mode
  * the same UI is reused, but data + mutations route through the parent-scoped
  * endpoints, edits are limited to moments the parent captured, and the
- * student-only actions that have no parent backend (capture, create/rename/
- * delete/evolve topic, AI task generation) are hidden.
+ * capture goes through the parent capture flow instead of the student one.
+ * Everything else -- rename, delete and evolve a topic, edit or delete a
+ * moment -- works for the child the way it does for the student (family
+ * scope, 2026-09-15; useJournal's helpers take the child and fall back to the
+ * older parent-only endpoints against a backend that predates the scope).
  */
 export default function JournalScreen({ studentId, headerTitle }: { studentId?: string; headerTitle?: string } = {}) {
   const { width } = useWindowDimensions();
@@ -89,8 +91,10 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
     if (!newTopicName.trim()) return;
     setCreatingTopic(true);
     try {
-      await api.post('/api/interest-tracks', {
-        name: newTopicName.trim(),
+      // Family scope: the child's topic. createTopic routes a childId through
+      // the parent endpoint, which every backend answers.
+      await createTopic(newTopicName.trim(), {
+        childId: studentId,
         color: selectedColor,
         icon: selectedIcon,
       });
@@ -180,7 +184,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
     });
     if (!confirmed) return;
     try {
-      await deleteInterestTrack(selectedId);
+      await deleteInterestTrack(selectedId, studentId);
       setSelectedId(null);
       setSelectedType('unassigned');
       refetchTopics();
@@ -238,7 +242,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
   const handleSaveTopicName = async () => {
     if (!selectedId || !editTopicValue.trim()) return;
     try {
-      await updateInterestTrack(selectedId, { name: editTopicValue.trim() });
+      await updateInterestTrack(selectedId, { name: editTopicValue.trim() }, studentId);
       setEditingTopicName(false);
       refetchTopics();
       refetchTrack();
@@ -337,9 +341,8 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               ) : null}
             </VStack>
             <HStack className="items-center gap-2">
-              {/* Topic actions behind a single "⋯" affordance (parent view is
-                  read-only for topics). */}
-              {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && !editingTopicName ? (
+              {/* Topic actions behind a single "⋯" affordance. */}
+              {(selectedType === 'topic' || selectedType === 'track') && track && !editingTopicName ? (
                 <Pressable
                   onPress={() => setTopicActionsOpen(true)}
                   className="w-8 h-8 rounded-full bg-surface-100 items-center justify-center"
@@ -409,7 +412,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           )}
 
           {/* Evolve prompt for tracks with 5+ moments (student-only) */}
-          {!isParent && (selectedType === 'topic' || selectedType === 'track') && track && trackMoments.length >= 5 && !track.evolved_to_quest_id && (
+          {(selectedType === 'topic' || selectedType === 'track') && track && trackMoments.length >= 5 && !track.evolved_to_quest_id && (
             <Card variant="filled" size="sm" className="mt-3">
               <HStack className="items-center gap-3">
                 <View className="w-8 h-8 rounded-full bg-optio-purple/10 items-center justify-center">
@@ -449,9 +452,11 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
             onLayout={(e) => { gridOffsetY.current = e.nativeEvent.layout.y; recomputeVisibleMoments(); }}
           >
             {activeMoments.map((event: any) => {
-              // In parent mode a moment is editable only if the parent captured
-              // it; the child's own moments are shown read-only.
-              const editable = !isParent || (!!currentUserId && event.captured_by_user_id === currentUserId);
+              // A parent may edit any of the child's moments (family scope).
+              // Against an older backend the write falls back to the
+              // parent-only endpoint, which accepts only the moments the
+              // parent captured; the card surfaces that refusal as an error.
+              const editable = true;
               return (
                 <View
                   key={event.id}
@@ -537,7 +542,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
               unassignedLoading={unassignedLoading}
-              onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
+              onNewTopic={() => setNewTopicVisible(true)}
               loading={topicsLoading}
             />
           </View>
@@ -642,6 +647,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           trackId={selectedType === 'topic' || selectedType === 'track' ? selectedId : null}
           trackName={track?.name}
           momentCount={trackMoments.length}
+          studentId={studentId}
           onClose={() => setEvolveVisible(false)}
           onSuccess={handleEvolved}
         />
@@ -690,7 +696,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               onSelectTopic={handleSelectTopic}
               unassignedCount={unassigned.length}
               unassignedLoading={unassignedLoading}
-              onNewTopic={isParent ? undefined : () => setNewTopicVisible(true)}
+              onNewTopic={() => setNewTopicVisible(true)}
               loading={topicsLoading}
               scrollable={false}
             />
@@ -823,6 +829,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
         trackId={selectedType === 'topic' || selectedType === 'track' ? selectedId : null}
         trackName={track?.name}
         momentCount={trackMoments.length}
+        studentId={studentId}
         onClose={() => setEvolveVisible(false)}
         onSuccess={handleEvolved}
       />

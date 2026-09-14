@@ -9,8 +9,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { View, ScrollView, Pressable, ActivityIndicator, Platform, useWindowDimensions, Image, RefreshControl, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
-import { useDashboard } from '@/src/hooks/useDashboard';
+import { useMyChildren, useChildDashboard } from '@/src/hooks/useParent';
+import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { EngagementCalendar } from '@/src/components/engagement/EngagementCalendar';
@@ -28,6 +28,8 @@ import {
   Divider, Avatar, AvatarFallbackText, AvatarImage, Skeleton,
 } from '@/src/components/ui';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
+import { ChildSwitcher, initialsFor, nameFor } from '@/src/components/family/ChildSwitcher';
+import { useFamilyStore } from '@/src/stores/familyStore';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -44,101 +46,6 @@ function calculateAge(dateOfBirth: string | null | undefined): number | null {
 }
 
 // ── Child Header (horizontal avatar row, tap to switch) ──
-
-/** Avatar initials for a child, from first/last name, else the display name. */
-function initialsFor(child: any): string {
-  const fromName = `${child?.first_name?.[0] || ''}${child?.last_name?.[0] || ''}`.trim();
-  if (fromName) return fromName.toUpperCase();
-  const dn = (child?.display_name || '').trim();
-  if (dn) {
-    const parts = dn.split(/\s+/);
-    return `${parts[0]?.[0] || ''}${parts[1]?.[0] || ''}`.toUpperCase();
-  }
-  return '?';
-}
-
-/** Best display name for a child — never renders literal "undefined undefined". */
-function nameFor(child: any): string {
-  return (
-    child?.display_name?.trim() ||
-    `${child?.first_name || ''} ${child?.last_name || ''}`.trim() ||
-    'Student'
-  );
-}
-
-function ChildHeader({ children, selectedId, onSelect, attentionByChildId }: {
-  children: any[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  attentionByChildId?: Record<string, boolean>;
-}) {
-  const tc = useThemeColors();
-  const selected = children.find((c) => c.id === selectedId);
-  if (!selected) return null;
-  // Single-kid families don't need the switcher.
-  if (children.length < 2) return null;
-
-  return (
-    <>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingVertical: 6, gap: 14 }}
-      >
-        {children.map((child) => {
-          const isSelected = child.id === selectedId;
-          const needsAttention = attentionByChildId?.[child.id] === true;
-          const childInitials = initialsFor(child);
-          return (
-            <Pressable
-              key={child.id}
-              onPress={() => onSelect(child.id)}
-              style={{ alignItems: 'center', width: 64 }}
-            >
-              <View
-                style={{
-                  padding: 2,
-                  borderRadius: 999,
-                  borderWidth: 2,
-                  borderColor: isSelected ? tc.brand : 'transparent',
-                }}
-              >
-                <Avatar size="md">
-                  {child.avatar_url ? (
-                    <AvatarImage source={{ uri: child.avatar_url }} />
-                  ) : (
-                    <AvatarFallbackText>{childInitials}</AvatarFallbackText>
-                  )}
-                </Avatar>
-                {needsAttention && (
-                  <View
-                    style={{
-                      position: 'absolute', top: 0, right: 0,
-                      width: 12, height: 12, borderRadius: 6,
-                      backgroundColor: '#EF597B',
-                      borderWidth: 2, borderColor: '#FFFFFF',
-                    }}
-                  />
-                )}
-              </View>
-              <UIText
-                size="xs"
-                style={{
-                  marginTop: 4,
-                  color: isSelected ? tc.brand : tc.text,
-                  fontFamily: isSelected ? 'Poppins_600SemiBold' : 'Poppins_500Medium',
-                }}
-                numberOfLines={1}
-              >
-                {child.first_name || nameFor(child).split(' ')[0]}
-              </UIText>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </>
-  );
-}
 
 // ── Child Hero Card ──
 
@@ -399,26 +306,19 @@ export default function ParentDashboardPage() {
   const tc = useThemeColors();
 
   const { children, loading: childrenLoading } = useMyChildren();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Family scope: the child the parent is working for, from the one store
+  // every parent surface reads (stores/familyStore). useMyChildren reconciles
+  // it against the list after every fetch -- a child who left the family, or
+  // a masquerade swap that changes the list under us, never leaves it null.
+  const selectedId = useFamilyStore((s) => s.selectedChildId);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Auto-select first child. Also reset if the current selectedId no longer
-  // matches any child — happens after a masquerade swap when the kids list
-  // changes under us, otherwise selectedChild stays null and the page hangs.
-  useEffect(() => {
-    if (children.length === 0) return;
-    const stillValid = !!selectedId && children.some((c) => c.id === selectedId);
-    if (!stillValid) {
-      setSelectedId(children[0].id);
-    }
-  }, [children, selectedId]);
 
   const selectedChild = children.find((c) => c.id === selectedId) || null;
   // Dependents often have a blank first_name (only display_name is set), so
   // derive a usable first name for copy/labels.
   const childFirstName = selectedChild?.first_name || selectedChild?.display_name?.split(' ')[0] || 'your child';
   const { data: dashboard, loading: dashboardLoading, refetch } = useChildDashboard(selectedId);
-  const { data: engagement } = useChildEngagement(selectedId);
+  const { data: engagement } = useGlobalEngagement(selectedId);
   const { count: ferpaCount } = useFerpaApprovals();
 
   // Refresh the selected child's dashboard whenever this screen regains focus
@@ -583,12 +483,8 @@ export default function ParentDashboardPage() {
         <PageHeader title="Family" />
         <VStack className="max-w-5xl w-full md:mx-auto px-5 md:px-8" space="lg">
 
-          {/* Child header (avatar + name + chevron, opens bottom sheet to switch) */}
-          <ChildHeader
-            children={children}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
+          {/* Which child this page is about (stores/familyStore). */}
+          <ChildSwitcher />
 
           {/* The grown-up's OWN quests, not their child's. */}
           <MyOwnQuests />
@@ -673,15 +569,15 @@ export default function ParentDashboardPage() {
                 </VStack>
               </View>
 
-              {/* Browse quests for this child — opens the quest catalog in a
-                  for-child context; anything created or added there lands on
-                  the kid's account. */}
+              {/* The child's own surfaces, in family scope: the quest catalog
+                  (browse, create, add -- everything lands on the kid's
+                  account), their dashboard, and their profile (the existing
+                  parent/child screen). The quests and dashboard routes are
+                  hidden from the parent tab bar but still navigable
+                  (config/navigation.ts); the store carries the child. */}
               <Pressable
                 testID="family-browse-quests"
-                onPress={() => router.push({
-                  pathname: '/(app)/(tabs)/quests',
-                  params: { forChildId: selectedId as string, forChildName: childFirstName },
-                } as any)}
+                onPress={() => router.push('/(app)/(tabs)/quests' as any)}
                 accessibilityLabel={`Browse quests for ${childFirstName}`}
               >
                 <Card variant="outline" size="md">
@@ -695,6 +591,52 @@ export default function ParentDashboardPage() {
                       </UIText>
                       <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
                         Create or add a quest for {childFirstName}
+                      </UIText>
+                    </VStack>
+                    <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />
+                  </HStack>
+                </Card>
+              </Pressable>
+
+              <Pressable
+                testID="family-open-quests"
+                onPress={() => router.push('/(app)/(tabs)/dashboard' as any)}
+                accessibilityLabel={`Open ${childFirstName}'s dashboard`}
+              >
+                <Card variant="outline" size="md">
+                  <HStack className="items-center gap-3">
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: `${tc.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="home-outline" size={18} color={tc.brand} />
+                    </View>
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                        {childFirstName}'s dashboard
+                      </UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                        Work through their quests and tasks as they see them
+                      </UIText>
+                    </VStack>
+                    <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />
+                  </HStack>
+                </Card>
+              </Pressable>
+
+              <Pressable
+                testID="family-open-profile"
+                onPress={() => router.push(`/parent/child/${selectedId}` as any)}
+                accessibilityLabel={`Open ${childFirstName}'s profile`}
+              >
+                <Card variant="outline" size="md">
+                  <HStack className="items-center gap-3">
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: tc.surfaceMuted, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="person-outline" size={18} color={tc.brand} />
+                    </View>
+                    <VStack className="flex-1 min-w-0">
+                      <UIText size="sm" className="font-poppins-semibold" numberOfLines={1}>
+                        Profile and portfolio
+                      </UIText>
+                      <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                        XP, credits and completed quests
                       </UIText>
                     </VStack>
                     <Ionicons name="chevron-forward" size={18} color={tc.iconMuted} />

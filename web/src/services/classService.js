@@ -399,8 +399,11 @@ const classService = {
   /**
    * Get all classes the current student is enrolled in with progress
    */
-  getMyStudentClasses: async () => {
-    const response = await api.get('/api/student/classes')
+  getMyStudentClasses: async ({ studentId } = {}) => {
+    // family scope: a parent reads the child's classes from the same route
+    const response = await api.get('/api/student/classes', {
+      params: studentId ? { student_id: studentId } : {},
+    })
     return response.data
   },
 }

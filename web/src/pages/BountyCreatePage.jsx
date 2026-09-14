@@ -5,6 +5,7 @@ import { useCreateBounty, useBountyDetail } from '../hooks/api/useBounties'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../utils/queryKeys'
 import api from '../services/api'
+import { fetchFamilyChildren } from '../hooks/api/useFamilyChildren'
 import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
 import BountyAiDraftPanel from '../components/bounty/BountyAiDraftPanel'
@@ -109,32 +110,18 @@ const BountyCreatePage = () => {
       const allKids = []
       const seenIds = new Set()
 
-      // Fetch managed dependents (under 13)
+      // The parent's own children -- dependents and linked students -- from
+      // the one fetch every parent surface shares (hooks/api/useFamilyChildren).
+      // It already handles "not a parent" as an empty list.
       try {
-        const res = await api.get('/api/dependents/my-dependents', { expect403: true })
-        for (const kid of (res.data.dependents || [])) {
-          if (!seenIds.has(kid.id)) {
-            allKids.push(kid)
-            seenIds.add(kid.id)
+        for (const child of await fetchFamilyChildren()) {
+          if (!seenIds.has(child.id)) {
+            allKids.push({ id: child.id, display_name: child.name })
+            seenIds.add(child.id)
           }
         }
       } catch {
-        // Not a parent or no dependents
-      }
-
-      // Fetch 13+ kids connected via approved parent-student links
-      try {
-        const res = await api.get('/api/parents/my-children', { expect403: true })
-        for (const child of (res.data.children || [])) {
-          const kidId = child.student_id
-          if (kidId && !seenIds.has(kidId)) {
-            const name = `${child.student_first_name || ''} ${child.student_last_name || ''}`.trim() || 'Student'
-            allKids.push({ id: kidId, display_name: name })
-            seenIds.add(kidId)
-          }
-        }
-      } catch {
-        // Not a parent or no linked children
+        // Not a parent or no children
       }
 
       // Fetch linked students (13+ and advisor-linked) from observer links

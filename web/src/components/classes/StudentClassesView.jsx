@@ -15,6 +15,7 @@ import { toast } from 'react-hot-toast'
 import classService from '../../services/classService'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useStudentScope } from '../../hooks/useStudentScope'
 import { dueStatus, dueChipClasses } from '../../utils/dueDate'
 
 /**
@@ -25,6 +26,7 @@ import { dueStatus, dueChipClasses } from '../../utils/dueDate'
  */
 export default function StudentClassesView({ basePath = null } = {}) {
   const { user } = useAuth()
+  const { studentId: scopedStudentId } = useStudentScope()
   const navigate = useNavigate()
   const { classId } = useParams()
   // basePath lets this view be mounted under a branded route (e.g. /gryffin) and keep
@@ -42,12 +44,12 @@ export default function StudentClassesView({ basePath = null } = {}) {
 
   useEffect(() => {
     fetchClasses()
-  }, [])
+  }, [scopedStudentId])
 
   const fetchClasses = async () => {
     try {
       setLoading(true)
-      const response = await classService.getMyStudentClasses()
+      const response = await classService.getMyStudentClasses({ studentId: scopedStudentId })
       if (response.success) {
         setClasses(response.classes || [])
       } else {

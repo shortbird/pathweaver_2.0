@@ -91,7 +91,7 @@ const StudentOverviewSections = ({
           <EnrolledCoursesSection
             courses={data.enrolledCourses}
             studentId={studentId}
-            isDependent={isDependent}
+            viewerMode={viewerMode}
           />
         </CollapsibleSection>
       )}
@@ -105,8 +105,7 @@ const StudentOverviewSections = ({
             recentCompletions={data.recentCompletions}
             hideHeader
             studentId={studentId}
-            isDependent={isDependent}
-            dependentName={dependentName}
+            studentName={dependentName}
             viewerMode={viewerMode}
           />
         </CollapsibleSection>

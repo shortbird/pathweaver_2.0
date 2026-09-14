@@ -1,9 +1,9 @@
 """Who the AI is personalizing FOR, when a parent drives the wizard.
 
-The mobile parent quest view renders the learner's own screen pointed at a
-child, task wizard included. Every read on that screen already carries
-`?student_id=`; the two AI calls behind the wizard did not, so the model was
-handed the SIGNED-IN PARENT's profile:
+The parent's quest view renders the learner's own screen pointed at a child,
+task wizard included. Every read on that screen carries `student_id`; the two
+AI calls behind the wizard once did not, so the model was handed the
+SIGNED-IN PARENT's profile:
 
   * `require_ai_access` checked the parent's AI consent, not the child's --
     directly against what utils/ai_access documents ("the consent being honored
@@ -13,44 +13,26 @@ handed the SIGNED-IN PARENT's profile:
     changing what their own quests generate,
   * the Treehouse age band came from the parent's class enrolments.
 
-So `student_id` now rides both calls, through the same gate the delegated reads
-use. `get_effective_user_id`'s `acting_as_dependent_id` is NOT that gate: it is
-managed-dependents only (DependentRepository.get_dependent), so it refuses a
-teenager who keeps their own login and is tied to the parent by an approved
-parent_student_link -- which is the exact family that reported this.
+Both calls now sit behind `@student_scope`, the one gate every student-scoped
+route shares (utils.auth.relationships). Two earlier, partial copies of that
+decision -- `_personalization_subject` here and
+`utils.personalization_helpers.get_effective_user_id`, which admitted managed
+dependents only and so refused a teenager tied to the parent by an approved
+parent_student_link -- are gone.
 """
 
-from unittest.mock import patch
-
-import pytest
-
 from routes import quest_personalization as qp
-from utils.guardian_scope import GuardianAccessError
+from utils.auth.relationships import STUDENT_SCOPE_ATTR
 
 
-PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-KID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+def test_the_two_wizard_entry_points_are_student_scoped():
+    assert getattr(qp.start_personalization, STUDENT_SCOPE_ATTR, None)
+    assert getattr(qp.generate_tasks, STUDENT_SCOPE_ATTR, None)
 
 
-def test_no_student_id_personalizes_for_the_caller():
-    """A learner on their own quest: the overwhelmingly common case."""
-    assert qp._personalization_subject(PARENT, {}) == PARENT
-    assert qp._personalization_subject(PARENT, {'session_id': 's'}) == PARENT
-    assert qp._personalization_subject(PARENT, None) == PARENT
-
-
-def test_a_verified_child_becomes_the_subject():
-    with patch.object(qp, 'resolve_student_scope', return_value=KID) as gate:
-        assert qp._personalization_subject(PARENT, {'student_id': KID}) == KID
-    gate.assert_called_once_with(PARENT, KID)
-
-
-def test_the_guardian_gate_is_the_one_the_delegated_reads_use():
-    """Not `get_effective_user_id`, which admits managed dependents only."""
-    assert qp.resolve_student_scope.__module__ == 'utils.guardian_scope'
-
-
-def test_a_stranger_is_refused_rather_than_personalized_for():
-    with patch.object(qp, 'resolve_student_scope', side_effect=GuardianAccessError('no')):
-        with pytest.raises(GuardianAccessError):
-            qp._personalization_subject(PARENT, {'student_id': KID})
+def test_the_partial_copies_of_the_gate_are_gone():
+    """One decision, one owner. A second helper that answers "whose learning
+    is this" with a narrower set is how a linked teenager got refused."""
+    from utils import personalization_helpers
+    assert not hasattr(qp, '_personalization_subject')
+    assert not hasattr(personalization_helpers, 'get_effective_user_id')

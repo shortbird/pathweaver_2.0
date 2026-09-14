@@ -10,7 +10,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, PillarBadge, ActionSheet, type ActionSheetAction } from '../ui';
 import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
-import { deleteLearningEvent, assignMomentToTopic, deleteChildLearningEvent } from '@/src/hooks/useJournal';
+import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
@@ -202,7 +202,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
       });
       const newTrackId = data.track?.id || data.id;
       if (newTrackId) {
-        await assignMomentToTopic(event.id, 'track', newTrackId, 'add');
+        await assignMomentToTopic(event.id, 'track', newTrackId, 'add', childId);
       }
       setNewTopicName('');
       setShowNewTopic(false);
@@ -220,11 +220,11 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     try {
       // Remove old assignment
       if (currentTopicId) {
-        await assignMomentToTopic(event.id, 'track', currentTopicId, 'remove');
+        await assignMomentToTopic(event.id, 'track', currentTopicId, 'remove', childId);
       }
       // Add new assignment
       if (topicId) {
-        await assignMomentToTopic(event.id, 'track', topicId, 'add');
+        await assignMomentToTopic(event.id, 'track', topicId, 'add', childId);
       }
       setShowTopicMenu(false);
       await onAssigned?.();
@@ -239,7 +239,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     setAssigning(true);
     try {
       const action = assignedQuestIds.has(questId) ? 'remove' : 'add';
-      await assignMomentToTopic(event.id, 'quest', questId, action);
+      await assignMomentToTopic(event.id, 'quest', questId, action, childId);
       await onAssigned?.();
     } catch {
       showAlert('Error', 'Failed to assign to quest.');
@@ -259,7 +259,7 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     if (!doDelete) return;
     setDeleting(true);
     try {
-      await (childId ? deleteChildLearningEvent(childId, event.id) : deleteLearningEvent(event.id));
+      await deleteLearningEvent(event.id, childId);
       onDeleted?.();
     } catch (err: any) {
       // Surface the server's actual reason (the API interceptor also reports it

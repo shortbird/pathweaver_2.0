@@ -11,6 +11,7 @@ from database import get_supabase_admin_client
 from repositories.quest_repository import QuestRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import current_student_scope, student_scope
 from utils.roles import get_effective_role
 from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
@@ -23,6 +24,7 @@ bp = Blueprint('quest_enrollment', __name__, url_prefix='/api/quests')
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
+@student_scope()
 @require_idempotency(ttl_seconds=86400)
 def enroll_in_quest(user_id: str, quest_id: str):
     """
@@ -32,34 +34,21 @@ def enroll_in_quest(user_id: str, quest_id: str):
     Body (optional):
     - load_previous_tasks: boolean - If true, copies tasks from previous enrollment
     - force_new: boolean - If true, creates new enrollment even if previously completed
+    - student_id: a child of the caller's, when a parent starts the quest for
+      them. @student_scope resolves it (and the older acting_as_dependent_id
+      name) so `user_id` here is the student; the parent is recorded on the
+      enrollment as enrolled_by_user_id. Observers are refused by the gate --
+      the working surfaces are guardians only (utils/guardian_scope).
     """
     try:
         data = request.get_json() or {}
-        # Parent proxy: a parent can start a quest on behalf of their dependent
-        # child by passing acting_as_dependent_id. Verify the parent->child link,
-        # then operate as the child for the rest of this enrollment (mirrors the
-        # task-completion flow). Lets parents of under-13 kids run full quests.
-        acting_as_dependent_id = data.get('acting_as_dependent_id')
-        if acting_as_dependent_id and acting_as_dependent_id != user_id:
-            from routes.parent.dashboard_overview import verify_parent_access
-            from middleware.error_handler import AuthorizationError
-            try:
-                # IDOR-H5: acting as the child to start a quest is a WRITE;
-                # view-only observers must not enroll on a child's behalf.
-                # admin client justified: parent->child link verification reads parent_student_links / managed_by_parent_id; the lookup IS the access check
-                verify_parent_access(get_supabase_admin_client(), user_id, acting_as_dependent_id, allow_observer=False)
-            except AuthorizationError:
-                return error_response(
-                    code='NOT_AUTHORIZED',
-                    message='Not authorized to act for this child',
-                    status=403,
-                )
-            user_id = acting_as_dependent_id
-        else:
+        scope = current_student_scope()
+        enrolled_by = scope.caller_id if scope and scope.delegated else None
+        if not enrolled_by:
             # Self-enrollment. Only learners enroll themselves; parents and
             # observers manage/observe but never become learners. A parent who
             # wants to start a quest must do it on behalf of a child via
-            # acting_as_dependent_id (handled above).
+            # student_id (handled by @student_scope).
             # admin client justified: role-gate lookup of the caller's own users row (role/org_role) to block parent/observer self-enrollment (candidate for user-client scoping)
             caller = get_supabase_admin_client().table('users')\
                 .select('role, org_role, org_roles')\
@@ -143,7 +132,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 }), 409  # Conflict status code
 
         # Create enrollment using repository
-        enrollment = quest_repo.enroll_user(user_id, quest_id)
+        enrollment = quest_repo.enroll_user(user_id, quest_id, enrolled_by_user_id=enrolled_by)
 
         # START FRESH: Clean up when user chose "Start Fresh" on a completed quest
         # Keep completed tasks (with evidence), only delete incomplete ones,
@@ -486,13 +475,20 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
 @bp.route('/create', methods=['POST'])
 @require_auth
+@student_scope()
 def create_user_quest(user_id: str):
     """
     Allow ANY authenticated user to create their own quest.
     User-created quests are private by default (visible only to creator).
     Admins can later toggle is_public to make them available in the public quest library.
+
+    In family scope (body `student_id`) the quest is the CHILD's -- created_by
+    and enrolled as the child, the way the child would have made it -- and the
+    enrollment records the parent as enrolled_by_user_id.
     """
     try:
+        scope = current_student_scope()
+        enrolled_by = scope.caller_id if scope and scope.delegated else None
         from services.image_service import search_quest_image
 
         # admin client justified: quest enrollment writes user_quests / user_quest_tasks scoped to caller (self) under @require_auth
@@ -573,7 +569,7 @@ def create_user_quest(user_id: str):
         enrollment = None
         try:
             quest_repo = QuestRepository()
-            enrollment = quest_repo.enroll_user(user_id, quest_id)
+            enrollment = quest_repo.enroll_user(user_id, quest_id, enrolled_by_user_id=enrolled_by)
             logger.info(f"Successfully auto-enrolled user {user_id[:8]} in quest {quest_id[:8]}, enrollment_id: {enrollment['id'][:8]}")
 
             # VERIFY enrollment was actually created

@@ -3,8 +3,9 @@ import { AcademicCapIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
-import { parentAPI, observerAPI } from '../../services/api'
+import { observerAPI } from '../../services/api'
 import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
+import { useFamilyChildren } from '../../hooks/api/useFamilyChildren'
 import {
   mergeContacts,
   sortContacts,
@@ -331,20 +332,15 @@ const ConversationList = ({
   // Check if user can create groups (advisor, org_admin, superadmin)
   const canCreateGroups = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole)
 
-  // Fetch linked children if user is a parent (with optimized caching)
-  const { data: linkedChildren = [] } = useQuery({
-    queryKey: ['linkedChildren', user?.id],
-    queryFn: async () => {
-      const response = await parentAPI.getMyChildren()
-      return response
-    },
-    enabled: user?.role === 'parent',
-    select: (response) => response.data?.children || [],
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false
-  })
+  // The parent's linked children, from the one family fetch every parent
+  // surface shares (hooks/api/useFamilyChildren). Same raw rows this used to
+  // fetch for itself: only the /my-children ones, since a managed dependent
+  // has no login and so no conversations of their own.
+  const { data: familyChildren = [] } = useFamilyChildren({ enabled: user?.role === 'parent' })
+  const linkedChildren = useMemo(
+    () => (user?.role === 'parent' ? familyChildren.filter((c) => !c.isDependent).map((c) => c.raw) : []),
+    [familyChildren, user?.role],
+  )
 
   // Fetch observers - available to all users
   const { data: observersData } = useQuery({

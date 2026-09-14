@@ -1,17 +1,18 @@
 /**
  * Where a quest card points depends on WHO is looking.
  *
- * /parent/quest/:studentId/:questId is gated allow=('parent','observer') on the
- * backend. The card used to choose its destination from `!!studentId`, and
- * every caller passes a studentId -- including the student's own overview page,
+ * The card used to choose its destination from `!!studentId`, and every
+ * caller passes a studentId -- including the student's own overview page,
  * which passes the viewer's own id, and the advisor/admin student overview.
+ * So a student clicking their own quest, and a teacher clicking their
+ * student's, both navigated to a parent-only page that answers 403 (Sentry
+ * OPTIO-WEB-1B: an org admin at Arete Academy, from her own student overview,
+ * 2026-09-10). Same mistake the engagement fetch was fixed for (OPTIO-WEB-6).
  *
- * So a student clicking their own quest, and a teacher clicking their student's,
- * both navigated to a page that answers 403 (Sentry OPTIO-WEB-1B: an org admin
- * at Arete Academy, from her own student overview, 2026-09-10).
- *
- * This is the same mistake the engagement fetch in this component was already
- * fixed for (OPTIO-WEB-6). The link kept it a while longer.
+ * Since 2026-09-15 a parent opens the child's quest in family scope -- the
+ * same /quests/:id page the child sees, pointed at the child -- instead of the
+ * thinner ParentQuestView (linked students) or an act-as token swap
+ * (dependents). Observers have no per-quest page and get no link.
  */
 import React from 'react'
 import { render, screen } from '@testing-library/react'
@@ -27,9 +28,15 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: VIEWER_ID } }),
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => ({ setActingAs: vi.fn() }),
+const enterScope = vi.fn()
+const navigate = vi.fn()
+vi.mock('../../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => ({ enterScope }),
 }))
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual, useNavigate: () => navigate }
+})
 
 vi.mock('../../hooks/api/useQuests', () => ({
   useQuestEngagement: () => ({ data: null }),
@@ -63,14 +70,20 @@ function questHref() {
 describe('quest card destination', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('sends a guardian to the parent quest view', () => {
+  it('opens the child\'s quest in family scope for a guardian', () => {
     renderSnapshot({ viewerMode: 'parent' })
-    expect(questHref()).toBe(`/parent/quest/${STUDENT_ID}/${QUEST_ID}`)
+    expect(questHref()).toBeNull()
+    screen.getByText('Build a telescope').closest('button').click()
+    expect(enterScope).toHaveBeenCalledWith(STUDENT_ID)
+    expect(navigate).toHaveBeenCalledWith(`/quests/${QUEST_ID}`)
   })
 
-  it('sends an observer to the parent quest view', () => {
+  it('does not link an observer anywhere', () => {
+    // Observers had a link to the parent quest view, a page that refused them.
     renderSnapshot({ viewerMode: 'observer' })
-    expect(questHref()).toBe(`/parent/quest/${STUDENT_ID}/${QUEST_ID}`)
+    expect(screen.getByText('Build a telescope')).toBeInTheDocument()
+    expect(questHref()).toBeNull()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('sends a student to their own quest page, not the parent view', () => {

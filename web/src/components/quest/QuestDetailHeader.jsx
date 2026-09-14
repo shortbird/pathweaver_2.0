@@ -7,6 +7,7 @@ import api from '../../services/api';
 import { queryKeys } from '../../utils/queryKeys';
 import { getQuestHeaderImageSync } from '../../utils/questSourceConfig';
 import { useQuestEngagement } from '../../hooks/api/useQuests';
+import { useStudentScope } from '../../hooks/useStudentScope';
 import RhythmIndicator from './RhythmIndicator';
 import EngagementCalendar from './EngagementCalendar';
 import RhythmExplainerModal from './RhythmExplainerModal';
@@ -41,6 +42,7 @@ const stripHtml = (html) => {
  */
 const QuestTitle = ({ quest, className }) => {
   const queryClient = useQueryClient();
+  const { scopeId } = useStudentScope();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -61,7 +63,7 @@ const QuestTitle = ({ quest, className }) => {
       const { data } = await api.patch(`/api/quests/${quest.id}`, { title });
       if (!data?.success) throw new Error(data?.error || 'Failed to rename quest');
       // Show the new name immediately, then let the lists catch up.
-      queryClient.setQueryData(queryKeys.quests.detail(quest.id), (old) =>
+      queryClient.setQueryData(queryKeys.quests.detail(quest.id, scopeId), (old) =>
         old ? { ...old, title } : old
       );
       queryClient.invalidateQueries(queryKeys.quests.all);

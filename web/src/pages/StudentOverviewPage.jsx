@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useActingAs } from '../contexts/ActingAsContext';
+import { useFamilyScope } from '../contexts/FamilyScopeContext';
+import { useStudentScope } from '../hooks/useStudentScope';
 import api from '../services/api';
 import { fetchProgramDiploma } from '../programs/registry';
 import toast from 'react-hot-toast';
@@ -16,6 +18,7 @@ import OverviewLoadingSkeleton from '../components/overview/OverviewLoadingSkele
 import OverviewErrorState from '../components/overview/OverviewErrorState';
 import StudentOverviewSections from '../components/overview/StudentOverviewSections';
 import WeeklyXpGoalCard from '../components/overview/WeeklyXpGoalCard';
+import ParentConversationsViewer from '../components/parent/ParentConversationsViewer';
 
 // Modals
 import PublicConsentModal from '../components/diploma/PublicConsentModal';
@@ -24,10 +27,18 @@ import EditProfileModal from '../components/overview/EditProfileModal';
 const StudentOverviewPage = () => {
   const { user, updateUser, loginTimestamp } = useAuth();
   const { actingAsDependent } = useActingAs();
+  const { selectedChild } = useFamilyScope();
+  const { params: scopeParams, isDelegated } = useStudentScope();
   const location = useLocation();
 
-  // Effective user (dependent if acting as one, otherwise logged-in user)
-  const effectiveUser = actingAsDependent || user;
+  // Whose overview: the child a parent is scoped to (contexts/
+  // FamilyScopeContext -- every read below carries the scope), the dependent
+  // of a still-live act-as session (one release, for stale cookies), else the
+  // signed-in user. The profile row itself is loaded below and wins for
+  // display; this only needs the id.
+  const effectiveUser = selectedChild
+    ? { id: selectedChild.id, first_name: selectedChild.firstName, avatar_url: selectedChild.avatarUrl }
+    : (actingAsDependent || user);
 
   // Data states
   const [loading, setLoading] = useState(true);
@@ -89,13 +100,13 @@ const StudentOverviewPage = () => {
         engagementResult,
         oeaResult
       ] = await Promise.allSettled([
-        api.get('/api/users/profile'),
-        api.get('/api/users/dashboard'),
-        api.get('/api/quests/completed'),
-        api.get('/api/users/subject-xp'),
-        api.get('/api/learning-events'),
+        api.get('/api/users/profile', { params: scopeParams }),
+        api.get('/api/users/dashboard', { params: scopeParams }),
+        api.get('/api/quests/completed', { params: scopeParams }),
+        api.get('/api/users/subject-xp', { params: scopeParams }),
+        api.get('/api/learning-events', { params: scopeParams }),
         api.get(`/api/portfolio/user/${effectiveUser.id}/visibility-status`),
-        api.get('/api/users/me/engagement'),
+        api.get('/api/users/me/engagement', { params: scopeParams }),
         // OEA students: their real diploma is the pathway, not Optio XP credits.
         // 403/404 (non-OEA or no access) is fine — falls back to Optio credits.
         fetchProgramDiploma(effectiveUser.id)
@@ -279,7 +290,27 @@ const StudentOverviewPage = () => {
   // saw 17 here against 12 there (2026-09-14).
   const completedQuestsOnly = completedQuests.filter((a) => a.status === 'completed');
 
-  const accountSettingsSection = (
+  // Account settings are the signed-in user's own identity (name, password,
+  // deletion). PUT /api/users/profile is never delegated, so in family scope
+  // this section points the parent at Family Settings instead of showing a
+  // form that would edit the wrong account.
+  const accountSettingsSection = isDelegated ? (
+    <CollapsibleSection
+      id="account-settings"
+      title="Account Settings"
+      icon={
+        <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      }
+      defaultOpen={false}
+    >
+      <p className="text-sm text-gray-600">
+        {currentUser?.first_name || 'Your child'}'s name, photo and login are managed from{' '}
+        <Link to={`/family?settings=${selectedChild?.id || 'you'}`} className="text-optio-purple font-medium hover:underline">Family settings</Link>.
+      </p>
+    </CollapsibleSection>
+  ) : (
     <CollapsibleSection
       id="account-settings"
       title="Account Settings"
@@ -300,6 +331,26 @@ const StudentOverviewPage = () => {
     </CollapsibleSection>
   );
 
+  // The child's communication history -- DMs, class chats, AI tutor -- read
+  // only, for the guardian. It sat in a Communications section of the old
+  // parent dashboard (ChildOverviewContent); the child's own profile page is
+  // where it lives in family scope now, since that page is the full view of
+  // the child. A student sees their own messages at /messages, never here.
+  const communicationsSection = isDelegated && selectedChild ? (
+    <CollapsibleSection
+      id="communications"
+      title="Communications"
+      icon={
+        <svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      }
+      defaultOpen={false}
+    >
+      <ParentConversationsViewer studentId={selectedChild.id} />
+    </CollapsibleSection>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Helmet>
@@ -316,14 +367,14 @@ const StudentOverviewPage = () => {
           totalXp={dashboardData.totalXp}
           completedQuestsCount={completedQuestsOnly.length}
           completedTasksCount={dashboardData.completedTasksCount}
-          onEditProfile={handleEditProfile}
+          onEditProfile={isDelegated ? undefined : handleEditProfile}
         />
 
         {/* Weekly XP goal. Renders nothing unless the student's school has the
             feature on — the card asks the server, so no flag check here. */}
         <WeeklyXpGoalCard
           studentId={effectiveUser?.id}
-          viewerIsStudent
+          viewerIsStudent={!isDelegated}
           studentFirstName={currentUser?.first_name}
         />
 
@@ -337,7 +388,12 @@ const StudentOverviewPage = () => {
           visibilityStatus={visibilityStatus}
           onPrivacyToggle={handlePrivacyToggle}
           privacyLoading={privacyLoading}
-          afterJournal={accountSettingsSection}
+          afterJournal={(
+            <>
+              {communicationsSection}
+              {accountSettingsSection}
+            </>
+          )}
           onEvidenceDeleted={fetchData}
         />
       </div>

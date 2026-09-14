@@ -83,7 +83,7 @@ describe('EditMomentModal', () => {
       expect(updateLearningEvent).toHaveBeenCalledWith('evt-1', expect.objectContaining({
         title: 'Updated Title',
         description: 'Updated description',
-      }));
+      }), undefined);
       expect(mockOnSaved).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalled();
     });
@@ -114,8 +114,8 @@ describe('EditMomentModal', () => {
 
     await waitFor(() => {
       // Should remove old topic and add new one
-      expect(assignMomentToTopic).toHaveBeenCalledWith('evt-1', 'track', 'topic-1', 'remove');
-      expect(assignMomentToTopic).toHaveBeenCalledWith('evt-1', 'track', 'topic-2', 'add');
+      expect(assignMomentToTopic).toHaveBeenCalledWith('evt-1', 'track', 'topic-1', 'remove', undefined);
+      expect(assignMomentToTopic).toHaveBeenCalledWith('evt-1', 'track', 'topic-2', 'add', undefined);
     });
   });
 
@@ -130,7 +130,7 @@ describe('EditMomentModal', () => {
       expect(updateLearningEvent).toHaveBeenCalledWith('evt-1', expect.objectContaining({
         description: 'Observed how plants grow under different light conditions',
         pillars: ['stem'],
-      }));
+      }), undefined);
       expect(assignMomentToTopic).not.toHaveBeenCalled();
       expect(mockOnSaved).toHaveBeenCalled();
     });

@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import api from '../../services/api';
 import { getSubjectName } from '../../constants/subjects';
+import { useStudentScope } from '../../hooks/useStudentScope';
 
 /**
  * CreditClassProgressPanel
@@ -20,13 +21,15 @@ const REVIEW_STATUS_LABEL = {
 };
 
 const CreditClassProgressPanel = ({ questId, transcriptSubject, refreshKey = 0 }) => {
+  // Family scope: the child's progress and the child's submission.
+  const { params: scope, studentId } = useStudentScope();
   const [progress, setProgress] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get(`/api/quests/${questId}/class-progress`);
+      const res = await api.get(`/api/quests/${questId}/class-progress`, { params: scope });
       setProgress(res.data?.data || null);
     } catch (err) {
       // Non-fatal: the rest of the quest page still works.
@@ -34,7 +37,7 @@ const CreditClassProgressPanel = ({ questId, transcriptSubject, refreshKey = 0 }
     } finally {
       setLoading(false);
     }
-  }, [questId]);
+  }, [questId, studentId]);
 
   // Reload on mount and whenever refreshKey bumps (e.g. a task was completed),
   // so class XP updates immediately without a page refresh.
@@ -46,7 +49,7 @@ const CreditClassProgressPanel = ({ questId, transcriptSubject, refreshKey = 0 }
     if (submitting) return;
     setSubmitting(true);
     try {
-      await api.post(`/api/quests/${questId}/submit-class-for-review`, {});
+      await api.post(`/api/quests/${questId}/submit-class-for-review`, { ...scope });
       toast.success('Class submitted for review');
       await load();
     } catch (err) {

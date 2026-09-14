@@ -65,7 +65,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         # Everything below reads `user_id`'s rows; resolving here is what makes
         # the delegated response identical to the student's own.
         caller_id = user_id
-        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'), discloses='quests')
 
         # Use admin client for all queries since we're accessing user-specific data
         # User authentication is already enforced by @require_auth decorator

@@ -13,6 +13,7 @@ from routes.tasks.xp_helpers import (
 )
 from utils.api_response_v1 import error_response, success_response
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.error_reporting import report_error
 from utils.logger import get_logger
 from utils.org_features import org_has_feature
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 
 @bp.route('/<task_id>/credit-status', methods=['GET'])
 @require_auth
+@student_scope('credits')
 def get_credit_status(user_id: str, task_id: str):
     """Get the diploma credit status for a completed task."""
     try:
@@ -54,6 +56,7 @@ def get_credit_status(user_id: str, task_id: str):
 
 @bp.route('/<task_id>/request-credit', methods=['POST'])
 @require_auth
+@student_scope()
 def request_diploma_credit(user_id: str, task_id: str):
     """
     Request diploma credit for a completed task.
@@ -339,6 +342,7 @@ def request_diploma_credit(user_id: str, task_id: str):
 
 @bp.route('/my-credit-requests', methods=['GET'])
 @require_auth
+@student_scope('credits')
 def get_my_credit_requests(user_id: str):
     """
     Get all of the student's credit requests (completions with diploma_status != 'none').

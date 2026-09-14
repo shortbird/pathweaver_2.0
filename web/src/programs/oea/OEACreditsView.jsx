@@ -13,6 +13,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useFamilyScope } from '../../contexts/FamilyScopeContext'
 import { toast } from 'react-hot-toast'
 import { oeaAPI } from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
@@ -121,6 +122,7 @@ function GradePill({ credit }) {
 }
 
 export default function OEACreditsView({ studentId, studentName, readOnly = false }) {
+  const { enterScope } = useFamilyScope()
   const navigate = useNavigate()
 
   const [data, setData] = useState(null)
@@ -227,20 +229,22 @@ export default function OEACreditsView({ studentId, studentName, readOnly = fals
   }
 
   // Open the quest for this course (work + evidence + journal live there).
-  // Parents get ParentQuestView (upload evidence on the student's behalf) —
-  // the student route would bounce them to their own dashboard. Students
-  // (readOnly self-view) open the quest directly. Creates the quest on first
-  // use for credits added before the course-as-quest feature.
-  const questPath = (questId) => (
-    readOnly ? `/quests/${questId}` : `/parent/quest/${studentId}/${questId}`
-  )
+  // A parent opens it in family scope -- the student's own quest page,
+  // pointed at the student (contexts/FamilyScopeContext); this used to be the
+  // thinner ParentQuestView. Students (readOnly self-view) open it directly.
+  // Creates the quest on first use for credits added before the
+  // course-as-quest feature.
+  const goToQuest = (questId) => {
+    if (!readOnly) enterScope(studentId)
+    navigate(`/quests/${questId}`)
+  }
   const openQuest = async (credit) => {
     if (openingQuest) return
-    if (credit.quest_id) { navigate(questPath(credit.quest_id)); return }
+    if (credit.quest_id) { goToQuest(credit.quest_id); return }
     setOpeningQuest(true)
     try {
       const { data: res } = await oeaAPI.ensureCreditQuest(credit.id)
-      if (res?.quest_id) navigate(questPath(res.quest_id))
+      if (res?.quest_id) goToQuest(res.quest_id)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not open the quest.')
     } finally {

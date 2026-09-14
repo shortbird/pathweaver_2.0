@@ -12,10 +12,10 @@ from middleware.error_handler import AuthorizationError, NotFoundError, Validati
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from utils.access_logger import AccessLogger
-from utils.storage_urls import public_object_url, sign_stored_url
+from utils.storage_urls import sign_stored_url
+from utils.image_utils import store_image_upload
 from routes.users.helpers import calculate_subject_xp_from_tasks
 import logging
-import uuid as uuid_module
 
 logger = get_logger(__name__)
 logger = logging.getLogger(__name__)
@@ -804,43 +804,10 @@ def upload_child_avatar(user_id, child_id):
         if 'avatar' not in request.files:
             raise ValidationError('No avatar file provided')
 
-        file = request.files['avatar']
-        if file.filename == '':
-            raise ValidationError('No file selected')
-
-        # Validate file type
-        allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'}
-        if file.content_type not in allowed_types:
-            raise ValidationError('Invalid file type. Allowed: JPEG, PNG, GIF, WebP, HEIC')
-
-        # Validate file size (5MB max)
-        file.seek(0, 2)
-        size = file.tell()
-        file.seek(0)
-        if size > 5 * 1024 * 1024:
-            raise ValidationError('File too large. Maximum size is 5MB')
-
-        # Generate unique filename
-        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
-        filename = f"avatars/{child_id}/{uuid_module.uuid4()}.{ext}"
-
-        # Upload to Supabase Storage
-        file_bytes = file.read()
-        try:
-            upload_response = supabase.storage.from_('user-uploads').upload(
-                path=filename,
-                file=file_bytes,
-                file_options={"content-type": file.content_type}
-            )
-            logger.info(f"Storage upload response: {upload_response}")
-        except Exception as storage_err:
-            logger.error(f"Storage upload failed: {storage_err}")
-            raise ValidationError(f"Failed to upload file to storage: {str(storage_err)}") from storage_err
-
-        # A child's photo lives in a PRIVATE bucket. Persist the canonical
-        # pointer (stable, not fetchable) and hand the parent's browser a
-        # short-lived signed URL — see utils/storage_urls.py.
-        avatar_url = public_object_url('user-uploads', filename)
+        # Type, size, HEIC conversion and the storage write: one recipe,
+        # shared with the family photo (utils.image_utils). The pointer is
+        # the canonical private-bucket path; the browser gets a signed twin.
+        avatar_url = store_image_upload(supabase, request.files['avatar'], f'avatars/{child_id}')
 
         # Update child's avatar_url using a fresh client to avoid storage client URL corruption
         try:

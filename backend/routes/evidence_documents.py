@@ -13,6 +13,7 @@ Handles creating, updating, and retrieving evidence documents with multiple cont
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import current_student_scope, student_scope
 from utils.guardian_scope import GuardianAccessError, resolve_student_scope
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -59,7 +60,7 @@ def get_evidence_document(user_id: str, task_id: str):
     attachments the child does. Guardians only — see utils/guardian_scope.
     """
     try:
-        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'), discloses='evidence')
 
         # Virtual moment-tasks (id "moment-<uuid>") have no evidence document of
         # their own (their evidence is served inline with the quest); querying the
@@ -131,15 +132,23 @@ def get_evidence_document(user_id: str, task_id: str):
 
 @bp.route('/documents/<task_id>', methods=['POST', 'PUT'])
 @require_auth
+@student_scope()
 def save_evidence_document(user_id: str, task_id: str):
     """
     Create or update an evidence document with content blocks.
     This is used for auto-save and manual save operations.
+
+    A parent working on a child's task sends `student_id` in the body;
+    @student_scope makes `user_id` the child, so the ownership check below
+    and every write are the child's. New blocks are stamped with the parent
+    as uploader, the way /api/evidence/helper always stamped them, so the
+    teacher reading the evidence can tell who attached what.
     """
     try:
         # Admin client: Spark SSO compatibility (ADR-002, Rule 4)
-        # admin client justified: evidence document writes scoped to caller (self) under @require_auth or to dependent under parent verification
+        # admin client justified: evidence document writes scoped to the resolved student under @student_scope (self, or a verified guardian's child)
         admin_supabase = get_supabase_admin_client()
+        scope = current_student_scope()
 
         data = request.get_json()
         blocks = data.get('blocks', [])
@@ -276,7 +285,7 @@ def save_evidence_document(user_id: str, task_id: str):
                     raise  # Re-raise if we still can't find it
 
         # Update content blocks
-        update_document_blocks(admin_supabase, document_id, blocks)
+        update_document_blocks(admin_supabase, document_id, blocks, uploader=scope)
 
         # If completing the task, award XP
         xp_awarded = 0
@@ -324,7 +333,9 @@ def save_evidence_document(user_id: str, task_id: str):
                             'task_id': task_id,  # This is user_quest_tasks.id
                             'user_quest_task_id': task_id,  # Must match task_id for completion check to work
                             'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
-                            'completed_at': datetime.utcnow().isoformat()
+                            'completed_at': datetime.utcnow().isoformat(),
+                            # NULL = the student themselves (migration 20260915120000)
+                            'completed_by_user_id': scope.caller_id if scope and scope.delegated else None,
                         })\
                         .execute()
 
@@ -552,7 +563,7 @@ def _canonical_block_content(content: Dict[str, Any]) -> Dict[str, Any]:
     return PortfolioService.canonical_block_content(content)
 
 
-def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
+def update_document_blocks(supabase, document_id: str, blocks: List[Dict], uploader=None):
     """
     Update the content blocks for a document.
     Uses delete-and-reinsert strategy to avoid unique constraint violations
@@ -560,6 +571,13 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
 
     After block updates land, syncs a paired learning_events row so this
     evidence shows up in the student's journal on upload (not just on completion).
+
+    `uploader` is the request's StudentScope when the save is delegated: a
+    NEW block is then stamped with the guardian as uploaded_by_user_id and
+    'parent' as uploaded_by_role (the enum has student, advisor, parent;
+    platform staff are recorded as advisor). Existing blocks keep whatever
+    they carry, so a parent re-saving the document does not claim the
+    student's own work.
     """
     try:
         # Get existing blocks with their uploader info to preserve it
@@ -625,6 +643,9 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 existing_info = existing_block_map[block_id]
                 block_data['uploaded_by_user_id'] = existing_info.get('uploaded_by_user_id')
                 block_data['uploaded_by_role'] = existing_info.get('uploaded_by_role', 'student')
+            elif uploader is not None and uploader.delegated:
+                block_data['uploaded_by_user_id'] = uploader.caller_id
+                block_data['uploaded_by_role'] = 'parent' if uploader.via == 'parent' else 'advisor'
             else:
                 block_data['uploaded_by_user_id'] = block.get('uploaded_by_user_id')
                 block_data['uploaded_by_role'] = block.get('uploaded_by_role', 'student')
@@ -649,6 +670,16 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     except Exception as e:
         logger.error(f"Error updating document blocks: {str(e)}")
         raise
+
+
+def _captured_by(student_id: str) -> str:
+    """Who captured the paired journal moment: the guardian behind a
+    delegated save, else the student. Read off the request so the helper's
+    signature stays what its other callers expect."""
+    scope = current_student_scope()
+    if scope and scope.delegated and scope.student_id == student_id:
+        return scope.caller_id
+    return student_id
 
 
 def _sync_paired_learning_event(supabase, document_id: str):
@@ -737,7 +768,7 @@ def _sync_paired_learning_event(supabase, document_id: str):
             'source_type': 'task_evidence',
             'attached_task_id': task_id,
             'is_confidential': doc.get('is_confidential', False),
-            'captured_by_user_id': user_id
+            'captured_by_user_id': _captured_by(user_id),
         }).execute()
         if not insert_result.data:
             return
@@ -1190,13 +1221,22 @@ def delete_evidence_block(user_id: str, block_id: str):
 
 @bp.route('/documents/<task_id>/complete', methods=['POST'])
 @require_auth
+@student_scope()
 def complete_task_with_evidence(user_id: str, task_id: str):
     """
     Mark a task as complete using the multi-format evidence document.
     This replaces the old single-format completion endpoint.
+
+    A parent completing a child's task sends `student_id`; @student_scope
+    makes `user_id` the child. That is why this reads through the admin
+    client and not get_user_client(): the user client forwards the CALLER's
+    JWT to PostgREST, and under RLS a parent's JWT sees none of the child's
+    evidence rows, so a delegated completion found "no evidence document"
+    every time. Every query below is scoped to the resolved student id.
     """
     try:
-        supabase = get_user_client()
+        # admin client justified: delegated write -- the guardian was verified by @student_scope and every query is scoped to the resolved student id; the user client cannot read the child's rows under RLS
+        supabase = get_supabase_admin_client()
 
         # Check if evidence document exists and has content
         document_response = supabase.table('user_task_evidence_documents')\

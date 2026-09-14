@@ -13,6 +13,8 @@ import api from '@/src/services/api';
 import { useQuestDiscovery } from '@/src/hooks/useQuests';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useStartSomethingStore } from '@/src/stores/startSomethingStore';
+import { useIsParent } from '@/src/hooks/useStartSomething';
+import { useSelectedChild } from '@/src/stores/familyStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { PageHeader } from '@/src/components/layouts/MobileHeader';
 import { CreateQuestSheet } from '@/src/components/journal/CreateQuestSheet';
@@ -115,11 +117,18 @@ export default function QuestsScreen() {
   const openCreateQuest = useStartSomethingStore((s) => s.openCreateQuest);
   const c = useThemeColors();
 
-  // Parent-for-child mode: when navigated here from the Family dashboard with a
-  // child target, creating or adding a quest lands on the CHILD's account.
+  // Family scope: a parent browsing FOR a child. The child comes from the
+  // family store (picked on the Family tab); creating or adding a quest lands
+  // on the CHILD's account. The forChildId/forChildName route params are the
+  // pre-2026-09-15 carrier and still honoured for one release of deep links.
   const params = useLocalSearchParams<{ forChildId?: string; forChildName?: string }>();
-  const forChildId = typeof params.forChildId === 'string' ? params.forChildId : null;
-  const forChildName = typeof params.forChildName === 'string' ? params.forChildName : 'your child';
+  const isParent = useIsParent();
+  const scopedChild = useSelectedChild();
+  const paramChildId = typeof params.forChildId === 'string' ? params.forChildId : null;
+  const forChildId = paramChildId || (isParent ? scopedChild?.id || null : null);
+  const forChildName = typeof params.forChildName === 'string'
+    ? params.forChildName
+    : (scopedChild?.first_name || scopedChild?.display_name?.split(' ')[0] || 'your child');
   const forChild = forChildId ? { id: forChildId, name: forChildName } : null;
   const [createForChildOpen, setCreateForChildOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);

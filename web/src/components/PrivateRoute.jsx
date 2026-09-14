@@ -5,6 +5,7 @@ import { useRegistrationGate } from '../hooks/useRegistrationGate'
 import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 import { usePhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { roleHomePath } from '../utils/postLoginPath'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
 
 // A hold that can loop is a hold that can lock a school out.
 //
@@ -36,9 +37,10 @@ const holdRedirect = (to) => {
   return to
 }
 
-const PrivateRoute = ({ requiredRole, blockRoles }) => {
+const PrivateRoute = ({ requiredRole, blockRoles, requireFamilyScope = false }) => {
   const { isAuthenticated, user, effectiveRole, loading } = useAuth()
   const location = useLocation()
+  const familyScope = useFamilyScope()
   // iCreate parents with an unfinished registration funnel are locked to it.
   const registrationGate = useRegistrationGate(user, isAuthenticated, effectiveRole)
   // Families holding unsigned REQUIRED school paperwork are locked to signing it.
@@ -147,6 +149,17 @@ const PrivateRoute = ({ requiredRole, blockRoles }) => {
   // advisors, org_admins, or superadmin. Superadmin is never blocked.
   if (blockRoles && effectiveRole !== 'superadmin' && blockRoles.includes(effectiveRole)) {
     return <Navigate to={roleHomePath(effectiveRole)} replace />
+  }
+
+  // requireFamilyScope: the student surfaces (quests, journal, portfolio,
+  // classes) render the signed-in user's OWN rows, and a parent has none --
+  // this is why parents used to be blocked from them outright. They are open
+  // to a parent now, but only pointed at a child (contexts/FamilyScopeContext):
+  // an unscoped parent is sent to /family to pick one rather than shown their
+  // own empty portfolio, which reads as "the app thinks I'm a student".
+  if (requireFamilyScope && effectiveRole === 'parent') {
+    if (familyScope.isLoading) return null
+    if (!familyScope.isScoped) return <Navigate to="/family" replace />
   }
 
   if (requiredRole) {

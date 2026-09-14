@@ -158,7 +158,7 @@ def get_quest_engagement(user_id: str, quest_id: str):
     caller's, for the parent view of the quest screen (guardians only).
     """
     try:
-        user_id = resolve_student_scope(user_id, request.args.get('student_id'))
+        user_id = resolve_student_scope(user_id, request.args.get('student_id'), discloses='engagement')
 
         # admin client justified: quest engagement metrics; reads quest_task_completions for the requesting user (self) under @require_auth, joining quest data
         supabase = get_supabase_admin_client()

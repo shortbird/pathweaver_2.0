@@ -1,222 +1,140 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { ChevronDownIcon, UserCircleIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { getMyDependents } from '../../services/dependentAPI';
+import { useNavigate } from 'react-router-dom';
+import { ChevronDownIcon, UserCircleIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../../contexts/AuthContext';
+import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 
-const ProfileSwitcher = ({ currentProfile, onProfileChange, onAddDependent }) => {
-  const [profiles, setProfiles] = useState([]);
+/**
+ * The family scope switcher: which child the parent is working FOR.
+ *
+ * Lives in the Sidebar (and the TopNavbar at narrow widths). Picking a child
+ * enters family scope (contexts/FamilyScopeContext): the child's own pages
+ * -- dashboard, quests, journal, portfolio -- render pointed at that child
+ * and every write is made as the parent on the child's account.
+ *
+ * "Just me" appears only for hybrid users (an org admin or advisor who is
+ * also a parent), whose own pages exist. A pure parent has no own dashboard
+ * to switch back to; leaving scope takes them to /family instead.
+ *
+ * This component was an orphan for a while -- written for the act-as flow,
+ * referenced by nothing -- and was rewired rather than rebuilt. It no longer
+ * fetches anything itself; the children come from the scope context.
+ */
+const ProfileSwitcher = ({ compact = false, className = '' }) => {
+  const navigate = useNavigate();
+  const { effectiveRole } = useAuth();
+  const { hasFamily, children, selectedChild, isScoped, enterScope, exitScope, isLoading } = useFamilyScope();
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    loadDependents();
-  }, []);
-
-  const loadDependents = async () => {
-    try {
-      setLoading(true);
-      const response = await getMyDependents();
-
-      // Build profiles array: [parent, ...dependents]
-      const dependentProfiles = (response.dependents || []).map(dep => ({
-        id: dep.id,
-        display_name: dep.display_name,
-        avatar_url: dep.avatar_url,
-        age: dep.age,
-        is_dependent: true,
-        total_xp: dep.total_xp,
-        active_quest_count: dep.active_quest_count,
-        promotion_eligible: dep.promotion_eligible
-      }));
-
-      setProfiles(dependentProfiles);
-      setError(null);
-    } catch (err) {
-      console.error('Error loading dependents:', err);
-      // Don't show error if parent simply has no dependents or lacks permission
-      // Just set empty profiles array
-      setProfiles([]);
-      setError(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleProfileSelect = (profile) => {
-    onProfileChange(profile);
-    setIsOpen(false);
-  };
-
-  const handleAddDependent = () => {
-    setIsOpen(false);
-    onAddDependent();
-  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
+    if (!isOpen) return undefined;
     const handleClickOutside = (event) => {
-      if (isOpen && !event.target.closest('.profile-switcher')) {
-        setIsOpen(false);
-      }
+      if (!event.target.closest('.profile-switcher')) setIsOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-sm">
-        <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse"></div>
-        <div className="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
-      </div>
-    );
-  }
+  if (!hasFamily || isLoading || children.length === 0) return null;
+
+  const canBeJustMe = effectiveRole !== 'parent';
+
+  const pick = (child) => {
+    setIsOpen(false);
+    if (child) {
+      enterScope(child.id);
+      navigate('/dashboard');
+    } else {
+      exitScope();
+      navigate(canBeJustMe ? '/dashboard' : '/family');
+    }
+  };
+
+  const label = selectedChild ? selectedChild.firstName : (canBeJustMe ? 'Just me' : 'Pick a child');
+  const avatar = selectedChild?.avatarUrl;
+
+  // One child, no hybrid role: nothing to switch between. Show who it is.
+  const isStatic = children.length === 1 && !canBeJustMe && isScoped;
 
   return (
-    <div className="profile-switcher relative">
-      {/* Current Profile Button */}
+    <div className={`profile-switcher relative ${className}`}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-4 py-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200"
+        type="button"
+        onClick={() => !isStatic && setIsOpen((open) => !open)}
+        aria-haspopup={isStatic ? undefined : 'listbox'}
+        aria-expanded={isStatic ? undefined : isOpen}
+        aria-label={selectedChild ? `Working as ${selectedChild.name}` : 'Choose a child'}
+        className={`w-full flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left transition-colors ${isStatic ? 'cursor-default' : 'hover:bg-neutral-50'} ${compact ? '' : 'min-h-[44px]'}`}
       >
-        {/* Avatar */}
-        {currentProfile?.avatar_url ? (
-          <img
-            src={currentProfile.avatar_url}
-            alt={`${`${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim() || currentProfile.display_name || 'Profile'} avatar`}
-            className="w-8 h-8 rounded-full object-cover"
-          />
+        {avatar ? (
+          <img src={avatar} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
         ) : (
-          <UserCircleIcon className="w-8 h-8 text-gray-400" />
+          <UserCircleIcon className="w-7 h-7 text-gray-400 flex-shrink-0" aria-hidden="true" />
         )}
-
-        {/* Profile Name */}
-        <div className="text-left">
-          <div className="text-xs text-gray-500">Acting as:</div>
-          <div className="font-medium text-gray-900">
-            {`${currentProfile?.first_name || ''} ${currentProfile?.last_name || ''}`.trim() || currentProfile?.display_name || 'Select Profile'}
-            {currentProfile?.is_dependent && currentProfile?.age && (
-              <span className="text-xs text-gray-500 ml-2">(Age {currentProfile.age})</span>
-            )}
-          </div>
-        </div>
-
-        {/* Dropdown Icon */}
-        <ChevronDownIcon
-          className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-        />
+        {!compact && (
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500">Working with</span>
+            <span className="block truncate text-sm font-semibold text-gray-900">{label}</span>
+          </span>
+        )}
+        {!isStatic && (
+          <ChevronDownIcon
+            className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+        )}
       </button>
 
-      {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-full min-w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden">
-          {/* Parent Profile (Self) */}
-          {!currentProfile?.is_dependent && (
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="text-xs text-gray-500 mb-1">Your Profile</div>
-              <div className="flex items-center gap-2">
-                {currentProfile?.avatar_url ? (
-                  <img
-                    src={currentProfile.avatar_url}
-                    alt={`${`${currentProfile.first_name || ''} ${currentProfile.last_name || ''}`.trim() || currentProfile.display_name || 'Your'} profile avatar`}
-                    className="w-6 h-6 rounded-full object-cover"
-                  />
+        <ul
+          role="listbox"
+          className="absolute top-full left-0 mt-1 w-full min-w-[220px] bg-white rounded-lg shadow-lg border border-gray-200 z-50 overflow-hidden py-1"
+        >
+          {canBeJustMe && (
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={!isScoped}
+                onClick={() => pick(null)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-neutral-50 ${!isScoped ? 'font-semibold text-optio-purple' : 'text-gray-900'}`}
+              >
+                <UserCircleIcon className="w-6 h-6 text-gray-400" aria-hidden="true" />
+                Just me
+              </button>
+            </li>
+          )}
+          {children.map((child) => (
+            <li key={child.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={selectedChild?.id === child.id}
+                onClick={() => pick(child)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-neutral-50 ${selectedChild?.id === child.id ? 'font-semibold text-optio-purple' : 'text-gray-900'}`}
+              >
+                {child.avatarUrl ? (
+                  <img src={child.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
                 ) : (
-                  <UserCircleIcon className="w-6 h-6 text-gray-400" />
+                  <span className="w-6 h-6 rounded-full bg-optio-purple/10 text-optio-purple text-xs font-semibold flex items-center justify-center" aria-hidden="true">
+                    {(child.name || '?').charAt(0).toUpperCase()}
+                  </span>
                 )}
-                <span className="font-medium text-gray-900">{`${currentProfile?.first_name || ''} ${currentProfile?.last_name || ''}`.trim() || currentProfile?.display_name || 'You'}</span>
-                <span className="ml-auto text-xs bg-optio-purple text-white px-2 py-1 rounded">Current</span>
-              </div>
-            </div>
-          )}
-
-          {/* Dependent Profiles */}
-          {profiles.length > 0 && (
-            <div className="py-2">
-              <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Dependents
-              </div>
-              {profiles.map((profile) => (
-                <button
-                  key={profile.id}
-                  onClick={() => handleProfileSelect(profile)}
-                  className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 ${
-                    currentProfile?.id === profile.id ? 'bg-optio-purple/5' : ''
-                  }`}
-                >
-                  {/* Avatar */}
-                  {profile.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt={`${`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name} profile avatar`}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <UserCircleIcon className="w-8 h-8 text-gray-400" />
-                  )}
-
-                  {/* Profile Info */}
-                  <div className="flex-1 text-left">
-                    <div className="font-medium text-gray-900">
-                      {`${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Age {profile.age} • {profile.total_xp || 0} XP • {profile.active_quest_count || 0} active quests
-                    </div>
-                    {profile.promotion_eligible && (
-                      <div className="text-xs text-green-600 font-medium mt-1">
-                        Eligible for independent account
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Current Indicator */}
-                  {currentProfile?.id === profile.id && (
-                    <span className="text-xs bg-optio-purple text-white px-2 py-1 rounded">Current</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Add Child Profile Button */}
-          <div className="border-t border-gray-200">
-            <button
-              onClick={handleAddDependent}
-              className="w-full px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 text-optio-purple font-medium"
-            >
-              <PlusIcon className="w-5 h-5" />
-              <span>Add Child Profile</span>
-            </button>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="px-4 py-3 bg-red-50 border-t border-red-200 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-        </div>
+                <span className="truncate">{child.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 };
 
 ProfileSwitcher.propTypes = {
-  currentProfile: PropTypes.shape({
-    id: PropTypes.string,
-    display_name: PropTypes.string,
-    avatar_url: PropTypes.string,
-    age: PropTypes.number,
-    is_dependent: PropTypes.bool,
-    total_xp: PropTypes.number,
-    active_quest_count: PropTypes.number,
-    promotion_eligible: PropTypes.bool
-  }),
-  onProfileChange: PropTypes.func.isRequired,
-  onAddDependent: PropTypes.func.isRequired
+  compact: PropTypes.bool,
+  className: PropTypes.string,
 };
 
 export default ProfileSwitcher;

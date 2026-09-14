@@ -380,7 +380,7 @@ describe('RegisterPage', () => {
       })
     })
 
-    it('redirects parent to /parent/dashboard', async () => {
+    it('redirects parent to /family', async () => {
       authState = {
         register: mockRegister,
         isAuthenticated: true,
@@ -390,7 +390,7 @@ describe('RegisterPage', () => {
       renderRegisterPage()
 
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/parent/dashboard', { replace: true })
+        expect(mockNavigate).toHaveBeenCalledWith('/family', { replace: true })
       })
     })
 

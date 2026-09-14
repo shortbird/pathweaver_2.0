@@ -67,7 +67,12 @@ export const mobileTabOrder = ['dashboard', 'journal', 'capture', 'bounties', 'f
  *
  *  This pairs with `showMessages` in components/layouts/MobileHeader.tsx — the
  *  chat icon is shown iff Messages is NOT in the bar. Change one without the
- *  other and parents get both surfaces or neither. */
+ *  other and parents get both surfaces or neither.
+ *
+ *  Home (dashboard), Quests and the quest detail are not in this bar but are
+ *  still registered routes: a parent reaches them from the Family tab, in
+ *  family scope, and they render pointed at the child picked there
+ *  (stores/familyStore). The header's ChildSwitcher says who. */
 export const parentMobileTabOrder = ['family', 'journal', 'capture', 'bounties', 'feed'];
 
 /** Items visible in desktop sidebar */

@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
 import { useAuth } from '../../contexts/AuthContext';
+import { timeAgo } from '../../utils/timeFormat';
 
 const RecentCompletions = ({ recentItems }) => {
   const { user } = useAuth();
@@ -28,18 +29,6 @@ const RecentCompletions = ({ recentItems }) => {
       </div>
     );
   }
-
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return 'Recently';
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffInHours = Math.floor((now - time) / (1000 * 60 * 60));
-
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays}d ago`;
-  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6">
@@ -133,7 +122,7 @@ const RecentCompletions = ({ recentItems }) => {
                       </div>
                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                         <ClockIcon className="w-3 h-3" />
-                        <span>{formatTimeAgo(item.completed_at)}</span>
+                        <span>{timeAgo(item.completed_at)}</span>
                       </div>
                     </div>
                   </div>

@@ -17,6 +17,7 @@ from services.webhook_service import WebhookService
 from services.xp_service import XPService
 from utils.api_response_v1 import error_response, success_response
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import current_student_scope, student_scope
 from middleware.idempotency import require_idempotency
 from utils.logger import get_logger
 
@@ -51,6 +52,7 @@ def _task_has_evidence(admin, user_id, task_id):
 
 @bp.route('/<task_id>/complete', methods=['POST'])
 @require_auth
+@student_scope()
 @require_idempotency(ttl_seconds=86400)
 def complete_task(user_id: str, task_id: str):
     """
@@ -58,33 +60,20 @@ def complete_task(user_id: str, task_id: str):
     Handles file uploads and awards XP.
 
     Optional form parameter:
-        acting_as_dependent_id: UUID of dependent (if parent is acting on behalf of child)
+        student_id: a child of the caller's, when a parent marks the task done
+            for them. @student_scope has already resolved it (and the older
+            `acting_as_dependent_id` name), so `user_id` here IS the student;
+            the parent is on g.student_scope and is recorded on the completion
+            as completed_by_user_id. Until 2026-09-15 this admitted managed
+            (under-13, no login) profiles only, through
+            DependentRepository.get_dependent -- Paige Hanna could not finish
+            a task for her 12-year-old because he had an email address.
     """
     try:
-        # Get optional acting_as_dependent_id from form data
-        acting_as_dependent_id = request.form.get('acting_as_dependent_id')
-
-        # Determine effective user ID (handles parent -> dependent delegation)
+        scope = current_student_scope()
         effective_user_id = user_id
-        if acting_as_dependent_id:
-            from repositories.dependent_repository import DependentRepository
-            from repositories.base_repository import PermissionError as RepoPermissionError
-
-            try:
-                # admin client justified: parent acting-as dependent verification before allowing task ops on dependent's behalf
-                admin_client = get_supabase_admin_client()
-                dependent_repo = DependentRepository(client=admin_client)
-                # Verify parent owns dependent
-                dependent_repo.get_dependent(acting_as_dependent_id, user_id)
-                effective_user_id = acting_as_dependent_id
-                logger.info(f"Parent {user_id[:8]} completing task for dependent {acting_as_dependent_id[:8]}")
-            except RepoPermissionError as e:
-                logger.warning(f"Unauthorized dependent access attempt: {str(e)}")
-                return error_response(
-                    code='PERMISSION_DENIED',
-                    message='You do not have permission to manage this dependent profile',
-                    status=403
-                )
+        if scope and scope.delegated:
+            logger.info(f"Parent {scope.caller_id[:8]} completing task for student {user_id[:8]}")
 
         # Task completion runs on the admin (service-role) client.
         #
@@ -94,7 +83,7 @@ def complete_task(user_id: str, task_id: str):
         # in prod with PGRST301 ("No suitable key or wrong key type"), surfacing
         # as "Failed to complete task" for the user (Sentry OPTIO-BACKEND-V/-W).
         # Every query in this handler is explicitly scoped to effective_user_id
-        # (verified above, including the parent->dependent ownership check), so
+        # (verified by @student_scope, including the parent->child claim), so
         # the admin client preserves the same ownership guarantee without
         # depending on PostgREST JWT verification — consistent with the rest of
         # the backend, which does not rely on PostgREST RLS.
@@ -250,6 +239,9 @@ def complete_task(user_id: str, task_id: str):
                 'evidence_text': None if skip_evidence else (evidence_content if evidence_type == 'text' else None),
                 'evidence_url': None if skip_evidence else (evidence_content if evidence_type != 'text' else None),
                 'is_confidential': is_confidential,
+                # Who pressed the button, when it was not the student. NULL is
+                # the student themselves (migration 20260915120000).
+                'completed_by_user_id': scope.caller_id if scope and scope.delegated else None,
                 # No xp_awarded here: quest_task_completions has no such column
                 # (XP is derived from the task's xp_value — see utils/xp_reversal).
                 # Inserting it makes PostgREST reject EVERY completion (PGRST204).
@@ -270,8 +262,6 @@ def complete_task(user_id: str, task_id: str):
         logger.info(f"Task ID: {task_id}, User ID: {effective_user_id}")
         logger.info(f"Task pillar: {task_data.get('pillar')}")
         logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}")
-        if acting_as_dependent_id:
-            logger.info(f"Parent {user_id[:8]} completing for dependent {acting_as_dependent_id[:8]}")
         logger.info("================================")
 
         # Award XP using XP service

@@ -51,7 +51,10 @@ vi.mock('../utils/logger', () => ({
 
 vi.mock('../utils/queryKeys', () => ({
   queryKeys: {
-    quests: { detail: (id) => ['quests', 'detail', id] },
+    quests: {
+      detail: (id, scopeId) => ['quests', 'detail', id, scopeId || 'me'],
+      detailAll: (id) => ['quests', 'detail', id],
+    },
     invalidateCourses: vi.fn()
   },
   mutationKeys: {
@@ -776,7 +779,8 @@ describe('QuestDetail', () => {
   // is that the completion flow now opens on the backend's `quest_now_empty`
   // rather than on the page racing its own refetch and reading an empty cache.
   describe('removing a task', () => {
-    const CACHE_KEY = ['quests', 'detail', 'quest-123']
+    // Scope dimension: 'me' when no child is selected (utils/queryKeys).
+const CACHE_KEY = ['quests', 'detail', 'quest-123', 'me']
 
     const enrolledQuest = () => ({
       id: 'quest-123',
@@ -819,7 +823,7 @@ describe('QuestDetail', () => {
       await clickRemoveAndConfirm('task-1')
 
       await waitFor(() => {
-        expect(api.delete).toHaveBeenCalledWith('/api/tasks/task-1')
+        expect(api.delete).toHaveBeenCalledWith('/api/tasks/task-1', { params: {} })
       })
       const cached = mockQueryClient.getQueryData(CACHE_KEY)
       expect(cached.quest_tasks.map(t => t.id)).toEqual(['task-2'])

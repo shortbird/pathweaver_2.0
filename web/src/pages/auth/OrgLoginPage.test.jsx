@@ -75,6 +75,6 @@ describe('OrgLoginPage when already authenticated', () => {
     }
     renderPage()
     fireEvent.click(await screen.findByText('Continue as Pat'))
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+    expect(mockNavigate).toHaveBeenCalledWith('/family')
   })
 })

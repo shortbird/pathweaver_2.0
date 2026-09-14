@@ -4,9 +4,14 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import PrivateRoute from './PrivateRoute'
 
 let authState = {}
+let scopeState = { isScoped: false, isLoading: false }
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
+}))
+
+vi.mock('../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => scopeState
 }))
 
 function renderWithRoute(requiredRole, initialRoute = '/protected') {
@@ -18,7 +23,7 @@ function renderWithRoute(requiredRole, initialRoute = '/protected') {
         </Route>
         <Route path="/login" element={<div>Login Page</div>} />
         <Route path="/dashboard" element={<div>Student Dashboard</div>} />
-        <Route path="/parent/dashboard" element={<div>Parent Dashboard</div>} />
+        <Route path="/family" element={<div>Family Dashboard</div>} />
         <Route path="/observer/feed" element={<div>Observer Feed</div>} />
       </Routes>
     </MemoryRouter>
@@ -104,10 +109,10 @@ describe('PrivateRoute', () => {
       expect(screen.getByText('Student Dashboard')).toBeInTheDocument()
     })
 
-    it('redirects parent to /dashboard (their role home) on role mismatch', () => {
+    it('redirects parent to /family (their home) on role mismatch', () => {
       authState = { isAuthenticated: true, user: { id: '1', role: 'parent' }, effectiveRole: 'parent', loading: false }
       renderWithRoute('advisor')
-      expect(screen.getByText('Student Dashboard')).toBeInTheDocument()
+      expect(screen.getByText('Family Dashboard')).toBeInTheDocument()
     })
 
     it('redirects observer to /observer/feed on role mismatch', () => {
@@ -128,6 +133,46 @@ describe('PrivateRoute', () => {
       }
       renderWithRoute('parent')
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
+    })
+  })
+
+  // --- Family scope ---
+  // The student surfaces (quests, journal, portfolio, classes) are open to a
+  // parent, but only pointed at a child. Without one picked there is nothing
+  // of the parent's own to show, so they go to /family to pick.
+  describe('requireFamilyScope', () => {
+    function renderScoped() {
+      return render(
+        <MemoryRouter initialEntries={['/quests']}>
+          <Routes>
+            <Route element={<PrivateRoute requireFamilyScope />}>
+              <Route path="/quests" element={<div>Quest Library</div>} />
+            </Route>
+            <Route path="/family" element={<div>Family Dashboard</div>} />
+          </Routes>
+        </MemoryRouter>
+      )
+    }
+
+    it('sends an unscoped parent to /family', () => {
+      authState = { isAuthenticated: true, user: { id: '1', role: 'parent' }, effectiveRole: 'parent', loading: false }
+      scopeState = { isScoped: false, isLoading: false }
+      renderScoped()
+      expect(screen.getByText('Family Dashboard')).toBeInTheDocument()
+    })
+
+    it('lets a scoped parent through', () => {
+      authState = { isAuthenticated: true, user: { id: '1', role: 'parent' }, effectiveRole: 'parent', loading: false }
+      scopeState = { isScoped: true, isLoading: false }
+      renderScoped()
+      expect(screen.getByText('Quest Library')).toBeInTheDocument()
+    })
+
+    it('never asks a student for a scope', () => {
+      authState = { isAuthenticated: true, user: { id: '1', role: 'student' }, effectiveRole: 'student', loading: false }
+      scopeState = { isScoped: false, isLoading: false }
+      renderScoped()
+      expect(screen.getByText('Quest Library')).toBeInTheDocument()
     })
   })
 })

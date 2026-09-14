@@ -54,7 +54,7 @@ export const exitRoleView = async () => {
 // families and students on their own surfaces.
 const landingFor = (roles = []) => {
   if (roles.includes('campus_coordinator') || roles.includes('advisor')) return '/'
-  if (roles.includes('parent')) return '/parent/dashboard'
+  if (roles.includes('parent')) return '/family'
   if (roles.includes('student')) return '/dashboard'
   return '/'
 }

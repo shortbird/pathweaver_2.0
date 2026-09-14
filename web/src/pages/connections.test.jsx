@@ -10,9 +10,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter initialEntries={['/connections/approvals']}>
+      <Routes>
+        <Route path="/connections/approvals" element={ui} />
+        <Route path="/family" element={<div data-testid="family-home" />} />
+      </Routes>
+    </MemoryRouter>
+  </QueryClientProvider>
+)
+
+// The approvals page is the school admin's; a parent is sent to /family.
+let authState = { effectiveRole: 'org_admin' }
+vi.mock('../contexts/AuthContext', () => ({ useAuth: () => authState }))
 
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('react-hot-toast', () => ({ toast, default: toast }))
@@ -37,6 +51,7 @@ const mockLoad = (eligibility, connections = EMPTY) => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  authState = { effectiveRole: 'org_admin' }
 })
 
 describe('ConnectionsPage', () => {
@@ -171,6 +186,15 @@ describe('ConnectionApprovalsPage', () => {
     peer: { id: 'p1', display_name: 'Linus' },
     requested_at: '',
   }]
+
+  it('sends a parent to the family dashboard, where their approvals live now', async () => {
+    // Since 2026-09-15 a parent meets each request on the child's card on
+    // /family. Older notification emails still link here.
+    authState = { effectiveRole: 'parent' }
+    render(<ConnectionApprovalsPage />)
+    expect(await screen.findByTestId('family-home')).toBeInTheDocument()
+    expect(api.get).not.toHaveBeenCalled()
+  })
 
   it('spells out what the approval authorises', async () => {
     // This is the only place the disclosure is stated. A card that says

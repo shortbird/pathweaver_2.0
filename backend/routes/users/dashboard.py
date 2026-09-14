@@ -10,6 +10,7 @@ User dashboard routes
 from flask import Blueprint, jsonify
 from services.dashboard_service import DashboardService
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from middleware.error_handler import NotFoundError
 from utils.logger import get_logger
 
@@ -20,6 +21,7 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/subject-xp', methods=['GET'])
 @require_auth
+@student_scope('credits')
 def get_user_subject_xp(user_id):
     """Get user's XP by school subject for diploma credits"""
     try:
@@ -42,6 +44,7 @@ def get_user_subject_xp(user_id):
 
 @dashboard_bp.route('/dashboard', methods=['GET'])
 @require_auth
+@student_scope('progress')
 def get_dashboard(user_id):
     """Get user dashboard data including active quests, enrolled courses, and XP stats"""
     try:

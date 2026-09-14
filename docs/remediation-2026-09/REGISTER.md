@@ -446,6 +446,45 @@ failure mode the header warns about. None is urgent; all are decisions.
    than forgotten: the typed `APPLY TO PRODUCTION` string is the only gate on a
    migration apply.
 
+### GAP-3 — the parent act-as session is dead code with a 24-hour tail
+
+**Status: OPEN, delete in the release after 2026-09-15.** The family dashboard
+release replaced the token-swapping "act as" session with family scope: a
+parent works on a child's account as themselves, `student_id` on the child's
+own routes, gated by `utils.auth.relationships.student_scope`. No client
+starts an act-as session any more, but a parent whose 24-hour
+`acting_as_token` cookie was minted before the deploy still needs the exit
+(`/stop-acting-as` and the "Switch back" banner). One release later, delete
+together, in this order so nothing references a missing piece:
+
+1. Backend: `routes/dependents_acting_as.py` (both routes, and its
+   `register(bp)` call in `routes/dependents.py`),
+   `utils.token_authority.is_acting_as_still_authorized` and the
+   `acting_as_token` reads in `utils/session_manager.py`, the
+   `acting_as_body_tokens` helper in `routes/auth/token_delivery.py`, and
+   `tests/unit/test_acting_as_guardian_parity.py`,
+   `tests/unit/test_acting_as_cookie.py`.
+2. Backend: the `acting_as_dependent_id` alias in
+   `utils.guardian_scope.requested_student_id` (STUDENT_ID_ALIAS) and the
+   mobile app's second form field in `useQuestDetail.completeTask`.
+3. Web: `contexts/ActingAsContext.jsx`, `services/actingAsRestore.js`,
+   `components/parent/ActingAsBanner.jsx`, `beginSessionSwitch` in
+   `services/api.ts`, and the `actingAsDependent` reads left in
+   `DashboardPage`, `DiplomaPage`, `StudentOverviewPage`, `Sidebar`,
+   `TopNavbar`, `App.jsx`.
+4. Mobile: `actingAsStore.startActingAs` / `stopActingAs` and the
+   `'dependent'` mode (the store stays for admin masquerade), and the
+   `forChildId` / `forChildName` route params on `(tabs)/quests.tsx`.
+5. Also retire the parent-shaped fallbacks the mobile app keeps for one
+   release of preview OTAs against a stale backend: the `/api/parent/<id>/
+   engagement` fallback in `useGlobalEngagement`, and the `/api/parent/
+   children/<id>/...` write fallbacks in `useJournal` (`deleteLearningEvent`,
+   `updateLearningEvent`, `assignMomentToTopic`). The backend routes behind
+   them stay -- observers read them.
+
+Admin masquerade (`routes/admin/masquerade.py`, `services/masqueradeService.js`)
+is a different mechanism and is not part of this.
+
 ---
 
 ## 2. What closed during phases 0 through 5

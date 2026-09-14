@@ -20,6 +20,7 @@ import { compressMediaAssets, MAX_VIDEO_DURATION_MS } from '@/src/utils/videoCom
 import { recordAction } from '@/src/services/diagnostics';
 import { enqueueUpload } from '@/src/services/uploadQueue';
 import { useMyChildren } from '@/src/hooks/useParent';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
@@ -104,19 +105,23 @@ export function CaptureSheet({ visible, onClose, onCaptured, studentIds, pickStu
     setSelectedStudentIds(allKidsSelected ? [] : eligibleChildren.map((c: any) => c.id));
   };
 
-  // Parent flow: default-select all eligible children when the sheet opens, so
-  // the "Save Moment" button isn't disabled-on-arrival (previously a parent had
-  // to manually tap a child chip first, which read as a broken button). Parents
-  // can still deselect to narrow it down. No-op for the student flow (pickStudents
-  // false) and when an explicit studentIds prop drives the selection.
+  // Parent flow: pre-select when the sheet opens, so the "Save Moment" button
+  // isn't disabled-on-arrival (previously a parent had to manually tap a child
+  // chip first, which read as a broken button). The child the parent is
+  // working for (family scope, stores/familyStore) when there is one, else
+  // every eligible child. Parents can still change it. No-op for the student
+  // flow (pickStudents false) and when an explicit studentIds prop drives the
+  // selection.
+  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
   useEffect(() => {
     if (!visible || !pickStudents) return;
     if (studentIds && studentIds.length > 0) return;
     if (eligibleChildren.length === 0) return;
+    const scoped = scopedChildId && eligibleChildren.some((c: { id: string }) => c.id === scopedChildId) ? [scopedChildId] : null;
     setSelectedStudentIds((prev) =>
-      prev.length === 0 ? eligibleChildren.map((c: any) => c.id) : prev,
+      prev.length === 0 ? (scoped || eligibleChildren.map((c: any) => c.id)) : prev,
     );
-  }, [visible, pickStudents, studentIds, eligibleChildren]);
+  }, [visible, pickStudents, studentIds, eligibleChildren, scopedChildId]);
 
   const reset = useCallback(() => {
     setTitle('');

@@ -31,9 +31,11 @@ interface Props {
   onClose: () => void;
   /** Called with the new quest's id after it is created; the modal has already reset. */
   onSuccess: (questId: string) => void;
+  /** Family scope: evolve a CHILD's topic into a quest on their account. */
+  studentId?: string | null;
 }
 
-export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onClose, onSuccess }: Props) {
+export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onClose, onSuccess, studentId }: Props) {
   const insets = useSafeAreaInsets();
   const c = useThemeColors();
 
@@ -69,7 +71,7 @@ export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onC
     setError(null);
     setPreview(null);
     try {
-      const res = await previewEvolvedQuest(trackId);
+      const res = await previewEvolvedQuest(trackId, studentId);
       if (seq !== requestSeq.current) return;
       if (res.success && res.preview) {
         setPreview(res.preview);
@@ -116,7 +118,7 @@ export function EvolveTopicModal({ visible, trackId, trackName, momentCount, onC
         title: cleanTitle,
         description: description.trim() || null,
         tasks,
-      });
+      }, studentId);
       if (result.success && result.quest_id) {
         const questId = result.quest_id;
         reset();

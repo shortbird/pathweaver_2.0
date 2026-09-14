@@ -179,7 +179,7 @@ describe('AuthContext', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
     })
 
-    it('navigates parent to /dashboard (role home)', async () => {
+    it('navigates parent to /family (the family dashboard)', async () => {
       api.post.mockResolvedValue({
         data: {
           user: { id: '1', role: 'parent', first_name: 'P', created_at: new Date(Date.now() - 86400000).toISOString() },
@@ -197,10 +197,10 @@ describe('AuthContext', () => {
         await result.current.login('p@test.com', 'pass')
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/family')
     })
 
-    it('navigates org-managed parent to /dashboard (role home)', async () => {
+    it('navigates org-managed parent to /family (the family dashboard)', async () => {
       api.post.mockResolvedValue({
         data: {
           // Org parents have role 'org_managed'; effective role comes from org_role
@@ -219,7 +219,7 @@ describe('AuthContext', () => {
         await result.current.login('p@test.com', 'pass')
       })
 
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(mockNavigate).toHaveBeenCalledWith('/family')
     })
 
     it('navigates new observer straight to /observer/feed', async () => {

@@ -362,9 +362,8 @@ const LearningJournalSection = ({
 
   // Determine the link destination (observers don't get journal access)
   const showJournalLink = viewMode !== 'observer';
-  const journalLink = viewMode === 'parent' && studentId
-    ? `/parent/child/${studentId}/journal`
-    : '/learning-journal';
+  // In family scope the journal page itself is the child's, so one link.
+  const journalLink = '/learning-journal';
 
   const journalLinkText = viewMode === 'parent'
     ? 'View & Organize Journal'

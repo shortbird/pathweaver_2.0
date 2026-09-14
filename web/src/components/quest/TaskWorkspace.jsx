@@ -13,6 +13,7 @@ import StudentTaskEditModal from './StudentTaskEditModal';
 import { useAIAccess } from '../../contexts/AIAccessContext';
 import { useAuth } from '../../contexts/AuthContext';
 import useHidePillars from '../../hooks/useHidePillars';
+import { useStudentScope } from '../../hooks/useStudentScope';
 
 // QF-02: the sidebar, the phone picker and the two halves of the detail pane
 // each live in their own file now. This component keeps the state and the
@@ -38,16 +39,20 @@ const TaskWorkspace = ({
 }) => {
   const { canUseTaskGeneration } = useAIAccess();
   const { effectiveRole } = useAuth();
+  // Family scope: every evidence read and write below names the child when a
+  // parent is working on the child's task (hooks/useStudentScope).
+  const { studentId, params: scopeParams, isDelegated } = useStudentScope();
   // The prop is the per-quest rule (training quests hide pillars); the hook is
   // the per-school one. Either hiding wins, so callers get the org's setting
   // without every one of them having to pass it.
   const orgHidesPillars = useHidePillars();
   const pillarsVisible = showPillars && !orgHidesPillars;
-  // Diploma credit is a student's. A guardian works through the quest their
-  // school set for families on their own account, and requesting credit for it
-  // would file "A student requested diploma credit…" into the org's review
-  // queue for somebody who has no diploma.
-  const canRequestCredit = effectiveRole !== 'parent';
+  // Diploma credit is a student's. A guardian working through the quest their
+  // school set for families on their OWN account has no diploma to credit;
+  // requesting it would file "A student requested diploma credit…" into the
+  // org's review queue for nobody. In family scope the work is the child's and
+  // the request is theirs, so it is allowed.
+  const canRequestCredit = effectiveRole !== 'parent' || isDelegated;
   const [error, setError] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -92,7 +97,7 @@ const TaskWorkspace = ({
 
     setIsLoading(true);
     try {
-      const result = await evidenceDocumentService.getDocument(task.id);
+      const result = await evidenceDocumentService.getDocument(task.id, { studentId });
       if (result.success && result.blocks) {
         // Normalize blocks and filter out invalid blob URLs
         const normalizedBlocks = result.blocks.map(block => {
@@ -138,7 +143,7 @@ const TaskWorkspace = ({
 
   const loadCreditStatus = async () => {
     try {
-      const response = await api.get(`/api/tasks/${task.id}/credit-status`);
+      const response = await api.get(`/api/tasks/${task.id}/credit-status`, { params: scopeParams });
       const data = response.data.data;
       if (data?.has_completion) {
         setCreditStatus(data.diploma_status);
@@ -150,7 +155,7 @@ const TaskWorkspace = ({
 
   const loadPortfolioPick = async () => {
     try {
-      const response = await api.get(`/api/portfolio/completions/by-task/${task.id}`);
+      const response = await api.get(`/api/portfolio/completions/by-task/${task.id}`, { params: scopeParams });
       const data = response.data?.data || response.data;
       // Only the completion's owner (or a verified parent) gets a row back, so
       // the toggle simply never appears for anyone else.
@@ -183,7 +188,7 @@ const TaskWorkspace = ({
     if (!task?.id) return;
     setIsRequestingCredit(true);
     try {
-      const response = await api.post(`/api/tasks/${task.id}/request-credit`, {});
+      const response = await api.post(`/api/tasks/${task.id}/request-credit`, { ...scopeParams });
       const resData = response.data?.data || response.data;
       if (resData.success || ['pending_review', 'pending_org_approval'].includes(resData.diploma_status)) {
         setCreditStatus(resData.diploma_status || 'pending_review');
@@ -214,7 +219,7 @@ const TaskWorkspace = ({
         };
       });
 
-      const result = await evidenceDocumentService.saveDocument(task.id, cleanedBlocks, status);
+      const result = await evidenceDocumentService.saveDocument(task.id, cleanedBlocks, status, { studentId });
 
       if (result.success && result.blocks && result.blocks.length > 0) {
         setEvidenceBlocks(prevBlocks =>
@@ -284,7 +289,7 @@ const TaskWorkspace = ({
               // Only upload if there's a file object (new upload)
               if (contentItem.file) {
                 try {
-                  const uploadResult = await evidenceDocumentService.uploadFile(contentItem.file, task.id);
+                  const uploadResult = await evidenceDocumentService.uploadFile(contentItem.file, task.id, { studentId });
                   if (uploadResult.success && uploadResult.url) {
                     logger.debug('Upload successful:', uploadResult.url);
                     return { ...contentItem, url: uploadResult.url, file: undefined };
@@ -441,7 +446,7 @@ const TaskWorkspace = ({
           // Only upload if there's a file object (new upload)
           if (item.file) {
             try {
-              const uploadResult = await evidenceDocumentService.uploadFile(item.file, task.id);
+              const uploadResult = await evidenceDocumentService.uploadFile(item.file, task.id, { studentId });
               if (uploadResult.success && uploadResult.url) {
                 return { ...item, url: uploadResult.url, file: undefined };
               } else {
@@ -568,7 +573,7 @@ const TaskWorkspace = ({
     if (!task?.id) return;
     const payload = { pillar, xp_value };
     if (diploma_subjects !== undefined) payload.diploma_subjects = diploma_subjects;
-    const response = await api.put(`/api/tasks/${task.id}`, payload);
+    const response = await api.put(`/api/tasks/${task.id}`, { ...payload, ...scopeParams });
     const updated = response?.data?.task;
     if (updated && onTaskUpdate) {
       onTaskUpdate(updated);

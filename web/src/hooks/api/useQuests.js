@@ -2,15 +2,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import { queryKeys, mutationKeys } from '../../utils/queryKeys'
 import toast from 'react-hot-toast'
+import { useStudentScope } from '../useStudentScope'
+
+/**
+ * Every read here carries the family scope (hooks/useStudentScope): a parent
+ * working on a child's account gets the CHILD's rows from the same URL, via
+ * `?student_id=`, and the child's id is in the query key so switching
+ * children never serves the previous child from cache. Writes carry
+ * `student_id` in the body (or FormData) the same way. Unscoped, nothing
+ * changes: `params` is empty and the key ends in 'me'.
+ */
 
 /**
  * Hook for fetching quest list with filters
  */
 export const useQuests = (filters = {}, options = {}) => {
+  const { params: scope } = useStudentScope()
+  const scoped = { ...filters, ...scope }
   return useQuery({
-    queryKey: queryKeys.quests.list(filters),
+    queryKey: queryKeys.quests.list(scoped),
     queryFn: async () => {
-      const params = new URLSearchParams(filters).toString()
+      const params = new URLSearchParams(scoped).toString()
       const response = await api.get(`/api/quests?${params}`)
       return response.data
     },
@@ -22,10 +34,11 @@ export const useQuests = (filters = {}, options = {}) => {
  * Hook for fetching quest details
  */
 export const useQuestDetail = (questId, options = {}) => {
+  const { params, scopeId } = useStudentScope()
   return useQuery({
-    queryKey: queryKeys.quests.detail(questId),
+    queryKey: queryKeys.quests.detail(questId, scopeId),
     queryFn: async () => {
-      const response = await api.get(`/api/quests/${questId}`)
+      const response = await api.get(`/api/quests/${questId}`, { params })
       return response.data.quest
     },
     enabled: !!questId,
@@ -39,10 +52,11 @@ export const useQuestDetail = (questId, options = {}) => {
  * Hook for fetching user's active quests
  */
 export const useActiveQuests = (userId, options = {}) => {
+  const { params } = useStudentScope()
   return useQuery({
     queryKey: queryKeys.quests.active(userId),
     queryFn: async () => {
-      const response = await api.get('/api/users/dashboard')
+      const response = await api.get('/api/users/dashboard', { params })
       return response.data.active_quests || []
     },
     enabled: !!userId,
@@ -71,16 +85,17 @@ export const useCompletedQuests = (userId, options = {}) => {
  */
 export const useEnrollQuest = () => {
   const queryClient = useQueryClient()
+  const { params: scope } = useStudentScope()
 
   return useMutation({
     mutationKey: [mutationKeys.enrollQuest],
     mutationFn: async ({ questId, options = {} }) => {
-      const response = await api.post(`/api/quests/${questId}/enroll`, options)
+      const response = await api.post(`/api/quests/${questId}/enroll`, { ...scope, ...options })
       return response.data
     },
     onSuccess: (data, { questId }) => {
       // Invalidate quest detail to refresh enrollment status
-      queryClient.invalidateQueries(queryKeys.quests.detail(questId))
+      queryClient.invalidateQueries(queryKeys.quests.detailAll(questId))
 
       // Invalidate user dashboard and active quests
       queryClient.invalidateQueries(queryKeys.user.dashboard())
@@ -105,10 +120,20 @@ export const useEnrollQuest = () => {
  */
 export const useCompleteTask = () => {
   const queryClient = useQueryClient()
+  const { studentId } = useStudentScope()
 
   return useMutation({
     mutationKey: [mutationKeys.completeTask],
     mutationFn: async ({ taskId, evidence, userId }) => {
+      // The completion route takes multipart form data; in scope the form
+      // names the child and the backend records the parent as completed_by.
+      if (studentId) {
+        if (evidence instanceof FormData) {
+          if (!evidence.has('student_id')) evidence.append('student_id', studentId)
+        } else if (evidence && typeof evidence === 'object') {
+          evidence = { student_id: studentId, ...evidence }
+        }
+      }
       const response = await api.post(`/api/tasks/${taskId}/complete`, evidence)
       return response.data
     },
@@ -160,10 +185,11 @@ export const useAbandonQuest = () => {
  */
 export const useDeleteEnrollment = () => {
   const queryClient = useQueryClient()
+  const { studentId: scopedStudentId } = useStudentScope()
 
   return useMutation({
     mutationKey: [mutationKeys.deleteEnrollment],
-    mutationFn: async ({ questId, studentId }) => {
+    mutationFn: async ({ questId, studentId = scopedStudentId }) => {
       const params = studentId ? `?student_id=${studentId}` : ''
       const response = await api.delete(`/api/quests/${questId}/enrollment${params}`)
       return response.data
@@ -232,11 +258,12 @@ export const useUnarchiveEnrollment = () => {
  */
 export const useEndQuest = () => {
   const queryClient = useQueryClient()
+  const { params: scope } = useStudentScope()
 
   return useMutation({
     mutationKey: [mutationKeys.endQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/quests/${questId}/end`, {})
+      const response = await api.post(`/api/quests/${questId}/end`, { ...scope })
       return response.data
     },
     onSuccess: (data, questId) => {
@@ -263,11 +290,12 @@ export const useEndQuest = () => {
  */
 export const useReopenQuest = () => {
   const queryClient = useQueryClient()
+  const { params: scope } = useStudentScope()
 
   return useMutation({
     mutationKey: ['reopenQuest'],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/quests/${questId}/reopen`, {})
+      const response = await api.post(`/api/quests/${questId}/reopen`, { ...scope })
       return response.data
     },
     onSuccess: () => {
@@ -285,10 +313,11 @@ export const useReopenQuest = () => {
  * Hook for fetching quest tasks
  */
 export const useQuestTasks = (questId, options = {}) => {
+  const { params, scopeId } = useStudentScope()
   return useQuery({
-    queryKey: queryKeys.quests.tasks(questId),
+    queryKey: queryKeys.quests.tasks(questId, scopeId),
     queryFn: async () => {
-      const response = await api.get(`/api/quests/${questId}/tasks`)
+      const response = await api.get(`/api/quests/${questId}/tasks`, { params })
       return response.data
     },
     enabled: !!questId,
@@ -316,10 +345,11 @@ export const useQuestProgress = (userId, questId, options = {}) => {
  * Used for the GitHub-style activity calendar and rhythm indicator
  */
 export const useQuestEngagement = (questId, options = {}) => {
+  const { params, scopeId } = useStudentScope()
   return useQuery({
-    queryKey: ['quest-engagement', questId],
+    queryKey: queryKeys.quests.engagement(questId, scopeId),
     queryFn: async () => {
-      const response = await api.get(`/api/quests/${questId}/engagement`)
+      const response = await api.get(`/api/quests/${questId}/engagement`, { params })
       return response.data.engagement
     },
     enabled: !!questId,
@@ -356,10 +386,11 @@ export const useStudentQuestEngagement = (studentId, questId, options = {}) => {
  * Used on the dashboard for overall platform engagement
  */
 export const useGlobalEngagement = (options = {}) => {
+  const { params, scopeId } = useStudentScope()
   return useQuery({
-    queryKey: ['user-engagement'],
+    queryKey: queryKeys.user.engagement(scopeId),
     queryFn: async () => {
-      const response = await api.get('/api/users/me/engagement')
+      const response = await api.get('/api/users/me/engagement', { params })
       return response.data.engagement
     },
     staleTime: 60 * 1000, // 1 minute

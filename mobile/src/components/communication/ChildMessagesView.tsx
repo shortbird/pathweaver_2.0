@@ -14,12 +14,12 @@ import {
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import {
-  useChildren,
   useChildConversations,
   useChildConversationMessages,
-  type Child,
   type Conversation,
 } from '@/src/hooks/useMessages';
+import { useMyChildren, type Child } from '@/src/hooks/useParent';
+import { useFamilyStore } from '@/src/stores/familyStore';
 
 interface Props {
   onBack: () => void;
@@ -64,14 +64,19 @@ function Header({ title, subtitle, onBack }: { title: string; subtitle?: string;
 }
 
 export function ChildMessagesView({ onBack, isMobile }: Props) {
-  const { children, loading } = useChildren();
+  // The family list every parent surface shares (it used to fetch its own
+  // copy from /api/messages/children -- the same children, a fourth picker).
+  const { children, loading } = useMyChildren();
+  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [conversation, setConversation] = useState<Conversation | null>(null);
 
   // With exactly one linked child, skip the picker and go straight to their
   // conversations. The "back" button at that level then exits the view.
+  // Otherwise start on the child the parent is working for (family scope).
   const onlyChild = children.length === 1 ? children[0] : null;
-  const child = selectedChild || onlyChild;
+  const scopedChild = children.find((c) => c.id === scopedChildId) || null;
+  const child = selectedChild || onlyChild || scopedChild;
 
   const Container: any = isMobile ? SafeAreaView : View;
   const containerProps: any = isMobile

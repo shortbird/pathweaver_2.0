@@ -12,7 +12,9 @@ import { render, fireEvent } from '@testing-library/react-native';
 import DashboardScreen from '../dashboard';
 import { useDashboard, useGlobalEngagement } from '@/src/hooks/useDashboard';
 import api from '@/src/services/api';
-import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { setAuthAsStudent, setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { useFamilyStore } from '@/src/stores/familyStore';
+import { createMockChild } from '@/src/__tests__/utils/mockFactories';
 
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
@@ -226,4 +228,43 @@ describe('DashboardScreen', () => {
     expect(r.queryByText('Intro to Engineering')).toBeNull();
   });
 
+  // ── Family scope ──
+  // A parent on this screen sees the CHILD's dashboard: the child picked on
+  // the Family tab (stores/familyStore), read through the same hook with the
+  // child's id, named in the header, and the avatar opens the child's profile.
+
+  describe('for a parent in family scope', () => {
+    const romney = createMockChild({ id: 'kid-a', first_name: 'Romney', last_name: 'Hanna', display_name: 'Romney Hanna' });
+
+    beforeEach(() => {
+      setAuthAsParent();
+      useFamilyStore.setState({ parentId: 'parent-1', children: [romney], selectedChildId: 'kid-a' });
+      (useDashboard as jest.Mock).mockReturnValue({
+        data: mockDashboardData, loading: false, error: null, unsupported: false, refetch: jest.fn(),
+      });
+    });
+
+    afterEach(() => useFamilyStore.getState().clear());
+
+    it('reads the child\'s dashboard and names the child', () => {
+      const r = tryRender(<DashboardScreen />);
+      expect(useDashboard).toHaveBeenCalledWith('kid-a');
+      expect(r.getByTestId('welcome-greeting')).toHaveTextContent("Romney's dashboard");
+    });
+
+    it('opens the child\'s profile from the avatar, not the parent\'s account page', () => {
+      const r = tryRender(<DashboardScreen />);
+      fireEvent.press(r.getByLabelText("Open Romney's profile"));
+      expect(mockRouter.push).toHaveBeenCalledWith('/parent/child/kid-a');
+    });
+
+    it('says so when the backend ignored the scope, instead of showing the parent\'s rows', () => {
+      (useDashboard as jest.Mock).mockReturnValue({
+        data: null, loading: false, error: null, unsupported: true, refetch: jest.fn(),
+      });
+      const r = tryRender(<DashboardScreen />);
+      expect(r.getByText(/needs a newer version of the service/)).toBeTruthy();
+      expect(r.queryByTestId('welcome-greeting')).toBeNull();
+    });
+  });
 });

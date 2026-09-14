@@ -25,8 +25,7 @@ import { describeMediaError } from '@/src/utils/mediaErrors';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import type { LearningEvent, UnifiedTopic, EvidenceBlock } from '@/src/hooks/useJournal';
 import {
-  updateLearningEvent, assignMomentToTopic,
-  updateChildLearningEvent, assignChildMomentToTopic, createTopic,
+  updateLearningEvent, assignMomentToTopic, createTopic,
 } from '@/src/hooks/useJournal';
 
 interface EditMomentModalProps {
@@ -199,29 +198,18 @@ export function EditMomentModal({ visible, event, topics, onClose, onSaved, chil
     setSaving(true);
     try {
       // Always send the full current state to avoid diff/null edge cases.
-      // Parent mode routes through the child-scoped endpoint, which doesn't
-      // accept pillars (see updateChildLearningEvent).
-      if (childId) {
-        await updateChildLearningEvent(childId, event.id, {
-          title: title.trim() || null,
-          description: description.trim() || event.description,
-          event_date: eventDate || null,
-        });
-      } else {
-        await updateLearningEvent(event.id, {
-          title: title.trim() || null,
-          description: description.trim() || event.description,
-          pillars: selectedPillars,
-          event_date: eventDate || null,
-        });
-      }
+      // Family scope (childId): the same write, naming the child.
+      await updateLearningEvent(event.id, {
+        title: title.trim() || null,
+        description: description.trim() || event.description,
+        pillars: selectedPillars,
+        event_date: eventDate || null,
+      }, childId);
 
       // Handle topic assignment change
       const currentTopicId = event.topics?.find((t) => t.type === 'topic')?.id || event.track_id || null;
       if (selectedTopicId !== currentTopicId) {
-        const assign = childId
-          ? (id: string, action: 'add' | 'remove') => assignChildMomentToTopic(childId, event.id, 'track', id, action)
-          : (id: string, action: 'add' | 'remove') => assignMomentToTopic(event.id, 'track', id, action);
+        const assign = (id: string, action: 'add' | 'remove') => assignMomentToTopic(event.id, 'track', id, action, childId);
         if (currentTopicId) {
           await assign(currentTopicId, 'remove');
         }

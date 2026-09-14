@@ -362,7 +362,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     toast.success(`Now masquerading as ${fullName(result.targetUser)}`)
     onClose()
     // Full load so AuthContext re-initialises; navigation stays smooth after.
-    window.location.href = result.targetUser.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+    window.location.href = result.targetUser.role === 'parent' ? '/family' : '/dashboard'
   }
 
   const goTo = (path) => guard(() => {

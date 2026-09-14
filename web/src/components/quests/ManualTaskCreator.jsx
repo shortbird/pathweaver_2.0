@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import api from '../../services/api';
 import useCanEditXp from '../../hooks/useCanEditXp';
 import useHidePillars from '../../hooks/useHidePillars';
+import { useStudentScope } from '../../hooks/useStudentScope';
 
 // Draft autosave.
 //
@@ -84,12 +85,13 @@ const EMPTY_TASK = {
  * and the pillar is derived from it server-side.
  */
 const ManualTaskCreator = ({
-  questId, sessionId, onTasksCreated, onCancel, onSubmitOverride = null, draftScope = null
+  questId, sessionId, onTasksCreated, onCancel, draftScope = null
 }) => {
   const canEditXp = useCanEditXp();
   const hidePillars = useHidePillars();
 
   const storageKey = draftKey(draftScope, questId);
+  const { params: scope } = useStudentScope();
   // Read once, before first paint, so restored tasks are simply there rather
   // than appearing a frame later.
   const [restored] = useState(() => readDraft(storageKey));
@@ -228,18 +230,10 @@ const ManualTaskCreator = ({
     setError('');
 
     try {
-      // Parent-authoring mode: hand the batch to the caller, which writes it to
-      // the child's enrollment instead of the signed-in user's. Same form, same
-      // validation — only the write target differs.
-      if (onSubmitOverride) {
-        await onSubmitOverride(addedTasks);
-        // Only now are the tasks somewhere other than this browser.
-        clearDraft(storageKey);
-        onTasksCreated({ success: true, tasks: addedTasks });
-        return;
-      }
-
+      // In family scope the batch is written to the child's enrollment (the
+      // backend's @student_scope reads student_id); same form, same validation.
       const response = await api.post(`/api/quests/${questId}/add-manual-tasks`, {
+        ...scope,
         tasks: addedTasks
       });
 
@@ -476,7 +470,6 @@ ManualTaskCreator.propTypes = {
   onTasksCreated: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
   // Parent-authoring mode: receives the finished batch instead of POSTing it.
-  onSubmitOverride: PropTypes.func,
   // Who the tasks are being written for. Keys the local draft, so a parent
   // authoring for two children on one quest keeps two separate drafts.
   // Omitted means the signed-in student writing for themselves.

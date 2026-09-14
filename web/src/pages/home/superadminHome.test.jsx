@@ -86,7 +86,7 @@ describe('SuperadminHome', () => {
     expect(screen.getByRole('heading', { name: /welcome back, tanner/i })).toBeInTheDocument()
     expect(screen.getByText('Admin Panel').closest('a')).toHaveAttribute('href', '/admin')
     expect(screen.getByText('Credit Review').closest('a')).toHaveAttribute('href', '/credit-dashboard')
-    expect(screen.getByText('Family Dashboard').closest('a')).toHaveAttribute('href', '/parent/dashboard')
+    expect(screen.getByText('Family Dashboard').closest('a')).toHaveAttribute('href', '/family')
     expect(screen.getByText('School Preview').closest('a')).toHaveAttribute('href', '/school')
   })
 

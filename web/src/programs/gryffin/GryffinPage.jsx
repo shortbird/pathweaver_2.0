@@ -68,7 +68,7 @@ export default function GryffinPage() {
             overview.
           </p>
           <Link
-            to="/parent/dashboard"
+            to="/family"
             className="inline-block mt-4 px-5 py-2.5 rounded-lg text-white font-medium bg-gradient-to-r from-optio-purple to-optio-pink"
           >
             Go to my children

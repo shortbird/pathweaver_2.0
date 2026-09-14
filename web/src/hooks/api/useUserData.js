@@ -2,15 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import { queryKeys, mutationKeys } from '../../utils/queryKeys'
 import toast from 'react-hot-toast'
+import { useStudentScope } from '../useStudentScope'
 
 /**
- * Hook for fetching user dashboard data
+ * Hook for fetching user dashboard data.
+ *
+ * `userId` is the EFFECTIVE user -- the signed-in student, or the child a
+ * parent is scoped to (DashboardPage passes selectedChildId || user.id) --
+ * and it keys the cache. The request itself carries the family scope, so in
+ * scope the same URL answers with the child's dashboard.
  */
 export const useUserDashboard = (userId, options = {}) => {
+  const { params } = useStudentScope()
   return useQuery({
     queryKey: queryKeys.user.dashboard(userId),
     queryFn: async () => {
-      const response = await api.get('/api/users/dashboard')
+      const response = await api.get('/api/users/dashboard', { params })
       return response.data
     },
     enabled: !!userId,

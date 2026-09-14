@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from middleware.error_handler import NotFoundError, ValidationError
 from repositories import UserRepository
 from services.dashboard_service import DashboardService
@@ -25,6 +26,7 @@ profile_bp = Blueprint('profile', __name__)
 
 @profile_bp.route('/profile', methods=['GET'])
 @require_auth
+@student_scope('profile')
 def get_profile(user_id):
     """Get user profile with XP breakdown"""
     try:

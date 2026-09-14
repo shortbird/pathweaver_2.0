@@ -95,7 +95,8 @@ class QuestRepository(BaseRepository):
             logger.error(f"Error fetching user active quests: {e}")
             raise DatabaseError("Failed to fetch user quests") from e
 
-    def enroll_user(self, user_id: str, quest_id: str) -> Dict[str, Any]:
+    def enroll_user(self, user_id: str, quest_id: str,
+                    enrolled_by_user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Enroll a user in a quest.
 
@@ -106,6 +107,10 @@ class QuestRepository(BaseRepository):
         Args:
             user_id: User ID
             quest_id: Quest ID
+            enrolled_by_user_id: the guardian who started this quest for the
+                student, when it was not the student. Written on insert AND on
+                reactivation, because a re-enrollment by a parent is as much
+                the parent's act as a first one. None = the student themselves.
 
         Returns:
             Enrollment record (user_quests)
@@ -139,7 +144,8 @@ class QuestRepository(BaseRepository):
                         .update({
                             'is_active': True,
                             'completed_at': None,
-                            'last_picked_up_at': datetime.now(timezone.utc).isoformat()
+                            'last_picked_up_at': datetime.now(timezone.utc).isoformat(),
+                            'enrolled_by_user_id': enrolled_by_user_id,
                         })
                         .eq('user_id', user_id)
                         .eq('quest_id', quest_id)
@@ -161,7 +167,8 @@ class QuestRepository(BaseRepository):
                     'user_id': user_id,
                     'quest_id': quest_id,
                     'is_active': True,
-                    'last_picked_up_at': datetime.now(timezone.utc).isoformat()
+                    'last_picked_up_at': datetime.now(timezone.utc).isoformat(),
+                    'enrolled_by_user_id': enrolled_by_user_id,
                 })
                 .execute()
             )

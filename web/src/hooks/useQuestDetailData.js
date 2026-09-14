@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest, useReopenQuest } from './api/useQuests';
 import { normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
+import { useStudentScope } from './useStudentScope';
 import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 
@@ -16,6 +17,9 @@ export const useQuestDetailData = (questId) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  // Family scope: the cache entry for this quest is the child's when a parent
+  // is scoped to one (hooks/useStudentScope).
+  const { scopeId } = useStudentScope();
 
   // React Query hooks for data fetching
   const {
@@ -99,7 +103,7 @@ export const useQuestDetailData = (questId) => {
     if (location.state?.tasksAdded) {
       logger.debug('[QUEST_DETAIL] Returning from task library, refetching quest data');
 
-      queryClient.setQueryData(queryKeys.quests.detail(questId), (oldData) => {
+      queryClient.setQueryData(queryKeys.quests.detail(questId, scopeId), (oldData) => {
         if (!oldData) return oldData;
         return {
           ...oldData,
@@ -111,7 +115,7 @@ export const useQuestDetailData = (questId) => {
         };
       });
 
-      queryClient.invalidateQueries(queryKeys.quests.detail(questId));
+      queryClient.invalidateQueries(queryKeys.quests.detailAll(questId));
       refetchQuest();
       navigate(location.pathname, { replace: true, state: {} });
 

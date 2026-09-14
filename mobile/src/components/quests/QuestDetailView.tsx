@@ -941,6 +941,21 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
     return acc;
   }, {} as Record<string, number>);
 
+  // End the quest -- set it down. The work and XP stay, the quest leaves
+  // the active list, and it can be reopened later. For a parent in family
+  // scope this ends the CHILD's run (student_id; the backend's
+  // @student_scope). Until 2026-09-15 a parent's only exit here was "Remove
+  // quest", which deletes the enrollment and reverses the XP -- the
+  // destructive one, offered as the only one.
+  const handleEndQuest = async () => {
+    try {
+      await api.post(`/api/quests/${quest.id}/end`, studentId ? { student_id: studentId } : {});
+      router.back();
+    } catch {
+      showAlert('Could not end', 'That quest could not be ended. Try again.');
+    }
+  };
+
   const handleLeaveQuest = async () => {
     try {
       // The enrollment-delete route takes ?student_id= for parent delegation
@@ -1201,6 +1216,33 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                   isClassQuest={quest.quest_type === 'class'}
                   classSubject={quest.quest_type === 'class' ? (quest.transcript_subject || null) : null}
                 />
+
+                {/* A parent in family scope: end the child's run, work kept.
+                    The student's own exit below deletes the enrollment. */}
+                {studentId && !allComplete && (
+                  <>
+                    <Divider className="mt-4" />
+                    <Pressable
+                      onPress={async () => {
+                        const remaining = tasks.length - completedCount;
+                        const ok = await confirmAlert({
+                          title: quest.quest_type === 'class' ? 'End class?' : 'End quest?',
+                          message: remaining > 0
+                            ? `${remaining} task${remaining === 1 ? '' : 's'} ${remaining === 1 ? 'is' : 'are'} still unfinished. ${childName || 'Their'}${childName ? "'s" : ''} finished work and XP are kept, and the quest can be reopened later.`
+                            : `${childName || 'Their'}${childName ? "'s" : ''} work and XP are kept, and the quest can be reopened later.`,
+                          confirmText: 'End',
+                        });
+                        if (ok) handleEndQuest();
+                      }}
+                      className="py-3 items-center"
+                      style={{ minHeight: 44, justifyContent: 'center' }}
+                    >
+                      <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                        {quest.quest_type === 'class' ? 'End class' : 'End quest'}
+                      </UIText>
+                    </Pressable>
+                  </>
+                )}
 
                 {/* Leave Quest — "End Class" for class-type quests */}
                 <Divider className="mt-4" />

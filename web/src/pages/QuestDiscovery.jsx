@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
+import { useStudentScope } from '../hooks/useStudentScope';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -42,6 +43,7 @@ const TOPIC_TAXONOMY = {
  * - "Exciting first" ordering (sort=popular: hand-curated featured quests first, then newest — see backend/utils/quest_popularity.py)
  */
 const QuestDiscovery = () => {
+  const { studentId: scopedStudentId } = useStudentScope();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -116,7 +118,7 @@ const QuestDiscovery = () => {
     isLoadingRef.current = false;
     // Increment filter version to force refetch
     setFilterVersion(v => v + 1);
-  }, [debouncedSearchTerm, selectedTopic, selectedSubtopic]);
+  }, [debouncedSearchTerm, selectedTopic, selectedSubtopic, scopedStudentId]);
 
   // Clear subtopic when topic changes
   useEffect(() => {
@@ -157,6 +159,9 @@ const QuestDiscovery = () => {
         params.append('subtopic', selectedSubtopic);
       }
 
+      // Family scope: the enrollment overlay ("started", "completed") is the
+      // child's, not the parent's.
+      if (scopedStudentId) params.append('student_id', scopedStudentId);
       const response = await api.get(`/api/quests?${params}`, {
         headers: { 'Cache-Control': 'no-cache' }
       });
@@ -183,7 +188,7 @@ const QuestDiscovery = () => {
       setQuestsLoading(false);
       setIsLoadingMoreQuests(false);
     }
-  }, [debouncedSearchTerm, selectedTopic, selectedSubtopic]);
+  }, [debouncedSearchTerm, selectedTopic, selectedSubtopic, scopedStudentId]);
 
   // Fetch quests when page or filter version changes
   useEffect(() => {

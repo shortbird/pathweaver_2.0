@@ -76,7 +76,7 @@ export const startMasquerade = async (userId, reason = '', apiCall, redirectTo =
     const targetRole = target_user.role;
     // redirectTo lets the SIS switcher land on the console home for a staff
     // target instead of the learning-app dashboard.
-    const redirectPath = redirectTo || (targetRole === 'parent' ? '/parent/dashboard' : '/dashboard');
+    const redirectPath = redirectTo || (targetRole === 'parent' ? '/family' : '/dashboard');
     window.location.href = redirectPath;
 
     return {

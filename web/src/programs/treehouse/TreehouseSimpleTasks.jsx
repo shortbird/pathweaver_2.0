@@ -68,7 +68,7 @@ export default function TreehouseSimpleTasks({ tasks = [], questId }) {
     setAddingIdea(index)
     try {
       await api.post(`/api/quests/${questId}/add-manual-tasks`, { tasks: [idea] })
-      queryClient.invalidateQueries(queryKeys.quests.detail(questId))
+      queryClient.invalidateQueries(queryKeys.quests.detailAll(questId))
       toast.success('Added to your quest!')
       setIdeas(null)
     } catch {

@@ -5,17 +5,24 @@ import { uploadViaSignedUrl } from './signedUpload';
 // Use the centralized authenticated API client
 // This ensures Authorization headers are added via interceptors
 const evidenceApi = {
-  get: (path) => api.get(`/api/evidence${path}`),
+  get: (path, config) => api.get(`/api/evidence${path}`, config),
   post: (path, data, config) => api.post(`/api/evidence${path}`, data, config),
   put: (path, data) => api.put(`/api/evidence${path}`, data),
   delete: (path) => api.delete(`/api/evidence${path}`),
 };
 
+// Family scope. A parent working on a child's task passes { studentId } and
+// every call names the child: query string on the read, `student_id` in the
+// body on the writes and the signed-upload init/finalize. The backend's
+// @student_scope verifies the guardian, scopes the document to the child and
+// stamps new blocks with the parent as uploader.
+const scopeParams = (studentId) => (studentId ? { student_id: studentId } : {});
+
 export const evidenceDocumentService = {
   // Get evidence document for a task
-  async getDocument(taskId) {
+  async getDocument(taskId, { studentId } = {}) {
     try {
-      const response = await evidenceApi.get(`/documents/${taskId}`);
+      const response = await evidenceApi.get(`/documents/${taskId}`, { params: scopeParams(studentId) });
       return response.data;
     } catch (error) {
       logger.error('Error fetching evidence document:', error);
@@ -24,11 +31,12 @@ export const evidenceDocumentService = {
   },
 
   // Save evidence document (auto-save or manual save)
-  async saveDocument(taskId, blocks, status = 'draft') {
+  async saveDocument(taskId, blocks, status = 'draft', { studentId } = {}) {
     try {
       const response = await evidenceApi.post(`/documents/${taskId}`, {
         blocks,
-        status
+        status,
+        ...scopeParams(studentId),
       });
       return response.data;
     } catch (error) {
@@ -38,11 +46,12 @@ export const evidenceDocumentService = {
   },
 
   // Update evidence document
-  async updateDocument(taskId, blocks, status = 'draft') {
+  async updateDocument(taskId, blocks, status = 'draft', { studentId } = {}) {
     try {
       const response = await evidenceApi.put(`/documents/${taskId}`, {
         blocks,
-        status
+        status,
+        ...scopeParams(studentId),
       });
       return response.data;
     } catch (error) {
@@ -52,9 +61,10 @@ export const evidenceDocumentService = {
   },
 
   // Complete task with evidence document
-  async completeTask(taskId) {
+  async completeTask(taskId, { studentId } = {}) {
     try {
-      const response = await evidenceApi.post(`/documents/${taskId}/complete`, {});  // send a JSON body (CSRF/Content-Type)
+      // always a JSON body (CSRF/Content-Type), scoped or not
+      const response = await evidenceApi.post(`/documents/${taskId}/complete`, { ...scopeParams(studentId) });
       return response.data;
     } catch (error) {
       logger.error('Error completing task:', error);
@@ -64,7 +74,7 @@ export const evidenceDocumentService = {
 
   // Upload file for a content block via signed-upload flow (direct-to-Supabase).
   // Block type is derived from the block record on the backend, not the client.
-  async uploadBlockFile(blockId, file, { onProgress, blockType } = {}) {
+  async uploadBlockFile(blockId, file, { onProgress, blockType, studentId } = {}) {
     try {
       return await uploadViaSignedUrl({
         file,
@@ -72,6 +82,8 @@ export const evidenceDocumentService = {
         finalizePath: `/api/evidence/blocks/${blockId}/upload-finalize`,
         blockType,
         onProgress,
+        extraInitBody: scopeParams(studentId),
+        extraFinalizeBody: scopeParams(studentId),
       });
     } catch (error) {
       logger.error('Error uploading file:', error);
@@ -80,7 +92,7 @@ export const evidenceDocumentService = {
   },
 
   // Upload file for a task (before block is created) via signed-upload flow.
-  async uploadFile(file, taskId, { onProgress, blockType } = {}) {
+  async uploadFile(file, taskId, { onProgress, blockType, studentId } = {}) {
     try {
       return await uploadViaSignedUrl({
         file,
@@ -88,6 +100,8 @@ export const evidenceDocumentService = {
         finalizePath: `/api/evidence/documents/${taskId}/upload-finalize`,
         blockType,
         onProgress,
+        extraInitBody: scopeParams(studentId),
+        extraFinalizeBody: scopeParams(studentId),
       });
     } catch (error) {
       logger.error('Error uploading file:', error);
@@ -119,8 +133,8 @@ export const evidenceDocumentService = {
     }
   },
 
-  // Auto-save with debouncing
-  createAutoSaver(taskId, onSaveSuccess, onSaveError) {
+  // Auto-save with debouncing. `studentId` scopes the saves to a child.
+  createAutoSaver(taskId, onSaveSuccess, onSaveError, { studentId } = {}) {
     let saveTimeout = null;
     let lastSaveTime = 0;
     let isDisabled = false;
@@ -155,7 +169,7 @@ export const evidenceDocumentService = {
 
           try {
             logger.debug('[AUTO-SAVE] Executing auto-save with status: draft');
-            const result = await this.saveDocument(taskId, blocks, 'draft');
+            const result = await this.saveDocument(taskId, blocks, 'draft', { studentId });
             lastSaveTime = Date.now();
             if (onSaveSuccess) {
               onSaveSuccess(result);

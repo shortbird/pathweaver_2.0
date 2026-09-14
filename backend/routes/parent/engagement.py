@@ -125,6 +125,40 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
     }
 
 
+
+def quest_rhythm(supabase, student_id: str, quest_id: str, today: date_type = None) -> dict:
+    """One child's rhythm on one quest, for a card that has no room for the
+    calendar: the state (parent-voiced, from calculate_rhythm_state above)
+    plus the last seven days' intensities for a mini heat map.
+
+    The family dashboard shows this INSTEAD of a progress bar on each quest
+    (owner's call, 2026-09-15): the process is the goal, and "In Flow" says
+    more about a child's week than "3/7 tasks". Same RPC as the route below,
+    over four weeks -- the rhythm rules look back 28 days and no further.
+    """
+    today = today or datetime.now().date()
+    since = today - timedelta(weeks=4)
+    result = supabase.rpc('get_engagement_summary', {
+        'p_user_id': student_id,
+        'p_quest_id': quest_id,
+        'p_since': since.isoformat(),
+    }).execute()
+    counts = {}
+    for row in (result.data or []):
+        counts[row['activity_date']] = row.get('activity_count') or 0
+    activity_dates = [datetime.strptime(d, '%Y-%m-%d').date() for d in counts]
+    rhythm = calculate_rhythm_state(activity_dates, today)
+    last_7_days = []
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        key = day.isoformat()
+        last_7_days.append({'date': key, 'intensity': calculate_intensity(counts.get(key, 0))})
+    return {
+        **rhythm,
+        'last_7_days': last_7_days,
+        'active_days_last_week': sum(1 for d in activity_dates if (today - d).days <= 7),
+    }
+
 @bp.route('/<student_id>/engagement', methods=['GET'])
 @require_auth
 @require_relationship_to('student_id', allow=('parent', 'observer'))

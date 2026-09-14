@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuestEngagement, useStudentQuestEngagement } from '../../hooks/api/useQuests';
-import { useActingAs } from '../../contexts/ActingAsContext';
+import { useFamilyScope } from '../../contexts/FamilyScopeContext';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Simple engagement heatmap cell
@@ -93,14 +93,12 @@ const MiniHeatMap = ({ days }) => {
 const ActiveQuestCard = ({
   quest,
   studentId,
-  isDependent = false,
-  dependentName = null,
   viewerMode = 'student'
 }) => {
   const questData = quest.quests || quest;
   const questId = questData.id || quest.quest_id;
-  const { setActingAs } = useActingAs();
-  const [switching, setSwitching] = useState(false);
+  const navigate = useNavigate();
+  const { enterScope } = useFamilyScope();
 
   // Which engagement endpoint to ask depends on WHO is looking, not on whether
   // a studentId was passed — every caller passes one, including
@@ -111,8 +109,9 @@ const ActiveQuestCard = ({
   // "Ready to Begin" (Sentry OPTIO-WEB-6).
   //
   // Only a guardian or observer can read the child-scoped endpoint. A student
-  // reads their own. A teacher has neither route to this metric, so they ask
-  // for nothing rather than for the wrong person's activity.
+  // reads their own -- and in family scope "their own" IS the child's, because
+  // useQuestEngagement carries the scope. A teacher has neither route to this
+  // metric, so they ask for nothing rather than for the wrong person's activity.
   const readsChildEngagement = viewerMode === 'parent' || viewerMode === 'observer';
   const readsOwnEngagement = viewerMode === 'student';
   const { data: ownEngagement } = useQuestEngagement(questId, { enabled: readsOwnEngagement });
@@ -127,38 +126,23 @@ const ActiveQuestCard = ({
 
   // WHERE the card points depends on who is looking, not on whether a
   // studentId was passed -- every caller passes one, including the student's
-  // own overview page, which passes the viewer's own id. This is the same
-  // mistake the engagement fetch above was fixed for (OPTIO-WEB-6); the link
-  // kept it a while longer.
+  // own overview page, which passes the viewer's own id (Sentry OPTIO-WEB-1B:
+  // an org admin at Arete sent to a parent-only page from her own overview).
   //
-  // /parent/quest/:studentId/:questId is gated `allow=('parent','observer')`,
-  // so reading `!!studentId` as "parent view" sent a STUDENT to it for their
-  // own quest and a TEACHER to it for their student's, and both got a 403 page
-  // where a quest should be (Sentry OPTIO-WEB-1B: an org admin at Arete, from
-  // her own student overview).
-  //
-  // For dependents: activate act-as and redirect to the standard quest page.
-  // For a guardian's linked student (13+): the parent quest view.
-  // For the student themselves: their own quest page.
-  // For staff: no link at all. There is no teacher-facing per-quest page to
-  // send them to, and a card that navigates to a refusal is worse than a card
-  // that does not navigate.
-  const readsParentQuestView = viewerMode === 'parent' || viewerMode === 'observer';
-  const isStaffViewer = viewerMode === 'advisor';
-  const questLink = readsParentQuestView && studentId && !isDependent
-    ? `/parent/quest/${studentId}/${questId}`
-    : `/quests/${questId}`;
+  // A student: their own quest page. A parent looking at a child: the same
+  // quest page, in family scope (contexts/FamilyScopeContext) -- entering
+  // scope first is what points the page at the child. This replaced the
+  // act-as token swap for dependents and the thinner ParentQuestView for
+  // linked students (2026-09-15). Staff and observers: no link. There is no
+  // per-quest page for either, and a card that navigates to a refusal is
+  // worse than a card that does not navigate.
+  const isStaffViewer = viewerMode === 'advisor' || viewerMode === 'observer';
+  const questLink = `/quests/${questId}`;
 
-  const handleDependentQuestClick = async (e) => {
+  const handleParentQuestClick = (e) => {
     e.preventDefault();
-    if (switching) return;
-    setSwitching(true);
-    try {
-      await setActingAs({ id: studentId, display_name: dependentName }, `/quests/${questId}`);
-    } catch (err) {
-      console.error('Failed to switch to dependent profile:', err);
-      setSwitching(false);
-    }
+    enterScope(studentId);
+    navigate(questLink);
   };
 
   const cardContent = (
@@ -171,29 +155,27 @@ const ActiveQuestCard = ({
       {/* Rhythm indicator with mini heat map */}
       <div className={`flex items-center justify-between px-2 py-1.5 rounded-md ${config.bgClass}`}>
         <span className={`text-xs font-medium ${config.textClass}`}>
-          {switching ? 'Switching...' : config.label}
+          {config.label}
         </span>
         <MiniHeatMap days={engagement?.calendar?.days || []} />
       </div>
     </>
   );
 
-  // Dependents: click triggers act-as + redirect to standard quest page
-  if (studentId && isDependent) {
+  // A parent looking at a child's overview: open the quest in family scope.
+  if (viewerMode === 'parent' && studentId) {
     return (
       <button
-        onClick={handleDependentQuestClick}
-        disabled={switching}
-        className="block w-full text-left p-4 bg-white border border-gray-200 hover:border-optio-purple/30 hover:shadow-md rounded-xl transition-all disabled:opacity-70"
+        onClick={handleParentQuestClick}
+        className="block w-full text-left p-4 bg-white border border-gray-200 hover:border-optio-purple/30 hover:shadow-md rounded-xl transition-all"
       >
         {cardContent}
       </button>
     );
   }
 
-  // Staff looking at somebody else's overview: show the card, don't pretend it
-  // opens. See the questLink note above -- every destination we have is either
-  // the teacher's own quest or a page that refuses them.
+  // Staff or observers looking at somebody else's overview: show the card,
+  // don't pretend it opens. See the questLink note above.
   if (isStaffViewer && studentId) {
     return (
       <div className="block p-4 bg-white border border-gray-200 rounded-xl">
@@ -338,9 +320,8 @@ const LearningSnapshot = ({
   activeQuests = [],
   recentCompletions = [],
   hideHeader = false,
-  studentId = null, // For parent view - prefixes quest links with /parent/quest/{studentId}/
-  isDependent = false, // For dependent children - links to standard quest page instead of parent view
-  dependentName = null, // Display name of the dependent (for act-as switching)
+  studentId = null, // whose overview this is (the viewer's own id on StudentOverviewPage)
+  studentName = null, // first name for the empty state when looking at someone else
   // Who is looking: 'student' (their own overview), 'parent', 'observer', or
   // 'advisor'. Decides which engagement endpoint the quest cards may call —
   // studentId cannot, because every caller passes one.
@@ -384,8 +365,6 @@ const LearningSnapshot = ({
                 key={quest.quests?.id || idx}
                 quest={quest}
                 studentId={studentId}
-                isDependent={isDependent}
-                dependentName={dependentName}
                 viewerMode={viewerMode}
               />
             ))
@@ -406,7 +385,7 @@ const LearningSnapshot = ({
                 </Link>
               ) : (
                 <p className="text-sm text-gray-400">
-                  Quests will appear here once {dependentName || 'this student'} starts working on one.
+                  Quests will appear here once {studentName || 'this student'} starts working on one.
                 </p>
               )}
             </div>
@@ -434,8 +413,6 @@ const LearningSnapshot = ({
                 key={quest.quests?.id || `extra-${idx}`}
                 quest={quest}
                 studentId={studentId}
-                isDependent={isDependent}
-                dependentName={dependentName}
                 viewerMode={viewerMode}
               />
             ))}

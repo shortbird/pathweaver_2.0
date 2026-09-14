@@ -20,6 +20,8 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useObserverStudents } from '@/src/hooks/useObserverStudents';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
 import { useMyChildren } from '@/src/hooks/useParent';
+import { ChildSwitcher } from '@/src/components/family/ChildSwitcher';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { useFeedDetailStore } from '@/src/stores/feedDetailStore';
 import { onUploadComplete } from '@/src/services/uploadQueue';
@@ -567,33 +569,12 @@ const FeedListHeader = React.memo(function FeedListHeader({
           </HStack>
         </View>
       )}
-      {/* Per-kid filter chips for parents with 2+ kids. Single-kid families
-       *  don't need the chip row — there's nothing to filter to. */}
+      {/* Which kid the feed is about: the one family switcher (it replaced a
+       *  second hand-rolled chip row here), with "All" as a legitimate view.
+       *  Single-kid families don't need it -- there's nothing to filter to. */}
       {isParent && parentKids.length > 1 && (
         <View className={`pb-3 ${isDesktop ? 'max-w-2xl w-full mx-auto' : ''}`}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <HStack space="xs" className="items-center">
-              <Pressable onPress={() => onSelectKid(null)}>
-                <View className={`px-3 py-1.5 rounded-full ${selectedKidId === null ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                  <UIText size="xs" className={`font-poppins-medium ${selectedKidId === null ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
-                    All kids
-                  </UIText>
-                </View>
-              </Pressable>
-              {parentKids.map((kid: any) => {
-                const isActive = selectedKidId === kid.id;
-                return (
-                  <Pressable key={kid.id} onPress={() => onSelectKid(kid.id)}>
-                    <View className={`px-3 py-1.5 rounded-full ${isActive ? 'bg-optio-purple' : 'bg-surface-100 dark:bg-dark-surface-200'}`}>
-                      <UIText size="xs" className={`font-poppins-medium ${isActive ? 'text-white' : 'text-typo-500 dark:text-dark-typo-500'}`}>
-                        {kid.first_name || kid.display_name || 'Kid'}
-                      </UIText>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </HStack>
-          </ScrollView>
+          <ChildSwitcher allowAll onSelect={onSelectKid} />
         </View>
       )}
     </>
@@ -609,8 +590,11 @@ export default function FeedScreen() {
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [parentWelcomeVisible, setParentWelcomeVisible] = useState(false);
   const [segment, setSegment] = useState<FeedSegment>('feed');
-  // Parent-only: which kid is the feed scoped to. null = all kids.
-  const [selectedKidId, setSelectedKidId] = useState<string | null>(null);
+  // Parent-only: which kid is the feed scoped to. null = all kids. Starts on
+  // the child the parent is working for (stores/familyStore); picking a kid
+  // in the switcher below updates the store too, so Family and Feed agree.
+  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
+  const [selectedKidId, setSelectedKidId] = useState<string | null>(scopedChildId);
   // Superadmin gets a Highlights segment that flips the feed source to the
   // curated highlight reel.
   const isSuperadmin = useAuthStore((s) => s.user?.role) === 'superadmin';

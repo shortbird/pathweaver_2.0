@@ -1,5 +1,4 @@
 import { usesSimplifiedPartnerDashboard } from '../config/partnerOrgs'
-import { inOptioAcademy } from '../config/optioAcademy'
 import { moduleEnabled } from '../modules/moduleEnabled'
 
 /**
@@ -20,15 +19,19 @@ function effectiveRole(user) {
 }
 
 /**
- * A parent's home. Normally /dashboard (FamilyHome, the digest); for Optio
- * Academy it's the family dashboard itself, so the Family tab IS the home tab.
+ * A parent's home: the family dashboard, for every parent (2026-09-15).
+ *
+ * This used to fork -- /dashboard for most parents, /parent/dashboard for
+ * Optio Academy -- because there were two parent pages that did overlapping
+ * jobs. There is one now, at /family: the child list, the school's asks, and
+ * the door into each child's own pages. /dashboard is a CHILD's dashboard
+ * for a parent (pages/home/RoleHome.jsx), reachable once a child is picked.
  * Shared by getPostLoginPath and the Sidebar so the nav item and the landing
- * page can never disagree.
+ * page can never disagree. The arguments are kept so the call sites read the
+ * same; nothing depends on them any more.
  */
-export function parentHomePath(user, school = null) {
-  return inOptioAcademy({ user, school: school || user?.school })
-    ? '/parent/dashboard'
-    : '/dashboard'
+export function parentHomePath(_user, _school = null) {
+  return '/family'
 }
 
 /**
@@ -47,8 +50,8 @@ export function parentHomePath(user, school = null) {
  * - staff of SIS-enabled orgs (org_admin, advisor, campus_coordinator) work
  *   in the SIS console, so they front-door through /sis-launch;
  * - simplified partner orgs keep their dedicated /onfire dashboard;
- * - Optio Academy parents land on the family dashboard, which is their home
- *   (see config/optioAcademy.js).
+ * - parents land on the family dashboard, which is their home (2026-09-15;
+ *   it used to be Optio Academy parents only, see config/optioAcademy.js).
  */
 export function getPostLoginPath(user) {
   const role = effectiveRole(user)
@@ -58,7 +61,7 @@ export function getPostLoginPath(user) {
     ? moduleEnabled(user.organization, 'sis')
     : false
 
-  if (role === 'parent' && inOptioAcademy({ user, school: user?.school })) {
+  if (role === 'parent') {
     return parentHomePath(user)
   }
 
@@ -86,5 +89,6 @@ export function getPostLoginPath(user) {
  */
 export function roleHomePath(role) {
   if (role === 'observer') return '/observer/feed'
+  if (role === 'parent') return '/family'
   return '/dashboard'
 }

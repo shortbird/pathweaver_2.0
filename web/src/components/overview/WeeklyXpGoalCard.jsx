@@ -57,7 +57,13 @@ const setterLabel = (goal, viewerIsStudent) => {
   return `Set by ${who[goal.set_by_role] || 'the school'}`
 }
 
-const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName, className = '' }) => {
+/**
+ * `compact`: one row -- label, earned / target, a thin bar, and the edit
+ * link -- with no card chrome, for a parent's child card on the family
+ * dashboard where the full card was most of the card. The editor still
+ * unfolds beneath it.
+ */
+const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName, className = '', compact = false }) => {
   const [goal, setGoal] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -132,6 +138,99 @@ const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName
   const { target_xp: target, xp_earned: earned, percent, met, remaining_xp: remaining } = goal
   const name = studentFirstName || 'This student'
 
+  const editor = editing && (
+    <div className="mt-4 border-t border-gray-100 pt-4">
+      <label htmlFor="weekly-xp-target" className="block text-sm font-medium text-gray-700">
+        XP to earn each week
+      </label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => setDraft(String(preset))}
+            className={`rounded-full px-3 py-1.5 text-sm border transition ${
+              String(preset) === draft
+                ? 'border-optio-purple bg-optio-purple/5 text-optio-purple font-semibold'
+                : 'border-gray-300 text-gray-600 hover:border-optio-purple'
+            }`}
+          >
+            {preset.toLocaleString()}
+          </button>
+        ))}
+      </div>
+      <input
+        id="weekly-xp-target"
+        type="number"
+        min={1}
+        max={10000}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Or type a number"
+        className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+      />
+      <input
+        type="text"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={280}
+        placeholder={viewerIsStudent ? 'Add a note (optional)' : 'A note for the student (optional)'}
+        className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+      />
+      <p className="mt-2 text-xs text-gray-400">
+        This goal keeps applying every week until someone changes it.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => save(draft)} loading={saving} disabled={saving}>
+          Save goal
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+          Cancel
+        </Button>
+        {target && (
+          <Button variant="ghost" size="sm" onClick={clear} disabled={saving}>
+            Remove goal
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
+  if (compact) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Weekly goal</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600">
+              {target
+                ? <>{earned.toLocaleString()} / {target.toLocaleString()} XP{met ? ' · met' : ''}</>
+                : <>{earned.toLocaleString()} XP this week · no goal</>}
+            </span>
+            {goal.can_edit && !editing && (
+              <button type="button" onClick={openEditor} className="text-xs font-medium text-optio-purple hover:underline">
+                {target ? 'Change' : 'Set a goal'}
+              </button>
+            )}
+          </div>
+        </div>
+        {target ? (
+          <div
+            className="mt-1.5 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden"
+            role="progressbar"
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Weekly XP goal progress"
+          >
+            <div className={`h-full rounded-full transition-all duration-500 ${barColor(percent, met)}`} style={{ width: `${percent}%` }} />
+          </div>
+        ) : null}
+        {editor}
+      </div>
+    )
+  }
+
   return (
     // Same chrome as the dashboard's Learning Rhythm / Upcoming Tasks cards, so
     // it sits in that grid as a peer rather than a transplant.
@@ -195,63 +294,7 @@ const WeeklyXpGoalCard = ({ studentId, viewerIsStudent = false, studentFirstName
         </p>
       )}
 
-      {editing && (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          <label htmlFor="weekly-xp-target" className="block text-sm font-medium text-gray-700">
-            XP to earn each week
-          </label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => setDraft(String(preset))}
-                className={`rounded-full px-3 py-1.5 text-sm border transition ${
-                  String(preset) === draft
-                    ? 'border-optio-purple bg-optio-purple/5 text-optio-purple font-semibold'
-                    : 'border-gray-300 text-gray-600 hover:border-optio-purple'
-                }`}
-              >
-                {preset.toLocaleString()}
-              </button>
-            ))}
-          </div>
-          <input
-            id="weekly-xp-target"
-            type="number"
-            min={1}
-            max={10000}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Or type a number"
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={280}
-            placeholder={viewerIsStudent ? 'Add a note (optional)' : 'A note for the student (optional)'}
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-          />
-          <p className="mt-2 text-xs text-gray-400">
-            This goal keeps applying every week until someone changes it.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => save(draft)} loading={saving} disabled={saving}>
-              Save goal
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setEditing(false)} disabled={saving}>
-              Cancel
-            </Button>
-            {target && (
-              <Button variant="ghost" size="sm" onClick={clear} disabled={saving}>
-                Remove goal
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+      {editor}
     </div>
   )
 }

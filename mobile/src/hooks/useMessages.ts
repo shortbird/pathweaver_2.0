@@ -461,31 +461,6 @@ export async function deleteGroup(groupId: string) {
 
 // ── Parent: read-only view of a child's message history ──
 
-/** Fetch the children whose message history the current parent may view */
-export function useChildren(enabled: boolean = true) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [children, setChildren] = useState<Child[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetch = useCallback(async () => {
-    if (!isAuthenticated || !enabled) { setLoading(false); return; }
-    try {
-      setLoading(true);
-      const { data } = await messageAPI.children();
-      const d = data.data || data;
-      setChildren(d.children || []);
-    } catch {
-      // non-critical
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, enabled]);
-
-  useEffect(() => { fetch(); }, [fetch]);
-
-  return { children, loading, refetch: fetch };
-}
-
 /** Fetch a child's conversations (read-only, parent view) */
 export function useChildConversations(childId: string | null) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);

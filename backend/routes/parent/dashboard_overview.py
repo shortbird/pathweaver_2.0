@@ -12,6 +12,7 @@ from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
+from routes.parent.engagement import quest_rhythm
 import logging
 
 logger = get_logger(__name__)
@@ -197,7 +198,10 @@ def get_parent_dashboard(user_id, student_id):
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,
                     'percentage': round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
-                }
+                },
+                # The child's rhythm on this quest -- what the family dashboard
+                # card shows in place of the progress bar (2026-09-15).
+                'rhythm': quest_rhythm(supabase, student_id, quest_id),
             })
 
         # DEBUG: Log final active quests

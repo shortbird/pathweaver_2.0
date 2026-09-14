@@ -29,7 +29,7 @@ const TAB_ROOTS = new Set([
   '/admin',
   '/advisor',
   '/parent',
-  '/parent/dashboard',
+  '/family',
   '/organization',
   '/credit-dashboard',
   '/login',

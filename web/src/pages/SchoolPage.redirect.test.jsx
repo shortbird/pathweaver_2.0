@@ -34,7 +34,7 @@ function renderSchool() {
         <Route path="/school" element={<SchoolPage />} />
         <Route path="/" element={<div data-testid="marketing-home" />} />
         <Route path="/dashboard" element={<div data-testid="student-dashboard" />} />
-        <Route path="/parent/dashboard" element={<div data-testid="parent-dashboard" />} />
+        <Route path="/family" element={<div data-testid="family-dashboard" />} />
       </Routes>
     </MemoryRouter>
   )
@@ -48,10 +48,10 @@ describe('SchoolPage without school context', () => {
     orgState = { school: null, loading: false }
   })
 
-  it('sends a parent to their role home, not the marketing homepage', () => {
+  it('sends a parent to the family dashboard, not the marketing homepage', () => {
     authState = { user: { id: 'u1' }, effectiveRole: 'parent' }
     renderSchool()
-    expect(screen.getByTestId('student-dashboard')).toBeInTheDocument()
+    expect(screen.getByTestId('family-dashboard')).toBeInTheDocument()
     expect(screen.queryByTestId('marketing-home')).not.toBeInTheDocument()
   })
 

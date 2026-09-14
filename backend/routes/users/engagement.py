@@ -6,6 +6,7 @@ Provides rhythm/engagement metrics across all quests for the dashboard.
 from flask import Blueprint, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.logger import get_logger
 from datetime import datetime, timedelta, date as date_type
 
@@ -125,6 +126,7 @@ def calculate_rhythm_state(activity_dates: list, today: date_type) -> dict:
 
 @bp.route('/me/engagement', methods=['GET'])
 @require_auth
+@student_scope('engagement')
 def get_user_engagement(user_id: str):
     """
     Get global engagement metrics for the current user across all quests.

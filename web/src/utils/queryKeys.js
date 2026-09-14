@@ -11,17 +11,29 @@ export const queryKeys = {
     dashboard: (userId) => [...queryKeys.user.all, 'dashboard', userId],
     settings: (userId) => [...queryKeys.user.all, 'settings', userId],
     subscription: (userId) => [...queryKeys.user.all, 'subscription', userId],
+    // Whose rhythm: the signed-in user's, or -- in family scope -- a child's.
+    engagement: (scopeId) => [...queryKeys.user.all, 'engagement', scopeId || 'me'],
   },
 
-  // Quest-related queries
+  // Quest-related queries.
+  //
+  // `scopeId` is the family scope (contexts/FamilyScopeContext): a parent
+  // reading a child's quest gets the CHILD's copy of it from the same URL, so
+  // the child has to be in the key or switching children on the family
+  // dashboard serves the previous child's tasks from cache. That cross-child
+  // bleed is exactly what the old act-as flow hid behind a full page reload.
+  // Undefined means the signed-in user's own rows.
   quests: {
     all: ['quests'],
     list: (filters) => [...queryKeys.quests.all, 'list', filters],
-    detail: (questId) => [...queryKeys.quests.all, 'detail', questId],
+    detail: (questId, scopeId) => [...queryKeys.quests.all, 'detail', questId, scopeId || 'me'],
+    // Prefix for invalidation: every scope's copy of one quest.
+    detailAll: (questId) => [...queryKeys.quests.all, 'detail', questId],
     progress: (userId, questId) => [...queryKeys.quests.all, 'progress', userId, questId],
     active: (userId) => [...queryKeys.quests.all, 'active', userId],
     completed: (userId) => [...queryKeys.quests.all, 'completed', userId],
-    tasks: (questId) => [...queryKeys.quests.all, 'tasks', questId],
+    tasks: (questId, scopeId) => [...queryKeys.quests.all, 'tasks', questId, scopeId || 'me'],
+    engagement: (questId, scopeId) => [...queryKeys.quests.all, 'engagement', questId, scopeId || 'me'],
   },
 
   // Portfolio/Diploma queries
@@ -37,6 +49,16 @@ export const queryKeys = {
   // one school each, so there is no org to switch between.
   family: {
     all: ['family'],
+    // The parent's own children (hooks/api/useFamilyChildren). Keyed by the
+    // parent so a masquerade swap does not serve the previous parent's kids.
+    children: (parentId) => [...queryKeys.family.all, 'children', parentId],
+    // The family's quests with who is on each (hooks/api/useFamilyQuests).
+    quests: () => [...queryKeys.family.all, 'quests'],
+    // The parent's family photo (hooks/api/useFamilyCover).
+    cover: (parentId) => [...queryKeys.family.all, 'cover', parentId],
+    // One child's summary for their card on the family dashboard
+    // (hooks/api/useFamilyChildren.useChildSummary).
+    childSummary: (studentId) => [...queryKeys.family.all, 'childSummary', studentId],
     classMaterials: (studentId) => [...queryKeys.family.all, 'classMaterials', studentId],
     // The signed-in student's own, which takes no id -- see useMyClassMaterials.
     myClassMaterials: () => [...queryKeys.family.all, 'myClassMaterials'],
@@ -103,10 +125,10 @@ export const queryKeys = {
     communityEvents: (orgId) => [...queryKeys.sis.community(orgId), 'events'],
   },
 
-  // Evidence
+  // Evidence. scopeId as on quests: a child's document, not the parent's.
   evidence: {
     all: ['evidence'],
-    task: (taskId) => [...queryKeys.evidence.all, 'task', taskId],
+    task: (taskId, scopeId) => [...queryKeys.evidence.all, 'task', taskId, scopeId || 'me'],
   },
 
   // Course queries
@@ -162,6 +184,15 @@ export const queryKeys = {
       queryClient.invalidateQueries(queryKeys.user.dashboard(userId))
       queryClient.invalidateQueries(queryKeys.portfolio.user(userId))
     }
+  },
+
+  // Everything that reads as "whose rows": called when the family scope
+  // changes so nothing from the previous child survives the switch.
+  invalidateScoped: (queryClient) => {
+    queryClient.invalidateQueries(queryKeys.user.all)
+    queryClient.invalidateQueries(queryKeys.quests.all)
+    queryClient.invalidateQueries(queryKeys.evidence.all)
+    queryClient.invalidateQueries(queryKeys.portfolio.all)
   },
 
   invalidateCourses: (queryClient) => {

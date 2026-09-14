@@ -25,6 +25,7 @@ Endpoints:
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from services.interest_tracks_service import InterestTracksService
 
 from utils.logger import get_logger
@@ -36,6 +37,7 @@ interest_tracks_bp = Blueprint('interest_tracks', __name__)
 
 @interest_tracks_bp.route('/api/interest-tracks', methods=['POST'])
 @require_auth
+@student_scope()
 def create_track(user_id):
     """Create a new interest track."""
     try:
@@ -103,6 +105,7 @@ def create_track(user_id):
 
 @interest_tracks_bp.route('/api/interest-tracks', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_tracks(user_id):
     """Get all interest tracks for the authenticated user."""
     try:
@@ -127,6 +130,7 @@ def get_tracks(user_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_track(user_id, track_id):
     """Get a specific track with its moments."""
     try:
@@ -162,6 +166,7 @@ def get_track(user_id, track_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/stats', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_track_stats(user_id, track_id):
     """Get statistics for a track."""
     try:
@@ -189,6 +194,7 @@ def get_track_stats(user_id, track_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>', methods=['PUT'])
 @require_auth
+@student_scope()
 def update_track(user_id, track_id):
     """Update an interest track."""
     try:
@@ -235,6 +241,7 @@ def update_track(user_id, track_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>', methods=['DELETE'])
 @require_auth
+@student_scope()
 def delete_track(user_id, track_id):
     """Delete an interest track. Moments become unassigned."""
     try:
@@ -261,6 +268,7 @@ def delete_track(user_id, track_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/suggest', methods=['POST'])
 @require_auth
+@student_scope()
 def suggest_track_for_moment(user_id, track_id):
     """AI suggest whether a moment belongs to this track."""
     try:
@@ -299,6 +307,7 @@ def suggest_track_for_moment(user_id, track_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/suggestions', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def detect_emerging_tracks(user_id):
     """AI detect potential new tracks from unassigned moments."""
     try:
@@ -326,6 +335,7 @@ def detect_emerging_tracks(user_id):
 
 @interest_tracks_bp.route('/api/learning-events/unassigned', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_unassigned_moments(user_id):
     """Get learning moments not assigned to any track."""
     try:
@@ -360,6 +370,7 @@ def get_unassigned_moments(user_id):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve/preview', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def preview_evolved_quest(user_id, track_id):
     """Generate AI-powered preview of quest structure from track moments."""
     try:
@@ -397,6 +408,7 @@ def _clean_text(value):
 
 @interest_tracks_bp.route('/api/interest-tracks/<track_id>/evolve', methods=['POST'])
 @require_auth
+@student_scope()
 def evolve_track_to_quest(user_id, track_id):
     """Convert an interest track into a private quest using AI-generated structure.
 
@@ -452,6 +464,7 @@ def evolve_track_to_quest(user_id, track_id):
 
 @interest_tracks_bp.route('/api/topics/unified', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_unified_topics(user_id):
     """Get combined list of interest tracks and active quests as topics."""
     try:
@@ -481,6 +494,7 @@ def get_unified_topics(user_id):
 
 @interest_tracks_bp.route('/api/learning-events/<moment_id>/assign-topic', methods=['POST'])
 @require_auth
+@student_scope()
 def assign_moment_to_topic(user_id, moment_id):
     """Add or remove a topic assignment for a learning moment."""
     try:
@@ -528,6 +542,7 @@ def assign_moment_to_topic(user_id, moment_id):
 
 @interest_tracks_bp.route('/api/quests/<quest_id>/moments', methods=['GET'])
 @require_auth
+@student_scope('journal')
 def get_quest_moments(user_id, quest_id):
     """Get learning moments assigned to a specific quest."""
     try:
@@ -566,6 +581,7 @@ def get_quest_moments(user_id, quest_id):
 
 @interest_tracks_bp.route('/api/learning-events/<moment_id>/convert-to-task', methods=['POST'])
 @require_auth
+@student_scope()
 def convert_moment_to_task(user_id, moment_id):
     """Promote a quest-assigned learning moment into a task on that quest.
 

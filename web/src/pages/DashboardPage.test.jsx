@@ -235,6 +235,19 @@ describe('DashboardPage', () => {
       renderDashboard()
       expect(screen.queryByText('View Portfolio')).not.toBeInTheDocument()
     })
+
+    it('links to the full profile at the top right', () => {
+      // A parent in family scope had no door to the child's /overview but the
+      // sidebar's Portfolio item; the header carries one now.
+      dashboardHookData = {
+        data: { active_quests: [], enrolled_courses: [], stats: {} },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn()
+      }
+      renderDashboard()
+      expect(screen.getByRole('link', { name: 'View profile' })).toHaveAttribute('href', '/overview')
+    })
   })
 
   // --- Empty state ---

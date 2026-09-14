@@ -15,6 +15,7 @@ import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useSelectedChild } from '@/src/stores/familyStore';
 import { useDashboard } from '@/src/hooks/useDashboard';
 import { useUnifiedTopics } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -32,7 +33,7 @@ import { ClassCard } from '@/src/components/class/ClassCard';
 import { CourseCard } from '@/src/components/course/CourseCard';
 import { HomeBountyCard } from '@/src/components/bounties/HomeBountyCard';
 import { useMyClaims } from '@/src/hooks/useBounties';
-import { useStartSomething } from '@/src/hooks/useStartSomething';
+import { useStartSomething, useIsParent } from '@/src/hooks/useStartSomething';
 
 // ── Quest Card with engagement ──
 
@@ -154,9 +155,14 @@ function AssignedQuestCard({ assignment }: { assignment: any }) {
 
 // ── Welcome Header ──
 
-function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: any; activeQuestCount: number }) {
+function WelcomeHeader({ user, stats, activeQuestCount, scopedChildId }: { user: any; stats: any; activeQuestCount: number; scopedChildId?: string | null }) {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
   const c = useThemeColors();
+  // In family scope the avatar is the child's and opens the child's profile
+  // page (the parent's own Profile tab is an account page, not delegated).
+  const openProfile = () => router.push(
+    scopedChildId ? `/parent/child/${scopedChildId}` : '/(app)/(tabs)/profile',
+  );
 
   return (
     <Card testID="welcome-header" variant="elevated" size="lg">
@@ -166,8 +172,8 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
           "this opens something" rather than just "this is your picture". */}
       <HStack className="items-center gap-3 md:gap-4">
         <Pressable
-          onPress={() => router.push('/(app)/(tabs)/profile')}
-          accessibilityLabel="Open your profile"
+          onPress={openProfile}
+          accessibilityLabel={scopedChildId ? `Open ${user?.first_name || 'this child'}'s profile` : 'Open your profile'}
           accessibilityRole="button"
           hitSlop={8}
           style={({ pressed }) => ({
@@ -213,9 +219,11 @@ function WelcomeHeader({ user, stats, activeQuestCount }: { user: any; stats: an
         </Pressable>
         <VStack className="flex-1 min-w-0">
           <Heading testID="welcome-greeting" size="md" className="md:text-2xl" numberOfLines={1}>
-            Welcome back, {user?.first_name || 'Student'}!
+            {scopedChildId ? `${user?.first_name || 'Student'}'s dashboard` : `Welcome back, ${user?.first_name || 'Student'}!`}
           </Heading>
-          <UIText size="xs" className="text-typo-400 mt-0.5 dark:text-dark-typo-400">Tap your photo to open your profile</UIText>
+          <UIText size="xs" className="text-typo-400 mt-0.5 dark:text-dark-typo-400">
+            {scopedChildId ? 'Anything you do here lands on their account' : 'Tap your photo to open your profile'}
+          </UIText>
         </VStack>
       </HStack>
 
@@ -270,14 +278,20 @@ function DashboardSkeleton() {
 export default function DashboardScreen() {
   const c = useThemeColors();
   const { user } = useAuthStore();
-  const { data, loading, refetch } = useDashboard();
+  // Family scope: a parent sees the CHILD's dashboard here, pointed at the
+  // child picked on the Family tab (stores/familyStore). Everything below
+  // reads the same way it does for the child.
+  const isParent = useIsParent();
+  const scopedChild = useSelectedChild();
+  const scopedChildId = isParent ? scopedChild?.id || null : null;
+  const { data, loading, refetch, unsupported } = useDashboard(scopedChildId);
   // Active bounty claims surface in the unified list below. Fetched here
   // (not via the dashboard endpoint) so it must stay above the early-return
   // skeleton — otherwise hook order changes between renders and React
   // throws "Rendered more hooks than during the previous render."
   const { claims: bountyClaims, refetch: refetchClaims } = useMyClaims();
   // Journal topics surfaced on Home (bug #34) — same source as the Journal tab.
-  const { topics: journalTopics } = useUnifiedTopics();
+  const { topics: journalTopics } = useUnifiedTopics(scopedChildId || undefined);
   const [refreshing, setRefreshing] = useState(false);
   // The role-aware "Optio button" action — same flow as the mobile center tab.
   const startSomething = useStartSomething();
@@ -311,6 +325,21 @@ export default function DashboardScreen() {
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <DashboardSkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  // A backend that predates family scope answered with the PARENT's rows;
+  // the hook refused them. Say so rather than show the wrong person's day.
+  if (unsupported) {
+    return (
+      <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
+        <View className="flex-1 items-center justify-center px-8">
+          <Ionicons name="cloud-offline-outline" size={48} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 mt-3 text-center dark:text-dark-typo-400">
+            This child's dashboard needs a newer version of the service. Try again later.
+          </UIText>
+        </View>
       </SafeAreaView>
     );
   }
@@ -374,7 +403,7 @@ export default function DashboardScreen() {
         <VStack space="lg" className="max-w-5xl w-full md:mx-auto">
 
           {/* Welcome */}
-          <WelcomeHeader user={user} stats={data?.stats} activeQuestCount={activeQuests.length} />
+          <WelcomeHeader user={scopedChildId ? scopedChild : user} stats={data?.stats} activeQuestCount={activeQuests.length} scopedChildId={scopedChildId} />
 
           {/* Unified active-work section. Classes, courses, and quests live in
               one list (classes first, then courses, then quests); each card

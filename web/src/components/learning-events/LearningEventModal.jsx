@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import TrackSelector from '../interest-tracks/TrackSelector';
 import { validateFileSize, detectMediaType, CAMERA_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING } from '../../utils/mediaUtils';
 import useHidePillars from '../../hooks/useHidePillars';
+import { useStudentScope } from '../../hooks/useStudentScope';
 
 const PILLAR_CONFIG = {
   art: {
@@ -46,9 +47,14 @@ const LearningEventModal = ({
   initialTrackId = null,
   initialParentMomentId = null,
   editEvent = null,  // Pass existing event to edit
-  studentId = null   // Optional - when parent views child's topics
+  studentId: studentIdProp = null   // Optional - explicit child; else family scope
 }) => {
   const isEditMode = !!editEvent;
+  // Family scope: a parent capturing from the child's dashboard or journal.
+  // The moment lands on the CHILD (captured by the parent) through the quick
+  // route's student_id branch and the parent upload endpoints.
+  const { studentId: scopedStudentId } = useStudentScope();
+  const studentId = studentIdProp || scopedStudentId;
   const hidePillars = useHidePillars();
   const [description, setDescription] = useState('');
   const [title, setTitle] = useState('');
@@ -355,11 +361,12 @@ const LearningEventModal = ({
         response = await api.put(endpoint, payload);
         eventId = editEvent.id;
       } else {
-        // Create new event
-        const endpoint = quickMode && evidenceBlocks.length === 0
+        // Create new event. For a child, always the quick route: it is the one
+        // that owns the moment under the child and records who captured it.
+        const endpoint = studentId || (quickMode && evidenceBlocks.length === 0)
           ? '/api/learning-events/quick'
           : '/api/learning-events';
-        response = await api.post(endpoint, payload);
+        response = await api.post(endpoint, studentId ? { ...payload, student_id: studentId } : payload);
         eventId = response.data.event?.id;
       }
 

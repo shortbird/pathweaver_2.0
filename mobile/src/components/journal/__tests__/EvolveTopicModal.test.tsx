@@ -63,7 +63,8 @@ describe('EvolveTopicModal', () => {
   it('fetches the AI preview when opened and seeds the form with it', async () => {
     const { getByDisplayValue, getByText } = renderModal();
 
-    await waitFor(() => expect(previewEvolvedQuest).toHaveBeenCalledWith('track-1'));
+    // The trailing undefined is the family scope: no child, the student's own topic.
+    await waitFor(() => expect(previewEvolvedQuest).toHaveBeenCalledWith('track-1', undefined));
     await waitFor(() => expect(getByDisplayValue('Parkour Progression')).toBeTruthy());
     expect(getByDisplayValue('Flips, vaults and landings across the gym.')).toBeTruthy();
     expect(getByText('Land a front flip')).toBeTruthy();
@@ -89,7 +90,7 @@ describe('EvolveTopicModal', () => {
       title: 'Parkour Mastery',
       description: 'Flips, vaults and landings across the gym.',
       tasks: preview.tasks,
-    });
+    }, undefined);
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith('quest-9'));
   });
 

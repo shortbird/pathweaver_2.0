@@ -14,7 +14,8 @@ import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { useAddKidStore } from '@/src/stores/addKidStore';
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
-import { useIsObserver } from '@/src/hooks/useStartSomething';
+import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
+import { ChildSwitcher } from '@/src/components/family/ChildSwitcher';
 import { useSchool } from '@/src/hooks/useSchool';
 import { UIText, Heading } from '../ui';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
@@ -428,6 +429,10 @@ export function PageHeader({ title }: PageHeaderProps) {
   const c = useThemeColors();
   const { isDesktop } = useBreakpoint();
   const isObserver = useIsObserver();
+  // Family scope: a parent with more than one child sees who they are working
+  // for in every header, and can switch there (stores/familyStore). The
+  // avatar row on the Family tab is the same component, expanded.
+  const isParent = useIsParent();
   // Messages lives in the header for everyone who has it, which since
   // 2026-08-18 means parents too — Journal took its slot in the parent tab bar
   // (see parentMobileTabOrder). Observers have no messaging surface at all.
@@ -450,6 +455,7 @@ export function PageHeader({ title }: PageHeaderProps) {
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PreviewRolePill />
+          {isParent && <ChildSwitcher compact />}
           <SchoolButton />
           {showMessages && <MessagesButton />}
           <NotificationBell />

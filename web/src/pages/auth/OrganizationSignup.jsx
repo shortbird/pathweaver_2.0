@@ -54,7 +54,7 @@ const OrganizationSignup = () => {
   useEffect(() => {
     if (isAuthenticated && user && !authLoading) {
       logger.debug('[OrganizationSignup] User already authenticated, redirecting to dashboard')
-      const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      const redirectPath = user.role === 'parent' ? '/family' : '/dashboard'
       navigate(redirectPath, { replace: true })
     }
   }, [isAuthenticated, user, authLoading, navigate])

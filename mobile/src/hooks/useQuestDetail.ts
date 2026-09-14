@@ -190,7 +190,15 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       }
       // No evidence_type: the blocks above ARE the evidence, and the completion
       // endpoint now looks for them rather than insisting the form carry a copy.
+      //
+      // Both names for the child, for one release: `student_id` is what the
+      // backend's @student_scope reads (2026-09-15; it admits every verified
+      // guardian, so a parent can finish a task for a child who has their own
+      // login). `acting_as_dependent_id` is what the backend before it read,
+      // managed dependents only. A preview OTA can run ahead of the backend it
+      // talks to; the older name keeps dependents working until it catches up.
       const form = new FormData();
+      form.append('student_id', studentId);
       form.append('acting_as_dependent_id', studentId);
       form.append('is_confidential', 'false');
       try {

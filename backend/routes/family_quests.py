@@ -1,23 +1,36 @@
 """
-Parent-managed dependent quest routes.
+Parent on-behalf-of-child quest routes.
 
-Lets a parent set up and manage a quest for a managed dependent (under-13):
-create a private quest, enroll the child, and add/uncomplete tasks on their
-behalf. The former multi-child "Family Quest" feature (shared quest across
-several children + AI idea generation) was removed 2026-06-30; these endpoints
-remain under the historical /api/family prefix for client compatibility.
+Lets a parent set up and manage a quest for any child they are a guardian of:
+create a private quest, enroll the child, and add, remove or uncomplete tasks
+on their behalf. The former multi-child "Family Quest" feature (shared quest
+across several children + AI idea generation) was removed 2026-06-30; these
+endpoints remain under the historical /api/family prefix for client
+compatibility.
+
+Until 2026-09-15 delete and uncomplete were managed-dependents only -- the
+child had to have been created by THIS parent (managed_by_parent_id) -- on the
+theory that a student with their own login owns their work. The owner's
+decision: a parent may do everything the child can do, whatever the child's
+age or login. All four routes now share one gate,
+verify_parent_has_access_to_child (utils.portfolio_access.is_parent_of), and
+every row a parent writes records them (created_by_user_id /
+enrolled_by_user_id; migration 20260915120000).
 
 Endpoints:
+- GET  /api/family/quests - The family's quests, with who is on each (2026-09-15)
 - POST /api/family/quests/create - Create a private quest as a parent
 - POST /api/family/quests/<quest_id>/enroll-children - Enroll child(ren) in a quest
-- POST /api/family/quests/<quest_id>/tasks - Create a task for a dependent
-- POST /api/family/quests/<quest_id>/tasks/<task_id>/uncomplete - Uncomplete a dependent's task
+- POST /api/family/quests/<quest_id>/tasks - Create a task for a child
+- DELETE /api/family/quests/<quest_id>/tasks/<task_id> - Remove a child's task
+- POST /api/family/quests/<quest_id>/tasks/<task_id>/uncomplete - Uncomplete a child's task
 """
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from routes.dependents import verify_parent_role
 from utils.auth.decorators import require_auth
 from utils.pillar_utils import is_valid_pillar, normalize_pillar_name
+from utils.storage_urls import sign_stored_url
 from services.image_service import search_quest_image
 from datetime import datetime, timezone
 
@@ -39,6 +52,142 @@ def verify_parent_has_access_to_child(parent_id: str, child_id: str) -> bool:
     from utils.portfolio_access import is_parent_of
     return is_parent_of(parent_id, child_id)
 
+
+
+@bp.route('/quests', methods=['GET'])
+@require_auth
+def list_family_quests(user_id):
+    """
+    The family's quests, for the family dashboard (/family).
+
+    Two kinds of quest belong to a family rather than to one child:
+
+      - a quest the parent SET UP -- created_by is the parent (the create
+        route below), private, worked on by whichever children the parent
+        enrolled through enroll-children;
+      - a quest the parent is themselves enrolled in. A school can assign a
+        training quest straight onto a guardian's account, and a parent who
+        used the ordinary /api/quests/create route is its first learner
+        (that is how "New Zealand 101" came to sit on Paige's own account).
+
+    Each quest carries `members`: every family member -- the parent and each
+    child of children_of_parent -- holding an active enrollment, with that
+    member's own task progress. The card can then say who is on the quest and
+    how far each of them is, and offer the children who are not on it yet.
+    A child's OWN quests (ones they picked or made themselves) are not here;
+    those are the child's dashboard, reached by opening the child.
+    """
+    verify_parent_role(user_id)
+
+    from utils.class_membership import children_of_parent
+    from routes.parent.engagement import quest_rhythm
+
+    # admin client justified: family digest read across the parent and their children; the family is derived server-side from children_of_parent, so no row outside it can be asked for
+    supabase = get_supabase_admin_client()
+
+    family_ids = [user_id] + sorted(children_of_parent(user_id))
+
+    mine = supabase.table('quests') \
+        .select('id, title, description, big_idea, image_url, header_image_url, created_by, created_at') \
+        .eq('created_by', user_id).eq('is_active', True).is_('archived_at', 'null') \
+        .execute().data or []
+    quests = {q['id']: q for q in mine}
+
+    own_enrollments = supabase.table('user_quests') \
+        .select('quest_id, quests(id, title, description, big_idea, image_url, header_image_url, created_by, created_at)') \
+        .eq('user_id', user_id).eq('is_active', True) \
+        .execute().data or []
+    for uq in own_enrollments:
+        q = uq.get('quests')
+        if q and q['id'] not in quests:
+            quests[q['id']] = q
+
+    if not quests:
+        return jsonify({'success': True, 'quests': []})
+
+    quest_ids = list(quests.keys())
+
+    members_by_quest = {}
+    enrollments = supabase.table('user_quests') \
+        .select('id, user_id, quest_id, started_at, completed_at') \
+        .in_('user_id', family_ids).in_('quest_id', quest_ids).eq('is_active', True) \
+        .execute().data or []
+
+    enrollment_ids = [e['id'] for e in enrollments]
+    tasks_by_enrollment = {}
+    if enrollment_ids:
+        tasks = supabase.table('user_quest_tasks') \
+            .select('id, user_quest_id') \
+            .in_('user_quest_id', enrollment_ids).eq('approval_status', 'approved') \
+            .execute().data or []
+        for t in tasks:
+            tasks_by_enrollment.setdefault(t['user_quest_id'], set()).add(t['id'])
+
+    done_by_user_quest = {}
+    if enrollments:
+        completions = supabase.table('quest_task_completions') \
+            .select('user_id, quest_id, user_quest_task_id') \
+            .in_('user_id', family_ids).in_('quest_id', quest_ids) \
+            .execute().data or []
+        for c in completions:
+            if c.get('user_quest_task_id'):
+                done_by_user_quest.setdefault((c['user_id'], c['quest_id']), set()).add(c['user_quest_task_id'])
+
+    people = {}
+    rows = supabase.table('users') \
+        .select('id, first_name, display_name, avatar_url') \
+        .in_('id', family_ids).execute().data or []
+    for u in rows:
+        people[u['id']] = {
+            'user_id': u['id'],
+            'first_name': u.get('first_name') or (u.get('display_name') or 'Student').split(' ')[0],
+            'avatar_url': sign_stored_url(u.get('avatar_url')),
+            'is_self': u['id'] == user_id,
+        }
+
+    for e in enrollments:
+        person = people.get(e['user_id'])
+        if not person:
+            continue
+        task_ids = tasks_by_enrollment.get(e['id'], set())
+        done = done_by_user_quest.get((e['user_id'], e['quest_id']), set()) & task_ids
+        total = len(task_ids)
+        members_by_quest.setdefault(e['quest_id'], []).append({
+            **person,
+            'enrollment_id': e['id'],
+            'started_at': e.get('started_at'),
+            'completed_at': e.get('completed_at'),
+            'progress': {
+                'completed_tasks': len(done),
+                'total_tasks': total,
+                'percentage': round(len(done) / total * 100) if total else 0,
+            },
+            # This member's rhythm on the quest: the card shows it instead of
+            # a progress bar.
+            'rhythm': quest_rhythm(supabase, e['user_id'], e['quest_id']),
+        })
+
+    out = []
+    for qid, q in quests.items():
+        members = members_by_quest.get(qid, [])
+        # The parent first, then the children in family order.
+        members.sort(key=lambda m: (not m['is_self'], family_ids.index(m['user_id'])))
+        out.append({
+            'id': qid,
+            'title': q.get('title'),
+            'description': q.get('description') or q.get('big_idea'),
+            'image_url': q.get('image_url') or q.get('header_image_url'),
+            'created_by': q.get('created_by'),
+            'is_family_quest': q.get('created_by') == user_id,
+            'created_at': q.get('created_at'),
+            'members': members,
+        })
+
+    # Most recently started first; a quest nobody has started yet sits by its
+    # creation date.
+    out.sort(key=lambda q: max([m['started_at'] or '' for m in q['members']] + [q['created_at'] or '']), reverse=True)
+
+    return jsonify({'success': True, 'quests': out})
 
 @bp.route('/quests/create', methods=['POST'])
 @require_auth
@@ -157,7 +306,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
                 # Enroll child using QuestRepository (no args = admin client)
                 from repositories.quest_repository import QuestRepository
                 quest_repo = QuestRepository()
-                enrollment = quest_repo.enroll_user(child_id, quest_id)
+                enrollment = quest_repo.enroll_user(child_id, quest_id, enrolled_by_user_id=user_id)
 
                 enrollment_id = enrollment['id']
 
@@ -181,6 +330,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
                             'subject_xp_distribution': task.get('subject_xp_distribution'),
                             'source_template_task_id': task.get('id') if task.get('id') in valid_template_ids else None,
                             'source_task_id': task.get('id'),
+                            'created_by_user_id': user_id,
                         })
 
                     if tasks_to_insert:
@@ -214,8 +364,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
 @require_auth
 def create_task_for_dependent(user_id, quest_id):
     """
-    Create a task for a dependent child in a quest.
-    Only allowed for parents managing under-13 dependents.
+    Create a task for a child in a quest. Any verified guardian of the child.
     """
     try:
         verify_parent_role(user_id)
@@ -235,13 +384,10 @@ def create_task_for_dependent(user_id, quest_id):
         # admin client justified: parent creates a task for a dependent; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
-        # NOTE: deliberately NOT restricted to managed dependents. Task authoring
-        # is allowed for any child the parent is verified against above — both
-        # managed dependents (managed_by_parent_id) and approved
-        # parent_student_links (org students who keep their own login, e.g.
-        # Hearthwood Academy families). Deleting and un-completing a task remain
-        # dependent-only below: those destroy a student's own work, whereas
-        # adding a task only ever offers them more to do.
+        # Any child the parent is verified against above: managed dependents,
+        # approved parent_student_links (students who keep their own login),
+        # and household guardians. Delete and uncomplete below use the same
+        # gate since 2026-09-15.
 
         # Validate required fields
         if not data.get('title'):
@@ -285,11 +431,12 @@ def create_task_for_dependent(user_id, quest_id):
         inserted = persist_accepted_task(
             supabase, SubjectClassificationService(), child_id, quest_id, task,
             caller_role=get_effective_role_for(user_id),
+            created_by_user_id=user_id,
         )
         if inserted is None:
             return jsonify({'success': False, 'error': 'Failed to create task'}), 500
 
-        logger.info(f"Parent {user_id[:8]} created task for dependent {child_id[:8]} in quest {quest_id[:8]}")
+        logger.info(f"Parent {user_id[:8]} created task for child {child_id[:8]} in quest {quest_id[:8]}")
 
         return jsonify({
             'success': True,
@@ -306,10 +453,9 @@ def create_task_for_dependent(user_id, quest_id):
 @require_auth
 def delete_task_for_dependent(user_id, quest_id, task_id):
     """
-    Delete a task from a dependent child's quest enrollment (parent on-behalf-of).
+    Delete a task from a child's quest enrollment (parent on-behalf-of).
     Mirrors the student drop_task rules: completed tasks cannot be removed.
-    `child_id` is passed as a query param. Only allowed for parents managing the
-    dependent.
+    `child_id` is passed as a query param. Any verified guardian of the child.
     """
     try:
         verify_parent_role(user_id)
@@ -322,13 +468,8 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
-        # admin client justified: parent deletes a dependent's task; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
+        # admin client justified: parent deletes a child's task; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
-
-        # Verify child IS a dependent (managed_by_parent_id == user_id)
-        child_check = supabase.table('users').select('managed_by_parent_id').eq('id', child_id).single().execute()
-        if not child_check.data or child_check.data.get('managed_by_parent_id') != user_id:
-            return jsonify({'success': False, 'error': 'This action is only allowed for managed dependents'}), 403
 
         # Verify the task belongs to THIS child and quest before deleting
         task = supabase.table('user_quest_tasks').select('id, title, user_id, quest_id').eq('id', task_id).single().execute()
@@ -344,7 +485,7 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
 
         supabase.table('user_quest_tasks').delete().eq('id', task_id).execute()
 
-        logger.info(f"Parent {user_id[:8]} deleted task {task_id[:8]} for dependent {child_id[:8]} in quest {quest_id[:8]}")
+        logger.info(f"Parent {user_id[:8]} deleted task {task_id[:8]} for child {child_id[:8]} in quest {quest_id[:8]}")
         return jsonify({'success': True, 'message': f"Task '{task.data['title']}' removed"}), 200
 
     except Exception as e:
@@ -356,8 +497,8 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
 @require_auth
 def uncomplete_task_for_dependent(user_id, quest_id, task_id):
     """
-    Mark a completed task as incomplete for a dependent child.
-    Reverses XP awarded. Only allowed for parents managing under-13 dependents.
+    Mark a completed task as incomplete for a child.
+    Reverses XP awarded. Any verified guardian of the child.
     """
     try:
         verify_parent_role(user_id)
@@ -374,13 +515,8 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         if not verify_parent_has_access_to_child(user_id, child_id):
             return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
-        # admin client justified: parent reverses a dependent's task completion; cross-user writes (completions + XP for child) gated by parent role + parent->child verification
+        # admin client justified: parent reverses a child's task completion; cross-user writes (completions + XP for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
-
-        # Verify child IS a dependent (managed_by_parent_id == user_id)
-        child_check = supabase.table('users').select('managed_by_parent_id').eq('id', child_id).single().execute()
-        if not child_check.data or child_check.data.get('managed_by_parent_id') != user_id:
-            return jsonify({'success': False, 'error': 'This action is only allowed for managed dependents'}), 403
 
         # Find the completion record
         # Note: quest_task_completions has no xp_awarded column; XP is derived from
@@ -435,7 +571,7 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         completion_repo = TaskCompletionRepository(client=supabase)
         completion_repo.delete_completion(completion_id)
 
-        logger.info(f"Parent {user_id[:8]} uncompleted task {task_id[:8]} for dependent {child_id[:8]}, reversed {xp_to_remove} XP")
+        logger.info(f"Parent {user_id[:8]} uncompleted task {task_id[:8]} for child {child_id[:8]}, reversed {xp_to_remove} XP")
 
         return jsonify({
             'success': True,

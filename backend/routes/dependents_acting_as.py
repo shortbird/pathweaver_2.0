@@ -1,5 +1,14 @@
 """Parent -> dependent "act as" — the two endpoints that enter and leave it.
 
+DEPRECATED 2026-09-15. No client starts an acting-as session any more: a
+parent works on a child's account through student scope instead
+(`student_id` on the child's own routes; utils/guardian_scope,
+utils.auth.relationships.student_scope), staying themselves for the whole
+request. These two routes remain for exactly one release so that a parent
+whose 24-hour acting_as_token cookie is still live has a way out
+(/stop-acting-as). Delete this module, ActingAsContext on the web, and
+token_authority.is_acting_as_still_authorized together in the next release.
+
 Split out of routes/dependents.py on 2026-09-07, when FU-05's cookie work put
 that file over the 1400-line route cap. It is a coherent unit on its own: these
 two are the only endpoints that change WHO the caller is, and the pair has to be

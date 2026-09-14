@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role, require_auth
+from utils.auth.relationships import student_scope
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 from ._caller import get_caller, is_superadmin
 from utils.logger import get_logger
@@ -279,6 +280,7 @@ def restore_class(user_id, org_id, class_id):
 
 @bp.route('/student/classes', methods=['GET'])
 @require_auth
+@student_scope('schedule')
 def get_student_classes(user_id):
     """
     Get all classes the current student is enrolled in with progress.

@@ -13,14 +13,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 let authState = {}
+let scopeState = { isScoped: false, isLoading: false }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+vi.mock('../../contexts/FamilyScopeContext', () => ({ useFamilyScope: () => scopeState }))
 
 // The homes themselves are covered by their own tests; here only the choice
 // matters, and rendering the real ones would drag in their whole data layer.
-vi.mock('./FamilyHome', () => ({ default: () => <div>family home</div> }))
 vi.mock('./TeacherHome', () => ({ default: () => <div>teacher home</div> }))
 vi.mock('./SchoolAdminHome', () => ({ default: () => <div>school admin home</div> }))
 vi.mock('./SuperadminHome', () => ({ default: () => <div>superadmin home</div> }))
@@ -28,7 +29,16 @@ vi.mock('../DashboardPage', () => ({ default: () => <div>dashboard</div> }))
 
 import RoleHome from './RoleHome'
 
-const renderAt = () => render(<MemoryRouter initialEntries={['/dashboard']}><RoleHome /></MemoryRouter>)
+// A parent's /dashboard is a CHILD's dashboard once one is picked; with none
+// picked it redirects to /family, the family dashboard (2026-09-15).
+const renderAt = () => render(
+  <MemoryRouter initialEntries={['/dashboard']}>
+    <Routes>
+      <Route path="/dashboard" element={<RoleHome />} />
+      <Route path="/family" element={<div>family home</div>} />
+    </Routes>
+  </MemoryRouter>
+)
 
 const coordinator = (orgRoles) => ({
   user: { id: 'u1', role: 'org_managed', org_role: 'campus_coordinator', org_roles: orgRoles },
@@ -36,7 +46,7 @@ const coordinator = (orgRoles) => ({
   loading: false,
 })
 
-beforeEach(() => { authState = {} })
+beforeEach(() => { authState = {}; scopeState = { isScoped: false, isLoading: false } })
 
 describe('a campus coordinator on the learning app', () => {
   it('is not thrown back to the SIS console', () => {
@@ -51,6 +61,13 @@ describe('a campus coordinator on the learning app', () => {
     authState = coordinator(['campus_coordinator', 'parent'])
     renderAt()
     expect(screen.getByText('family home')).toBeInTheDocument()
+  })
+
+  it('and her chosen child\'s dashboard once she has picked one', () => {
+    authState = coordinator(['campus_coordinator', 'parent'])
+    scopeState = { isScoped: true, isLoading: false }
+    renderAt()
+    expect(screen.getByText('dashboard')).toBeInTheDocument()
   })
 
   it('gets the teacher home when she also teaches', () => {

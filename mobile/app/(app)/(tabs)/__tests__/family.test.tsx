@@ -5,7 +5,9 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import ParentDashboardPage from '../family';
-import { useMyChildren, useChildDashboard, useChildEngagement } from '@/src/hooks/useParent';
+import { useMyChildren, useChildDashboard } from '@/src/hooks/useParent';
+import { useGlobalEngagement } from '@/src/hooks/useDashboard';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import { createMockChild } from '@/src/__tests__/utils/mockFactories';
 
@@ -16,7 +18,10 @@ jest.mock('@/src/services/api', () =>
 jest.mock('@/src/hooks/useParent', () => ({
   useMyChildren: jest.fn(),
   useChildDashboard: jest.fn(),
-  useChildEngagement: jest.fn(),
+}));
+jest.mock('@/src/hooks/useDashboard', () => ({
+  useDashboard: jest.fn(() => ({ data: null, loading: false })),
+  useGlobalEngagement: jest.fn(),
 }));
 jest.mock('@/src/components/engagement/EngagementCalendar', () => ({
   EngagementCalendar: () => null,
@@ -40,8 +45,15 @@ beforeEach(() => {
     loading: false,
     refetch: jest.fn(),
   });
-  (useChildEngagement as jest.Mock).mockReturnValue({ data: null, loading: false });
+  (useGlobalEngagement as jest.Mock).mockReturnValue({ data: null, loading: false });
+  useFamilyStore.getState().clear();
 });
+
+/** useMyChildren is mocked, so seed the store the way the real hook does. */
+function withChildren(children: any[]) {
+  (useMyChildren as jest.Mock).mockReturnValue({ children, loading: false });
+  useFamilyStore.setState({ parentId: 'parent-1', children, selectedChildId: children[0]?.id || null });
+}
 
 afterEach(() => {
   clearAuthState();
@@ -50,7 +62,7 @@ afterEach(() => {
 describe('ParentDashboardPage', () => {
   it('shows child hero card with stats when children exist', async () => {
     const children = [createMockChild()];
-    (useMyChildren as jest.Mock).mockReturnValue({ children, loading: false });
+    withChildren(children);
 
     const { getAllByText, getByText } = render(<ParentDashboardPage />);
 
@@ -70,5 +82,23 @@ describe('ParentDashboardPage', () => {
 
     expect(getByText('No students linked')).toBeTruthy();
     expect(getByText('Add a Child')).toBeTruthy();
+  });
+
+  it('reads the selected child from the family store and offers the child\'s own surfaces', async () => {
+    const kids = [createMockChild({ id: 'kid-a', first_name: 'Romney', last_name: 'Hanna', display_name: 'Romney Hanna' }),
+                  createMockChild({ id: 'kid-b', first_name: 'Hope', last_name: 'Hanna', display_name: 'Hope Hanna' })];
+    withChildren(kids);
+    useFamilyStore.setState({ selectedChildId: 'kid-b' });
+
+    const { getByText, getByTestId } = render(<ParentDashboardPage />);
+
+    await waitFor(() => {
+      expect(getByText('Hope Hanna')).toBeTruthy();
+    });
+    // Rhythm is read for the selected child through the scoped hook.
+    expect(useGlobalEngagement).toHaveBeenCalledWith('kid-b');
+    // The child's quests and profile are one tap away, in scope.
+    expect(getByTestId('family-open-quests')).toBeTruthy();
+    expect(getByTestId('family-open-profile')).toBeTruthy();
   });
 });

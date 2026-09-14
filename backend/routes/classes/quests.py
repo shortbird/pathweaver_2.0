@@ -8,6 +8,7 @@ from flask import request, jsonify
 from . import bp
 from services.class_service import ClassService
 from utils.auth.decorators import require_role
+from utils.auth.relationships import student_scope
 from utils.sis_roles import STAFF_ROLES
 from ._caller import get_caller, is_superadmin, is_staff
 from services.sis_curriculum_sync import curriculum_courses_for_class
@@ -325,7 +326,8 @@ def set_class_quest_due_date(user_id, org_id, class_id, quest_id):
 
 
 @bp.route('/student/agenda', methods=['GET'])
-@require_role('student', 'superadmin')
+@require_role('student', 'parent', 'superadmin')
+@student_scope('schedule')
 def get_student_agenda(user_id):
     """
     Upcoming class-quest due dates for the calling student across their enrolled

@@ -19,8 +19,8 @@ vi.mock('../../hooks/api/useQuests', () => ({
   useStudentQuestEngagement: (...args) => useStudentQuestEngagement(...args)
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => ({ setActingAs: vi.fn() })
+vi.mock('../../contexts/FamilyScopeContext', () => ({
+  useFamilyScope: () => ({ enterScope: vi.fn() })
 }))
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -28,7 +28,8 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 
 vi.mock('react-router-dom', () => ({
-  Link: ({ children }) => <a>{children}</a>
+  Link: ({ children }) => <a>{children}</a>,
+  useNavigate: () => vi.fn()
 }))
 
 import LearningSnapshot from './LearningSnapshot'

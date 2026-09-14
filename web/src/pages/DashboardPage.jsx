@@ -2,6 +2,7 @@ import React, { useEffect, memo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useActingAs } from '../contexts/ActingAsContext'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
@@ -17,7 +18,8 @@ import {
   RocketLaunchIcon,
   CheckCircleIcon,
   ArrowRightIcon,
-  ClipboardDocumentListIcon
+  ClipboardDocumentListIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline'
 
 // Note: SSO token extraction now happens at App.jsx level before routing
@@ -255,12 +257,14 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 const DashboardPage = () => {
   const { user } = useAuth()
   const { actingAsDependent } = useActingAs()
+  const { selectedChild } = useFamilyScope()
   const [showRhythmModal, setShowRhythmModal] = useState(false)
-  // Deprecated: Keeping state for potential future use
-  // const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
-  // Determine which user ID to use: dependent if acting as one, otherwise logged-in user
-  const effectiveUserId = actingAsDependent?.id || user?.id
+  // Whose dashboard: the child a parent is scoped to (contexts/
+  // FamilyScopeContext -- the reads carry the scope themselves), the dependent
+  // of a still-live act-as session (one release, for stale cookies), else the
+  // signed-in user.
+  const effectiveUserId = selectedChild?.id || actingAsDependent?.id || user?.id
 
   // Fetch global engagement data
   const { data: engagement } = useGlobalEngagement()
@@ -322,8 +326,7 @@ const DashboardPage = () => {
   const isNewUser = user?.created_at ?
     (new Date() - new Date(user.created_at)) < 5 * 60 * 1000 : false
 
-  // Determine display name: dependent's name if acting as one, otherwise logged-in user
-  const displayName = actingAsDependent?.first_name || user?.first_name
+  const displayName = selectedChild?.firstName || actingAsDependent?.first_name || user?.first_name
 
   // Split active quests into in-progress vs completed (100% task completion)
   const allActiveQuests = dashboardData?.active_quests || [];
@@ -352,14 +355,25 @@ const DashboardPage = () => {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            {isNewUser ? `Welcome to Optio, ${displayName}!` : `Welcome back, ${displayName}!`}
+            {selectedChild
+              ? `${displayName}'s dashboard`
+              : isNewUser ? `Welcome to Optio, ${displayName}!` : `Welcome back, ${displayName}!`}
           </h1>
           <p className="text-gray-600 mt-2">
-            {isNewUser ?
-              'Start your learning journey by completing quests and earning XP!' :
-              'Choose a quest that calls to you and see where it leads.'}
+            {selectedChild
+              ? `Everything ${displayName} is working on. Anything you do here lands on their account.`
+              : isNewUser
+                ? 'Start your learning journey by completing quests and earning XP!'
+                : 'Choose a quest that calls to you and see where it leads.'}
           </p>
         </div>
+        {/* The full profile (portfolio, diploma, constellation). For a parent
+            in family scope this is the child's -- the one door to it they had
+            was the sidebar's Portfolio item, which reads as something else. */}
+        <Link to="/overview" className="btn-quiet flex-shrink-0 self-start">
+          <UserCircleIcon className="w-5 h-5" />
+          {selectedChild ? `${displayName}'s profile` : 'View profile'}
+        </Link>
         {/* Deprecated: Capture Moment button - keeping for potential future use
         <button
           onClick={() => setShowLearningEventModal(true)}
@@ -405,7 +419,7 @@ const DashboardPage = () => {
             without the feature, and the grid closes back up to two cards. */}
         <WeeklyXpGoalCard
           studentId={effectiveUserId}
-          viewerIsStudent
+          viewerIsStudent={!selectedChild}
           studentFirstName={displayName}
         />
 

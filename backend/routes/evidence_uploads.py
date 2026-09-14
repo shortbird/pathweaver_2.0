@@ -9,6 +9,12 @@ module's shared helpers (process_evidence_completion, update_document_blocks,
 check_quest_completion and the storage-deletion helpers all stay behind). The
 extraction is a code move with no logic change.
 
+Every route takes `@student_scope()`: a parent attaching a file to a child's
+task sends `student_id` (form field on the multipart routes, JSON body on the
+signed-upload ones) and the ownership checks and storage paths below are then
+the child's. The block that references the file is stamped with the uploader
+when the document is saved (evidence_documents.update_document_blocks).
+
 Routes stay on the SAME blueprint object, registered through `register_routes(bp)`
 the way routes/observer/* does. That matters beyond style: a Flask endpoint name
 is `blueprint.view_function`, and `middleware/csrf_protection` plus several
@@ -23,6 +29,7 @@ from flask import request, jsonify
 from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.logger import get_logger
 from utils.retry_handler import with_connection_retry
 
@@ -34,6 +41,7 @@ def register_routes(bp):
     @bp.route('/documents/<task_id>/upload', methods=['POST'])
     @rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
     @require_auth
+    @student_scope()
     def upload_task_file(user_id: str, task_id: str):
         """
         Upload a file for a task (before block is created).
@@ -101,6 +109,7 @@ def register_routes(bp):
     @bp.route('/documents/<task_id>/upload-init', methods=['POST'])
     @rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
     @require_auth
+    @student_scope()
     def init_task_signed_upload(user_id: str, task_id: str):
         """
         Begin a signed upload for a task's evidence file. Returns a pre-signed URL
@@ -160,6 +169,7 @@ def register_routes(bp):
 
     @bp.route('/documents/<task_id>/upload-finalize', methods=['POST'])
     @require_auth
+    @student_scope()
     def finalize_task_signed_upload(user_id: str, task_id: str):
         """
         Finalize a signed upload: verify the file landed in storage, run video
@@ -233,6 +243,7 @@ def register_routes(bp):
     @bp.route('/blocks/<block_id>/upload-init', methods=['POST'])
     @rate_limit(limit=60, per=3600, per_user=True)  # 60 uploads/hour per user
     @require_auth
+    @student_scope()
     def init_block_signed_upload(user_id: str, block_id: str):
         """
         Begin a signed upload for a specific content block. Block type is derived
@@ -296,6 +307,7 @@ def register_routes(bp):
 
     @bp.route('/blocks/<block_id>/upload-finalize', methods=['POST'])
     @require_auth
+    @student_scope()
     def finalize_block_signed_upload(user_id: str, block_id: str):
         """
         Finalize a signed upload for a block: verify storage, run post-processing,
@@ -406,6 +418,7 @@ def register_routes(bp):
     @bp.route('/blocks/<block_id>/upload', methods=['POST'])
     @rate_limit(limit=60, per=3600, per_user=True)  # CVE-OPTIO-2025-017: 60 uploads/hour per user
     @require_auth
+    @student_scope()
     def upload_block_file(user_id: str, block_id: str):
         """
         Upload a file for a specific content block (image or document).

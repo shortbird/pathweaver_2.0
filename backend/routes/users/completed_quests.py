@@ -11,6 +11,7 @@ REPOSITORY MIGRATION: MIGRATION CANDIDATE
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from middleware.error_handler import ValidationError
 
 from utils.logger import get_logger
@@ -21,6 +22,7 @@ completed_quests_bp = Blueprint('completed_quests', __name__)
 
 @completed_quests_bp.route('/completed-quests', methods=['GET'])
 @require_auth
+@student_scope('quests')
 def get_completed_quests(user_id):
     """Get paginated list of user's completed quests"""
     

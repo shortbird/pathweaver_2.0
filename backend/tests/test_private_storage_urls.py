@@ -567,7 +567,10 @@ class TestChildAvatarWritePath:
         """Read the route: the value returned to the parent is signed, and the
         value written to the row is not."""
         source = (BACKEND / 'routes' / 'parent' / 'child_overview.py').read_text(encoding='utf-8')
-        assert "avatar_url = public_object_url('user-uploads', filename)" in source
+        # The write goes through the shared upload recipe, whose return value
+        # is the canonical pointer (tests/unit/test_family_cover.py checks
+        # that store_image_upload returns public_object_url's string).
+        assert "avatar_url = store_image_upload(supabase, request.files['avatar']" in source
         assert "'avatar_url': sign_stored_url(avatar_url, 'user-uploads')" in source
         # ...and the GET that renders the child's profile signs it too.
         assert "sign_stored_url(student.get('avatar_url'), 'user-uploads')" in source

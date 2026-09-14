@@ -33,7 +33,7 @@ const RegisterPage = () => {
       if (invitationCode) {
         navigate(`/observer/accept/${invitationCode}`, { replace: true })
       } else {
-        const redirectPath = user.role === 'parent' ? '/parent/dashboard'
+        const redirectPath = user.role === 'parent' ? '/family'
           : user.role === 'observer' ? '/observer/feed'
           : '/dashboard'
         navigate(redirectPath, { replace: true })

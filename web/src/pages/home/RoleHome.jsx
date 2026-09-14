@@ -1,9 +1,9 @@
 import React from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useFamilyScope } from '../../contexts/FamilyScopeContext'
 import { PageLoader } from '../../components/ui/Spinner'
 import DashboardPage from '../DashboardPage'
-import FamilyHome from './FamilyHome'
 import TeacherHome from './TeacherHome'
 import SchoolAdminHome from './SchoolAdminHome'
 import SuperadminHome from './SuperadminHome'
@@ -30,10 +30,25 @@ import SuperadminHome from './SuperadminHome'
  */
 function CoordinatorOffDutyHome({ user }) {
   const roles = Array.isArray(user?.org_roles) ? user.org_roles : []
-  if (roles.includes('parent')) return <FamilyHome />
+  if (roles.includes('parent')) return <ParentHome />
   if (roles.includes('advisor')) return <TeacherHome />
   // Staff and nothing else: the ordinary dashboard, the same as any user with
   // no special home. Not much, but it is theirs and it does not bounce.
+  return <DashboardPage />
+}
+
+/**
+ * A parent's /dashboard is their CHILD's dashboard -- the one they picked on
+ * the Family page (contexts/FamilyScopeContext). With no child picked there
+ * is nothing of their own to show here, so they go to /family, which is the
+ * parent's real home (family dashboard, 2026-09-15). This used to render the
+ * FamilyHome digest in place; the digest now lives at /family and the child's
+ * own dashboard renders here, pointed at the child.
+ */
+function ParentHome() {
+  const { isScoped, isLoading } = useFamilyScope()
+  if (isLoading) return <PageLoader className="min-h-[60vh]" />
+  if (!isScoped) return <Navigate to="/family" replace />
   return <DashboardPage />
 }
 
@@ -44,7 +59,7 @@ export default function RoleHome() {
 
   switch (effectiveRole) {
     case 'parent':
-      return <FamilyHome />
+      return <ParentHome />
     case 'advisor':
       return <TeacherHome />
     case 'org_admin':

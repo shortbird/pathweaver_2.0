@@ -218,9 +218,30 @@ export function useTrackMoments(trackId: string | null, studentId?: string) {
 }
 
 // ── Mutation helpers (not hooks) ──
+//
+// Family scope: every write takes an optional `studentId`. With it, the
+// request names the child (`student_id`) and the backend's @student_scope
+// writes to the child's rows as the parent (2026-09-15). Against a backend
+// that predates that -- a preview OTA ahead of its backend -- the primary
+// route answers 403/404 for the child's row, and the write falls back to the
+// parent-shaped endpoint under /api/parent/children/<id>/..., which permits
+// only what the older rules did (moments the parent captured themselves).
+// Those parent-shaped helpers were their own three exported functions until
+// the fold; the fallback is the whole of what remains of them.
 
-export async function deleteLearningEvent(eventId: string) {
-  await api.delete(`/api/learning-events/${eventId}`);
+const isRefusal = (err: unknown) => [403, 404].includes((err as { response?: { status?: number } })?.response?.status ?? 0);
+
+export async function deleteLearningEvent(eventId: string, studentId?: string | null) {
+  if (!studentId) {
+    await api.delete(`/api/learning-events/${eventId}`);
+    return;
+  }
+  try {
+    await api.delete(`/api/learning-events/${eventId}`, { params: { student_id: studentId } });
+  } catch (err) {
+    if (!isRefusal(err)) throw err;
+    await api.delete(`/api/parent/children/${studentId}/learning-moments/${eventId}`);
+  }
 }
 
 export async function updateLearningEvent(eventId: string, updates: {
@@ -230,9 +251,21 @@ export async function updateLearningEvent(eventId: string, updates: {
   track_id?: string | null;
   topics?: { type: string; id: string }[];
   event_date?: string | null;
-}) {
-  const { data } = await api.put(`/api/learning-events/${eventId}`, updates);
-  return data;
+}, studentId?: string | null) {
+  if (!studentId) {
+    const { data } = await api.put(`/api/learning-events/${eventId}`, updates);
+    return data;
+  }
+  try {
+    const { data } = await api.put(`/api/learning-events/${eventId}`, { ...updates, student_id: studentId });
+    return data;
+  } catch (err) {
+    if (!isRefusal(err)) throw err;
+    // The parent-shaped route does not take pillars.
+    const { pillars: _pillars, ...rest } = updates;
+    const { data } = await api.put(`/api/parent/children/${studentId}/learning-moments/${eventId}`, rest);
+    return data;
+  }
 }
 
 export async function getAiSuggestions(description: string) {
@@ -240,13 +273,23 @@ export async function getAiSuggestions(description: string) {
   return data;
 }
 
-export async function assignMomentToTopic(momentId: string, topicType: string, topicId: string | null, action: 'add' | 'remove' = 'add') {
-  const { data } = await api.post(`/api/learning-events/${momentId}/assign-topic`, {
-    type: topicType,
-    topic_id: topicId,
-    action,
-  });
-  return data;
+export async function assignMomentToTopic(
+  momentId: string, topicType: string, topicId: string | null,
+  action: 'add' | 'remove' = 'add', studentId?: string | null,
+) {
+  const body = { type: topicType, topic_id: topicId, action };
+  if (!studentId) {
+    const { data } = await api.post(`/api/learning-events/${momentId}/assign-topic`, body);
+    return data;
+  }
+  try {
+    const { data } = await api.post(`/api/learning-events/${momentId}/assign-topic`, { ...body, student_id: studentId });
+    return data;
+  } catch (err) {
+    if (!isRefusal(err)) throw err;
+    const { data } = await api.post(`/api/parent/children/${studentId}/learning-events/${momentId}/assign-topic`, body);
+    return data;
+  }
 }
 
 /**
@@ -264,46 +307,14 @@ export async function createTopic(
   return data.track;
 }
 
-// ── Parent-scoped mutations ──
-// A parent edits/deletes a moment on their CHILD's account. The backend
-// (routes/parent/learning_moments.py) only permits this for moments the parent
-// themselves captured (captured_by_user_id == parent). Pillars are intentionally
-// not editable through the parent endpoint — only title/description/date/topic.
-
-export async function updateChildLearningEvent(childId: string, eventId: string, updates: {
-  title?: string | null;
-  description?: string;
-  event_date?: string | null;
-  topics?: { type: string; id: string }[];
-}) {
-  const { data } = await api.put(`/api/parent/children/${childId}/learning-moments/${eventId}`, updates);
-  return data;
+export async function deleteInterestTrack(trackId: string, studentId?: string | null) {
+  await api.delete(`/api/interest-tracks/${trackId}`, studentId ? { params: { student_id: studentId } } : undefined);
 }
 
-export async function deleteChildLearningEvent(childId: string, eventId: string) {
-  await api.delete(`/api/parent/children/${childId}/learning-moments/${eventId}`);
-}
-
-export async function assignChildMomentToTopic(
-  childId: string,
-  momentId: string,
-  topicType: string,
-  topicId: string | null,
-  action: 'add' | 'remove' = 'add',
+export async function updateInterestTrack(
+  trackId: string, updates: { name?: string; description?: string; color?: string }, studentId?: string | null,
 ) {
-  const { data } = await api.post(
-    `/api/parent/children/${childId}/learning-events/${momentId}/assign-topic`,
-    { type: topicType, topic_id: topicId, action },
-  );
-  return data;
-}
-
-export async function deleteInterestTrack(trackId: string) {
-  await api.delete(`/api/interest-tracks/${trackId}`);
-}
-
-export async function updateInterestTrack(trackId: string, updates: { name?: string; description?: string; color?: string }) {
-  const { data } = await api.put(`/api/interest-tracks/${trackId}`, updates);
+  const { data } = await api.put(`/api/interest-tracks/${trackId}`, studentId ? { ...updates, student_id: studentId } : updates);
   return data;
 }
 
@@ -353,13 +364,13 @@ export interface EvolveResult {
   error?: string;
 }
 
-export async function evolveTrackToQuest(trackId: string, payload: EvolvePayload): Promise<EvolveResult> {
-  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, payload);
+export async function evolveTrackToQuest(trackId: string, payload: EvolvePayload, studentId?: string | null): Promise<EvolveResult> {
+  const { data } = await api.post(`/api/interest-tracks/${trackId}/evolve`, studentId ? { ...payload, student_id: studentId } : payload);
   return data;
 }
 
-export async function previewEvolvedQuest(trackId: string): Promise<EvolvePreviewResponse> {
-  const { data } = await api.get(`/api/interest-tracks/${trackId}/evolve/preview`);
+export async function previewEvolvedQuest(trackId: string, studentId?: string | null): Promise<EvolvePreviewResponse> {
+  const { data } = await api.get(`/api/interest-tracks/${trackId}/evolve/preview`, studentId ? { params: { student_id: studentId } } : undefined);
   return data;
 }
 

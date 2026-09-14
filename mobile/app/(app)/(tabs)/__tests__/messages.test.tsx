@@ -7,7 +7,8 @@ import { Platform } from 'react-native';
 import { render, fireEvent } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 import MessagesScreen from '../messages';
-import { useConversations, useContacts, useGroups, useChildren } from '@/src/hooks/useMessages';
+import { useConversations, useContacts, useGroups } from '@/src/hooks/useMessages';
+import { useMyChildren } from '@/src/hooks/useParent';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
 import {
   createMockContact,
@@ -22,7 +23,6 @@ jest.mock('@/src/hooks/useMessages', () => ({
   useConversations: jest.fn(),
   useContacts: jest.fn(),
   useGroups: jest.fn(),
-  useChildren: jest.fn(),
   useConversationMessages: jest.fn(),
   useGroupMessages: jest.fn(),
   useGroupDetail: jest.fn(),
@@ -31,6 +31,12 @@ jest.mock('@/src/hooks/useMessages', () => ({
   sendGroupMessage: jest.fn(),
   createGroup: jest.fn(),
   markGroupRead: jest.fn(),
+}));
+
+// The family list every parent surface shares (it replaced the messages
+// module's own useChildren on 2026-09-15).
+jest.mock('@/src/hooks/useParent', () => ({
+  useMyChildren: jest.fn(),
 }));
 
 jest.mock('@/src/components/communication/ConversationList', () => ({
@@ -105,7 +111,7 @@ beforeEach(() => {
   (useConversations as jest.Mock).mockReturnValue({ conversations: [], loading: false, refetch: jest.fn() });
   (useContacts as jest.Mock).mockReturnValue({ contacts: [], loading: false, refetch: jest.fn() });
   (useGroups as jest.Mock).mockReturnValue({ groups: [], loading: false, refetch: jest.fn() });
-  (useChildren as jest.Mock).mockReturnValue({ children: [], loading: false });
+  (useMyChildren as jest.Mock).mockReturnValue({ children: [], loading: false });
   // No deep link by default — individual tests opt in.
   (useLocalSearchParams as jest.Mock).mockReturnValue({});
 });

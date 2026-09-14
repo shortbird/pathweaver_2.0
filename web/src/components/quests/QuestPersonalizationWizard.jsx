@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import useHidePillars from '../../hooks/useHidePillars';
+import { useStudentScope } from '../../hooks/useStudentScope';
 import ManualTaskCreator from './ManualTaskCreator';
 import ApproachExampleCard from '../quest/ApproachExampleCard';
 import logger from '../../utils/logger';
@@ -48,22 +49,18 @@ import ChoosePathStep from './personalizationWizard/ChoosePathStep';
  *   dialog against the full — possibly very tall — iframe and clips it out
  *   of the visible viewport. Embedded mode drops the overlay, the viewport
  *   max-height, and the inner scrollbar; the iframe just grows.
- * @param onAcceptTaskOverride  Optional async (task) => Promise. When supplied,
- *   an accepted task is handed to this callback INSTEAD of being POSTed to
- *   /personalization/accept-task. This is how a parent runs the same wizard
- *   for their child: the UI and the AI steps are identical, only the write
- *   target changes (see ParentQuestView). Mirrors how the mobile app reuses its
- *   TaskCreationWizard via onAcceptTask.
- * @param onManualTasksOverride Optional async (tasks[]) => Promise, the same
- *   substitution for the hand-written path (see ManualTaskCreator.onSubmitOverride).
  * @param classSubject          The transcript subject key when the parent quest
  *   is a credit class (quest_type='class'). Only affects copy: the backend
  *   routes 100% of a class task's XP into that subject, so the student is told
  *   which credit their tasks feed rather than being asked to pick.
- * @param skipSubjectXp         When true, don't fetch /api/users/subject-xp.
- *   That endpoint reports the CALLER's credit progress, which is meaningless
- *   when a parent is authoring for their child — the ring would show the
- *   parent's own (zero) XP against the child's credits.
+ *
+ * Family scope: a parent runs this exact wizard for a child. Every request
+ * below carries `student_id` (hooks/useStudentScope) and the backend's
+ * @student_scope writes the session, the tasks and the enrollment to the
+ * CHILD, stamped with the parent as created_by. The subject-XP ring reads
+ * the child's credits the same way. Until 2026-09-15 this took
+ * onAcceptTaskOverride / onManualTasksOverride callbacks that rerouted two of
+ * the writes to /api/family and left the AI session on the parent's own row.
  */
 export default function QuestPersonalizationWizard({
   questId,
@@ -74,14 +71,14 @@ export default function QuestPersonalizationWizard({
   embedded = false,
   approachExamples = null,
   xpThreshold = null,
-  onAcceptTaskOverride = null,
-  onManualTasksOverride = null,
   classSubject = null,
-  skipSubjectXp = false,
-  draftScope = null,
 }) {
   const classSubjectName = classSubject ? getSubjectName(classSubject) : null;
   const hidePillars = useHidePillars();
+  const { params: scope, studentId } = useStudentScope();
+  // Drafts of hand-written tasks are keyed per child so two children's
+  // half-written lists never mix.
+  const draftScope = studentId;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -145,12 +142,11 @@ export default function QuestPersonalizationWizard({
   useEffect(() => {
     // Parent-authoring mode: this endpoint is caller-scoped, so it would show
     // the parent's credits, not the child's. Leave the map empty instead.
-    if (skipSubjectXp) return;
 
     const fetchSubjectXP = async () => {
       setLoadingCredits(true);
       try {
-        const response = await api.get('/api/users/subject-xp');
+        const response = await api.get('/api/users/subject-xp', { params: scope });
         if (response.data.success && response.data.subject_xp) {
           // Convert array to object for easy lookup
           const xpMap = {};
@@ -166,7 +162,7 @@ export default function QuestPersonalizationWizard({
       }
     };
     fetchSubjectXP();
-  }, [skipSubjectXp]);
+  }, [studentId]);
 
   // Start personalization session
   const startSession = async (method) => {
@@ -174,7 +170,7 @@ export default function QuestPersonalizationWizard({
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
+      const response = await api.post(`/api/quests/${questId}/start-personalization`, { ...scope });
       const newSessionId = response.data.session_id;
       if (!newSessionId) {
         throw new Error('No session ID returned from server');
@@ -212,6 +208,7 @@ export default function QuestPersonalizationWizard({
     setError(null);
     try {
       const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
+        ...scope,
         session_id: sessionId,
         approach: 'hybrid', // Default since we removed the approach selection
         interests: selectedInterests,
@@ -267,20 +264,13 @@ export default function QuestPersonalizationWizard({
     setError(null);
 
     try {
-      // Parent-authoring mode writes to the child's enrollment through its own
-      // endpoint; the self-serve path POSTs to accept-task as usual. Either way
-      // a throw lands in the catch below and the task is not marked accepted.
-      let accepted;
-      if (onAcceptTaskOverride) {
-        await onAcceptTaskOverride(currentTask);
-        accepted = true;
-      } else {
-        const response = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
-          session_id: sessionId,
-          task: currentTask
-        });
-        accepted = response.data.success;
-      }
+      // A throw lands in the catch below and the task is not marked accepted.
+      const response = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
+        ...scope,
+        session_id: sessionId,
+        task: currentTask
+      });
+      const accepted = response.data.success;
 
       if (accepted) {
         // Track accepted task
@@ -309,6 +299,7 @@ export default function QuestPersonalizationWizard({
     // Save skipped task to library for other users (non-blocking)
     try {
       await api.post(`/api/quests/${questId}/personalization/skip-task`, {
+        ...scope,
         session_id: sessionId,
         task: currentTask
       });
@@ -382,6 +373,7 @@ export default function QuestPersonalizationWizard({
     setError(null);
     try {
       const response = await api.post(`/api/quests/${questId}/adjust-task-difficulty`, {
+        ...scope,
         task,
         direction
       });
@@ -423,6 +415,7 @@ export default function QuestPersonalizationWizard({
 
     try {
       const response = await api.post(`/api/quests/${questId}/add-path-tasks`, {
+        ...scope,
         approach_index: index,
       });
 
@@ -596,7 +589,6 @@ export default function QuestPersonalizationWizard({
           sessionId={sessionId}
           onTasksCreated={handleManualTasksCreated}
           onCancel={onCancel}
-          onSubmitOverride={onManualTasksOverride}
           draftScope={draftScope}
         />
       )}

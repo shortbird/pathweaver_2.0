@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useActingAs } from '../../contexts/ActingAsContext'
+import { useFamilyScope } from '../../contexts/FamilyScopeContext'
+import ProfileSwitcher from '../parent/ProfileSwitcher'
 import { getSisFlagOverride, switchSurfaceInApp } from '../../utils/appSurface'
 import ActingAsBanner from '../parent/ActingAsBanner'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
@@ -46,6 +48,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const unreadMessages = unreadData?.unread_count || 0
   const { organization, school } = useOrganization()
   const { actingAsDependent, clearActingAs } = useActingAs()
+  // Family scope: which child a parent is working for. In scope the student
+  // surfaces (Home, Quests, Journal, Portfolio) point at that child.
+  const { isScoped: inFamilyScope, selectedChild } = useFamilyScope()
   // SIS carve-out: when the user's org has the sis module (or the local dev
   // override is set), the school-management surfaces move to the SIS console — so
   // hide them here and surface a launcher instead. Reversible per-org; default
@@ -174,22 +179,27 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // separate management surfaces with their own nav items below; the path
   // dedupe no longer needs to absorb them into Home.
   //
-  // The one exception: Optio Academy parents, whose home IS the family
-  // dashboard (config/optioAcademy.js). The item takes the Family name too, so
-  // they get one "Family" tab in the home slot rather than a Home and a Family
-  // pointing at the same page — the dedupe below drops the second one.
+  // A parent's home is the family dashboard (/family, 2026-09-15). Once they
+  // have picked a child there, /dashboard is that CHILD's home and it appears
+  // here under the child's name, followed by the child's own surfaces.
   const isParent = role === 'parent'
-  const parentHome = isParent ? parentHomePath(user, school) : '/dashboard'
-  const homeIsFamily = parentHome === '/parent/dashboard'
-  const homePath = isParent ? parentHome : '/dashboard'
+  const homePath = isParent ? parentHomePath(user, school) : '/dashboard'
 
   const primaryItems = [
     {
-      name: homeIsFamily ? 'Family' : 'Home',
+      name: isParent ? 'Family' : 'Home',
       path: homePath,
-      icon: homeIsFamily ? FAMILY_ICON : HOME_ICON
+      icon: isParent ? FAMILY_ICON : HOME_ICON
     }
   ]
+
+  if (isParent && inFamilyScope) {
+    primaryItems.push({
+      name: `${selectedChild?.firstName || 'Child'}'s home`,
+      path: '/dashboard',
+      icon: HOME_ICON
+    })
+  }
 
   // Dashboard: superadmin only. Their Home is the platform cockpit, so this is
   // the one way to look at the student dashboard from their own account.
@@ -205,9 +215,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Quests: the quest browser is a learning surface parents and org admins
-  // don't work in (same rule the old top-navbar toggle used).
-  if (role !== 'parent' && role !== 'org_admin') {
+  // Quests: a learning surface. Org admins don't work in it; a parent does,
+  // but only pointed at a child (family scope), never as themselves.
+  if (role !== 'org_admin' && (role !== 'parent' || inFamilyScope)) {
     primaryItems.push({
       name: 'Quests',
       path: '/quests',
@@ -252,10 +262,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
-  // Journal: a student learning surface. Hidden from parents (they capture for
-  // a child from the Family dashboard) and org admins (they manage their org,
-  // not a personal journal).
-  if (role !== 'parent' && role !== 'org_admin') {
+  // Journal: a student learning surface. Hidden from org admins (they manage
+  // their org, not a personal journal) and from a parent with no child picked;
+  // in family scope it is the child's journal.
+  if (role !== 'org_admin' && (role !== 'parent' || inFamilyScope)) {
     learningItems.push({
       name: 'Journal',
       path: '/learning-journal',
@@ -267,12 +277,27 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     })
   }
 
+  // Portfolio: the child's overview (diploma, skills, journal), which a
+  // student reaches from their own dashboard. A scoped parent gets it as a
+  // nav item because their dashboard header is the child's, not a profile.
+  if (isParent && inFamilyScope) {
+    learningItems.push({
+      name: 'Portfolio',
+      path: '/overview',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      )
+    })
+  }
+
   // Custom Class: a student authors their own credit class (quest_type='class').
   // Classes are 13+, matching the mobile gate. A student whose age we don't know
   // still sees it — the page asks for the birthday — but a known under-13 doesn't,
   // so we never advertise something they can't have.
-  const classAge = ageFromDob(user?.date_of_birth)
-  if ((isStudent || user?.role === 'superadmin') && !(classAge !== null && classAge < CLASS_MIN_AGE)) {
+  const classAge = ageFromDob(inFamilyScope ? selectedChild?.dateOfBirth : user?.date_of_birth)
+  if ((isStudent || user?.role === 'superadmin' || (isParent && inFamilyScope)) && !(classAge !== null && classAge < CLASS_MIN_AGE)) {
     learningItems.push({
       name: 'Custom Class',
       path: '/my-classes',
@@ -402,23 +427,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   if (hasParentRelationships || user?.role === 'superadmin') {
     primaryItems.push({
       name: 'Family',
-      path: '/parent/dashboard',
+      path: '/family',
       icon: FAMILY_ICON
     })
 
-    // Peer connections the adult approves and manages. Reachable on its own
-    // rather than only from a notification: a parent who wants to end a
-    // connection weeks later has no notification left to click, and "find the
-    // email we sent you in March" is not a way to withdraw consent.
-    primaryItems.push({
-      name: 'Student connections',
-      path: '/connections/approvals',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      )
-    })
+    // Peer-connection approvals live on each child's card on /family
+    // (components/parent/ChildConnections) since 2026-09-15; the "Student
+    // connections" item that pointed at /connections/approvals went with the
+    // page. A parent ending a connection weeks later finds it on the card.
   }
 
   // Teaching (blocks P2): the LMS-only teacher's daily surfaces, so an advisor
@@ -608,6 +624,13 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
               </button>
             )}
 
+            {/* Family scope switcher: which child a parent is working for.
+                Renders nothing for accounts with no children. Compact in the
+                collapsed rail (avatar only). */}
+            {hasParentRelationships && (
+              <ProfileSwitcher compact={!isExpanded} className="mb-1" />
+            )}
+
             {visibleSections.map((section, sectionIndex) => (
               <div key={section.key}>
                 {/* Section separators: a titled header when expanded, a thin
@@ -679,7 +702,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
                 dependent={actingAsDependent}
                 onSwitchBack={async () => {
                   await clearActingAs()
-                  window.location.href = '/parent/dashboard'
+                  window.location.href = '/family'
                 }}
                 inline={true}
                 isExpanded={actingAsBannerExpanded}

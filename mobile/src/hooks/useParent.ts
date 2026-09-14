@@ -6,23 +6,15 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
-import { useAddKidStore } from '../stores/addKidStore';
+import { useAddKidStore, useFamilyStore } from '../stores/familyStore';
 import { useHoldEpoch } from '../stores/holdStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
-import type { EngagementData } from './useDashboard';
 import type { LearningEvent, UnifiedTopic } from './useJournal';
 
-export interface Child {
-  id: string;
-  display_name: string;
-  first_name: string;
-  last_name: string;
-  avatar_url: string | null;
-  total_xp: number;
-  is_dependent: boolean;
-  date_of_birth: string | null;
-  role: string;
-}
+// The Child shape moved to types/family so the family store can name it
+// without a cycle; re-exported here for the many existing importers.
+import type { Child } from '../types/family';
+export type { Child };
 
 export interface ParentDashboardData {
   student: Child;
@@ -138,6 +130,10 @@ export function useMyChildren() {
       }
 
       if (!cancelled) {
+        // Family scope lives in the store; keep its selection honest against
+        // the list just fetched (drop a child who left, restore the remembered
+        // one, else the first) before the screens read it.
+        await useFamilyStore.getState().reconcile(userId || null, merged);
         setChildren(merged);
         setLoading(false);
       }
@@ -200,30 +196,6 @@ export function useChildOverview(studentId: string | null) {
   useRefetchOnForeground(fetchOverview);
 
   return { overview, loading, refetch: fetchOverview };
-}
-
-export function useChildEngagement(studentId: string | null) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [data, setData] = useState<EngagementData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!isAuthenticated || !studentId) { setLoading(false); return; }
-    (async () => {
-      try {
-        // 30s timeout: non-critical widget, tolerant of a cold Render backend
-        // (the 15s-timeout reports). Failure stays silent via the catch below.
-        const { data: result } = await api.get(`/api/parent/${studentId}/engagement`, { timeout: 30000 });
-        setData(result.engagement || result);
-      } catch {
-        // Non-critical
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [isAuthenticated, studentId]);
-
-  return { data, loading };
 }
 
 /**

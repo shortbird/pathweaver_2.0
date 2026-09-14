@@ -110,37 +110,28 @@ def delete_enrollment(user_id, quest_id):
         target_user_id = user_id
 
         if student_id and student_id != user_id:
-            # Verify advisor or parent access
-            # admin client justified: quest pickup/setdown writes user_quests + quest_history scoped to caller (self) under @require_auth
-            supabase = get_supabase_admin_client()
+            # Advisor first (their own gate), then the one definition of
+            # guardian every student-scoped route uses. The inline parent
+            # check this replaced knew two of the three family links and
+            # refused a household guardian -- the shape the SIS registration
+            # funnel writes -- who could pay the child's tuition but not drop
+            # a quest for them.
             has_access = False
-
-            # Check advisor access
             try:
                 from repositories.advisor_repository import AdvisorRepository
-                advisor_repo = AdvisorRepository()
-                if advisor_repo.verify_student_access(user_id, student_id):
+                if AdvisorRepository().verify_student_access(user_id, student_id):
                     has_access = True
             except Exception:
                 logger.debug("intentional swallow", exc_info=True)
 
-            # Check parent access
-            if not has_access:
-                child = supabase.table('users').select('id, managed_by_parent_id').eq('id', student_id).single().execute()
-                if child.data and child.data.get('managed_by_parent_id') == user_id:
-                    has_access = True
-
-                if not has_access:
-                    link = supabase.table('parent_student_links').select('id').eq(
-                        'parent_user_id', user_id
-                    ).eq('student_user_id', student_id).eq('status', 'approved').execute()
-                    if link.data:
-                        has_access = True
-
-            if not has_access:
-                raise AuthorizationError('You do not have permission to delete this enrollment')
-
-            target_user_id = student_id
+            if has_access:
+                target_user_id = student_id
+            else:
+                from utils.guardian_scope import GuardianAccessError, resolve_student_scope
+                try:
+                    target_user_id = resolve_student_scope(user_id, student_id)
+                except GuardianAccessError as e:
+                    raise AuthorizationError('You do not have permission to delete this enrollment') from e
 
         service = QuestLifecycleService()
         result = service.delete_enrollment(target_user_id, quest_id)
