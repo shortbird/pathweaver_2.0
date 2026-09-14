@@ -18,9 +18,12 @@ import EmptyState from '../ui/EmptyState'
  * made on their own account: that is what "New Zealand 101" on Paige's
  * dashboard is). Each card names who is on the quest with their rhythm on
  * it -- the engagement metric, not a progress bar; a member's row opens
- * THEIR copy, in family scope for a child and as the parent for the parent. Children not on it yet can be added from
- * the card, and "New family quest" sets one up for whichever children the
- * parent picks (hooks/api/useFamilyQuests).
+ * THEIR copy, in family scope for a child and as the parent for the parent.
+ * Children not on it yet can be added from the card, and "New family quest"
+ * sets one up for whichever children the parent picks
+ * (hooks/api/useFamilyQuests). A quest is listed only while somebody in the
+ * family is on it -- the backend drops the rest, so a card always has at
+ * least one member row.
  *
  * Until 2026-09-15 this section was MyEnrolledQuests: the parent's own
  * enrollments only, with nothing to say whose quest it was and no way to
@@ -111,9 +114,6 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) 
             ending={ending}
           />
         ))}
-        {quest.members.length === 0 && (
-          <p className="px-2 text-xs text-gray-400">Nobody is on this quest yet.</p>
-        )}
       </div>
 
       {notYet.length > 0 && (

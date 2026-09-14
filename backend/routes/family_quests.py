@@ -76,6 +76,16 @@ def list_family_quests(user_id):
     how far each of them is, and offer the children who are not on it yet.
     A child's OWN quests (ones they picked or made themselves) are not here;
     those are the child's dashboard, reached by opening the child.
+
+    A quest is the family's only while somebody in the family is on it.
+    created_by alone is not enough: a superadmin or advisor who is also a
+    parent has authored hundreds of quests -- the catalog, class quests,
+    training quests -- and on 2026-09-14 every one of them showed up on the
+    owner's own family dashboard. The create route below always writes a
+    private quest, so a public one the parent authored is the catalog's, not
+    the family's, even if a child picked it. Once everyone has ended their
+    run the quest leaves this list; it is reachable again from each member's
+    completed quests.
     """
     verify_parent_role(user_id)
 
@@ -89,7 +99,7 @@ def list_family_quests(user_id):
 
     mine = supabase.table('quests') \
         .select('id, title, description, big_idea, image_url, header_image_url, created_by, created_at') \
-        .eq('created_by', user_id).eq('is_active', True).is_('archived_at', 'null') \
+        .eq('created_by', user_id).eq('is_public', False).eq('is_active', True).is_('archived_at', 'null') \
         .execute().data or []
     quests = {q['id']: q for q in mine}
 
@@ -170,6 +180,9 @@ def list_family_quests(user_id):
     out = []
     for qid, q in quests.items():
         members = members_by_quest.get(qid, [])
+        # Nobody in the family on it: not a family quest (see the docstring).
+        if not members:
+            continue
         # The parent first, then the children in family order.
         members.sort(key=lambda m: (not m['is_self'], family_ids.index(m['user_id'])))
         out.append({

@@ -21,6 +21,7 @@ SIBLING = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 NZ = 'ffffffff-ffff-4fff-8fff-ffffffffffff'      # Paige's own quest
 TRIP = '11111111-1111-4111-8111-111111111111'    # set up for the kids
 KIDS_OWN = '22222222-2222-4222-8222-222222222222'  # Romney's own pick
+CATALOG = '33333333-3333-4333-8333-333333333333'  # authored by the parent, nobody in the family on it
 
 
 def _innermost(view):
@@ -71,13 +72,23 @@ def _answers():
             {'id': 'uq-nz-p', 'user_id': PARENT, 'quest_id': NZ, 'started_at': '2026-02-20T00:00:00+00:00', 'completed_at': None},
             {'id': 'uq-trip-r', 'user_id': ROMNEY, 'quest_id': TRIP, 'started_at': '2026-09-01T00:00:00+00:00', 'completed_at': None},
             {'id': 'uq-trip-s', 'user_id': SIBLING, 'quest_id': TRIP, 'started_at': '2026-09-02T00:00:00+00:00', 'completed_at': None},
+            {'id': 'uq-own-r', 'user_id': ROMNEY, 'quest_id': KIDS_OWN, 'started_at': '2026-09-03T00:00:00+00:00', 'completed_at': None},
         ]
 
+    def quests(filters):
+        rows = [
+            {'id': NZ, 'title': 'New Zealand 101', 'created_by': PARENT, 'is_public': False, 'created_at': '2026-02-20T00:00:00+00:00'},
+            {'id': TRIP, 'title': 'Pack for the trip', 'created_by': PARENT, 'is_public': False, 'created_at': '2026-09-01T00:00:00+00:00'},
+            # A superadmin who is also a parent authored this one for the
+            # catalog. Nobody in the family is on it.
+            {'id': CATALOG, 'title': 'Explore the music industry', 'created_by': PARENT, 'is_public': False, 'created_at': '2026-01-01T00:00:00+00:00'},
+            # ... and this one, which Romney picked himself.
+            {'id': KIDS_OWN, 'title': 'Learn to play the guitar', 'created_by': PARENT, 'is_public': True, 'created_at': '2026-01-01T00:00:00+00:00'},
+        ]
+        return [r for r in rows if r['created_by'] == filters.get('created_by') and r['is_public'] == filters.get('is_public', r['is_public'])]
+
     return {
-        'quests': [
-            {'id': NZ, 'title': 'New Zealand 101', 'created_by': PARENT, 'created_at': '2026-02-20T00:00:00+00:00'},
-            {'id': TRIP, 'title': 'Pack for the trip', 'created_by': PARENT, 'created_at': '2026-09-01T00:00:00+00:00'},
-        ],
+        'quests': quests,
         'user_quests': user_quests,
         'user_quest_tasks': [
             {'id': 't1', 'user_quest_id': 'uq-trip-r'},
@@ -134,6 +145,18 @@ def test_each_member_carries_their_own_progress(app):
 def test_most_recently_started_quest_comes_first(app):
     body = _call(app, _answers(), [ROMNEY, SIBLING])
     assert [q['id'] for q in body['quests']] == [TRIP, NZ]
+
+
+def test_a_quest_the_parent_authored_that_nobody_in_the_family_is_on_stays_out(app):
+    # Tanner, 2026-09-14: a superadmin's family dashboard listed every quest
+    # he had ever authored -- the catalog, class quests, training quests.
+    body = _call(app, _answers(), [ROMNEY, SIBLING])
+    assert CATALOG not in {q['id'] for q in body['quests']}
+
+
+def test_a_public_quest_the_parent_authored_is_the_catalogs_even_if_a_child_picked_it(app):
+    body = _call(app, _answers(), [ROMNEY, SIBLING])
+    assert KIDS_OWN not in {q['id'] for q in body['quests']}
 
 
 def test_a_parent_with_no_quests_gets_an_empty_list(app):

@@ -5,10 +5,11 @@ import { queryKeys } from '../../utils/queryKeys'
 /**
  * The family's quests (/api/family/quests), for the family dashboard.
  *
- * A quest is the family's when the parent set it up (created_by) or is
- * enrolled in it themselves. Each carries `members`: the parent and the
- * children with an enrollment, each with their own progress. A child's own
- * quests are not here; those are the child's dashboard.
+ * A quest is the family's when the parent set it up (created_by, private)
+ * or is enrolled in it themselves, and somebody in the family is still on
+ * it. Each carries `members`: the parent and the children with an
+ * enrollment, each with their own progress. A child's own quests are not
+ * here; those are the child's dashboard.
  */
 export function useFamilyQuests(options = {}) {
   return useQuery({
