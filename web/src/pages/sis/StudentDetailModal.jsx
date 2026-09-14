@@ -6,7 +6,7 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import WeeklyScheduleGrid from '../../components/sis/WeeklyScheduleGrid'
 import PersonPhoto from '../../components/sis/PersonPhoto'
-import { classLabel } from '../../components/sis/classLabel'
+import { classLabel, byDayAndTime } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
 import { useConfirm } from '../../contexts/ConfirmContext'
@@ -472,7 +472,9 @@ const SchedulePanel = ({ student, orgId }) => {
 
   const enrolled = useStudentClasses(student.student_id, orgId)
   const { data: all = [] } = useOrgClassList(orgId)
-  const classes = enrolled.data || []
+  // In week order, not alphabetical -- the list view and the picker both read
+  // as a timetable (iCreate, 2026-09-14, 5e553e23).
+  const classes = [...(enrolled.data || [])].sort(byDayAndTime)
   const loading = enrolled.isLoading
   const reload = enrolled.refetch
 
@@ -531,7 +533,7 @@ const SchedulePanel = ({ student, orgId }) => {
   const clashesWith = (c) => (c.meetings || []).some(
     (m) => classes.some((e) => (e.meetings || []).some((em) => overlaps(m, em))),
   )
-  const available = all.filter((c) => !enrolledIds.has(c.id))
+  const available = all.filter((c) => !enrolledIds.has(c.id)).sort(byDayAndTime)
   const eligible = available.filter((c) => fitsAge(c) && !clashesWith(c))
   const options = showAll ? available : eligible
   const excluded = available.length - eligible.length

@@ -56,10 +56,10 @@ def list_threads(user_id: str):
         ctx, err = _resolve_inbox(user_id)
         if err:
             return err
+        # Each row carries last_message_sender_id and the school's resolved_at,
+        # so the office can separate "waiting on us" from "answered" without
+        # opening every thread (2ca63bde, 7fb34ed4, 7ee545c4).
         conversations = message_service.get_user_conversations(ctx['inbox_user_id'])
-        # Who spoke last, so the office can separate "waiting on us" from
-        # "answered" without opening every thread (2ca63bde, 7fb34ed4).
-        school_inbox_service.annotate_last_sender(conversations)
         return success_response({
             'organization': {'id': ctx['org']['id'], 'name': ctx['org']['name']},
             'inbox_user_id': ctx['inbox_user_id'],
@@ -143,6 +143,32 @@ def send_as_school(user_id: str, target_user_id: str):
     except Exception as e:
         logger.error(f"Error sending as school: {str(e)}")
         return error_response('Failed to send message', status_code=500,
+                              error_code='internal_error')
+
+
+@bp.route('/conversations/<conversation_id>/resolve', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def resolve_thread(user_id: str, conversation_id: str):
+    """Mark a member thread handled AS the school, or take it back
+    ({"resolved": false}). Shared like read state: one colleague resolving it
+    moves it out of "Needs a reply" for the whole office (5c858931)."""
+    try:
+        ctx, err = _resolve_inbox(user_id)
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        resolved = data.get('resolved', True)
+        if not isinstance(resolved, bool):
+            return error_response('resolved must be true or false', status_code=400,
+                                  error_code='validation_error')
+        value = message_service.set_conversation_resolved(
+            conversation_id, ctx['inbox_user_id'], resolved)
+        return success_response({'conversation_id': conversation_id, 'resolved_at': value})
+    except ValueError as e:
+        return error_response(str(e), status_code=404, error_code='not_found')
+    except Exception as e:
+        logger.error(f"Error resolving school inbox thread: {str(e)}")
+        return error_response('Failed to update the thread', status_code=500,
                               error_code='internal_error')
 
 

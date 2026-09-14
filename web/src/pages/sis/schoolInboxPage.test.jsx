@@ -230,6 +230,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.schoolConvos = [{
       id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
       last_message_preview: 'from a parent', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'parent-1',
     }]
     render(<SchoolInboxPage />)
     expect(await screen.findByText('from a parent')).toBeInTheDocument()
@@ -240,6 +241,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.myConvos = [{
       id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
       last_message_preview: 'just between us', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'teacher-1',
     }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
     expect(await screen.findByText('just between us')).toBeInTheDocument()
@@ -250,6 +252,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.schoolConvos = [{
       id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
       last_message_preview: 'hi', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'parent-1',
     }]
     render(<SchoolInboxPage />)
     fireEvent.click(await screen.findByText('hi'))
@@ -261,6 +264,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.myConvos = [{
       id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
       last_message_preview: 'hi', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'teacher-1',
     }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
     fireEvent.click(await screen.findByText('hi'))
@@ -272,6 +276,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.myConvos = [{
       id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
       last_message_preview: 'hi', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'teacher-1',
     }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
     fireEvent.click(await screen.findByText('hi'))
@@ -301,6 +306,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.schoolConvos = [{
       id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
       last_message_preview: 'from a parent', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'parent-1',
     }]
     render(<SchoolInboxPage />)
     fireEvent.click(await screen.findByText('from a parent'))
@@ -321,6 +327,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     state.myConvos = [{
       id: 'c-mine', other_user: { id: 'teacher-1', first_name: 'Ada', last_name: 'L' },
       last_message_preview: 'hi', unread_count: 0,
+      last_message_at: '2026-08-30T12:00:00Z', last_message_sender_id: 'teacher-1',
     }]
     render(<SchoolInboxPage />, { route: '/inbox?tab=mine&to=teacher-1' })
     expect(await screen.findByPlaceholderText('Write a reply...')).toBeInTheDocument()
@@ -337,6 +344,88 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />, { route: '/inbox?conversation=c2' })
     expect(await screen.findByText('Field trip Friday')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/school-inbox/conversations/c2')
+  })
+
+  it('counts only threads the other side spoke last in, and skips empty ones', async () => {
+    // iCreate saw "Needs a reply (22)" over a queue of 7: threads the school
+    // had answered were miscounted, and six empty threads counted too (7ee545c4).
+    state.schoolConvos = [
+      { ...convo(1, 'Owed'), last_message_sender_id: 'u1' },
+      { ...convo(2, 'Answered'), last_message_sender_id: 'inbox-1' },
+      { ...convo(3, 'Empty'), last_message_at: null, last_message_preview: '' },
+    ]
+    render(<SchoolInboxPage />)
+    expect(await screen.findByText('Owed Family')).toBeInTheDocument()
+    expect(screen.getByText('Needs a reply (1)')).toBeInTheDocument()
+    expect(screen.queryByText('Answered Family')).not.toBeInTheDocument()
+    expect(screen.queryByText('Empty Family')).not.toBeInTheDocument()
+
+    // The school spoke last: whether it answered or was ignored, it waits on them.
+    fireEvent.click(screen.getByText('Waiting on them'))
+    expect(screen.getByText('Answered Family')).toBeInTheDocument()
+    expect(screen.queryByText('Owed Family')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('All'))
+    expect(screen.getByText('Empty Family')).toBeInTheDocument()
+  })
+
+  it('marks a thread handled as the school, and a newer message reopens it', async () => {
+    // Answered from the other inbox, in person, or not worth answering: the
+    // office says so instead of the thread sitting under Needs a reply (5c858931).
+    state.schoolConvos = [{ ...convo(1, 'Tiffany'), last_message_sender_id: 'u1' }]
+    state.schoolMessages = [
+      { id: 'm1', sender_id: 'u1', message_content: 'Hi Molly', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    api.post.mockImplementation((url) => Promise.resolve(
+      url.endsWith('/resolve')
+        ? { data: { data: { resolved_at: '2026-08-31T09:00:00Z' } } }
+        : { data: { success: true } }))
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('Tiffany Family'))
+    fireEvent.click(await screen.findByText('Mark handled'))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/school-inbox/conversations/c1/resolve', { resolved: true }))
+    expect(await screen.findByText('Needs a reply')).toBeInTheDocument()
+    expect(screen.getByText('Handled · Reopen')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Handled'))
+    // Listed under Handled (and still open in the thread pane).
+    expect(screen.getAllByText('Tiffany Family').length).toBe(2)
+  })
+
+  it('a handled thread the member wrote in again is owed a reply once more', async () => {
+    state.schoolConvos = [{
+      ...convo(1, 'Back'), last_message_sender_id: 'u1',
+      resolved_at: '2026-08-29T12:00:00Z', last_message_at: '2026-08-30T12:00:00Z',
+    }]
+    render(<SchoolInboxPage />)
+    expect(await screen.findByText('Back Family')).toBeInTheDocument()
+    expect(screen.getByText('Needs a reply (1)')).toBeInTheDocument()
+  })
+
+  it('resolves through the personal endpoint on the Mine tab', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.myConvos = [{ ...convo(4, 'Pat'), last_message_sender_id: 'u4' }]
+    state.myMessages = [
+      { id: 'm1', sender_id: 'u4', message_content: 'hey', created_at: '2026-08-30T12:00:00Z' },
+    ]
+    render(<SchoolInboxPage />, { route: '/inbox?tab=mine' })
+    fireEvent.click(await screen.findByText('Pat Family'))
+    fireEvent.click(await screen.findByText('Mark handled'))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/messages/conversations/c4/resolve', { resolved: true }))
+  })
+
+  it('says Seen under our last message once they have opened it', async () => {
+    // "Don't even know if he saw it" (4ae1c6d1): read_at is the answer.
+    state.schoolConvos = [{ ...convo(1, 'Tyler'), last_message_sender_id: 'inbox-1' }]
+    state.schoolMessages = [
+      { id: 'm1', sender_id: 'inbox-1', message_content: 'Please schedule a CLP',
+        created_at: '2026-08-08T12:00:00Z', read_at: '2026-08-08T13:00:00Z' },
+    ]
+    render(<SchoolInboxPage />)
+    fireEvent.click(screen.getByText('All'))
+    fireEvent.click(await screen.findByText('Tyler Family'))
+    expect(await screen.findByText(/· Seen/)).toBeInTheDocument()
   })
 
   it('ignores a ?conversation= that is not in this inbox', async () => {

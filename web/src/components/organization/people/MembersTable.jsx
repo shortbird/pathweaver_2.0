@@ -11,6 +11,12 @@ function MembersTable({
   selectAllVisible,
   toggleUserSelection,
   searchTerm,
+  setSearchTerm,
+  roleFilter,
+  setRoleFilter,
+  showWithdrawn,
+  setShowWithdrawn,
+  withdrawnCount = 0,
   currentPage,
   setCurrentPage,
   totalPages,
@@ -56,8 +62,37 @@ function MembersTable({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-lg font-semibold text-gray-900">Members ({filteredUsers.length})</h2>
+      <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold text-gray-900 mr-auto">Members ({filteredUsers.length})</h2>
+        <input
+          type="search"
+          placeholder="Search members..."
+          aria-label="Search members"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-56 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+        />
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          aria-label="Role"
+          className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
+        >
+          <option value="all">All Roles</option>
+          <option value="student">Student</option>
+          <option value="parent">Parent</option>
+          <option value="advisor">Teacher</option>
+          <option value="org_admin">Org Admin</option>
+          <option value="observer">Observer</option>
+        </select>
+        {withdrawnCount > 0 && (
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
+            <input type="checkbox" checked={showWithdrawn}
+              onChange={(e) => setShowWithdrawn(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+            Show withdrawn ({withdrawnCount})
+          </label>
+        )}
       </div>
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-100">
@@ -107,6 +142,12 @@ function MembersTable({
                       <span className="text-gray-900">{name}</span>
                     ) : (
                       <span className="text-gray-400 italic">No name set</span>
+                    )}
+                    {(user.enrollment_status === 'withdrawn' || user.enrollment_status === 'graduated') && (
+                      <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-500 align-middle"
+                        title="On file, but no longer at the school">
+                        {user.enrollment_status === 'graduated' ? 'Graduated' : 'Withdrawn'}
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-gray-600">

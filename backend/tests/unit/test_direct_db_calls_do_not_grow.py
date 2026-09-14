@@ -320,7 +320,20 @@ BASELINES = {
     # a student withdrawn again. school_enrollments had no repository; the
     # service that writes it (sis_person_service._archive) keeps its existing
     # direct calls and adds none.
-    'repositories': 531,
+    # 2026-09-14: 531 -> 533. bug_report_repository, the ticket tracker that
+    # replaces Perch: find_detail (one row with its org's name, for the
+    # /admin/tickets detail view) and counts_by_status (an exact-count per
+    # status for the tracker's tabs). list_recent folded into list_filtered
+    # rather than adding a third list reader.
+    # 2026-09-14: 533 -> 537, the afternoon iCreate batch.
+    #   quest_template_task_repository.ids_for_quest + set_order (+3): the
+    #     reads and writes behind reordering a quest's preset tasks
+    #     (c7d1f7a5), so utils/template_tasks.reorder_template_tasks adds
+    #     nothing above this layer.
+    #   school_enrollment_repository.statuses_for_org (+1): every student's
+    #     standing at the school, for the org admin's People tab, which had
+    #     no way to show a withdrawn student as anything but present.
+    'repositories': 537,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

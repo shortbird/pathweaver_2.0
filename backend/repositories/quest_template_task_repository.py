@@ -317,6 +317,22 @@ class QuestTemplateTaskRepository(BaseRepository):
             logger.error(f"Error bulk updating template tasks for quest {quest_id}: {e}")
             raise DatabaseError("Failed to update template tasks") from e
 
+    def ids_for_quest(self, quest_id: str) -> List[str]:
+        """Every template task id on the quest, in no particular order."""
+        rows = (self.client.table(self.table_name).select('id')
+                .eq('quest_id', quest_id).execute()).data or []
+        return [r['id'] for r in rows]
+
+    def set_order(self, quest_id: str, task_ids: List[str]) -> List[Dict[str, Any]]:
+        """Write order_index = position for each id, then return the rows in
+        that order. The caller has checked `task_ids` is the quest's full set
+        (utils.template_tasks.reorder_template_tasks)."""
+        for i, task_id in enumerate(task_ids):
+            self.client.table(self.table_name).update({'order_index': i}) \
+                .eq('id', task_id).eq('quest_id', quest_id).execute()
+        return (self.client.table(self.table_name).select('*')
+                .eq('quest_id', quest_id).order('order_index').execute()).data or []
+
     def increment_usage(self, task_id: str) -> None:
         """
         Increment the usage_count for a template task.

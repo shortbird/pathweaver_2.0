@@ -1,13 +1,15 @@
 import React, { useState } from 'react'
 import api from '../../../services/api'
 import toast from 'react-hot-toast'
-import { TrashIcon, NoSymbolIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import {
+  TrashIcon, NoSymbolIcon, ArrowPathIcon, ArrowRightStartOnRectangleIcon, ArrowUturnLeftIcon,
+} from '@heroicons/react/24/outline'
 
 /**
  * Modal for editing organization user details.
  * Handles name, email, roles, and password reset for username accounts.
  */
-function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
+function EditUserModal({ orgId, user, onClose, onSuccess, onRemove, onSetStanding }) {
   const getEffectiveRoles = () => {
     if (user.role !== 'org_managed') return [user.role]
     if (user.org_roles && Array.isArray(user.org_roles) && user.org_roles.length > 0) {
@@ -33,6 +35,11 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
   const [statusLoading, setStatusLoading] = useState(false)
   // The backend refuses status changes on admin accounts; don't offer the button.
   const isAdminTarget = user.is_org_admin || getEffectiveRoles().includes('org_admin')
+  // Withdrawing is for students: they stay on file as withdrawn, their class
+  // seats are released, and the list stops showing them. Remove is the other
+  // act -- the account leaves the school.
+  const isStudentTarget = getEffectiveRoles().includes('student') && !isAdminTarget
+  const isWithdrawnTarget = user.enrollment_status === 'withdrawn' || user.enrollment_status === 'graduated'
 
   const handleToggleStatus = async () => {
     const disabling = accountStatus !== 'disabled'
@@ -264,6 +271,34 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove }) {
               <TrashIcon className="w-4 h-4" />
               Remove
             </button>
+            {isStudentTarget && onSetStanding && (
+              isWithdrawnTarget ? (
+                <button
+                  type="button"
+                  onClick={() => onSetStanding('enrolled')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-green-700 hover:bg-green-50 rounded-full text-sm font-medium transition-colors"
+                  title="Mark them enrolled again. Class seats are not re-taken."
+                >
+                  <ArrowUturnLeftIcon className="w-4 h-4" />
+                  Reinstate
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.display_name || user.email
+                    if (confirm(`Withdraw ${name} from the school?\n\nThey are marked withdrawn and their class seats are freed. The account, their work and their history stay, and they drop off the members list.`)) {
+                      onSetStanding('withdrawn')
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-gray-700 hover:bg-gray-100 rounded-full text-sm font-medium transition-colors"
+                  title="They are leaving the school. Keeps the account and its history."
+                >
+                  <ArrowRightStartOnRectangleIcon className="w-4 h-4" />
+                  Withdraw
+                </button>
+              )
+            )}
             {!isAdminTarget && (
               <button
                 type="button"

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
-  SparklesIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon,
+  SparklesIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon,
   PencilSquareIcon, TrashIcon, DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
@@ -10,6 +10,7 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 import SearchSelect from '../ui/SearchSelect'
 import QuestDraftForm, { blankTask } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
+import QuestResourcesPanel from './QuestResourcesPanel'
 import PresetTaskManager from './PresetTaskManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
@@ -302,7 +303,15 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChang
         </div>
       )}
 
-      <PresetTaskManager base={`${base}/tasks`} orgId={orgId} />
+      {/* Handouts, videos and links for the quest as a whole. They were
+          reachable only from a class the quest was assigned to, so the admin
+          logged in as a teacher to attach them and then could not see them
+          here -- "it's not saved to the master quest" (iCreate, 2026-09-14,
+          c7d1f7a5). It was; nothing here showed it. Same rows, same quest. */}
+      {detail.editable && <QuestResourcesPanel questId={quest.id} />}
+
+      <PresetTaskManager base={`${base}/tasks`} orgId={orgId}
+        questId={detail.editable ? quest.id : null} />
 
       <QuestCurricula base={base} orgId={orgId} curriculumId={curriculumId}
         onChanged={onChanged} onMoved={onMoved} />
@@ -389,6 +398,18 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
     saveQuests(quests.filter((x) => x.id !== q.id))
   }
 
+  // "I would also really like to be able to move the quests up and down"
+  // (iCreate, 2026-09-14, c7d1f7a5). The order here is the order a new class
+  // starts from; the PUT already keeps whatever order it is sent.
+  const moveQuest = (index, delta) => {
+    const to = index + delta
+    if (to < 0 || to >= quests.length) return
+    const next = [...quests]
+    const [row] = next.splice(index, 1)
+    next.splice(to, 0, row)
+    saveQuests(next)
+  }
+
   const resetNew = () => {
     setNewTitle(''); setNewDesc(''); setNewTasks([blankTask()]); setShowNew(false)
   }
@@ -442,11 +463,21 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
         </p>
         {!quests.length ? <Empty>Nothing saved yet.</Empty> : (
           <ul className="divide-y divide-gray-50 mb-2">
-            {quests.map((q) => {
+            {quests.map((q, i) => {
               const open = expandedId === q.id
               return (
                 <li key={q.id} className="py-1.5 text-sm">
                   <div className="flex items-center gap-2">
+                    {canManage && quests.length > 1 && (
+                      <span className="shrink-0 inline-flex flex-col -my-1">
+                        <button type="button" onClick={() => moveQuest(i, -1)} disabled={busy || i === 0}
+                          className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30"
+                          aria-label={`Move ${q.title} up`}><ChevronUpIcon className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={() => moveQuest(i, 1)} disabled={busy || i === quests.length - 1}
+                          className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30"
+                          aria-label={`Move ${q.title} down`}><ChevronDownIcon className="w-3.5 h-3.5" /></button>
+                      </span>
+                    )}
                     {/* The row opens onto the quest itself — description, preset
                         tasks, and (for the school's own quests) full editing.
                         Admin-only: the per-quest routes behind it are too. */}

@@ -218,6 +218,9 @@ def register_all(app):
     # Org-scoped account enable/disable (blocks P2).
     from routes.admin import org_member_status
     app.register_blueprint(org_member_status.bp, url_prefix='/api/admin/organizations')
+    # Withdraw a student / reinstate, for schools without the SIS console.
+    from routes.admin import org_member_standing
+    app.register_blueprint(org_member_standing.bp, url_prefix='/api/admin/organizations')
     app.register_blueprint(course_enrollments.bp)
     app.register_blueprint(bulk_import.bp)
     app.register_blueprint(user_invitations.bp)
@@ -406,6 +409,10 @@ def register_all(app):
     # ── SIS (Student Information System) — microschool management console ──────
     from routes.sis import register_sis_routes
     register_sis_routes(app)
+    # Batch removal of people; its own blueprint with its own module tag (see
+    # routes/sis/people_removal.py).
+    from routes.sis import people_removal
+    app.register_blueprint(people_removal.bp)
 
     # ── Public embeddable widgets (org catalog/schedule for external sites) ────
     from routes import embed

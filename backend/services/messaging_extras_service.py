@@ -289,7 +289,7 @@ def _recompute_conversation_preview(message_type: str, msg: Dict[str, Any]) -> N
 
     try:
         latest = (admin.table(msg_table)
-                  .select('message_content, attachments, created_at')
+                  .select('message_content, attachments, created_at, sender_id')
                   .eq(scope_col, conv_id).eq('is_deleted', False)
                   .order('created_at', desc=True).limit(1).execute()).data
         if latest:
@@ -297,6 +297,11 @@ def _recompute_conversation_preview(message_type: str, msg: Dict[str, Any]) -> N
                 'last_message_preview': _preview_text(latest[0]),
                 'last_message_at': latest[0]['created_at'],
             }
+            # A DM thread also records who spoke last (the SIS inbox sorts on
+            # it); deleting the last message can hand that back to the other
+            # side. Groups have no such column.
+            if message_type == 'dm':
+                update['last_message_sender_id'] = latest[0].get('sender_id')
         else:
             # Every message removed — clear the preview but keep last_message_at
             # so the (now empty) conversation keeps its position in the list.

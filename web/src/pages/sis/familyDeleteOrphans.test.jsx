@@ -64,8 +64,15 @@ beforeEach(() => {
 })
 
 describe('deleting a family', () => {
-  it('names the accounts it left behind and offers to go and remove them', async () => {
+  it('names the accounts it left behind and offers to remove them, then does', async () => {
+    // The offer used to be a walk to People > Everyone, one person at a time;
+    // "This still doesn't make sense how to permanently delete someone"
+    // (iCreate, 2026-09-14, 75037697). Now the dialog does it.
     api.delete.mockResolvedValue({ data: { success: true, orphaned_members: ORPHANS } })
+    api.post.mockResolvedValue({ data: { success: true, removed: [
+      { id: 's1', name: 'Ada Tester', outcome: 'deleted', detail: '' },
+      { id: 's2', name: 'Blaise Tester', outcome: 'archived', detail: 'records' },
+    ] } })
     open()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete family' }))
@@ -74,24 +81,38 @@ describe('deleting a family', () => {
 
     const text = await confirmText()
     expect(text).toContain('Ada Tester, Blaise Tester')
-    expect(text).toMatch(/still have an account at the school/i)
-    expect(text).toMatch(/why they still appear on rosters and reports/i)
+    expect(text).toMatch(/Remove the 2 people in it from the school too/i)
+    expect(text).toMatch(/kept as withdrawn instead/i)
 
-    await answerConfirm()
-    // People › Everyone, with the family's name already in the search box.
-    expect(navigate).toHaveBeenCalledWith('/people?q=Tester%20Family')
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove them' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/people/remove', { user_ids: ['s1', 's2'], organization_id: 'org-1' }))
+    expect(navigate).not.toHaveBeenCalled()
   })
 
-  it('stays put when the admin says no', async () => {
+  it('leaves the accounts alone when the admin says no', async () => {
     api.delete.mockResolvedValue({ data: { success: true, orphaned_members: ORPHANS } })
     open()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete family' }))
     await answerConfirm()
     await waitFor(() => expect(api.delete).toHaveBeenCalled())
-    await answerConfirm(false)
+    fireEvent.click(await screen.findByRole('button', { name: 'Leave their accounts' }))
 
+    expect(api.post).not.toHaveBeenCalledWith('/api/sis/people/remove', expect.anything())
     expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the People page when the removal itself fails', async () => {
+    api.delete.mockResolvedValue({ data: { success: true, orphaned_members: ORPHANS } })
+    api.post.mockRejectedValue({ response: { data: { error: 'nope' } } })
+    open()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete family' }))
+    await answerConfirm()
+    await waitFor(() => expect(api.delete).toHaveBeenCalled())
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove them' }))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/people?q=Tester%20Family'))
   })
 
   it('says nothing more when the family had nobody in it', async () => {

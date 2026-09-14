@@ -8,6 +8,7 @@ import api from '../../services/api'
 import QuestDraftForm, { blankTask } from './QuestDraftForm'
 import QuestAiDraftPanel from './QuestAiDraftPanel'
 import PresetTaskManager from './PresetTaskManager'
+import QuestResourcesPanel from './QuestResourcesPanel'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
@@ -729,6 +730,12 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
                 )}
                 {open && (
                   <div className="border-t border-gray-100 px-4 pb-4">
+                    {/* Pictures, handouts and videos for the quest as a whole,
+                        which students see at the top of the quest. Each task
+                        has its own below. "Is there a way to upload images into
+                        quests for the kids to look over?" (Gryffin, 2026-09-14,
+                        ac9bde84) -- there was, one task at a time. */}
+                    {q.editable_tasks && <QuestResourcesPanel questId={q.quest_id} />}
                     <PresetTaskManager base={`/api/sis/classes/${classId}/quests/${q.quest_id}/tasks`}
                       questId={q.quest_id} />
                   </div>

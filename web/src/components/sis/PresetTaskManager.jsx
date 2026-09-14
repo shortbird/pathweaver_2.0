@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
-import { PencilSquareIcon, TrashIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
+import { PencilSquareIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { PILLARS, PILLAR_LABEL, blankTask, followPillar } from './QuestDraftForm'
 import TaskSubjectPicker from './TaskSubjectPicker'
@@ -123,6 +123,30 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
     }
   }
 
+  // iCreate, 2026-09-14 (c7d1f7a5): "when you edit a quest, you can't move the
+  // tasks up and down. You can only do that when you first create the quest."
+  // The whole list goes to the server, in order; a single move is not a thing
+  // it accepts (see utils.template_tasks.reorder_template_tasks).
+  const move = async (index, delta) => {
+    const to = index + delta
+    if (to < 0 || to >= tasks.length) return
+    const next = [...tasks]
+    const [row] = next.splice(index, 1)
+    next.splice(to, 0, row)
+    const before = tasks
+    setTasks(next)
+    setSaving(true)
+    try {
+      const { data } = await api.put(`${base}/order${q}`, { task_ids: next.map((t) => t.id) })
+      if (Array.isArray(data?.tasks)) setTasks(data.tasks)
+    } catch (err) {
+      setTasks(before)
+      toast.error(err?.response?.data?.error || 'Could not move the task')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) return <p className="text-sm text-neutral-400 py-2">Loading tasks…</p>
 
   return (
@@ -132,7 +156,7 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
       )}
       {tasks.length > 0 && (
         <ul className="mb-3 space-y-1.5">
-          {tasks.map((t) => (
+          {tasks.map((t, i) => (
             <li key={t.id} className="text-sm">
               {editingId === t.id ? (
                 <div className="rounded-lg border border-optio-purple/40 p-3 space-y-2">
@@ -180,6 +204,16 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
                   </span>
                   {editable && (
                     <>
+                      {tasks.length > 1 && (
+                        <span className="shrink-0 inline-flex flex-col -my-1">
+                          <button onClick={() => move(i, -1)} disabled={saving || i === 0}
+                            className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30"
+                            aria-label={`Move ${t.title} up`}><ChevronUpIcon className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => move(i, 1)} disabled={saving || i === tasks.length - 1}
+                            className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30"
+                            aria-label={`Move ${t.title} down`}><ChevronDownIcon className="w-3.5 h-3.5" /></button>
+                        </span>
+                      )}
                       <button onClick={() => startEdit(t)} className="shrink-0 p-1 text-gray-400 hover:text-optio-purple"
                         aria-label={`Edit ${t.title}`}><PencilSquareIcon className="w-4 h-4" /></button>
                       <button onClick={() => duplicate(t.id)} disabled={saving}

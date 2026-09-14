@@ -5,6 +5,7 @@ import {
   AcademicCapIcon,
   ArrowLeftIcon,
   ChatBubbleLeftRightIcon,
+  CheckCircleIcon,
   InboxIcon,
   PaperAirplaneIcon,
   PaperClipIcon,
@@ -386,22 +387,63 @@ const SchoolInboxPage = () => {
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
 
-  // A thread whose last message came from the other person is still owed a
-  // reply. A thread we have not annotated (an older payload, or the lookup
-  // failing) counts as needing one — better to show it than to hide it.
+  // Four piles, from two facts the row carries: who spoke last, and whether
+  // this side has marked the thread handled since.
+  //
+  // - A thread with no messages yet is in no pile but All. Six of iCreate's
+  //   "22 needing a reply" were empty threads somebody had opened and never
+  //   written in (7ee545c4).
+  // - Handled outranks who spoke last, until the other person writes again:
+  //   `resolved_at` is compared to `last_message_at`, so a new message reopens
+  //   the thread without anything having to clear the mark (5c858931).
+  // - Who spoke last is `last_message_sender_id`, stored on send. A row
+  //   without it (older payload) still counts as owed a reply — better to show
+  //   a thread than to hide one.
+  // - "Waiting on them" was labelled "Answered", and half of what sat there
+  //   was never answered by anyone: threads the school opened and the member
+  //   ignored. Both are the same fact — the last word was ours (4ae1c6d1).
+  //
   // `selfId` is the school for the front office, the teacher themself otherwise.
-  const needsReply = (c) => !c.last_message_sender_id || c.last_message_sender_id !== selfId
+  const hasTraffic = (c) => Boolean(c.last_message_at)
+  const isResolved = (c) => Boolean(c.resolved_at)
+    && (!c.last_message_at || c.resolved_at >= c.last_message_at)
+  const lastWordWasOurs = (c) => Boolean(c.last_message_sender_id) && c.last_message_sender_id === selfId
+  const needsReply = (c) => hasTraffic(c) && !isResolved(c) && !lastWordWasOurs(c)
+  const waitingOnThem = (c) => hasTraffic(c) && !isResolved(c) && lastWordWasOurs(c)
   const openCount = conversations.filter(needsReply).length
   const shownConversations = conversations.filter((c) => (
     threadView === 'all' ? true
       : threadView === 'open' ? needsReply(c)
-        : !needsReply(c)
+        : threadView === 'waiting' ? waitingOnThem(c)
+          : isResolved(c)
   ))
   const THREAD_VIEWS = [
     ['open', `Needs a reply${openCount ? ` (${openCount})` : ''}`],
-    ['answered', 'Answered'],
+    ['waiting', 'Waiting on them'],
+    ['resolved', 'Handled'],
     ['all', 'All'],
   ]
+
+  // "This one is done" without sending anything. The thread comes off Needs a
+  // reply for this side only; the member sees nothing.
+  const [resolving, setResolving] = useState(false)
+  const setResolved = (convo, resolved) => {
+    if (!convo?.id || resolving) return
+    setResolving(true)
+    const url = viewingSchool
+      ? withOrg(`/api/school-inbox/conversations/${convo.id}/resolve`, isSuperadmin ? orgId : null)
+      : `/api/messages/conversations/${convo.id}/resolve`
+    api.post(url, { resolved })
+      .then((r) => {
+        const at = r?.data?.data?.resolved_at ?? (resolved ? new Date().toISOString() : null)
+        const patch = (c) => (c.id === convo.id ? { ...c, resolved_at: at } : c)
+        setConversations((prev) => prev.map(patch))
+        setSelected((c) => (c ? patch(c) : c))
+        toast.success(resolved ? 'Marked as handled' : 'Back in Needs a reply')
+      })
+      .catch((e) => toast.error(e?.response?.data?.error || 'Could not update the thread'))
+      .finally(() => setResolving(false))
+  }
 
   const tabClass = (t) => `px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
     tab === t
@@ -536,7 +578,7 @@ const SchoolInboxPage = () => {
                 </p>
                 <p className="text-xs text-neutral-500">
                   {threadView === 'open'
-                    ? 'No thread is waiting on a reply from the school.'
+                    ? (viewingSchool ? 'No thread is waiting on a reply from the school.' : 'No thread is waiting on a reply from you.')
                     : 'Switch to All to see every thread.'}
                 </p>
               </div>
@@ -604,7 +646,7 @@ const SchoolInboxPage = () => {
                 >
                   <ArrowLeftIcon className="w-5 h-5" />
                 </button>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selected)}</h2>
                   {viewingSchool && (
                     <p className="text-xs text-neutral-500 flex items-center gap-1">
@@ -613,6 +655,23 @@ const SchoolInboxPage = () => {
                     </p>
                   )}
                 </div>
+                {/* A thread answered somewhere else -- in person, from the
+                    other inbox -- has no reply to send and would otherwise sit
+                    under Needs a reply forever (iCreate, 5c858931). */}
+                {selected.id && hasTraffic(selected) && (
+                  isResolved(selected) ? (
+                    <button type="button" onClick={() => setResolved(selected, false)} disabled={resolving}
+                      className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
+                      <CheckCircleIcon className="w-4 h-4 text-green-600" /> Handled · Reopen
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => setResolved(selected, true)} disabled={resolving}
+                      title="Take it off Needs a reply without sending anything"
+                      className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:border-optio-purple hover:text-optio-purple disabled:opacity-50">
+                      <CheckCircleIcon className="w-4 h-4" /> Mark handled
+                    </button>
+                  )
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto bg-gray-50 px-4 py-3 space-y-2">
@@ -627,8 +686,12 @@ const SchoolInboxPage = () => {
                       : `Write the first message to ${memberName(selected)}.`}
                   </p>
                 ) : (
-                  messages.map((message) => {
+                  messages.map((message, i) => {
                     const fromMe = message.sender_id === selfId
+                    // Whether the other person has opened our last message.
+                    // "Don't even know if he saw it" (iCreate, 4ae1c6d1) is
+                    // answerable: read_at is stamped when they open the thread.
+                    const showSeen = fromMe && i === messages.length - 1 && Boolean(message.read_at)
                     return (
                       <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 ${
@@ -646,6 +709,7 @@ const SchoolInboxPage = () => {
                             {viewingSchool && fromMe && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
                             {/* A member-side message with an author = forwarded in from Optio Support. */}
                             {viewingSchool && !fromMe && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
+                            {showSeen && ' · Seen'}
                           </p>
                         </div>
                       </div>

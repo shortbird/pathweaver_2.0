@@ -136,16 +136,34 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
       // read while deciding whether to delete, not while wondering why the
       // children are still on the allergy report an hour later (iCreate,
       // 2026-09-01: "I deleted 'Tester' family but now the kids still show").
-      // Offering to go there beats naming a path they have to walk from memory.
+      // This used to offer a walk to People › Everyone to remove them one at a
+      // time; the office came back from that walk with "This still doesn't
+      // make sense how to permanently delete someone" (2026-09-14, 75037697).
+      // Now it offers to do it.
       const left = data?.orphaned_members || []
-      if (left.length && await confirm(
-        `${household.name} is deleted, but ${left.length === 1 ? 'one person' : `these ${left.length} people`} `
-        + `still ${left.length === 1 ? 'has' : 'have'} an account at the school:\n\n`
-        + `${left.map((m) => m.name).join(', ')}\n\n`
-        + 'That is why they still appear on rosters and reports. Open People › Everyone '
-        + 'to remove them as well?',
-      )) {
-        navigate(`/people?q=${encodeURIComponent(household.name || '')}`)
+      if (left.length && await confirm({
+        title: `${household.name} is deleted. Remove ${left.length === 1 ? 'the person' : `the ${left.length} people`} in it from the school too?`,
+        body: `${left.map((m) => m.name).join(', ')}\n\n`
+          + 'Each account is deleted outright. Anyone with attendance, work or a '
+          + 'registration on file is kept as withdrawn instead, so those records '
+          + 'survive, and drops off rosters and reports either way.',
+        confirmLabel: 'Remove them',
+        cancelLabel: 'Leave their accounts',
+      })) {
+        try {
+          const r = await sisFamilyApi.removePeople(left.map((m) => m.id), orgId)
+          const done = r.data?.removed || []
+          const deleted = done.filter((x) => x.outcome === 'deleted').map((x) => x.name)
+          const archived = done.filter((x) => x.outcome === 'archived').map((x) => x.name)
+          const failed = done.filter((x) => x.outcome === 'error')
+          if (deleted.length) toast.success(`Removed ${deleted.join(', ')}`)
+          if (archived.length) toast(`${archived.join(', ')} kept on file as withdrawn (records attached)`)
+          failed.forEach((x) => toast.error(`${x.name}: ${x.detail || 'could not remove'}`))
+          onSaved?.()
+        } catch (e) {
+          toast.error(e?.response?.data?.error || 'Could not remove them')
+          navigate(`/people?q=${encodeURIComponent(household.name || '')}`)
+        }
       }
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not delete family') }
   }

@@ -399,6 +399,30 @@ def mark_conversation_read(user_id: str, conversation_id: str):
         )
 
 
+@bp.route('/conversations/<conversation_id>/resolve', methods=['POST'])
+@require_auth
+def resolve_conversation(user_id: str, conversation_id: str):
+    """Mark a thread handled for the caller, or take the mark back
+    ({"resolved": false}). Nothing is sent and the other side sees nothing;
+    this only moves the thread out of the caller's "Needs a reply" until the
+    other person writes again."""
+    try:
+        data = request.get_json(silent=True) or {}
+        resolved = data.get('resolved', True)
+        if not isinstance(resolved, bool):
+            raise ValidationError('resolved must be true or false')
+        value = message_service.set_conversation_resolved(conversation_id, user_id, resolved)
+        return success_response({'conversation_id': conversation_id, 'resolved_at': value})
+    except ValidationError as e:
+        return error_response(str(e), status_code=400, error_code='validation_error')
+    except ValueError as e:
+        return error_response(str(e), status_code=404, error_code='not_found')
+    except Exception as e:
+        logger.error(f"Error resolving conversation: {str(e)}")
+        return error_response('Failed to update the conversation', status_code=500,
+                              error_code='internal_error')
+
+
 @bp.route('/unread-count', methods=['GET'])
 @require_auth
 def get_unread_count(user_id: str):

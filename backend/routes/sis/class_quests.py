@@ -842,6 +842,29 @@ def add_preset_task(user_id, class_id, quest_id):
     return jsonify({'success': True, 'task': _serialize_task(row[0])})
 
 
+@bp.route('/classes/<class_id>/quests/<quest_id>/tasks/order', methods=['PUT'])
+@require_auth
+def reorder_preset_tasks(user_id, class_id, quest_id):
+    """Put the quest's preset tasks in the order sent ({"task_ids": [...]}, the
+    whole set). See utils.template_tasks.reorder_template_tasks."""
+    class_row, admin, quest, err = _authorize_editable_quest(user_id, class_id, quest_id)
+    if err:
+        return err
+    task_ids = [t for t in ((request.get_json(silent=True) or {}).get('task_ids') or []) if t]
+    if not task_ids or any(_bad_uuid(t) for t in task_ids):
+        return jsonify({'success': False, 'error': 'Send every task id, in order.'}), 400
+    from utils.template_tasks import reorder_template_tasks, resync_enrollments_to_template
+    rows = reorder_template_tasks(admin, quest_id, task_ids)
+    if rows is None:
+        return jsonify({'success': False,
+                        'error': 'That is not the full task list -- reload and try again.'}), 409
+    try:
+        resync_enrollments_to_template(admin, quest_id)
+    except Exception as e:  # noqa: BLE001 -- the order itself is saved
+        logger.warning(f'Tasks reordered but enrollment resync failed for {quest_id}: {e}')
+    return jsonify({'success': True, 'tasks': [_serialize_task(t) for t in rows]})
+
+
 @bp.route('/classes/<class_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
 @require_auth
 def update_preset_task(user_id, class_id, quest_id, task_id):

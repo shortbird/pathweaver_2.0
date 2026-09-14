@@ -132,6 +132,19 @@ const UnassignedStudentsPanel = ({ students, households, orgId, onSaved }) => {
   )
 }
 
+// A family whose every student has withdrawn or graduated. The record stays --
+// billing and history hang off it -- but it is not one of the families the
+// office is running the school for today, and the list read as if it were:
+// "why are we keeping families and their numbers if they aren't part of the
+// school anymore?" (iCreate, 2026-09-14, 28937c94). Tucked behind a toggle,
+// not deleted. A family with no students at all (guardians only, or brand
+// new) is not "former"; it is unfinished.
+export const isFormerFamily = (h) => {
+  const students = (h.members || []).filter((m) => m.relationship === 'student')
+  return students.length > 0
+    && students.every((m) => m.status === 'withdrawn' || m.status === 'graduated')
+}
+
 const HouseholdsPage = ({ embedded = false }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   // QF-03: one query for all three lists -- the page is meaningless with a
@@ -145,6 +158,7 @@ const HouseholdsPage = ({ embedded = false }) => {
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [payFilter, setPayFilter] = useState('')
+  const [showFormer, setShowFormer] = useState(false)
   const [selected, setSelected] = useState(null)
 
 
@@ -183,7 +197,11 @@ const HouseholdsPage = ({ embedded = false }) => {
   // nothing (iCreate, 2026-08-28). The payment filter narrows it further — "show
   // me the Utah Fits All families" is how the office decides who to invoice next.
   const q = search.trim().toLowerCase()
+  const formerCount = households.filter(isFormerFamily).length
   const visibleHouseholds = households.filter((h) => {
+    // A search still finds a former family by name: the office looking one up
+    // is exactly the case the record was kept for.
+    if (!showFormer && !q && isFormerFamily(h)) return false
     if (q && !((h.name || '').toLowerCase().includes(q)
       || (h.members || []).some((m) => matchesPersonSearch(m, q)))) return false
     return matchesPaymentFilter(h, payFilter)
@@ -209,6 +227,13 @@ const HouseholdsPage = ({ embedded = false }) => {
             placeholder="Search families or any family member…"
           />
           <PaymentFilterSelect rows={households} value={payFilter} onChange={setPayFilter} />
+          {formerCount > 0 && (
+            <label className="flex items-center gap-1.5 text-sm text-neutral-600 whitespace-nowrap">
+              <input type="checkbox" checked={showFormer} onChange={(e) => setShowFormer(e.target.checked)}
+                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              Show former families ({formerCount})
+            </label>
+          )}
         </div>
       )}
 
@@ -285,6 +310,10 @@ const HouseholdsPage = ({ embedded = false }) => {
                         )}
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="font-medium text-neutral-900 truncate">{h.display_name || h.name}</span>
+                          {isFormerFamily(h) && (
+                            <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-gray-100 text-neutral-500 flex-shrink-0"
+                              title="Every student in this family has withdrawn or graduated">Former</span>
+                          )}
                           {h.registration_hold && (
                             <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700 flex-shrink-0"
                               title={h.registration_hold_reason || 'Registration on hold'}>Hold</span>

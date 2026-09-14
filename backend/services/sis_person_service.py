@@ -310,6 +310,81 @@ def withdraw_household(org_id: str, household_id: str) -> Dict[str, Any]:
             'household_name': household.get('name')}
 
 
+def set_student_standing(org_id: str, student_id: str, withdrawn: bool) -> Dict[str, Any]:
+    """Withdraw one student, or take a withdrawal back, from the org admin's
+    People tab on the web platform.
+
+    Schools that do not run the SIS console had Remove (the account leaves the
+    org, its class seats and history left dangling) and nothing gentler
+    (2026-09-14). Withdrawing is the same act the SIS roster does: the student
+    stays on file as withdrawn, their active class seats are released, and the
+    lists stop showing them. Reinstating sets the enrollment back to enrolled;
+    seats are not re-taken, since the classes may have filled since.
+    """
+    u = _user(org_id, student_id)
+    if not u:
+        return {'error': 'Person not found in this organization'}
+    if not is_student(u):
+        return {'error': 'Only a student can be withdrawn. Remove a parent or staff member instead.'}
+    name = _full_name(u)
+    if withdrawn:
+        result = _archive(org_id, student_id, name, student=True)
+        return {'withdrawn': True, 'name': name, 'seats_released': result.get('seats_released', 0)}
+    _admin().table('school_enrollments').upsert({
+        'organization_id': org_id, 'student_user_id': student_id,
+        'status': 'enrolled', 'updated_at': _now_iso(),
+    }, on_conflict='organization_id,student_user_id').execute()
+    return {'withdrawn': False, 'name': name}
+
+
+def remove_people(org_id: str, user_ids: List[str], actor_id: str) -> Dict[str, Any]:
+    """Take several people off the school at once, deleting each account when
+    nothing depends on it and archiving it when something does.
+
+    Deleting a family never deleted the people in it, and the dialog sent the
+    office to People > Everyone to remove them one at a time. iCreate,
+    2026-09-14 (75037697): "This still doesn't make sense how to permanently
+    delete someone" -- filed from the Delete family dialog, third visit.
+
+    Students first, then guardians: a guardian cannot be deleted while a
+    dependent still points at them, and the student's outcome decides that.
+    Each person's outcome is reported separately, because "gone" means two
+    different things here and the office needs to know which: deleted outright,
+    or kept on file as withdrawn / detached because attendance, work or a
+    registration still refers to them (the same rule as one-at-a-time delete).
+
+    Returns {'removed': [{id, name, outcome: 'deleted'|'archived'|'error', detail}]}.
+    """
+    people = []
+    for uid in user_ids:
+        u = _user(org_id, uid)
+        if u:
+            people.append(u)
+    people.sort(key=lambda u: 0 if is_student(u) else 1)
+    out: List[Dict[str, Any]] = []
+    for u in people:
+        uid = u['id']
+        name = _full_name(u)
+        try:
+            result = remove_person(org_id, uid, actor_id=actor_id, mode='delete')
+            if result.get('error') and result.get('blocking'):
+                # Records rule out deleting; archive is what one-at-a-time
+                # offers next, so offer it without a second round trip.
+                result = remove_person(org_id, uid, actor_id=actor_id, mode='archive')
+            if result.get('error'):
+                out.append({'id': uid, 'name': name, 'outcome': 'error',
+                            'detail': result['error']})
+            elif result.get('deleted'):
+                out.append({'id': uid, 'name': name, 'outcome': 'deleted', 'detail': ''})
+            else:
+                out.append({'id': uid, 'name': name, 'outcome': 'archived',
+                            'detail': result.get('message') or ''})
+        except Exception as e:  # noqa: BLE001 -- one person must not stop the rest
+            logger.error(f'[People] batch removal of {uid[:8]} failed: {e}')
+            out.append({'id': uid, 'name': name, 'outcome': 'error', 'detail': 'Could not remove'})
+    return {'removed': out}
+
+
 def _is_withdrawn(org_id: str, student_id: str) -> bool:
     """Whether the school already lists this student as withdrawn."""
     from repositories.school_enrollment_repository import SchoolEnrollmentRepository

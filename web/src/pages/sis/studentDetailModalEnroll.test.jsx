@@ -145,4 +145,27 @@ describe('StudentDetailModal class picker', () => {
     expect(names.some((t) => t.includes('clashes with their schedule'))).toBe(true)
     expect(names.some((t) => t.includes('outside the age band'))).toBe(true)
   })
+
+  it('lists the week in day-and-time order, both what they have and what they could take', async () => {
+    // "can we have the classes that show up be in order of day and time?"
+    // (iCreate, 2026-09-14, 5e553e23). Alphabetical put Thursday above Monday.
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/api/sis/students/s1/classes')) return Promise.resolve({ data: { classes: [
+        { class_id: 'e1', name: 'Art', meetings: [{ day_of_week: 4, start_time: '09:00', end_time: '10:00' }] },
+        { class_id: 'e2', name: 'Zoology', meetings: [{ day_of_week: 1, start_time: '13:00', end_time: '14:00' }] },
+        { class_id: 'e3', name: 'Band', meetings: [{ day_of_week: 1, start_time: '09:00', end_time: '10:00' }] },
+      ] } })
+      if (url.startsWith('/api/sis/classes')) return Promise.resolve({ data: { classes: CLASSES } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    await screen.findByLabelText('class')
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    const listed = [...document.querySelectorAll('.font-medium.text-neutral-900')].map((el) => el.textContent)
+    expect(listed).toEqual(['Band', 'Zoology', 'Art'])
+    // Picker: Tue 09:00 Geometry, then Wed 11:00 Teen Welding (Pottery clashes
+    // with Monday 13:00 and is left out).
+    expect(optionNames().map((t) => t.split(' — ')[0])).toEqual(['Geometry', 'Teen Welding'])
+  })
 })

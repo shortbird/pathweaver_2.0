@@ -27,3 +27,26 @@ export const classLabel = (c) => {
   const when = meetingText(c.meetings)
   return when ? `${c.name} — ${when}` : c.name
 }
+
+// Sort classes the way a week reads: by first meeting day, then start time,
+// then name; classes with no schedule last. The family record's Schedule tab
+// listed a student's classes alphabetically, so Thursday afternoon sat above
+// Monday morning (iCreate, 2026-09-14, 5e553e23).
+const firstMeeting = (c) => {
+  const ms = (c.meetings || []).filter((m) => m.day_of_week != null)
+  if (!ms.length) return null
+  return [...ms].sort((a, b) => (a.day_of_week - b.day_of_week)
+    || String(a.start_time || '').localeCompare(String(b.start_time || '')))[0]
+}
+export const byDayAndTime = (a, b) => {
+  const ma = firstMeeting(a)
+  const mb = firstMeeting(b)
+  if (ma && !mb) return -1
+  if (!ma && mb) return 1
+  if (ma && mb) {
+    if (ma.day_of_week !== mb.day_of_week) return ma.day_of_week - mb.day_of_week
+    const t = String(ma.start_time || '').localeCompare(String(mb.start_time || ''))
+    if (t) return t
+  }
+  return (a.name || '').localeCompare(b.name || '')
+}

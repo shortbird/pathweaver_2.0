@@ -301,6 +301,7 @@ class DirectMessageService(BaseService):
             convos = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
+                last_message_sender_id, resolved_at_p1, resolved_at_p2,
                 created_at, updated_at
             ''').or_(
                 f'participant_1_id.eq.{pgrst_uuid(user_id, "user_id")},'
@@ -324,12 +325,17 @@ class DirectMessageService(BaseService):
             for convo in rows:
                 is_p1 = convo['participant_1_id'] == user_id
                 other_user_id = convo['participant_2_id'] if is_p1 else convo['participant_1_id']
+                # `resolved_at` is THIS caller's mark on the thread. The other
+                # participant's mark is theirs alone, so it does not leave here.
+                resolved_at = convo.pop('resolved_at_p1' if is_p1 else 'resolved_at_p2', None)
+                convo.pop('resolved_at_p2' if is_p1 else 'resolved_at_p1', None)
                 all_conversations.append({
                     **convo,
                     'other_user': users_by_id.get(
                         other_user_id, {'id': other_user_id, 'display_name': 'Unknown User'}
                     ),
                     'unread_count': convo['unread_count_p1'] if is_p1 else convo['unread_count_p2'],
+                    'resolved_at': resolved_at,
                 })
 
             # Recompute unread from the ACTUAL unread messages rather than trusting
@@ -484,7 +490,8 @@ class DirectMessageService(BaseService):
                 conversation['id'],
                 sender_id,
                 recipient_id,
-                (content or 'Sent an attachment')[:100]
+                (content or 'Sent an attachment')[:100],
+                sent_at=message['created_at'],
             )
 
             # Send notification to recipient
@@ -770,6 +777,31 @@ class DirectMessageService(BaseService):
             logger.error(f"Error marking conversation as read: {str(e)}")
             raise
 
+    def set_conversation_resolved(self, conversation_id: str, user_id: str,
+                                  resolved: bool) -> Optional[str]:
+        """Mark a thread handled (or not) for THIS participant, without sending.
+
+        The inbox sorts by who spoke last, and that is right until the answer
+        went out somewhere else: a parent wrote to the admin's personal inbox,
+        the admin replied from the school's, and the personal thread sat under
+        "Needs a reply" for good (iCreate, 2026-09-14, 5c858931). Resolving is
+        the office saying so.
+
+        Per side, like unread_count: the other participant's queue is theirs.
+        Returns the stored resolved_at (ISO) or None when cleared. Raises
+        ValueError when the caller is not a participant or the thread does not
+        exist -- there is nothing to resolve on a thread nobody has opened.
+        """
+        convo = self._find_conversation(conversation_id, user_id)
+        if convo is None:
+            raise ValueError("Conversation not found")
+        is_p1 = convo['participant_1_id'] == user_id
+        value = datetime.utcnow().isoformat() if resolved else None
+        self._get_client().table('message_conversations').update(
+            {'resolved_at_p1' if is_p1 else 'resolved_at_p2': value}
+        ).eq('id', convo['id']).execute()
+        return value
+
     def get_unread_count(self, user_id: str) -> int:
         """
         Get total unread message count for a user (drives the Messages tab badge).
@@ -876,9 +908,18 @@ class DirectMessageService(BaseService):
         conversation_id: str,
         sender_id: str,
         recipient_id: str,
-        preview: str
+        preview: str,
+        sent_at: Optional[str] = None,
     ):
-        """Update conversation last_message_at, preview, and unread count"""
+        """Update conversation last_message_at, last sender, preview, and unread count.
+
+        `sent_at` is the message row's own created_at. The thread used to be
+        stamped with a second now() taken ~90 ms later, and the SIS inbox then
+        looked the sender up by matching the two instants -- 12 of iCreate's 32
+        threads missed, and every miss read as "needs a reply" (2026-09-14,
+        7ee545c4). The sender is now stored outright, and the two timestamps
+        are the same value so anything still comparing them agrees.
+        """
         try:
             supabase = self._get_client()
             conversation = supabase.table('message_conversations').select('*').eq(
@@ -893,7 +934,8 @@ class DirectMessageService(BaseService):
 
             # Increment unread count for recipient
             update_data = {
-                'last_message_at': datetime.utcnow().isoformat(),
+                'last_message_at': sent_at or datetime.utcnow().isoformat(),
+                'last_message_sender_id': sender_id,
                 'last_message_preview': preview,
                 'updated_at': datetime.utcnow().isoformat()
             }

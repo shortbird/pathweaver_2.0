@@ -67,6 +67,10 @@ export const sisFamilyApi = {
   // record, the guardians and the history stay.
   withdraw: (householdId, orgId) =>
     api.post(`/api/sis/households/${householdId}/withdraw`, { organization_id: orgId }),
+  // The people a deleted family left behind, off the school in one go: each
+  // deleted outright, or kept on file as withdrawn when records depend on it.
+  removePeople: (userIds, orgId) =>
+    api.post('/api/sis/people/remove', { user_ids: userIds, organization_id: orgId }),
   getUser: (userId, orgId) => api.get(`/api/sis/users/${userId}?organization_id=${orgId}`),
   addMember: (householdId, body) => api.post(`/api/sis/households/${householdId}/members`, body),
   removeMember: (householdId, userId, orgId) =>

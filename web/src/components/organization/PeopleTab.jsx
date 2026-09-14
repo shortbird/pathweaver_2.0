@@ -27,30 +27,10 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
 
   return (
     <div className="space-y-4">
-      {/* Quick Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search members..."
-            value={state.searchTerm}
-            onChange={(e) => state.setSearchTerm(e.target.value)}
-            className="border border-gray-200 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-          />
-          <select
-            value={state.roleFilter}
-            onChange={(e) => state.setRoleFilter(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-          >
-            <option value="all">All Roles</option>
-            <option value="student">Student</option>
-            <option value="parent">Parent</option>
-            <option value="advisor">Teacher</option>
-            <option value="org_admin">Org Admin</option>
-            <option value="observer">Observer</option>
-          </select>
-        </div>
-
+      {/* Quick Actions Bar. The search and filters live on the members table
+          itself (MembersTable) -- they used to sit up here, two sections above
+          the rows they narrow (2026-09-14). */}
+      <div className="flex flex-wrap items-center justify-end gap-4 mb-4">
         <div className="flex items-center gap-2 relative">
           {state.selectedUsers.size > 0 && (
             <button
@@ -124,6 +104,12 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
         selectAllVisible={state.selectAllVisible}
         toggleUserSelection={state.toggleUserSelection}
         searchTerm={state.searchTerm}
+        setSearchTerm={state.setSearchTerm}
+        roleFilter={state.roleFilter}
+        setRoleFilter={state.setRoleFilter}
+        showWithdrawn={state.showWithdrawn}
+        setShowWithdrawn={state.setShowWithdrawn}
+        withdrawnCount={state.withdrawnCount}
         currentPage={state.currentPage}
         setCurrentPage={state.setCurrentPage}
         totalPages={state.totalPages}
@@ -152,6 +138,11 @@ export default function PeopleTab({ orgId, orgSlug, orgName, users, onUpdate }) 
           }}
           onRemove={() => {
             state.handleRemoveUser(state.selectedUser.id)
+            state.setShowEditModal(false)
+            state.setSelectedUser(null)
+          }}
+          onSetStanding={(status) => {
+            state.handleSetStanding(state.selectedUser.id, status)
             state.setShowEditModal(false)
             state.setSelectedUser(null)
           }}

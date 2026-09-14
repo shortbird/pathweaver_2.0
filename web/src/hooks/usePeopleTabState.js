@@ -3,6 +3,11 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 import { useConfirm } from '../contexts/ConfirmContext'
 
+// A student the school lists as withdrawn or graduated (school_enrollments).
+export const isWithdrawn = (user) => (
+  user.enrollment_status === 'withdrawn' || user.enrollment_status === 'graduated'
+)
+
 // Roles with a standing account-creation link (not org_admin or observer)
 const VALID_ROLES = [
   { value: 'student', label: 'Student' },
@@ -21,6 +26,11 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
   const [selectedUser, setSelectedUser] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  // A withdrawn student stays on file (their work, their class history) but
+  // is not one of the school's members today. Off the list unless asked for,
+  // like the SIS People page. Schools without the SIS console had only
+  // Remove, which evicts the account outright (2026-09-14).
+  const [showWithdrawn, setShowWithdrawn] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
@@ -149,6 +159,22 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     }
   }
 
+  // Withdraw a student from the school, or take it back. The account, its
+  // work and its history stay; active class seats are released.
+  const handleSetStanding = async (userId, status) => {
+    try {
+      const response = await api.post(
+        `/api/admin/organizations/${orgId}/users/${userId}/standing`, { status })
+      const name = response.data?.name || 'Student'
+      toast.success(status === 'withdrawn'
+        ? `${name} withdrawn${response.data?.seats_released ? ` and ${response.data.seats_released} class seat${response.data.seats_released === 1 ? '' : 's'} released` : ''}`
+        : `${name} is enrolled again`)
+      onUpdate()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not update the student')
+    }
+  }
+
   const handleBulkRemove = async () => {
     if (selectedUsers.size === 0) return
     if (!confirm(`Remove ${selectedUsers.size} user(s) from this organization?`)) return
@@ -190,8 +216,12 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
       user.email?.toLowerCase().includes(searchLower)
     )
     const matchesRole = roleFilter === 'all' || user.role === roleFilter
-    return matchesSearch && matchesRole
+    // A search still finds a withdrawn student by name: looking one up is
+    // exactly what the record was kept for.
+    const matchesStanding = showWithdrawn || searchTerm.trim() || !isWithdrawn(user)
+    return matchesSearch && matchesRole && matchesStanding
   })
+  const withdrawnCount = users.filter(isWithdrawn).length
 
   const totalPages = Math.ceil(filteredUsers.length / usersPerPage)
   const startIndex = (currentPage - 1) * usersPerPage
@@ -207,7 +237,7 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, roleFilter])
+  }, [searchTerm, roleFilter, showWithdrawn])
 
   // Advisor functions
   const fetchAdvisors = useCallback(async () => {
@@ -509,6 +539,10 @@ export function usePeopleTabState({ orgId, orgSlug, users, onUpdate }) {
     setSearchTerm,
     roleFilter,
     setRoleFilter,
+    showWithdrawn,
+    setShowWithdrawn,
+    withdrawnCount,
+    handleSetStanding,
     currentPage,
     setCurrentPage,
     selectedUsers,

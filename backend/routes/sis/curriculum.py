@@ -893,6 +893,28 @@ def add_curriculum_quest_task(user_id, curriculum_id, quest_id):
     return jsonify({'success': True, 'task': _serialize_template_task(row[0])})
 
 
+@bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/order', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def reorder_curriculum_quest_tasks(user_id, curriculum_id, quest_id):
+    """Put the quest's preset tasks in the order sent ({"task_ids": [...]}, the
+    whole set). See utils.template_tasks.reorder_template_tasks."""
+    org_id, quest, err = _curriculum_quest(user_id, curriculum_id, quest_id)
+    if err:
+        return err
+    if quest.get('organization_id') != org_id:
+        return _library_quest_403()
+    task_ids = [t for t in ((request.get_json(silent=True) or {}).get('task_ids') or []) if t]
+    if not task_ids or any(_bad_uuid(t) for t in task_ids):
+        return jsonify({'success': False, 'error': 'Send every task id, in order.'}), 400
+    from utils.template_tasks import reorder_template_tasks
+    rows = reorder_template_tasks(_admin(), quest_id, task_ids)
+    if rows is None:
+        return jsonify({'success': False,
+                        'error': 'That is not the full task list -- reload and try again.'}), 409
+    _resync_template(quest_id)
+    return jsonify({'success': True, 'tasks': [_serialize_template_task(t) for t in rows]})
+
+
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/tasks/<task_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_curriculum_quest_task(user_id, curriculum_id, quest_id, task_id):

@@ -119,6 +119,19 @@ class OrganizationService(BaseService):
             from utils.org_finance_flags import redact_org_finance
             org = redact_org_finance(org)
         users = self.org_repo.get_organization_users(org_id)
+        # A student's standing at the school, so the People tab can keep a
+        # withdrawn student on file without listing them as present. The SIS
+        # People page has read this since it existed; the org admin's tab
+        # never had it, so "Withdraw from school" had nowhere to show
+        # (2026-09-14).
+        try:
+            from repositories.school_enrollment_repository import SchoolEnrollmentRepository
+            from utils.admin_client import admin_client
+            statuses = SchoolEnrollmentRepository(client=admin_client()).statuses_for_org(org_id)
+            for u in users:
+                u['enrollment_status'] = statuses.get(u.get('id'))
+        except Exception as e:  # noqa: BLE001 -- the list must not fall over the annotation
+            logger.warning(f'enrollment statuses unavailable for org {org_id}: {e}')
         quests = self.org_repo.get_organization_quests(org_id)
         courses = self.org_repo.get_organization_courses(org_id)
 
