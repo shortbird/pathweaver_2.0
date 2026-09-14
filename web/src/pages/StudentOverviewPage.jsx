@@ -272,6 +272,13 @@ const StudentOverviewPage = () => {
     visibilityStatus
   };
 
+  // /api/quests/completed also returns in-progress quests that have at least
+  // one submitted task, so the portfolio can show partial evidence. The hero's
+  // "Quests" stat is a completion count, so it must not include those -- the
+  // mobile profile already filters this way, and a student comparing the two
+  // saw 17 here against 12 there (2026-09-14).
+  const completedQuestsOnly = completedQuests.filter((a) => a.status === 'completed');
+
   const accountSettingsSection = (
     <CollapsibleSection
       id="account-settings"
@@ -307,7 +314,7 @@ const StudentOverviewPage = () => {
           memberSince={currentUser?.created_at}
           rhythm={dashboardData.rhythm}
           totalXp={dashboardData.totalXp}
-          completedQuestsCount={completedQuests.length}
+          completedQuestsCount={completedQuestsOnly.length}
           completedTasksCount={dashboardData.completedTasksCount}
           onEditProfile={handleEditProfile}
         />
