@@ -82,10 +82,6 @@ const Layout = () => {
   // Determine if sidebar is visually expanded (for layout calculations)
   const isSidebarExpanded = sidebarPinned || sidebarHovered
 
-  React.useEffect(() => {
-    fetchSiteSettings()
-  }, [])
-
   const fetchSiteSettings = async () => {
     try {
       // Use fetch instead of api client to avoid auth interceptors for public endpoint
@@ -99,6 +95,10 @@ const Layout = () => {
       // Silent fail - use defaults
     }
   }
+
+  React.useEffect(() => {
+    fetchSiteSettings()
+  }, [])
 
   // The focus-mode chrome returns early, so it has to come AFTER every hook
   // above. It used to sit before the sidebar and site-settings hooks: leaving

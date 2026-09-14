@@ -27,7 +27,7 @@ class SchoolEnrollmentRepository(BaseRepository):
         ).data or []
         return rows[0] if rows else None
 
-    def statuses_for_org(self, organization_id: str) -> Dict[str, str]:
+    def statuses_for_org(self, organization_id: str) -> Dict[str, Optional[str]]:
         """{student_user_id: status} for every enrollment row at the school.
 
         Paged: this decides who the org admin's People list shows as

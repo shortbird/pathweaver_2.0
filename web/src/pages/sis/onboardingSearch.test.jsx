@@ -10,6 +10,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
+import { AdminOnboarding } from './OnboardingPage'
+import { matchAssignment } from './checklistSearch'
 
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -38,8 +40,6 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import { AdminOnboarding } from './OnboardingPage'
-import { matchAssignment } from './checklistSearch'
 
 const LISA = {
   id: 'a1', user_id: 'lisa', user_name: 'Lisa Price', template_name: 'Employee onboarding',

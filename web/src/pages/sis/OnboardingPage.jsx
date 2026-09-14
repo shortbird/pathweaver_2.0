@@ -566,7 +566,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
         )}
         {!assignments.length && <p className="text-sm text-neutral-500">No checklists assigned yet.</p>}
         {assignments.length > 0 && !visible.length && (
-          <p className="text-sm text-neutral-500">No checklists match "{search.trim()}".</p>
+          <p className="text-sm text-neutral-500">No checklists match &quot;{search.trim()}&quot;.</p>
         )}
         <div className="space-y-2">
           {visible.map(({ a, hit }) => (

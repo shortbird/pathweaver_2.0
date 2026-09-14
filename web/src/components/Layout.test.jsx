@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import Layout from './Layout'
+import { setFocusMode } from '../utils/focusMode'
 
 /**
  * Leaving focus mode must not take the app down.
@@ -19,8 +21,6 @@ vi.mock('./navigation/Sidebar', () => ({ default: () => <nav>sidebar-stub</nav> 
 vi.mock('./navigation/TopNavbar', () => ({ default: () => <header>navbar-stub</header> }))
 vi.mock('../hooks/useKioskIdleTimeout', () => ({ useKioskIdleTimeout: () => {} }))
 
-import Layout from './Layout'
-import { setFocusMode } from '../utils/focusMode'
 
 const renderLayout = () => render(
   <MemoryRouter initialEntries={['/treehouse']}>
