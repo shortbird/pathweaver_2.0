@@ -47,7 +47,7 @@ def validate_email(email):
 
 # Front office: the SIS Registration page reads this to find (and show) the
 # standing family registration link. Roles are not granted here — that stays on
-# the create routes, which check ROLE_GRANT_ROLES per role below.
+# the create routes, which ask sis_service.caller_may_grant per role below.
 @bp.route('/<org_id>/invitations', methods=['GET'])
 @require_org_front_office
 def get_org_invitations(current_user_id, current_org_id, is_superadmin, org_id):
@@ -348,11 +348,11 @@ def create_invitation(current_user_id, current_org_id, is_superadmin, org_id):
         if role not in VALID_INVITATION_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
 
-        # Adding a family is front-office work; adding staff is not (see
+        # Everyone below org_admin is front-office work; an admin is not (see
         # sis_service.caller_may_grant).
         from services.sis_service import caller_may_grant
         if not caller_may_grant(user_id, role):
-            return jsonify({'error': 'Only an organization admin can invite staff.'}), 403
+            return jsonify({'error': 'Only an organization admin can invite another admin.'}), 403
 
         invited_name = sanitize_input(data.get('name', ''))
         send_email = data.get('send_email', True)
@@ -609,11 +609,11 @@ def generate_invitation_link(current_user_id, current_org_id, is_superadmin, org
         if role not in VALID_INVITATION_ROLES:
             return jsonify({'error': f'Invalid role. Must be one of: {", ".join(VALID_INVITATION_ROLES)}'}), 400
 
-        # A standing link is a role grant to whoever holds it: the family
-        # registration link is the coordinator's to hand out, a staff one is not.
+        # A standing link is a role grant to whoever holds it, so the same
+        # org_admin boundary as an invitation applies.
         from services.sis_service import caller_may_grant
         if not caller_may_grant(user_id, role):
-            return jsonify({'error': 'Only an organization admin can invite staff.'}), 403
+            return jsonify({'error': 'Only an organization admin can invite another admin.'}), 403
 
         # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
         supabase = get_supabase_admin_client()

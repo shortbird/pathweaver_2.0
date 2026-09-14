@@ -102,14 +102,15 @@ describe('SisNewUserModal', () => {
   })
 })
 
-// A campus coordinator adds families all day; staff accounts are an admin's to
-// create. Offering them the option and having the backend refuse it would be a
-// worse answer than not offering it.
+// A campus coordinator adds everyone below admin; another admin is an admin's
+// to create. Offering them the option and having the backend refuse it would be
+// a worse answer than not offering it. (Until 2026-09-14 teachers were
+// withheld too — "can change roles from CC down" opened them.)
 describe('SisNewUserModal for a campus coordinator', () => {
-  it('offers the family roles only', () => {
+  it('offers every role but org admin', () => {
     setup({}, COORDINATOR)
     const options = [...screen.getByRole('combobox').options].map((o) => o.value)
-    expect(options).toEqual(['student', 'parent', 'observer'])
+    expect(options).toEqual(['student', 'parent', 'advisor', 'observer'])
   })
 
   it('still offers an org admin every role', () => {

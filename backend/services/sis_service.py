@@ -1007,17 +1007,20 @@ def caller_sees_hr(user_id: str) -> bool:
 
 
 def caller_may_grant(user_id: str, role: str) -> bool:
-    """False when `role` is a staff role this caller may not hand out.
+    """False when `role` is one this caller may not hand out.
 
-    The front office adds families all day — students, parents, observers — and
-    that is squarely a campus coordinator's job. Staff roles are not: a
-    coordinator who can create an advisor or an org_admin can create the account
-    that hands them the finance access their tier exists to withhold. Same
-    membership as ROLE_GRANT_ROLES, applied to account creation and invitations
-    rather than to editing an existing person's roles.
+    Only org_admin is withheld, and only from a campus coordinator: an account
+    or invitation carrying org_admin is the finance access the coordinator tier
+    exists to withhold, one step removed. Every role below it — coordinator,
+    teacher, parent, student, observer — is the front office's to give
+    (2026-09-14: "can change roles from CC down"). Until then the coordinator
+    could add families but no staff at all, which meant they could not invite a
+    teacher and, once the role editor opened to them, could have promoted a
+    parent to teacher but not invited one. Same membership as ROLE_GRANT_ROLES,
+    applied to account creation and invitations rather than to editing an
+    existing person's roles.
     """
-    from utils.sis_roles import CAMPUS_COORDINATOR
-    if role not in ('advisor', 'org_admin', CAMPUS_COORDINATOR):
+    if role not in PRIVILEGED_ASSIGNABLE_ROLES:
         return True
     return caller_can_grant_privileged_role(user_id)
 
@@ -1028,8 +1031,8 @@ def caller_can_grant_privileged_role(user_id: str) -> bool:
     A campus coordinator sits in ADMIN_ROLES but deliberately NOT in
     ROLE_GRANT_ROLES: if they could assign the org_admin role they could hand
     themselves (or an ally) the FINANCE_ROLES access the coordinator tier exists
-    to withhold. Mirrors the @require_role(*ROLE_GRANT_ROLES) gate on
-    set_staff_roles. See utils/sis_roles.py.
+    to withhold. This is the whole of the org_admin boundary — set_staff_roles,
+    update_user_role and caller_may_grant all ask it. See utils/sis_roles.py.
     """
     ctx = get_user_org_context(user_id)
     if ctx.get('role') == 'superadmin':
@@ -1630,7 +1633,14 @@ def set_staff_roles(org_id: str, staff_id: str, roles: Any,
     must not stop Kate being a parent in the family portal — the same one
     person, one login rule that grant_teacher_role follows.
 
-    Two refusals, both about not locking anybody out of their own school:
+    Three refusals. The first is the org_admin boundary: the route admits the
+    whole front office (ADMIN_ROLES) because a coordinator hands out every role
+    below admin, but granting org_admin — or changing anything about somebody
+    who already holds it — takes ROLE_GRANT_ROLES authority. Without that a
+    coordinator could make themselves admin and take back the finance access
+    the tier exists to withhold, or demote the admin who could stop them.
+
+    The other two are about not locking anybody out of their own school:
       - an org must keep at least one org_admin, so the last one can't be demoted;
       - you can't take away your own admin role, which is the same mistake with
         one extra step (and the one an admin makes by tidying up their own row).
@@ -1653,6 +1663,11 @@ def set_staff_roles(org_id: str, staff_id: str, roles: Any,
         return {'error': 'Staff member not found'}
     target = rows[0]
     current = _user_org_roles(target)
+
+    touches_admin = 'org_admin' in wanted or 'org_admin' in current
+    if touches_admin and not (actor_id and caller_can_grant_privileged_role(actor_id)):
+        return {'error': 'Only an admin can grant the admin role or change '
+                         'an admin\'s role.'}
 
     losing_admin = 'org_admin' in current and 'org_admin' not in wanted
     if losing_admin:
@@ -2045,6 +2060,7 @@ ASSIGNABLE_ROLES = ('student', 'parent', 'advisor', 'campus_coordinator',
 
 # Roles whose assignment (or removal) crosses the finance boundary and therefore
 # requires ROLE_GRANT_ROLES authority — a campus coordinator must not touch them.
+# Everything else in ASSIGNABLE_ROLES is the front office's to give and take.
 PRIVILEGED_ASSIGNABLE_ROLES = frozenset({'org_admin', 'superadmin'})
 
 
@@ -2059,10 +2075,12 @@ def update_user_role(org_id: str, user_id: str, role: str = None,
     Returns {'error': ...} on a bad role / cross-org user.
 
     `actor_id` (the caller) gates the org_admin role: this endpoint is reachable
-    by ADMIN_ROLES (which includes campus_coordinator), but only a ROLE_GRANT_ROLES
-    caller may grant org_admin OR modify a user who currently holds a privileged
-    role. Without this a coordinator could PATCH their own id to org_admin and
-    take the finance access the coordinator tier exists to withhold.
+    by ADMIN_ROLES — a campus coordinator hands out every role below admin — but
+    only a ROLE_GRANT_ROLES caller may grant org_admin OR modify a user who
+    currently holds a privileged role. Without this a coordinator could PATCH
+    their own id to org_admin and take the finance access the coordinator tier
+    exists to withhold. The same boundary, in the same words, sits in
+    set_staff_roles.
     """
     role_list = [r for r in (roles if roles is not None else [role]) if r]
     if not role_list:

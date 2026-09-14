@@ -395,7 +395,7 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
             return jsonify({'error': f'org_role must be one of: {", ".join(valid_roles)}'}), 400
         from services.sis_service import caller_may_grant
         if not caller_may_grant(current_user_id, org_role):
-            return jsonify({'error': 'Only an organization admin can add staff.'}), 403
+            return jsonify({'error': 'Only an organization admin can add another admin.'}), 403
 
         # Auto-generate kid-friendly password (PIN + word)
         password = generate_simple_password()

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { AuthContext } from '../../contexts/AuthContext'
-import { canGrantRoles } from '../../pages/sis/sisRole'
+import { canGrantAdmin } from '../../pages/sis/sisRole'
 import ModalOverlay from '../ui/ModalOverlay'
 
 /**
@@ -15,10 +15,11 @@ import ModalOverlay from '../ui/ModalOverlay'
  *  - "Invite by email": an email invitation via /invitations. Available for all
  *    roles, and the ONLY way to add another org admin.
  *
- * A campus coordinator adds families — students, parents, observers. Staff
- * roles are not theirs to hand out (sisRole.canGrantRoles, and the backend
- * refuses them at sis_service.caller_may_grant), so those options are not
- * offered rather than offered and rejected.
+ * A campus coordinator adds everyone below admin — students, parents,
+ * observers, teachers. The org admin role is not theirs to hand out
+ * (sisRole.canGrantAdmin, and the backend refuses it at
+ * sis_service.caller_may_grant), so that option is not offered rather than
+ * offered and rejected. Until 2026-09-14 no staff role was theirs at all.
  */
 
 const ROLES = [
@@ -34,10 +35,8 @@ const CREATE_NOW_ROLES = new Set(['student', 'parent', 'advisor', 'observer'])
 
 export default function SisNewUserModal({ orgId, onClose, onCreated }) {
   // Context directly, not useAuth(): this modal is rendered bare in tests.
-  const mayGrantStaffRoles = canGrantRoles(React.useContext(AuthContext)?.user)
-  const roleOptions = mayGrantStaffRoles
-    ? ROLES
-    : ROLES.filter((r) => !['advisor', 'org_admin'].includes(r.value))
+  const mayGrantAdmin = canGrantAdmin(React.useContext(AuthContext)?.user)
+  const roleOptions = mayGrantAdmin ? ROLES : ROLES.filter((r) => r.value !== 'org_admin')
   const [role, setRole] = useState('student')
   const [method, setMethod] = useState('create') // 'create' | 'invite'
   const [form, setForm] = useState({

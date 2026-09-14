@@ -78,13 +78,30 @@ export const canSeeFinance = (user) => isSisAdmin(user) && !isCampusCoordinator(
 export const canViewAs = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
 
 /**
- * Who may change somebody's role (backend: sis_roles.ROLE_GRANT_ROLES).
+ * Who may grant the admin role, or change somebody who holds it (backend:
+ * sis_roles.ROLE_GRANT_ROLES, asked per call in sis_service).
  *
  * Same membership as canSeeFinance, kept as its own name because it is a
- * different reason: a coordinator who can grant roles can grant themselves
- * org_admin, which hands back the finance access the role exists to withhold.
+ * different reason: a coordinator who can grant org_admin can grant it to
+ * themselves, which hands back the finance access the role exists to withhold.
+ *
+ * This is deliberately NOT "who may change roles at all". Every role below
+ * admin — coordinator, teacher, parent, student, observer — is the whole
+ * front office's to give and take (2026-09-14: "the campus coordinator role
+ * needs to be able to change the roles of other users ... from CC down"). So
+ * the role editors open for any isSisAdmin, and this gate decides only
+ * whether the Admin option is on the list and whether an admin's own row is
+ * editable.
  */
-export const canGrantRoles = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+export const canGrantAdmin = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
+ * Whether THIS caller may edit THIS person's role. False when the person is
+ * an admin and the caller may not touch admins — the backend refuses that
+ * write, so the control is not offered rather than offered and refused.
+ */
+export const canEditRolesOf = (user, roles) =>
+  isSisAdmin(user) && (canGrantAdmin(user) || !(roles || []).includes('org_admin'))
 
 /**
  * The HR store — secure documents: contracts, background checks, custody and

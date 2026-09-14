@@ -1,6 +1,6 @@
 # What each role can do in the SIS
 
-**Last verified:** 2026-09-10 · **Generated from:** `backend/scripts/dump_role_matrix.py`
+**Last verified:** 2026-09-14 · **Generated from:** `backend/scripts/dump_role_matrix.py`
 
 iCreate asked for admin-defined roles: create a role, tick what it can see, assign
 people to it. The answer is no, and this document is the reason it can be no.
@@ -51,7 +51,7 @@ rather than listing roles. Import them; never retype a role tuple.
 | `ADMIN_ROLES` | admin, coordinator, superadmin | The front office: people, classes, registration, attendance, paperwork. |
 | `FINANCE_ROLES` | admin, superadmin | **The money.** Billing, tuition, Stripe, timesheets, payroll. |
 | `HR_ROLES` | admin, superadmin | The secure-documents store: contracts, background checks, custody and medical files. |
-| `ROLE_GRANT_ROLES` | admin, superadmin | Changing somebody's role. |
+| `ROLE_GRANT_ROLES` | admin, superadmin | Granting `org_admin`, or changing anybody who holds it. Not a route tier since 2026-09-14 — the service asks it per call. |
 
 `FINANCE_ROLES`, `HR_ROLES` and `ROLE_GRANT_ROLES` have identical membership and
 are deliberately three names: they answer three different questions, and if the
@@ -67,8 +67,14 @@ The whole role is a subtraction, so this is the short list that matters:
   profile carries the emergency contact they need and the hourly rate they do
   not (`sis_staff_service.PAY_FIELDS`).
 - **The HR store.** All of `secure_documents.py`.
-- **Granting staff roles.** They cannot create or invite an advisor, or change
-  anyone's role.
+- **The admin role.** They cannot grant `org_admin` — by role change,
+  account creation, invitation or standing link — and cannot change the role
+  of anybody who holds it. Every role below it (coordinator, teacher, parent,
+  student, observer) is theirs to give and take, on both role endpoints
+  (`PUT /staff/<id>/roles`, `PATCH /users/<id>/role`) and on the create and
+  invite routes (`sis_service.caller_may_grant`). Until 2026-09-14 they could
+  change no role at all and create no staff account; the ask was "can change
+  roles from CC down".
 
 Everything else the front office does, they do.
 
@@ -84,7 +90,9 @@ Read off the decorators on 2026-09-10. Regenerate with
 `schedule_ai.py`, `schedule_sync.py`, `reports.py`, `staff_admin.py`.
 
 `reports.py` and `staff_admin.py` also carry `FINANCE_ROLES` on their money
-routes; `__init__.py` carries `ROLE_GRANT_ROLES` on `PUT /staff/<id>/roles`.
+routes. `__init__.py` carried `ROLE_GRANT_ROLES` on `PUT /staff/<id>/roles`
+until 2026-09-14; that route is `ADMIN_ROLES` now and the `org_admin`
+boundary is enforced inside `sis_service.set_staff_roles` against the caller.
 
 ### Everyone on staff — `STAFF_ROLES`
 
