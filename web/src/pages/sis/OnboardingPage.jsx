@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -13,6 +13,7 @@ import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTempl
 import { ChecklistTemplatesManager } from '../../components/sis/tasks/ChecklistTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { itemDocuments } from './checklistDocuments'
+import { matchAssignment } from './checklistSearch'
 import {
   useMyOnboarding, useOnboardingAssignments, sisOnboardingApi,
 } from '../../hooks/api/useSisOnboarding'
@@ -294,7 +295,10 @@ export const ReviewStrip = ({ orgId, assignments, onChanged }) => {
 /** One assigned checklist or ad-hoc task: person, progress, and the expanded
  * per-item view with the office's actions. Self-contained so any list —
  * the onboarding roll-up or the Task Center's Assigned tab — can render it. */
-export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }) => {
+/** `openOn`: item keys the list's search named. A non-empty list opens the
+ * card and marks those items, so a search for "W-4" shows the W-4 line of
+ * every person rather than a row of collapsed names. */
+export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null, openOn = [] }) => {
   const confirm = useConfirm()
   // The store's documents for this person, fetched once the office first opens
   // the picker. Null = not asked yet, [] = asked and they hold nothing.
@@ -395,8 +399,9 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
     }
   }
 
+  const named = new Set(openOn)
   return (
-    <details className="border border-gray-200 rounded-lg">
+    <details className="border border-gray-200 rounded-lg" open={named.size ? true : undefined}>
       {/* Unassign is NOT in here: a destructive action one pixel from
           the expand target is a mis-click waiting to happen. */}
       <summary className="px-3 py-2.5 cursor-pointer flex items-center gap-2 text-sm flex-wrap">
@@ -417,7 +422,8 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
         {(a.items || []).map((item) => {
           const docs = itemDocuments(item)
           return (
-          <li key={item.key} className="py-2 flex items-center gap-2 text-sm flex-wrap">
+          <li key={item.key}
+            className={`py-2 flex items-center gap-2 text-sm flex-wrap ${named.has(item.key) ? 'bg-amber-50 -mx-3 px-3' : ''}`}>
             <span className="text-neutral-800">{item.title}</span>
             <ItemBadge status={item.status} />
             {item.signature?.name && (
@@ -512,10 +518,17 @@ export const AssignmentCard = ({ orgId, assignment: a, onChanged, badge = null }
 
 export const AdminOnboarding = ({ orgId, onCount = null }) => {
   const [assigningOpen, setAssigningOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
   const query = useOnboardingAssignments(orgId)
   const assignments = query.data || []
   const load = query.refetch
+
+  // Filtered as they type; no submit. See checklistSearch for what a word
+  // may match.
+  const visible = useMemo(() => assignments
+    .map((a) => ({ a, hit: matchAssignment(a, search) }))
+    .filter(({ hit }) => hit), [assignments, search])
 
   useEffect(() => {
     if (query.isError) toast.error('Failed to load onboarding admin')
@@ -537,10 +550,23 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
             Assign a checklist
           </button>
         </div>
+        {assignments.length > 0 && (
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or document, e.g. Lisa W-4"
+            aria-label="Search checklists by name or document"
+            className="w-full mb-3 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+          />
+        )}
         {!assignments.length && <p className="text-sm text-neutral-500">No checklists assigned yet.</p>}
+        {assignments.length > 0 && !visible.length && (
+          <p className="text-sm text-neutral-500">No checklists match "{search.trim()}".</p>
+        )}
         <div className="space-y-2">
-          {assignments.map((a) => (
-            <AssignmentCard key={a.id} orgId={orgId} assignment={a} onChanged={load} />
+          {visible.map(({ a, hit }) => (
+            <AssignmentCard key={a.id} orgId={orgId} assignment={a} onChanged={load} openOn={hit.items} />
           ))}
         </div>
       </div>
