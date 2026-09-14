@@ -1451,6 +1451,13 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
     # would produce a "complete" item with nothing signed on it.
     if status == 'complete' and target.get('needs_signature') and not target.get('signature'):
         return {'error': 'Sign this item to complete it'}
+    # Nor can a document item: uploading is what completes it (the client sends
+    # add_document and the status together), so a bare tick is a "complete"
+    # I-9 with no I-9 on it. iCreate, 2026-09-14: the office went looking for
+    # Lisa Price's I-9 and found a ticked box — one of seven such items across
+    # four people, and nothing to view for any of them.
+    if status == 'complete' and target.get('needs_document') and not item_documents(target):
+        return {'error': 'Upload the document to complete this item'}
 
     if status:
         target['status'] = status

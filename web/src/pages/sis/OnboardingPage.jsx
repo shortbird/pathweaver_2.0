@@ -142,11 +142,15 @@ export const MyChecklists = ({ orgId, preview = null, hideWhenEmpty = false, hea
               return (
                 <li key={item.key}
                   className={`py-3 flex items-start gap-3 ${highlighted ? 'ring-2 ring-optio-purple rounded-lg px-2' : ''}`}>
-                  {/* A signature item is completed by signing it, not by ticking
-                      it — the backend refuses a tick with nothing signed, so a
-                      live checkbox here would only ever produce an error. */}
+                  {/* A signature item is completed by signing it, and a document
+                      item by uploading — the backend refuses a tick with nothing
+                      signed or attached, so a live checkbox here would only
+                      ever produce an error. Unticking stays live. */}
                   <input type="checkbox" checked={done}
-                    disabled={busy || item.status === 'approved' || Boolean(preview) || item.needs_signature}
+                    disabled={busy || item.status === 'approved' || Boolean(preview) || item.needs_signature
+                      || (item.needs_document && !done && !itemDocuments(item).length)}
+                    title={item.needs_document && !done && !itemDocuments(item).length
+                      ? 'Upload the document to complete this item' : undefined}
                     onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
                     className="mt-1 h-4 w-4 accent-purple-700" />
                   <div className="flex-1 min-w-0">

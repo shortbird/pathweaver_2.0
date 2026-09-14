@@ -123,6 +123,26 @@ describe('signing a checklist item', () => {
     expect(screen.getByRole('checkbox', { checked: false, name: '' })).toBeDisabled()
   })
 
+  it('does not let a document item be ticked off without a document either', async () => {
+    // iCreate, 2026-09-14: Lisa's I-9 read "complete" and there was nothing to
+    // view. Uploading is what completes it; the tick alone must not.
+    mockChecklist([item({ key: 'i9', title: 'Upload your I-9 Form', needs_signature: false,
+                          needs_document: true, documents: [] })])
+    render(<OnboardingPage />)
+    await screen.findByText('Upload your I-9 Form')
+    expect(screen.getByRole('checkbox', { checked: false })).toBeDisabled()
+    expect(screen.getByText('Upload document')).toBeInTheDocument()
+  })
+
+  it('lets a document item with a document on it be unticked', async () => {
+    mockChecklist([item({ key: 'i9', title: 'Upload your I-9 Form', needs_signature: false,
+                          needs_document: true, status: 'complete',
+                          documents: [{ path: 'staff/kate/i9.pdf', filename: 'i9.pdf' }] })])
+    render(<OnboardingPage />)
+    await screen.findByText('i9.pdf')
+    expect(screen.getByRole('checkbox', { checked: true })).not.toBeDisabled()
+  })
+
   it('leaves ordinary items alone', async () => {
     mockChecklist([item({ key: 'handbook', title: 'Read the handbook', needs_signature: false })])
     render(<OnboardingPage />)

@@ -180,3 +180,46 @@ class TestItemDocumentsReadsBothShapes:
     def test_an_entry_with_neither_a_path_nor_an_id_is_not_a_document(self):
         item = _item(documents=[{'filename': 'ghost.pdf'}])
         assert onboarding.item_documents(item) == []
+
+
+@pytest.mark.unit
+class TestTickingADocumentItemWithoutADocument:
+    """iCreate, 2026-09-14: "lisa price shows i-9 is complete but I can't view
+    the document". There was none — the checkbox let her (and three others)
+    complete an upload item with nothing on it. Uploading completes the item;
+    the bare tick is the one path that has to be refused, on both sides."""
+
+    def test_the_bare_tick_is_refused(self):
+        result, items = _run({'status': 'complete'}, actor_id=TEACHER, is_admin=False)
+        assert result['error'] == 'Upload the document to complete this item'
+        assert items is None
+
+    def test_an_admin_is_refused_too(self):
+        """The office attaches from the store instead (the class above); a
+        completed I-9 with no I-9 is no more useful when an admin made it."""
+        result, items = _run({'status': 'complete'})
+        assert result['error'] == 'Upload the document to complete this item'
+        assert items is None
+
+    def test_uploading_completes_it(self):
+        """What the teacher's upload button sends: the file and the status in
+        one PATCH. The document lands first, so the tick is honest."""
+        result, items = _run({'add_document': {'path': 'staff/molly/i9.pdf', 'filename': 'i9.pdf'},
+                              'status': 'complete'}, actor_id=TEACHER, is_admin=False)
+        assert result.get('error') is None
+        assert items[0]['status'] == 'complete'
+        assert items[0]['documents'][0]['path'] == 'staff/molly/i9.pdf'
+
+    def test_an_item_that_already_holds_a_document_can_be_re_ticked(self):
+        """Untick and tick again on an item with the file still on it — the
+        guard is about the document, not the click."""
+        held = _assignment([_item(documents=[{'path': 'staff/molly/i9.pdf', 'filename': 'i9.pdf'}])])
+        result, items = _run({'status': 'complete'}, assignment=held, actor_id=TEACHER, is_admin=False)
+        assert result.get('error') is None
+        assert items[0]['status'] == 'complete'
+
+    def test_an_item_that_does_not_ask_for_a_document_still_ticks(self):
+        plain = _assignment([_item(needs_document=False)])
+        result, items = _run({'status': 'complete'}, assignment=plain, actor_id=TEACHER, is_admin=False)
+        assert result.get('error') is None
+        assert items[0]['status'] == 'complete'

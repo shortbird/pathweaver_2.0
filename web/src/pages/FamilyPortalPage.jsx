@@ -204,9 +204,13 @@ const FamilyPortalPage = () => {
                   const done = ['complete', 'approved'].includes(item.status)
                   return (
                     <li key={item.key} className="py-3 flex items-start gap-3">
-                      {/* Signature items complete by being signed, not ticked. */}
+                      {/* Signature items complete by being signed, document items
+                          by uploading — not by ticking. Unticking stays live. */}
                       <input type="checkbox" checked={done}
-                        disabled={busy || item.status === 'approved' || item.needs_signature}
+                        disabled={busy || item.status === 'approved' || item.needs_signature
+                          || (item.needs_document && !done && !itemDocuments(item).length)}
+                        title={item.needs_document && !done && !itemDocuments(item).length
+                          ? 'Upload the document to complete this item' : undefined}
                         onChange={(e) => patchItem(a.id, item.key, { status: e.target.checked ? 'complete' : 'pending' })}
                         className="mt-1 h-4 w-4 accent-optio-purple" />
                       <div className="flex-1 min-w-0">
