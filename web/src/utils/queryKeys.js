@@ -133,6 +133,14 @@ export const queryKeys = {
     users: (filters) => [...queryKeys.admin.all, 'users', filters],
     quests: (filters) => [...queryKeys.admin.all, 'quests', filters],
     analytics: (timeRange) => [...queryKeys.admin.all, 'analytics', timeRange],
+    // The ticket tracker (/admin/tickets). `tickets.all` is the invalidation
+    // root: an edit to one ticket moves it between tabs and changes the counts.
+    tickets: {
+      all: ['admin', 'tickets'],
+      list: (filters) => [...queryKeys.admin.tickets.all, 'list', filters],
+      detail: (ticketId) => [...queryKeys.admin.tickets.all, 'detail', ticketId],
+      summary: () => [...queryKeys.admin.tickets.all, 'summary'],
+    },
   },
 
   // Utility functions

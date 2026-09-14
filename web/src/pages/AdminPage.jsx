@@ -21,6 +21,7 @@ const BulkCourseGeneration = lazy(() => import('./admin/BulkCourseGeneration'))
 const ModerationQueue = lazy(() => import('../components/admin/ModerationQueue'))
 const RosterImportPage = lazy(() => import('./admin/RosterImportPage'))
 const CrmConsole = lazy(() => import('./admin/crm/CrmConsole'))
+const TicketsPanel = lazy(() => import('../components/admin/tickets/TicketsPanel'))
 
 // Loading spinner component
 const LoadingFallback = () => (
@@ -38,6 +39,7 @@ const ADMIN_TABS = [
   { path: 'quests', label: 'Quests' },
   { path: 'organizations', label: 'Organizations' },
   { path: 'crm', label: 'CRM' },
+  { path: 'tickets', label: 'Tickets' },
   { path: 'moderation', label: 'Moderation' },
   { path: 'roster-import', label: 'Roster Import' },
   { path: 'bulk-generate', label: 'Bulk Generate' },
@@ -113,6 +115,8 @@ const AdminPage = () => {
           <Route path="moderation" element={<ModerationQueue />} />
           <Route path="roster-import" element={<RosterImportPage />} />
           <Route path="crm/*" element={<CrmConsole />} />
+          <Route path="tickets" element={<TicketsPanel />} />
+          <Route path="tickets/:ticketId" element={<TicketsPanel />} />
         </Routes>
       </Suspense>
     </div>

@@ -824,22 +824,29 @@ class EmailService(BaseService):
         )
 
     def send_bug_report_admin_email(self, report: Dict[str, Any]) -> bool:
-        """Notify the admin inbox that a new in-app feedback / bug report landed.
+        """Notify the admin inbox that a new ticket landed in the tracker.
 
-        Covers every surface that posts to /api/bug-reports (mobile shake-to-
-        report AND the web-SIS feedback button). Best-effort — the caller must
-        never let a failure here fail the report submission itself.
+        Covers every surface that posts to /api/bug-reports (the mobile shake
+        sheet and the staff reporter on the web platform / SIS console). The
+        one notification the tracker sends, by decision (2026-09-14): a mail to
+        ADMIN_EMAIL with the title and a link straight to the ticket in
+        /admin/tickets. Best-effort — the caller must never let a failure here
+        fail the report submission itself.
 
         `report` keys used (all optional except message):
-            report_id, report_type, message, steps, current_route,
+            report_id, report_type, title, message, steps, current_route,
             reporter_email, reporter_role, org_name, platform,
             app_version, build_number
         """
         rtype = (report.get('report_type') or 'bug').lower()
         type_label = {
             'bug': 'Bug report',
-            'idea': 'Idea',
-            'confusion': 'Confusion',
+            'feature': 'Feature request',
+            'question': 'Question',
+            'tweak': 'Tweak',
+            # The vocabulary of the old web FAB, still what mobile's extra says.
+            'idea': 'Feature request',
+            'confusion': 'Question',
         }.get(rtype, 'Feedback')
 
         reporter = report.get('reporter_email') or 'unknown'
@@ -858,7 +865,11 @@ class EmailService(BaseService):
             b for b in [report.get('app_version'), report.get('build_number')] if b
         )
 
-        subject = f"[Feedback] {type_label} from {org_name or reporter}: {message[:60]}"
+        title = (report.get('title') or '').strip() or message[:60]
+        report_id = report.get('report_id')
+        ticket_url = f"{Config.FRONTEND_URL}/admin/tickets/{report_id}" if report_id else None
+
+        subject = f"[Ticket] {type_label} from {org_name or reporter}: {title[:80]}"
 
         def _esc(v: str) -> str:
             return (
@@ -890,23 +901,32 @@ class EmailService(BaseService):
                 f'{_esc(steps)}</div>'
             )
 
+        link_html = (
+            f'<p style="margin:16px 0 0;">'
+            f'<a href="{_esc(ticket_url)}" style="display:inline-block;background:#6D469B;color:#ffffff;'
+            f'text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;">'
+            f'Open ticket</a></p>'
+        ) if ticket_url else ''
+
         html_body = f"""
         <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
                     max-width:600px;margin:0 auto;padding:24px;color:#111827;">
-          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">New in-app feedback</p>
-          <h2 style="margin:0 0 16px;font-size:18px;">{_esc(type_label)}</h2>
+          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">New ticket · {_esc(type_label)}</p>
+          <h2 style="margin:0 0 16px;font-size:18px;">{_esc(title)}</h2>
           <table style="border-collapse:collapse;margin-bottom:16px;">{meta_html}</table>
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
             <div style="white-space:pre-wrap;font-size:15px;color:#111827;">{_esc(message)}</div>
             {steps_html}
           </div>
+          {link_html}
           <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">
-            Report ID: {_esc(report.get('report_id') or 'n/a')}
+            Ticket ID: {_esc(report_id or 'n/a')}
           </p>
         </div>
         """.strip()
 
         text_lines = [
+            f"New ticket: {title}",
             f"{type_label} from {who}",
             f"Page: {route}",
             f"Platform: {platform}" + (f" ({version_bits})" if version_bits else ''),
@@ -915,7 +935,9 @@ class EmailService(BaseService):
         ]
         if steps:
             text_lines += ['', 'Steps to reproduce:', steps]
-        text_lines += ['', f"Report ID: {report.get('report_id') or 'n/a'}"]
+        if ticket_url:
+            text_lines += ['', f"Open ticket: {ticket_url}"]
+        text_lines += ['', f"Ticket ID: {report_id or 'n/a'}"]
 
         # reply_to is forced to ADMIN_EMAIL so a reply doesn't get re-routed to a
         # school inbox by the org reply-to rule (recipient IS the admin here).

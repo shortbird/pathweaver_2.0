@@ -168,7 +168,8 @@ the directory disagree, as documented in
 
 **Skills.** `.claude/skills/` carries the four workflows this repository repeats:
 `ship-feature`, `debug-production`, `review-diff`, `scoped-refactor`. Read the
-one that matches before improvising.
+one that matches before improvising. `tickets` is the platform's own bug and
+feature tracker (`bug_reports`, `/admin/tickets`); Perch is retired.
 
 ---
 

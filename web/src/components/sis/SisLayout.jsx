@@ -132,8 +132,9 @@ const SisLayout = () => {
           <Outlet />
         </div>
       </main>
-      {/* Staff issue reporting is the Perch FAB, mounted app-wide in App.jsx
-          (PerchReporter) — it replaced the beta FeedbackFab here. */}
+      {/* Staff issue reporting is IssueReporter, mounted app-wide in App.jsx.
+          It files into /admin/tickets; it replaced the Perch widget, which
+          had replaced the beta FeedbackFab here. */}
     </div>
   )
 }

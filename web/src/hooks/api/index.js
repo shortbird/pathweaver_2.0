@@ -37,3 +37,9 @@ export {
   useDeleteBounty,
 } from './useBounties';
 export { useRerunAiReview } from './useRerunAiReview';
+export {
+  useAdminTickets,
+  useAdminTicket,
+  useAdminTicketSummary,
+  useUpdateAdminTicket,
+} from './useAdminTickets';

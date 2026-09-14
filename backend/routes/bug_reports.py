@@ -1,11 +1,26 @@
-"""Beta bug-report endpoints.
+"""The platform ticket tracker: /api/bug-reports.
 
-In-app "shake to report a bug" flow for the mobile app. A POST carries a
-structured diagnostics blob (current route, recent API calls, console errors,
-device/build) plus an optional screenshot, so reports are machine-actionable —
-Claude reads new rows via the Supabase MCP and goes straight to the failing
-code. Screenshots live in the PRIVATE `bug-reports` bucket and are surfaced to
+One table for every Optio platform report. Three senders write to it:
+
+  * the mobile app's shake-to-report sheet (message + steps + a diagnostics
+    blob: current route, recent API calls, console errors, device/build, an
+    optional screenshot);
+  * the staff reporter on the web platform and SIS console
+    (web/src/components/feedback/IssueReporter.jsx), which replaced the Perch
+    widget on 2026-09-14 so reports stop leaving for a separate app;
+  * a hand-filed row (source 'hq'), and the open Perch tickets imported the
+    day Perch was retired (source 'perch').
+
+Superadmin triages in /admin/tickets. Claude Code reads and resolves rows over
+the Supabase MCP (see .claude/skills/tickets/SKILL.md), which is why the
+vocabulary below is small and fixed: a status, a type and a priority are the
+whole state machine, and `resolution` is where the fix is written down.
+
+Screenshots live in the PRIVATE `bug-reports` bucket and are surfaced to
 superadmin via short-lived signed URLs, never public.
+
+No notifications beyond the admin inbox email that predates this: the tracker
+is a list, not an inbox, by decision (2026-09-14).
 """
 
 import json
@@ -27,6 +42,15 @@ bp = Blueprint('bug_reports', __name__, url_prefix='/api/bug-reports')
 SCREENSHOT_BUCKET = 'bug-reports'
 MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024  # 10MB (matches bucket file_size_limit)
 ALLOWED_STATUSES = {'new', 'triaged', 'fixing', 'resolved', 'wont_fix'}
+ALLOWED_TYPES = {'bug', 'feature', 'question', 'tweak'}
+ALLOWED_PRIORITIES = {'low', 'normal', 'high', 'urgent'}
+# What a sender may claim about itself. 'perch' and 'hq' are set by hand, never
+# over the API.
+CLIENT_SOURCES = {'mobile', 'web'}
+TITLE_MAX = 120
+
+# The old web FAB and the mobile sheet describe intent in extra.report_type.
+_REPORT_TYPE_TO_TYPE = {'bug': 'bug', 'idea': 'feature', 'confusion': 'question'}
 
 # Columns we accept from the client diagnostics blob (allow-list — never trust
 # the client to set status/triage fields).
@@ -38,7 +62,7 @@ _CONTEXT_JSON_FIELDS = ('breadcrumbs', 'recent_api_calls', 'recent_console_error
 
 
 def _lookup_user_identity(user_id: str):
-    """Best-effort email + effective role for the report row (never fatal)."""
+    """Best-effort email, effective role and org for the report row (never fatal)."""
     try:
         # admin client justified: reads the reporter's own identity row to stamp the report
         supabase = get_supabase_admin_client()
@@ -47,10 +71,16 @@ def _lookup_user_identity(user_id: str):
         ).eq('id', user_id).limit(1).execute()
         if res.data:
             row = res.data[0]
-            return row.get('email'), get_effective_role(row)
+            return row.get('email'), get_effective_role(row), row.get('organization_id')
     except Exception as e:
         logger.warning(f"[BugReport] identity lookup failed for {user_id}: {e}")
-    return None, None
+    return None, None, None
+
+
+def _derive_title(message: str) -> str:
+    """The first line of the message, trimmed to fit the list view."""
+    first = message.strip().split('\n', 1)[0].strip()
+    return (first or message.strip())[:TITLE_MAX] or 'Untitled report'
 
 
 def _upload_screenshot(file, user_id: str):
@@ -119,12 +149,23 @@ def create_bug_report(user_id):
     if not message:
         return jsonify({'error': 'A description of the problem is required'}), 400
 
-    email, effective_role = _lookup_user_identity(user_id)
+    email, effective_role, organization_id = _lookup_user_identity(user_id)
+
+    title = (context.get('title') or '').strip()[:TITLE_MAX] or _derive_title(message)
+    extra = context.get('extra') if isinstance(context.get('extra'), dict) else {}
+    ticket_type = context.get('type')
+    if ticket_type not in ALLOWED_TYPES:
+        ticket_type = _REPORT_TYPE_TO_TYPE.get(extra.get('report_type'), 'bug')
+    source = context.get('source') if context.get('source') in CLIENT_SOURCES else 'mobile'
 
     record = {
         'user_id': user_id,
         'user_email': email,
         'user_role': effective_role,
+        'organization_id': organization_id,
+        'title': title,
+        'type': ticket_type,
+        'source': source,
         'status': 'new',
     }
     for field in _CONTEXT_TEXT_FIELDS:
@@ -183,7 +224,8 @@ def _notify_admin_email(record, created, user_id):
         from services.email_service import email_service
         email_service.send_bug_report_admin_email({
             'report_id': created.get('id'),
-            'report_type': extra.get('report_type') or 'bug',
+            'report_type': record.get('type') or extra.get('report_type') or 'bug',
+            'title': record.get('title'),
             'message': record.get('message'),
             'steps': record.get('steps'),
             'current_route': record.get('current_route'),
@@ -261,21 +303,57 @@ def _capture_to_sentry(record, created, user_id, message):
 from utils.admin_client import admin_client as _triage_client
 
 
+def _int_arg(name, default, ceiling):
+    try:
+        return max(0, min(int(request.args.get(name, default)), ceiling))
+    except (ValueError, TypeError):
+        return default
+
+
 @bp.route('', methods=['GET'])
 @require_role('superadmin')
 def list_bug_reports(user_id):
-    """List recent reports for triage (superadmin only)."""
-    status = request.args.get('status')
-    if status and status not in ALLOWED_STATUSES:
+    """List reports for the tracker (superadmin only).
+
+    `status` may be one of the five statuses or `open` (new + triaged +
+    fixing). `total` is the exact count for the filter; `count` is the number
+    of rows in this page.
+    """
+    status = request.args.get('status') or None
+    if status and status != 'open' and status not in ALLOWED_STATUSES:
         return jsonify({'error': 'Invalid status filter'}), 400
-    try:
-        limit = min(int(request.args.get('limit', 50)), 200)
-    except (ValueError, TypeError):
-        limit = 50
+    ticket_type = request.args.get('type') or None
+    if ticket_type and ticket_type not in ALLOWED_TYPES:
+        return jsonify({'error': 'Invalid type filter'}), 400
+    limit = _int_arg('limit', 50, 200) or 50
+    offset = _int_arg('offset', 0, 100000)
 
     repo = BugReportRepository(client=_triage_client())
-    reports = repo.list_recent(limit=limit, status=status)
-    return jsonify({'reports': reports, 'count': len(reports)}), 200
+    reports, total = repo.list_filtered(
+        limit=limit,
+        offset=offset,
+        status=status,
+        ticket_type=ticket_type,
+        organization_id=request.args.get('organization_id') or None,
+        search=(request.args.get('q') or '').strip()[:100] or None,
+    )
+    return jsonify({
+        'reports': reports,
+        'count': len(reports),
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+    }), 200
+
+
+@bp.route('/summary', methods=['GET'])
+@require_role('superadmin')
+def bug_report_summary(user_id):
+    """How many tickets sit in each status (superadmin only)."""
+    repo = BugReportRepository(client=_triage_client())
+    counts = repo.counts_by_status()
+    counts['open'] = sum(counts.get(s, 0) for s in ('new', 'triaged', 'fixing'))
+    return jsonify({'counts': counts}), 200
 
 
 @bp.route('/<report_id>', methods=['GET'])
@@ -283,7 +361,7 @@ def list_bug_reports(user_id):
 def get_bug_report(user_id, report_id):
     """Get a single report + a signed URL for its screenshot (superadmin only)."""
     repo = BugReportRepository(client=_triage_client())
-    report = repo.find_by_id(report_id)
+    report = repo.find_detail(report_id)
     if not report:
         return jsonify({'error': 'Bug report not found'}), 404
 
@@ -303,24 +381,48 @@ def get_bug_report(user_id, report_id):
     return jsonify({'report': report}), 200
 
 
+# What a triage edit may change, and the values each field accepts. Anything
+# else in the body is ignored: the reporter's identity, the diagnostics and the
+# timestamps are the record, not the triage.
+_PATCH_ENUMS = {
+    'status': ALLOWED_STATUSES,
+    'type': ALLOWED_TYPES,
+    'priority': ALLOWED_PRIORITIES,
+}
+_PATCH_TEXT = ('title', 'triage_notes', 'resolution')
+
+
 @bp.route('/<report_id>', methods=['PATCH'])
 @require_role('superadmin')
 def update_bug_report(user_id, report_id):
-    """Update a report's triage status / notes (superadmin only)."""
+    """Update a ticket's triage fields (superadmin only).
+
+    Accepts status, type, priority, title, triage_notes and resolution.
+    Resolving stamps resolved_at; moving back to an open status clears it.
+    """
     data = request.get_json(silent=True) or {}
-    status = data.get('status')
-    if status is not None and status not in ALLOWED_STATUSES:
-        return jsonify({'error': 'Invalid status'}), 400
-    if status is None and 'triage_notes' not in data:
+    changes = {}
+    for field, allowed in _PATCH_ENUMS.items():
+        if field in data:
+            if data[field] not in allowed:
+                return jsonify({'error': f'Invalid {field}'}), 400
+            changes[field] = data[field]
+    for field in _PATCH_TEXT:
+        if field in data:
+            value = data[field]
+            if value is not None and not isinstance(value, str):
+                return jsonify({'error': f'Invalid {field}'}), 400
+            changes[field] = value.strip() if isinstance(value, str) else None
+    if changes.get('title') == '':
+        return jsonify({'error': 'Title cannot be empty'}), 400
+    if changes.get('title'):
+        changes['title'] = changes['title'][:TITLE_MAX]
+    if not changes:
         return jsonify({'error': 'Nothing to update'}), 400
 
     repo = BugReportRepository(client=_triage_client())
     try:
-        updated = repo.update_status(
-            report_id,
-            status=status or repo.find_by_id(report_id).get('status', 'new'),
-            triage_notes=data.get('triage_notes'),
-        )
+        updated = repo.update_fields(report_id, changes)
     except Exception as e:
         logger.error(f"[BugReport] update failed for {report_id}: {e}")
         return jsonify({'error': 'Failed to update bug report'}), 500

@@ -24,7 +24,7 @@ import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
 import InstallPrompt from './components/common/InstallPrompt'
-import PerchReporter from './components/PerchReporter'
+import IssueReporter from './components/feedback/IssueReporter'
 import { initPostHog, captureErrorToast, setMasqueradeSuperProperties, clearMasqueradeSuperProperties } from './services/posthog'
 import { toast } from 'react-hot-toast'
 
@@ -456,7 +456,7 @@ function App() {
             <ConfirmProvider>
             <AppContent />
             <InstallPrompt />
-            <PerchReporter />
+            <IssueReporter />
             {/* The one toast style for all 1,400+ call sites — a white card on
                 brand tokens (docs/design/DESIGN_SYSTEM.md §8). Never restyle
                 per call site. */}
