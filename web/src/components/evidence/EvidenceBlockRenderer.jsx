@@ -11,6 +11,7 @@ import {
   CameraIcon
 } from '@heroicons/react/24/outline';
 import DocumentScannerModal from '../scan/DocumentScannerModal';
+import CameraCaptureButton from './CameraCaptureButton';
 import { useEvidenceEditor } from './EvidenceEditorContext';
 import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL } from './EvidenceMediaHandlers';
 import { TouchActionGroup } from '../ui/mobile/TouchActionButton';
@@ -218,10 +219,8 @@ export const EvidenceBlockRenderer = ({
   );
 
   const renderImageBlock = (block) => {
-    const handleFileSelect = async (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
-
+    // Shared by the file input and the in-app camera button.
+    const addMediaFiles = async (files) => {
       for (const file of files) {
         const isVideoFile = file.type?.startsWith('video/');
         try {
@@ -249,6 +248,12 @@ export const EvidenceBlockRenderer = ({
           toast.error(`Failed to upload ${file.name}`);
         }
       }
+    };
+
+    const handleFileSelect = async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      await addMediaFiles(files);
       e.target.value = ''; // Reset input
     };
 
@@ -313,6 +318,14 @@ export const EvidenceBlockRenderer = ({
           </p>
           <p className="text-xs text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
         </div>
+
+        <CameraCaptureButton
+          onPhoto={(file) => addMediaFiles([file])}
+          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+        >
+          <CameraIcon className="w-4 h-4" />
+          <span className="text-sm font-medium">Take a photo</span>
+        </CameraCaptureButton>
 
         <input
           ref={fileInputRef}

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
-import CameraCaptureButton from './CameraCaptureButton'
+import CameraCaptureButton from '../../components/evidence/CameraCaptureButton'
 
 /**
  * "Show My Work" — one photo, one caption, straight into the student's own

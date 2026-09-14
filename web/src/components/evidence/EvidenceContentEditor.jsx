@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { IMAGE_ACCEPT_STRING, DOCUMENT_ACCEPT_STRING, VIDEO_ACCEPT_STRING, IMAGE_FORMAT_LABEL, DOCUMENT_FORMAT_LABEL, VIDEO_FORMAT_LABEL, ALLOWED_VIDEO_EXTENSIONS } from './EvidenceMediaHandlers';
 import { detectMediaType, validateFileSize, CAMERA_ACCEPT_STRING } from '../../utils/mediaUtils';
 import DocumentScannerModal from '../scan/DocumentScannerModal';
+import CameraCaptureButton from './CameraCaptureButton';
 
 export const EVIDENCE_TYPES = [
   { id: 'text', label: 'Text', Icon: DocumentTextIcon, description: 'Write notes or reflections' },
@@ -327,6 +328,14 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         <p className="text-sm text-gray-500 mt-1">{IMAGE_FORMAT_LABEL} up to 10MB</p>
       </div>
 
+      <CameraCaptureButton
+        onPhoto={(file) => addFiles([file])}
+        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+      >
+        <CameraIcon className="w-5 h-5" />
+        <span className="font-medium">Take a photo</span>
+      </CameraCaptureButton>
+
       <input
         ref={fileInputRef}
         type="file"
@@ -338,11 +347,8 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     </div>
   );
 
-  // Render camera upload (photos + videos)
-  const handleCameraFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
+  // Shared by the camera file input and the in-app camera button.
+  const addCameraFiles = (files) => {
     const newItems = [];
     for (const file of files) {
       const mediaType = detectMediaType(file);
@@ -367,14 +373,19 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
     }
 
     if (newItems.length > 0) {
-      setCurrentItem({
-        ...currentItem,
+      setCurrentItem(prev => ({
+        ...prev,
         content: {
-          items: [...(currentItem.content.items || []), ...newItems]
+          items: [...(prev.content.items || []), ...newItems]
         }
-      });
+      }));
     }
+  };
 
+  const handleCameraFileUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    addCameraFiles(files);
     e.target.value = '';
   };
 
@@ -431,6 +442,14 @@ const EvidenceContentEditor = ({ onSave, onCancel, onUpdate, editingBlock = null
         </p>
         <p className="text-sm text-gray-500 mt-1">Images up to 10MB, videos (MP4/MOV) up to 50MB</p>
       </div>
+
+      <CameraCaptureButton
+        onPhoto={(file) => addCameraFiles([file])}
+        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-optio-purple hover:text-optio-purple transition-colors flex items-center justify-center gap-2"
+      >
+        <CameraIcon className="w-5 h-5" />
+        <span className="font-medium">Take a photo</span>
+      </CameraCaptureButton>
 
       <input
         ref={fileInputRef}
