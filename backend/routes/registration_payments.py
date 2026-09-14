@@ -94,6 +94,42 @@ def _apply_add_ons(admin, reg, cfg, selection):
     return {**reg, 'kids': kids, 'monthly_cents': monthly_cents}
 
 
+def _paid_recorded_session(reg, secret):
+    """The first PAID session among the ids WE recorded for this registration
+    (stripe_session_id + the stripe_session_ids history), newest first. Ours by
+    construction, so a paid one counts even if it predates registration_id
+    metadata. Returns (paid_session_or_None, retrieve_errors_count).
+
+    Shared by /confirm-payment (as the first pass before the account sweep)
+    and /checkout, which must refuse to open ANOTHER session once one of these
+    is paid -- see create_checkout."""
+    import stripe
+
+    reg_id = reg['id']
+    candidates = []
+    for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
+        if sid and sid not in candidates:
+            candidates.append(sid)
+
+    errors = 0
+    for sid in candidates:
+        try:
+            session = stripe.checkout.Session.retrieve(sid, api_key=secret)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'registration payment: retrieve failed for {sid[:20]}: {e}')
+            errors += 1
+            continue
+        if session.get('payment_status') != 'paid':
+            continue
+        # A session id we stored for THIS registration is ours by construction —
+        # accept it when paid unless its metadata explicitly names a DIFFERENT
+        # registration (defensive; shouldn't happen for our own sessions).
+        meta_reg = (session.get('metadata') or {}).get('registration_id')
+        if not meta_reg or meta_reg == reg_id:
+            return session, errors
+    return None, errors
+
+
 def _find_paid_session(reg, secret, parent_email=None):
     """Find a PAID Stripe Checkout Session belonging to this registration.
 
@@ -131,27 +167,9 @@ def _find_paid_session(reg, secret, parent_email=None):
         return (str(sess_email).strip().lower() == parent_email
                 and int(session.get('amount_total') or 0) == fee_cents)
 
-    candidates = []
-    for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
-        if sid and sid not in candidates:
-            candidates.append(sid)
-
-    errors = 0
-    for sid in candidates:
-        try:
-            session = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception as e:  # noqa: BLE001
-            logger.error(f'registration confirm-payment: retrieve failed for {sid[:20]}: {e}')
-            errors += 1
-            continue
-        if session.get('payment_status') != 'paid':
-            continue
-        # A session id we stored for THIS registration is ours by construction —
-        # accept it when paid unless its metadata explicitly names a DIFFERENT
-        # registration (defensive; shouldn't happen for our own sessions).
-        meta_reg = (session.get('metadata') or {}).get('registration_id')
-        if not meta_reg or meta_reg == reg_id:
-            return session, errors
+    session, errors = _paid_recorded_session(reg, secret)
+    if session is not None:
+        return session, errors
 
     # Fallback sweep: any paid session for this registration among the school's
     # recent sessions, capped pages. The lookback starts a little BEFORE this
@@ -219,6 +237,22 @@ def register_routes(bp):
         return_url = (body.get('return_url') or '').strip()
         if not return_url.startswith('http'):
             return jsonify({'error': 'Invalid return URL'}), 400
+
+        # Never open a second Checkout once one of ours is paid. The client is
+        # supposed to verify on the way back from Stripe, but a parent who
+        # lands on the fee step again for ANY reason sees the same Pay button
+        # and Stripe happily takes the money again: Sadie Davis paid the $125
+        # fee three times in ninety seconds on 2026-09-10 (the return handler
+        # was dead on /enroll/resume), Jacob Zonts twice on 2026-08-28. 409 +
+        # already_paid tells the client to run /confirm-payment instead. A
+        # retrieve failure does not block the checkout -- there is no evidence
+        # of a payment, and refusing would strand an unpaid family.
+        paid, _errors = _paid_recorded_session(reg, secret)
+        if paid is not None:
+            logger.warning(f'registration checkout: refused a new session for {reg_id}, '
+                           f'{str(paid.get("id"))[:20]} is already paid')
+            return jsonify({'error': 'This registration fee has already been paid.',
+                            'already_paid': True}), 409
 
         org = admin.table('organizations').select('name').eq('id', reg['organization_id']).single().execute().data
         org_name = (org or {}).get('name') or 'your school'

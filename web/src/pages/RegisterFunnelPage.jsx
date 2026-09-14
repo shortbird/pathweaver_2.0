@@ -768,6 +768,13 @@ const RegisterFunnelPage = () => {
       })
       window.location.href = data.checkout_url
     } catch (e) {
+      // The server found one of this registration's earlier sessions already
+      // paid and refused to open another: verify that one instead of charging
+      // the family again.
+      if (e.response?.status === 409 && e.response?.data?.already_paid) {
+        setSubmitting(false)
+        return confirmPayment()
+      }
       toast.error(e.response?.data?.error || 'Could not start the payment')
       setSubmitting(false)
     }
@@ -797,26 +804,36 @@ const RegisterFunnelPage = () => {
     }
   }, [reg])
 
-  // Returning from Stripe (code-mode reload loses React state): restore the
-  // funnel from sessionStorage and verify the payment server-side.
+  // Returning from Stripe (a full reload): verify the payment server-side.
+  //
+  // Two ways back. On /enroll/<code> the reload loses React state, so the
+  // funnel identity is restored from sessionStorage. On /enroll/resume the
+  // load effect above has already rehydrated `reg` from the server in the
+  // same render as `config` -- and this effect used to bail when `reg` was
+  // set, so a signed-in parent came back to a fee step that still said "Pay
+  // $125". Sadie Davis paid three times in ninety seconds (2026-09-10), Jacob
+  // Zonts twice (2026-08-28). Now a set `reg` is simply the identity to verify.
+  // Preview mode handles its own ?payment=preview-* above.
   useEffect(() => {
-    if (loading || fatal || !config) return
+    if (loading || fatal || !config || previewMode) return
     const params = new URLSearchParams(window.location.search)
     const payment = params.get('payment')
-    if (!payment || reg) return
-    const saved = sessionStorage.getItem('icreate_funnel')
-    if (!saved) return
-    try {
-      const s = JSON.parse(saved)
-      const restored = { registration_id: s.registration_id, access_token: s.access_token }
-      setReg(restored)
-      setFeeCents(s.fee_cents || 0)
-      setStep('fee')
-      window.history.replaceState({}, '', window.location.pathname)
-      if (payment === 'return') confirmPayment(restored)
-      else toast('Payment canceled — you can try again when you are ready.')
-    } catch { /* corrupt storage — parent can resume by logging in */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!payment) return
+    let restored = reg
+    if (!restored) {
+      const saved = sessionStorage.getItem('icreate_funnel')
+      if (!saved) return
+      try {
+        const s = JSON.parse(saved)
+        restored = { registration_id: s.registration_id, access_token: s.access_token }
+        setReg(restored)
+        setFeeCents(s.fee_cents || 0)
+      } catch { return /* corrupt storage — parent can resume by logging in */ }
+    }
+    setStep('fee')
+    window.history.replaceState({}, '', window.location.pathname)
+    if (payment === 'return') confirmPayment(restored)
+    else toast('Payment canceled — you can try again when you are ready.')
   }, [loading, fatal, config])
 
   // ── Render ──────────────────────────────────────────────────────────────────
