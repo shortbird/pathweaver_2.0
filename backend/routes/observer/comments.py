@@ -49,6 +49,24 @@ COMMENT_RELATIONSHIPS = validate_allow(
 )
 
 
+def observer_link_may_comment(supabase, observer_id, student_id):
+    """Whether the plain observer link between these two allows commenting.
+
+    relationship_between() returns the FIRST relationship that holds, in the
+    order COMMENT_RELATIONSHIPS lists them, so this is only consulted for
+    someone whose sole standing with the student is the observer link: a
+    parent who is also an observer is 'parent' and never reaches it. Nothing
+    yet writes can_comment false, but the column means view-only and the
+    integration suite holds the route to it
+    (test_link_without_comment_permission_cannot_comment, marked critical) --
+    a view-only link that could comment would be the SEC-01 shape again.
+    """
+    rows = supabase.table('observer_student_links').select('can_comment') \
+        .eq('observer_id', observer_id).eq('student_id', student_id) \
+        .limit(1).execute().data or []
+    return bool(rows) and rows[0].get('can_comment') is not False
+
+
 def report_refused_comment(supabase, author_id, student_id):
     """A refused comment goes to Sentry, because nowhere else will show it.
 
@@ -245,7 +263,11 @@ def register_routes(bp):
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
 
-            if not relationship_between(observer_id, student_id, COMMENT_RELATIONSHIPS):
+            relationship = relationship_between(observer_id, student_id, COMMENT_RELATIONSHIPS)
+            if not relationship or (
+                relationship == 'observer'
+                and not observer_link_may_comment(supabase, observer_id, student_id)
+            ):
                 report_refused_comment(supabase, observer_id, student_id)
                 return jsonify({'error': "You don't have access to comment on this student's work"}), 403
 
