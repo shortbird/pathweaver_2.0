@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+const render = (ui, { route = '/reports' } = {}) =>
+  rtlRender(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>)
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
@@ -17,7 +18,7 @@ vi.mock('react-hot-toast', () => ({
 const { api } = vi.hoisted(() => {
   const apiData = (url) => {
     if (url.includes('/reports/enrollment')) return { data: { report: { total: 5, by_status: { enrolled: 4, applicant: 1 }, active_classes: 3 } } }
-    if (url.includes('/reports/revenue')) return { data: { report: { invoice_count: 2, billed_cents: 23000, collected_cents: 13000, outstanding_cents: 10000 } } }
+    if (url.includes('/reports/revenue')) return { data: { report: { invoice_count: 2, billed_cents: 1245000, collected_cents: 1235000, outstanding_cents: 10000 } } }
     if (url.includes('/reports/attendance')) return { data: { report: { overall: { attendance_rate: 0.75, counts: { present: 2, absent: 1 }, total: 4 } } } }
     if (url.includes('/reports/registration-questions')) {
       return { data: { questions: [
@@ -83,8 +84,12 @@ const { api } = vi.hoisted(() => {
     }
     if (url.includes('/api/sis/classes')) {
       return { data: { classes: [
-        { id: 'c1', name: 'Pottery' },
-        { id: 'c2', name: 'Guitar Jam' },
+        { id: 'c1', name: 'Pottery', min_age: 8, max_age: 12,
+          primary_instructor: { name: 'Marika' },
+          meetings: [{ day_of_week: 2, start_time: '09:00', end_time: '10:00' }] },
+        { id: 'c2', name: 'Guitar Jam', min_age: 12, max_age: 18,
+          primary_instructor: { name: 'Tyler' },
+          meetings: [{ day_of_week: 4, start_time: '13:00', end_time: '14:00' }] },
       ] } }
     }
     if (url.includes('/reports/payments')) {
@@ -136,12 +141,19 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// The reports are a list on the left (reportsPage/ReportNav); pick one by
+// name. A report with nothing to choose runs as soon as it is picked.
+const openReport = async (title) => {
+  const nav = await screen.findByRole('navigation', { name: 'Reports' })
+  fireEvent.click(within(nav).getByRole('button', { name: title }))
+}
+
 describe('ReportsPage', () => {
-  it('renders enrollment, revenue, and attendance summaries', async () => {
+  it('opens on the overview: enrollment, revenue, and attendance summaries', async () => {
     render(<ReportsPage />)
     expect(await screen.findByText('Outstanding')).toBeInTheDocument()
-    expect(screen.getByText('$230.00')).toBeInTheDocument()   // billed
-    expect(screen.getByText('$100.00')).toBeInTheDocument()   // outstanding
+    expect(screen.getByText('$12,450.00')).toBeInTheDocument()   // billed, with the comma
+    expect(screen.getByText('$100.00')).toBeInTheDocument()      // outstanding
     expect(screen.getByText('75%')).toBeInTheDocument()       // attendance rate
     expect(screen.getByText('Active classes')).toBeInTheDocument()
   })
@@ -154,10 +166,11 @@ describe('ReportsPage', () => {
   it('shows a campus coordinator no revenue or payments, and does not even ask for it', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'], is_org_admin: true } }
     render(<ReportsPage />)
-    expect(await screen.findByText('Attendance')).toBeInTheDocument()
+    expect(await screen.findByText('Attendance rate')).toBeInTheDocument()
     expect(screen.queryByText('Revenue (recorded)')).not.toBeInTheDocument()
     expect(screen.queryByText('Payments')).not.toBeInTheDocument()
-    expect(screen.queryByText('$230.00')).not.toBeInTheDocument()
+    expect(screen.queryByText('Money')).not.toBeInTheDocument()
+    expect(screen.queryByText('$12,450.00')).not.toBeInTheDocument()
     expect(api.get.mock.calls.map(([u]) => u))
       .not.toContainEqual(expect.stringContaining('/reports/revenue'))
     // The operational half of the page is still theirs.
@@ -171,9 +184,8 @@ describe('ReportsPage', () => {
    */
   it('reports payments with the split by method', async () => {
     render(<ReportsPage />)
-    fireEvent.click(await screen.findByLabelText('View payments report'))
-    expect(await screen.findByText('Payments')).toBeInTheDocument()
-    expect(screen.getByText(/Scholarship: \$730\.00 \(1\)/)).toBeInTheDocument()
+    await openReport('Payments')
+    expect(await screen.findByText(/Scholarship: \$730\.00 \(1\)/)).toBeInTheDocument()
     const cells = [...document.querySelectorAll('td')].map((td) => td.textContent)
     expect(cells).toContain('Nora Candland')
     expect(cells).toContain('Check')
@@ -185,7 +197,7 @@ describe('ReportsPage', () => {
    */
   it('runs the student schedule report with a column per school day', async () => {
     render(<ReportsPage />)
-    fireEvent.click(await screen.findByLabelText('View student schedule report'))
+    await openReport('Student schedule')
     expect(await screen.findByText('Block 1: Pottery')).toBeInTheDocument()
     const headers = [...document.querySelectorAll('th')].map((th) => th.textContent)
     expect(headers.join(' ')).toMatch(/Tue/)
@@ -204,8 +216,23 @@ describe('ReportsPage', () => {
   it('does not offer the payments report to a campus coordinator', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'] } }
     render(<ReportsPage />)
-    await screen.findByText('Attendance')
-    expect(screen.queryByLabelText('View payments report')).not.toBeInTheDocument()
+    const nav = await screen.findByRole('navigation', { name: 'Reports' })
+    expect(within(nav).queryByRole('button', { name: 'Payments' })).not.toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Medications' })).toBeInTheDocument()
+  })
+
+  it('remembers the picked report in the URL, and opens on it', async () => {
+    render(<ReportsPage />, { route: '/reports?report=medications' })
+    expect(await screen.findByText('Kid Example')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Medications' })).toBeInTheDocument()
+  })
+
+  it('offers the reports as a select on a small screen, in the same groups', async () => {
+    render(<ReportsPage />)
+    const select = await screen.findByLabelText('Report')
+    expect(within(select).getByRole('option', { name: 'Class rosters' })).toBeInTheDocument()
+    fireEvent.change(select, { target: { value: 'allergies' } })
+    expect(await screen.findByRole('heading', { level: 2, name: 'Allergies' })).toBeInTheDocument()
   })
 
   it('scrolls to the answer when a report is run', async () => {
@@ -216,8 +243,8 @@ describe('ReportsPage', () => {
     const scrollIntoView = vi.fn()
     window.HTMLElement.prototype.scrollIntoView = scrollIntoView
     render(<ReportsPage />)
-    fireEvent.click(await screen.findByLabelText('View payments report'))
-    await screen.findByText('Payments')
+    await openReport('Payments')
+    await screen.findByText(/Scholarship: \$730\.00 \(1\)/)
     expect(scrollIntoView).toHaveBeenCalled()
   })
 
@@ -225,7 +252,7 @@ describe('ReportsPage', () => {
     render(<ReportsPage />)
     await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
-    await screen.findByText('Class rosters')
+    await screen.findByRole('heading', { level: 3, name: 'Class rosters' })
 
     const scrollIntoView = vi.fn()
     window.HTMLElement.prototype.scrollIntoView = scrollIntoView
@@ -233,22 +260,24 @@ describe('ReportsPage', () => {
     expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
-  it('renders the information reports section with canned cards and the question picker', async () => {
+  it('lists every report by group, and the question picker waits for a choice', async () => {
     render(<ReportsPage />)
-    expect(await screen.findByText('Information reports')).toBeInTheDocument()
-    expect(screen.getByText('Medications')).toBeInTheDocument()
-    expect(screen.getByText('Media release')).toBeInTheDocument()
-    expect(screen.getByText('Question report')).toBeInTheDocument()
+    const nav = await screen.findByRole('navigation', { name: 'Reports' })
+    expect(within(nav).getByText('Health & safety')).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Medications' })).toBeInTheDocument()
+    expect(within(nav).getByRole('button', { name: 'Media release' })).toBeInTheDocument()
+    await openReport('Registration answers')
     // Question picker is fed by /reports/registration-questions.
     expect(await screen.findByRole('option', { name: 'Photo & Media Release' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Special needs' })).toBeInTheDocument()
+    expect(screen.getByText('Choose above, then run the report.')).toBeInTheDocument()
+    expect(api.get.mock.calls.map(([u]) => u))
+      .not.toContainEqual(expect.stringContaining('/reports/registration-answers'))
   })
 
-  it('runs the medications report and shows an inline table with print and CSV actions', async () => {
+  it('runs the medications report on pick and shows an inline table with print and CSV actions', async () => {
     render(<ReportsPage />)
-    await screen.findByText('Information reports')
-    const [medicationsRun] = screen.getAllByRole('button', { name: 'View report' })
-    fireEvent.click(medicationsRun)
+    await openReport('Medications')
     expect(await screen.findByText('Kid Example')).toBeInTheDocument()
     expect(screen.getByText('Inhaler')).toBeInTheDocument()
     expect(screen.getByText('Medication schedule: mornings')).toBeInTheDocument()
@@ -262,8 +291,7 @@ describe('ReportsPage', () => {
   // it would help us to see if we are missing any contact info still."
   it('runs the emergency contact sheet with both guardians on one row', async () => {
     render(<ReportsPage />)
-    await screen.findByText('Information reports')
-    fireEvent.click(screen.getByRole('button', { name: 'Run Emergency contacts' }))
+    await openReport('Emergency contacts')
     expect(await screen.findByText('Adaline Bellon')).toBeInTheDocument()
     expect(screen.getByText('Jane Bellon (Mother)')).toBeInTheDocument()
     expect(screen.getByText('Sam Bellon (Father)')).toBeInTheDocument()
@@ -274,8 +302,7 @@ describe('ReportsPage', () => {
 
   it('says on the sheet which families are still missing contact information', async () => {
     render(<ReportsPage />)
-    await screen.findByText('Information reports')
-    fireEvent.click(screen.getByRole('button', { name: 'Run Emergency contacts' }))
+    await openReport('Emergency contacts')
     expect(await screen.findByText(/1 student still missing contact information/))
       .toBeInTheDocument()
     expect(screen.getByText('no guardian phone; no emergency contact')).toBeInTheDocument()
@@ -284,8 +311,7 @@ describe('ReportsPage', () => {
   it('runs the class report and lets the office pick which columns to show', async () => {
     localStorage.removeItem('sis_class_report_cols')
     render(<ReportsPage />)
-    await screen.findByText('Information reports')
-    fireEvent.click(screen.getByRole('button', { name: 'View class report' }))
+    await openReport('Class list')
 
     expect(await screen.findByText('Pottery')).toBeInTheDocument()
     expect(screen.getByText('Ruth Stewart')).toBeInTheDocument()
@@ -305,8 +331,7 @@ describe('ReportsPage', () => {
   it('downloads the class report CSV with the columns currently on screen', async () => {
     localStorage.setItem('sis_class_report_cols', JSON.stringify(['name', 'teacher']))
     render(<ReportsPage />)
-    await screen.findByText('Information reports')
-    fireEvent.click(screen.getByRole('button', { name: 'View class report' }))
+    await openReport('Class list')
     await screen.findByText('Pottery')
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('fields=name,teacher'))
 
@@ -318,10 +343,10 @@ describe('ReportsPage', () => {
 
   it('runs a question report for the selected registration question', async () => {
     render(<ReportsPage />)
+    await openReport('Registration answers')
     await screen.findByRole('option', { name: 'Special needs' })
     fireEvent.change(screen.getByLabelText('Registration question'), { target: { value: 'special_needs' } })
-    const runButtons = screen.getAllByRole('button', { name: 'View report' })
-    fireEvent.click(runButtons[runButtons.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'Run report' }))
     expect(await screen.findByText('None')).toBeInTheDocument()
     expect(screen.getByText('pat@example.com')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(
@@ -339,6 +364,7 @@ describe('ReportsPage', () => {
 // the picker is a list of checkboxes now, because picking eight classes out of
 // 152 by ctrl-click is a trap (iCreate, 2026-08-19).
 const pickClass = async (name) => {
+  await openReport('Class rosters')
   await screen.findByRole('group', { name: 'Classes' })
   fireEvent.click(screen.getByRole('checkbox', { name }))
 }
@@ -346,6 +372,7 @@ const pickClass = async (name) => {
 describe('Class rosters report', () => {
   it('will not run until a class is picked', async () => {
     render(<ReportsPage />)
+    await openReport('Class rosters')
     expect(await screen.findByRole('group', { name: 'Classes' })).toBeInTheDocument()
     expect(screen.getByLabelText('View roster report')).toBeDisabled()
     expect(screen.getByText('Choose one or more classes.')).toBeInTheDocument()
@@ -356,7 +383,7 @@ describe('Class rosters report', () => {
     await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
 
-    expect(await screen.findByText('Class rosters')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 3, name: 'Class rosters' })).toBeInTheDocument()
     expect(screen.getByText('Nora Candland')).toBeInTheDocument()
     expect(screen.getByText('Ryder Swenson')).toBeInTheDocument()
     // Both classes are in ONE table — that is the whole ask. (The names also
@@ -373,24 +400,75 @@ describe('Class rosters report', () => {
     fireEvent.click(screen.getByLabelText('Include waitlisted students'))
     fireEvent.click(screen.getByLabelText('View roster report'))
 
-    await screen.findByText('Class rosters')
+    await screen.findByRole('heading', { level: 3, name: 'Class rosters' })
     expect(api.get.mock.calls.map(([u]) => u))
       .toContainEqual(expect.stringContaining('include_waitlist=true'))
   })
 
   it('Select all picks every class', async () => {
     render(<ReportsPage />)
+    await openReport('Class rosters')
     await screen.findByRole('group', { name: 'Classes' })
     fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
     expect(screen.getByLabelText('View roster report')).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument()
   })
 
+  it('Clear is there as soon as anything is ticked', async () => {
+    // It used to appear only once EVERY class was ticked (iCreate, c8affdb2).
+    render(<ReportsPage />)
+    await pickClass('Pottery')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByLabelText('View roster report')).toBeDisabled()
+  })
+
+  it('narrows the picker by name, day, start time and age, and ticks what is shown', async () => {
+    // "filter by day & time & age too, so I don't have to manually look at
+    // all classes, write them down, then go through the long list" (73963487).
+    render(<ReportsPage />)
+    await openReport('Class rosters')
+    await screen.findByRole('group', { name: 'Classes' })
+
+    fireEvent.change(screen.getByLabelText('Search classes'), { target: { value: 'tyler' } })
+    expect(screen.queryByRole('checkbox', { name: 'Pottery' })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Guitar Jam' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Search classes'), { target: { value: '' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tuesday' }))
+    expect(screen.getByRole('checkbox', { name: 'Pottery' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Guitar Jam' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tuesday' }))
+
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '13:00' } })
+    expect(screen.queryByRole('checkbox', { name: 'Pottery' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '' } })
+
+    fireEvent.change(screen.getByLabelText('Age'), { target: { value: '9' } })
+    expect(screen.getByRole('checkbox', { name: 'Pottery' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Guitar Jam' })).not.toBeInTheDocument()
+
+    // Select all ticks only what the filters left on screen.
+    fireEvent.click(screen.getByRole('button', { name: 'Select all shown (1)' }))
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByRole('checkbox', { name: 'Pottery' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Guitar Jam' })).not.toBeChecked()
+  })
+
+  it('keeps a ticked class in the selection when a filter hides it, and says so', async () => {
+    render(<ReportsPage />)
+    await pickClass('Pottery')
+    fireEvent.click(screen.getByRole('button', { name: 'Thursday' }))
+    expect(screen.queryByRole('checkbox', { name: 'Pottery' })).not.toBeInTheDocument()
+    expect(screen.getByText('1 selected · 1 not shown by the filters')).toBeInTheDocument()
+    expect(screen.getByLabelText('View roster report')).not.toBeDisabled()
+  })
+
   it('a column can be added after the report is on screen', async () => {
     render(<ReportsPage />)
     await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
-    await screen.findByText('Class rosters')
+    await screen.findByRole('heading', { level: 3, name: 'Class rosters' })
 
     expect(screen.queryByText('2014-01-09')).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Birthdate'))
@@ -402,7 +480,7 @@ describe('Class rosters report', () => {
     await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('Include waitlisted students'))
     fireEvent.click(screen.getByLabelText('View roster report'))
-    await screen.findByText('Class rosters')
+    await screen.findByRole('heading', { level: 3, name: 'Class rosters' })
 
     // Without Status the sheet cannot say who is waiting and who is enrolled.
     const status = screen.getByLabelText('Status')
@@ -416,7 +494,7 @@ describe('Class rosters report', () => {
     render(<ReportsPage />)
     await pickClass('Pottery')
     fireEvent.click(screen.getByLabelText('View roster report'))
-    await screen.findByText('Class rosters')
+    await screen.findByRole('heading', { level: 3, name: 'Class rosters' })
     expect(screen.queryByText(/run the report again/i)).not.toBeInTheDocument()
 
     // Ticking the waitlist after running used to change nothing on screen,
@@ -427,6 +505,7 @@ describe('Class rosters report', () => {
 
   it('asks for archived classes only when the box is ticked', async () => {
     render(<ReportsPage />)
+    await openReport('Class rosters')
     await screen.findByRole('group', { name: 'Classes' })
     expect(api.get.mock.calls.map(([u]) => u))
       .toContainEqual(expect.stringContaining('include_archived=false'))

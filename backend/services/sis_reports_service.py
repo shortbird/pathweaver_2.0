@@ -281,11 +281,14 @@ def _ages(cls: Dict[str, Any]) -> str:
     return ''
 
 
+# "$12,450.00", not "$12450.00": a term of tuition is five figures, and the
+# sheets these feed are read by eye. The web sort strips the comma before
+# comparing (ReportsPage.cellSortValue), and the CSV writer quotes the cell.
 def _dollars(value: Any) -> str:
     if value is None:
         return ''
     try:
-        return f'${float(value):.2f}'
+        return f'${float(value):,.2f}'
     except (TypeError, ValueError):
         return ''
 
@@ -294,7 +297,7 @@ def _cents(value: Any) -> str:
     if value is None:
         return ''
     try:
-        return f'${int(value) / 100:.2f}'
+        return f'${int(value) / 100:,.2f}'
     except (TypeError, ValueError):
         return ''
 
@@ -1248,7 +1251,11 @@ def emergency_contacts_report(org_id: str) -> Dict[str, Any]:
     from services import sis_service
 
     roster = sis_service.get_roster(org_id)
-    students = [r for r in roster if r.get('is_student')]
+    # The sheet is who is in the building. A withdrawn or graduated student's
+    # guardians were still listed here with their numbers (iCreate,
+    # 2026-09-14, 28937c94).
+    students = [r for r in roster if r.get('is_student')
+                and r.get('enrollment_status') not in sis_service.INACTIVE_ENROLLMENT_STATUSES]
     contacts = EmergencyContactRepository(client=_admin())
     rows = build_emergency_rows(
         students,

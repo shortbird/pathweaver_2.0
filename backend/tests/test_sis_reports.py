@@ -12,6 +12,19 @@ import pytest
 from services import sis_reports_service as reports
 
 
+class TestMoneyFormatting:
+    """Five-figure sums read by eye: "$12,450.00", not "$12450.00" (2026-09-14)."""
+
+    def test_cents_and_dollars_carry_thousands_separators(self):
+        assert reports._cents(1245000) == '$12,450.00'
+        assert reports._dollars(1234.5) == '$1,234.50'
+        assert reports._cents(73000) == '$730.00'
+
+    def test_missing_or_bad_values_stay_blank(self):
+        assert reports._cents(None) == ''
+        assert reports._dollars('lots') == ''
+
+
 class TestAggregators:
     def test_revenue(self):
         invoices = [

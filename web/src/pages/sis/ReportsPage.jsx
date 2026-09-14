@@ -1,25 +1,33 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import SisOrgPicker from './SisOrgPicker'
-
-
 import shapeReport from './reportsPage/shapeReport'
 import printSection from './reportsPage/printSection'
 import { BlockRosters } from './reportsPage/BlockRosters'
-const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
-const pct = (rate) => (rate == null ? '—' : `${Math.round(rate * 100)}%`)
+import { EMPTY_FILTER } from './reportsPage/rosterClassFilter'
+import { reportByKey, visibleReports } from './reportsPage/catalog'
+import ReportNav from './reportsPage/ReportNav'
+import RosterClassPicker from './reportsPage/RosterClassPicker'
+import ReportTable from './reportsPage/ReportTable'
+import OverviewStats from './reportsPage/OverviewStats'
 
-const Stat = ({ label, value, hint }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-4">
-    <div className="text-sm text-neutral-500">{label}</div>
-    <div className="text-2xl font-bold text-neutral-900 mt-1">{value}</div>
-    {hint && <div className="text-[11px] text-neutral-400 mt-1 leading-tight">{hint}</div>}
-  </div>
-)
+/**
+ * ReportsPage -- every report the office runs, one at a time.
+ *
+ * Restructured 2026-09-14. The page was one grid of fourteen cards under
+ * "Information reports", each with its own Run button and, for the class
+ * rosters, a school's worth of tickboxes inside a card a third of the screen
+ * wide; the answer rendered under the whole grid, and the enrollment and
+ * attendance numbers under that. Now: a grouped list on the left (see
+ * reportsPage/catalog.js), and on the right the report you picked -- what it
+ * is, what it needs from you, and the sheet -- with `?report=` in the URL so a
+ * report can be bookmarked. A report with nothing to choose runs when picked.
+ */
 
 // Hide everything except the results table when printing.
 const PRINT_CSS = `
@@ -45,9 +53,6 @@ const PRINT_CSS = `
   .sis-day-section + .sis-day-section { break-before: page; }
 }
 `
-
-
-
 /**
  * Day rosters: day -> block -> class -> who is in it. Not a table like the
  * other reports — the person reading it is standing in a corridor at 10:30
@@ -244,15 +249,7 @@ export const compareCells = (key, a, b) => {
   return String(va).localeCompare(String(vb), undefined, { numeric: true })
 }
 
-const ReportCard = ({ title, description, children }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col">
-    <div className="font-semibold text-neutral-900">{title}</div>
-    <p className="text-sm text-neutral-500 mt-1 flex-1">{description}</p>
-    <div className="mt-3">{children}</div>
-  </div>
-)
-
-const RunButton = ({ onClick, disabled, ariaLabel, children = 'View report' }) => (
+const RunButton = ({ onClick, disabled, ariaLabel, children = 'Run report' }) => (
   <button
     type="button"
     onClick={onClick}
@@ -267,19 +264,25 @@ const RunButton = ({ onClick, disabled, ariaLabel, children = 'View report' }) =
 const ReportsPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { user } = useAuth()
-  // Money is not the campus coordinator's — the same subtraction the backend
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Money is not the campus coordinator's -- the same subtraction the backend
   // makes on /reports/revenue. Asking for it as a coordinator would 403, so
   // this decides whether to ask at all, not just whether to render.
   const seesMoney = canSeeFinance(user)
+  const reports = useMemo(() => visibleReports(seesMoney), [seesMoney])
+  const requested = searchParams.get('report')
+  const active = reports.find((r) => r.key === requested) || reportByKey('overview')
+  const pickReport = (key) => setSearchParams(key === 'overview' ? {} : { report: key }, { replace: true })
+
   const [enrollment, setEnrollment] = useState(null)
   const [revenue, setRevenue] = useState(null)
   const [attendance, setAttendance] = useState(null)
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState([])
   const [questionKey, setQuestionKey] = useState('')
-  const [report, setReport] = useState(null)          // {title, columns, rows, csvUrl, csvName}
+  const [report, setReport] = useState(null)          // {title, columns, rows, csvPath, csvName}
   const [reportLoading, setReportLoading] = useState(false)
-  // Report table sort: an ordered stack of [{col, dir}] — index 0 is the
+  // Report table sort: an ordered stack of [{col, dir}] -- index 0 is the
   // primary sort, each later entry a deeper tiebreaker (same model as
   // ClassesTable). Starts on the first column ascending, as it always has.
   const [sort, setSort] = useState([{ col: 0, dir: 'asc' }])
@@ -291,19 +294,18 @@ const ReportsPage = () => {
   const [rosterClassIds, setRosterClassIds] = useState([])
   const [includeWaitlist, setIncludeWaitlist] = useState(false)
   // The roster picker's own archived switch. iCreate runs 47 archived classes
-  // against 152 active ones, and the Class report next door already had this,
-  // so its absence here read as an inconsistency (2026-08-20).
+  // against 152 active ones, and the Class list already had this, so its
+  // absence here read as an inconsistency (2026-08-20).
   const [rosterArchived, setRosterArchived] = useState(false)
+  const [rosterFilter, setRosterFilter] = useState(EMPTY_FILTER)
   const [rosterCols, setRosterCols] = useState(loadRosterCols)
   // What the roster report on screen was actually run with, so changing the
   // inputs afterwards can say so rather than silently disagreeing with it.
   const [rosterRunWith, setRosterRunWith] = useState(null)
-  // The results table renders below the whole grid of cards, and the grid is
-  // eleven cards tall — taller still with a school's worth of classes in the
-  // roster picker. Running a report therefore drew the answer somewhere off
-  // screen, which reads exactly like the button doing nothing. Counting runs
-  // rather than watching `report`: toggling a column rebuilds that object, and
-  // re-scrolling the page under someone ticking columns is its own bug.
+  // On a phone the sheet renders under the options; bring it into view when a
+  // run lands. Counting runs rather than watching `report`: toggling a column
+  // rebuilds that object, and re-scrolling under someone ticking columns is
+  // its own bug.
   const [runSeq, setRunSeq] = useState(0)
   // Which day the block rosters are showing. It drives the CSV too, so
   // downloading gives you the day on screen rather than the whole week.
@@ -336,7 +338,7 @@ const ReportsPage = () => {
   useEffect(() => { load() }, [load])
   useEffect(() => { setReport(null); setQuestionKey(''); setRosterClassIds([]) }, [orgId])
   // Unticking "include archived" must not leave an archived class selected and
-  // invisible — the report would still include it and nothing on screen would
+  // invisible -- the report would still include it and nothing on screen would
   // say why.
   useEffect(() => {
     if (!classList.length) return
@@ -349,7 +351,7 @@ const ReportsPage = () => {
   // Reset the table sort whenever a different report is shown.
   useEffect(() => { setSort([{ col: 0, dir: 'asc' }]) }, [report?.title])
 
-  // Click cycles a column asc → desc → off. A column not yet in the sort is
+  // Click cycles a column asc -> desc -> off. A column not yet in the sort is
   // appended as the next-deeper tiebreaker, so clicking Days then Time sorts
   // by day and then by time within each day.
   const toggleSort = (col) => setSort((stack) => {
@@ -366,7 +368,7 @@ const ReportsPage = () => {
   // Rows to render, sorted by the active columns in stack order. The field key
   // (report.selected, present on the field-picker reports) is what tells the
   // comparator a column holds days or times rather than plain text.
-  const displayRows = React.useMemo(() => {
+  const displayRows = useMemo(() => {
     if (!report) return []
     if (!sort.length) return report.rows
     return [...report.rows].sort((a, b) => {
@@ -379,7 +381,7 @@ const ReportsPage = () => {
     })
   }, [report, sort])
 
-  // The class report's CSV must download exactly the columns on screen.
+  // The class list's CSV must download exactly the columns on screen.
   const classPath = useCallback((cols) => (
     `/api/sis/reports/classes?include_archived=${includeArchived}`
     + (cols?.length ? `&fields=${cols.join(',')}` : '')
@@ -403,7 +405,7 @@ const ReportsPage = () => {
       const res = await api.get(withOrg(path, orgId))
       if (type === 'classes') {
         // No saved choice yet: adopt whatever the API says the defaults are.
-        const shaped = shapeClassReport(res.data, classCols)
+        const shaped = shapeClassReport(res.data, classCols, 'Class list')
         setClassCols(shaped.selected)
         setReport({ ...shaped, kind: 'classes', csvPath: classPath(shaped.selected), csvName: 'classes.csv' })
         return
@@ -449,6 +451,16 @@ const ReportsPage = () => {
   }, [orgId, questions, attendanceDate, classCols, classPath, rosterCols, rosterPath,
       rosterClassIds, includeWaitlist])
 
+  // Picking a report clears the last one's sheet; a report with nothing to
+  // choose runs at once. `runReport` is deliberately not a dependency: it
+  // changes whenever an option does, and options changing must not re-run a
+  // report behind someone's back (that is what the Run button is for).
+  useEffect(() => {
+    setReport(null)
+    if (!orgId || active.key === 'overview') return
+    if (active.autoRun) runReport(active.key)
+  }, [active.key, orgId])
+
   // Which column says Enrolled / Waiting / Offered, when there is one.
   const statusCol = report?.kind === 'rosters' ? (report.selected || []).indexOf('status') : -1
   const lockedCol = (key) => report?.kind === 'rosters' && includeWaitlist && key === 'status'
@@ -465,13 +477,13 @@ const ReportsPage = () => {
     && (rosterRunWith.classIds !== [...rosterClassIds].sort().join(',')
         || rosterRunWith.waitlist !== includeWaitlist))
 
-  // Toggling a column re-shapes the rows already loaded — every field comes
+  // Toggling a column re-shapes the rows already loaded -- every field comes
   // back with the report, so changing the view never refetches.
   const toggleClassCol = useCallback((fieldKey) => {
     if (!report?.fields) return
     // Status is what tells an enrolled student from a waiting one, so while the
     // waitlist is included it cannot be turned off (the server forces it into
-    // the sheet either way — this keeps the picker honest about that).
+    // the sheet either way -- this keeps the picker honest about that).
     if (report.kind === 'rosters' && includeWaitlist && fieldKey === 'status') return
     // Keep the API's field order regardless of the order columns were ticked.
     const next = report.fields.map((f) => f.key)
@@ -492,7 +504,7 @@ const ReportsPage = () => {
 
   const downloadCsv = useCallback(async () => {
     if (!report) return
-    // Block rosters download the day you are looking at — a whole week of
+    // Block rosters download the day you are looking at -- a whole week of
     // grids in one file is not the sheet anyone asked for.
     const blockLabel = report.kind === 'block-rosters'
       ? report.days?.find((d) => d.key === blockDay)?.label : null
@@ -507,8 +519,77 @@ const ReportsPage = () => {
     }
   }, [report, orgId, blockDay])
 
+  // What the picked report needs from the office before (or after) it runs.
+  const options = (() => {
+    const busy = reportLoading || !orgId
+    switch (active.key) {
+      case 'rosters':
+        return (
+          <div className="space-y-3">
+            <RosterClassPicker
+              classList={classList} filter={rosterFilter} setFilter={setRosterFilter}
+              selectedIds={rosterClassIds} setSelectedIds={setRosterClassIds}
+              includeWaitlist={includeWaitlist} setIncludeWaitlist={setIncludeWaitlist}
+              includeArchived={rosterArchived} setIncludeArchived={setRosterArchived} />
+            <div className="flex items-center gap-3 flex-wrap">
+              <RunButton ariaLabel="View roster report" disabled={busy || !rosterClassIds.length}
+                onClick={() => runReport('rosters')} />
+              {/* Changing what goes IN the sheet after running it left the
+                  old sheet on screen, which is how "include waitlist" could
+                  look like it had done nothing. */}
+              {rosterStale && (
+                <span className="text-xs text-amber-600">Settings changed — run the report again to see them.</span>
+              )}
+            </div>
+          </div>
+        )
+      case 'classes':
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+              <input type="checkbox" aria-label="Include archived classes"
+                className="accent-optio-purple"
+                checked={includeArchived}
+                onChange={(e) => setIncludeArchived(e.target.checked)} />
+              Include archived
+            </label>
+            <RunButton ariaLabel="View class report" disabled={busy} onClick={() => runReport('classes')} />
+          </div>
+        )
+      case 'daily-attendance':
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            <input type="date" value={attendanceDate} aria-label="Attendance date"
+              onChange={(e) => setAttendanceDate(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <RunButton disabled={busy} onClick={() => runReport('daily-attendance')} />
+          </div>
+        )
+      case 'question':
+        return (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              aria-label="Registration question"
+              value={questionKey}
+              onChange={(e) => setQuestionKey(e.target.value)}
+              className="flex-1 min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Choose a question…</option>
+              {questions.map((q) => (
+                <option key={q.key} value={q.key}>{q.label}</option>
+              ))}
+            </select>
+            <RunButton disabled={busy || !questionKey} onClick={() => runReport('question', questionKey)} />
+          </div>
+        )
+      default:
+        return null
+    }
+  })()
+
   return (
     <div>
+      <style>{PRINT_CSS}</style>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
@@ -517,391 +598,69 @@ const ReportsPage = () => {
       {loading && <p className="text-neutral-500">Loading…</p>}
 
       {!loading && (
-        <div className="space-y-8">
-          <section>
-            <style>{PRINT_CSS}</style>
-            <h2 className="font-semibold text-neutral-900 mb-3">Information reports</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <ReportCard
-                title="Medications"
-                description="Every student who needs a medication, with schedule notes, parent contact, and emergency contact."
-              >
-                <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('medications')} />
-              </ReportCard>
-              <ReportCard
-                title="Allergies"
-                description="Every student with a recorded allergy, with notes, parent contact, and emergency contact. Only students who have an allergy are listed."
-              >
-                <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('allergies')} />
-              </ReportCard>
-              <ReportCard
-                title="Daily attendance"
-                description="For one day, every student who was absent, late, or reported out — flagged excused vs. unexcused, across all classes."
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    aria-label="Attendance date"
-                    value={attendanceDate}
-                    onChange={(e) => setAttendanceDate(e.target.value)}
-                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  />
-                  <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('daily-attendance')} />
-                </div>
-              </ReportCard>
-              <ReportCard
-                title="Emergency contacts"
-                description="Every student with the guardians in their household and the emergency contacts named for them — and a Missing column naming whoever is still not on file. Built to print."
-              >
-                <RunButton ariaLabel="Run Emergency contacts"
-                  disabled={reportLoading || !orgId}
-                  onClick={() => runReport('emergency-contacts')} />
-              </ReportCard>
-              {/* "It'd be really helpful to be able to download a .csv of who
-                  hasn't filled in the checklist for onboarding. Either in the
-                  task center or in the reports" (iCreate 42c4acde). */}
-              <ReportCard
-                title="Checklist completion"
-                description="Who still owes onboarding checklist items, worst first — with their email and exactly which items are missing. Download it as a CSV to chase them."
-              >
-                <RunButton ariaLabel="Run Checklist completion"
-                  disabled={reportLoading || !orgId}
-                  onClick={() => runReport('checklist-completion')} />
-              </ReportCard>
-              <ReportCard
-                title="Media release"
-                description="Who has and hasn't approved the photo and media release, per student. Unanswered families show as Not answered."
-              >
-                <RunButton disabled={reportLoading || !orgId} onClick={() => runReport('media-release')} />
-              </ReportCard>
-              <ReportCard
-                title="Class report"
-                description="One row per class — teacher, days and time, room, tuition, supply fee, curriculum, and more. Pick the columns after you run it."
-              >
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                    <input
-                      type="checkbox"
-                      aria-label="Include archived classes"
-                      className="accent-optio-purple"
-                      checked={includeArchived}
-                      onChange={(e) => setIncludeArchived(e.target.checked)}
-                    />
-                    Include archived
-                  </label>
-                  <RunButton ariaLabel="View class report" disabled={reportLoading || !orgId}
-                    onClick={() => runReport('classes')} />
-                </div>
-              </ReportCard>
-              {/* iCreate asked for this four times (Perch ff701e99, 0334366b,
-                  90b91553, 00877fea). Printing one class shipped on the Classes
-                  page; this is "multiple class rosters/waitlists into one
-                  spreadsheet", with the field picker they asked for. */}
-              <ReportCard
-                title="Class rosters"
-                description="Students across as many classes as you like, in one sheet — guardians, contacts, ages. Pick the columns after you run it."
-              >
-                <div className="space-y-2">
-                  {/* Tickboxes, not a multi-select: picking eight classes out
-                      of 152 by ctrl-click is a trap, and one stray click
-                      cleared the lot (iCreate, 2026-08-19). */}
-                  <div role="group" aria-label="Classes"
-                    className="max-h-44 overflow-y-auto border border-gray-300 rounded-lg p-2 space-y-1">
-                    {!classList.length && (
-                      <p className="text-xs text-neutral-400">No classes to choose from.</p>
-                    )}
-                    {classList.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 text-sm text-neutral-700">
-                        <input type="checkbox" className="accent-optio-purple"
-                          checked={rosterClassIds.includes(c.id)}
-                          onChange={(e) => setRosterClassIds((ids) => (
-                            e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id)))} />
-                        <span className="truncate">{c.name}</span>
-                        {c.status === 'archived' && (
-                          <span className="text-xs text-neutral-400 shrink-0">archived</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <button type="button"
-                        onClick={() => setRosterClassIds(
-                          rosterClassIds.length === classList.length ? [] : classList.map((c) => c.id))}
-                        className="text-xs text-optio-purple hover:underline">
-                        {rosterClassIds.length === classList.length ? 'Clear' : 'Select all'}
-                      </button>
-                      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                        <input type="checkbox" aria-label="Include waitlisted students"
-                          className="accent-optio-purple"
-                          checked={includeWaitlist}
-                          onChange={(e) => setIncludeWaitlist(e.target.checked)} />
-                        Include waitlist
-                      </label>
-                      <label className="flex items-center gap-1.5 text-sm text-neutral-600">
-                        <input type="checkbox" aria-label="Include archived classes in the list"
-                          className="accent-optio-purple"
-                          checked={rosterArchived}
-                          onChange={(e) => setRosterArchived(e.target.checked)} />
-                        Include archived
-                      </label>
-                    </div>
-                    <RunButton ariaLabel="View roster report"
-                      disabled={reportLoading || !orgId || !rosterClassIds.length}
-                      onClick={() => runReport('rosters')} />
-                  </div>
-                  {!rosterClassIds.length && (
-                    <p className="text-xs text-neutral-400">Choose one or more classes.</p>
-                  )}
-                  {/* Changing what goes IN the sheet after running it left the
-                      old sheet on screen, which is how "include waitlist" could
-                      look like it had done nothing. */}
-                  {rosterStale && (
-                    <p className="text-xs text-amber-600">
-                      Settings changed — run the report again to see them.
-                    </p>
-                  )}
-                </div>
-              </ReportCard>
-              <ReportCard
-                title="Day rosters"
-                description="One sheet per day: each block, the classes running in it, the room, and who should be in each. For the person who has to tell a child where to go."
-              >
-                <RunButton ariaLabel="View day rosters report" disabled={reportLoading || !orgId}
-                  onClick={() => runReport('day-rosters')} />
-              </ReportCard>
-              {/* iCreate (Marika), 2026-08-24 — she was building this by hand
-                  in Excel from the class roster page, the day rosters and the
-                  room assignments. */}
-              <ReportCard
-                title="Block rosters"
-                description="One page per block: every class running in it side by side, with its room and each student's age. Pick a day, print a block, or download the grid."
-              >
-                <RunButton ariaLabel="View block rosters report" disabled={reportLoading || !orgId}
-                  onClick={() => runReport('block-rosters')} />
-              </ReportCard>
-              <ReportCard
-                title="Student schedule"
-                description="A master list of every student with their age, showing which days they come and which class blocks they're in each day."
-              >
-                <RunButton ariaLabel="View student schedule report" disabled={reportLoading || !orgId}
-                  onClick={() => runReport('student-schedule')} />
-              </ReportCard>
-              {seesMoney && (
-                <ReportCard
-                  title="Payments"
-                  description="Every payment you have recorded, with the split by method — card, check, cash, scholarship. Downloads as a spreadsheet."
-                >
-                  <RunButton ariaLabel="View payments report" disabled={reportLoading || !orgId}
-                    onClick={() => runReport('payments')} />
-                </ReportCard>
-              )}
-              <ReportCard
-                title="Question report"
-                description="Every family's (or student's) answer to one registration question."
-              >
-                <div className="flex items-center gap-2">
-                  <select
-                    aria-label="Registration question"
-                    value={questionKey}
-                    onChange={(e) => setQuestionKey(e.target.value)}
-                    className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="">Choose a question…</option>
-                    {questions.map((q) => (
-                      <option key={q.key} value={q.key}>{q.label}</option>
-                    ))}
-                  </select>
-                  <RunButton
-                    disabled={reportLoading || !orgId || !questionKey}
-                    onClick={() => runReport('question', questionKey)}
-                  />
-                </div>
-              </ReportCard>
+        <div className="grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] gap-6 items-start">
+          <div className="md:sticky md:top-4">
+            <ReportNav reports={reports} activeKey={active.key} onPick={pickReport} />
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-neutral-900">{active.title}</h2>
+              <p className="text-sm text-neutral-500 mt-0.5">{active.description}</p>
             </div>
 
-            <div ref={resultRef} className="scroll-mt-4" />
-
-            {reportLoading && <p className="text-neutral-500 mt-4">Loading report…</p>}
-
-            {!reportLoading && report && (
-              <div className="sis-report-print bg-white rounded-xl border border-gray-200 p-4 mt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-neutral-900">{report.title}</h3>
-                  <div className="no-print flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
-                    >
-                      Print
-                    </button>
-                    <button
-                      type="button"
-                      onClick={downloadCsv}
-                      className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
-                    >
-                      Download CSV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReport(null)}
-                      className="px-3 py-1.5 rounded-lg text-sm text-neutral-500 hover:bg-gray-50"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-                {report.summary && (
-                  <p className="text-sm text-neutral-600 mb-3">{report.summary}</p>
+            {active.key === 'overview' ? (
+              <OverviewStats enrollment={enrollment} revenue={revenue} attendance={attendance}
+                seesMoney={seesMoney} />
+            ) : (
+              <>
+                {options && (
+                  <div className="no-print bg-white rounded-xl border border-gray-200 p-4">{options}</div>
                 )}
-                {report.fields && (
-                  <fieldset className="no-print mb-4 border-t border-gray-100 pt-3">
-                    <legend className="sr-only">Columns</legend>
-                    <div className="text-sm font-medium text-neutral-700 mb-2">Columns</div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
-                      {report.fields.map((f) => (
-                        <label key={f.key} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            aria-label={f.label}
-                            className="mt-0.5 accent-optio-purple shrink-0"
-                            checked={report.selected.includes(f.key)}
-                            disabled={lockedCol(f.key)}
-                            title={lockedCol(f.key)
-                              ? 'Needed while waitlisted students are included'
-                              : undefined}
-                            onChange={() => toggleClassCol(f.key)}
-                          />
-                          <span className="leading-tight">
-                            <span className="block font-medium text-neutral-800">{f.label}</span>
-                            {f.hint && <span className="block text-[11px] text-neutral-500">{f.hint}</span>}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
+
+                <div ref={resultRef} className="scroll-mt-4" />
+
+                {reportLoading && <p className="text-neutral-500">Loading report…</p>}
+
+                {!reportLoading && !report && !active.autoRun && (
+                  <p className="text-sm text-neutral-400">
+                    {active.key === 'rosters' ? 'Pick the classes above, then run the report.'
+                      : 'Choose above, then run the report.'}
+                  </p>
                 )}
-                {report.kind === 'day-rosters' ? (
-                  <DayRosters days={report.days} />
-                ) : report.kind === 'block-rosters' ? (
-                  <BlockRosters days={report.days} day={blockDay} onDayChange={setBlockDay} />
-                ) : displayRows.length === 0 ? (
-                  <p className="text-neutral-500">No matching records.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    {sort.length > 1 && (
-                      <div className="flex items-center gap-2 pb-2 text-xs text-neutral-500">
-                        <span>
-                          Sorted by {sort.map((s, i) => `${i + 1}. ${report.columns[s.col]}${s.dir === 'desc' ? ' ↓' : ' ↑'}`).join(', ')}
-                        </span>
-                        <button type="button" onClick={() => setSort([])}
-                          className="text-optio-purple hover:underline">Clear</button>
-                        <span className="text-neutral-300 hidden sm:inline">
-                          · Click a column to add a deeper level; click again to flip or remove it.
-                        </span>
+
+                {!reportLoading && report && (
+                  <div className="sis-report-print bg-white rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                      <h3 className="font-semibold text-neutral-900">{report.title}</h3>
+                      <div className="no-print flex items-center gap-2">
+                        <button type="button" onClick={() => window.print()}
+                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+                          Print
+                        </button>
+                        <button type="button" onClick={downloadCsv}
+                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+                          Download CSV
+                        </button>
                       </div>
+                    </div>
+                    {report.summary && (
+                      <p className="text-sm text-neutral-600 mb-3">{report.summary}</p>
                     )}
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b border-gray-200">
-                          {report.columns.map((c, j) => {
-                            const idx = sort.findIndex((s) => s.col === j)
-                            const entry = idx === -1 ? null : sort[idx]
-                            return (
-                              <th key={c} className="py-2 pr-4 font-semibold text-neutral-700">
-                                <button type="button" onClick={() => toggleSort(j)}
-                                  className="inline-flex items-center gap-1 hover:text-optio-purple">
-                                  {c}
-                                  <span className={`text-[10px] ${entry ? 'text-optio-purple' : 'text-neutral-400'}`}>
-                                    {entry ? (entry.dir === 'asc' ? '▲' : '▼') : '↕'}
-                                    {entry && sort.length > 1 ? <span className="font-bold ml-0.5">{idx + 1}</span> : null}
-                                  </span>
-                                </button>
-                              </th>
-                            )
-                          })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayRows.map((row, i) => {
-                          const waiting = statusCol >= 0 && row[statusCol] && row[statusCol] !== 'Enrolled'
-                          return (
-                            <tr key={i}
-                              className={`border-b border-gray-100 align-top ${waiting ? 'bg-amber-50' : ''}`}>
-                              {row.map((cell, j) => (
-                                <td key={j} className="py-2 pr-4 text-neutral-800">
-                                  {j === statusCol && waiting ? (
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                                      {cell}
-                                    </span>
-                                  ) : (cell || '')}
-                                </td>
-                              ))}
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
+                    {report.kind === 'day-rosters' ? (
+                      <DayRosters days={report.days} />
+                    ) : report.kind === 'block-rosters' ? (
+                      <BlockRosters days={report.days} day={blockDay} onDayChange={setBlockDay} />
+                    ) : (
+                      <ReportTable report={report} rows={displayRows} sort={sort}
+                        onSort={toggleSort} onClearSort={() => setSort([])}
+                        onToggleColumn={toggleClassCol} lockedColumn={lockedCol} statusCol={statusCol} />
+                    )}
                   </div>
                 )}
-              </div>
+              </>
             )}
-          </section>
-
-          {/* iCreate, 2026-08-18: "it says we have 7 students and 1 enrolled.
-              What does enrolled vs students mean? And also this is incorrect."
-              Both came off school_enrollments — the diploma/school-of-record
-              record, which most schools barely use — so "Students" was counting
-              withdrawn and graduated rows and "Enrolled" was counting one
-              diploma student, while 188 children sat in their classes. Every
-              number now says what it counts, and the first one is the number
-              people mean by "how many students do we have". */}
-          <section>
-            <h2 className="font-semibold text-neutral-900 mb-3">Enrollment</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat label="Students in classes" value={enrollment?.students_in_classes ?? 0}
-                hint="Distinct students holding a seat in a class" />
-              <Stat label="Active classes" value={enrollment?.active_classes ?? 0}
-                hint="Not counting archived" />
-              <Stat label="School records — enrolled" value={enrollment?.by_status?.enrolled ?? 0}
-                hint="Enrolled with this school as school of record" />
-              <Stat label="School records — applicants" value={enrollment?.by_status?.applicant ?? 0}
-                hint="Applied, not yet enrolled" />
-            </div>
-            {(enrollment?.by_status?.withdrawn || enrollment?.by_status?.graduated) ? (
-              <p className="mt-2 text-xs text-neutral-500">
-                School records also hold{' '}
-                {enrollment?.by_status?.withdrawn ? `${enrollment.by_status.withdrawn} withdrawn` : ''}
-                {enrollment?.by_status?.withdrawn && enrollment?.by_status?.graduated ? ' and ' : ''}
-                {enrollment?.by_status?.graduated ? `${enrollment.by_status.graduated} graduated` : ''}
-                {' '}({enrollment?.school_records ?? 0} in total). Those are past students, so they
-                are not counted above.
-              </p>
-            ) : null}
-          </section>
-
-          {seesMoney && (
-            <section>
-              <h2 className="font-semibold text-neutral-900 mb-3">Revenue (recorded)</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Stat label="Invoices" value={revenue?.invoice_count ?? 0} />
-                <Stat label="Billed" value={money(revenue?.billed_cents)} />
-                <Stat label="Collected" value={money(revenue?.collected_cents)} />
-                <Stat label="Outstanding" value={money(revenue?.outstanding_cents)} />
-              </div>
-            </section>
-          )}
-
-          <section>
-            <h2 className="font-semibold text-neutral-900 mb-3">Attendance</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Stat label="Attendance rate" value={pct(attendance?.overall?.attendance_rate)} />
-              <Stat label="Present" value={attendance?.overall?.counts?.present ?? 0} />
-              <Stat label="Absent" value={attendance?.overall?.counts?.absent ?? 0} />
-              <Stat label="Sessions" value={attendance?.overall?.total ?? 0} />
-            </div>
-          </section>
+          </div>
         </div>
       )}
     </div>

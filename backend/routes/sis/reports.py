@@ -407,10 +407,31 @@ def _first_emergency_contact(org_id, kid_ids):
     return out
 
 
+def _gone_student_ids(org_id):
+    """Students the school lists as withdrawn or graduated."""
+    return {sid for sid, enr in sis_service._enrollments_by_student(org_id).items()
+            if (enr or {}).get('status') in sis_service.INACTIVE_ENROLLMENT_STATUSES}
+
+
 def _reg_context(org_id):
     """Shared assembly for the information reports: deduped registrations plus
-    parent users, kid users, and household lookups."""
-    regs = _latest_registrations(org_id)
+    parent users, kid users, and household lookups.
+
+    A child the school has withdrawn or graduated is dropped from every
+    registration here, and a registration left with no child goes with them.
+    The reports are for the people in the building: "why are we keeping
+    families and their numbers if they aren't part of the school anymore? Then
+    their contact information is in reports" (iCreate, 2026-09-14, 28937c94).
+    The registration rows themselves stay; only these sheets stop reading them.
+    """
+    gone = _gone_student_ids(org_id)
+    regs = []
+    for r in _latest_registrations(org_id):
+        kids = r.get('kids') or []
+        kept = [k for k in kids if k.get('user_id') not in gone]
+        if kids and not kept:
+            continue
+        regs.append({**r, 'kids': kept})
     parent_ids = [r.get('parent_user_id') for r in regs]
     kid_ids = [k.get('user_id') for r in regs for k in (r.get('kids') or [])]
     users = _users_by_id(parent_ids + kid_ids)
@@ -572,6 +593,7 @@ def medications(user_id):
     try:
         extras = [s for s in sis_service.get_roster(org_id)
                   if s.get('is_student') and s['student_id'] not in seen_kid_ids
+                  and s.get('enrollment_status') not in sis_service.INACTIVE_ENROLLMENT_STATUSES
                   and _has_value(s.get('medications'))]
         extra_contacts = _first_emergency_contact(org_id, [s['student_id'] for s in extras])
         for s in extras:
@@ -650,6 +672,7 @@ def allergies(user_id):
     try:
         extras = [s for s in sis_service.get_roster(org_id)
                   if s.get('is_student') and s['student_id'] not in seen_kid_ids
+                  and s.get('enrollment_status') not in sis_service.INACTIVE_ENROLLMENT_STATUSES
                   and _has_value(s.get('allergies'))]
         extra_contacts = _first_emergency_contact(org_id, [s['student_id'] for s in extras])
         for s in extras:
