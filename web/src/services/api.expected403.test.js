@@ -55,7 +55,7 @@ describe('expect403 opt-out', () => {
     })
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(captureException.mock.calls[0][0].message)
-      .toBe('API 403: GET /api/plain-403')
+      .toBe('API 403: GET /api/plain-403 from /')
   })
 
   it('stays quiet for a request that declared the 403 expected', async () => {
@@ -74,7 +74,7 @@ describe('expect403 opt-out', () => {
     ).rejects.toMatchObject({ response: { status: 500 } })
     expect(captureException).toHaveBeenCalledTimes(1)
     expect(captureException.mock.calls[0][0].message)
-      .toBe('API 500: GET /api/probe-500')
+      .toBe('API 500: GET /api/probe-500 from /')
   })
 
   it('sends the opt-out on the diploma probe and not on a direct credits read',
@@ -97,6 +97,6 @@ describe('expect403 opt-out', () => {
       // Only the un-excused read is reported.
       expect(captureException).toHaveBeenCalledTimes(1)
       expect(captureException.mock.calls[0][0].message)
-        .toBe('API 403: GET /api/oea/students/:id/credits')
+        .toBe('API 403: GET /api/oea/students/:id/credits from /')
     })
 })

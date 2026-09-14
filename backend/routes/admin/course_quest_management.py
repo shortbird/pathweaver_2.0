@@ -16,6 +16,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin, require_advisor
 from services.image_service import search_quest_image
 from services.subject_classification_service import SubjectClassificationService
+from utils.template_from_enrollment import enrollment_tasks_as_template
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -620,29 +621,15 @@ def update_template_tasks(user_id, quest_id):
         ]
     }
     """
-    from utils.roles import get_effective_role
-    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
         data = request.json
 
-        # Verify quest exists and check access
-        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
-        if not quest.data:
-            return jsonify({'success': False, 'error': 'Quest not found'}), 404
-
-        # Check organization access
-        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
-        if user_result.data:
-            user_role = get_effective_role(user_result.data)
-            user_org = user_result.data.get('organization_id')
-            quest_org = quest.data.get('organization_id')
-
-            # IDOR-H8 fix: deny non-superadmins mutating GLOBAL (NULL-org) content.
-            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
-                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+        denied = _deny_unless_may_edit_quest(supabase, user_id, quest_id)
+        if denied:
+            return denied
 
         if not data.get('tasks'):
             return jsonify({
@@ -650,71 +637,8 @@ def update_template_tasks(user_id, quest_id):
                 'error': 'Tasks array is required'
             }), 400
 
-        # Validate and prepare tasks
-        valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
-        tasks_data = []
-
-        for i, task in enumerate(data['tasks']):
-            if not task.get('title'):
-                logger.warning(f"Task {i} missing title, skipping")
-                continue
-
-            pillar = task.get('pillar', 'stem').lower().strip()
-            if pillar not in valid_pillars:
-                pillar = 'stem'
-
-            # Auto-generate subject XP distribution if not provided
-            subject_xp_distribution = task.get('subject_xp_distribution', {})
-            if not subject_xp_distribution:
-                try:
-                    subject_service = get_subject_service()
-                    subject_xp_distribution = subject_service.classify_task_subjects(
-                        title=task['title'].strip(),
-                        description=task.get('description', '').strip(),
-                        pillar=pillar,
-                        xp_value=int(task.get('xp_value', 100))
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to auto-classify subjects: {e}")
-                    subject_xp_distribution = {}
-
-            tasks_data.append({
-                'title': task['title'].strip(),
-                'description': task.get('description', '').strip(),
-                'pillar': pillar,
-                'xp_value': int(task.get('xp_value', 100)),
-                'order_index': task.get('order_index', i),
-                'is_required': task.get('is_required', False),
-                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                'subject_xp_distribution': subject_xp_distribution
-            })
-
-        # Use repository to bulk update
-        repo = QuestTemplateTaskRepository()
-        created_tasks = repo.bulk_update_template_tasks(quest_id, tasks_data)
-
-        # Also update legacy table for backward compatibility during migration
-        _sync_to_legacy_table(quest_id, tasks_data, supabase)
-
-        # Carry the edit to the students already holding this quest. Their tasks
-        # are copies taken at enrolment, so editing the template used to change
-        # what only FUTURE enrollees received: correcting a task's XP or its
-        # pillar left every current student on the old value, with no way to
-        # give them the new one (Gryffin, 2026-08-27: "when editing the XP under
-        # the quest it should update all the kids xp, so you dont have to
-        # manually go in and edit each kids quests").
-        #
-        # resync rewrites rows IN PLACE and protects any task carrying a
-        # completion or evidence -- see its docstring, the delete/recreate
-        # version would cascade away submitted work. Best-effort: the template
-        # save has already succeeded, and a resync failure must not report it as
-        # a failure.
-        resynced = None
-        try:
-            from utils.template_tasks import resync_enrollments_to_template
-            resynced = resync_enrollments_to_template(supabase, quest_id)
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f'Template saved but enrollment resync failed for {quest_id}: {e}')
+        tasks_data = _prepare_template_tasks(data['tasks'])
+        created_tasks, resynced = _save_template_tasks(supabase, quest_id, tasks_data)
 
         return jsonify({
             'success': True,
@@ -729,31 +653,192 @@ def update_template_tasks(user_id, quest_id):
         raise
 
 
+@bp.route('/quests/<quest_id>/template-tasks/from-my-tasks', methods=['POST'])
+@require_advisor
+def template_tasks_from_my_tasks(user_id, quest_id):
+    """Make the caller's own task list on this quest the quest's task list.
+
+    How a teacher actually builds a quest: create it, pick it up, try the AI
+    paths, keep the tasks they like, add a few more. That list lives only on
+    THEIR enrollment. Students picking the quest up were sent to the
+    build-your-own wizard, and the only way to give them the teacher's list
+    was to retype it into the quest form (Apogee Odessa, 2026-09-14: six
+    quests, about sixty tasks).
+
+    Only for a quest with no authored tasks yet -- once a template exists the
+    quest form is the editor for it, and silently replacing a template with
+    one person's enrollment is not something a button on the quest page
+    should do. Existing enrollments are brought onto the new template by the
+    same resync a template edit runs, so a student who already picked the
+    quest up and got nothing gets the list too.
+    """
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    from repositories.quest_repository import QuestRepository
+    from repositories.task_repository import TaskRepository
+    # admin client justified: staff-only route (@require_advisor), scoped to the caller's own org by _deny_unless_may_edit_quest; writes the quest's template + every enrollment's copy
+    supabase = get_supabase_admin_client()
+
+    try:
+        denied = _deny_unless_may_edit_quest(supabase, user_id, quest_id)
+        if denied:
+            return denied
+
+        if QuestTemplateTaskRepository().get_quest_task_summary(quest_id).get('total_tasks', 0) > 0:
+            return jsonify({
+                'success': False,
+                'error': 'This quest already has a task list. Edit it from the quest form.',
+            }), 409
+
+        enrollment = next(
+            (e for e in QuestRepository().get_user_enrollments(user_id, is_active=True)
+             if e.get('quest_id') == quest_id),
+            None,
+        )
+        mine = [t for t in TaskRepository().find_by_quest(quest_id, user_id)
+                if enrollment and t.get('user_quest_id') == enrollment['id']]
+        tasks_data = _prepare_template_tasks(enrollment_tasks_as_template(mine))
+        if not tasks_data:
+            return jsonify({
+                'success': False,
+                'error': 'You have no tasks on this quest to give to students.',
+            }), 400
+
+        created_tasks, resynced = _save_template_tasks(supabase, quest_id, tasks_data)
+
+        return jsonify({
+            'success': True,
+            'message': f'Students now get your {len(created_tasks)} tasks',
+            'tasks': created_tasks,
+            'total': len(created_tasks),
+            'resynced': resynced,
+        })
+
+    except Exception as e:
+        logger.error(f"Error promoting enrollment tasks to template: {str(e)}")
+        raise
+
+
+def _deny_unless_may_edit_quest(supabase, user_id, quest_id):
+    """The 404/403 for editing a quest's task list, or None when allowed.
+
+    IDOR-H8: non-superadmins may not mutate GLOBAL (NULL-org) content, and an
+    org's staff may only touch their own org's quests.
+    """
+    from utils.roles import get_effective_role
+
+    quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
+    if not quest.data:
+        return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+    user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
+    if user_result.data:
+        user_role = get_effective_role(user_result.data)
+        user_org = user_result.data.get('organization_id')
+        quest_org = quest.data.get('organization_id')
+
+        if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
+            return jsonify({'success': False, 'error': 'Permission denied'}), 403
+
+    return None
+
+
+def _prepare_template_tasks(raw_tasks):
+    """Validate a task list into rows for quest_template_tasks.
+
+    Untitled tasks are dropped; an unknown pillar becomes 'stem'; a task with
+    no subject XP split gets one from the classifier.
+    """
+    valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
+    tasks_data = []
+
+    for i, task in enumerate(raw_tasks):
+        if not task.get('title'):
+            logger.warning(f"Task {i} missing title, skipping")
+            continue
+
+        pillar = task.get('pillar', 'stem').lower().strip()
+        if pillar not in valid_pillars:
+            pillar = 'stem'
+
+        # Auto-generate subject XP distribution if not provided
+        subject_xp_distribution = task.get('subject_xp_distribution', {})
+        if not subject_xp_distribution:
+            try:
+                subject_service = get_subject_service()
+                subject_xp_distribution = subject_service.classify_task_subjects(
+                    title=task['title'].strip(),
+                    description=task.get('description', '').strip(),
+                    pillar=pillar,
+                    xp_value=int(task.get('xp_value', 100))
+                )
+            except Exception as e:
+                logger.warning(f"Failed to auto-classify subjects: {e}")
+                subject_xp_distribution = {}
+
+        # A task that named no subject takes the classifier's answer as its
+        # subject list too, so the row never says "Electives" while its XP
+        # says "Science".
+        diploma_subjects = task.get('diploma_subjects') or list(subject_xp_distribution.keys()) or ['Electives']
+
+        tasks_data.append({
+            'title': task['title'].strip(),
+            'description': (task.get('description') or '').strip(),
+            'pillar': pillar,
+            'xp_value': int(task.get('xp_value', 100)),
+            'order_index': task.get('order_index', i),
+            'is_required': task.get('is_required', False),
+            'diploma_subjects': diploma_subjects,
+            'subject_xp_distribution': subject_xp_distribution
+        })
+
+    return tasks_data
+
+
+def _save_template_tasks(supabase, quest_id, tasks_data):
+    """Replace the quest's template with tasks_data and carry it to everyone
+    already enrolled. Returns (created_tasks, resync_result_or_None)."""
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+
+    created_tasks = QuestTemplateTaskRepository().bulk_update_template_tasks(quest_id, tasks_data)
+
+    # Also update legacy table for backward compatibility during migration
+    _sync_to_legacy_table(quest_id, tasks_data, supabase)
+
+    # Carry the edit to the students already holding this quest. Their tasks
+    # are copies taken at enrolment, so editing the template used to change
+    # what only FUTURE enrollees received: correcting a task's XP or its
+    # pillar left every current student on the old value, with no way to
+    # give them the new one (Gryffin, 2026-08-27: "when editing the XP under
+    # the quest it should update all the kids xp, so you dont have to
+    # manually go in and edit each kids quests").
+    #
+    # resync rewrites rows IN PLACE and protects any task carrying a
+    # completion or evidence -- see its docstring, the delete/recreate
+    # version would cascade away submitted work. Best-effort: the template
+    # save has already succeeded, and a resync failure must not report it as
+    # a failure.
+    resynced = None
+    try:
+        from utils.template_tasks import resync_enrollments_to_template
+        resynced = resync_enrollments_to_template(supabase, quest_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'Template saved but enrollment resync failed for {quest_id}: {e}')
+
+    return created_tasks, resynced
+
+
 @bp.route('/quests/<quest_id>/template-tasks/<task_id>', methods=['DELETE'])
 @require_advisor
 def delete_template_task(user_id, quest_id, task_id):
     """Delete a single template task"""
-    from utils.roles import get_effective_role
     from repositories.quest_template_task_repository import QuestTemplateTaskRepository
     # admin client justified: admin-only route (@require_admin/@require_superadmin) — needs RLS bypass for cross-tenant administration
     supabase = get_supabase_admin_client()
 
     try:
-        # Verify quest exists and check access
-        quest = supabase.table('quests').select('organization_id').eq('id', quest_id).single().execute()
-        if not quest.data:
-            return jsonify({'success': False, 'error': 'Quest not found'}), 404
-
-        # Check organization access
-        user_result = supabase.table('users').select('organization_id, role, org_role').eq('id', user_id).single().execute()
-        if user_result.data:
-            user_role = get_effective_role(user_result.data)
-            user_org = user_result.data.get('organization_id')
-            quest_org = quest.data.get('organization_id')
-
-            # IDOR-H8 fix: deny non-superadmins deleting GLOBAL (NULL-org) content.
-            if user_role != 'superadmin' and (not quest_org or quest_org != user_org):
-                return jsonify({'success': False, 'error': 'Permission denied'}), 403
+        denied = _deny_unless_may_edit_quest(supabase, user_id, quest_id)
+        if denied:
+            return denied
 
         # Delete from unified table
         repo = QuestTemplateTaskRepository()

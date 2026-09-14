@@ -53,6 +53,17 @@ export function resetOtaReportDedupe(): void {
 // (NODE-4B). These are transient network conditions, not crashes, so we keep
 // the diagnostic but at warning level with a stable fingerprint so a flapping
 // device collapses into one issue.
+const TRANSIENT_NETWORK_FAILURE = new RegExp(
+  [
+    // English (en_*): NSURLError descriptions as iOS renders them.
+    'offline', 'network\\s*error', 'internet connection', 'timed?\\s*out',
+    'connection (was )?lost', 'could not connect to the server',
+    // Spanish (es_*): the same four conditions.
+    'conexi[oó]n', 'tiempo de espera', 'no se pudo conectar',
+  ].join('|'),
+  'i',
+);
+
 function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
   const message =
     err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
@@ -64,7 +75,15 @@ function reportOtaIssue(kind: 'check' | 'download', err: unknown): void {
   // request timed out", OPTIO-MOBILE-5) — the next foreground re-check gets the
   // update. Keep reporting genuine check/download failures (bad bundle, server
   // errors) below.
-  if (/offline|network\s*error|internet connection|timed?\s*out/i.test(message)) return;
+  //
+  // iOS localizes the NSURLError text to the DEVICE's language, so the strings
+  // are matched in more than one: an es_US phone reports "La conexión a
+  // Internet parece estar desactivada." for the same offline condition, and
+  // that was reported on every foreground for ten days as if it were a
+  // genuine check failure (OPTIO-MOBILE-5, 2026-09-14). The Spanish forms are
+  // NSURLErrorNotConnectedToInternet, NetworkConnectionLost, TimedOut and
+  // CannotConnectToHost; "conexi[oó]n" covers the connection family in one.
+  if (TRANSIENT_NETWORK_FAILURE.test(message)) return;
   // Everything above is an iOS string, and that is not a coincidence: iOS
   // propagates the underlying NSURLError, so a weak connection arrives already
   // named. Android never does. FileDownloader.downloadRemoteUpdate wraps EVERY

@@ -252,3 +252,88 @@ def test_a_failed_work_probe_writes_nothing():
 
     assert 'error' in out
     assert db.deleted == [] and db.updated == {} and db.inserted == []
+
+
+class _StaleTemplateDB(FakeDB):
+    """The template changed between the id check and the write: the first
+    write carrying `stale_id` fails on the FK exactly as PostgREST reports it,
+    a retry without the reference succeeds."""
+
+    def __init__(self, *a, stale_id, **k):
+        super().__init__(*a, **k)
+        self.stale_id = stale_id
+        self.fk_failures = 0
+
+    def table(self, name):
+        q = super().table(name)
+        if name != 'user_quest_tasks':
+            return q
+        db = self
+
+        class _Guarded(_Query):
+            def execute(self_):
+                rows = self_._payload if isinstance(self_._payload, list) else \
+                    ([self_._update] if self_._update is not None else [])
+                if any(r.get('source_template_task_id') == db.stale_id for r in rows):
+                    db.fk_failures += 1
+                    raise RuntimeError(
+                        "{'message': 'insert or update on table \"user_quest_tasks\" "
+                        "violates foreign key constraint "
+                        "\"user_quest_tasks_source_template_task_id_fkey\"', "
+                        "'code': '23503'}")
+                return super().execute()
+
+        g = _Guarded(self, name)
+        return g
+
+
+def test_a_template_deleted_mid_resync_still_rewrites_the_row():
+    """OPTIO-BACKEND-8R: a colleague's bulk save deleted and recreated the
+    template between get_valid_source_template_ids and the UPDATE. Every
+    enrollment failed its rewrite and kept the removed task."""
+    db = _StaleTemplateDB(tasks=[_task('t1', 'Old one', 0), _task('t2', 'Old two', 1)],
+                          stale_id='tmpl-0')
+    out = resync_enrollments_to_template(db, QUEST, TEMPLATE)
+
+    assert db.fk_failures == 1
+    assert out['updated'] == 2
+    assert db.tasks['t1']['title'] == 'New first task'
+    assert db.tasks['t1']['source_template_task_id'] is None
+    assert db.tasks['t1']['source_task_id'] == 'tmpl-0', 'provenance survives without the FK'
+    assert db.tasks['t2']['source_template_task_id'] == 'tmpl-1', 'only the failing row loses its ref'
+
+
+def test_a_template_deleted_mid_resync_still_inserts_the_missing_task():
+    db = _StaleTemplateDB(tasks=[_task('t1', 'only one', 0)], stale_id='tmpl-1')
+    out = resync_enrollments_to_template(db, QUEST, TEMPLATE)
+
+    assert db.fk_failures == 1
+    assert out['inserted'] == 1
+    assert db.inserted[-1]['title'] == 'New second task'
+    assert db.inserted[-1]['source_template_task_id'] is None
+
+
+def test_any_other_write_failure_is_not_retried():
+    """Only the FK race gets a second attempt. Anything else is the caller's
+    to log, exactly as before."""
+    attempts = []
+
+    class Broken(FakeDB):
+        def table(self, name):
+            q = super().table(name)
+            if name != 'user_quest_tasks':
+                return q
+            real = q.execute
+
+            def execute():
+                if q._payload is None and q._update is None:
+                    return real()  # reads still work
+                attempts.append(1)
+                raise RuntimeError('connection reset')
+            q.execute = execute
+            return q
+
+    db = Broken(tasks=[])
+    out = resync_enrollments_to_template(db, QUEST, TEMPLATE)
+    assert out['inserted'] == 0 and out['updated'] == 0
+    assert len(attempts) == 1, 'a non-FK failure must not be retried'

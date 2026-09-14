@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isChunkLoadError, recoverFromChunkError, installChunkErrorRecovery } from '../liveReload'
+import { isChunkLoadError, recoverFromChunkError, installChunkErrorRecovery, isReloadInFlight, resetReloadInFlight } from '../liveReload'
 
 describe('isChunkLoadError', () => {
   it('matches dynamic import failures', () => {
@@ -46,6 +46,30 @@ describe('recoverFromChunkError', () => {
     recoverFromChunkError(T0, storage, reload)
     expect(recoverFromChunkError(T0 + 20000, storage, reload)).toBe(true)
     expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  // OPTIO-WEB-D: the debounce timestamp survives the reload on purpose, so it
+  // cannot say whether the reload it records is still in flight in THIS
+  // document or already happened on the last one. The flag can.
+  it('says a reload is in flight once it has triggered one, until reset', () => {
+    resetReloadInFlight()
+    const storage = fakeStorage()
+    expect(isReloadInFlight()).toBe(false)
+    recoverFromChunkError(T0, storage, vi.fn())
+    expect(isReloadInFlight()).toBe(true)
+    // A second, debounced call changes nothing.
+    expect(recoverFromChunkError(T0 + 100, storage, vi.fn())).toBe(false)
+    expect(isReloadInFlight()).toBe(true)
+    resetReloadInFlight()
+    expect(isReloadInFlight()).toBe(false)
+  })
+
+  it('does not claim a reload in flight when the debounce refused one', () => {
+    resetReloadInFlight()
+    const storage = fakeStorage()
+    storage.setItem('optio_chunk_reload_at', String(T0))  // the previous document reloaded
+    expect(recoverFromChunkError(T0 + 100, storage, vi.fn())).toBe(false)
+    expect(isReloadInFlight()).toBe(false)
   })
 })
 

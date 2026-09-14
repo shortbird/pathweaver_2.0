@@ -220,7 +220,19 @@ def get_template_tasks(quest_id: str, filter_type: str = 'all', randomize_option
 
     Returns:
         List of template task records from quest_template_tasks table.
-        Falls back to legacy tables if no template tasks exist.
+        Falls back to the legacy course_quest_tasks table if none exist.
+
+    The answer here has to agree with get_quest_task_summary(), because the
+    quest page asks this one ("what tasks does this quest have?") and the enroll
+    endpoint asks that one ("does this quest have tasks?"). They did not agree
+    until 2026-09-14: this fell back to quest_sample_tasks, which is the AI
+    task LIBRARY -- every suggestion any student has ever accepted on the quest
+    -- so a quest with no authored tasks showed the library on its page under
+    "Quest Tasks", and then sent whoever picked it up to the build-your-own
+    wizard because the summary counted zero. An org admin at Apogee Odessa
+    curated a task list on her own enrollment, saw it on the page, and watched
+    a student get asked to generate new ones instead. The library is offered by
+    the wizard; it is never the quest's task list.
     """
     try:
         repo = QuestTemplateTaskRepository()
@@ -232,55 +244,36 @@ def get_template_tasks(quest_id: str, filter_type: str = 'all', randomize_option
 
         # Fallback to legacy tables during migration period
         logger.info(f"No template tasks found, falling back to legacy tables for quest {quest_id[:8]}")
-        return _get_legacy_tasks(quest_id, filter_type, randomize_optional)
+        return _get_legacy_tasks(quest_id, filter_type)
 
     except Exception as e:
         logger.error(f"Error getting template tasks for quest {quest_id}: {str(e)}")
         # Fallback to legacy
-        return _get_legacy_tasks(quest_id, filter_type, randomize_optional)
+        return _get_legacy_tasks(quest_id, filter_type)
 
 
-def _get_legacy_tasks(quest_id: str, filter_type: str, randomize_optional: bool):
+def _get_legacy_tasks(quest_id: str, filter_type: str):
     """
-    Fallback to legacy task tables during migration.
-    Checks both course_quest_tasks (required) and quest_sample_tasks (optional).
+    Fallback to the legacy course_quest_tasks table (required tasks) during
+    migration. quest_sample_tasks is deliberately NOT read here -- see
+    get_template_tasks.
     """
+    if filter_type not in ['all', 'required']:
+        return []
+
     # admin client justified: quest task templates need cross-quest reads on user_quest_tasks for personalization + writes scoped to caller (self) under @require_auth
     supabase = get_supabase_admin_client()
-    tasks = []
 
     try:
-        # Get course tasks (treated as required)
-        if filter_type in ['all', 'required']:
-            course_tasks = supabase.table('course_quest_tasks')\
-                .select('*')\
-                .eq('quest_id', quest_id)\
-                .order('order_index')\
-                .execute()
+        course_tasks = supabase.table('course_quest_tasks')\
+            .select('*')\
+            .eq('quest_id', quest_id)\
+            .order('order_index')\
+            .execute()
 
-            if course_tasks.data:
-                for task in course_tasks.data:
-                    task['is_required'] = task.get('is_required', True)  # Default to required
-                tasks.extend(course_tasks.data)
-
-        # Get sample tasks (treated as optional)
-        if filter_type in ['all', 'optional']:
-            sample_tasks = supabase.table('quest_sample_tasks')\
-                .select('*')\
-                .eq('quest_id', quest_id)\
-                .execute()
-
-            if sample_tasks.data:
-                optional_tasks = []
-                for task in sample_tasks.data:
-                    task['is_required'] = False  # Sample tasks are optional
-                    optional_tasks.append(task)
-
-                if randomize_optional:
-                    random.shuffle(optional_tasks)
-
-                tasks.extend(optional_tasks)
-
+        tasks = course_tasks.data or []
+        for task in tasks:
+            task['is_required'] = task.get('is_required', True)  # Default to required
         return tasks
 
     except Exception as e:

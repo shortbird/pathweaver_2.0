@@ -29,10 +29,11 @@ jest.mock('@/src/services/sentry', () => ({
   wrapWithSentry: (c: unknown) => c,
 }));
 
-function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get') {
+function axiosErr(status: number | null, url = '/api/quests/abc', method = 'get', code?: string) {
   return {
     isAxiosError: true,
     message: status ? `Request failed with status code ${status}` : 'Network Error',
+    code,
     config: { url, method },
     response: status ? ({ status, data: {} } as any) : undefined,
   } as any;
@@ -60,11 +61,42 @@ describe('reportApiError', () => {
     expect(captureMessage).not.toHaveBeenCalled();
   });
 
-  it('sends network errors (no response) to captureException', () => {
-    reportApiError(axiosErr(null, '/api/quests/123'), null);
+  it('sends timeouts (no response, request got out) to captureException per endpoint', () => {
+    // A request that left the device and never came back can be a slow
+    // endpoint, which is a fact about that endpoint.
+    reportApiError(axiosErr(null, '/api/quests/123', 'get', 'ECONNABORTED'), null);
     expect(captureException).toHaveBeenCalledTimes(1);
     const opts = (captureException as jest.Mock).mock.calls[0][1];
     expect(opts.fingerprint).toEqual(['api-error', 'GET', '/api/quests/:id', 'network']);
+  });
+
+  it('folds an unreachable API (ERR_NETWORK) into one warning, not an issue per endpoint', () => {
+    // Fifteen "AxiosError: Network Error" issues in a week, one to three users
+    // each, every one a phone that was offline (OPTIO-MOBILE-7 and siblings,
+    // 2026-09-14). One issue keeps the fleet-wide signal -- a dead host or an
+    // expired certificate is a user-count spike there -- without a new issue
+    // for every endpoint an offline phone happened to ask.
+    reportApiError(axiosErr(null, '/api/quests/123', 'get', 'ERR_NETWORK'), null);
+    reportApiError(axiosErr(null, '/api/bounties', 'get', 'ERR_NETWORK'), null);
+    expect(captureException).not.toHaveBeenCalled();
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+    for (const call of (captureMessage as jest.Mock).mock.calls) {
+      expect(call[1].level).toBe('warning');
+      expect(call[1].fingerprint).toEqual(['api-unreachable']);
+    }
+  });
+
+  it('does not report a 4xx that is the product answering a person', () => {
+    // OPTIO-MOBILE-10: a parent adding a child who already has an account.
+    // OPTIO-MOBILE-15: an adult mistyping the SMS code. The screen shows the
+    // server's sentence; Sentry has nothing to add.
+    reportApiError(axiosErr(409, '/api/dependents/create', 'post'), 409);
+    reportApiError(axiosErr(400, '/api/phone-verification/verify', 'post'), 400);
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    // The same status anywhere else is still a contract warning.
+    reportApiError(axiosErr(409, '/api/quests/123/start', 'post'), 409);
+    expect(captureMessage).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a rejection with no config — not a failed request (OPTIO-MOBILE-6)', () => {

@@ -225,6 +225,79 @@ describe('Registration setup tab for a campus coordinator', () => {
   })
 })
 
+// Optio Academy, 2026-09-14: no registration fee; $50 per student each month
+// capped at $150 per family, with an Optio teacher as a $500/month add-on that
+// includes the program fee. The editor previews that step as families see it
+// and saves the plan in cents under registration.monthly.
+describe('Registration setup tab with a monthly plan (Optio Academy)', () => {
+  const MONTHLY_CFG = {
+    ...CFG, registration_fee_cents: 0, emergency_contacts: false, health_fields: false,
+    monthly: {
+      per_student_cents: 5000, family_cap_cents: 15000,
+      add_ons: [{ key: 'teacher_support', label: 'Optio teacher support',
+        description: 'A weekly meeting with an Optio teacher.',
+        amount_cents: 50000, includes_program_fee: true }],
+    },
+  }
+
+  it('calls the step Monthly payment and previews the plan with a sample student', async () => {
+    state.flags = { registration: MONTHLY_CFG, sis_settings: { post_registration_flow: 'goals' } }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    expect(screen.queryByText('Registration fee')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('Monthly payment'))
+    expect(await screen.findByText('$50 per student each month, capped at $150 per family.')).toBeInTheDocument()
+    expect(screen.getByText('Add Optio teacher support')).toBeInTheDocument()
+    expect(screen.getByText('Total each month')).toBeInTheDocument()
+    expect(screen.getAllByText('$50.00')).toHaveLength(2) // program fee line + total
+    // No Stripe key in this fixture: the school sets the payment up itself.
+    expect(screen.getByText(/set up the monthly payment with you separately/)).toBeInTheDocument()
+    // Tick the teacher: $500, which includes the $50 -- not $550.
+    fireEvent.click(screen.getByLabelText(/Add Optio teacher support/))
+    expect(screen.getByText('Program fee included below')).toBeInTheDocument()
+    expect(screen.getAllByText('$500.00').length).toBeGreaterThan(0)
+    expect(screen.queryByText('$550.00')).not.toBeInTheDocument()
+  })
+
+  it('saves the plan in cents, and clears it when both amounts are blank', async () => {
+    state.flags = { registration: MONTHLY_CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Save registration settings'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    const saved = state.putBodies[0].feature_flags.registration
+    expect(saved.monthly).toEqual({
+      per_student_cents: 5000, family_cap_cents: 15000,
+      add_ons: [{ key: 'teacher_support', label: 'Optio teacher support',
+        description: 'A weekly meeting with an Optio teacher.',
+        amount_cents: 50000, includes_program_fee: true }],
+    })
+    // The one-time fee keys are untouched by the plan.
+    expect(saved.registration_fee_cents).toBe(0)
+  })
+
+  it('a monthly plan alone brings the payment step back for a zero-fee org', async () => {
+    state.flags = {
+      registration: { ...CFG, registration_fee_cents: 0, monthly: { per_student_cents: 5000 } },
+      sis_settings: {},
+    }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    expect(screen.getByText('Monthly payment')).toBeInTheDocument()
+  })
+
+  it('a coordinator never sends the plan', async () => {
+    asCoordinator()
+    // What the backend hands them: the whole monthly block redacted out.
+    state.flags = { registration: COORDINATOR_CFG, sis_settings: {} }
+    render(<RegistrationPage />)
+    await screen.findByText('Your account')
+    fireEvent.click(screen.getByText('Save registration settings'))
+    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    expect('monthly' in state.putBodies[0].feature_flags.registration).toBe(false)
+  })
+})
+
 describe('Credit partner switches (Optio Academy credit)', () => {
   const openRecordsEditor = async () => {
     await screen.findByText('Your account')

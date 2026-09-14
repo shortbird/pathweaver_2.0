@@ -107,7 +107,9 @@ def copy_template_tasks_to_enrollment(admin, quest_id, user_id, user_quest_id,
     } for t in template_tasks]
 
     try:
-        admin.table('user_quest_tasks').insert(tasks_to_insert).execute()
+        _write_tolerating_stale_template(
+            lambda batch: admin.table('user_quest_tasks').insert(batch).execute(),
+            tasks_to_insert)
     except Exception as task_err:
         logger.error(
             f"Error copying template tasks for user {user_id} on quest {quest_id}: {task_err}",
@@ -148,6 +150,42 @@ def _task_fields(tmpl, valid_template_ids):
                                     if tmpl.get('id') in valid_template_ids else None),
         'source_task_id': tmpl.get('id'),
     }
+
+
+SOURCE_TEMPLATE_FK = 'user_quest_tasks_source_template_task_id_fkey'
+
+
+def _is_source_template_fk_violation(exc):
+    return SOURCE_TEMPLATE_FK in str(exc)
+
+
+def _without_source_refs(rows):
+    """The same rows, with the provenance FK cleared. source_task_id has no FK
+    and still records where the copy came from."""
+    return [{**r, 'source_template_task_id': None} for r in rows]
+
+
+def _write_tolerating_stale_template(write, rows):
+    """Run `write(rows)`; if it fails on the source_template FK, run it once
+    more with the references cleared.
+
+    get_valid_source_template_ids checks the ids moments before the write, but
+    the template can change in between: a teacher removing a preset task
+    while a colleague's bulk save deletes and recreates the same quest's
+    template rows. Every enrollment on the quest then failed its rewrite with
+    'Key (source_template_task_id)=(...) is not present' -- seven students
+    kept the removed task, and the teacher saw nothing but a spinner
+    (OPTIO-BACKEND-8R, iCreate, 2026-09-11). The FK is ON DELETE SET NULL, so
+    a NULL here is exactly what the row would have held a second later.
+    """
+    try:
+        return write(rows)
+    except Exception as e:  # noqa: BLE001 -- only the FK race is retried
+        if not _is_source_template_fk_violation(e):
+            raise
+        logger.warning(f"Template changed mid-resync; writing {len(rows)} task row(s) "
+                       f"without source_template_task_id: {e}")
+        return write(_without_source_refs(rows))
 
 
 def _tasks_carrying_work(admin, quest_id, task_ids):
@@ -261,8 +299,10 @@ def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
 
     for task_id, tmpl in updates:
         try:
-            admin.table('user_quest_tasks').update(
-                _task_fields(tmpl, valid_template_ids)).eq('id', task_id).execute()
+            _write_tolerating_stale_template(
+                lambda rows, tid=task_id: admin.table('user_quest_tasks')
+                .update(rows[0]).eq('id', tid).execute(),
+                [_task_fields(tmpl, valid_template_ids)])
             result['updated'] += 1
         except Exception as e:  # noqa: BLE001 — one row must not stop the rest
             logger.error(f"Could not rewrite task {task_id} on quest {quest_id}: {e}")
@@ -275,7 +315,9 @@ def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
         for i in range(0, len(rows), 200):
             chunk = rows[i:i + 200]
             try:
-                admin.table('user_quest_tasks').insert(chunk).execute()
+                _write_tolerating_stale_template(
+                    lambda batch: admin.table('user_quest_tasks').insert(batch).execute(),
+                    chunk)
                 result['inserted'] += len(chunk)
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Could not add tasks on quest {quest_id}: {e}")

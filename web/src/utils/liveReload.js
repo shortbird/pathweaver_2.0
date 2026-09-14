@@ -12,6 +12,29 @@
 const RELOAD_KEY = 'optio_chunk_reload_at'
 const RELOAD_DEBOUNCE_MS = 10000
 
+// Whether THIS document has already asked to reload. window.location.reload()
+// is asynchronous: the page keeps running until the next document arrives, and
+// the same stale chunk reaches every listener that is watching for it. Vite's
+// vite:preloadError fires first and starts the reload; React then hands the
+// same rejected import() to the ErrorBoundary, whose own recover call is
+// debounced (the timestamp is in sessionStorage) and returns false -- which
+// the boundary read as "the reload already happened and the chunk is still
+// broken", and reported it (OPTIO-WEB-D: five users in twelve days, every one
+// on a tab that was already reloading). The timestamp cannot tell the two
+// apart because it survives the reload by design; this flag does not, so it
+// is only ever true while the reload is still in flight.
+let reloadInFlight = false
+
+/** True between recoverFromChunkError triggering a reload and the reload landing. */
+export function isReloadInFlight() {
+  return reloadInFlight
+}
+
+/** Test seam. */
+export function resetReloadInFlight() {
+  reloadInFlight = false
+}
+
 const CHUNK_ERROR_RE =
   /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Loading chunk [\w-]+ failed/i
 
@@ -32,6 +55,7 @@ export function recoverFromChunkError(now = Date.now(), storage = window.session
   } catch {
     // storage unavailable (private mode / SSR) — still attempt a single reload
   }
+  reloadInFlight = true
   reload()
   return true
 }

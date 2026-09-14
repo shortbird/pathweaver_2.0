@@ -291,6 +291,31 @@ describe('SchoolInboxPage — combined inbox', () => {
     expect(screen.queryByRole('button', { name: /^Hearthwood/ })).not.toBeInTheDocument()
   })
 
+  // OPTIO-WEB-3 / OPTIO-BACKEND-8T: 45 staff in two weeks. A thread open on the
+  // School tab was re-requested through /api/messages the instant the tab
+  // changed to Mine -- a school-inbox thread the caller is not a participant
+  // of -- because the effect-based reset ran in the same commit as the thread
+  // loader, not before it.
+  it('does not ask the new tab for the thread that was open on the old one', async () => {
+    authUser = { id: 'me-1', role: 'org_admin' }
+    state.schoolConvos = [{
+      id: 'c-school', other_user: { id: 'parent-1', first_name: 'Dana', last_name: 'P' },
+      last_message_preview: 'from a parent', unread_count: 0,
+    }]
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByText('from a parent'))
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/school-inbox/conversations/c-school')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^My messages/ }))
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/api/messages/conversations')
+    })
+    expect(api.get).not.toHaveBeenCalledWith('/api/messages/conversations/c-school')
+    expect(api.post).not.toHaveBeenCalledWith('/api/messages/conversations/c-school/read', {})
+  })
+
   it('opens a thread with the person named by ?to=', async () => {
     authUser = { id: 'me-1', role: 'org_admin' }
     state.myConvos = [{

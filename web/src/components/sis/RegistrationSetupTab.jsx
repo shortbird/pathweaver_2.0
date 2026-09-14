@@ -6,7 +6,8 @@ import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from '../../pages/sis/sisRole'
 import { getLearningOrigin } from '../../utils/appSurface'
-import { STEPS, STEP_LABELS, absUrl, VerticalStepper } from '../registration/funnelUi'
+import { STEPS, STEP_LABELS, absUrl, feeStepLabel, VerticalStepper } from '../registration/funnelUi'
+import { monthlyPlanFrom } from '../registration/monthlyPricing'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
@@ -63,6 +64,15 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const [fee, setFee] = useState(((cfg?.registration_fee_cents || 0) / 100).toString())
   const [perStudentFee, setPerStudentFee] = useState(((cfg?.per_student_fee_cents || 0) / 100).toString())
   const [paymentUrl, setPaymentUrl] = useState(cfg?.payment_url || '')
+  // Monthly plan (services/registration_pricing): a per-student program fee
+  // with a family cap, and per-student add-ons. Dollars as typed; cents on save.
+  const dollars = (cents) => (cents ? (cents / 100).toString() : '')
+  const [monthlyPerStudent, setMonthlyPerStudent] = useState(dollars(cfg?.monthly?.per_student_cents))
+  const [monthlyCap, setMonthlyCap] = useState(dollars(cfg?.monthly?.family_cap_cents))
+  const [monthlyAddOns, setMonthlyAddOns] = useState(() => (cfg?.monthly?.add_ons || []).map((a) => ({
+    key: a.key || '', label: a.label || '', description: a.description || '',
+    amount: dollars(a.amount_cents), includes_program_fee: a.includes_program_fee !== false,
+  })))
   const [schedulingUrl, setSchedulingUrl] = useState(cfg?.scheduling_url || '')
   const [paperwork, setPaperwork] = useState(cfg?.paperwork || [])
   const [questions, setQuestions] = useState(cfg?.questions || [])
@@ -243,6 +253,18 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     }
   }
 
+  // The monthly plan under the current draft, normalized the way the funnel
+  // receives it (null when nothing bills monthly).
+  const toCents = (v) => Math.round(parseFloat(v || '0') * 100) || 0
+  const draftMonthlyPlan = () => monthlyPlanFrom({
+    per_student_cents: toCents(monthlyPerStudent),
+    family_cap_cents: toCents(monthlyCap),
+    add_ons: monthlyAddOns.map((a) => ({
+      key: a.key || slugKey(a.label), label: a.label, description: a.description,
+      amount_cents: toCents(a.amount), includes_program_fee: a.includes_program_fee,
+    })),
+  })
+
   // The fee a family with `n` kids would owe under the current draft.
   const draftFeeCents = (n = 1) => {
     const familyC = Math.round(parseFloat(fee || '0') * 100) || 0
@@ -262,6 +284,17 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     const perStudentCents = Math.round(parseFloat(perStudentFee || '0') * 100)
     if (seesFinance && (Number.isNaN(feeCents) || feeCents < 0)) return toast.error('Enter a valid per-family fee')
     if (seesFinance && (Number.isNaN(perStudentCents) || perStudentCents < 0)) return toast.error('Enter a valid per-student fee')
+    const monthlyPerCents = Math.round(parseFloat(monthlyPerStudent || '0') * 100)
+    const monthlyCapCents = Math.round(parseFloat(monthlyCap || '0') * 100)
+    if (seesFinance && (Number.isNaN(monthlyPerCents) || monthlyPerCents < 0)) return toast.error('Enter a valid monthly per-student fee')
+    if (seesFinance && (Number.isNaN(monthlyCapCents) || monthlyCapCents < 0)) return toast.error('Enter a valid monthly family cap')
+    if (seesFinance) {
+      for (const a of monthlyAddOns) {
+        if (!(a.label || '').trim()) continue
+        const c = Math.round(parseFloat(a.amount || '0') * 100)
+        if (Number.isNaN(c) || c <= 0) return toast.error(`Enter a monthly price for "${a.label.trim()}"`)
+      }
+    }
     if (stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim())) {
       return toast.error("That doesn't look like a Stripe secret key — copy the full key (sk_live_… or rk_live_…) from Stripe Dashboard → Developers → API keys.")
     }
@@ -303,6 +336,19 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
       newCfg.registration_fee_cents = feeCents
       newCfg.per_student_fee_cents = perStudentCents
       newCfg.payment_url = absUrl(paymentUrl)
+      // Whole block or null: the backend treats null and absent the same, and
+      // a null is how a plan is switched off.
+      const addOns = monthlyAddOns
+        .filter((a) => (a.label || '').trim())
+        .map((a) => ({
+          key: a.key || slugKey(a.label), label: a.label.trim(),
+          description: (a.description || '').trim(),
+          amount_cents: Math.round(parseFloat(a.amount || '0') * 100) || 0,
+          includes_program_fee: a.includes_program_fee !== false,
+        }))
+      newCfg.monthly = (monthlyPerCents > 0 || addOns.length)
+        ? { per_student_cents: monthlyPerCents, family_cap_cents: monthlyCapCents, add_ons: addOns }
+        : null
       // Only touch the stored Stripe key when the admin acted on it.
       if (stripeClear) newCfg.stripe_secret_key = ''
       else if (stripeKey.trim()) newCfg.stripe_secret_key = stripeKey.trim()
@@ -341,16 +387,24 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // Age gates currently in waitlist mode (drives the family-step notice).
   const waitlistGates = (sisSettings.enrollment_age_gates || []).filter((g) => g?.mode === 'waitlist')
   const feeApplies = draftFeeCents(1) > 0 || draftFeeCents(2) > 0
+  const monthlyPlan = draftMonthlyPlan()
 
   // Mirror the funnel exactly: the fee step only exists when the org can
-  // actually charge (a fee amount, an external payment link, or card payment).
-  // Zero-fee orgs never see it — so neither does this editor's stepper.
-  // A coordinator cannot see the amounts, so "no fee configured" is not a
-  // conclusion they are entitled to draw — the step stays, stated as unknown.
+  // actually charge (a fee amount, an external payment link, card payment, or
+  // a monthly plan). Zero-fee orgs never see it — so neither does this
+  // editor's stepper. A coordinator cannot see the amounts, so "no fee
+  // configured" is not a conclusion they are entitled to draw — the step
+  // stays, stated as unknown.
   const feeStepVisible = !seesFinance
-    || feeApplies || Boolean(absUrl(paymentUrl)) || (stripeEnabled && !stripeClear)
+    || feeApplies || Boolean(absUrl(paymentUrl)) || (stripeEnabled && !stripeClear) || !!monthlyPlan
   const editorSteps = STEPS.filter((st) => (st !== 'fee' || feeStepVisible) && (st !== 'records' || askRecords))
-  const editorLabels = askContacts ? STEP_LABELS : { ...STEP_LABELS, details: 'A few questions' }
+  const editorLabels = {
+    ...STEP_LABELS,
+    fee: seesFinance
+      ? feeStepLabel({ monthly: monthlyPlan, registration_fee_cents: draftFeeCents(1), payment_url: absUrl(paymentUrl) })
+      : STEP_LABELS.fee,
+    ...(askContacts ? {} : { details: 'A few questions' }),
+  }
 
   // ── Step bodies ────────────────────────────────────────────────────────────
   // One component per funnel step, in ./registrationSetup/. They render the
@@ -361,6 +415,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     fee, setFee, feeMode, setFeeMode, paymentUrl, setPaymentUrl,
     perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
     stripeEnabled, stripeKey, setStripeKey,
+    monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
+    monthlyAddOns, setMonthlyAddOns,
   }
 
   // If the viewed step just disappeared (e.g. the fee was cleared while on the
@@ -409,7 +465,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         feeMode={feeMode} paymentUrl={paymentUrl} sampleFee={sampleFee}
         seesFinance={seesFinance} stripeClear={stripeClear} stripeEnabled={stripeEnabled}
         waitlistGates={waitlistGates} openZones={openZones} toggleZone={toggleZone}
-        feeEditorProps={feeEditorProps}
+        feeEditorProps={feeEditorProps} monthlyPlan={monthlyPlan}
       />
     ),
     done: (

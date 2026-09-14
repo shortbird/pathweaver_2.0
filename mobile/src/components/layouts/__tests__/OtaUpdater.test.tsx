@@ -68,6 +68,14 @@ describe('OtaUpdater — transient failures stay quiet', () => {
     'The Internet connection appears to be offline.',
     'Network Error',
     'Unknown error: The request timed out',
+    'The network connection was lost.',
+    // OPTIO-MOBILE-5 (2026-09-14): iOS localizes NSURLError to the device's
+    // language, and an es_US phone reported the offline condition on every
+    // foreground for ten days because only the English form was matched.
+    'Unknown error: La conexión a Internet parece estar desactivada.',
+    'Unknown error: Se agotó el tiempo de espera de la solicitud.',
+    'Unknown error: Se perdió la conexión de red.',
+    'Unknown error: No se pudo conectar con el servidor.',
   ])('does not report the iOS transient failure %p', (msg) => {
     renderWith(new Error(msg));
     expect(captureMessage).not.toHaveBeenCalled();

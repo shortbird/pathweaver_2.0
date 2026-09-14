@@ -23,7 +23,9 @@ from typing import Any, Dict, Iterable, List, Tuple
 # `registration` is the org-neutral funnel config; `icreate_registration` is its
 # legacy mirror, still written by the settings UI — both carry the same fees, so
 # both are listed or the mirror becomes a way around the guard.
-_FUNNEL_MONEY = ('fee_mode', 'registration_fee_cents', 'per_student_fee_cents', 'payment_url')
+# `monthly` is the whole monthly-plan block (program fee, family cap, add-on
+# prices -- services/registration_pricing) and goes as one unit.
+_FUNNEL_MONEY = ('fee_mode', 'registration_fee_cents', 'per_student_fee_cents', 'payment_url', 'monthly')
 
 FINANCE_FLAG_PATHS: Tuple[Tuple[str, str], ...] = (
     ('sis_settings', 'optio_course_tuition_cents'),

@@ -209,6 +209,27 @@ function logApiCall(config: InternalAxiosRequestConfig | undefined, status: numb
 // bugs (400/405/409/422) and 5xx/network errors are still reported.
 export const SILENCED_API_STATUSES = new Set([401, 403, 404]);
 
+// Responses that are the PRODUCT answering, not the contract breaking. The
+// other 4xx are reported as warnings because a 400 or 409 usually means the
+// client sent something the server did not expect; these two are the server
+// telling a person something the screen already shows them, and reporting
+// each one filed a Sentry issue per typo (OPTIO-MOBILE-10 / -15, 2026-09-11):
+//   a parent adding a child who already has an account here (duplicate_child)
+//   an adult mistyping their SMS verification code ("Incorrect code.")
+// Method + path + status, all three, so nothing wider is silenced.
+const EXPECTED_API_OUTCOMES: readonly { method: string; path: RegExp; status: number }[] = [
+  { method: 'POST', path: /^\/api\/dependents\/create$/, status: 409 },
+  { method: 'POST', path: /^\/api\/phone-verification\/verify$/, status: 400 },
+];
+
+export function isExpectedApiOutcome(method: string | undefined, url: string | undefined, status: number | null): boolean {
+  if (status === null || !method || !url) return false;
+  const path = url.split('?')[0];
+  return EXPECTED_API_OUTCOMES.some(
+    (o) => o.status === status && o.method === method.toUpperCase() && o.path.test(path),
+  );
+}
+
 /**
  * Collapse a request path into a stable fingerprint key by replacing volatile
  * id segments (UUIDs, numeric ids) with ':id'. Without this, 5xx errors group
@@ -231,10 +252,14 @@ export function fingerprintPath(url?: string): string {
  *
  * - Expected/handled statuses (see SILENCED_API_STATUSES) and canceled
  *   requests are skipped — they're normal control flow, not defects.
- * - Network errors (no response) and 5xx are real exceptions → captureException,
+ * - Timeouts (no response) and 5xx are real exceptions → captureException,
  *   fingerprinted by endpoint so each failing route is its own issue.
+ * - An unreachable API (ERR_NETWORK, the device is offline) is one warning-level
+ *   issue for the whole app, not one per endpoint — see below.
  * - Other 4xx (400/405/409/422 — contract/validation bugs) are surfaced at
- *   `warning` level so they're visible without drowning out genuine crashes.
+ *   `warning` level so they're visible without drowning out genuine crashes,
+ *   except the few listed in EXPECTED_API_OUTCOMES, which are the product
+ *   answering a person rather than the contract breaking.
  */
 export function reportApiError(error: AxiosError, status: number | null) {
   if (axios.isCancel(error)) return;
@@ -256,6 +281,26 @@ export function reportApiError(error: AxiosError, status: number | null) {
     responseData: error.response?.data,
     message: error.message,
   };
+  if (isExpectedApiOutcome(method, cfg?.url, status)) return;
+  // The device could not reach the API at all: airplane mode, no route, a
+  // captive portal, DNS with no signal. axios says ERR_NETWORK and nothing
+  // more. That is not a fact about an endpoint, and fingerprinted per endpoint
+  // it opened fifteen "AxiosError: Network Error" issues in one week, one to
+  // three users each, every one a phone that was offline (OPTIO-MOBILE-7, -C,
+  // -E, -F, -H, -J, -K, -T, -17, -18, -19, -1A, -1B, -1E, -1F, -1G; 2026-09-14).
+  // Kept as ONE warning-level issue rather than dropped: the network failure
+  // that is ours -- an expired certificate, a dead API host -- hits every
+  // device at once, and shows there as a user-count spike where a flapping
+  // connection is a trickle. Timeouts (ECONNABORTED) stay per endpoint below:
+  // a request that got out and never came back can be a slow endpoint.
+  if (status === null && error.code === 'ERR_NETWORK') {
+    captureMessage('API unreachable: ERR_NETWORK', {
+      level: 'warning',
+      extra,
+      fingerprint: ['api-unreachable'],
+    });
+    return;
+  }
   if (status === null || status >= 500) {
     captureException(error, {
       extra,

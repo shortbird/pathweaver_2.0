@@ -89,6 +89,9 @@ from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
+# Monthly program pricing (Optio Academy): the plan, and the total it comes
+# to for this family's kids. See the module docstring for the config shape.
+from services.registration_pricing import monthly_plan, monthly_total_cents
 # Identity proof and org attachment live in their own module — see its docstring
 # for why they are separate from the funnel's step handlers. Aliased to the
 # private names this file has always used so every call site reads unchanged.
@@ -239,6 +242,10 @@ def _public_config(org, cfg, paperwork_urls=None):
         'registration_fee_cents': int(cfg.get('registration_fee_cents') or 0),
         'per_student_fee_cents': int(cfg.get('per_student_fee_cents') or 0),
         'payment_url': cfg.get('payment_url') or '',
+        # Monthly program fee + per-student add-ons (None for orgs that bill
+        # nothing monthly). Already normalized, so the page can price from it
+        # directly (components/registration/monthlyPricing.js mirrors the math).
+        'monthly': monthly_plan(cfg),
         # Appointment-booking link — parents receive it after the fee anyway
         # (email + final page); exposing it here lets ?preview=1 render the
         # real final step.
@@ -454,6 +461,7 @@ def my_registration(user_id):
             'parent_avatar_url': avatar_by_id.get(user_id),
             'fee_cents': reg.get('fee_cents'),
             'fee_deferred': bool(reg.get('fee_deferred')),
+            'monthly_cents': int(reg.get('monthly_cents') or 0),
             'answers': reg.get('answers') or {},
             'emergency_contacts': reg.get('emergency_contacts') or [],
             'paperwork': reg.get('paperwork') or [],
@@ -820,15 +828,21 @@ def submit_family(reg_id):
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
         else _compute_fee_cents(cfg, len(created_kids))
     fee_deferred = False
+    # The monthly plan starts at the base program fee; add-ons are chosen on the
+    # payment step and re-price it there. A back-edit rebuilds the kids, so a
+    # previous selection is gone here too -- the payment step asks again.
+    monthly_cents = monthly_total_cents(monthly_plan(cfg), created_kids)
     admin.table('registrations').update({
         'kids': created_kids, 'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
+        'monthly_cents': monthly_cents,
         'status': 'details', 'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg_id).execute()
 
     logger.info(f'registration family: registration {reg_id} has {len(created_kids)} kids, '
-                f'fee {fee_cents}c{" (deferred)" if fee_deferred else ""}')
+                f'fee {fee_cents}c{" (deferred)" if fee_deferred else ""}, monthly {monthly_cents}c')
     return jsonify({'success': True, 'status': 'details', 'kids': created_kids,
-                    'fee_cents': fee_cents, 'fee_deferred': fee_deferred}), 200
+                    'fee_cents': fee_cents, 'fee_deferred': fee_deferred,
+                    'monthly_cents': monthly_cents}), 200
 
 
 def _clean_answer(q, val):
@@ -1115,6 +1129,7 @@ def submit_paperwork(reg_id):
     return jsonify({
         'success': True, 'status': 'fee',
         'fee_cents': int(reg.get('fee_cents') or 0),
+        'monthly_cents': int(reg.get('monthly_cents') or 0),
         'payment_url': cfg.get('payment_url') or '',
     }), 200
 

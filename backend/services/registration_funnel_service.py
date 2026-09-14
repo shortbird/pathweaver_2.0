@@ -19,6 +19,7 @@ from datetime import datetime
 from repositories.registration_repository import REGISTRATIONS_TABLE
 from services import academy_enrollment_service as academy_enrollment
 from services.email_service import email_service
+from services.registration_alerts import notify_registration_completed
 from utils.registration_config import get_registration_config
 from utils.logger import get_logger
 
@@ -114,6 +115,10 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
         **(extra_fields or {}),
     }
     admin.table(REGISTRATIONS_TABLE).update(payload).eq('id', reg['id']).execute()
+
+    # The school hears about it too (org admins, or ADMIN_EMAIL for a school
+    # without any). Best-effort inside; the registration is already complete.
+    notify_registration_completed(reg, cfg, org or {}, parent, extra_fields)
 
     academy_enrollment.enroll_registration_kids(reg, cfg, client=admin)
 

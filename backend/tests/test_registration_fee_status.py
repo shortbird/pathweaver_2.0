@@ -119,6 +119,7 @@ def _call(client, admin, path, reg, cfg=_CFG_STRIPE, directive=None, token='tok'
          patch('routes.registration_payments._org_stripe_enabled', return_value=bool(key)), \
          patch('routes.registration_payments._parent_row', return_value=_PARENT), \
          patch('services.registration_funnel_service._parent_row', return_value=_PARENT), \
+         patch('services.registration_funnel_service.notify_registration_completed', return_value=True), \
          patch('services.registration_funnel_support._parent_row', return_value=_PARENT), \
          patch('routes.registration_funnel._family_directive', return_value=directive), \
          patch('services.registration_funnel_support._family_directive',

@@ -45,10 +45,36 @@ export function initSentry() {
   });
 }
 
+// The keys @sentry/react reads from a capture context. Anything else a caller
+// passes is data about the event and belongs in `extra`; passing it at the
+// top level would make the SDK take the object for an event Hint and drop it.
+const CAPTURE_CONTEXT_KEYS = ['fingerprint', 'tags', 'level', 'extra', 'contexts'];
+
+/**
+ * Split a caller's context into what the SDK reads and what it stores.
+ *
+ * Callers pass plain facts -- { status, endpoint }, { componentStack } -- and
+ * those go to `extra`, as they always did. A caller that also wants to steer
+ * grouping passes `fingerprint` (or `tags`, `level`) alongside, and those go
+ * through to the SDK as themselves. Same normalization the mobile wrapper has
+ * (mobile/src/services/sentry.ts toCaptureContext), for the same reason.
+ */
+export function toCaptureContext(context) {
+  if (!context || typeof context !== 'object') return undefined;
+  const out = {};
+  const extra = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (CAPTURE_CONTEXT_KEYS.includes(key)) out[key] = value;
+    else extra[key] = value;
+  }
+  if (Object.keys(extra).length) out.extra = { ...(out.extra || {}), ...extra };
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function captureException(err, context) {
   if (!dsn()) return;
   try {
-    Sentry.captureException(err, context ? { extra: context } : undefined);
+    Sentry.captureException(err, toCaptureContext(context));
   } catch {
     // Never let error reporting throw.
   }

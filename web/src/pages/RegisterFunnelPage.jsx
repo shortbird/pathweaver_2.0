@@ -10,9 +10,12 @@ import { clearRegistrationGate } from '../hooks/useRegistrationGate'
 // imports the fields and buttons it actually uses.
 // (POST_FEE_STEPS was imported here and never referenced -- dropped.)
 import {
-  STEPS, STEP_LABELS, absUrl, enrollmentGateFor,
+  STEPS, STEP_LABELS, absUrl, feeStepLabel,
   VerticalStepper, MobileStepper,
 } from '../components/registration/funnelUi'
+// Monthly plan (Optio Academy): the add-on selection lives here with the
+// rest of the wizard state; the arithmetic is the shared mirror of the server's.
+import { studentsForPricing, toggleAddOn } from '../components/registration/monthlyPricing'
 
 // Branded multi-step parent registration for the iCreate microschool.
 // Reached only for iCreate parent registration links (AcceptInvitationPage
@@ -25,7 +28,9 @@ import {
 //   family      phone/address + kids (photo, DOB, allergies, medications)
 //   details     emergency contacts + org questions
 //   paperwork   acknowledge/e-sign each configured item (rich body text)
-//   fee         Stripe card / external payment link / record-only
+//   fee         Stripe card / external payment link / record-only -- the
+//               one-time registration fee, the monthly plan (a Stripe
+//               subscription, with per-student add-ons chosen here), or both
 //   done        "Your account is ready" — final page listing the next steps:
 //               book the Customized Learning Plan appointment + build the
 //               schedule beforehand. Both stay reachable after leaving (the
@@ -61,22 +66,29 @@ const RegisterFunnelPage = () => {
   const [fatal, setFatal] = useState(null)
   const [config, setConfig] = useState(null)
   // A fee step only exists when the org can actually charge a registration fee
-  // (a flat/per-student fee, an external payment link, or card payment). Zero-fee
-  // orgs (e.g. Gryffin) never see it — not in the flow, the stepper, or preview.
+  // (a flat/per-student fee, an external payment link, or card payment) or
+  // bills monthly. Zero-fee orgs (e.g. Gryffin) never see it — not in the
+  // flow, the stepper, or preview.
+  const monthlyPlan = config?.monthly || null
   const feeApplies = Boolean(
     Number(config?.registration_fee_cents) > 0
     || Number(config?.per_student_fee_cents) > 0
     || config?.payment_url
-    || config?.stripe_enabled,
+    || config?.stripe_enabled
+    || monthlyPlan,
   )
   // Only credit partner funnels ask where a transcript should be sent.
   const recordsApply = Boolean(config?.records_destination)
   const steps = STEPS.filter((s) => (s !== 'fee' || feeApplies) && (s !== 'records' || recordsApply))
   // When the org doesn't collect emergency contacts, the details step is only
-  // the questions — label it that way in the steppers.
-  const stepLabels = config?.emergency_contacts === false
-    ? { ...STEP_LABELS, details: 'A few questions' }
-    : STEP_LABELS
+  // the questions — label it that way in the steppers. The money step is
+  // "Registration fee", "Monthly payment" or "Payment" depending on what the
+  // org charges.
+  const stepLabels = {
+    ...STEP_LABELS,
+    fee: feeStepLabel(config),
+    ...(config?.emergency_contacts === false ? { details: 'A few questions' } : {}),
+  }
   const [step, setStep] = useState('account')
   const [submitting, setSubmitting] = useState(false)
 
@@ -121,6 +133,12 @@ const RegisterFunnelPage = () => {
   // Consent to the hold-your-place / fully-refundable terms, required before
   // paying when the family includes a waitlisted child.
   const [waitlistAck, setWaitlistAck] = useState(false)
+  // Monthly-plan add-ons ticked on the payment step, { kidUserId: [keys] }.
+  // Sent with the checkout/finish call; the server prices from what it stored.
+  const [addOns, setAddOns] = useState({})
+  const addOnsFromKids = (list) => Object.fromEntries(
+    (list || []).filter((k) => k.user_id).map((k) => [k.user_id, k.add_ons || []]),
+  )
   const [signatures, setSignatures] = useState({})
   const [agreed, setAgreed] = useState({})
   const [scheduling, setScheduling] = useState({ url: '', emailed: false })
@@ -154,6 +172,7 @@ const RegisterFunnelPage = () => {
             })
           }
           setServerKids((regData.kids || []).filter((k) => k.user_id))
+          setAddOns(addOnsFromKids(regData.kids))
           if ((regData.kids || []).length) {
             setKids(regData.kids.map((k) => ({
               ...emptyKid(),
@@ -566,6 +585,7 @@ const RegisterFunnelPage = () => {
       setFeeCents(data.fee_cents || 0)
       setFeeDeferred(!!data.fee_deferred)
       setServerKids((data.kids || []).filter((k) => k.user_id))
+      setAddOns(addOnsFromKids(data.kids))
       await uploadFamilyPhotos(data.kids)
       setStep('details')
     } catch (e) {
@@ -601,7 +621,7 @@ const RegisterFunnelPage = () => {
       })
       if (recordsApply) setStep('records')
       else if ((config.paperwork || []).length) setStep('paperwork')
-      else if ((feeCents || 0) > 0 || config.payment_url) setStep('fee')
+      else if ((feeCents || 0) > 0 || config.payment_url || monthlyPlan) setStep('fee')
       else await finishFee()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save your details')
@@ -625,7 +645,7 @@ const RegisterFunnelPage = () => {
         destinations: Object.fromEntries(serverKids.map((k) => [k.user_id, destinations[k.user_id] || {}])),
       })
       if ((config.paperwork || []).length) setStep('paperwork')
-      else if ((feeCents || 0) > 0 || config.payment_url) setStep('fee')
+      else if ((feeCents || 0) > 0 || config.payment_url || monthlyPlan) setStep('fee')
       else await finishFee()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save your school information')
@@ -648,7 +668,7 @@ const RegisterFunnelPage = () => {
         acknowledgements: items.map((it) => ({ key: it.key, signed_name: signatures[it.key].trim() })),
       })
       setFeeCents(data.fee_cents || 0)
-      if ((data.fee_cents || 0) > 0 || data.payment_url) setStep('fee')
+      if ((data.fee_cents || 0) > 0 || data.payment_url || monthlyPlan) setStep('fee')
       else await finishFee()
     } catch (e) {
       toast.error(e.response?.data?.error || 'Could not save your paperwork')
@@ -663,6 +683,7 @@ const RegisterFunnelPage = () => {
     try {
       const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/fee`, {
         access_token: reg.access_token,
+        ...(monthlyPlan ? { add_ons: addOns } : {}),
       })
       setScheduling({ url: absUrl(data.scheduling_url), emailed: !!data.scheduling_emailed })
       clearRegistrationGate()  // fee settled — the app no longer redirects here
@@ -673,17 +694,19 @@ const RegisterFunnelPage = () => {
       // was recomputed after this tab loaded a $0 "finish" view). Self-correct to
       // the pay-by-card UI instead of dead-ending on the toast.
       const d = e.response?.data
-      if (e.response?.status === 402 && Number(d?.fee_cents) > 0) {
-        setFeeCents(Number(d.fee_cents))
+      if (e.response?.status === 402 && (Number(d?.fee_cents) > 0 || Number(d?.monthly_cents) > 0)) {
+        setFeeCents(Number(d.fee_cents) || 0)
         setFeeDeferred(false)
-        toast.error('A registration fee is due — please complete the payment below.')
+        toast.error(Number(d?.monthly_cents) > 0
+          ? 'A payment is due — please complete it below.'
+          : 'A registration fee is due — please complete the payment below.')
       } else {
         toast.error(d?.error || 'Could not finish registration')
       }
     } finally {
       setSubmitting(false)
     }
-  }, [reg])
+  }, [reg, addOns, monthlyPlan])
 
   // The fee step renders pay-vs-finish from the server's authoritative fee, not
   // the feeCents this tab cached earlier in the funnel. On landing here we re-sync
@@ -701,6 +724,10 @@ const RegisterFunnelPage = () => {
         if (!alive) return
         setFeeCents(Number(data.fee_cents) || 0)
         setFeeDeferred(!!data.fee_deferred)
+        // The server's copy of the add-on choices wins on landing (a resumed
+        // tab, or Stripe's return page after a reload) -- what it stored is
+        // what it will charge.
+        if (data.kids?.length) setAddOns(addOnsFromKids(data.kids))
       })
       .catch(() => { /* keep cached feeCents; finishFee still self-heals on 402 */ })
     return () => { alive = false }
@@ -737,6 +764,7 @@ const RegisterFunnelPage = () => {
         access_token: reg.access_token,
         return_url: window.location.origin + window.location.pathname,
         waitlist_ack: waitlistAck,
+        ...(monthlyPlan ? { add_ons: addOns } : {}),
       })
       window.location.href = data.checkout_url
     } catch (e) {
@@ -878,6 +906,7 @@ const RegisterFunnelPage = () => {
             kids={kids} setKids={setKids} setKid={setKid}
             parentPhoto={parentPhoto} pickParentPhoto={pickParentPhoto}
             pickKidPhoto={pickKidPhoto} estimateFeeCents={estimateFeeCents}
+            monthlyPlan={monthlyPlan}
             submitFamily={submitFamily} submitting={submitting}
           />
         )}
@@ -914,6 +943,11 @@ const RegisterFunnelPage = () => {
             waitlistAck={waitlistAck} setWaitlistAck={setWaitlistAck}
             startCheckout={startCheckout} confirmPayment={confirmPayment}
             finishFee={finishFee} submitting={submitting}
+            monthlyPlan={monthlyPlan}
+            // The server's kids once the family step has run; the local cards
+            // (keyed by _key) in preview, where nothing is ever submitted.
+            students={studentsForPricing(serverKids.length ? serverKids : kids, addOns)}
+            onToggleAddOn={(id, key, on) => setAddOns((sel) => toggleAddOn(sel, id, key, on))}
           />
         )}
 

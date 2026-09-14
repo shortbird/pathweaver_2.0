@@ -487,9 +487,35 @@ api.interceptors.response.use(
 // out with `expect403: true` in the axios config. Keep that on the request, not
 // on the endpoint: the same URL read by the person it belongs to still deserves
 // a report when it 403s.
-// One report per method+endpoint+status per page load, 20 max, ids collapsed
-// so Sentry groups by endpoint shape.
+// One report per page+method+endpoint+status per page load, 20 max, ids
+// collapsed so Sentry groups by shape.
+//
+// The PAGE is part of the identity, on purpose. Grouped by endpoint alone, one
+// Sentry issue was one URL and every bug that ever hit it: OPTIO-WEB-3 (403 on
+// /api/messages/conversations/:id) held a parent-dashboard flood on Sept 1, an
+// act-as re-mint race on Sept 10, and a SIS inbox tab-switch race that ran the
+// whole two weeks -- and was "fixed" by three commits, each right about its own
+// bug and wrong about owning the issue, while Sentry marked it resolved and
+// regressed twice and the user count added up three unrelated groups of people.
+// The route the request was made FROM is the call site, near enough; with it
+// in the fingerprint one issue is one bug. Sentry's own `transaction` cannot
+// stand in for it: that is the route of the pageload, not the page the user is
+// on when the request fires (an event showed transaction /parent/dashboard/:id
+// with url /bounties).
 const reportedApiFailures = new Set()
+
+const COLLAPSE_IDS = (path: string) => path
+  .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+  .replace(/\/\d+(\/|$)/g, '/:id$1')
+
+/** The route the user is on right now, ids collapsed. */
+export const currentPageShape = () => {
+  try {
+    return COLLAPSE_IDS(window.location.pathname || '/')
+  } catch {
+    return 'unknown'
+  }
+}
 
 // Switching which account the tab is authenticated as (parent -> child act-as,
 // and back) installs the new token and THEN navigates. `window.location.href`
@@ -527,22 +553,25 @@ function reportApiFailure(error: AxiosError<ApiErrorBody>) {
     if (!REPORTABLE(error)) return
     const method = (error.config?.method || 'get').toUpperCase()
     const status = error.response!.status
-    const endpoint = (error.config?.url || 'unknown')
-      .split('?')[0]
-      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
-      .replace(/\/\d+(\/|$)/g, '/:id$1')
+    const endpoint = COLLAPSE_IDS((error.config?.url || 'unknown').split('?')[0])
+    const page = currentPageShape()
     // `error` is a string once the response interceptor has flattened it, and
     // the nested object before that. reportApiFailure runs on both paths.
     const body = error.response?.data
     const nested = typeof body?.error === 'object' && body.error !== null
       ? body.error : undefined
-    const key = `${status}:${method}:${endpoint}`
+    const key = `${page}:${status}:${method}:${endpoint}`
     if (reportedApiFailures.has(key) || reportedApiFailures.size >= 20) return
     reportedApiFailures.add(key)
-    captureException(new Error(`API ${status}: ${method} ${endpoint}`), {
+    // The page is in the title as well as the fingerprint: two issues that
+    // differ only by a tag read as duplicates in the issue list.
+    captureException(new Error(`API ${status}: ${method} ${endpoint} from ${page}`), {
+      fingerprint: ['api-failure', String(status), method, endpoint, page],
+      tags: { api_endpoint: endpoint, page },
       status,
       endpoint,
       method,
+      page,
       error_code: body?.error_detail?.code || nested?.code,
       server_message: typeof body?.error === 'string' ? body.error : nested?.message,
       request_id: body?.error_detail?.request_id,

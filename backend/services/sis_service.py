@@ -2149,7 +2149,8 @@ def household_registration(org_id: str, household_id: str) -> Optional[Dict[str,
     rows = (
         _admin().table('registrations')
         .select('id, parent_user_id, status, kids, paperwork, answers, emergency_contacts, '
-                'fee_cents, fee_recorded_at, scheduling_emailed_at, created_at, completed_at')
+                'fee_cents, fee_recorded_at, scheduling_emailed_at, created_at, completed_at, '
+                'monthly_cents, stripe_subscription_id')
         .eq('organization_id', org_id)
         .in_('parent_user_id', guardian_ids)
         .order('created_at', desc=True)

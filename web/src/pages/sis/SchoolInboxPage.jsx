@@ -264,7 +264,24 @@ const SchoolInboxPage = () => {
   // Switching orgs (superadmin) or tabs resets the open thread -- School and
   // Mine are different thread lists, and a conversation id from one is
   // meaningless to the other.
-  useEffect(() => { setSelected(null); setMessages([]); setConversations([]) }, [orgId, tab])
+  //
+  // Done DURING RENDER, not in an effect. Every effect in one commit sees the
+  // same render's state, so an effect-based reset ran alongside the thread
+  // effect above, not before it: on the tab change that effect re-fired with
+  // the OLD thread id and the NEW tab's loader, and asked /api/messages for a
+  // school-inbox thread the caller is not a participant of. Every staff member
+  // who switched tabs with a thread open collected a 403 and a "Could not
+  // load the conversation" toast (OPTIO-WEB-3 / OPTIO-BACKEND-8T: 45 users in
+  // two weeks). Setting state in render makes React re-render before any
+  // effect runs, so the thread effect only ever sees the reset selection.
+  const listKey = `${orgId}:${tab}`
+  const [renderedListKey, setRenderedListKey] = useState(listKey)
+  if (renderedListKey !== listKey) {
+    setRenderedListKey(listKey)
+    setSelected(null)
+    setMessages([])
+    setConversations([])
+  }
 
   // ?to=<user id> opens a thread with that person straight away, so "Message"
   // on a staff card is one click rather than a page plus a search. The thread

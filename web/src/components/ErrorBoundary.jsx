@@ -2,7 +2,7 @@ import React from 'react';
 import { captureError } from '../services/posthog';
 import { captureException } from '../services/sentry';
 import { isFocusMode, getFocusConfig } from '../utils/focusMode';
-import { isChunkLoadError, recoverFromChunkError } from '../utils/liveReload';
+import { isChunkLoadError, recoverFromChunkError, isReloadInFlight } from '../utils/liveReload';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -28,7 +28,13 @@ class ErrorBoundary extends React.Component {
     // QuestDetail, RoleHome, ParentDashboardPage, AdvisorClassesPage, all within
     // hours of a release). Reload once, debounced; if the reload already
     // happened the chunk is genuinely broken, so fall through and report it.
-    if (isChunkLoadError(error?.message) && recoverFromChunkError()) return;
+    //
+    // "Already happened" means on a PREVIOUS document. Within this one, Vite's
+    // vite:preloadError listener usually gets the same failure first and has
+    // the reload in flight by the time React reaches this catch; the debounce
+    // then returns false here, and that must not count as a broken chunk
+    // (OPTIO-WEB-D). isReloadInFlight is true only until the reload lands.
+    if (isChunkLoadError(error?.message) && (recoverFromChunkError() || isReloadInFlight())) return;
 
     // Log error to console in development
     console.error('Error caught by ErrorBoundary:', error, errorInfo);

@@ -876,6 +876,16 @@ const RegistrationPanel = ({ household, orgId, onSaved }) => {
             reg.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
           }`}>{reg.status}</span>
           {reg.fee_cents != null && <span className="text-neutral-600">Fee: {money(reg.fee_cents)}</span>}
+          {/* Monthly plan (Optio Academy): what the family set up, and whether
+              a Stripe subscription actually exists for it on the school's account. */}
+          {(reg.monthly_cents || 0) > 0 && (
+            <span className="text-neutral-600">
+              Monthly: {money(reg.monthly_cents)}/month
+              {reg.stripe_subscription_id
+                ? <span className="text-neutral-400 text-xs"> · subscription {reg.stripe_subscription_id}</span>
+                : <span className="text-amber-700 text-xs"> · no subscription on file</span>}
+            </span>
+          )}
           {reg.fee_recorded_at && <span className="text-neutral-400 text-xs">fee step {fmtWhen(reg.fee_recorded_at)}</span>}
           {reg.scheduling_emailed_at && <span className="text-neutral-400 text-xs">scheduling email sent</span>}
         </div>
@@ -888,6 +898,11 @@ const RegistrationPanel = ({ household, orgId, onSaved }) => {
             {reg.kids.map((k) => (
               <div key={k.user_id} className="text-sm text-neutral-700">
                 {k.name} <span className="text-neutral-400 text-xs">· {k.type === 'dependent' ? 'managed (under parent account)' : 'own account'}{k.dob ? ` · DOB ${k.dob}` : ''}</span>
+                {(k.add_ons || []).length > 0 && (
+                  <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-optio-purple/10 text-optio-purple">
+                    {k.add_ons.map((a) => a.replace(/_/g, ' ')).join(', ')}
+                  </span>
+                )}
               </div>
             ))}
           </div>

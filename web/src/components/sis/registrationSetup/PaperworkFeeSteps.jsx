@@ -1,40 +1,126 @@
 /**
- * Funnel preview steps 5 and 6: paperwork, and the registration fee.
+ * Funnel preview steps 5 and 6: paperwork, and the money (a one-time
+ * registration fee, a monthly plan, or both).
  *
  * One file because they share `FeeEditor`. When no fee is configured the fee
  * step does not exist, so the paperwork step carries an "Add a fee" affordance
  * that opens the same editor -- otherwise there would be no way back to it.
  * Both are finance-gated: a campus coordinator sees the steps and not the money
  * (sisRole.canSeeFinance), which is why `seesFinance` reaches this far down.
+ *
+ * The monthly half of the preview is the same MonthlyPlanPicker/MonthlySummary
+ * the live funnel renders (components/registration/MonthlyPlan.jsx), with one
+ * sample student, so what staff see is what a family sees.
  */
-import React from 'react'
+import React, { useState } from 'react'
 import { Section, PrimaryButton, field, absUrl, money } from '../../registration/funnelUi'
+import { MonthlyPlanPicker, MonthlySummary, planSentence } from '../../registration/MonthlyPlan'
+import { monthlyTotalCents, toggleAddOn, studentsForPricing } from '../../registration/monthlyPricing'
 import { Editable, mockInput, STRIPE_KEY_RE } from './setupChrome'
+
+// The monthly plan's editor: program fee + family cap, and the add-on rows.
+const MonthlyPlanEditor = ({
+  monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
+  monthlyAddOns, setMonthlyAddOns,
+}) => {
+  const setAddOn = (i, patch) => setMonthlyAddOns((list) => list.map((a, j) => (j === i ? { ...a, ...patch } : a)))
+  return (
+    <div className="border-t border-gray-200 pt-4">
+      <p className="text-xs font-semibold text-neutral-700 mb-1">Monthly plan</p>
+      <p className="text-xs text-neutral-400 mb-3">
+        Bill families every month instead of (or as well as) a one-time fee. With a Stripe key,
+        the payment step saves their card and starts a monthly subscription on your Stripe account.
+        Leave both amounts blank for no monthly plan.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Per student, per month ($)</label>
+          <input className={field} inputMode="decimal" value={monthlyPerStudent}
+            onChange={(e) => setMonthlyPerStudent(e.target.value)} placeholder="50" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Family cap, per month ($, optional)</label>
+          <input className={field} inputMode="decimal" value={monthlyCap}
+            onChange={(e) => setMonthlyCap(e.target.value)} placeholder="150" />
+        </div>
+      </div>
+      <p className="text-xs font-medium text-neutral-500 mt-4 mb-2">Add-ons (chosen per student on the payment step)</p>
+      <div className="space-y-3">
+        {monthlyAddOns.map((a, i) => (
+          <div key={a.key || `a-${i}`} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input className={`${field} sm:flex-1`} placeholder="Name (e.g. Optio teacher support)"
+                value={a.label} onChange={(e) => setAddOn(i, { label: e.target.value })} />
+              <input className={`${field} sm:w-40`} inputMode="decimal" placeholder="$ per month"
+                value={a.amount} onChange={(e) => setAddOn(i, { amount: e.target.value })} />
+              <button onClick={() => setMonthlyAddOns((list) => list.filter((_, j) => j !== i))}
+                className="text-red-500 text-sm px-2 hover:underline">Remove</button>
+            </div>
+            <textarea rows={2} className={field}
+              placeholder="What families get (shown under the add-on)"
+              value={a.description} onChange={(e) => setAddOn(i, { description: e.target.value })} />
+            <label className="flex items-center gap-2 text-xs text-neutral-600 select-none">
+              <input type="checkbox" checked={a.includes_program_fee !== false}
+                onChange={(e) => setAddOn(i, { includes_program_fee: e.target.checked })}
+                className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
+              Includes the student&apos;s monthly program fee (the family pays this price, not this plus the program fee)
+            </label>
+          </div>
+        ))}
+        <button
+          onClick={() => setMonthlyAddOns((list) => [...list, { key: '', label: '', description: '', amount: '', includes_program_fee: true }])}
+          className="text-sm font-medium text-optio-purple hover:underline">
+          + Add a monthly add-on
+        </button>
+      </div>
+    </div>
+  )
+}
 
 const FeeEditor = ({
   fee, setFee, feeMode, setFeeMode, paymentUrl, setPaymentUrl,
   perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
   stripeEnabled, stripeKey, setStripeKey,
+  monthlyPerStudent, setMonthlyPerStudent, monthlyCap, setMonthlyCap,
+  monthlyAddOns, setMonthlyAddOns,
 }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  // Three kinds of money, each under its own heading: the one-time
+  // registration fee, the monthly plan, and how either is collected. They
+  // used to sit in one grid, and the one-time fields at the top read as the
+  // monthly plan to a school that charges nothing up front.
+  <div className="space-y-5">
     <div>
-      <label className="block text-xs font-medium text-neutral-500 mb-1">Fee structure</label>
-      <select className={field} value={feeMode} onChange={(e) => setFeeMode(e.target.value)}>
-        <option value="flat">Flat per family</option>
-        <option value="per_student">Per student</option>
-        <option value="lesser">Per student, capped per family</option>
-      </select>
+      <p className="text-xs font-semibold text-neutral-700 mb-1">One-time registration fee</p>
+      <p className="text-xs text-neutral-400 mb-3">
+        Charged once, when the family registers. Leave both amounts at 0 if your school does not charge one.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Fee structure</label>
+          <select className={field} value={feeMode} onChange={(e) => setFeeMode(e.target.value)}>
+            <option value="flat">Flat per family</option>
+            <option value="per_student">Per student</option>
+            <option value="lesser">Per student, capped per family</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Per-family fee ($, one time)</label>
+          <input className={field} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-500 mb-1">Per-student fee ($, one time)</label>
+          <input className={field} inputMode="decimal" value={perStudentFee} onChange={(e) => setPerStudentFee(e.target.value)} />
+        </div>
+      </div>
     </div>
-    <div>
-      <label className="block text-xs font-medium text-neutral-500 mb-1">Per-family fee ($)</label>
-      <input className={field} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} />
-    </div>
-    <div>
-      <label className="block text-xs font-medium text-neutral-500 mb-1">Per-student fee ($)</label>
-      <input className={field} inputMode="decimal" value={perStudentFee} onChange={(e) => setPerStudentFee(e.target.value)} />
-    </div>
-    <div className="sm:col-span-3">
-      <label className="block text-xs font-medium text-neutral-500 mb-1">Stripe secret key (school's own Stripe account)</label>
+    <MonthlyPlanEditor
+      monthlyPerStudent={monthlyPerStudent} setMonthlyPerStudent={setMonthlyPerStudent}
+      monthlyCap={monthlyCap} setMonthlyCap={setMonthlyCap}
+      monthlyAddOns={monthlyAddOns} setMonthlyAddOns={setMonthlyAddOns}
+    />
+    <div className="border-t border-gray-200 pt-4">
+      <p className="text-xs font-semibold text-neutral-700 mb-1">Collecting the money</p>
+      <label className="block text-xs font-medium text-neutral-500 mb-1">Stripe secret key (school&apos;s own Stripe account)</label>
       {stripeEnabled && !stripeClear && (
         <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-2">
           Card payment is on — a Stripe key is configured. Enter a new key to replace it, or clear it below.
@@ -44,7 +130,7 @@ const FeeEditor = ({
         placeholder={stripeEnabled ? 'Enter a new key to replace the current one' : 'rk_live_… (restricted key recommended)'} autoComplete="off" />
       {stripeKey.trim() && !STRIPE_KEY_RE.test(stripeKey.trim()) && (
         <p className="text-xs text-red-600 mt-1" role="alert">
-          This doesn't look like a Stripe secret key — it should start with sk_ or rk_ (e.g. sk_live_…)
+          This doesn&apos;t look like a Stripe secret key — it should start with sk_ or rk_ (e.g. sk_live_…)
           and be much longer. Copy the full key from Stripe Dashboard → Developers → API keys.
         </p>
       )}
@@ -57,13 +143,12 @@ const FeeEditor = ({
         </label>
       )}
       <p className="text-xs text-neutral-400 mt-1">
-        With a key set, parents pay by card at checkout and the platform verifies the payment
-        with Stripe automatically. Without one, the funnel falls back to the external payment
-        link below (or records the fee for you to collect separately).
+        With a key set, parents pay by card at checkout — the one-time fee as a payment, the monthly
+        plan as a subscription on your Stripe account — and the platform verifies it with Stripe
+        automatically. Without one, the funnel falls back to the external payment link below (or
+        records what is owed for you to collect separately).
       </p>
-    </div>
-    <div className="sm:col-span-3">
-      <label className="block text-xs font-medium text-neutral-500 mb-1">Payment link (external, fallback)</label>
+      <label className="block text-xs font-medium text-neutral-500 mt-4 mb-1">Payment link (external, fallback)</label>
       <input className={field} value={paymentUrl} onChange={(e) => setPaymentUrl(e.target.value)} placeholder="https://…" />
     </div>
   </div>
@@ -175,7 +260,7 @@ const paperworkStep = (
       <Editable label="Add a fee" open={openZones.has('fee')} onToggle={() => toggleZone('fee')} editor={<FeeEditor {...feeEditorProps} />}>
         <div className="rounded-xl border border-dashed border-gray-300 bg-white/60 px-4 py-3 text-sm text-neutral-400">
           No registration fee — after signing, families go straight to the finish step.
-          Setting a fee, payment link, or Stripe key adds the fee step back.
+          Setting a fee, monthly plan, payment link, or Stripe key adds the payment step back.
         </div>
       </Editable>
     )}
@@ -186,9 +271,57 @@ const paperworkStep = (
   return paperworkStep
 }
 
+// The monthly-plan preview, with one sample student staff can tick add-ons
+// for to watch the total move -- the same picker and summary the funnel uses.
+const SAMPLE_KIDS = [{ _key: 'sample-1', first_name: 'Casey' }]
+
+const MonthlyPreview = ({ monthlyPlan, sampleFee, stripeOn, paymentUrl }) => {
+  const [selection, setSelection] = useState({})
+  const students = studentsForPricing(SAMPLE_KIDS, selection)
+  const monthly = monthlyTotalCents(monthlyPlan, students)
+  return (
+    <Section title={sampleFee > 0 ? 'Payment' : 'Monthly payment'} subtitle={planSentence(monthlyPlan) || undefined}>
+      <MonthlyPlanPicker plan={monthlyPlan} students={students}
+        onToggle={(id, key, on) => setSelection((sel) => toggleAddOn(sel, id, key, on))} />
+      <div className="mt-4">
+        <MonthlySummary plan={monthlyPlan} students={students} oneTimeCents={sampleFee} />
+      </div>
+      <p className="text-[11px] text-neutral-400 mt-2">
+        ↑ Shown for one student — tick the add-on to see how the total changes. Families see one card per child.
+      </p>
+      {stripeOn ? (
+        <p className="text-xs text-neutral-400 mt-4 text-center">
+          You&apos;ll be taken to a secure Stripe checkout to save your card. Your first
+          month is charged today and then on the same day each month, for as long as your
+          student is enrolled. To change or stop the payment, contact the school. Your
+          registration completes automatically once the payment is verified.
+        </p>
+      ) : absUrl(paymentUrl) ? (
+        <div className="text-center mt-4">
+          <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
+            Pay {money(sampleFee + monthly)}
+          </span>
+          <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you&apos;ve paid.</p>
+        </div>
+      ) : (
+        <p className="text-sm text-neutral-400 mt-4 text-center">
+          Your school will set up the monthly payment with you separately.
+        </p>
+      )}
+      <div className="pointer-events-none mt-6">
+        <PrimaryButton>
+          {stripeOn
+            ? (sampleFee > 0 ? `Pay ${money(sampleFee + monthly)} securely` : `Set up ${money(monthly)}/month`)
+            : absUrl(paymentUrl) ? "I've paid — finish registration" : 'Finish registration'}
+        </PrimaryButton>
+      </div>
+    </Section>
+  )
+}
+
 export const FeeStepPreview = ({
   feeMode, paymentUrl, sampleFee, seesFinance, stripeClear, stripeEnabled,
-  waitlistGates, openZones, toggleZone, feeEditorProps,
+  waitlistGates, openZones, toggleZone, feeEditorProps, monthlyPlan = null,
 }) => (
   <div className="space-y-6">
     <Editable label="Edit fees & payment" open={openZones.has('fee')} onToggle={() => toggleZone('fee')}
@@ -199,6 +332,9 @@ export const FeeStepPreview = ({
             Whatever families are charged here is set by an organization admin.
           </p>
         </Section>
+      ) : monthlyPlan ? (
+        <MonthlyPreview monthlyPlan={monthlyPlan} sampleFee={sampleFee}
+          stripeOn={stripeEnabled && !stripeClear} paymentUrl={paymentUrl} />
       ) : (
       <Section title={sampleFee > 0 ? 'Registration fee' : 'Finish your registration'}>
         <div className="text-center">
@@ -248,12 +384,14 @@ export const FeeStepPreview = ({
         </p>
       </div>
     )}
-    <div className="pointer-events-none">
-      <PrimaryButton>
-        {sampleFee > 0 && stripeEnabled && !stripeClear ? `Pay ${money(sampleFee)} securely`
-          : sampleFee > 0 && absUrl(paymentUrl) ? "I've paid — finish registration"
-            : 'Finish registration'}
-      </PrimaryButton>
-    </div>
+    {!monthlyPlan && (
+      <div className="pointer-events-none">
+        <PrimaryButton>
+          {sampleFee > 0 && stripeEnabled && !stripeClear ? `Pay ${money(sampleFee)} securely`
+            : sampleFee > 0 && absUrl(paymentUrl) ? "I've paid — finish registration"
+              : 'Finish registration'}
+        </PrimaryButton>
+      </div>
+    )}
   </div>
 )

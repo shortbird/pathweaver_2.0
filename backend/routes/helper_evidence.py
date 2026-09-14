@@ -113,7 +113,13 @@ def get_or_create_evidence_document(student_user_id, task_id, quest_id):
 
 
 @bp.route('/upload-for-student', methods=['POST'])
-@rate_limit(limit=30, per=3600)  # CVE-OPTIO-2025-017 FIX: 30 uploads per hour for helpers
+# CVE-OPTIO-2025-017: helpers get a bounded number of uploads per hour. Keyed
+# by USER, not IP -- every teacher on a campus shares one NAT address, so an IP
+# bucket was the whole building's: iCreate's teachers documenting one class
+# session locked each other out at 30 batches between them, and the batch
+# endpoint 429'd seven times in five minutes for one of them (OPTIO-BACKEND-8S
+# / OPTIO-MOBILE-1C, 2026-09-11). The four limits below are per helper.
+@rate_limit(limit=60, per=3600, per_user=True)
 @require_auth
 def upload_evidence_for_student(user_id):
     """
@@ -243,7 +249,9 @@ def upload_evidence_for_student(user_id):
 
 
 @bp.route('/upload-for-student/batch', methods=['POST'])
-@rate_limit(limit=30, per=3600)
+# A batch is one (student, task) pair: a class of twenty on two tasks is forty
+# batches from one teacher in one sitting. See upload_evidence_for_student.
+@rate_limit(limit=120, per=3600, per_user=True)
 @require_auth
 def upload_evidence_batch(user_id):
     """
@@ -629,7 +637,7 @@ def _verify_helper_can_upload_for_task(user_id: str, student_id: str, task_id: s
 
 
 @bp.route('/upload-init', methods=['POST'])
-@rate_limit(limit=30, per=3600)
+@rate_limit(limit=120, per=3600, per_user=True)  # one init per photo; see upload_evidence_for_student
 @require_auth
 def helper_signed_upload_init(user_id):
     """
@@ -691,7 +699,7 @@ def helper_signed_upload_init(user_id):
 
 
 @bp.route('/upload-finalize', methods=['POST'])
-@rate_limit(limit=60, per=3600)
+@rate_limit(limit=240, per=3600, per_user=True)
 @require_auth
 def helper_signed_upload_finalize(user_id):
     """

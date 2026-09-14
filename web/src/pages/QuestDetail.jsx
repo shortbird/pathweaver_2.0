@@ -10,6 +10,7 @@ import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
 import PrintTaskListButton from '../components/quest/PrintTaskListButton'
+import GiveStudentsMyTasksCard from '../components/quest/GiveStudentsMyTasksCard'
 import QuestResourceList from '../components/quest/QuestResourceList';
 import ClassCurriculum from '../components/discussion/ClassCurriculum';
 import toast from 'react-hot-toast';
@@ -655,6 +656,13 @@ const QuestDetail = () => {
         {/* Program-specific in-quest UI (e.g. Treehouse help/proud signal bar).
             The program registry decides what, if anything, renders here. */}
         {programQuest.signalBar}
+
+        {/* The teacher who built this quest by picking it up: hand the list
+            they assembled to students (staff on an org quest with no authored
+            task list only — the card gates itself). */}
+        {quest.user_enrollment && (
+          <GiveStudentsMyTasksCard quest={quest} onDone={refetchQuest} />
+        )}
 
         {/* Carry the list to the work table: prints the tasks as they stand,
             before any of them is broken into steps (schools with a receipt

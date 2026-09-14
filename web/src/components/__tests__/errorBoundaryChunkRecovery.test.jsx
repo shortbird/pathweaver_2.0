@@ -13,11 +13,13 @@ import { render, screen } from '@testing-library/react'
  */
 
 const recoverFromChunkError = vi.fn(() => true)
+const isReloadInFlight = vi.fn(() => false)
 const captureException = vi.fn()
 
 vi.mock('../../utils/liveReload', async (importOriginal) => ({
   ...(await importOriginal()),
   recoverFromChunkError: (...a) => recoverFromChunkError(...a),
+  isReloadInFlight: () => isReloadInFlight(),
 }))
 vi.mock('../../services/sentry', () => ({
   captureException: (...a) => captureException(...a),
@@ -36,6 +38,7 @@ describe('ErrorBoundary chunk recovery', () => {
   beforeEach(() => {
     recoverFromChunkError.mockClear()
     recoverFromChunkError.mockReturnValue(true)
+    isReloadInFlight.mockReturnValue(false)
     captureException.mockClear()
     // React logs the caught error itself; keep the test output readable.
     consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -63,6 +66,21 @@ describe('ErrorBoundary chunk recovery', () => {
     )
     expect(recoverFromChunkError).toHaveBeenCalledTimes(1)
     expect(captureException).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays quiet while a reload another listener started is still in flight', () => {
+    // OPTIO-WEB-D: vite:preloadError got the same stale chunk first and the
+    // reload is under way; the boundary's own recover call is debounced. That
+    // is not a broken chunk, and the reader is about to get the new build.
+    recoverFromChunkError.mockReturnValue(false)
+    isReloadInFlight.mockReturnValue(true)
+    render(
+      <ErrorBoundary>
+        <Boom message="Importing a module script failed." />
+      </ErrorBoundary>
+    )
+    expect(recoverFromChunkError).toHaveBeenCalledTimes(1)
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('leaves ordinary render errors alone', () => {
