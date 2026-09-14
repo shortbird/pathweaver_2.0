@@ -94,18 +94,36 @@ def _peer(caller_id: str, target_id: str) -> bool:
 
 
 def _org_staff(caller_id: str, target_id: str) -> bool:
-    """Caller is staff of the SAME organization as the target.
+    """Caller is STAFF of the SAME organization as the target.
 
-    Delegates to utils.auth.org_scope, which is the module written for exactly
-    this cross-tenant question and which already fails closed on a caller with
-    no org, a target with no org, and a failed lookup.
+    Staff is utils.sis_roles.STAFF_ROLES -- everyone who works at the school,
+    teachers included -- and it is the whole of the word. Until 2026-09-14 this
+    delegated to org_scope.caller_can_access_user, which asks only whether the
+    two share an organization: an org STUDENT matched it against every
+    classmate. Nothing leaked, because every one of the 102 routes naming this
+    relationship also gates the role itself (the 2026-08-31 audit), but a
+    predicate whose name promises more than it checks is the SEC-01 shape --
+    it reads as a check while enforcing less -- and the first route to trust
+    the name alone would have handed a student's record to another student.
+    The comment thread on a student's work was about to be that route.
+
+    The org half still goes through org_scope.caller_can_access_user, which
+    is the same-organization primitive every direct caller uses AFTER its own
+    role check; this predicate now does the role check those callers do, so
+    the name and the check finally agree. Fails closed on a caller with no
+    staff role, no org, a target in another (or no) org, and a failed lookup.
     """
     from database import get_supabase_admin_client
-    from utils.auth.org_scope import caller_can_access_user
+    from utils.auth.org_scope import caller_can_access_user, caller_roles_and_org
+    from utils.sis_roles import STAFF_ROLES
     # admin client justified: auth utility -- answers a cross-user
     # authorization question and must read rows the caller cannot see under
     # RLS. Returns a boolean; no caller data is exposed.
-    return caller_can_access_user(get_supabase_admin_client(), caller_id, target_id)
+    admin = get_supabase_admin_client()
+    roles, _org, _is_super = caller_roles_and_org(admin, caller_id)
+    if not roles & set(STAFF_ROLES):
+        return False
+    return caller_can_access_user(admin, caller_id, target_id)
 
 
 #: The relationships a route may name. Keep this closed: an unknown name in
@@ -184,6 +202,77 @@ def _log_disclosure(caller_id: str, student_id: str, data_type: str,
                          request.path)
 
 
+#: What relationship_between returns when no declared relationship held but
+#: the caller is Optio platform staff. Not a relationship name: it cannot be
+#: declared in ``allow`` and is never logged as one.
+STAFF = 'staff'
+
+
+def validate_allow(allow: Sequence[str], where: str) -> tuple:
+    """The ``allow`` policy of a gate, checked the way the decorator checks
+    it: non-empty, and every name known. Raise at import time, from the module
+    that declares the policy, so a typo is a failed import and not a check
+    that enforces nothing."""
+    allow = tuple(allow)
+    if not allow:
+        raise ValueError(
+            f"{where} allows nothing -- a gate that can never pass is a broken "
+            "route, not a strict one.")
+    unknown = [a for a in allow if a not in RELATIONSHIPS]
+    if unknown:
+        raise ValueError(
+            f"{where} names unknown relationship(s) {unknown}. Known: "
+            f"{sorted(RELATIONSHIPS)}. Add the predicate to RELATIONSHIPS rather "
+            "than inventing a name here -- an unrecognized name would read as a "
+            "check while enforcing nothing.")
+    return allow
+
+
+def _request_path() -> str:
+    """The request path for a log line, or '-' when there is no request --
+    relationship_between is also called from tests and jobs, and Flask's
+    request proxy raises outside a context rather than answering getattr."""
+    try:
+        return request.path
+    except RuntimeError:
+        return '-'
+
+
+def relationship_between(caller_id: str, target_id: str,
+                         allow: Sequence[str]) -> Optional[str]:
+    """The first relationship in ``allow`` that holds from caller to target;
+    STAFF when none does but the caller is Optio platform staff; None when
+    the caller has no business with this person.
+
+    This is the decorator's decision, as a function, for the routes the
+    decorator cannot reach: the ones where the person is named in the request
+    BODY, or found on a row the URL points at (a comment names its student in
+    JSON; a comment thread hangs off a completion whose owner the route has to
+    look up). Those routes used to answer the question by hand, in their own
+    words, and the comment gates answered it wrong three times in three weeks
+    -- once per audience -- while 182 URL-addressed routes stayed right by
+    declaring a policy in one vocabulary. Same vocabulary, same order, same
+    failure behaviour: a predicate that raises did not say yes, an unknown
+    name is a ValueError, and staff is checked last because it is a lookup
+    that is False for nearly everyone.
+    """
+    allow = validate_allow(allow, 'relationship_between')
+    if not caller_id or not target_id:
+        return None
+    for name in allow:
+        try:
+            if RELATIONSHIPS[name](caller_id, target_id):
+                return name
+        except Exception:
+            # A predicate that blows up is a predicate that did not say yes.
+            # Keep evaluating the rest; never let an exception become an allow.
+            logger.exception('relationship gate: %r check failed for %s',
+                             name, _request_path())
+    if _is_platform_staff(caller_id):
+        return STAFF
+    return None
+
+
 def require_relationship_to(param: str, allow: Sequence[str],
                            discloses: Optional[str] = None):
     """Require the caller to stand in one of ``allow`` relationships to ``param``.
@@ -223,18 +312,7 @@ def require_relationship_to(param: str, allow: Sequence[str],
     """
     if not param:
         raise ValueError('require_relationship_to needs a path parameter name')
-    allow = tuple(allow)
-    if not allow:
-        raise ValueError(
-            f"require_relationship_to('{param}') allows nothing -- a gate that "
-            "can never pass is a broken route, not a strict one.")
-    unknown = [a for a in allow if a not in RELATIONSHIPS]
-    if unknown:
-        raise ValueError(
-            f"require_relationship_to('{param}') names unknown relationship(s) "
-            f"{unknown}. Known: {sorted(RELATIONSHIPS)}. Add the predicate to "
-            "RELATIONSHIPS rather than inventing a name here -- an unrecognized "
-            "name would read as a check while enforcing nothing.")
+    allow = validate_allow(allow, f"require_relationship_to('{param}')")
 
     def decorator(f):
         @wraps(f)
@@ -255,40 +333,21 @@ def require_relationship_to(param: str, allow: Sequence[str],
                              'not receive it', request.path, param)
                 raise AuthorizationError('Not authorized')
 
-            # NOTHING but the predicate goes inside this try. The first
-            # version called the view from in here, on the allow branch, so the
-            # handler below caught whatever the VIEW raised -- a bug, a
-            # deliberate NotFoundError, a ValidationError -- logged it as
-            # "check failed" and answered 403 "Not authorized to access this
-            # student". The caller was told they lacked permission they had,
+            # The decision lives in relationship_between, and NOTHING of the
+            # view runs inside it. The first version called the view from
+            # inside the predicate loop's try, on the allow branch, so the
+            # handler caught whatever the VIEW raised -- a bug, a deliberate
+            # NotFoundError, a ValidationError -- logged it as "check failed"
+            # and answered 403 "Not authorized to access this student". The
+            # caller was told they lacked permission they had,
             # middleware/error_handler never saw the exception, and Sentry
             # never got it. It was invisible from the outside twice over: the
-            # staff branch below returns outside any try, so a superadmin
+            # staff branch returned outside any try, so a superadmin
             # reproducing the report saw the real error.
-            allowed = False
-            matched = None
-            for name in allow:
-                try:
-                    if RELATIONSHIPS[name](caller_id, target_id):
-                        allowed = True
-                        matched = name
-                        break
-                except Exception:
-                    # A predicate that blows up is a predicate that did not say
-                    # yes. Keep evaluating the rest; never let an exception
-                    # become an allow.
-                    logger.exception('relationship gate: %r check failed on %s',
-                                     name, request.path)
-
-            # Staff last, not first. It is an OR, so the order cannot change
-            # the answer -- only the cost. Checking it first spent a users
-            # lookup on every request from the parent or teacher who makes up
-            # essentially all of this traffic, to answer a question that is
-            # False for all of them. Now only a caller who has already failed
-            # every declared relationship pays for it.
-            if not allowed:
-                if not _is_platform_staff(caller_id):
-                    raise AuthorizationError('Not authorized to access this student')
+            matched = relationship_between(caller_id, target_id, allow)
+            if matched is None:
+                raise AuthorizationError('Not authorized to access this student')
+            if matched == STAFF:
                 matched = None  # got in as staff, not by a declared relationship
 
             if discloses:

@@ -400,3 +400,191 @@ def test_a_denied_caller_is_not_logged_as_a_disclosure(app, monkeypatch):
             view(student_id=STUDENT)
 
     assert calls == []
+
+
+# --- relationship_between: the same decision, as a function ------------------
+#
+# For the routes the decorator cannot reach -- the person is named in the
+# request body, or found on a row the URL points at. The comment gates
+# (routes/observer/comments.py, social.py) answered this by hand and were wrong
+# three times in three weeks; this is what they declare now.
+
+from utils.auth.relationships import STAFF, relationship_between, validate_allow  # noqa: E402
+
+
+def test_relationship_between_returns_the_first_relationship_that_holds(monkeypatch):
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    monkeypatch.setitem(RELATIONSHIPS, 'advisor', lambda c, t: True)
+    monkeypatch.setitem(RELATIONSHIPS, 'observer', lambda c, t: True)
+    assert relationship_between(CALLER, STUDENT, ('parent', 'advisor', 'observer')) == 'advisor'
+
+
+def test_relationship_between_is_none_when_nothing_holds(monkeypatch):
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    assert relationship_between(CALLER, STUDENT, ('parent',)) is None
+
+
+def test_relationship_between_names_staff_distinctly(monkeypatch):
+    """Staff is not a declared relationship and must not be logged as one."""
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: False)
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff', lambda c: True)
+    assert relationship_between(CALLER, STUDENT, ('parent',)) == STAFF
+    assert STAFF not in RELATIONSHIPS
+
+
+def test_relationship_between_checks_staff_only_after_every_relationship_failed(monkeypatch):
+    """A lookup that is False for nearly everyone should not be paid by the
+    parent or teacher who makes up nearly all of the traffic."""
+    looked = []
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff',
+                        lambda c: looked.append(c) or True)
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', lambda c, t: True)
+    assert relationship_between(CALLER, STUDENT, ('parent',)) == 'parent'
+    assert looked == []
+
+
+def test_relationship_between_self_is_identity_and_reads_nothing():
+    assert relationship_between(CALLER, CALLER, ('self',)) == 'self'
+    assert relationship_between(CALLER, STUDENT, ('self',)) is None
+
+
+def test_relationship_between_treats_a_raising_predicate_as_no(monkeypatch):
+    def _boom(c, t):
+        raise RuntimeError('db away')
+    monkeypatch.setitem(RELATIONSHIPS, 'parent', _boom)
+    monkeypatch.setitem(RELATIONSHIPS, 'observer', lambda c, t: True)
+    assert relationship_between(CALLER, STUDENT, ('parent',)) is None
+    assert relationship_between(CALLER, STUDENT, ('parent', 'observer')) == 'observer'
+
+
+def test_relationship_between_refuses_a_missing_id():
+    assert relationship_between('', STUDENT, ('self',)) is None
+    assert relationship_between(CALLER, None, ('self',)) is None
+
+
+def test_relationship_between_validates_allow_like_the_decorator():
+    with pytest.raises(ValueError, match='unknown relationship'):
+        relationship_between(CALLER, STUDENT, ('parnet',))
+    with pytest.raises(ValueError, match='allows nothing'):
+        relationship_between(CALLER, STUDENT, ())
+
+
+def test_validate_allow_is_what_a_module_level_policy_calls():
+    """A policy tuple declared at import time fails the import on a typo,
+    rather than enforcing nothing at request time."""
+    assert validate_allow(['self', 'parent'], 'X') == ('self', 'parent')
+    with pytest.raises(ValueError, match="X names unknown"):
+        validate_allow(['self', 'nope'], 'X')
+
+
+def test_the_decorator_decides_through_relationship_between(app, monkeypatch):
+    """One decision, not two that agree today."""
+    seen = []
+
+    def _between(caller, target, allow):
+        seen.append((caller, target, tuple(allow)))
+        return 'parent'
+    monkeypatch.setattr('utils.auth.relationships.relationship_between', _between)
+    view, calls = _view(('parent',))
+    with app.test_request_context('/x'):
+        assert view(student_id=STUDENT) == 'ok'
+    assert seen == [(CALLER, STUDENT, ('parent',))]
+
+
+# --- org_staff means staff -----------------------------------------------------
+#
+# Until 2026-09-14 the predicate asked only whether caller and target shared an
+# organization, so an org STUDENT matched it against every classmate. Every
+# route naming it also gated the role, so nothing leaked; but the comment gates
+# were about to trust the name alone.
+
+class _OrgDb:
+    """users rows by id; user_org reads the target the same way."""
+
+    def __init__(self, users):
+        self._users = users
+
+    def table(self, name):
+        assert name == 'users', name
+        db = self
+
+        class _Q:
+            def __init__(self):
+                self._id = None
+
+            def select(self, *a, **k):
+                return self
+
+            def eq(self, col, value):
+                self._id = value
+                return self
+
+            def limit(self, *a, **k):
+                return self
+
+            def execute(self):
+                row = db._users.get(self._id)
+
+                class _R:
+                    data = [row] if row else []
+                return _R()
+        return _Q()
+
+
+@pytest.fixture
+def org_db(monkeypatch):
+    def _install(users):
+        db = _OrgDb(users)
+        monkeypatch.setattr('database.get_supabase_admin_client', lambda: db)
+        return db
+    return _install
+
+
+ORG_STUDENT = {'role': 'org_managed', 'org_role': 'student', 'org_roles': ['student'], 'organization_id': 'org-1'}
+ORG_ADVISOR = {'role': 'org_managed', 'org_role': 'advisor', 'org_roles': ['advisor'], 'organization_id': 'org-1'}
+ORG_ADMIN = {'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin'], 'organization_id': 'org-1'}
+COORDINATOR = {'role': 'org_managed', 'org_role': 'campus_coordinator',
+               'org_roles': ['campus_coordinator'], 'organization_id': 'org-1'}
+ORG_PARENT = {'role': 'org_managed', 'org_role': 'parent', 'org_roles': ['parent'], 'organization_id': 'org-1'}
+PARENT_WHO_TEACHES = {'role': 'org_managed', 'org_role': 'parent', 'org_roles': ['parent', 'advisor'],
+                      'organization_id': 'org-1'}
+OTHER_ORG_ADMIN = {'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin'], 'organization_id': 'org-2'}
+PLATFORM_ADVISOR = {'role': 'advisor', 'org_role': None, 'org_roles': None, 'organization_id': None}
+TARGET = {'role': 'org_managed', 'org_role': 'student', 'org_roles': ['student'], 'organization_id': 'org-1'}
+
+
+@pytest.mark.parametrize('caller,label', [
+    (ORG_ADMIN, 'org admin'),
+    (COORDINATOR, 'campus coordinator'),
+    (ORG_ADVISOR, 'org advisor, no assignment'),
+    (PARENT_WHO_TEACHES, 'a parent whose PRIMARY role is parent but who also teaches'),
+])
+def test_org_staff_holds_for_every_staff_role_in_the_same_org(org_db, caller, label):
+    org_db({CALLER: caller, STUDENT: TARGET})
+    assert RELATIONSHIPS['org_staff'](CALLER, STUDENT) is True, label
+
+
+@pytest.mark.parametrize('caller,label', [
+    (ORG_STUDENT, 'a classmate'),
+    (ORG_PARENT, 'an org-managed parent'),
+    (OTHER_ORG_ADMIN, 'staff of another school'),
+    (PLATFORM_ADVISOR, 'a platform advisor with no org'),
+])
+def test_org_staff_does_not_hold_for(org_db, caller, label):
+    org_db({CALLER: caller, STUDENT: TARGET})
+    assert RELATIONSHIPS['org_staff'](CALLER, STUDENT) is False, label
+
+
+def test_org_staff_fails_closed_on_a_missing_caller_or_target(org_db):
+    org_db({STUDENT: TARGET})
+    assert RELATIONSHIPS['org_staff'](CALLER, STUDENT) is False
+    org_db({CALLER: ORG_ADMIN})
+    assert RELATIONSHIPS['org_staff'](CALLER, STUDENT) is False
+
+
+def test_org_staff_fails_closed_when_the_lookup_raises(monkeypatch):
+    class _Broken:
+        def table(self, name):
+            raise RuntimeError('db away')
+    monkeypatch.setattr('database.get_supabase_admin_client', lambda: _Broken())
+    assert RELATIONSHIPS['org_staff'](CALLER, STUDENT) is False

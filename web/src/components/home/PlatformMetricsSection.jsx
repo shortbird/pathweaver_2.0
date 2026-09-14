@@ -33,6 +33,7 @@ const SERIES = {
   starts: '#eb6834',      // orange
 }
 const STATUS = { good: '#0ca30c', critical: '#d03b3b' }
+const COMMENTS = { platform: '#9CA3AF' } // gray: context, not the signal
 
 const RANGES = [
   { days: 7, label: '7d' },
@@ -68,22 +69,49 @@ export function failureShare(rows, okKey, failKey) {
 }
 
 /**
- * Daily rows -> Monday-start weekly dollar buckets, ascending. SIS payments
- * are too sparse for daily bars (a few per week), so the money chart is weekly.
+ * Daily rows -> Monday-start weekly sums of `keys`, ascending, as
+ * [{ week, [key]: total }]. For series too sparse for daily bars.
  */
-export function bucketWeeks(rows) {
+export function bucketWeeklySums(rows, keys) {
   const weeks = new Map()
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r || typeof r.day !== 'string') continue
     const d = new Date(`${r.day.slice(0, 10)}T00:00:00Z`)
     if (Number.isNaN(d.getTime())) continue
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
-    const key = d.toISOString().slice(0, 10)
-    weeks.set(key, (weeks.get(key) || 0) + (Number(r.sis_payment_cents) || 0))
+    const week = d.toISOString().slice(0, 10)
+    const bucket = weeks.get(week) || Object.fromEntries(keys.map(k => [k, 0]))
+    for (const k of keys) bucket[k] += Number(r[k]) || 0
+    weeks.set(week, bucket)
   }
   return [...weeks.entries()]
-    .map(([week, cents]) => ({ week, dollars: cents / 100 }))
+    .map(([week, sums]) => ({ week, ...sums }))
     .sort((a, b) => (a.week < b.week ? -1 : 1))
+}
+
+/**
+ * Daily rows -> Monday-start weekly dollar buckets, ascending. SIS payments
+ * are too sparse for daily bars (a few per week), so the money chart is weekly.
+ */
+export function bucketWeeks(rows) {
+  return bucketWeeklySums(rows, ['sis_payment_cents'])
+    .map(({ week, sis_payment_cents }) => ({ week, dollars: sis_payment_cents / 100 }))
+}
+
+/**
+ * The comment loop, weekly: who wrote on students' work. `community` is
+ * students, families and schools; `platform` is Optio (superadmin and the
+ * designated staff accounts, split server-side). Null until the server sends
+ * the series -- it arrives with the 20260914 migration, and a card claiming
+ * zero comments before that would be a false number, not an empty one.
+ */
+export function bucketCommentWeeks(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  if (!list.some(r => r && 'comments_community' in r)) return null
+  return bucketWeeklySums(list, ['comments_community', 'comments_platform'])
+    .map(({ week, comments_community, comments_platform }) => ({
+      week, community: comments_community, platform: comments_platform,
+    }))
 }
 
 /** Top services by cost with the tail folded into "Other" — never more hues. */
@@ -364,6 +392,41 @@ function SisRevenueChart({ rows }) {
   )
 }
 
+/**
+ * Stacked weekly bars. Community wears the brand hue because it is the number;
+ * Optio's own comments are the gray context underneath -- the platform can
+ * talk to itself indefinitely, the loop is closed only when the purple is
+ * above zero.
+ */
+function CommentLoopChart({ rows }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="#F3F4F6" />
+        <XAxis
+          dataKey="week" tickFormatter={shortDate} tick={AXIS_TICK}
+          axisLine={false} tickLine={false} minTickGap={28}
+        />
+        <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
+        <Tooltip
+          cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+          content={(
+            <RowsTooltip
+              titleFormatter={week => `Week of ${shortDate(week)}`}
+              rows={p => [
+                { label: 'Students, families, schools', value: p.community.toLocaleString('en'), swatch: BRAND },
+                { label: 'Optio', value: p.platform.toLocaleString('en'), swatch: COMMENTS.platform },
+              ]}
+            />
+          )}
+        />
+        <Bar dataKey="platform" stackId="c" fill={COMMENTS.platform} maxBarSize={32} name="Optio" />
+        <Bar dataKey="community" stackId="c" fill={BRAND} radius={[4, 4, 0, 0]} maxBarSize={32} name="Students, families, schools" />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
 export default function PlatformMetricsSection() {
   const [days, setDays] = useState(30)
 
@@ -389,11 +452,14 @@ export default function PlatformMetricsSection() {
     [metricsQuery.data, days]
   )
   const weekly = useMemo(() => bucketWeeks(metricsQuery.data?.days), [metricsQuery.data])
+  const commentWeeks = useMemo(() => bucketCommentWeeks(metricsQuery.data?.days), [metricsQuery.data])
   const services = useMemo(() => topServices(serviceQuery.data?.services), [serviceQuery.data])
 
   const logins = failureShare(windowRows, 'login_success', 'login_failed')
   const registrations = failureShare(windowRows, 'reg_success', 'reg_failed')
   const revenue90 = weekly.reduce((s, w) => s + w.dollars, 0)
+  const communityComments = sumOf(windowRows, 'comments_community')
+  const platformComments = sumOf(windowRows, 'comments_platform')
 
   const metricsUp = !metricsQuery.isError
   const servicesUp = !serviceQuery.isError
@@ -517,6 +583,24 @@ export default function PlatformMetricsSection() {
             ) : (
               <p className="text-xs text-gray-400">No AI calls logged in this window.</p>
             )}
+          </ChartCard>
+        )}
+
+        {metricsUp && commentWeeks && (
+          <ChartCard
+            ariaLabel="Comment loop" title="Comment loop"
+            headline={communityComments.toLocaleString('en')}
+            subtitle={`comments from students, families and schools over ${days} days` +
+              (platformComments ? ` (Optio wrote ${platformComments.toLocaleString('en')})` : '')}
+            isLoading={loading}
+            legend={(
+              <LegendChips items={[
+                { label: 'Students, families, schools', color: BRAND },
+                { label: 'Optio', color: COMMENTS.platform },
+              ]} />
+            )}
+          >
+            <CommentLoopChart rows={commentWeeks} />
           </ChartCard>
         )}
 

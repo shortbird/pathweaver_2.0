@@ -13,7 +13,18 @@ never use `.single()` (which raises on 0/2+ rows) — they degrade to "deny".
 
 from typing import Optional, Tuple
 
-from utils.roles import get_effective_role
+from utils.roles import get_effective_role, get_effective_roles
+
+
+def _caller_row(admin_client, caller_id: str) -> Optional[dict]:
+    """The caller's role columns, or None on a missing row or a failed lookup."""
+    try:
+        res = (admin_client.table('users')
+               .select('role, org_role, org_roles, organization_id, is_org_admin')
+               .eq('id', caller_id).limit(1).execute())
+        return (res.data or [None])[0]
+    except Exception:
+        return None
 
 
 def caller_org_and_role(admin_client, caller_id: str) -> Tuple[Optional[str], Optional[str], bool]:
@@ -23,17 +34,25 @@ def caller_org_and_role(admin_client, caller_id: str) -> Tuple[Optional[str], Op
     for a platform superadmin. On any lookup failure returns (None, None, False)
     so callers fail closed.
     """
-    try:
-        res = (admin_client.table('users')
-               .select('role, org_role, org_roles, organization_id, is_org_admin')
-               .eq('id', caller_id).limit(1).execute())
-        u = (res.data or [None])[0]
-    except Exception:
-        u = None
+    u = _caller_row(admin_client, caller_id)
     if not u:
         return None, None, False
     is_super = u.get('role') == 'superadmin'
     return get_effective_role(u), u.get('organization_id'), is_super
+
+
+def caller_roles_and_org(admin_client, caller_id: str) -> Tuple[set, Optional[str], bool]:
+    """Return (every effective role, organization_id, is_superadmin).
+
+    caller_org_and_role answers with the PRIMARY role, which is the wrong
+    question for "is this person staff": at a microschool the parent who also
+    teaches carries org_roles ['parent', 'advisor'], and reading the first one
+    would refuse them at every staff door. Same lookup, the whole set.
+    """
+    u = _caller_row(admin_client, caller_id)
+    if not u:
+        return set(), None, False
+    return set(get_effective_roles(u)), u.get('organization_id'), u.get('role') == 'superadmin'
 
 
 def user_org(admin_client, target_user_id: str) -> Optional[str]:

@@ -721,6 +721,39 @@ class NotificationService(BaseService):
             organization_id=organization_id
         )
 
+    def notify_comment_reply(
+        self,
+        recipient_id: str,
+        author_name: str,
+        student_name: str,
+        comment_preview: str,
+        student_id: str,
+        author_is_student: bool = False,
+        organization_id: Optional[str] = None
+    ):
+        """Tell someone already in a comment thread that it has a new comment.
+
+        The student and their parents hear about every comment through
+        notify_student_comment / notify_parent_observer_comment. This is for
+        everyone ELSE who has written on the thread -- above all the person
+        who asked the student a question and would otherwise never learn it
+        was answered.
+        """
+        preview = f'{comment_preview[:50]}{"..." if len(comment_preview) > 50 else ""}'
+        if author_is_student:
+            message = f'{student_name} replied: "{preview}"'
+        else:
+            message = f'{author_name} replied on {student_name}\'s work: "{preview}"'
+        return self.create_notification(
+            user_id=recipient_id,
+            notification_type='observer_comment',
+            title='New reply',
+            message=message,
+            link='/observer/feed',
+            metadata={'student_id': student_id, 'observer_name': author_name},
+            organization_id=organization_id
+        )
+
     def notify_observer_added(
         self,
         student_id: str,

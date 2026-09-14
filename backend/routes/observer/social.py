@@ -9,7 +9,9 @@ import logging
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
+from utils.auth.relationships import relationship_between
 from utils.platform_staff import is_optio_platform_user
+from routes.observer.comments import COMMENT_RELATIONSHIPS
 from utils.storage_urls import sign_in_place
 
 logger = logging.getLogger(__name__)
@@ -242,100 +244,32 @@ def register_routes(bp):
         """
 
         try:
-            # admin client justified: explicit relationship gate below (observer/advisor/parent/superadmin) controls cross-user comment access; admin client needed to traverse users + observer_student_links + advisor_student_assignments + parent_student_links across orgs
+            # admin client justified: relationship gate below (COMMENT_RELATIONSHIPS via utils.auth.relationships) controls cross-user comment access; the row lookups that follow are cross-user by design
             supabase = get_supabase_admin_client()
 
-            # Get learning event info
+            # maybe_single(), as the completion reader below: .single() raises
+            # PGRST116 on zero rows, which is a 500 for a stale or synthetic id.
             learning_event = supabase.table('learning_events') \
                 .select('user_id') \
                 .eq('id', learning_event_id) \
-                .single() \
+                .maybe_single() \
                 .execute()
 
-            if not learning_event.data:
+            if not learning_event or not learning_event.data:
                 return jsonify({'error': 'Learning event not found'}), 404
 
             student_id = learning_event.data['user_id']
 
-            # Verify access (student themselves, observer, superadmin, advisor, or parent)
-            if user_id != student_id:
-                has_access = False
-
-                # Check if superadmin (directly or masquerading as another user)
-                from utils.auth.decorators import caller_is_superadmin
-                # maybe_single(): a caller whose users row is gone must answer
-                # 403, not raise PGRST116 and become a 500.
-                user_result = (supabase.table('users').select('role')
-                               .eq('id', user_id).maybe_single().execute())
-                user_role = (getattr(user_result, 'data', None) or {}).get('role')
-                if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
-                    has_access = True
-
-                # A PARENT reading comments on their own child's work. This
-                # check was missing entirely: the gate knew observers, advisors
-                # and superadmin, so a mother opening her daughter's evidence
-                # was refused the comment thread attached to it (Sentry
-                # OPTIO-WEB-1D, Hearthwood, 2026-09-10). The feed that shows
-                # her the card is built on parent_student_links; the thread
-                # under it has to use the same relationship.
-                #
-                # is_parent_of covers both linking mechanisms (an approved
-                # parent_student_links row, or managed_by_parent_id for a
-                # dependent) -- re-deriving either here is how those four
-                # copies of the parent check came to disagree.
-                if not has_access:
-                    from utils.portfolio_access import is_parent_of
-                    if is_parent_of(user_id, student_id):
-                        has_access = True
-
-                # Check observer_student_links
-                if not has_access:
-                    link = supabase.table('observer_student_links') \
-                        .select('id') \
-                        .eq('observer_id', user_id) \
-                        .eq('student_id', student_id) \
-                        .execute()
-                    has_access = bool(link.data)
-
-                # An org admin over the student's school: every capability a
-                # teacher holds, without the assignment row a teacher has.
-                if not has_access:
-                    from utils.auth.org_scope import caller_org_and_role, user_org
-                    caller_role, caller_org, _ = caller_org_and_role(supabase, user_id)
-                    if caller_role == 'org_admin' and caller_org and user_org(supabase, student_id) == caller_org:
-                        has_access = True
-
-                # Check advisor_student_assignments
-                if not has_access and user_role == 'advisor':
-                    advisor_link = supabase.table('advisor_student_assignments') \
-                        .select('id') \
-                        .eq('advisor_id', user_id) \
-                        .eq('student_id', student_id) \
-                        .eq('is_active', True) \
-                        .execute()
-                    has_access = bool(advisor_link.data)
-
-                # Check if parent (dependents)
-                if not has_access:
-                    dependent = supabase.table('users') \
-                        .select('id') \
-                        .eq('id', student_id) \
-                        .eq('managed_by_parent_id', user_id) \
-                        .execute()
-                    has_access = bool(dependent.data)
-
-                # Check parent_student_links
-                if not has_access:
-                    parent_link = supabase.table('parent_student_links') \
-                        .select('id') \
-                        .eq('parent_user_id', user_id) \
-                        .eq('student_user_id', student_id) \
-                        .eq('status', 'approved') \
-                        .execute()
-                    has_access = bool(parent_link.data)
-
-                if not has_access:
-                    return jsonify({'error': 'Access denied'}), 403
+            # Whoever the feed shows the post to may read the thread under it.
+            # One policy with the write side (comments.COMMENT_RELATIONSHIPS),
+            # in the vocabulary every id-bearing route declares. The chain this
+            # replaced was the write gate's twin and drifted the same way: it
+            # compared the RAW users.role to 'advisor', so an org teacher --
+            # role='org_managed' -- could see a student's card in the feed and
+            # be refused the conversation under it, three weeks after the same
+            # comparison was fixed on the write side for Gryffin.
+            if not relationship_between(user_id, student_id, COMMENT_RELATIONSHIPS):
+                return jsonify({'error': 'Access denied'}), 403
 
             # Get comments for this learning event
             comments = supabase.table('observer_comments') \
@@ -371,7 +305,7 @@ def register_routes(bp):
         """
 
         try:
-            # admin client justified: explicit relationship gate below (observer/advisor/superadmin) controls cross-user comment access on quest_task_completions
+            # admin client justified: relationship gate below (COMMENT_RELATIONSHIPS via utils.auth.relationships) controls cross-user comment access on quest_task_completions
             supabase = get_supabase_admin_client()
 
             # Get completion info. Use maybe_single(): the feed groups multiple
@@ -389,69 +323,16 @@ def register_routes(bp):
 
             student_id = completion.data['user_id']
 
-            # Verify access (student themselves, observer, superadmin, or advisor)
-            if user_id != student_id:
-                has_access = False
-
-                # Check if superadmin (directly or masquerading as another user)
-                from utils.auth.decorators import caller_is_superadmin
-                # maybe_single(): a caller whose users row is gone must answer
-                # 403, not raise PGRST116 and become a 500.
-                user_result = (supabase.table('users').select('role')
-                               .eq('id', user_id).maybe_single().execute())
-                user_role = (getattr(user_result, 'data', None) or {}).get('role')
-                if user_role == 'superadmin' or caller_is_superadmin(supabase, user_id):
-                    has_access = True
-
-                # A PARENT reading comments on their own child's work. This
-                # check was missing entirely: the gate knew observers, advisors
-                # and superadmin, so a mother opening her daughter's evidence
-                # was refused the comment thread attached to it (Sentry
-                # OPTIO-WEB-1D, Hearthwood, 2026-09-10). The feed that shows
-                # her the card is built on parent_student_links; the thread
-                # under it has to use the same relationship.
-                #
-                # is_parent_of covers both linking mechanisms (an approved
-                # parent_student_links row, or managed_by_parent_id for a
-                # dependent) -- re-deriving either here is how those four
-                # copies of the parent check came to disagree.
-                if not has_access:
-                    from utils.portfolio_access import is_parent_of
-                    if is_parent_of(user_id, student_id):
-                        has_access = True
-
-                # Check observer_student_links
-                if not has_access:
-                    link = supabase.table('observer_student_links') \
-                        .select('id') \
-                        .eq('observer_id', user_id) \
-                        .eq('student_id', student_id) \
-                        .execute()
-
-                    if link.data:
-                        has_access = True
-
-                # An org admin over the student's school: every capability a
-                # teacher holds, without the assignment row a teacher has.
-                if not has_access:
-                    from utils.auth.org_scope import caller_org_and_role, user_org
-                    caller_role, caller_org, _ = caller_org_and_role(supabase, user_id)
-                    if caller_role == 'org_admin' and caller_org and user_org(supabase, student_id) == caller_org:
-                        has_access = True
-
-                # Check advisor_student_assignments for advisors
-                if not has_access and user_role == 'advisor':
-                    advisor_link = supabase.table('advisor_student_assignments') \
-                        .select('id') \
-                        .eq('advisor_id', user_id) \
-                        .eq('student_id', student_id) \
-                        .eq('is_active', True) \
-                        .execute()
-                    if advisor_link.data:
-                        has_access = True
-
-                if not has_access:
-                    return jsonify({'error': 'Access denied'}), 403
+            # Whoever the feed shows the post to may read the thread under it.
+            # One policy with the write side (comments.COMMENT_RELATIONSHIPS),
+            # in the vocabulary every id-bearing route declares. The chain this
+            # replaced was the write gate's twin and drifted the same way: it
+            # compared the RAW users.role to 'advisor', so an org teacher --
+            # role='org_managed' -- could see a student's card in the feed and
+            # be refused the conversation under it, three weeks after the same
+            # comparison was fixed on the write side for Gryffin.
+            if not relationship_between(user_id, student_id, COMMENT_RELATIONSHIPS):
+                return jsonify({'error': 'Access denied'}), 403
 
             # Get comments
             comments = supabase.table('observer_comments') \

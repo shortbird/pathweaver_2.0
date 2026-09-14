@@ -94,8 +94,11 @@ def _get_comments(client, caller_id, *, is_parent):
 
     admin.table.side_effect = _table
 
+    # The gate is relationship_between (utils.auth.relationships): its other
+    # predicates and the staff lookup read through database's admin client,
+    # so hand them the same mock -- every table they ask for answers "no rows".
     with patch('routes.observer.social.get_supabase_admin_client', return_value=admin), \
-         patch('utils.auth.decorators.caller_is_superadmin', return_value=False), \
+         patch('database.get_supabase_admin_client', return_value=admin), \
          patch('utils.portfolio_access.is_parent_of', return_value=is_parent), \
          patch('utils.session_manager.session_manager.get_effective_user_id',
                return_value=caller_id), \

@@ -10,7 +10,7 @@ import threading
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, validate_uuid_param
-from utils.auth.relationships import require_relationship_to
+from utils.auth.relationships import relationship_between, require_relationship_to, validate_allow
 from middleware.rate_limiter import rate_limit
 from services.observer_audit_service import ObserverAuditService
 from services.notification_service import NotificationService
@@ -18,111 +18,190 @@ from services.notification_service import NotificationService
 logger = logging.getLogger(__name__)
 
 
-def can_comment_on_student(supabase, author_id, author, student_id):
-    """Whether `author` may leave feedback on `student_id`'s work.
+#: Who may write on a student's work, in the vocabulary every id-bearing route
+#: declares (utils.auth.relationships). Read by both this route and the two
+#: thread readers in social.py, so seeing a thread and writing on it are one
+#: policy: whoever the feed shows a post to can answer under it.
+#:
+#: This replaced a hand-rolled predicate that was wrong three times in three
+#: weeks, once per audience. It read the RAW users.role, so org staff (role=
+#: 'org_managed') never matched their advisor branch (Gryffin, 2026-08-27);
+#: it required an advisor_student_assignments row that roster-onboarded
+#: schools never write; and it had no branch at all for the student on their
+#: own work or for a parent linked any way but an observer invitation
+#: (2026-09-14: a student saw Optio ask "What are the ingredients?" under
+#: their post and got "Access denied" replying). Each was found by a person
+#: complaining, months apart, because a refused comment is not an error --
+#: it is silence, and silence looks like nobody wanted to comment. In the
+#: whole history of the table, sixteen comments: fourteen by superadmin.
+#:
+#: The decorator could not be used here because the student is named in the
+#: JSON body, not the URL, which is also why the guard test that keeps the
+#: other 182 routes honest never saw this one.
+#:
+#: 'observer' is the plain link. observer_student_links.can_comment exists,
+#: but nothing has ever written it false (no route, no screen; 28 of 28 rows
+#: true), so a relationship for "observer who may comment" would be a
+#: predicate for a feature that does not exist.
+COMMENT_RELATIONSHIPS = validate_allow(
+    ('self', 'parent', 'household_guardian', 'observer', 'advisor', 'teacher', 'org_staff'),
+    'COMMENT_RELATIONSHIPS',
+)
 
-    Kept out of the route and pinned by tests because the bug this replaced was
-    a single predicate reading the RAW `users.role`: org staff carry
-    role='org_managed' with the real role in org_role, so the advisor branch
-    never ran and org_admin had no branch at all. Every org teacher could see a
-    student's work in the feed and was refused when they commented on it
-    (Gryffin, 2026-08-27: "When we try to submit feedback we get an access
-    denied error").
+
+def report_refused_comment(supabase, author_id, student_id):
+    """A refused comment goes to Sentry, because nowhere else will show it.
+
+    A 403 is not an exception, the person refused does not file a bug, and an
+    empty comments table looks exactly like a feature nobody uses. Sixteen
+    comments in the life of the feature, half of them reaching no one, and
+    not one signal in any dashboard. This is the signal: it should be near
+    zero, and an alert rule on the `comment_refused` tag says when it is not.
+
+    Carries the author's effective role and org and the student's org, which
+    is the whole diagnosis every time so far. Best-effort; never breaks the
+    response.
     """
-    from utils.auth.decorators import caller_is_superadmin
-    from utils.roles import get_effective_role
-
-    if not author:
-        return False
-    effective_role = get_effective_role(author)
-    if effective_role == 'superadmin' or caller_is_superadmin(supabase, author_id):
-        return True
-
-    link = supabase.table('observer_student_links') \
-        .select('can_comment') \
-        .eq('observer_id', author_id) \
-        .eq('student_id', student_id) \
-        .execute()
-    if link.data and link.data[0].get('can_comment'):
-        return True
-
-    if effective_role in ('org_admin', 'campus_coordinator') and author.get('organization_id'):
-        # An org admin speaks for their whole school.
-        student = supabase.table('users').select('organization_id') \
-            .eq('id', student_id).single().execute()
-        if student.data and student.data.get('organization_id') == author['organization_id']:
-            return True
-
-    if effective_role == 'advisor':
-        assignment = supabase.table('advisor_student_assignments') \
-            .select('id') \
-            .eq('advisor_id', author_id) \
-            .eq('student_id', student_id) \
-            .eq('is_active', True) \
-            .execute()
-        if assignment.data:
-            return True
-        # Schools that onboarded through class rosters have no rows in
-        # advisor_student_assignments at all. Teaching the student is the same
-        # relationship, and is already what lets the two of them message.
-        from utils.class_membership import shares_class
-        return shares_class(author_id, student_id)
-
-    return False
-
-
-def send_comment_notifications_async(student_id, observer_id, comment_text):
-    """Send comment notifications in background thread."""
     try:
+        from utils.roles import get_effective_roles
+        author = (supabase.table('users')
+                  .select('role, org_role, org_roles, organization_id')
+                  .eq('id', author_id).limit(1).execute()).data or [{}]
+        student = (supabase.table('users').select('organization_id')
+                   .eq('id', student_id).limit(1).execute()).data or [{}]
+        context = {
+            'author_roles': sorted(get_effective_roles(author[0])),
+            'author_org': author[0].get('organization_id'),
+            'student_org': student[0].get('organization_id'),
+            'same_org': bool(author[0].get('organization_id'))
+                        and author[0].get('organization_id') == student[0].get('organization_id'),
+            'allowed': list(COMMENT_RELATIONSHIPS),
+        }
+        logger.warning(f"[comment_refused] author={author_id[:8]} student={student_id[:8]} {context}")
+        import sentry_sdk
+        with sentry_sdk.push_scope() as scope:
+            scope.set_tag('source', 'comment_refused')
+            scope.set_tag('author_roles', ','.join(context['author_roles']) or 'none')
+            scope.set_tag('same_org', str(context['same_org']).lower())
+            scope.set_context('comment_refused', context)
+            sentry_sdk.capture_message(
+                f"Comment refused: {'/'.join(context['author_roles']) or 'no role'} on a student's work",
+                level='warning',
+            )
+    except Exception as e:  # noqa: BLE001 -- a report must never break the request
+        logger.debug(f'[comment_refused] report skipped: {e}', exc_info=True)
+
+
+def thread_participants(db, task_completion_id=None, learning_event_id=None):
+    """Distinct authors of the comments already on one thread, oldest first.
+
+    A thread hangs off either a task completion or a learning event; a comment
+    carrying neither (quest-only) has no thread to speak of and gets nobody.
+    """
+    if task_completion_id:
+        query = db.table('observer_comments').select('observer_id') \
+            .eq('task_completion_id', task_completion_id)
+    elif learning_event_id:
+        query = db.table('observer_comments').select('observer_id') \
+            .eq('learning_event_id', learning_event_id)
+    else:
+        return []
+    rows = query.order('created_at', desc=False).execute().data or []
+    seen = []
+    for row in rows:
+        author_id = row.get('observer_id')
+        if author_id and author_id not in seen:
+            seen.append(author_id)
+    return seen
+
+
+def send_comment_notifications_async(student_id, observer_id, comment_text,
+                                     task_completion_id=None, learning_event_id=None):
+    """Tell everyone with a stake in the thread about a new comment.
+
+    Three audiences, each decided on its own and never told twice:
+      1. the student, unless they wrote it;
+      2. their parents, unless they wrote it or the student did -- a student's
+         reply to feedback is not feedback a parent needs to hear about;
+      3. anyone else already in the thread. Until 2026-09-14 there was no such
+         audience, so Optio could ask a student "What are the ingredients?"
+         and never learn it was answered.
+
+    (1) used to sit inside `if parents:`, so a student with no linked parent --
+    every platform student who signed up alone -- was never told anyone had
+    commented on their work. Three of three such comments in production had no
+    notification behind them.
+    """
+    try:
+        from utils.platform_staff import is_optio_platform_user
+
         notification_service = NotificationService()
-        parents = notification_service.get_parents_for_student(student_id)
-        logger.info(f"[async_notify] Found {len(parents)} parents for student {student_id[:8]}")
+        db = notification_service.supabase
 
-        if parents:
-            db = notification_service.supabase
-
-            # Get observer name
-            observer_result = db.table('users') \
-                .select('display_name, first_name, last_name') \
-                .eq('id', observer_id) \
-                .limit(1) \
-                .execute()
-            observer_data = observer_result.data[0] if observer_result.data else {}
-            observer_name = observer_data.get('display_name') or \
-                f"{observer_data.get('first_name', '')} {observer_data.get('last_name', '')}".strip() or \
+        author_result = db.table('users') \
+            .select('display_name, first_name, last_name, role, email') \
+            .eq('id', observer_id) \
+            .limit(1) \
+            .execute()
+        author = author_result.data[0] if author_result.data else {}
+        # The thread renders platform staff as "Optio"; the notification that
+        # points at the thread must name the same author.
+        if is_optio_platform_user(author):
+            author_name = 'Optio'
+        else:
+            author_name = author.get('display_name') or \
+                f"{author.get('first_name', '')} {author.get('last_name', '')}".strip() or \
                 'Someone'
 
-            # Get student name and org_id
-            student_result = db.table('users') \
-                .select('display_name, first_name, organization_id') \
-                .eq('id', student_id) \
-                .limit(1) \
-                .execute()
-            student_data = student_result.data[0] if student_result.data else {}
-            student_name = student_data.get('display_name') or \
-                student_data.get('first_name') or 'your child'
-            student_org_id = student_data.get('organization_id')
+        student_result = db.table('users') \
+            .select('display_name, first_name, organization_id') \
+            .eq('id', student_id) \
+            .limit(1) \
+            .execute()
+        student = student_result.data[0] if student_result.data else {}
+        student_name = student.get('display_name') or student.get('first_name')
+        student_org_id = student.get('organization_id')
 
-            # Notify parents
+        notified = {observer_id}
+        author_is_student = observer_id == student_id
+
+        if not author_is_student:
+            notification_service.notify_student_comment(
+                student_id=student_id,
+                observer_name=author_name,
+                comment_preview=comment_text,
+                organization_id=student_org_id
+            )
+            notified.add(student_id)
+
+            parents = notification_service.get_parents_for_student(student_id)
+            logger.info(f"[async_notify] Found {len(parents)} parents for student {student_id[:8]}")
             for parent in parents:
-                if parent['id'] != observer_id:
-                    notification_service.notify_parent_observer_comment(
-                        parent_user_id=parent['id'],
-                        observer_name=observer_name,
-                        student_name=student_name,
-                        comment_preview=comment_text,
-                        student_id=student_id,
-                        organization_id=parent.get('organization_id')
-                    )
-
-            # Notify student
-            if student_id != observer_id:
-                notification_service.notify_student_comment(
-                    student_id=student_id,
-                    observer_name=observer_name,
+                if parent['id'] in notified:
+                    continue
+                notification_service.notify_parent_observer_comment(
+                    parent_user_id=parent['id'],
+                    observer_name=author_name,
+                    student_name=student_name or 'your child',
                     comment_preview=comment_text,
-                    organization_id=student_org_id
+                    student_id=student_id,
+                    organization_id=parent.get('organization_id')
                 )
+                notified.add(parent['id'])
+
+        for participant_id in thread_participants(db, task_completion_id, learning_event_id):
+            if participant_id in notified:
+                continue
+            notification_service.notify_comment_reply(
+                recipient_id=participant_id,
+                author_name=author_name,
+                student_name=student_name or 'a student',
+                comment_preview=comment_text,
+                student_id=student_id,
+                author_is_student=author_is_student,
+                organization_id=student_org_id
+            )
+            notified.add(participant_id)
     except Exception as e:
         logger.error(f"[async_notify] Failed to send comment notifications: {e}", exc_info=True)
 
@@ -162,17 +241,13 @@ def register_routes(bp):
             return jsonify({'error': 'Comment text exceeds maximum length of 2000 characters'}), 400
 
         try:
-            # admin client justified: observer-comment flow gated by relationship check below (observer_student_links / advisor_student_assignments / superadmin); writes observer_comments + reads users for author/student lookup
+            # admin client justified: observer-comment flow gated by the relationship check below (COMMENT_RELATIONSHIPS via utils.auth.relationships); writes observer_comments + reads users for the refusal report
             supabase = get_supabase_admin_client()
             student_id = data['student_id']
 
-            user_result = supabase.table('users') \
-                .select('role, org_role, org_roles, organization_id') \
-                .eq('id', observer_id).single().execute()
-            author = user_result.data or {}
-
-            if not can_comment_on_student(supabase, observer_id, author, student_id):
-                return jsonify({'error': 'Access denied or comment permission disabled'}), 403
+            if not relationship_between(observer_id, student_id, COMMENT_RELATIONSHIPS):
+                report_refused_comment(supabase, observer_id, student_id)
+                return jsonify({'error': "You don't have access to comment on this student's work"}), 403
 
             # Create comment
             comment = supabase.table('observer_comments').insert({
@@ -208,7 +283,11 @@ def register_routes(bp):
             # Send notifications in background thread (non-blocking)
             thread = threading.Thread(
                 target=send_comment_notifications_async,
-                args=(student_id, observer_id, data['comment_text'])
+                args=(student_id, observer_id, data['comment_text']),
+                kwargs={
+                    'task_completion_id': data.get('task_completion_id'),
+                    'learning_event_id': data.get('learning_event_id'),
+                }
             )
             thread.daemon = True
             thread.start()

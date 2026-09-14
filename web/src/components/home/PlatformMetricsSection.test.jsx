@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  sliceWindow, meanOf, sumOf, failureShare, bucketWeeks, topServices, formatDollars,
+  sliceWindow, meanOf, sumOf, failureShare, bucketWeeks, bucketWeeklySums, bucketCommentWeeks,
+  topServices, formatDollars,
 } from './PlatformMetricsSection'
 
 const day = (d, extra = {}) => ({
@@ -93,5 +94,37 @@ describe('formatDollars', () => {
   it('rounds to whole dollars with separators', () => {
     expect(formatDollars(47387.38)).toBe('$47,387')
     expect(formatDollars(undefined)).toBe('$0')
+  })
+})
+
+describe('bucketWeeklySums / bucketCommentWeeks', () => {
+  const rows = [
+    { day: '2026-09-07', comments_community: 0, comments_platform: 2 }, // Mon
+    { day: '2026-09-09', comments_community: 1, comments_platform: 0 },
+    { day: '2026-09-14', comments_community: 3, comments_platform: 1 }, // next Mon
+  ]
+
+  it('sums several keys into the same Monday-start week', () => {
+    expect(bucketWeeklySums(rows, ['comments_community', 'comments_platform'])).toEqual([
+      { week: '2026-09-07', comments_community: 1, comments_platform: 2 },
+      { week: '2026-09-14', comments_community: 3, comments_platform: 1 },
+    ])
+  })
+
+  it('renames the comment series for the chart', () => {
+    expect(bucketCommentWeeks(rows)).toEqual([
+      { week: '2026-09-07', community: 1, platform: 2 },
+      { week: '2026-09-14', community: 3, platform: 1 },
+    ])
+  })
+
+  it('is null until the server sends the series — zero and absent are different claims', () => {
+    expect(bucketCommentWeeks([{ day: '2026-09-07', dau: 4 }])).toBeNull()
+    expect(bucketCommentWeeks(undefined)).toBeNull()
+  })
+
+  it('keeps the SIS helper honest through the shared bucketing', () => {
+    expect(bucketWeeks([{ day: '2026-09-09', sis_payment_cents: 12500 }]))
+      .toEqual([{ week: '2026-09-07', dollars: 125 }])
   })
 })

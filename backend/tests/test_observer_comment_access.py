@@ -1,175 +1,164 @@
 """
-An organisation's staff must be able to leave feedback on their students' work.
+Who may write on a student's work, and who may read the thread under it.
 
-Gryffin Learning Center, 2026-08-27: "When we try to submit feedback we get an
-access denied error." The permission check read the RAW `users.role` column and
-compared it to 'advisor'. Org staff are role='org_managed' with the real role in
-org_role, so that comparison matched nothing: the advisor branch never ran, and
-org_admin had no branch at all. The READ side of the same feature
-(routes/observer/feed.py) already resolved the effective role, so staff could
-see a student's work in the feed and were refused the moment they commented on
-it.
+One policy, COMMENT_RELATIONSHIPS, in the vocabulary every id-bearing route
+declares (utils.auth.relationships). It replaced a hand-rolled predicate that
+was wrong three times in three weeks, once per audience:
 
-Second cause, same symptom: the advisor branch required a row in
-`advisor_student_assignments`, which is only ever written from the
-Organization -> People -> Relationships screen. A school that onboarded through
-class rosters has none, so even a correctly-resolved advisor was refused for
-every student they teach.
+  Gryffin, 2026-08-27: "When we try to submit feedback we get an access denied
+  error." The predicate read the RAW users.role and compared it to 'advisor';
+  org staff are role='org_managed', so the branch never ran.
 
-These tests pin the role resolution and the two relationships that grant access,
-rather than the route, because the defect was one predicate.
+  Same week: the advisor branch required an advisor_student_assignments row,
+  which only the Organization -> People -> Relationships screen writes. A
+  school that onboarded through class rosters had none.
+
+  2026-09-14: no branch for the student on their own work, nor for a parent
+  linked any way but an observer invitation. A student saw Optio ask "What are
+  the ingredients?" under their own post and got "Access denied" replying. In
+  the whole history of the table nobody had ever managed either.
+
+The read gates in social.py were separate hand-written twins and drifted the
+same way. These tests pin the policy and that all three gates share it; the
+predicates behind each name are pinned in tests/unit/test_require_relationship_to.py.
 """
+
+import inspect
 
 import pytest
 
-import app  # noqa: F401 — import graph ordering
-from routes.observer.comments import can_comment_on_student
-
-ORG_ADVISOR = {'role': 'org_managed', 'org_role': 'advisor',
-               'org_roles': ['advisor'], 'organization_id': 'org-1'}
-ORG_ADMIN = {'role': 'org_managed', 'org_role': 'org_admin',
-             'org_roles': ['org_admin'], 'organization_id': 'org-1'}
-COORDINATOR = {'role': 'org_managed', 'org_role': 'campus_coordinator',
-               'org_roles': ['campus_coordinator'], 'organization_id': 'org-1'}
-PLATFORM_ADVISOR = {'role': 'advisor', 'org_role': None, 'org_roles': None,
-                    'organization_id': None}
-SUPERADMIN = {'role': 'superadmin', 'org_role': None, 'org_roles': None,
-              'organization_id': None}
-ORG_STUDENT = {'role': 'org_managed', 'org_role': 'student',
-               'org_roles': ['student'], 'organization_id': 'org-1'}
-OTHER_ORG_ADMIN = {'role': 'org_managed', 'org_role': 'org_admin',
-                   'org_roles': ['org_admin'], 'organization_id': 'org-2'}
+import app  # noqa: F401 -- import graph ordering
+from routes.observer.comments import COMMENT_RELATIONSHIPS
+from utils.auth.relationships import RELATIONSHIPS, STAFF, relationship_between
 
 STUDENT_ID = 'student-1'
 
-
-class _Result:
-    def __init__(self, data):
-        self.data = data
-
-
-class _Query:
-    """Minimal PostgREST chain stub: every filter returns self."""
-
-    def __init__(self, rows):
-        self._rows = rows
-
-    def select(self, *a, **k):
-        return self
-
-    def eq(self, *a, **k):
-        return self
-
-    def limit(self, *a, **k):
-        return self
-
-    def execute(self):
-        return _Result(self._rows)
-
-    def single(self):
-        return _Single(self._rows[0] if self._rows else None)
-
-
-class _Single:
-    def __init__(self, row):
-        self._row = row
-
-    def execute(self):
-        return _Result(self._row)
-
-
-class _Supabase:
-    """Stubs only the tables the predicate reads."""
-
-    def __init__(self, observer_links=(), assignments=(), student_org='org-1'):
-        self.observer_links = list(observer_links)
-        self.assignments = list(assignments)
-        self.student_org = student_org
-
-    def table(self, name):
-        if name == 'observer_student_links':
-            return _Query(self.observer_links)
-        if name == 'advisor_student_assignments':
-            return _Query(self.assignments)
-        if name == 'users':
-            return _Query([{'organization_id': self.student_org}])
-        raise AssertionError(f'unexpected table {name}')
+PREDICATES = ('parent', 'household_guardian', 'observer', 'advisor', 'teacher', 'org_staff')
 
 
 @pytest.fixture(autouse=True)
-def _no_masquerade(monkeypatch):
-    """caller_is_superadmin hits the database; the role field is what we pin."""
-    monkeypatch.setattr('utils.auth.decorators.caller_is_superadmin',
-                        lambda *a, **k: False)
+def _nobody(monkeypatch):
+    """Every relationship predicate says no and the staff lookup says no; each
+    test grants exactly the relationship it is about. Patched on RELATIONSHIPS
+    itself so no test reaches a database."""
+    for name in PREDICATES:
+        monkeypatch.setitem(RELATIONSHIPS, name, lambda c, t: False)
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff', lambda c: False)
 
 
 @pytest.fixture
-def _teaches(monkeypatch):
-    """Control whether the author teaches the student."""
-    def _set(value):
-        monkeypatch.setattr('utils.class_membership.shares_class',
-                            lambda *a, **k: value)
-    return _set
+def grant(monkeypatch):
+    def _grant(name, when=None):
+        monkeypatch.setitem(RELATIONSHIPS, name, when or (lambda c, t: True))
+    return _grant
 
 
-def test_org_advisor_assigned_to_the_student_may_comment():
-    db = _Supabase(assignments=[{'id': 'a1'}])
-    assert can_comment_on_student(db, 'advisor-1', ORG_ADVISOR, STUDENT_ID) is True
+def _may_comment(author_id, student_id=STUDENT_ID):
+    return relationship_between(author_id, student_id, COMMENT_RELATIONSHIPS)
 
 
-def test_org_advisor_who_teaches_the_student_may_comment(_teaches):
-    """The class-roster relationship, for schools with no assignment rows."""
-    _teaches(True)
-    db = _Supabase(assignments=[])
-    assert can_comment_on_student(db, 'advisor-1', ORG_ADVISOR, STUDENT_ID) is True
+# --- the policy ---------------------------------------------------------------
+
+def test_the_policy_names_every_audience_the_feed_shows_a_post_to():
+    """Change this deliberately, with the feed (routes/observer/feed.py) in the
+    other hand. A relationship the feed grants and this refuses is the bug this
+    file exists for."""
+    assert COMMENT_RELATIONSHIPS == (
+        'self', 'parent', 'household_guardian', 'observer', 'advisor', 'teacher', 'org_staff',
+    )
 
 
-def test_org_advisor_unrelated_to_the_student_may_not_comment(_teaches):
-    _teaches(False)
-    db = _Supabase(assignments=[])
-    assert can_comment_on_student(db, 'advisor-1', ORG_ADVISOR, STUDENT_ID) is False
+def test_peers_are_deliberately_not_in_it():
+    """Peer connections were sold to families as visibility into each other's
+    work, not a channel to write on it."""
+    assert 'peer' not in COMMENT_RELATIONSHIPS
 
 
-def test_platform_advisor_resolves_the_same_way():
-    db = _Supabase(assignments=[{'id': 'a1'}])
-    assert can_comment_on_student(db, 'advisor-1', PLATFORM_ADVISOR, STUDENT_ID) is True
+def test_the_two_thread_readers_use_the_same_policy():
+    """Seeing a thread and writing on it are one question. The readers used to
+    be hand-written twins of the write gate and drifted independently."""
+    import routes.observer.social as social
+    assert social.COMMENT_RELATIONSHIPS is COMMENT_RELATIONSHIPS
+    src = inspect.getsource(social)
+    for reader in ('def get_learning_event_comments', 'def get_completion_comments'):
+        body = src.split(reader, 1)[1][:3000]
+        assert 'relationship_between(user_id, student_id, COMMENT_RELATIONSHIPS)' in body, reader
+        assert "== 'advisor'" not in body, f'{reader} compares a raw role again'
 
 
-@pytest.mark.parametrize('user,label', [
-    (ORG_ADMIN, 'org admin'),
-    (COORDINATOR, 'campus coordinator'),
-])
-def test_org_staff_may_comment_on_their_own_schools_students(user, label):
-    db = _Supabase(student_org='org-1')
-    assert can_comment_on_student(db, 'admin-1', user, STUDENT_ID) is True, label
+# --- who gets in -------------------------------------------------------------
+
+def test_a_student_may_reply_on_their_own_work():
+    """By identity, before any predicate runs -- every predicate is patched to
+    False here, so anything but 'self' would refuse."""
+    assert _may_comment(STUDENT_ID, STUDENT_ID) == 'self'
 
 
-def test_org_admin_may_not_comment_on_another_schools_student():
-    db = _Supabase(student_org='org-1')
-    assert can_comment_on_student(db, 'admin-2', OTHER_ORG_ADMIN, STUDENT_ID) is False
+def test_a_parent_may_comment_on_their_childs_work(grant):
+    """Any of the three family links; no observer_student_links row needed."""
+    grant('parent')
+    assert _may_comment('parent-1') == 'parent'
 
 
-def test_superadmin_may_always_comment():
-    db = _Supabase()
-    assert can_comment_on_student(db, 'root', SUPERADMIN, STUDENT_ID) is True
+def test_a_household_guardian_may_too(grant):
+    """The SIS registration funnel links families through household_members
+    and nothing else; at a microschool that is nearly every family."""
+    grant('household_guardian')
+    assert _may_comment('guardian-1') == 'household_guardian'
 
 
-def test_an_observer_link_still_grants_access():
-    db = _Supabase(observer_links=[{'can_comment': True}])
-    assert can_comment_on_student(db, 'obs-1', {'role': 'observer'}, STUDENT_ID) is True
+def test_an_invited_observer_may(grant):
+    grant('observer')
+    assert _may_comment('obs-1') == 'observer'
 
 
-def test_an_observer_link_with_comments_disabled_does_not(_teaches):
-    _teaches(False)
-    db = _Supabase(observer_links=[{'can_comment': False}])
-    assert can_comment_on_student(db, 'obs-1', {'role': 'observer'}, STUDENT_ID) is False
+def test_an_assigned_advisor_may(grant):
+    grant('advisor')
+    assert _may_comment('advisor-1') == 'advisor'
 
 
-def test_a_student_may_not_comment_on_another_student(_teaches):
-    _teaches(False)
-    db = _Supabase()
-    assert can_comment_on_student(db, 'student-2', ORG_STUDENT, STUDENT_ID) is False
+def test_a_teacher_with_no_assignment_row_may(grant):
+    """The class-roster relationship, for schools that never wrote
+    advisor_student_assignments (Gryffin)."""
+    grant('teacher')
+    assert _may_comment('teacher-1') == 'teacher'
 
 
-def test_a_missing_author_is_refused():
-    assert can_comment_on_student(_Supabase(), 'nobody', None, STUDENT_ID) is False
+def test_org_staff_may_comment_on_their_own_schools_students(grant):
+    grant('org_staff')
+    assert _may_comment('admin-1') == 'org_staff'
+
+
+def test_platform_staff_get_in_as_staff(monkeypatch):
+    monkeypatch.setattr('utils.auth.relationships._is_platform_staff', lambda c: True)
+    assert _may_comment('root') == STAFF
+
+
+# --- who does not --------------------------------------------------------------
+
+def test_a_student_may_not_comment_on_another_student():
+    assert _may_comment('student-2') is None
+
+
+def test_an_unrelated_adult_may_not():
+    assert _may_comment('stranger') is None
+
+
+def test_a_predicate_that_raises_does_not_let_anyone_in(grant):
+    def _boom(c, t):
+        raise RuntimeError('database away')
+    grant('parent', _boom)
+    assert _may_comment('parent-1') is None
+
+
+def test_a_raising_predicate_does_not_block_the_next_one(grant):
+    def _boom(c, t):
+        raise RuntimeError('database away')
+    grant('parent', _boom)
+    grant('observer')
+    assert _may_comment('obs-1') == 'observer'
+
+
+def test_a_missing_author_or_student_is_refused():
+    assert relationship_between(None, STUDENT_ID, COMMENT_RELATIONSHIPS) is None
+    assert relationship_between('x', '', COMMENT_RELATIONSHIPS) is None
