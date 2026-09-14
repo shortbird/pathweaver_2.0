@@ -328,8 +328,8 @@ BASELINES = {
     # 2026-09-14: 533 -> 537, the afternoon iCreate batch.
     #   quest_template_task_repository.ids_for_quest + set_order (+3): the
     #     reads and writes behind reordering a quest's preset tasks
-    #     (c7d1f7a5), so utils/template_tasks.reorder_template_tasks adds
-    #     nothing above this layer.
+    #     (c7d1f7a5); the validating reorder sits beside them in the same
+    #     repository, so nothing is added above this layer.
     #   school_enrollment_repository.statuses_for_org (+1): every student's
     #     standing at the school, for the org admin's People tab, which had
     #     no way to show a withdrawn student as anything but present.

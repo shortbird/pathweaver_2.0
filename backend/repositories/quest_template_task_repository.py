@@ -5,7 +5,7 @@ Handles all template task operations for quests. Replaces the separate
 quest_sample_tasks and course_quest_tasks tables with a unified approach.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 
@@ -323,10 +323,35 @@ class QuestTemplateTaskRepository(BaseRepository):
                 .eq('quest_id', quest_id).execute()).data or []
         return [r['id'] for r in rows]
 
+    def reorder(self, quest_id: str, task_ids: List[str]) -> Optional[List[Dict[str, Any]]]:
+        """Put a quest's preset tasks in the given order. Returns the rows,
+        ordered, or None when `task_ids` is not exactly the quest's task set.
+
+        Tasks could be reordered while a quest was being drafted and never
+        again: "when you edit a quest, you can't move the tasks up and down.
+        You can only do that when you first create the quest" (iCreate,
+        2026-09-14, c7d1f7a5).
+
+        The whole list is required, not a single move, so two admins nudging
+        different rows cannot leave the list with two tasks at one position.
+        One write per row; the set is small (30 at most, quest_ai_service caps
+        it). Callers run resync_enrollments_to_template afterwards -- student
+        copies without work are rewritten in template order, so the class
+        sees the new order too.
+
+        Lived in utils/template_tasks until 2026-09-14; a util that imports a
+        repository is the wrong way round (test_import_layers), and the whole
+        of it was this repository's two reads and one write.
+        """
+        have = set(self.ids_for_quest(quest_id))
+        if len(task_ids) != len(have) or set(task_ids) != have:
+            return None
+        return self.set_order(quest_id, list(task_ids))
+
     def set_order(self, quest_id: str, task_ids: List[str]) -> List[Dict[str, Any]]:
         """Write order_index = position for each id, then return the rows in
         that order. The caller has checked `task_ids` is the quest's full set
-        (utils.template_tasks.reorder_template_tasks)."""
+        (reorder, above)."""
         for i, task_id in enumerate(task_ids):
             self.client.table(self.table_name).update({'order_index': i}) \
                 .eq('id', task_id).eq('quest_id', quest_id).execute()

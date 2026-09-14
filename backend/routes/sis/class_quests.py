@@ -846,15 +846,16 @@ def add_preset_task(user_id, class_id, quest_id):
 @require_auth
 def reorder_preset_tasks(user_id, class_id, quest_id):
     """Put the quest's preset tasks in the order sent ({"task_ids": [...]}, the
-    whole set). See utils.template_tasks.reorder_template_tasks."""
+    whole set). See QuestTemplateTaskRepository.reorder."""
     class_row, admin, quest, err = _authorize_editable_quest(user_id, class_id, quest_id)
     if err:
         return err
     task_ids = [t for t in ((request.get_json(silent=True) or {}).get('task_ids') or []) if t]
     if not task_ids or any(_bad_uuid(t) for t in task_ids):
         return jsonify({'success': False, 'error': 'Send every task id, in order.'}), 400
-    from utils.template_tasks import reorder_template_tasks, resync_enrollments_to_template
-    rows = reorder_template_tasks(admin, quest_id, task_ids)
+    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
+    from utils.template_tasks import resync_enrollments_to_template
+    rows = QuestTemplateTaskRepository(client=admin).reorder(quest_id, task_ids)
     if rows is None:
         return jsonify({'success': False,
                         'error': 'That is not the full task list -- reload and try again.'}), 409

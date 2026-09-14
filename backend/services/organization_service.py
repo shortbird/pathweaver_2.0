@@ -126,6 +126,9 @@ class OrganizationService(BaseService):
         # (2026-09-14).
         try:
             from repositories.school_enrollment_repository import SchoolEnrollmentRepository
+            # admin client justified: school_enrollments is read for every
+            # student of an org the caller already passed the org-admin gate
+            # for; the user-scoped client would see only the caller's own rows
             from utils.admin_client import admin_client
             statuses = SchoolEnrollmentRepository(client=admin_client()).statuses_for_org(org_id)
             for u in users:

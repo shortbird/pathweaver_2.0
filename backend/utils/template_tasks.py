@@ -215,29 +215,6 @@ def _tasks_carrying_work(admin, quest_id, task_ids):
     return ids
 
 
-def reorder_template_tasks(admin, quest_id, task_ids):
-    """Put a quest's preset tasks in the given order. Returns the rows, ordered,
-    or None when `task_ids` is not exactly the quest's task set.
-
-    Tasks could be reordered while a quest was being drafted and never again:
-    "when you edit a quest, you can't move the tasks up and down. You can only
-    do that when you first create the quest" (iCreate, 2026-09-14, c7d1f7a5).
-
-    The whole list is required, not a single move, so two admins nudging
-    different rows cannot leave the list with two tasks at one position. One
-    write per row; the set is small (30 at most, quest_ai_service caps it).
-    Callers run resync_enrollments_to_template afterwards -- student copies
-    without work are rewritten in template order, so the class sees the new
-    order too.
-    """
-    from repositories.quest_template_task_repository import QuestTemplateTaskRepository
-    repo = QuestTemplateTaskRepository(client=admin)
-    have = set(repo.ids_for_quest(quest_id))
-    if len(task_ids) != len(have) or set(task_ids) != have:
-        return None
-    return repo.set_order(quest_id, list(task_ids))
-
-
 def resync_enrollments_to_template(admin, quest_id, template_tasks=None):
     """Bring every existing enrollment onto the quest's current template.
 

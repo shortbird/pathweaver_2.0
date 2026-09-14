@@ -9,7 +9,7 @@ the full list, then pushed to enrolled students by the existing resync.
 
 import pytest
 
-from utils.template_tasks import reorder_template_tasks
+from repositories.quest_template_task_repository import QuestTemplateTaskRepository
 
 QUEST = 'quest-1'
 
@@ -70,7 +70,7 @@ class _Table:
 class TestReorderTemplateTasks:
     def test_writes_the_position_of_every_task_and_returns_them_in_order(self):
         rec = _Recorder(['a', 'b', 'c'])
-        rows = reorder_template_tasks(rec, QUEST, ['c', 'a', 'b'])
+        rows = QuestTemplateTaskRepository(client=rec).reorder(QUEST, ['c', 'a', 'b'])
         assert rec.updates == [('c', 0), ('a', 1), ('b', 2)]
         assert [t['id'] for t in rows] == ['c', 'a', 'b']
 
@@ -78,15 +78,15 @@ class TestReorderTemplateTasks:
         """A single move is not accepted: two admins nudging different rows
         must not leave two tasks at one position."""
         rec = _Recorder(['a', 'b', 'c'])
-        assert reorder_template_tasks(rec, QUEST, ['c', 'a']) is None
+        assert QuestTemplateTaskRepository(client=rec).reorder(QUEST, ['c', 'a']) is None
         assert rec.updates == []
 
     def test_refuses_an_id_from_another_quest(self):
         rec = _Recorder(['a', 'b'])
-        assert reorder_template_tasks(rec, QUEST, ['a', 'zzz']) is None
+        assert QuestTemplateTaskRepository(client=rec).reorder(QUEST, ['a', 'zzz']) is None
         assert rec.updates == []
 
     def test_refuses_a_duplicate_that_pads_the_count(self):
         rec = _Recorder(['a', 'b', 'c'])
-        assert reorder_template_tasks(rec, QUEST, ['a', 'a', 'b']) is None
+        assert QuestTemplateTaskRepository(client=rec).reorder(QUEST, ['a', 'a', 'b']) is None
         assert rec.updates == []
