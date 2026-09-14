@@ -20,7 +20,13 @@ const render = (ui) => {
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 let orgState = { organization: { id: 'org-1', name: 'Org' } }
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+// StudentDetailModal reads the context object directly (it is rendered bare
+// in other tests), so the mock exports it alongside the hook; the context
+// value is null here, which the modal treats as "not an admin".
+vi.mock('../../contexts/AuthContext', async () => {
+  const React = await import('react')
+  return { useAuth: () => authState, AuthContext: React.createContext(null) }
+})
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => orgState }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

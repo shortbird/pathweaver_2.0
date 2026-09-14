@@ -14,7 +14,9 @@ the expensive kind:
   - a school locked out of its own console, by demoting its last admin or by an
     admin tidying up their own row;
   - a campus coordinator promoting themselves to admin, which hands back exactly
-    the finance access the role exists to withhold;
+    the finance access the role exists to withhold — the one role they may not
+    give or take, now that every role below it is theirs (2026-09-14: "can
+    change roles from CC down");
   - "make Kate a coordinator" quietly cancelling "Kate is a parent here", which
     would take her children's family portal away.
 """
@@ -44,8 +46,11 @@ def _table(rows, captured):
     return t
 
 
-def _run(target, roles, actor_id=None, staff_list=None):
+def _run(target, roles, actor_id=None, staff_list=None, actor_is_admin=True):
     """Call set_staff_roles against a single stubbed user row.
+
+    `actor_is_admin` is what caller_can_grant_privileged_role answers for the
+    actor — True is an org_admin at the keyboard, False a campus coordinator.
 
     Returns (result, updates) — updates being every payload written to `users`.
     """
@@ -55,6 +60,7 @@ def _run(target, roles, actor_id=None, staff_list=None):
     with patch.object(sis_service, '_admin', return_value=client), \
          patch.object(sis_service, 'list_org_staff', return_value=staff_list if staff_list is not None else []), \
          patch.object(sis_service, '_org_name', return_value='iCreate'), \
+         patch.object(sis_service, 'caller_can_grant_privileged_role', return_value=actor_is_admin), \
          patch('services.sis_notifications.notify'):
         result = sis_service.set_staff_roles(ORG, target['id'], roles, actor_id=actor_id)
     return result, captured
@@ -165,17 +171,146 @@ class TestWhatItRefuses:
 
 @pytest.mark.unit
 class TestWhoMayGrantRoles:
+    """The route is ADMIN_ROLES; the org_admin boundary is the service's job.
+
+    Until 2026-09-14 the route itself was ROLE_GRANT_ROLES and a coordinator
+    could not open the role editor at all. The ask that changed it: "the campus
+    coordinator role needs to be able to change the roles of other users. They
+    can't change admin or make new users admin, but can change roles from CC
+    down." So the door admits the front office and the service refuses the one
+    thing a coordinator must not do.
+    """
+
     def test_the_grant_tier_excludes_campus_coordinators(self):
         """The whole point of the role is to withhold the money. A coordinator
-        who can grant roles grants themselves org_admin and takes it back."""
+        who can grant org_admin grants it to themselves and takes it back."""
         assert sis_roles.CAMPUS_COORDINATOR not in sis_roles.ROLE_GRANT_ROLES
 
     def test_admins_and_superadmins_may(self):
         assert set(sis_roles.ROLE_GRANT_ROLES) == {'org_admin', 'superadmin'}
 
-    def test_the_route_is_gated_to_that_tier(self):
-        """A route on ADMIN_ROLES would let a coordinator through — this is the
-        one endpoint where the admin tier is too wide."""
+    def test_the_route_admits_the_front_office(self):
+        """The route is not the gate any more: a coordinator must reach it to
+        change anything at all. ROLE_GRANT_ROLES has no business on it."""
         import routes.sis as sis_routes
-        assert sis_routes.ROLE_GRANT_ROLES == sis_roles.ROLE_GRANT_ROLES
-        assert sis_roles.CAMPUS_COORDINATOR in sis_roles.ADMIN_ROLES  # ...which is why
+        assert not hasattr(sis_routes, 'ROLE_GRANT_ROLES')
+        assert sis_roles.CAMPUS_COORDINATOR in sis_roles.ADMIN_ROLES
+
+
+COORDINATOR = dict(actor_id='kate-cc', actor_is_admin=False)
+
+
+@pytest.mark.unit
+class TestWhatACoordinatorMayChange:
+    """Everything from campus coordinator down; nothing that touches org_admin."""
+
+    def test_a_coordinator_can_make_a_teacher_a_coordinator(self):
+        result, updates = _run(_person(roles=('advisor',)), ['campus_coordinator'], **COORDINATOR)
+        assert result.get('error') is None
+        assert updates[0]['org_roles'] == ['campus_coordinator']
+
+    def test_a_coordinator_can_make_a_coordinator_a_teacher(self):
+        result, updates = _run(_person(roles=('campus_coordinator',)), ['advisor'], **COORDINATOR)
+        assert result.get('error') is None
+        assert updates[0]['org_roles'] == ['advisor']
+
+    def test_a_coordinator_cannot_grant_admin(self):
+        """The self-promotion path, one step removed: grant it to an ally."""
+        result, updates = _run(_person(roles=('advisor',)), ['org_admin'],
+                               staff_list=ANOTHER_ADMIN, **COORDINATOR)
+        assert 'Only an admin' in result['error']
+        assert updates == []
+
+    def test_a_coordinator_cannot_grant_themselves_admin(self):
+        result, updates = _run(_person('kate-cc', roles=('campus_coordinator',)),
+                               ['org_admin', 'campus_coordinator'],
+                               staff_list=ANOTHER_ADMIN, **COORDINATOR)
+        assert 'Only an admin' in result['error']
+        assert updates == []
+
+    def test_a_coordinator_cannot_demote_an_admin(self):
+        """Not even to coordinator, not even with another admin left: the
+        admin is the person who could undo whatever the coordinator does."""
+        result, updates = _run(_person(roles=('org_admin',)), ['campus_coordinator'],
+                               staff_list=ANOTHER_ADMIN, **COORDINATOR)
+        assert 'Only an admin' in result['error']
+        assert updates == []
+
+    def test_a_coordinator_cannot_add_a_role_to_an_admin(self):
+        """Keeping org_admin in the list is still a write to an admin's row."""
+        result, updates = _run(_person(roles=('org_admin',)), ['org_admin', 'advisor'],
+                               staff_list=ANOTHER_ADMIN, **COORDINATOR)
+        assert 'Only an admin' in result['error']
+        assert updates == []
+
+    def test_the_boundary_is_asked_of_the_actor_not_the_target(self):
+        """A coordinator whose target holds NO admin role never triggers the
+        lookup at all — the boundary is about org_admin, not about who is
+        asking."""
+        with patch.object(sis_service, 'caller_can_grant_privileged_role') as gate:
+            gate.return_value = False
+            captured = []
+            client = Mock()
+            client.table.side_effect = lambda name: _table([_person(roles=('advisor',))], captured)
+            with patch.object(sis_service, '_admin', return_value=client), \
+                 patch.object(sis_service, 'list_org_staff', return_value=[]), \
+                 patch.object(sis_service, '_org_name', return_value='iCreate'), \
+                 patch('services.sis_notifications.notify'):
+                result = sis_service.set_staff_roles(ORG, 'kate', ['campus_coordinator'], actor_id='kate-cc')
+        assert result.get('error') is None
+        gate.assert_not_called()
+
+    def test_no_actor_at_all_cannot_touch_admin(self):
+        """A caller that forgot to pass actor_id gets the coordinator's answer,
+        not the admin's — the safe default when nobody is accountable."""
+        result, updates = _run(_person(roles=('advisor',)), ['org_admin'],
+                               actor_id=None, staff_list=ANOTHER_ADMIN)
+        assert 'Only an admin' in result['error']
+        assert updates == []
+
+
+def _run_user_role(target, roles, actor_id='kate-cc', actor_is_admin=False):
+    """Call update_user_role (PATCH /users/<id>/role — the people-page path,
+    which reaches students and parents as well as staff) against one stubbed
+    row. Same shape as _run."""
+    captured = []
+    client = Mock()
+    client.table.side_effect = lambda name: _table([target], captured)
+    with patch.object(sis_service, '_admin', return_value=client), \
+         patch.object(sis_service, 'caller_can_grant_privileged_role', return_value=actor_is_admin):
+        result = sis_service.update_user_role(ORG, target['id'], roles=roles, actor_id=actor_id)
+    return result, captured
+
+
+@pytest.mark.unit
+class TestTheOtherRolePathHoldsTheSameLine:
+    """update_user_role is the second way to change a role — the one the
+    people page uses, which is why it always admitted ADMIN_ROLES. It must
+    draw the org_admin boundary exactly where set_staff_roles does; two
+    endpoints with two rules is how a boundary gets walked around."""
+
+    def test_a_coordinator_can_make_a_parent_a_teacher(self):
+        result, updates = _run_user_role(_person(roles=('parent',)), ['advisor', 'parent'])
+        assert result.get('error') is None
+        assert updates[0]['org_roles'] == ['advisor', 'parent']
+
+    def test_a_coordinator_can_make_a_teacher_a_coordinator(self):
+        result, updates = _run_user_role(_person(roles=('advisor',)), ['campus_coordinator'])
+        assert result.get('error') is None
+        assert updates[0]['org_role'] == 'campus_coordinator'
+
+    def test_a_coordinator_cannot_grant_admin(self):
+        result, updates = _run_user_role(_person(roles=('advisor',)), ['org_admin'])
+        assert 'not authorized' in result['error']
+        assert updates == []
+
+    def test_a_coordinator_cannot_change_an_admin(self):
+        result, updates = _run_user_role(_person(roles=('org_admin',)), ['advisor'])
+        assert 'not authorized' in result['error']
+        assert updates == []
+
+    def test_an_admin_still_can(self):
+        result, updates = _run_user_role(_person(roles=('advisor',)), ['org_admin'],
+                                         actor_id='molly', actor_is_admin=True)
+        assert result.get('error') is None
+        assert updates[0]['org_roles'] == ['org_admin']

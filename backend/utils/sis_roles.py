@@ -38,12 +38,21 @@ ADMIN_ROLES = ('org_admin', CAMPUS_COORDINATOR, 'superadmin')
 # The money. Deliberately excludes campus coordinators.
 FINANCE_ROLES = ('org_admin', 'superadmin')
 
-# Who may change somebody else's role. Deliberately excludes campus
+# Who may grant or revoke the org_admin role — and, by the same token, change
+# anything about somebody who holds it. Deliberately excludes campus
 # coordinators, and this is the one tier that is not about the money directly:
 # the whole point of the coordinator role is to withhold finance access, and a
-# coordinator who can grant roles can grant themselves org_admin and take it
-# back. Same membership as FINANCE_ROLES, different reason — kept separate so
-# neither can be widened by accident on the other's behalf.
+# coordinator who can hand out org_admin can hand it to themselves and take the
+# money back. Same membership as FINANCE_ROLES, different reason — kept separate
+# so neither can be widened by accident on the other's behalf.
+#
+# This is NOT a route tier any more. Until 2026-09-14 it sat on
+# PUT /staff/<id>/roles and kept coordinators out of the role editor entirely;
+# the ask that changed it was "campus coordinators need to be able to change
+# the roles of other users ... from CC down". So every role BELOW org_admin
+# (coordinator, teacher, parent, student, observer) is the front office's to
+# give and take — the route is ADMIN_ROLES — and the org_admin boundary is
+# enforced per call inside the service (sis_service.caller_can_grant_privileged_role).
 ROLE_GRANT_ROLES = ('org_admin', 'superadmin')
 
 # HR-confidential records: the secure-documents store (contracts, background

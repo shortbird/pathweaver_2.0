@@ -26,7 +26,7 @@ from services import sis_staff_service
 from services import sis_payment_profile
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
-from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES, ROLE_GRANT_ROLES
+from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES
 from utils.storage_urls import (
     parse_object_ref,
     public_object_url,
@@ -218,14 +218,16 @@ def grant_staff_role(user_id):
 
 
 @bp.route('/staff/<staff_id>/roles', methods=['PUT'])
-@require_role(*ROLE_GRANT_ROLES)
+@require_role(*ADMIN_ROLES)
 @require_relationship_to('staff_id', allow=('org_staff',))
 def set_staff_roles(user_id, staff_id):
     """Set a staff member's roles (teacher / campus coordinator / admin).
 
-    ROLE_GRANT_ROLES, not ADMIN_ROLES: a campus coordinator must not be able to
-    hand themselves the admin role and with it the finance access the
-    coordinator tier exists to withhold.
+    ADMIN_ROLES, so a campus coordinator gets in: the front office hands out
+    every role from coordinator down (2026-09-14). The one thing they must not
+    do — grant org_admin, or touch anybody who holds it, which is how they would
+    hand themselves the finance access the tier withholds — is refused inside
+    the service against `actor_id`, not at the door.
     """
     org_id, err = _org_or_error(user_id)
     if err:

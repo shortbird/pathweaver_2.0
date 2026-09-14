@@ -767,8 +767,10 @@ def require_org_front_office(f):
     Use it for the OPERATIONAL org routes the SIS console runs on: reading the
     org's settings, editing the registration funnel, handing out family
     invitation links. NEVER for the money (FINANCE_ROLES) or for anything that
-    grants a role (ROLE_GRANT_ROLES) — a coordinator who can grant org_admin can
-    grant themselves the finance access this whole tier exists to withhold.
+    grants org_admin (ROLE_GRANT_ROLES) — a coordinator who can grant org_admin
+    can grant themselves the finance access this whole tier exists to withhold.
+    Roles below admin are theirs to give; the org_admin boundary is enforced
+    per call in the service (sis_service.caller_can_grant_privileged_role).
 
     Routes that use it are responsible for the per-field half: a coordinator on
     an otherwise-operational endpoint must not read or write the money on it.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import Button from '../../components/ui/Button'
@@ -9,6 +9,8 @@ import PersonPhoto from '../../components/sis/PersonPhoto'
 import { classLabel } from '../../components/sis/classLabel'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { useSisOrg } from './useSisOrg'
+import { AuthContext } from '../../contexts/AuthContext'
+import { canGrantAdmin, canEditRolesOf } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useStudentContacts, useStudentRecord, useStudentClasses,
@@ -39,6 +41,8 @@ const STUDENT_ONLY_TABS = ['record', 'materials', 'schedule']
 
 const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const { activeOrg } = useSisOrg()
+  // Context directly, not useAuth(): this modal is rendered bare in tests.
+  const viewer = useContext(AuthContext)?.user
   const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
   const isStudent = student.is_student !== false
   const [tab, setTab] = useState('profile')
@@ -63,6 +67,11 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
   const [saving, setSaving] = useState(false)
   const setField = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
+  // Who may change this person's role: any front-office member, except that
+  // a coordinator may not touch an admin (sisRole.canEditRolesOf — the backend
+  // refuses that write, so the field is withheld rather than offered).
+  const mayEditRoles = canEditRolesOf(viewer, form.roles)
+
   const saveProfile = async () => {
     setSaving(true)
     try {
@@ -74,7 +83,9 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
         date_of_birth: form.date_of_birth || null,
         sis_tuition_plan: form.sis_tuition_plan || null, organization_id: orgId,
       })]
-      if (form.roles.length) {
+      // Only when the field was editable: an unchanged role list re-sent by a
+      // coordinator for an admin would be refused and fail the whole save.
+      if (mayEditRoles && form.roles.length) {
         reqs.push(sisStudentApi.updateRoles(student.student_id, form.roles, orgId))
       }
       if (isStudent) {
@@ -127,7 +138,8 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
                   the emergency contact info ... if there is an emergency"
                   (iCreate, 2026-07-31). Editing still happens below. */}
               {isStudent && <EmergencyStrip student={student} orgId={orgId} />}
-              <ProfileFields form={form} set={setField} isStudent={isStudent} schoolName={schoolName} />
+              <ProfileFields form={form} set={setField} isStudent={isStudent} schoolName={schoolName}
+                rolesEditable={mayEditRoles} adminGrantable={canGrantAdmin(viewer)} />
               {isStudent && <FamilySection student={student} orgId={orgId} onSaved={onSaved} />}
               {isStudent && <ContactsSection student={student} orgId={orgId} />}
               <AccountSection student={student} orgId={orgId} onSaved={onSaved} onClose={onClose} />
@@ -145,7 +157,9 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
 
 // Multi-role picker: a person can be several things at once (e.g. a teacher
 // who is also a parent). Checked order is kept — the first is the primary role.
-const RolesField = ({ form, set }) => {
+// `adminGrantable` false drops the Admin option: a coordinator hands out every
+// role below it, and the backend refuses org_admin from them.
+const RolesField = ({ form, set, adminGrantable }) => {
   const toggle = (value) => {
     const has = form.roles.includes(value)
     if (has && form.roles.length === 1) {
@@ -158,7 +172,7 @@ const RolesField = ({ form, set }) => {
     <div>
       <span className="block text-xs text-neutral-500 mb-1">Roles</span>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-        {ROLE_OPTIONS.map(([v, l]) => (
+        {ROLE_OPTIONS.filter(([v]) => v !== 'org_admin' || adminGrantable).map(([v, l]) => (
           <label key={v} className="inline-flex items-center gap-1.5 text-sm text-neutral-700 cursor-pointer">
             <input
               type="checkbox"
@@ -174,7 +188,7 @@ const RolesField = ({ form, set }) => {
   )
 }
 
-const ProfileFields = ({ form, set, isStudent, schoolName }) => (
+const ProfileFields = ({ form, set, isStudent, schoolName, rolesEditable, adminGrantable }) => (
   <section className="space-y-3">
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs text-neutral-500">First name
@@ -206,7 +220,7 @@ const ProfileFields = ({ form, set, isStudent, schoolName }) => (
         </label>
       )}
     </div>
-    <RolesField form={form} set={set} />
+    {rolesEditable && <RolesField form={form} set={set} adminGrantable={adminGrantable} />}
     {isStudent && (
       <>
         <div className="grid grid-cols-2 gap-3">

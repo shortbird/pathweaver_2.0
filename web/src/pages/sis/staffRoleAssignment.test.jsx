@@ -8,10 +8,12 @@
  * the console to put a person in it. The picker lives on the staff member's
  * card, next to the roles it changes.
  *
- * The check that matters most is the last one: a campus coordinator must not
- * see this control at all. Promoting yourself to admin hands back the finance
- * access the coordinator role exists to withhold, so the frontend hides it and
- * the backend gates it (test_sis_staff_roles.py).
+ * The checks that matter most are the coordinator's. Until 2026-09-14 they did
+ * not see this control at all; now they hand out every role below admin ("can
+ * change roles from CC down"). What stays withheld: the Admin option, and any
+ * change to somebody who already IS an admin — promoting yourself hands back
+ * the finance access the coordinator role exists to withhold, so the frontend
+ * does not offer it and the backend refuses it (test_sis_staff_roles.py).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -104,10 +106,46 @@ describe('setting a staff role', () => {
       "This is the school's only admin. Make somebody else an admin first."))
   })
 
-  it('hides the control from a campus coordinator', async () => {
+})
+
+describe('a campus coordinator setting a staff role', () => {
+  const asCoordinator = () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['campus_coordinator'] } }
+  }
+
+  it('can change a teacher\'s role', async () => {
+    asCoordinator()
     open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Campus Coordinator/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Teacher/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save role' }))
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith(
+      '/api/sis/staff/kate/roles?organization_id=org-1',
+      { roles: ['campus_coordinator'] },
+    ))
+  })
+
+  it('is not offered the Admin option', async () => {
+    asCoordinator()
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    expect(screen.getByRole('checkbox', { name: /Campus Coordinator/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Teacher/i })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /^Admin/i })).not.toBeInTheDocument()
+  })
+
+  it('cannot change an admin\'s role at all', async () => {
+    asCoordinator()
+    open({ ...KATE, roles: ['org_admin'] })
     await screen.findByText('Kate Myers')
     expect(screen.queryByRole('button', { name: 'Change' })).not.toBeInTheDocument()
+  })
+
+  it('an admin still sees the Admin option', async () => {
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
+    expect(screen.getByRole('checkbox', { name: /^Admin/i })).toBeInTheDocument()
   })
 })

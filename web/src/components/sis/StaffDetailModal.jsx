@@ -5,7 +5,7 @@ import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { RolePill } from '../../components/ui/RolePill'
 import { useAuth } from '../../contexts/AuthContext'
-import { canSeeFinance, canGrantRoles } from '../../pages/sis/sisRole'
+import { canSeeFinance, canGrantAdmin, canEditRolesOf } from '../../pages/sis/sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
 /**
@@ -213,8 +213,13 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
             <p className="text-sm font-medium text-red-600">Inactive</p>
           )}
           {/* Role. The campus coordinator role has existed since 2026-08-04 with
-              no way to give it to anybody; this is where you do that. */}
-          {canGrantRoles(user) && (
+              no way to give it to anybody; this is where you do that.
+
+              Any front-office member may change a role below admin, so a
+              coordinator sees this too. What they do not see: the Admin option,
+              and the control at all on an admin's card — the backend refuses
+              both writes, so neither is offered. */}
+          {canEditRolesOf(user, staff.roles) && (
             <div className="pt-3">
               {!editingRoles ? (
                 <div className="flex gap-2 text-sm items-center">
@@ -231,7 +236,7 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
               ) : (
                 <div className="rounded-lg border border-gray-200 p-3 space-y-2">
                   <p className="text-sm font-medium text-neutral-800">Role at this school</p>
-                  {ASSIGNABLE_ROLES.map((r) => (
+                  {ASSIGNABLE_ROLES.filter((r) => r.key !== 'org_admin' || canGrantAdmin(user)).map((r) => (
                     <label key={r.key} className="flex items-start gap-2 cursor-pointer">
                       <input
                         type="checkbox"

@@ -60,8 +60,17 @@ def test_the_hr_store_is_hr_gated(matrix):
     assert matrix['secure_documents.py']['tiers'] == ['HR_ROLES']
 
 
-def test_role_granting_is_still_restricted(matrix):
-    assert 'ROLE_GRANT_ROLES' in matrix['__init__.py']['tiers']
+def test_role_granting_is_a_front_office_route(matrix):
+    """ROLE_GRANT_ROLES left the route on 2026-09-14: a campus coordinator
+    hands out every role below admin, so the door is ADMIN_ROLES and the
+    org_admin boundary lives in the service (test_sis_staff_roles.py). A
+    route carrying ROLE_GRANT_ROLES again would lock coordinators out of the
+    role editor the way they were before."""
+    for filename, info in matrix.items():
+        assert 'ROLE_GRANT_ROLES' not in info['tiers'], (
+            f'{filename} gates a route on ROLE_GRANT_ROLES; the org_admin '
+            'boundary is enforced per call in sis_service, not at the door.')
+    assert 'ADMIN_ROLES' in matrix['__init__.py']['tiers']
 
 
 def test_the_front_office_files_are_admin_gated(matrix):

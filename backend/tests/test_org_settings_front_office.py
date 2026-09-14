@@ -224,7 +224,8 @@ class TestTheEndpointItself:
 @pytest.mark.unit
 class TestTheStandingRegistrationLink:
     """The Registration page provisions the family link. Front office work —
-    but a link IS a standing role grant, so staff roles stay with an admin."""
+    and a link IS a standing role grant, so the org_admin one stays with an
+    admin. Every role below it is hers (2026-09-14)."""
 
     def test_she_cannot_mint_an_org_admin_link(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',
@@ -234,13 +235,15 @@ class TestTheStandingRegistrationLink:
                                headers=auth_headers, json={'role': 'org_admin'})
         assert resp.status_code == 403
 
-    def test_she_cannot_mint_an_advisor_link(self, client, auth_headers, mock_verify_token):
+    def test_an_advisor_link_is_hers_to_make(self, client, auth_headers, mock_verify_token):
+        """Refused until 2026-09-14 under "no staff roles at all". A teacher
+        cannot reach the money, so there was nothing to protect."""
         with patch('database.get_supabase_admin_client',
                    return_value=_caller_client(COORDINATOR_ROW)), \
              patch('services.sis_service.caller_can_grant_privileged_role', return_value=False):
             resp = client.post('/api/admin/organizations/org-1/invitations/link',
                                headers=auth_headers, json={'role': 'advisor'})
-        assert resp.status_code == 403
+        assert resp.status_code != 403
 
     def test_a_parent_link_is_hers_to_make(self, client, auth_headers, mock_verify_token):
         """Not asserting the 201 body — only that the role gate lets her past
@@ -255,7 +258,7 @@ class TestTheStandingRegistrationLink:
 
 @pytest.mark.unit
 class TestAddingPeople:
-    """Families are the front office's to add; staff accounts are not."""
+    """Everyone below org_admin is the front office's to add; admins are not."""
 
     def test_she_can_create_a_student_account(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',
@@ -267,7 +270,7 @@ class TestAddingPeople:
                                      'last_name': 'One', 'org_role': 'student'})
         assert resp.status_code != 403
 
-    def test_she_cannot_create_a_teacher_account(self, client, auth_headers, mock_verify_token):
+    def test_she_can_create_a_teacher_account(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',
                    return_value=_caller_client(COORDINATOR_ROW)), \
              patch('services.sis_service.caller_can_grant_privileged_role', return_value=False):
@@ -275,7 +278,7 @@ class TestAddingPeople:
                                headers=auth_headers,
                                json={'username': 't.one', 'first_name': 'T',
                                      'last_name': 'One', 'org_role': 'advisor'})
-        assert resp.status_code == 403
+        assert resp.status_code != 403
 
     def test_she_cannot_invite_an_org_admin(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client',
@@ -285,9 +288,14 @@ class TestAddingPeople:
                                json={'email': 'new@admin.test', 'role': 'org_admin'})
         assert resp.status_code == 403
 
-    def test_the_guard_leaves_family_roles_alone(self):
-        """No DB lookup at all for a family role — the check is only reached
-        when a staff role is asked for."""
+    def test_the_guard_leaves_every_role_below_admin_alone(self):
+        """No DB lookup at all below org_admin — the check is only reached
+        when the admin role is asked for."""
         from services.sis_service import caller_may_grant
-        for role in ('student', 'parent', 'observer'):
+        for role in ('student', 'parent', 'observer', 'advisor', 'campus_coordinator'):
             assert caller_may_grant('nobody-at-all', role) is True
+
+    def test_the_guard_still_stops_at_admin(self):
+        from services.sis_service import caller_may_grant
+        with patch('services.sis_service.caller_can_grant_privileged_role', return_value=False):
+            assert caller_may_grant('kate', 'org_admin') is False
