@@ -73,3 +73,53 @@ describe('uploading a document', () => {
     expect(api.post.mock.calls[0][1].get('task_count')).toBe('7')
   })
 })
+
+/**
+ * "Enter my tasks as I wrote them." iCreate, 2026-09-05 (edb43711): "can we
+ * check a box that makes it so it's just entered into the quest as we have it
+ * written? Instead of AI changing what I uploaded?" The box sends keep_wording
+ * with either kind of request, and retires the task-count picker while it is
+ * on, because the material decides the count.
+ */
+describe('keeping the teacher\'s wording', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.post.mockResolvedValue({ data: { quest: { title: 'T', description: 'D', tasks: [] } } })
+  })
+
+  it('is off by default, and the request says so', async () => {
+    render(<QuestAiDraftPanel alwaysOpen onDrafted={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Source material'), { target: { value: 'Week 1: read.' } })
+    fireEvent.click(screen.getByRole('button', { name: /generate draft/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    expect(api.post.mock.calls[0][1]).toMatchObject({ keep_wording: false, task_count: 4 })
+  })
+
+  it('sends keep_wording with pasted text', async () => {
+    render(<QuestAiDraftPanel alwaysOpen onDrafted={() => {}} />)
+    fireEvent.click(screen.getByLabelText(/enter my tasks as i wrote them/i))
+    fireEvent.change(screen.getByLabelText('Source material'), { target: { value: 'Week 1: read.' } })
+    fireEvent.click(screen.getByRole('button', { name: /generate draft/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    expect(api.post.mock.calls[0][1]).toMatchObject({ keep_wording: true })
+  })
+
+  it('sends keep_wording with an uploaded document', async () => {
+    render(<QuestAiDraftPanel alwaysOpen onDrafted={() => {}} />)
+    fireEvent.click(screen.getByLabelText(/enter my tasks as i wrote them/i))
+    pickFile()
+    fireEvent.click(screen.getByRole('button', { name: /generate draft/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    const body = api.post.mock.calls[0][1]
+    expect(body).toBeInstanceOf(FormData)
+    expect(body.get('keep_wording')).toBe('true')
+  })
+
+  it('retires the task-count picker while it is on, since the material decides', () => {
+    render(<QuestAiDraftPanel alwaysOpen onDrafted={() => {}} />)
+    const picker = screen.getByLabelText('How many tasks to generate')
+    expect(picker).toBeEnabled()
+    fireEvent.click(screen.getByLabelText(/enter my tasks as i wrote them/i))
+    expect(picker).toBeDisabled()
+  })
+})

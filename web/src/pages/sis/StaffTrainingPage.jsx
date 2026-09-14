@@ -422,6 +422,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           title={title} setTitle={setTitle}
           description={description} setDescription={setDescription}
           tasks={tasks} setTasks={setTasks}
+          questId={editItem?.quest_id || null}
           titlePlaceholder={audience === 'family' ? 'Quest title (e.g. Back to school night)'
             : audience === 'student' ? 'Quest title (e.g. Welcome to iCreate)'
               : 'Quest title (e.g. Classroom management)'}

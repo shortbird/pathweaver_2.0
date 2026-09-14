@@ -35,7 +35,7 @@ const fmtDate = (d) => {
 }
 
 const RosterPage = ({ embedded = false, toolbarEl = null }) => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, canViewAs } = useSisOrg()
   const navigate = useNavigate()
   // QF-03: roster + loading come from react-query now, so a return to this page
   // reads cache instead of refetching, and two components mounting it share one
@@ -100,7 +100,9 @@ const RosterPage = ({ embedded = false, toolbarEl = null }) => {
   const actionsFor = (s) => [
     { label: 'Manage', onClick: () => setSelected(s) },
     s.is_student && { label: 'Overview', onClick: () => goOverview(s) },
-    s.is_student && isSuperadmin && { label: 'View as student', onClick: () => viewAsStudent(s) },
+    // The backend rule (caller_may_masquerade) has let an org admin open a
+    // student of their own school since August; only this gate was narrower.
+    s.is_student && canViewAs && { label: 'View as student', onClick: () => viewAsStudent(s) },
     { label: 'Remove from school…', danger: true, onClick: () => setRemoving(s) },
   ].filter(Boolean)
 

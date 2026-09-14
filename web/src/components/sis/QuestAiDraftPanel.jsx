@@ -32,6 +32,14 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
   const [context, setContext] = useState('')
   const [notes, setNotes] = useState('')
   const [taskCount, setTaskCount] = useState(4)
+  // "Enter it as I wrote it." The house style (a fixed task count, short
+  // re-verbed titles, a 5th-grade reading level) is what rewrote a finished
+  // lesson plan into something else -- iCreate, 2026-09-05: "can we check a
+  // box that makes it so it's just entered into the quest as we have it
+  // written? Instead of AI changing what I uploaded?" With this on, the task
+  // count is the source's own and titles and descriptions are copied, not
+  // composed; the AI still fills in pillar, subjects and XP.
+  const [keepWording, setKeepWording] = useState(false)
   // The chosen document is held until Generate is pressed rather than sent the
   // instant it is picked. Choosing a file used to start the run on the spot,
   // which meant the notes and task-count fields above it were whatever they
@@ -74,11 +82,13 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
         fd.append('file', file)
         fd.append('notes', notes)
         fd.append('task_count', String(taskCount))
+        fd.append('keep_wording', keepWording ? 'true' : 'false')
         res = await api.post('/api/sis/quest-drafts/generate', fd,
           { headers: { 'Content-Type': 'multipart/form-data' } })
       } else {
         res = await api.post('/api/sis/quest-drafts/generate', {
           context: context.trim(), notes: notes.trim(), task_count: taskCount,
+          keep_wording: keepWording,
         })
       }
       if (!res.data?.quest) throw new Error()
@@ -134,12 +144,25 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
         placeholder="Anything to emphasise? (optional — e.g. hands-on, ages 8-10)"
         className={inputCls} />
 
+      <label className="flex items-start gap-2 text-sm text-neutral-700">
+        <input type="checkbox" className="mt-0.5" checked={keepWording}
+          onChange={(e) => setKeepWording(e.target.checked)} />
+        <span>
+          Enter my tasks as I wrote them
+          <span className="block text-xs text-neutral-500">
+            One task per item in your material, titles and instructions copied word for word.
+            Pillar, subjects and XP are still filled in for you to check.
+          </span>
+        </span>
+      </label>
+
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-sm text-neutral-600">
+        <label className={`flex items-center gap-1.5 text-sm ${keepWording ? 'text-neutral-400' : 'text-neutral-600'}`}>
           Tasks
           <select value={taskCount} onChange={(e) => setTaskCount(Number(e.target.value))}
-            aria-label="How many tasks to generate"
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+            aria-label="How many tasks to generate" disabled={keepWording}
+            title={keepWording ? 'Your material decides how many tasks there are' : undefined}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm disabled:opacity-50">
             {[2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>

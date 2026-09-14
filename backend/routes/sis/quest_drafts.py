@@ -2,9 +2,12 @@
 Quest drafting from material a school already has (2026-08-12).
 
 POST /api/sis/quest-drafts/generate
-  JSON      {context, notes?, task_count?}
-  multipart file=<pdf|docx|txt|md|csv> (+ notes, task_count)
+  JSON      {context, notes?, task_count?, keep_wording?}
+  multipart file=<pdf|docx|txt|md|csv> (+ notes, task_count, keep_wording)
   -> {success, quest: {title, description, tasks: [...]}}
+
+keep_wording: the material is already the task list; copy it rather than
+compose from it, one task per item, and ignore task_count (iCreate, edb43711).
 
 Propose only. Nothing is written to the database here; the draft fills the same
 quest form staff would otherwise type into, and creating the quest is a separate,
@@ -79,11 +82,13 @@ def generate(user_id):
             return jsonify({'success': False, 'error': err}), 400
         notes = (request.form.get('notes') or '').strip()
         raw_count = request.form.get('task_count')
+        keep_wording = (request.form.get('keep_wording') or '').lower() in ('1', 'true', 'yes')
     else:
         data = request.get_json(silent=True) or {}
         context = (data.get('context') or '').strip()
         notes = (data.get('notes') or '').strip()
         raw_count = data.get('task_count')
+        keep_wording = bool(data.get('keep_wording'))
         if not context:
             return jsonify({'success': False,
                             'error': 'Paste some context or upload a document first.'}), 400
@@ -97,7 +102,8 @@ def generate(user_id):
     from services.base_ai_service import AIServiceOverloadedError, AIServiceError
     try:
         result = QuestAIService().draft_quest_from_context(
-            context[:_MAX_CONTEXT_CHARS], notes=notes[:1000], target_task_count=task_count)
+            context[:_MAX_CONTEXT_CHARS], notes=notes[:1000], target_task_count=task_count,
+            keep_wording=keep_wording)
     except AIServiceOverloadedError:
         return jsonify({'success': False,
                         'error': 'The AI is busy right now — try again in a moment.'}), 503

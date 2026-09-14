@@ -322,8 +322,15 @@ Return ONLY valid JSON (no markdown code blocks):
                 'tasks': []
             }
 
+    # The most tasks a "keep my wording" draft may carry. The form has no limit
+    # and the normaliser caps at the target count; a document that lists thirty
+    # activities is one the teacher meant to keep, so the ceiling is generous
+    # and only guards the token budget.
+    VERBATIM_MAX_TASKS = 30
+
     def draft_quest_from_context(self, context: str, notes: str = "",
-                                 target_task_count: int = 4) -> Dict[str, Any]:
+                                 target_task_count: int = 4,
+                                 keep_wording: bool = False) -> Dict[str, Any]:
         """Turn whatever material a school already has into a quest draft.
 
         Built for the SIS (2026-08-12): staff paste a syllabus, a unit outline or
@@ -337,12 +344,26 @@ Return ONLY valid JSON (no markdown code blocks):
         than reading the school's own material). Here the source text is
         authoritative: the model reorganizes what is there, it does not replace
         it with a generic unit on the same subject.
+
+        keep_wording is the teacher saying the material IS the quest: the task
+        list is already written, take it as it stands. The house style below
+        (a fixed task count, 5-8 word titles, a 5th-grade reading level) is
+        exactly the set of rules that rewrote a finished lesson plan into
+        something else (iCreate, 2026-09-05, edb43711: "can we check a box
+        that makes it so it's just entered into the quest as we have it
+        written? Instead of AI changing what I uploaded?"). With it on, those
+        rules are dropped, the count follows the source, and titles and
+        descriptions are copied rather than composed; the model still fills
+        in what the source cannot say (pillar, subjects, XP, required).
         """
         context = (context or '').strip()
         if not context:
             return {'success': False, 'error': 'Some context is required', 'quest': None}
 
-        target_task_count = max(2, min(8, target_task_count))
+        if keep_wording:
+            target_task_count = self.VERBATIM_MAX_TASKS
+        else:
+            target_task_count = max(2, min(8, target_task_count))
         pillars = ', '.join(self.valid_pillars)
         subjects = ', '.join(self.school_subjects)
         # The teacher's own instructions go LAST, after the house style, and say
@@ -362,6 +383,39 @@ instruction about one task to every task.
 \"\"\"
 """ if (notes or '').strip() else "")
 
+        if keep_wording:
+            task_rules = f"""- tasks: ONE task per activity, step or assignment the source lists,
+  in the source's order, at most {target_task_count}. Each with:
+    - title: the source's own heading or first line for that item, copied
+      word for word (trimmed to 300 characters). Do not rephrase, shorten,
+      re-verb or improve it.
+    - description: the source's own text for that item, copied word for word
+      (trimmed to 1000 characters). If the source has none, leave it empty
+      rather than writing one.
+    - pillar: one of [{pillars}]"""
+            quest_rules = """- title: the source's own title if it has one, copied word for word;
+  otherwise 3-8 plain words naming it
+- description: the source's own introduction or summary if it has one, copied
+  word for word; otherwise one sentence saying what the learner will do"""
+            style_rules = ("WORDING: the teacher has asked that their material be entered as "
+                           "written. Every title and description must be text that appears in "
+                           "the source. Do not simplify the reading level, do not add "
+                           "encouragement, do not merge or split items.")
+        else:
+            quest_rules = """- title: 3-8 words, concrete, no colons or subtitles
+- description: 2-3 sentences saying what the learner will actually do"""
+            task_rules = f"""- tasks: exactly {target_task_count} tasks drawn from the source material, in a
+  sensible order, each with:
+    - title: starts with a plain action verb — whatever the action actually is
+      (Read, Find, Watch, Visit, Ask, Practise, Make, Build, Write, Draw,
+      Record, Interview, Test, Show). Do not swap the verb for a different
+      activity: if the task is to read something, the task is to read it.
+      5-8 words, ONE idea.
+    - description: 1-2 sentences, plain words, suggesting how they might do it.
+    - pillar: one of [{pillars}]"""
+            style_rules = ("READING LEVEL: 5th-6th grade. The task may be hard; the words must "
+                           "be easy.")
+
         prompt = f"""
 You are helping a teacher turn material they already wrote into an Optio quest.
 
@@ -375,17 +429,8 @@ in the source's own words and order — do not reword them into your own):
 \"\"\"
 
 Produce ONE quest:
-- title: 3-8 words, concrete, no colons or subtitles
-- description: 2-3 sentences saying what the learner will actually do
-- tasks: exactly {target_task_count} tasks drawn from the source material, in a
-  sensible order, each with:
-    - title: starts with a plain action verb — whatever the action actually is
-      (Read, Find, Watch, Visit, Ask, Practise, Make, Build, Write, Draw,
-      Record, Interview, Test, Show). Do not swap the verb for a different
-      activity: if the task is to read something, the task is to read it.
-      5-8 words, ONE idea.
-    - description: 1-2 sentences, plain words, suggesting how they might do it.
-    - pillar: one of [{pillars}]
+{quest_rules}
+{task_rules}
     - school_subjects: 1-3 of [{subjects}] — the school subjects this
       particular task earns credit toward, most important first. Judge the task,
       not the unit: a unit can be history while the essay task inside it is
@@ -398,7 +443,7 @@ Produce ONE quest:
       required, every task they did not name is false — "make the first task
       required" means exactly one true.
 {extra}
-READING LEVEL: 5th-6th grade. The task may be hard; the words must be easy.
+{style_rules}
 Do not mention grades, points beyond XP, deadlines, or assessment rubrics.
 
 {JSON_OUTPUT_INSTRUCTIONS}

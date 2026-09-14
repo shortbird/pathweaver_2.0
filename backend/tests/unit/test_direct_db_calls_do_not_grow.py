@@ -315,7 +315,12 @@ BASELINES = {
     # 2026-09-11: 529 -> 530. story_repository.list_previewable, behind the
     # dev-only ?preview=1 on the public stories route so a story in review can
     # be seen as a www page before anyone presses Publish.
-    'repositories': 530,
+    # 2026-09-14: 530 -> 531. school_enrollment_repository.find_for_student,
+    # the read "Withdraw from school" on a family record makes before marking
+    # a student withdrawn again. school_enrollments had no repository; the
+    # service that writes it (sis_person_service._archive) keeps its existing
+    # direct calls and adds none.
+    'repositories': 531,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

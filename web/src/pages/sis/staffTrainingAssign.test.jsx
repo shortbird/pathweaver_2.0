@@ -374,6 +374,9 @@ describe('reopening a quest for more editing', () => {
 
   const openEditor = async () => {
     api.get.mockImplementation((url) => {
+      // The editor also loads the saved quest's resources (per quest and per
+      // task) -- a different payload from the quest itself.
+      if (url.includes('/resources')) return Promise.resolve({ data: { quest: [], by_task: {} } })
       if (url.includes('/quest')) return Promise.resolve({ data: { quest: QUEST, training: TRAINING } })
       if (url.includes('/training/progress')) {
         return Promise.resolve({ data: { training: [], staff: [], required_total: 0 } })

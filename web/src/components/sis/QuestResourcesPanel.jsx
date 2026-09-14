@@ -35,7 +35,10 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
     api.get(`/api/sis/quests/${questId}/resources`)
       .then((r) => {
         const data = r.data || {}
-        setResources(taskId ? (data.by_task?.[taskId] || []) : (data.quest || []))
+        const rows = taskId ? data.by_task?.[taskId] : data.quest
+        // A response of another shape (a proxy error page, a stale mock) must
+        // render as an empty list, not take the whole form down with it.
+        setResources(Array.isArray(rows) ? rows : [])
       })
       .catch(() => toast.error('Could not load the resources'))
       .finally(() => setLoading(false))

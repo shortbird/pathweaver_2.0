@@ -557,6 +557,24 @@ def delete_household(user_id, household_id):
     return jsonify({'success': True, 'orphaned_members': orphaned})
 
 
+@bp.route('/households/<household_id>/withdraw', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def withdraw_household(user_id, household_id):
+    """The family is leaving the school. Every student in it is marked
+    withdrawn and their class seats are freed, the way People > Everyone >
+    Remove from school > Archive does one at a time; guardians, the family
+    record and every piece of history stay. Delete family is the other act,
+    and the wrong one for this (iCreate, 2026-09-08, e40080a8)."""
+    org_id, err = _org_or_error(user_id)
+    if err:
+        return err
+    from services import sis_person_service
+    result = sis_person_service.withdraw_household(org_id, household_id)
+    if result.get('error'):
+        return jsonify({'success': False, 'error': result['error']}), 404
+    return jsonify({'success': True, **result})
+
+
 @bp.route('/households/<household_id>/image', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def upload_household_image(user_id, household_id):

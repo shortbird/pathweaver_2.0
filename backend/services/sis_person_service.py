@@ -260,3 +260,58 @@ def _delete(org_id: str, target_id: str, name: str) -> Dict[str, Any]:
                             f'without losing those records.')}
     logger.info(f'[People] deleted account {target_id[:8]} from org {org_id[:8]}')
     return {'deleted': True, 'name': name, 'seats_released': seats}
+
+
+def withdraw_household(org_id: str, household_id: str) -> Dict[str, Any]:
+    """A whole family leaving the school, from the family record.
+
+    The only way to withdraw a family was one person at a time from People >
+    Everyone > Remove from school, and it was not findable from the Families
+    tab, which is where the office is standing when a family leaves. iCreate,
+    2026-09-08 (e40080a8): "Trying to unenroll family. But the instructions
+    don't explain how to do it" -- filed after opening Delete family and
+    cancelling it three times, because deleting is the wrong act and the dialog
+    says so.
+
+    Each STUDENT in the family is archived exactly as the roster's Archive does
+    it (withdrawn, class seats released, history kept). Guardians and the family
+    record itself are left alone on purpose: the family may still owe or be
+    owed money, the office may still need to reach them, and the record is
+    what groups the children's history. Removing the accounts entirely stays a
+    per-person act, because it is rarely what is meant.
+
+    Returns {'withdrawn': [{id, name, seats_released}], 'already': [names]}.
+    """
+    from repositories.household_repository import HouseholdRepository
+    repo = HouseholdRepository(client=_admin())
+    household = repo.find_by_id(household_id)
+    if not household or household.get('organization_id') != org_id:
+        return {'error': 'Household not found'}
+
+    student_ids = [m['user_id'] for m in repo.members_for_households([household_id])
+                   if m.get('relationship') == 'student' and m.get('user_id')]
+    withdrawn: List[Dict[str, Any]] = []
+    already: List[str] = []
+    for student_id in student_ids:
+        u = _user(org_id, student_id)
+        if not u:
+            continue
+        name = _full_name(u)
+        # Nothing left to withdraw: no active seats and already marked. A
+        # second click must not report the same family withdrawn twice.
+        if not _history(org_id, student_id)['class_enrollments'] \
+                and _is_withdrawn(org_id, student_id):
+            already.append(name)
+            continue
+        result = _archive(org_id, student_id, name, student=True)
+        withdrawn.append({'id': student_id, 'name': name,
+                          'seats_released': result.get('seats_released', 0)})
+    return {'withdrawn': withdrawn, 'already': already,
+            'household_name': household.get('name')}
+
+
+def _is_withdrawn(org_id: str, student_id: str) -> bool:
+    """Whether the school already lists this student as withdrawn."""
+    from repositories.school_enrollment_repository import SchoolEnrollmentRepository
+    row = SchoolEnrollmentRepository(client=_admin()).find_for_student(org_id, student_id)
+    return bool(row and row.get('status') == 'withdrawn')

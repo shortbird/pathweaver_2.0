@@ -150,6 +150,37 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not delete family') }
   }
 
+  // Leaving the school is not deleting the family. The office opened Delete
+  // family and cancelled it three times looking for this (iCreate, 2026-09-08:
+  // "Trying to unenroll family. But the instructions don't explain how to do
+  // it") -- withdrawing lived one person at a time on People > Everyone, and
+  // nothing on the family record pointed there.
+  const withdrawFamily = async () => {
+    const students = (household.members || []).filter((m) => m.relationship === 'student')
+    if (!(await confirm(
+      `Withdraw ${household.name} from the school?\n\n`
+      + (students.length
+        ? `${students.map((m) => m.name).join(', ')} ${students.length === 1 ? 'is' : 'are'} `
+          + 'marked withdrawn and their class seats are freed. '
+        : 'This family has no students on it, so there is nothing to withdraw. ')
+      + 'Accounts, the family record and all history stay, so billing and records '
+      + 'are still here. To remove an account entirely, use People › Everyone › Remove from school.'
+    ))) return
+    try {
+      const { data } = await sisFamilyApi.withdraw(household.id, orgId)
+      const done = data?.withdrawn || []
+      const already = data?.already || []
+      if (done.length) {
+        toast.success(`${done.map((w) => w.name).join(', ')} withdrawn`)
+      } else if (already.length) {
+        toast(`${already.join(', ')} ${already.length === 1 ? 'was' : 'were'} already withdrawn`)
+      } else {
+        toast('No students to withdraw')
+      }
+      onSaved?.()
+    } catch (e) { toast.error(e?.response?.data?.error || 'Could not withdraw the family') }
+  }
+
   const openUserModal = async (userId) => {
     try {
       const r = await sisFamilyApi.getUser(userId, orgId)
@@ -209,8 +240,15 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
                 </label>
               </div>
               <MembersSection household={household} orgId={orgId} members={members} onSaved={onSaved} onOpenUser={openUserModal} />
-              <div className="border-t border-gray-100 pt-4">
-                <button onClick={deleteFamily} className="text-sm text-red-600 font-medium hover:underline">Delete family</button>
+              <div className="border-t border-gray-100 pt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+                <div>
+                  <button onClick={withdrawFamily} className="text-sm text-neutral-700 font-medium hover:underline">Withdraw from school</button>
+                  <p className="text-xs text-neutral-400">The family is leaving. Students are marked withdrawn and their seats freed; everything else stays.</p>
+                </div>
+                <div>
+                  <button onClick={deleteFamily} className="text-sm text-red-600 font-medium hover:underline">Delete family</button>
+                  <p className="text-xs text-neutral-400">For a duplicate or a mistake. The people keep their accounts.</p>
+                </div>
               </div>
             </div>
           )}

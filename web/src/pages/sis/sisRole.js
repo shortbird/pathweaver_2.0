@@ -64,6 +64,20 @@ export const isCampusCoordinator = (user) => {
 export const canSeeFinance = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
 
 /**
+ * Who may open another member's account — "View as student" on the roster,
+ * the "Viewing as" picker in the sidebar. Mirrors the backend's one rule
+ * (utils/token_authority.caller_may_masquerade): a superadmin may act as
+ * anyone; an org admin may act as a non-admin member of their own school.
+ *
+ * The roster button used to be superadmin-only while the backend had allowed
+ * org admins for weeks, so the school that asked for it could not use it
+ * (iCreate, 2026-09-04: "can you make it so we can view as students as well
+ * so we can see what a given student is able to see?"). A coordinator is not
+ * in this set for the same reason the backend leaves them out.
+ */
+export const canViewAs = (user) => isSisAdmin(user) && !isCampusCoordinator(user)
+
+/**
  * Who may change somebody's role (backend: sis_roles.ROLE_GRANT_ROLES).
  *
  * Same membership as canSeeFinance, kept as its own name because it is a

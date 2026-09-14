@@ -2,6 +2,7 @@ import React from 'react'
 import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 import TaskSubjectPicker from './TaskSubjectPicker'
+import QuestResourcesPanel from './QuestResourcesPanel'
 import { defaultSubjectForPillar, evenSplit } from '../../constants/diplomaSubjects'
 
 /**
@@ -80,7 +81,7 @@ export function followPillar(task, pillar) {
  * "Find the Absences feature in Optio" among them. Hide it only where the
  * default is genuinely as good as any answer.
  */
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true }) {
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, questId = null }) {
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
   // Order is the order learners see, and the row's order_index is just its
@@ -149,6 +150,12 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
             subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
             xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
             onChange={(patch) => update(i, patch)} />
+          {/* A saved task can carry its own video, link or file. A task typed
+              into the form and not saved yet has no id to attach to, so it
+              waits for the save. */}
+          {questId && t.id && (
+            <QuestResourcesPanel questId={questId} taskId={t.id} compact />
+          )}
         </div>
       ))}
       {/* Deliberately a filled button rather than the text link it used to be.
@@ -185,6 +192,13 @@ export default function QuestDraftForm({
   taskHint = 'Preset tasks are copied to each learner when they start the quest. Leave it empty and they write their own. Every task needs evidence — a photo, a note or a link — before a learner can mark it done.',
   addLabel,
   showPillars = true,
+  // The saved quest this form is editing, if any. With it, the quest and each
+  // saved task get a Resources panel -- the training editor had none, so a
+  // teacher-training video could only be pasted as text into a description
+  // (iCreate, 2026-09-08, 774e2fe2: "I need to be able to link to videos in
+  // the training section"). Left null on a brand-new draft: there is nothing
+  // to attach to until the first save.
+  questId = null,
 }) {
   return (
     <div className="space-y-3">
@@ -193,9 +207,17 @@ export default function QuestDraftForm({
       <textarea value={description} onChange={(e) => setDescription(e.target.value)}
         placeholder={descriptionPlaceholder} rows={2} aria-label="Quest description"
         className={`${inputCls} resize-none`} />
+      {questId && (
+        <div>
+          <p className="text-xs text-neutral-400 mb-1">
+            Videos, links and files for the whole quest. Anything that belongs to one step goes on that task below.
+          </p>
+          <QuestResourcesPanel questId={questId} />
+        </div>
+      )}
       <div>
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
-        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars} />
+        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars} questId={questId} />
       </div>
     </div>
   )
