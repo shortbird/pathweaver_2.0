@@ -58,42 +58,6 @@ const Layout = () => {
     },
   })
 
-  if (focus) {
-    const focusConfig = getFocusConfig()
-    const onHome = location.pathname === focusConfig.homeRoute
-    return (
-      <div className="min-h-screen bg-neutral-50">
-        <main id="main-content" className="min-h-screen pb-28">
-          <Outlet />
-        </main>
-        {/* Large, easy-to-reach Back button on every non-home page. Steps back
-            through history (so leaving a sub-screen returns to the previous
-            screen, not all the way home); falls back to the program home when
-            this is the first in-app page. */}
-        {!onHome && (
-          <button
-            onClick={() => {
-              if (window.history.state?.idx > 0) {
-                navigate(-1)
-              } else {
-                navigate(focusConfig.homeRoute || '/')
-              }
-            }}
-            className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-optio-purple text-white text-xl font-bold px-8 py-5 shadow-lg active:scale-95 transition"
-          >
-            ← Back
-          </button>
-        )}
-        {/* Subtle exit-fullscreen for facilitators (students stay in focus mode) */}
-        <button
-          onClick={() => setFocusMode(false)}
-          className="fixed top-3 right-3 z-50 text-xs text-neutral-400 hover:text-neutral-600 bg-white/70 rounded-full px-3 py-1"
-        >
-          Exit fullscreen
-        </button>
-      </div>
-    )
-  }
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -134,6 +98,49 @@ const Layout = () => {
     } catch (error) {
       // Silent fail - use defaults
     }
+  }
+
+  // The focus-mode chrome returns early, so it has to come AFTER every hook
+  // above. It used to sit before the sidebar and site-settings hooks: leaving
+  // focus mode ("Exit fullscreen", or the kiosk idle logout) then rendered
+  // more hooks than the previous render had, React #310 took the whole app
+  // down, and the ErrorBoundary was the next thing the student saw
+  // (OPTIO-WEB-1P, 2026-09-14).
+  if (focus) {
+    const focusConfig = getFocusConfig()
+    const onHome = location.pathname === focusConfig.homeRoute
+    return (
+      <div className="min-h-screen bg-neutral-50">
+        <main id="main-content" className="min-h-screen pb-28">
+          <Outlet />
+        </main>
+        {/* Large, easy-to-reach Back button on every non-home page. Steps back
+            through history (so leaving a sub-screen returns to the previous
+            screen, not all the way home); falls back to the program home when
+            this is the first in-app page. */}
+        {!onHome && (
+          <button
+            onClick={() => {
+              if (window.history.state?.idx > 0) {
+                navigate(-1)
+              } else {
+                navigate(focusConfig.homeRoute || '/')
+              }
+            }}
+            className="fixed bottom-6 left-6 z-50 flex items-center gap-2 rounded-full bg-optio-purple text-white text-xl font-bold px-8 py-5 shadow-lg active:scale-95 transition"
+          >
+            ← Back
+          </button>
+        )}
+        {/* Subtle exit-fullscreen for facilitators (students stay in focus mode) */}
+        <button
+          onClick={() => setFocusMode(false)}
+          className="fixed top-3 right-3 z-50 text-xs text-neutral-400 hover:text-neutral-600 bg-white/70 rounded-full px-3 py-1"
+        >
+          Exit fullscreen
+        </button>
+      </div>
+    )
   }
 
   // Show sidebar for all authenticated users except observers
@@ -193,8 +200,9 @@ const Layout = () => {
         </div>
       </footer>
 
-      {/* Staff issue reporting is the Perch FAB, mounted app-wide in App.jsx
-          (PerchReporter) — it replaced the beta FeedbackFab here. */}
+      {/* Staff issue reporting is IssueReporter, mounted app-wide in App.jsx.
+          It files into /admin/tickets; it replaced the Perch widget, which
+          had replaced the beta FeedbackFab here. */}
     </div>
   )
 }

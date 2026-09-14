@@ -158,6 +158,10 @@ def _can_touch(user_id: str, message_type: str, message_id: str) -> Optional[Dic
 
 
 # ── Reactions ──────────────────────────────────────────────────────────────────
+def _is_duplicate_reaction(exc) -> bool:
+    return getattr(exc, 'code', None) == '23505' or 'duplicate key' in str(exc).lower()
+
+
 def toggle_reaction(user_id: str, message_type: str, message_id: str, emoji: str) -> Dict[str, Any]:
     if emoji not in ALLOWED_REACTIONS:
         return {'error': 'Unsupported reaction'}
@@ -172,10 +176,19 @@ def toggle_reaction(user_id: str, message_type: str, message_id: str, emoji: str
         admin.table('message_reactions').delete().eq('id', existing[0]['id']).execute()
         added = False
     else:
-        admin.table('message_reactions').insert({
-            'message_type': message_type, 'message_id': message_id,
-            'user_id': user_id, 'emoji': emoji,
-        }).execute()
+        try:
+            admin.table('message_reactions').insert({
+                'message_type': message_type, 'message_id': message_id,
+                'user_id': user_id, 'emoji': emoji,
+            }).execute()
+        except Exception as e:  # noqa: BLE001 -- only the unique race is absorbed
+            # Two taps on the same pill arrive together: both reads above see
+            # no row, both insert, and the second hits the (type, message,
+            # user, emoji) unique key -- a 500 for a heart that was already
+            # there (OPTIO-BACKEND-8W, 2026-09-14). The row the other request
+            # just wrote IS the state this one asked for, so answer with it.
+            if not _is_duplicate_reaction(e):
+                raise
         added = True
 
     reactions = reactions_for_messages(message_type, [message_id], user_id).get(message_id, [])
