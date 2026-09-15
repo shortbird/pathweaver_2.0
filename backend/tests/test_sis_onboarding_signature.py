@@ -247,9 +247,11 @@ class TestTheTemplateFlag:
                                'needs_signature': True, 'required': True}]}
         client = Mock()
         table = Mock()
-        for chained in ('select', 'eq', 'limit', 'insert'):
+        for chained in ('select', 'eq', 'limit', 'order', 'insert'):
             getattr(table, chained).return_value = table
-        table.execute.return_value = Mock(data=[template])
+        # Reads in order: the template, the checklist the signer may already
+        # hold (none -- assign hands back an existing one), then the insert.
+        table.execute.side_effect = [Mock(data=[template]), Mock(data=[]), Mock(data=[{'id': 'a1'}])]
         client.table.return_value = table
         captured = {}
 

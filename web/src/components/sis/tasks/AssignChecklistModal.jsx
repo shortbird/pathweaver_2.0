@@ -62,7 +62,14 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
         organization_id: orgId, template_id: assignTemplate, user_ids: userIds,
       })
       const n = r.data?.assigned ?? userIds.length
-      toast.success(`Assigned to ${n} ${audience === 'family' ? 'famil' + (n === 1 ? 'y' : 'ies') : 'staff'}`)
+      // Somebody who already holds this checklist keeps the one they have --
+      // the server does not mint a second, blank copy (ticket 8670a5e9). Say
+      // so, or "Assigned to 7" for 13 recipients reads as six failures.
+      const already = r.data?.already_assigned || 0
+      const who = audience === 'family' ? 'famil' + (n === 1 ? 'y' : 'ies') : 'staff'
+      toast.success(already
+        ? `Assigned to ${n} ${who}; ${already} already had it`
+        : `Assigned to ${n} ${who}`)
       onAssigned?.()
       onClose()
     } catch (err) {

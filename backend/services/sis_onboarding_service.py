@@ -436,6 +436,21 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     except RecipientNotInOrg as e:
         return {'error': str(e)}
     template = rows[0]
+    # One checklist per person per template. Assigning is a snapshot with every
+    # item pending, so assigning the same template to somebody who already holds
+    # it minted a second, blank copy beside the one they had worked through --
+    # and the dashboard banner, the completion report and the roll-up all read
+    # the newest row. iCreate bulk-assigned a renamed template to 13 staff on
+    # 2026-09-10; six already had it, five of those complete, and every one of
+    # them was told they had done none of it (ticket 8670a5e9). Hand back the
+    # row they have instead. Pushing an edited template onto existing
+    # checklists is sync_assignments, deliberately a separate button.
+    held = (_admin().table('sis_onboarding_assignments').select('*')
+            .eq('organization_id', org_id).eq('user_id', user_id)
+            .eq('template_id', template_id).eq('kind', 'checklist')
+            .order('created_at', desc=True).limit(1).execute()).data
+    if held:
+        return {'assignment': held[0], 'already_assigned': True}
     # Family checklists live in the learning-app family portal; staff ones in the
     # SIS console — point the notification at the right place.
     is_family = _clean_audience(template.get('audience')) == 'family'
@@ -470,15 +485,18 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
 def assign_many(org_id: str, template_id: str, user_ids: List[str],
                 assigned_by: str) -> Dict[str, Any]:
     """Assign a template to several people at once (bulk). Returns how many were
-    assigned; skips ids that error so one bad id doesn't sink the batch."""
-    assigned, errors = 0, []
+    assigned and how many already held it; skips ids that error so one bad id
+    doesn't sink the batch."""
+    assigned, already, errors = 0, 0, []
     for uid in dict.fromkeys(uid for uid in user_ids if uid):  # de-dupe, keep order
         result = assign(org_id, template_id, uid, assigned_by)
         if result.get('error'):
             errors.append(result['error'])
+        elif result.get('already_assigned'):
+            already += 1
         else:
             assigned += 1
-    return {'assigned': assigned, 'errors': errors}
+    return {'assigned': assigned, 'already_assigned': already, 'errors': errors}
 
 
 def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,

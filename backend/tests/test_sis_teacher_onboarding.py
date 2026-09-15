@@ -228,9 +228,11 @@ class TestChecklistAudience:
         template = {'id': 't1', 'organization_id': ORG, 'name': 'Family paperwork',
                     'audience': 'family', 'items': [{'key': 'i1', 'title': 'Sign'}]}
         # Reads in order: the template, then the recipient's org membership
-        # (assign refuses to file a checklist into another tenant), then the insert.
+        # (assign refuses to file a checklist into another tenant), then the
+        # checklist they may already hold (none), then the insert.
         client, table = _admin_with([[template],
                                      [{'id': 'u-9', 'organization_id': ORG}],
+                                     [],
                                      [{'id': 'a1'}]])
         with patch('services.sis_onboarding_service._admin',
                    return_value=client), \
@@ -429,7 +431,8 @@ class TestChecklistDirections:
         template = {'id': 't1', 'organization_id': ORG, 'name': 'Employee',
                     'description': 'Work top to bottom.', 'audience': 'staff',
                     'items': [{'key': 'item_1', 'title': 'Sign contract'}]}
-        client, table = _admin_with([[template], [{'id': 'a1'}]])
+        # Reads: the template, the checklist already held (none), the insert.
+        client, table = _admin_with([[template], [], [{'id': 'a1'}]])
         with patch.object(svc, '_admin', return_value=client), \
              patch.object(svc, 'assert_recipients_in_org'), \
              patch.object(svc, 'sis_notifications'):
@@ -449,6 +452,60 @@ class TestChecklistDirections:
             res = svc.sync_assignments(ORG, 't1')
         assert res['synced'] == 1
         assert table.update.call_args[0][0]['description'] == 'Updated directions for everyone.'
+
+
+@pytest.mark.unit
+class TestOneChecklistPerPersonPerTemplate:
+    """Ticket 8670a5e9 (Marika, iCreate, 2026-09-14): "when onboarding appeared
+    back on teachers pages, it is showing it as if they have not done any of
+    it even if they had." The office bulk-assigned a renamed template to 13
+    staff; six already held it, five of those complete. assign() snapshotted
+    a second, all-pending copy for each, and every reader of the table takes
+    the newest row."""
+
+    TEMPLATE = {'id': 't1', 'organization_id': ORG, 'name': 'Employee',
+                'audience': 'staff', 'items': [{'key': 'item_1', 'title': 'Sign contract'}]}
+
+    def test_a_second_assign_hands_back_the_checklist_they_hold(self):
+        from services import sis_onboarding_service as svc
+        held = {'id': 'a-old', 'user_id': 'user-1', 'template_id': 't1', 'status': 'complete',
+                'items': [{'key': 'item_1', 'title': 'Sign contract', 'status': 'complete'}]}
+        client, table = _admin_with([[self.TEMPLATE], [held]])
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'assert_recipients_in_org'), \
+             patch.object(svc, 'sis_notifications') as notes:
+            res = svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
+        assert res == {'assignment': held, 'already_assigned': True}
+        table.insert.assert_not_called()
+        notes.notify.assert_not_called()
+
+    def test_the_held_lookup_is_scoped_to_this_person_template_and_kind(self):
+        """A document sent for signature is its own row under the same
+        template-less shape; it must not count as holding the checklist."""
+        from services import sis_onboarding_service as svc
+        client, table = _admin_with([[self.TEMPLATE], [], [{'id': 'a-new'}]])
+        with patch.object(svc, '_admin', return_value=client), \
+             patch.object(svc, 'assert_recipients_in_org'), \
+             patch.object(svc, 'sis_notifications'):
+            res = svc.assign(ORG, 't1', 'user-1', assigned_by='admin-1')
+        filters = [c[0] for c in table.eq.call_args_list]
+        for f in (('organization_id', ORG), ('user_id', 'user-1'),
+                  ('template_id', 't1'), ('kind', 'checklist')):
+            assert f in filters
+        assert res['assignment'] == {'id': 'a-new'}
+        assert not res.get('already_assigned')
+
+    def test_bulk_assign_counts_the_people_who_already_had_it(self):
+        from services import sis_onboarding_service as svc
+        outcomes = {
+            'u-1': {'assignment': {'id': 'a1'}},
+            'u-2': {'assignment': {'id': 'a-old'}, 'already_assigned': True},
+            'u-3': {'error': 'That person is not part of this organization'},
+        }
+        with patch.object(svc, 'assign', side_effect=lambda o, t, u, a: outcomes[u]):
+            res = svc.assign_many(ORG, 't1', ['u-1', 'u-2', 'u-3'], assigned_by='admin-1')
+        assert res == {'assigned': 1, 'already_assigned': 1,
+                       'errors': ['That person is not part of this organization']}
 
 
 @pytest.mark.unit
