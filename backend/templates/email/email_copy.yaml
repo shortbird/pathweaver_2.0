@@ -452,6 +452,33 @@ emails:
     closing_paragraph: "If you weren't expecting this change, contact {{ org_name }} or email us at support@optioeducation.com."
     signature: "support"
 
+  # An admin re-sent someone their login details from /admin/users. Optio
+  # never puts a password in an inbox (utils/invite_tokens.py), so "login
+  # information" is the email address they sign in with plus a fresh
+  # set-your-password link that also confirms an unconfirmed address. The
+  # app-store and School Admin bullets are switched on per role by
+  # services/login_info_service.py.
+  login_info:
+    subject: "Your Optio login information"
+    title: "How to sign in to Optio"
+    salutation: "Hi {{ user_name }},"
+    paragraphs:
+      - "Here is everything you need to sign in to Optio{% if org_name %} for {{ org_name }}{% endif %}."
+      - "Your username is your email address: <strong>{{ user_email }}</strong>"
+      - "For your security we never send passwords by email. Click the button at the bottom of this message to choose a new password. The link works once and expires in {{ expiry_days }} days."
+    highlight_box:
+      title: "How to sign in"
+      bullet_points:
+        - "<strong>Step 1.</strong> Click <em>Set My Password</em> below and choose a password."
+        - "<strong>Step 2.</strong> Go to <a href='{{ login_url }}' style='color: #6D469B;'>{{ login_url }}</a> and sign in with <strong>{{ user_email }}</strong> and your new password."
+        - "{% if show_mobile %}<strong>Step 3.</strong> Or use the Optio app on <a href='https://apps.apple.com/us/app/optio-education/id6773061928' style='color: #6D469B;'>iOS</a> or <a href='https://play.google.com/store/apps/details?id=com.optioeducation.optio' style='color: #6D469B;'>Android</a>. Sign in there with the same email and password.{% endif %}"
+        - "{% if show_sis %}<strong>Step 3.</strong> Once you are signed in, <em>School Admin</em> in the sidebar opens the {{ org_name }} console.{% endif %}"
+    closing_paragraph: "If the link has expired, use \"Forgot password\" on the login page with this email address and we will send a new one. If you have any trouble, write to support@optioeducation.com."
+    cta:
+      text: "Set My Password"
+      url: "{{ invite_link }}"
+    signature: "support"
+
   # Optio Support handed a member's message to their school. The in-app bell
   # alone does not reach an admin who isn't logged in, and a forward is Optio
   # explicitly handing the work over. school_inbox picks the destination the

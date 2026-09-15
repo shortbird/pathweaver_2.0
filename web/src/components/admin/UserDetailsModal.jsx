@@ -17,6 +17,7 @@ import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 import UserPeopleTab from './UserPeopleTab'
 import { ConfirmDialog, GlassTabBar, Modal, Spinner } from '../ui'
 import { startMasquerade } from '../../services/masqueradeService'
+import { extractErrorMessage } from '../../utils/errorHandling'
 
 /**
  * UserDetailsModal — the admin's view of one user.
@@ -33,6 +34,9 @@ import { startMasquerade } from '../../services/masqueradeService'
  *  - The eight-colour Actions tab is gone: record views sit at the bottom of
  *    Overview, account-state actions in Access, and the two identity-level
  *    actions (masquerade, delete) in the header menu.
+ *  - "Email login info" is in both the header menu and Account state: it is
+ *    the action support reaches for most, so it should not need the Access
+ *    tab to find it.
  */
 
 const TABS = [
@@ -365,6 +369,28 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     window.location.href = result.targetUser.role === 'parent' ? '/family' : '/dashboard'
   }
 
+  // Reachable from the header menu and from Access > Account state, so the
+  // copy and the call live in one place.
+  const confirmEmailLoginInfo = () =>
+    setConfirm({
+      title: 'Email login information?',
+      node: (
+        <>
+          <p>
+            {displayName} will get an email at{' '}
+            <span className="font-semibold text-gray-900">{user.email}</span> with the address
+            they sign in with, a set-your-password link, and the sign-in steps.
+          </p>
+          <p>The link works once and expires in 14 days. No password is sent.</p>
+        </>
+      ),
+      confirmLabel: 'Send email',
+      run: async () => {
+        const { data } = await api.post(`/api/admin/users/${user.id}/login-info`, {})
+        toast.success(data?.message || 'Login information sent')
+      },
+    })
+
   const goTo = (path) => guard(() => {
     onClose()
     navigate(path)
@@ -429,6 +455,18 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
             role="menu"
             className="absolute right-0 mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10"
           >
+            <button
+              type="button"
+              role="menuitem"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
+              disabled={!user.email}
+              onClick={() => {
+                setMenuOpen(false)
+                confirmEmailLoginInfo()
+              }}
+            >
+              Email login info
+            </button>
             <button
               type="button"
               role="menuitem"
@@ -863,7 +901,20 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   >
                     Reset password
                   </button>
+                  <button
+                    type="button"
+                    className="btn-quiet"
+                    disabled={!user.email}
+                    title={user.email ? undefined : 'This account has no email address'}
+                    onClick={confirmEmailLoginInfo}
+                  >
+                    Email login info
+                  </button>
                 </div>
+                <p className="text-xs text-gray-500">
+                  Email login info sends the sign-in address, a set-your-password link and the steps.
+                  Passwords are never emailed.
+                </p>
               </div>
             </div>
           )}
@@ -892,7 +943,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
             await confirm.run()
           } catch (error) {
             if (error?.response) {
-              toast.error(error.response?.data?.error || 'Action failed')
+              toast.error(extractErrorMessage(error.response.data || {}, 'Action failed'))
             }
             throw error
           }

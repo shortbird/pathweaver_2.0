@@ -173,7 +173,11 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // learning, the student schedule, the school-page classes block) moved their
 // "which school am I in" read onto hooks/api/useSchoolContext, and the dead
 // parent dashboard leftovers went with their calls.
-const CALL_SITE_BASELINE = 925
+// 925 -> 927 on 2026-09-15, "Email login info" on /admin/users: one POST per
+// user from UserDetailsModal (9 hand-rolled calls already) and one bulk POST
+// from AdminUsers (3). Neither is on the migrated list; hooking the new call
+// alone would leave each fetching two ways -- the FamilyBillingPage judgement.
+const CALL_SITE_BASELINE = 927
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

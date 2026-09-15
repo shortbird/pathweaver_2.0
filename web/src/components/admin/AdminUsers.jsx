@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import logger from '../../utils/logger'
+import { extractErrorMessage } from '../../utils/errorHandling'
 import { PageLoader } from '../ui/Spinner'
 
 // Lazy load large modals to reduce initial bundle size
@@ -159,6 +160,37 @@ const AdminUsers = () => {
     }
   }
 
+  const handleBulkLoginInfo = async () => {
+    if (selectedUsers.size === 0) return
+    if (!confirm(
+      `Email login information to ${selectedUsers.size} user(s)? ` +
+      'Each gets their sign-in address, a set-your-password link and the steps. No password is sent.'
+    )) return
+
+    try {
+      const response = await api.post('/api/admin/users/bulk-login-info', {
+        user_ids: Array.from(selectedUsers)
+      })
+      const { sent, failed } = response.data
+      if (failed.length === 0) {
+        toast.success(`Login information sent to ${sent} user(s)`)
+      } else {
+        const byId = new Map(users.map(u => [u.id, u]))
+        const names = failed
+          .map(f => byId.get(f.user_id))
+          .map(u => (u ? (u.email || `${u.first_name || ''} ${u.last_name || ''}`.trim()) : 'unknown user'))
+        toast.error(
+          `Sent to ${sent}; could not send to ${failed.length}: ${names.join(', ')}`,
+          { duration: 8000 }
+        )
+      }
+      setSelectedUsers(new Set())
+    } catch (error) {
+      console.error('Failed to send login info:', error)
+      toast.error(extractErrorMessage(error.response?.data || {}, 'Failed to send login information'))
+    }
+  }
+
   const handleEditUser = (user) => {
     setEditingUser(user)
     setShowUserModal(true)
@@ -245,6 +277,14 @@ const AdminUsers = () => {
             className="btn-primary"
           >
             Email Selected ({selectedUsers.size})
+          </button>
+          <button
+            onClick={handleBulkLoginInfo}
+            disabled={selectedUsers.size === 0}
+            className="btn-secondary"
+            title="Email each selected user their sign-in address and a set-your-password link"
+          >
+            Send Login Info ({selectedUsers.size})
           </button>
           <button
             onClick={handleBulkDelete}

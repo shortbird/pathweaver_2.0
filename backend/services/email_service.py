@@ -2,6 +2,7 @@
 Email service for sending custom transactional emails using Jinja2 templates
 """
 import base64
+import html as html_lib
 import os
 from typing import Optional, List, Dict, Any
 
@@ -618,6 +619,10 @@ class EmailService(BaseService):
                     for bullet in template_data['bullet_points']:
                         bullet_template = self.jinja_env.from_string(bullet)
                         rendered_bullet = bullet_template.render(**variables)
+                        # A bullet wrapped in {% if %} renders to '' when its
+                        # flag is off; drop it rather than emit an empty <li>.
+                        if not rendered_bullet.strip():
+                            continue
                         rendered_paragraphs.append(f'<li class="list-item" style="margin-bottom: 8px; line-height: 1.6; color: #333333;">{rendered_bullet}</li>')
                     rendered_paragraphs.append('</ul>')
 
@@ -642,9 +647,16 @@ class EmailService(BaseService):
                 cta = template_data['cta']
                 cta_text_template = self.jinja_env.from_string(cta.get('text', 'Click here'))
                 cta_url_template = self.jinja_env.from_string(cta.get('url', '#'))
+                # The URL is escaped here by autoescape and again by the
+                # wrapper's {{ cta.url }}, so every "&" between query params
+                # reached the inbox as "&amp;amp;" -- the browser decoded that
+                # to a literal "&amp;" and the second parameter arrived named
+                # "amp;email". Unescape once so the wrapper's pass is the only
+                # one. (Invite links carry ?token=..&email=..; the token was
+                # first, which is why nobody noticed.)
                 render_context['cta'] = {
                     'text': cta_text_template.render(**variables),
-                    'url': cta_url_template.render(**variables)
+                    'url': html_lib.unescape(cta_url_template.render(**variables))
                 }
 
             # Process highlight box (if exists) with autoescape
@@ -659,7 +671,10 @@ class EmailService(BaseService):
                     rendered_bullets = []
                     for bullet in highlight_data['bullet_points']:
                         bullet_template = self.jinja_env.from_string(bullet)
-                        rendered_bullets.append(bullet_template.render(**variables))
+                        rendered_bullet = bullet_template.render(**variables)
+                        if not rendered_bullet.strip():
+                            continue  # conditional bullet, flag off
+                        rendered_bullets.append(rendered_bullet)
                     highlight_context['bullet_points'] = rendered_bullets
                 render_context['highlight'] = highlight_context
 
@@ -1233,6 +1248,42 @@ class EmailService(BaseService):
                 'first_name': user_name,
                 'org_name': org_name,
                 'login_link': login_link,
+            }
+        )
+
+    def send_login_info_email(
+        self,
+        user_email: str,
+        user_name: str,
+        invite_link: str,
+        login_url: str,
+        org_name: str = '',
+        show_mobile: bool = False,
+        show_sis: bool = False,
+        expiry_days: int = 14
+    ) -> bool:
+        """An admin re-sent someone their login details (/admin/users).
+
+        There is no password in this email and never will be -- see
+        utils/invite_tokens.py. What the recipient gets is the address they
+        sign in with, a single-use set-your-password link, and the steps to
+        follow. The template shows the app-store bullet to students and
+        parents and the School Admin bullet to staff at an SIS org.
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject="Your Optio login information",
+            template_name='login_info',
+            context={
+                'user_name': user_name,
+                'first_name': user_name,
+                'user_email': user_email,
+                'invite_link': invite_link,
+                'login_url': login_url,
+                'org_name': org_name,
+                'show_mobile': show_mobile,
+                'show_sis': show_sis,
+                'expiry_days': expiry_days,
             }
         )
 
