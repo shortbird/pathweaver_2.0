@@ -108,8 +108,10 @@ describe('FeedScreen', () => {
       render(<FeedScreen />);
       await flush();
 
-      expect(useFeed).toHaveBeenCalledWith(expect.objectContaining({ studentId: undefined }));
-      expect(useFeed).not.toHaveBeenCalledWith(expect.objectContaining({ studentId: 'kid-1' }));
+      // The global feed: no studentId at all (StudentFeed, not ParentFeed).
+      const calls = (useFeed as jest.Mock).mock.calls.map(([opts]) => opts);
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls.every((opts) => !opts.studentId)).toBe(true);
     });
   });
 });
