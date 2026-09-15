@@ -7,7 +7,6 @@ import toast from 'react-hot-toast';
 import {
   EyeIcon,
   ChatBubbleLeftIcon,
-  LinkIcon,
   ShareIcon,
   VideoCameraIcon,
   PaperAirplaneIcon,
@@ -24,6 +23,7 @@ import VideoLinkPreview from '../evidence/preview/VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
 import ReactionRow from './ReactionRow';
 import FeedItemMenu from './FeedItemMenu';
+import ReportButton from '../moderation/ReportButton';
 import { getPeerComments, postPeerComment, deletePeerComment } from '../../services/friendsAPI';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 import useHidePillars from '../../hooks/useHidePillars';
@@ -759,11 +759,19 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-gray-900 text-sm">{getObserverName(c.observer)}</span>
                           <span className="text-xs text-gray-400">{formatTimestamp(c.created_at)}</span>
+                          {isPeerItem && c.observer_id !== user?.id && (
+                            <ReportButton
+                              targetType="peer_comment"
+                              targetId={c.id}
+                              label="Report this comment"
+                              className={canDeleteComment(c) ? 'ml-auto' : 'ml-auto -mr-1'}
+                            />
+                          )}
                           {canDeleteComment(c) && (
                             <button
                               onClick={() => handleDeleteComment(c.id)}
                               disabled={deletingCommentId === c.id}
-                              className="ml-auto p-2 -mr-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                              className={`${isPeerItem && c.observer_id !== user?.id ? '' : 'ml-auto'} p-2 -mr-1 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50 min-w-[36px] min-h-[36px] flex items-center justify-center`}
                               title="Delete comment"
                             >
                               <TrashIcon className="w-4 h-4" />

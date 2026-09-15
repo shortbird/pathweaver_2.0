@@ -95,6 +95,29 @@ export const postPeerComment = ({ studentId, completionId, learningEventId }, te
 export const deletePeerComment = (commentId) =>
   api.delete(`/api/connections/comments/${commentId}`)
 
+/** A parent takes a comment off their child's work. Hidden, not deleted:
+ *  the parent's activity view keeps the record. */
+export const hidePeerComment = (commentId) =>
+  api.post(`/api/connections/comments/${commentId}/hide`, {}).then(unwrap)
+
+// -- reports ------------------------------------------------------------------
+
+export const REPORT_REASONS = [
+  { value: 'harassment', label: 'Bullying or harassment' },
+  { value: 'inappropriate', label: 'Inappropriate content' },
+  { value: 'spam', label: 'Spam' },
+  { value: 'self_harm', label: 'Self-harm' },
+  { value: 'other', label: 'Something else' },
+]
+
+/** File a report. The moderation queue can take a peer comment or a
+ *  message down; other targets are reviewed by hand. */
+export const reportContent = (targetType, targetId, reason) =>
+  api.post('/api/moderation/report', { target_type: targetType, target_id: targetId, reason })
+
+/** Where a friend chat lives: the Messages page, opened on that person. */
+export const messagesLinkFor = (userId) => `/messages?user=${encodeURIComponent(userId)}`
+
 // -- the parent's side --------------------------------------------------------
 
 export const getChildPolicy = (childId) =>

@@ -18,7 +18,7 @@ WEB_PUSH_NOTIFICATION_TYPES = {
     'message_received',
     # A parent's Friends inbox: a request to answer, or a friend added
     # under their policy. Both are theirs to act on from the Family tab.
-    'peer_connection_needs_approval', 'peer_friend_added',
+    'peer_connection_needs_approval', 'peer_friend_added', 'peer_text_held',
 }
 
 # Notification types that should trigger mobile push notifications.
@@ -46,6 +46,8 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     'peer_connection_request', 'peer_connection_needs_approval',
     'peer_connection_approved', 'peer_friend_added', 'peer_comment',
     'peer_reaction',
+    # A held text (phase 3): the parent asked to be told exactly this.
+    'peer_text_held',
 }
 
 

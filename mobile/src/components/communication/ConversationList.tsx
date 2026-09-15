@@ -75,6 +75,7 @@ const relationshipColors: Record<string, string> = {
   child: '#10B981',
   observer: '#F59E0B',
   org_admin: '#EF4444',
+  friend: '#EC4899',
 };
 
 interface ContactRowProps {

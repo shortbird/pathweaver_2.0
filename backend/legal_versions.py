@@ -31,8 +31,12 @@ CURRENT_TOS_VERSION = "1.1"
 #   sets the boundaries; described what a friend sees and never sees, the
 #   parent's list, activity view and off switch, and the org administrator
 #   standing in for a student with no parent linked.
-CURRENT_PRIVACY_POLICY_VERSION = "1.3"
+# 1.4 (2026-09-17): Friends, safety. Messaging between friends when both
+#   families allow it; the automated safety check (Gemini) on every comment
+#   and message between students; held text kept for the author's parent;
+#   parents can hide a comment and read their child's messages.
+CURRENT_PRIVACY_POLICY_VERSION = "1.4"
 
 # Date when current versions became effective (must match the shared docs)
 TOS_EFFECTIVE_DATE = "2026-08-01"
-PRIVACY_POLICY_EFFECTIVE_DATE = "2026-09-16"
+PRIVACY_POLICY_EFFECTIVE_DATE = "2026-09-17"

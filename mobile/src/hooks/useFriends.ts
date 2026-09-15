@@ -51,6 +51,9 @@ export interface ConnectionItem {
   source?: string | null;
   created_at: string;
   activated_at?: string | null;
+  /** Active rows only: both families allow chat (phase 3). The send path
+   *  re-checks; this only decides whether a Message button shows. */
+  can_message?: boolean;
 }
 
 export interface Connections {
@@ -277,4 +280,32 @@ export async function postPeerComment(target: ReactionTarget, text: string): Pro
 
 export async function deletePeerComment(commentId: string): Promise<void> {
   await api.delete(`/api/connections/comments/${commentId}`);
+}
+
+/** A parent takes a comment off their child's work. Hidden, not deleted: the
+ *  parent's activity view keeps the record. */
+export async function hidePeerComment(commentId: string): Promise<void> {
+  await api.post(`/api/connections/comments/${commentId}/hide`, {});
+}
+
+export type ReportTarget = 'peer_comment' | 'message' | 'learning_event' | 'task_completion' | 'user';
+export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
+
+export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: 'harassment', label: 'Bullying or harassment' },
+  { value: 'inappropriate', label: 'Inappropriate content' },
+  { value: 'spam', label: 'Spam' },
+  { value: 'self_harm', label: 'Self-harm' },
+  { value: 'other', label: 'Something else' },
+];
+
+/** File a report. The moderation queue can take a peer comment or a
+ *  message down; other targets are reviewed by hand. */
+export async function reportContent(targetType: ReportTarget, targetId: string, reason: ReportReason): Promise<void> {
+  await api.post('/api/moderation/report', { target_type: targetType, target_id: targetId, reason });
+}
+
+/** Where a friend chat lives: the Messages tab, opened on that person. */
+export function messagesRouteFor(userId: string): string {
+  return `/(app)/(tabs)/messages?user=${encodeURIComponent(userId)}`;
 }

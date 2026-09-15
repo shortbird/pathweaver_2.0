@@ -517,6 +517,17 @@ class Config:
     # Concurrent reviews per web process. Each holds its evidence bytes in
     # memory, and Render gives us 512MB (MEMORY_LIMIT_MB).
     CREDIT_AI_REVIEW_MAX_INPROC = int(os.getenv('CREDIT_AI_REVIEW_MAX_INPROC', '2'))
+    # ── Peer text screen (services/peer_text_screen_service.py) ──────────────
+    #
+    # Gemini reads every peer comment and every student-to-student message
+    # before the other child sees it. Off means nothing is refused and nothing
+    # is swept: text posts as 'pending' and waits for the switch to come back.
+    # Exists so a screen that misfires in production can be stopped without a
+    # deploy; contact-detail holds (phone, email, link, address) are regex and
+    # do not honour it.
+    PEER_TEXT_SCREEN_ENABLED = os.getenv('PEER_TEXT_SCREEN_ENABLED', 'true').lower() == 'true'
+    # Pending rows one cron tick re-screens per surface (comments, messages).
+    PEER_TEXT_SCREEN_SWEEP_LIMIT = int(os.getenv('PEER_TEXT_SCREEN_SWEEP_LIMIT', '50'))
     # Total inline attachment bytes per request. Gemini's inline limit is ~20MB
     # including the prompt, so leave headroom.
     CREDIT_AI_REVIEW_INLINE_BUDGET_MB = int(os.getenv('CREDIT_AI_REVIEW_INLINE_BUDGET_MB', '18'))

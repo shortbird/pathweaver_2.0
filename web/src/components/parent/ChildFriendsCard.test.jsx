@@ -33,10 +33,13 @@ const ON = {
 const OFF = { enabled: false, origin: 'none', reason: null, who_can_enable: 'parent',
               request_sources: [], friends_can: [] }
 
-const mountWith = (policy, { canSet = true, friends = 0 } = {}) => {
+const EMPTY_ACTIVITY = { comments: [], reactions: [], holds: [] }
+
+const mountWith = (policy, { canSet = true, friends = 0, activity = EMPTY_ACTIVITY } = {}) => {
   api.get.mockImplementation((url) => {
     if (url.endsWith('/policy')) return Promise.resolve({ data: { data: { policy, can_set: canSet } } })
     if (url.endsWith('/friends-count')) return Promise.resolve({ data: { data: { active: friends } } })
+    if (url.endsWith('/activity')) return Promise.resolve({ data: { data: activity } })
     return Promise.resolve({ data: {} })
   })
   api.put.mockImplementation((url, body) => Promise.resolve({
@@ -150,5 +153,46 @@ describe('ChildFriendsCard', () => {
     api.put.mockRejectedValue({ response: { data: { error: 'Not authorized' } } })
     await userEvent.click(await screen.findByRole('button', { name: /turn on/i }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Not authorized'))
+  })
+
+  it('lets the parent allow messaging, and says both families must', async () => {
+    mountWith(ON)
+    const box = await screen.findByLabelText(/message robin/i)
+    expect(screen.getByText(/whose family also allows it/i)).toBeInTheDocument()
+    await userEvent.click(box)
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/api/connections/children/s1/policy',
+        { friends_can: ['see', 'comment', 'message'] })
+    })
+  })
+
+  it('shows what the safety check held, and lets the parent hide a comment', async () => {
+    const activity = {
+      comments: [
+        { id: 'c1', direction: 'received', peer: { id: 'p1', display_name: 'Pal' }, text: 'you stink',
+          created_at: '2026-09-17T10:00:00Z', hidden_at: null, hidden_reason: null },
+        { id: 'c2', direction: 'received', peer: { id: 'p1', display_name: 'Pal' }, text: 'gone',
+          created_at: '2026-09-17T09:00:00Z', hidden_at: '2026-09-17T09:30:00Z', hidden_reason: 'report' },
+      ],
+      reactions: [],
+      holds: [
+        { id: 'h1', surface: 'message', stage: 'refused', peer: { id: 'p1', display_name: 'Pal' },
+          text: 'call me 801-555-0199', reasons: ['shares a phone number'], created_at: '2026-09-17T08:00:00Z' },
+      ],
+    }
+    mountWith(ON, { activity })
+    api.post.mockResolvedValue({ data: { data: { id: 'c1', hidden: true } } })
+
+    expect(await screen.findByText(/wrote a message to pal that our safety check held/i)).toBeInTheDocument()
+    expect(screen.getByText('call me 801-555-0199')).toBeInTheDocument()
+    expect(screen.getByText(/taken down after a report/i)).toBeInTheDocument()
+
+    const hide = screen.getAllByRole('button', { name: /^hide$/i })
+    expect(hide).toHaveLength(1)
+    await userEvent.click(hide[0])
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/connections/comments/c1/hide', {})
+    })
+    expect(await screen.findByText(/hidden by you/i)).toBeInTheDocument()
   })
 })

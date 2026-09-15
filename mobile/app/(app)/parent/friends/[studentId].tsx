@@ -3,13 +3,14 @@
  *
  * Everything a parent holds over one child's friendships, in one place:
  *   - the policy (the consent, and the boundaries): Friends on/off, ask me
- *     first, who may ask, whether friends may comment;
+ *     first, who may ask, whether friends may comment or message;
  *   - the list, with the way to remove any friend;
  *   - the requests a parent answers on a dependent's behalf (a child with no
  *     login has no other way to say yes);
  *   - connecting the child with a friend by that friend's code, and the
  *     child's own code to hand to another family;
- *   - what happened lately: comments and reactions given and received.
+ *   - what happened lately: comments and reactions given and received,
+ *     anything the safety check held, and the way to hide a comment.
  *
  * The student-shaped reads and writes go through student scope
  * (`student_id`), so a parent works a dependent's friends through the same
@@ -24,7 +25,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import api from '@/src/services/api';
-import { useFriends, issueCode, requestFriend, inviteLinkFor, type ConnectionItem } from '@/src/hooks/useFriends';
+import { useFriends, issueCode, requestFriend, inviteLinkFor, hidePeerComment, type ConnectionItem } from '@/src/hooks/useFriends';
 import { useFriendPolicy, REQUEST_SOURCES } from '@/src/hooks/useFriendPolicy';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -44,7 +45,27 @@ interface ActivityEntry {
   label?: string;
   created_at: string;
   hidden_at?: string | null;
+  /** parent | report | screen: who took it down. */
+  hidden_reason?: string | null;
 }
+
+/** Something the child wrote that the safety check held (phase 3). Only the
+ *  author's parent sees a hold; it never reached the other child. */
+interface HoldEntry {
+  id: string;
+  surface: 'peer_comment' | 'message';
+  stage: 'refused' | 'hidden_later';
+  peer: { id: string; display_name: string; avatar_url: string | null };
+  text: string;
+  reasons: string[];
+  created_at: string;
+}
+
+const HIDDEN_BY: Record<string, string> = {
+  parent: 'Hidden by you',
+  report: 'Taken down after a report',
+  screen: 'Hidden by the safety check',
+};
 
 function Row({ item, subtitle, children, onPress }: {
   item: ConnectionItem; subtitle?: string; children?: React.ReactNode; onPress?: () => void;
@@ -93,19 +114,38 @@ export default function ParentChildFriendsScreen() {
   const [code, setCode] = useState('');
   const [childCode, setChildCode] = useState<{ code: string; expires_at: string } | null>(null);
   const [sending, setSending] = useState(false);
-  const [activity, setActivity] = useState<{ comments: ActivityEntry[]; reactions: ActivityEntry[] } | null>(null);
+  const [activity, setActivity] = useState<{ comments: ActivityEntry[]; reactions: ActivityEntry[]; holds: HoldEntry[] } | null>(null);
 
   const loadActivity = useCallback(async () => {
     if (!studentId) return;
     try {
       const res = await api.get(`/api/connections/children/${studentId}/activity`, { params: { days: 30 } });
       const d = res.data?.data || res.data || {};
-      setActivity({ comments: d.comments || [], reactions: d.reactions || [] });
+      setActivity({ comments: d.comments || [], reactions: d.reactions || [], holds: d.holds || [] });
     } catch {
-      setActivity({ comments: [], reactions: [] });
+      setActivity({ comments: [], reactions: [], holds: [] });
     }
   }, [studentId]);
   useEffect(() => { loadActivity(); }, [loadActivity]);
+
+  const hideComment = useCallback(async (entry: ActivityEntry) => {
+    const ok = await confirmAlert({
+      title: 'Hide this comment?',
+      message: `${entry.peer.display_name}'s comment comes off ${first}'s work. It stays here so you can see what was said.`,
+      confirmText: 'Hide',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await hidePeerComment(entry.id);
+      setActivity((prev) => prev ? {
+        ...prev,
+        comments: prev.comments.map((x) => x.id === entry.id ? { ...x, hidden_at: new Date().toISOString(), hidden_reason: 'parent' } : x),
+      } : prev);
+    } catch (err) {
+      showAlert('Could not hide that comment', extractApiError(err).message);
+    }
+  }, [first]);
 
   const enabled = !!policy?.enabled;
 
@@ -287,7 +327,14 @@ export default function ParentChildFriendsScreen() {
                       <Toggle
                         label={`Comment on ${first}'s work`}
                         value={friendsCan.includes('comment')}
-                        onChange={(v) => patch({ friends_can: v ? ['see', 'comment'] : ['see'] })}
+                        onChange={(v) => patch({ friends_can: v ? [...friendsCan.filter((k) => k !== 'comment'), 'comment'] : friendsCan.filter((k) => k !== 'comment') })}
+                        disabled={saving}
+                      />
+                      <Toggle
+                        label={`Message ${first}`}
+                        help={`Only with friends whose family also allows it. Every message is checked by our safety screen, and you can read ${first}'s messages from the Messages tab.`}
+                        value={friendsCan.includes('message')}
+                        onChange={(v) => patch({ friends_can: v ? [...friendsCan.filter((k) => k !== 'message'), 'message'] : friendsCan.filter((k) => k !== 'message') })}
                         disabled={saving}
                       />
                     </>
@@ -375,16 +422,42 @@ export default function ParentChildFriendsScreen() {
                       <UIText size="xs" className="font-poppins-semibold uppercase tracking-wider text-typo-500 dark:text-dark-typo-500">Last 30 days</UIText>
                       {!activity ? (
                         <ActivityIndicator color={c.brand} className="my-3" />
-                      ) : activity.comments.length + activity.reactions.length === 0 ? (
+                      ) : activity.comments.length + activity.reactions.length + activity.holds.length === 0 ? (
                         <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500 py-2">No comments or reactions yet.</UIText>
                       ) : (
                         <>
+                          {activity.holds.map((h) => (
+                            <VStack key={`h-${h.id}`} className="py-2 border-b border-surface-100 dark:border-dark-surface-300" testID={`hold-${h.id}`}>
+                              <HStack className="items-center gap-1.5">
+                                <Ionicons name="hand-left-outline" size={13} color={c.textMuted} />
+                                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 flex-1">
+                                  {h.stage === 'refused'
+                                    ? `${first} wrote ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that was held. It was not sent.`
+                                    : `${first} sent ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that was hidden afterwards.`} · {formatRelativeTime(h.created_at)}
+                                </UIText>
+                              </HStack>
+                              <UIText size="sm">{h.text}</UIText>
+                              {h.reasons.length > 0 && (
+                                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{h.reasons.join('; ')}</UIText>
+                              )}
+                            </VStack>
+                          ))}
                           {activity.comments.map((e) => (
                             <VStack key={`c-${e.id}`} className="py-2 border-b border-surface-100 dark:border-dark-surface-300">
-                              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                                {e.direction === 'received' ? `${e.peer.display_name} commented on ${first}'s work` : `${first} commented on ${e.peer.display_name}'s work`} · {formatRelativeTime(e.created_at)}
-                              </UIText>
+                              <HStack className="items-center">
+                                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 flex-1">
+                                  {e.direction === 'received' ? `${e.peer.display_name} commented on ${first}'s work` : `${first} commented on ${e.peer.display_name}'s work`} · {formatRelativeTime(e.created_at)}
+                                </UIText>
+                                {e.direction === 'received' && !e.hidden_at && (
+                                  <Pressable onPress={() => hideComment(e)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Hide this comment" testID={`hide-comment-${e.id}`}>
+                                    <UIText size="xs" className="text-error-600 dark:text-error-400">Hide</UIText>
+                                  </Pressable>
+                                )}
+                              </HStack>
                               <UIText size="sm" className={e.hidden_at ? 'text-typo-300 line-through' : ''}>{e.text}</UIText>
+                              {e.hidden_at && (
+                                <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{HIDDEN_BY[e.hidden_reason || ''] || 'Hidden'}</UIText>
+                              )}
                             </VStack>
                           ))}
                           {activity.reactions.map((e) => (

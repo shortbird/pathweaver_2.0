@@ -430,3 +430,15 @@ def delete_comment(user_id, comment_id):
         return success_response(data={'deleted': True})
     except PeerConnectionError as e:
         return _fail(e)
+
+
+@bp.route('/comments/<comment_id>/hide', methods=['POST'])
+@require_auth
+@validate_uuid_param('comment_id')
+def hide_comment(user_id, comment_id):
+    """A parent takes a comment off their child's work. The service checks
+    the relationship (the comment names the child; the route cannot)."""
+    try:
+        return success_response(data=svc.hide_comment(user_id, comment_id))
+    except PeerConnectionError as e:
+        return _fail(e)

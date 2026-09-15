@@ -22,7 +22,13 @@ const TARGET_LABELS = {
   task_completion: 'Task completion',
   comment: 'Comment',
   user: 'User',
+  peer_comment: "Friend's comment",
+  message: 'Direct message',
 }
+
+// 'Action taken' takes these down (the comment is hidden, the message
+// soft-deleted); for every other target it only records that a human acted.
+const TAKEDOWN_TARGETS = new Set(['peer_comment', 'message'])
 
 function formatDate(iso) {
   if (!iso) return ''
@@ -69,7 +75,7 @@ export default function ModerationQueue() {
         )
       }
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to update report')
+      setError(err?.response?.data?.error || 'Failed to update report')
     } finally {
       setUpdating(null)
     }
@@ -152,6 +158,21 @@ function ReportRow({ report, updating, onUpdate }) {
               "{report.notes}"
             </div>
           )}
+          {report.preview && (
+            <div className="text-sm text-gray-800 mt-2 border border-gray-200 p-2 rounded">
+              {report.preview.gone ? (
+                <span className="text-gray-500">This text no longer exists.</span>
+              ) : (
+                <>
+                  <span className="text-xs text-gray-500 block">
+                    Reported text{report.preview.author_id ? ` from ${report.preview.author_id.slice(0, 8)}` : ''}
+                    {report.preview.hidden ? ' (already hidden)' : ''}
+                  </span>
+                  {report.preview.text}
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <button
@@ -173,7 +194,7 @@ function ReportRow({ report, updating, onUpdate }) {
             disabled={updating || report.status === 'actioned'}
             className="px-3 py-1.5 text-sm rounded bg-red-600 text-white hover:opacity-90 disabled:opacity-40"
           >
-            Action taken
+            {TAKEDOWN_TARGETS.has(report.target_type) ? 'Take it down' : 'Action taken'}
           </button>
         </div>
       </div>

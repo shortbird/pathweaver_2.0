@@ -292,6 +292,7 @@ const ChatWindow = ({ conversation, onBack }) => {
           onReply={(message) => setReplyTo(buildReplyPreview(message))}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          canReport
           onForward={canForwardToSchool ? handleForwardToSchool : undefined}
           onEmailToSelf={user?.role === 'superadmin' ? handleEmailToSelf : undefined}
         />

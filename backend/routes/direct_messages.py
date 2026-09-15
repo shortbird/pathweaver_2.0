@@ -21,6 +21,7 @@ from utils import class_membership
 from utils.db_fetch import fetch_all_rows
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError
+from middleware.rate_limiter import rate_limit
 from utils.validation.validators import validate_string_length
 from utils.api_response import success_response, error_response
 from utils.storage_urls import (
@@ -110,6 +111,31 @@ def _add_class_contacts(supabase, contacts, user_ids, relationship, user_id, use
                 continue
             row.pop('organization_id', None)
             contacts.append({**row, 'relationship': relationship})
+
+
+def _add_friend_contacts(supabase, contacts, user_id):
+    """Append the friends this student may DM, with the peer profile shape
+    (display name and avatar; never a legal surname)."""
+    from services import peer_connection_service
+    try:
+        friend_ids = peer_connection_service.messageable_friend_ids(user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[contacts] friends lookup failed for {user_id[:8]}: {e}")
+        return
+    already = {ct['id'] for ct in contacts}
+    for fid in friend_ids:
+        if fid in already:
+            continue
+        profile = peer_connection_service._peer_profile(fid)
+        contacts.append({
+            'id': fid,
+            'display_name': profile.get('display_name'),
+            'first_name': profile.get('display_name'),
+            'last_name': '',
+            'avatar_url': profile.get('avatar_url'),
+            'role': 'student',
+            'relationship': 'friend',
+        })
 
 
 def _append_org_adult_contacts(supabase, contacts, user_id, user_role):
@@ -290,6 +316,7 @@ def get_conversation_messages(user_id: str, conversation_id: str):
 
 @bp.route('/conversations/<target_user_id>/send', methods=['POST'])
 @require_auth
+@rate_limit(calls=240, period=3600, per_user=True)
 def send_message(user_id: str, target_user_id: str):
     """
     Send a message to a user (advisor, friend)
@@ -851,6 +878,12 @@ def get_contacts(user_id: str):
                 supabase, contacts, class_membership.teachers_of_student(user_id),
                 'advisor', user_id, user_org_id
             )
+
+            # Friends whose family, like this one's, allows chat (Friends
+            # phase 3). Same two-sided rule the send path enforces. Not
+            # org-isolated: a friend by code can be at another school, and
+            # both families said yes to that.
+            _add_friend_contacts(supabase, contacts, user_id)
 
         # For org_admins: show ALL users in their organization
         if user_role == 'org_admin' and user_org_id:

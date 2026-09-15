@@ -11,7 +11,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
-import { getPeerComments, postPeerComment } from '@/src/hooks/useFriends';
+import {
+  getPeerComments, postPeerComment, deletePeerComment, reportContent, REPORT_REASONS,
+} from '@/src/hooks/useFriends';
+import type { ReportReason } from '@/src/hooks/useFriends';
+import { useAuthStore } from '@/src/stores/authStore';
+import { showAlert, confirmAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
 import { formatMonthDayTime } from '@/src/utils/timeAgo';
 import {
@@ -26,6 +31,17 @@ interface Comment {
   created_at: string;
   // Superadmin comments are surfaced as "Optio" with the platform logo.
   is_platform?: boolean;
+  /** Peer comments only: who wrote it, for the row's own actions. */
+  author_id?: string;
+}
+
+/** What the viewer may do to one peer comment (Friends phase 3). A kid can
+ *  report anything a friend wrote and remove anything on their own work or
+ *  anything they wrote themselves; the adult audience has neither, because
+ *  observer comments have their own rules. */
+interface RowActions {
+  report?: () => void;
+  remove?: () => void;
 }
 
 /** Memoized so typing in the composer — which re-renders the sheet on every
@@ -33,12 +49,17 @@ interface Comment {
 const CommentRow = React.memo(function CommentRow({
   comment,
   formatTime,
+  actions,
 }: {
   comment: Comment;
   formatTime: (ts: string) => string;
+  actions?: RowActions;
 }) {
+  const c = useThemeColors();
+  const [open, setOpen] = useState(false);
   const initials = comment.user_display_name
     ?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+  const hasActions = !!(actions?.report || actions?.remove);
   return (
     <HStack className="gap-3 py-2.5">
       <Avatar size="xs">
@@ -54,8 +75,34 @@ const CommentRow = React.memo(function CommentRow({
             {comment.user_display_name || 'User'}
           </UIText>
           <UIText size="xs" className="text-typo-300 dark:text-dark-typo-300">{formatTime(comment.created_at)}</UIText>
+          {hasActions && (
+            <Pressable
+              onPress={() => setOpen((v) => !v)}
+              hitSlop={8}
+              className="ml-auto"
+              accessibilityRole="button"
+              accessibilityLabel="Comment options"
+              testID={`comment-options-${comment.id}`}
+            >
+              <Ionicons name="ellipsis-horizontal" size={16} color={c.iconMuted} />
+            </Pressable>
+          )}
         </HStack>
         <UIText size="sm" className="text-typo-500 dark:text-dark-typo-700">{comment.comment_text}</UIText>
+        {open && hasActions && (
+          <HStack className="gap-4 mt-1">
+            {actions?.report && (
+              <Pressable onPress={() => { setOpen(false); actions.report?.(); }} hitSlop={6} testID={`comment-report-${comment.id}`}>
+                <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500">Report</UIText>
+              </Pressable>
+            )}
+            {actions?.remove && (
+              <Pressable onPress={() => { setOpen(false); actions.remove?.(); }} hitSlop={6} testID={`comment-remove-${comment.id}`}>
+                <UIText size="xs" className="text-error-600 dark:text-error-400">Remove</UIText>
+              </Pressable>
+            )}
+          </HStack>
+        )}
       </VStack>
     </HStack>
   );
@@ -79,7 +126,10 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted, audience
   const [text, setText] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A peer comment waiting for a report reason (Friends phase 3).
+  const [reporting, setReporting] = useState<string | null>(null);
   const c = useThemeColors();
+  const viewerId = useAuthStore((s) => s.user?.id);
 
   const isTask = item.type === 'task_completed';
   const cleanId = item.id.replace(/^(tc_|le_)/, '');
@@ -128,6 +178,7 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted, audience
           user_display_name: r.author?.display_name,
           comment_text: r.comment_text,
           created_at: r.created_at,
+          author_id: r.author_id,
         })));
       } else {
         setComments(await getComments(item.type, item.id));
@@ -170,11 +221,45 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted, audience
     return formatMonthDayTime(new Date(ts));
   }, []);
 
+  const removeComment = useCallback(async (commentId: string) => {
+    const ok = await confirmAlert({
+      title: 'Remove this comment?',
+      confirmText: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deletePeerComment(commentId);
+      setComments((prev) => prev.filter((x) => x.id !== commentId));
+    } catch (e) {
+      showAlert('Could not remove that comment', extractApiError(e).message);
+    }
+  }, []);
+
+  const sendReport = useCallback(async (commentId: string, reason: ReportReason) => {
+    setReporting(null);
+    try {
+      await reportContent('peer_comment', commentId, reason);
+      showAlert('Thanks', 'We received your report and will review it.');
+    } catch (e) {
+      showAlert('Could not send that report', extractApiError(e).message);
+    }
+  }, []);
+
+  const ownerId = item.student?.id;
   const renderComment = useCallback(
-    ({ item: comment }: { item: Comment }) => (
-      <CommentRow comment={comment} formatTime={formatTime} />
-    ),
-    [formatTime],
+    ({ item: comment }: { item: Comment }) => {
+      let actions: RowActions | undefined;
+      if (audience === 'peer' && viewerId) {
+        const mine = comment.author_id === viewerId;
+        actions = {
+          report: mine ? undefined : () => setReporting(comment.id),
+          remove: mine || viewerId === ownerId ? () => removeComment(comment.id) : undefined,
+        };
+      }
+      return <CommentRow comment={comment} formatTime={formatTime} actions={actions} />;
+    },
+    [formatTime, audience, viewerId, ownerId, removeComment],
   );
 
   return (
@@ -237,6 +322,28 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted, audience
               renderItem={renderComment}
             />
           )}
+
+          {/* Why are you reporting this? (peer comments) */}
+          {reporting ? (
+            <View className="px-6 pb-2">
+              <UIText size="xs" className="font-poppins-semibold mb-1">Why are you reporting this?</UIText>
+              <HStack className="flex-wrap gap-2">
+                {REPORT_REASONS.map((r) => (
+                  <Pressable
+                    key={r.value}
+                    onPress={() => sendReport(reporting, r.value)}
+                    className="px-3 py-1.5 rounded-full bg-surface-100 dark:bg-dark-surface-200"
+                    testID={`report-reason-${r.value}`}
+                  >
+                    <UIText size="xs">{r.label}</UIText>
+                  </Pressable>
+                ))}
+                <Pressable onPress={() => setReporting(null)} className="px-3 py-1.5" hitSlop={6}>
+                  <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Cancel</UIText>
+                </Pressable>
+              </HStack>
+            </View>
+          ) : null}
 
           {/* Error */}
           {error ? (

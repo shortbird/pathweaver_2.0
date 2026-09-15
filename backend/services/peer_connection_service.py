@@ -894,6 +894,7 @@ def list_connections(user_id: str) -> Dict[str, Any]:
     ).execute().data or []
 
     active, incoming, outgoing, awaiting = [], [], [], []
+    my_policy = policy_svc.effective_policy(user_id)
     for conn in rows:
         other_id = (conn['addressee_id'] if conn['requester_id'] == user_id
                     else conn['requester_id'])
@@ -906,6 +907,12 @@ def list_connections(user_id: str) -> Dict[str, Any]:
             'activated_at': conn.get('activated_at'),
         }
         if conn['status'] == 'active':
+            # Both families must allow chat; the client shows a Message
+            # button only when this is true, and the send path re-checks.
+            item['can_message'] = (
+                'message' in my_policy.friends_can
+                and 'message' in policy_svc.effective_policy(other_id).friends_can
+                and not pa.is_blocked_between(user_id, other_id))
             active.append(item)
         elif conn['status'] == 'pending_addressee':
             (incoming if conn['addressee_id'] == user_id else outgoing).append(item)
@@ -918,6 +925,29 @@ def list_connections(user_id: str) -> Dict[str, Any]:
         'outgoing': outgoing,
         'awaiting_approval': awaiting,
     }
+
+
+def friends_can_message(a_id: str, b_id: str) -> bool:
+    """May these two students DM each other?
+
+    Friends, and BOTH families allow it. One parent's 'message' is not a
+    grant over the other family's child; it is that family's half of a
+    two-sided switch. Read on every send, so either parent flipping it off,
+    a block, or the friendship ending closes the thread at once.
+    """
+    if not pa.is_peer_of(a_id, b_id):
+        return False
+    return all('message' in policy_svc.effective_policy(uid).friends_can
+               for uid in (a_id, b_id))
+
+
+def messageable_friend_ids(user_id: str) -> List[str]:
+    """The friends this student may DM: the two-sided rule above, applied to
+    the whole friends list. Feeds the Messages contact list."""
+    if 'message' not in policy_svc.effective_policy(user_id).friends_can:
+        return []
+    return [p for p in active_peer_ids(user_id)
+            if 'message' in policy_svc.effective_policy(p).friends_can]
 
 
 def active_peer_ids(user_id: str) -> List[str]:
@@ -1066,16 +1096,24 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
     since = _iso(_now() - timedelta(days=days))
     from repositories.peer_reaction_repository import PeerReactionRepository
 
+    from repositories.peer_text_screen_repository import PeerTextScreenRepository
+
     repo = PeerConnectionRepository()
     connections = repo.connections_touching(student_id, since)
     comments = repo.comments_involving(student_id, since)
     reactions = PeerReactionRepository().involving(student_id, since)
+    # What the child wrote that the screen held. Only the AUTHOR's parent sees
+    # a hold: it never reached the other child, so it is not part of that
+    # child's record.
+    holds = PeerTextScreenRepository().holds_by_author(student_id, since)
 
     other_ids = set()
     for c in connections:
         other_ids.add(c['addressee_id'] if c['requester_id'] == student_id else c['requester_id'])
     for c in comments + reactions:
         other_ids.add(c['author_id'] if c['author_id'] != student_id else c['student_id'])
+    for h in holds:
+        other_ids.add(h['recipient_id'])
     other_ids.discard(student_id)
 
     people = PeerPolicyRepository().users_by_ids(
@@ -1116,11 +1154,24 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
                 'text': c.get('comment_text'),
                 'created_at': c.get('created_at'),
                 'hidden_at': c.get('hidden_at'),
+                'hidden_reason': c.get('hidden_reason'),
                 'learning_event_id': c.get('learning_event_id'),
                 'task_completion_id': c.get('task_completion_id'),
                 'quest_id': c.get('quest_id'),
             }
             for c in comments
+        ],
+        'holds': [
+            {
+                'id': h['id'],
+                'surface': h.get('surface'),
+                'stage': h.get('stage'),
+                'peer': _profile(h['recipient_id']),
+                'text': h.get('text'),
+                'reasons': h.get('reasons') or [],
+                'created_at': h.get('created_at'),
+            }
+            for h in holds
         ],
         'reactions': [
             {
@@ -1359,6 +1410,18 @@ def add_comment(author_id: str, student_id: str, text: str,
     if len(targets) != 1:
         raise PeerConnectionError('A comment must be on exactly one item.')
 
+    # The screen (phase 3). A held comment is never stored here; it goes to
+    # peer_text_holds where the author's parent can read it. A screen that
+    # could not run posts the comment as 'pending' for the sweep -- see the
+    # fail-open argument at the top of peer_text_screen_service.
+    from services import peer_text_screen_service as screen_svc
+    verdict = screen_svc.screen(text, surface=screen_svc.SURFACE_COMMENT)
+    if verdict.flagged:
+        screen_svc.record_hold(author_id=author_id, recipient_id=student_id,
+                               surface=screen_svc.SURFACE_COMMENT, text=text,
+                               result=verdict)
+        raise PeerConnectionError(screen_svc.HELD_MESSAGE)
+
     row = _admin().table('peer_comments').insert({
         'author_id': author_id,
         'student_id': student_id,
@@ -1366,6 +1429,8 @@ def add_comment(author_id: str, student_id: str, text: str,
         'task_completion_id': task_completion_id,
         'quest_id': quest_id,
         'comment_text': text,
+        'screen_status': verdict.status,
+        'screened_at': None if verdict.failed else _iso(_now()),
     }).execute().data[0]
 
     _notify(student_id, 'peer_comment', 'A friend commented on your work',
@@ -1427,6 +1492,35 @@ def delete_comment(caller_id: str, comment_id: str) -> None:
         raise PeerConnectionError('Comment not found')
 
     admin.table('peer_comments').delete().eq('id', comment_id).execute()
+
+
+def hide_comment(caller_id: str, comment_id: str) -> Dict[str, Any]:
+    """A parent takes a comment off their child's work.
+
+    Hidden, not deleted: the parent's activity view keeps showing what was
+    said and that it was taken down, which is the record a parent wants when
+    they later decide whether to remove the friend. The same adults who may
+    set the child's Friends policy may do this (setter_kind), plus a parent
+    where an org admin is the policy setter -- the comment is on their child.
+    The student removes comments from their own work with delete_comment.
+    """
+    from repositories.peer_text_screen_repository import (
+        PeerTextScreenRepository, HIDDEN_BY_PARENT)
+    repo = PeerTextScreenRepository()
+    comment = repo.comment(comment_id)
+    if not comment:
+        raise PeerConnectionError('Comment not found')
+    student_id = comment['student_id']
+    if not pa.is_parent_of(caller_id, student_id):
+        try:
+            kind = policy_svc.setter_kind(caller_id, student_id)
+        except policy_svc.PeerPolicyError:
+            kind = None
+        if kind not in ('org_admin', 'superadmin'):
+            raise PeerConnectionError('Comment not found')
+    if not comment.get('hidden_at'):
+        repo.hide_comment(comment_id, hidden_by=caller_id, reason=HIDDEN_BY_PARENT)
+    return {'id': comment_id, 'hidden': True}
 
 
 # ---------------------------------------------------------------------------

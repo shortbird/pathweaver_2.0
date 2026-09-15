@@ -9,7 +9,9 @@ import {
   MessageActionBar,
   MessageEditForm
 } from './MessageParts'
+import { toast } from 'react-hot-toast'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
 import MessageText from './MessageText'
 
 const scrollThreadToBottom = (endEl, smooth = true) => {
@@ -31,6 +33,9 @@ const MessageThread = ({
   onReply,
   onEditMessage,
   onDeleteMessage,
+  // Direct messages only (Friends phase 3): a report the moderation queue
+  // can act on. Group chats do not pass it.
+  canReport = false,
   // Set only for superadmin support threads: forward a received message to the
   // sender's school inbox.
   onForward,
@@ -42,6 +47,7 @@ const MessageThread = ({
   const { user } = useAuth()
   const messagesEndRef = useRef(null)
   const [editingId, setEditingId] = useState(null)
+  const [reportingId, setReportingId] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
 
   const scrollToBottom = () => {
@@ -89,6 +95,16 @@ const MessageThread = ({
     }
   }
 
+  const sendReport = async (message, reason) => {
+    setReportingId(null)
+    try {
+      await reportContent('message', message.id, reason)
+      toast.success('Thanks. We received your report and will review it.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not send that report.')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -129,13 +145,33 @@ const MessageThread = ({
                   canDelete={isSender}
                   canForward={!!onForward && !isSender}
                   canEmailToSelf={!!onEmailToSelf}
+                  canReport={canReport && !isSender}
                   onReact={(emoji) => onToggleReaction?.(message, emoji)}
                   onReply={() => onReply?.(message)}
                   onEdit={() => setEditingId(message.id)}
                   onDelete={() => handleDelete(message)}
                   onForward={() => onForward?.(message)}
                   onEmailToSelf={() => onEmailToSelf?.(message)}
+                  onReport={() => setReportingId(message.id)}
                 />
+              )}
+              {reportingId === message.id && (
+                <div className="mb-1 rounded-lg border border-gray-200 bg-white shadow-md py-1 text-sm">
+                  <p className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Why are you reporting this?</p>
+                  {REPORT_REASONS.map((r) => (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => sendReport(message, r.value)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setReportingId(null)} className="w-full text-left px-3 py-2 text-gray-500 hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
               )}
 
               <div

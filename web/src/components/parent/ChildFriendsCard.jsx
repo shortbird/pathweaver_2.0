@@ -31,6 +31,19 @@ const SOURCES = [
   { key: 'school', label: 'Anyone at their school', help: 'Only if the school has turned this on' },
 ];
 
+const HIDDEN_BY = {
+  parent: 'Hidden by you',
+  report: 'Taken down after a report',
+  screen: 'Hidden by the safety check',
+};
+
+/** friends_can with one grant added or removed. 'see' is the floor and the
+ *  server keeps it; the order is the server's too. */
+function toggleGrant(current, key, on) {
+  const rest = (current || []).filter((k) => k !== key);
+  return on ? [...rest, key] : rest;
+}
+
 /** The code a friend's invite link carried in (/f/<CODE> -> /family?friend_code=). */
 function codeFromUrl() {
   try {
@@ -49,6 +62,38 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
   const [code, setCode] = useState(codeFromUrl);
   const [childCode, setChildCode] = useState(null);
   const [sending, setSending] = useState(false);
+  // What happened lately (phase 3 brought it to the web with the hide):
+  // comments given and received, reactions, and anything the safety check
+  // held. Loaded once Friends is on.
+  const [activity, setActivity] = useState(null);
+  const [hidingId, setHidingId] = useState(null);
+
+  const loadActivity = useCallback(async () => {
+    try {
+      const d = await friends.getChildActivity(studentId, 30);
+      setActivity({ comments: d.comments || [], reactions: d.reactions || [], holds: d.holds || [] });
+    } catch {
+      setActivity({ comments: [], reactions: [], holds: [] });
+    }
+  }, [studentId]);
+
+  const hideComment = async (entry) => {
+    setHidingId(entry.id);
+    try {
+      await friends.hidePeerComment(entry.id);
+      setActivity((prev) => prev ? {
+        ...prev,
+        comments: prev.comments.map((x) => x.id === entry.id
+          ? { ...x, hidden_at: new Date().toISOString(), hidden_reason: 'parent' }
+          : x),
+      } : prev);
+      toast.success('Comment hidden.');
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Could not hide that comment.');
+    } finally {
+      setHidingId(null);
+    }
+  };
 
   // A parent connects the child by the other student's code (or the link it
   // came in), or hands the child's own code to the other family. Both go
@@ -101,6 +146,8 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
   }, [studentId]);
 
   useEffect(() => { load(); }, [load]);
+  const policyOn = !!policy?.enabled;
+  useEffect(() => { if (policyOn) loadActivity(); }, [policyOn, loadActivity]);
 
   const save = async (patch, successMessage) => {
     setSaving(true);
@@ -308,14 +355,80 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
                 <input
                   type="checkbox"
                   checked={friendsCan.includes('comment')}
-                  onChange={(e) => save({ friends_can: e.target.checked ? ['see', 'comment'] : ['see'] })}
+                  onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'comment', e.target.checked) })}
                   disabled={saving}
                   className="mt-1"
                 />
                 <span className="text-gray-900">Comment on {studentName}&rsquo;s work</span>
               </label>
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={friendsCan.includes('message')}
+                  onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'message', e.target.checked) })}
+                  disabled={saving}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="text-gray-900">Message {studentName}</span>
+                  <span className="block text-xs text-gray-500">
+                    Only with friends whose family also allows it. Every message is checked by our safety screen, and you can read {studentName}&rsquo;s messages from the Messages page.
+                  </span>
+                </span>
+              </label>
             </div>
           </fieldset>
+
+          <section aria-label="Last 30 days">
+            <h4 className="text-sm font-medium text-gray-900">Last 30 days</h4>
+            {!activity ? (
+              <p className="mt-2 text-sm text-gray-500">Loading&hellip;</p>
+            ) : activity.comments.length + activity.reactions.length + activity.holds.length === 0 ? (
+              <p className="mt-2 text-sm text-gray-500">No comments or reactions yet.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-gray-100">
+                {activity.holds.map((h) => (
+                  <li key={`h-${h.id}`} className="py-2" data-testid={`hold-${h.id}`}>
+                    <p className="text-xs text-gray-500">
+                      {h.stage === 'refused'
+                        ? `${studentName} wrote ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that our safety check held. It was not sent.`
+                        : `${studentName} sent ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that our safety check hid afterwards.`}
+                    </p>
+                    <p className="text-sm text-gray-900">{h.text}</p>
+                    {h.reasons?.length > 0 && <p className="text-xs text-gray-500">{h.reasons.join('; ')}</p>}
+                  </li>
+                ))}
+                {activity.comments.map((e) => (
+                  <li key={`c-${e.id}`} className="py-2">
+                    <div className="flex items-start gap-2">
+                      <p className="flex-1 text-xs text-gray-500">
+                        {e.direction === 'received'
+                          ? `${e.peer.display_name} commented on ${studentName}'s work`
+                          : `${studentName} commented on ${e.peer.display_name}'s work`}
+                      </p>
+                      {e.direction === 'received' && !e.hidden_at && (
+                        <button
+                          type="button"
+                          onClick={() => hideComment(e)}
+                          disabled={hidingId === e.id}
+                          className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                        >
+                          Hide
+                        </button>
+                      )}
+                    </div>
+                    <p className={`text-sm ${e.hidden_at ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{e.text}</p>
+                    {e.hidden_at && <p className="text-xs text-gray-500">{HIDDEN_BY[e.hidden_reason] || 'Hidden'}</p>}
+                  </li>
+                ))}
+                {activity.reactions.map((r) => (
+                  <li key={`r-${r.id}`} className="py-1.5 text-xs text-gray-500">
+                    {r.direction === 'received' ? `${r.peer.display_name} to ${studentName}` : `${studentName} to ${r.peer.display_name}`}: {r.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       )}
     </div>

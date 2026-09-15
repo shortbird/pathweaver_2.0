@@ -12,7 +12,8 @@ import {
   TrashIcon,
   MapPinIcon,
   EnvelopeIcon,
-  DocumentIcon
+  DocumentIcon,
+  FlagIcon
 } from '@heroicons/react/24/outline'
 
 // The only reactions the backend accepts.
@@ -188,13 +189,15 @@ export const MessageActionBar = ({
   canPin = false,
   canForward = false,
   canEmailToSelf = false,
+  canReport = false,
   onReact,
   onReply,
   onEdit,
   onDelete,
   onPin,
   onForward,
-  onEmailToSelf
+  onEmailToSelf,
+  onReport
 }) => {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerBelow, setPickerBelow] = useState(false)
@@ -267,6 +270,11 @@ export const MessageActionBar = ({
             className={itemClass}
           >
             <EnvelopeIcon className="w-4 h-4" />
+          </button>
+        )}
+        {canReport && (
+          <button type="button" title="Report" aria-label="Report message" onClick={onReport} className={itemClass}>
+            <FlagIcon className="w-4 h-4" />
           </button>
         )}
         {canPin && (

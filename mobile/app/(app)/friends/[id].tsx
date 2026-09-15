@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeed } from '@/src/hooks/useFeed';
-import { useFriends } from '@/src/hooks/useFriends';
+import { useFriends, messagesRouteFor } from '@/src/hooks/useFriends';
 import { FeedCard } from '@/src/components/feed/FeedCard';
 import { VStack, HStack, Heading, UIText, Card, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -27,7 +27,11 @@ export default function FriendScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const { connections } = useFriends();
-  const friend = connections.active.find((x) => x.peer.id === id)?.peer;
+  const connection = connections.active.find((x) => x.peer.id === id);
+  const friend = connection?.peer;
+  // Both families allow chat (phase 3). The server re-checks on every send;
+  // this only decides whether the button shows.
+  const canMessage = !!connection?.can_message;
   const { items, loading, loadingMore, hasMore, loadMore } = useFeed({ studentId: id });
 
   const name = friend?.display_name || 'Friend';
@@ -46,6 +50,18 @@ export default function FriendScreen() {
           <Heading size="md" numberOfLines={1}>{name}</Heading>
           <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Friends on Optio</UIText>
         </VStack>
+        {canMessage && (
+          <Pressable
+            onPress={() => router.push(messagesRouteFor(id) as any)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Message ${name}`}
+            testID="friend-message-button"
+            style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color={c.brand} />
+          </Pressable>
+        )}
       </HStack>
 
       {loading ? (

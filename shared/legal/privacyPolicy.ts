@@ -23,11 +23,19 @@ import type { LegalDocument } from './types';
  * remove/block/off controls, and the org administrator standing in for a
  * student with no parent linked. The "opt out of community features" control
  * this policy promised since v1.0 now exists.
+ *
+ * v1.4 (2026-09-17): Friends, safety. Friends may now message each other when
+ * both families allow it. Every comment and message between students passes
+ * an automated safety check (Google Gemini) before the other student sees it;
+ * text the check holds is kept for the author's parent and never delivered.
+ * Parents can read their child's messages, hide a comment on their child's
+ * work, and are told when something their child wrote was held. Reports on a
+ * friend's comment or a message can be acted on by our moderators.
  */
 export const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
-  effectiveDate: 'September 16, 2026',
-  version: '1.3',
+  effectiveDate: 'September 17, 2026',
+  version: '1.4',
   sections: [
     {
       heading: '1. Introduction',
@@ -108,6 +116,8 @@ export const privacyPolicy: LegalDocument = {
             'The Friends settings a parent or guardian chose for a child, and who set them',
             'Friend requests and friendships, including how the request was made (a share code, an invite link, a classmate list, or a parent)',
             'Comments and reactions between friends on each other\'s work',
+            'Direct messages between friends, where both families allow messaging',
+            'The result of the automated safety check on each comment or message between students, and the text of anything the check held back',
             'Activity feed data shared with friends',
             'Public profile information',
             'Portfolio sharing settings',
@@ -287,7 +297,7 @@ export const privacyPolicy: LegalDocument = {
         },
         {
           type: 'paragraph',
-          text: 'When turning Friends on, a parent chooses the rules: whether each new friend is added right away or needs the parent\'s approval first; who may send the child a friend request (classmates, a code the child shares in person, an invite link, or — if the school allows it — other students at the school); and whether friends may comment on the child\'s work. There is no directory of students and no search by name: a student can only be reached through one of those routes, and a student whose family has not turned Friends on cannot be reached at all.',
+          text: 'When turning Friends on, a parent chooses the rules: whether each new friend is added right away or needs the parent\'s approval first; who may send the child a friend request (classmates, a code the child shares in person, an invite link, or — if the school allows it — other students at the school); whether friends may comment on the child\'s work; and whether friends may message the child. There is no directory of students and no search by name: a student can only be reached through one of those routes, and a student whose family has not turned Friends on cannot be reached at all.',
         },
         {
           type: 'paragraph',
@@ -295,7 +305,21 @@ export const privacyPolicy: LegalDocument = {
         },
         {
           type: 'paragraph',
-          text: 'Parents and guardians keep full visibility and control. From the Family tab a parent can see every friend, see the comments and reactions their child gave and received, remove or block any friend, change the rules, and turn Friends off. Turning Friends off ends every one of the child\'s friendships. Parents are notified each time their child adds a friend.',
+          text: 'Parents and guardians keep full visibility and control. From the Family tab a parent can see every friend, see the comments and reactions their child gave and received, hide a comment on their child\'s work, remove or block any friend, change the rules, and turn Friends off. Turning Friends off ends every one of the child\'s friendships. Parents are notified each time their child adds a friend.',
+        },
+        { type: 'subheading', text: 'Messages Between Friends' },
+        {
+          type: 'paragraph',
+          text: 'Two students can send each other direct messages only when they are friends and both of their families have allowed messaging. Either family can withdraw that at any time, and the conversation closes at once. A parent can read their child\'s messages from the Messages page. Group and class chats are separate and follow the rules of the school that runs them.',
+        },
+        { type: 'subheading', text: 'Safety Check on What Students Write to Each Other' },
+        {
+          type: 'paragraph',
+          text: 'Every comment and every direct message one student writes to another passes an automated safety check before the other student sees it. The check looks for bullying, sexual content, self-harm, hate, profanity, personal contact details (a phone number, address, email, or a username for another app), and requests for money, secrecy, or photos. Part of the check is a set of fixed rules we run ourselves; the rest is performed by Google Gemini, which receives the text of the message and returns a verdict. Google does not use this text to train its models. If the check cannot run, the text is delivered and checked shortly afterwards; anything the later check finds is hidden.',
+        },
+        {
+          type: 'paragraph',
+          text: 'Text the check holds is not delivered. We keep it, with the reason, so the author\'s parent or guardian can see what their child tried to send, and we notify that parent. A student whose text was held sees only that it was held. Any student can report a friend\'s comment or a message; our moderators review reports and can hide the comment or remove the message.',
         },
         { type: 'subheading', text: 'Who Can See a Private Portfolio' },
         {
@@ -503,7 +527,7 @@ export const privacyPolicy: LegalDocument = {
           items: [
             [{ bold: 'Supabase' }, ' - Database, authentication, and storage (GDPR compliant)'],
             [{ bold: 'Stripe' }, ' - Payment processing (PCI DSS compliant)'],
-            [{ bold: 'Google Gemini' }, ' - AI Tutor features with safety monitoring'],
+            [{ bold: 'Google Gemini' }, ' - AI Tutor features with safety monitoring, and the safety check on comments and messages between students'],
             [{ bold: 'Pexels' }, ' - Quest and badge imagery (licensed stock photos)'],
             [{ bold: 'Meta (Facebook)' }, ' - Marketing analytics, the Meta Pixel, and custom/lookalike advertising audiences (adult account holders only)'],
             [{ bold: 'Render' }, ' - Web hosting and application infrastructure'],

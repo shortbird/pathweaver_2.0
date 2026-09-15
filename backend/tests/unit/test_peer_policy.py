@@ -361,12 +361,23 @@ def test_a_change_that_leaves_it_on_revokes_nothing():
     conn_repo.revoke_all_active_for.assert_not_called()
 
 
-def test_message_is_refused_until_phase_3():
+def test_a_parent_may_allow_messaging():
+    # Refused until phase 3 shipped chat with its safety work (2026-09-17).
+    # The grant is one family's half of a two-sided switch; see
+    # peer_connection_service.friends_can_message for the other half.
     repo = FakeRepo(users={'kid': KID, 'mum': MUM})
     a, b, c, d = _writing(repo)
     with a, b, c, d:
-        with pytest.raises(PeerPolicyError, match='not available yet'):
-            ps.set_policy('kid', 'mum', {'enabled': True, 'friends_can': ['see', 'message']})
+        ps.set_policy('kid', 'mum', {'enabled': True, 'friends_can': ['see', 'message']})
+    assert repo.policies['kid']['friends_can'] == ['see', 'message']
+
+
+def test_an_unknown_grant_is_refused():
+    repo = FakeRepo(users={'kid': KID, 'mum': MUM})
+    a, b, c, d = _writing(repo)
+    with a, b, c, d:
+        with pytest.raises(PeerPolicyError, match='friends_can'):
+            ps.set_policy('kid', 'mum', {'enabled': True, 'friends_can': ['see', 'call']})
 
 
 def test_seeing_is_the_floor_of_what_friends_can_do():

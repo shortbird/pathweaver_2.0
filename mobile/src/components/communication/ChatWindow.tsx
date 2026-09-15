@@ -13,8 +13,10 @@ import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast,
+  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast, ActionSheet,
 } from '@/src/components/ui';
+import { reportContent, REPORT_REASONS } from '@/src/hooks/useFriends';
+import { extractApiError } from '@/src/services/apiError';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
@@ -184,6 +186,18 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       }
     } catch {
       toast.error('Could not update the reaction');
+    }
+  };
+
+  // Report (Friends phase 3): the actions sheet closes, then the reason
+  // sheet opens on the deferred-action path, so the two Modals never overlap.
+  const [reportingMsg, setReportingMsg] = useState<Message | null>(null);
+  const sendReport = async (msg: Message, reason: (typeof REPORT_REASONS)[number]['value']) => {
+    try {
+      await reportContent('message', msg.id, reason);
+      toast.success('Thanks. We will review it.');
+    } catch (e: unknown) {
+      toast.error(extractApiError(e, 'Could not send that report').message);
     }
   };
 
@@ -602,6 +616,21 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       onDelete={() => actionsFor && handleDelete(actionsFor)}
       onForward={isSuperadmin ? () => actionsFor && handleForwardToSchool(actionsFor) : undefined}
       onEmailToSelf={isSuperadmin ? () => actionsFor && handleEmailToSelf(actionsFor) : undefined}
+      onReport={() => actionsFor && setReportingMsg(actionsFor)}
+    />
+  );
+
+  const reportSheet = (
+    <ActionSheet
+      visible={!!reportingMsg}
+      onClose={() => setReportingMsg(null)}
+      title="Why are you reporting this?"
+      actions={REPORT_REASONS.map((r) => ({
+        key: r.value,
+        label: r.label,
+        icon: 'flag-outline' as const,
+        onPress: () => { if (reportingMsg) sendReport(reportingMsg, r.value); },
+      }))}
     />
   );
 
@@ -619,6 +648,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
           {messageList}
           {inputBar}
           {actionsSheet}
+          {reportSheet}
         </Animated.View>
       );
     }
@@ -632,6 +662,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
         {messageList}
         {inputBar}
         {actionsSheet}
+        {reportSheet}
       </KeyboardAvoidingView>
     );
   }
@@ -643,6 +674,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       {messageList}
       {inputBar}
       {actionsSheet}
+      {reportSheet}
     </View>
   );
 }

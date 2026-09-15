@@ -44,10 +44,11 @@ MODULE_KEY = 'friends'
 
 APPROVAL_MODES = ('auto', 'ask_first')
 REQUEST_SOURCES = ('classmates', 'code', 'link', 'school')
+#: 'message' arrived with phase 3 (2026-09-17), together with the safety work
+#: it waited for: the peer text screen, message reporting, a send rate limit
+#: and the parent's read-only view of the thread. Chat opens only when BOTH
+#: sides' policies carry it (peer_connection_service.friends_can_message).
 FRIENDS_CAN = ('see', 'comment', 'message')
-#: Accepted by the schema, refused by the API until phase 3 ships chat with
-#: its own safety work (message reporting, rate limits, text screening).
-RESERVED_FRIENDS_CAN = ('message',)
 
 DEFAULT_REQUEST_SOURCES = ['classmates', 'code', 'link']
 DEFAULT_FRIENDS_CAN = ['see', 'comment']
@@ -321,7 +322,8 @@ def set_policy(student_id: str, setter_id: str, body: Dict[str, Any], *,
       * on -> off revokes every active connection the child is on, with the
         reason recorded. A parent who turns Friends off expects the friends
         to be gone, not hidden behind a switch that could flip back.
-      * 'message' in friends_can is refused until phase 3.
+      * 'message' in friends_can opens chat with a friend whose family also
+        allows it; it is never a grant on its own.
     """
     kind = setter_kind(setter_id, student_id)
     body = body or {}
@@ -344,9 +346,6 @@ def set_policy(student_id: str, setter_id: str, body: Dict[str, Any], *,
     friends_can = _as_list(body.get('friends_can'), FRIENDS_CAN,
                            current.get('friends_can') or DEFAULT_FRIENDS_CAN,
                            'friends_can')
-    for reserved in RESERVED_FRIENDS_CAN:
-        if reserved in friends_can:
-            raise PeerPolicyError('Messaging between friends is not available yet.')
     if 'see' not in friends_can:
         # Comments on work you cannot see is not a setting; seeing is the floor.
         friends_can.insert(0, 'see')

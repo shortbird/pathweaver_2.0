@@ -142,8 +142,17 @@ class DirectMessageService(BaseService):
                 logger.debug("[can_message_user] ALLOWED: Teacher-guardian via class roster")
                 return True
 
-            # Friendship check removed (March 2026 - Feature pruning)
-            # Students can no longer DM each other directly
+            # Friends (2026-09-17, Friends phase 3). Two students may DM each
+            # other when they are friends AND both families allow it: 'message'
+            # in each side's friends_can. Read on every send, so a parent
+            # flipping it off, a block, or the friendship ending closes the
+            # thread at once. (The March 2026 pruning removed the old
+            # friendship rule; this is its policy-gated replacement.)
+            if sender_effective_role == 'student' and target_effective_role == 'student':
+                from services import peer_connection_service
+                if peer_connection_service.friends_can_message(user_id, target_id):
+                    logger.debug("[can_message_user] ALLOWED: Friends, both families allow chat")
+                    return True
 
             # Check if they have a parent-student link (bidirectional)
             parent_link1 = supabase.table('parent_student_links').select('id').eq(
@@ -219,6 +228,23 @@ class DirectMessageService(BaseService):
         except Exception as e:
             logger.error(f"[can_message_user] org adult check failed (denying): {e}")
             return False
+
+    def _is_student_pair(self, a_id: str, b_id: str) -> bool:
+        """Both parties are students by effective role. The only way two
+        students reach send_message is the friends rule, so this is the
+        'is this friend chat' test without a second permission read."""
+        try:
+            from repositories.peer_policy_repository import PeerPolicyRepository
+            from utils.roles import get_effective_role
+            rows = PeerPolicyRepository().users_by_ids([a_id, b_id], 'id, role, org_role')
+            return (len(rows) == 2 and all(
+                get_effective_role(rows[uid]) == 'student' for uid in (a_id, b_id)))
+        except Exception as e:  # noqa: BLE001
+            # Unknown is treated as friend chat: screening an adult thread by
+            # mistake costs a model call; skipping a child's thread costs the
+            # promise the screen exists to keep.
+            logger.warning(f"[send_message] student-pair check failed (screening): {e}")
+            return True
 
     # ==================== Conversation Management ====================
 
@@ -458,6 +484,7 @@ class DirectMessageService(BaseService):
         Returns:
             Created message record (enriched with reply preview)
         """
+        from middleware.error_handler import ValidationError
         from services import messaging_extras_service as extras
         from utils.client_platform import request_client_platform
         if sent_from is None:
@@ -466,6 +493,23 @@ class DirectMessageService(BaseService):
             # Verify permission
             if not self.can_message_user(sender_id, recipient_id):
                 raise ValueError("You don't have permission to message this user")
+
+            # Student to student is friend chat, and friend chat is screened
+            # (Friends phase 3). A held message is never stored; it goes to
+            # peer_text_holds where the sender's parent can read it. A screen
+            # that could not run lets the message through as 'pending' for the
+            # cron sweep -- see the fail-open argument in
+            # peer_text_screen_service. Adult threads are not screened.
+            verdict = None
+            if self._is_student_pair(sender_id, recipient_id):
+                from services import peer_text_screen_service as screen_svc
+                verdict = screen_svc.screen(content or '', surface=screen_svc.SURFACE_MESSAGE)
+                if verdict.flagged:
+                    screen_svc.record_hold(
+                        author_id=sender_id, recipient_id=recipient_id,
+                        surface=screen_svc.SURFACE_MESSAGE, text=content or '',
+                        result=verdict)
+                    raise ValidationError(screen_svc.HELD_MESSAGE)
 
             # Get or create conversation
             conversation = self.get_or_create_conversation(sender_id, recipient_id)
@@ -493,6 +537,9 @@ class DirectMessageService(BaseService):
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
+            if verdict is not None:
+                message['screen_status'] = verdict.status
+                message['screened_at'] = None if verdict.failed else message['created_at']
 
             result = supabase.table('direct_messages').insert(message).execute()
 
@@ -517,6 +564,9 @@ class DirectMessageService(BaseService):
                                 extras.broadcast_payload(enriched))
             return enriched
 
+        except ValidationError:
+            # A held message is the screen doing its job, not a failure.
+            raise
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")
             raise

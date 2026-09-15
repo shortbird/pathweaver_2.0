@@ -152,6 +152,13 @@ def main():
     _run("stories-rebuild-sweep", f"{base}/api/admin/stories/internal/rebuild-sweep",
          cron_secret, failures, base=base)
 
+    # Every run: peer text screen sweep. Re-screens comments and friend
+    # messages that posted while Gemini was unavailable (the screen fails
+    # open) and hides what it finds. Bounded per tick; no-ops cheaply when
+    # nothing is pending.
+    _run("peer-text-screen-sweep", f"{base}/api/admin/moderation/internal/text-screen-sweep",
+         cron_secret, failures, base=base)
+
     # Every run: weekly parent digest. The send day and hour belong to each
     # school (in ITS timezone), so the window check has to happen server-side —
     # a fixed UTC hour here would send Sunday's digest on Monday for half the

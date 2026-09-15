@@ -53,6 +53,7 @@ const ROWS: PreferenceRow[] = [
   { type: 'peer_friend_added', label: 'Friends added', description: 'When your child adds a friend.', icon: 'people-outline', roles: ['parent'] },
   { type: 'peer_comment', label: 'Friend comments', description: 'When a friend comments on your work.', icon: 'chatbox-ellipses-outline', roles: ['student'] },
   { type: 'peer_reaction', label: 'Friend reactions', description: 'When a friend reacts to your work.', icon: 'sparkles-outline', roles: ['student'] },
+  { type: 'peer_text_held', label: 'Held messages', description: 'When our safety check holds something your child wrote to a friend.', icon: 'hand-left-outline', roles: ['parent'] },
 ];
 
 /**

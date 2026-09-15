@@ -18,7 +18,11 @@ logger = get_logger(__name__)
 
 bp = Blueprint('moderation', __name__, url_prefix='/api/moderation')
 
-VALID_TARGET_TYPES = {'learning_event', 'task_completion', 'comment', 'user'}
+# peer_comment and message arrived with Friends phase 3 (2026-09-17): the
+# first two places a child's words reach another child, and the two the
+# moderation queue can take down (services/content_takedown_service.py).
+VALID_TARGET_TYPES = {'learning_event', 'task_completion', 'comment', 'user',
+                      'peer_comment', 'message'}
 VALID_REASONS = {'spam', 'harassment', 'inappropriate', 'self_harm', 'other'}
 
 
@@ -29,7 +33,8 @@ def report_content(user_id):
     File a report against a feed item, comment, or user.
 
     Body:
-        target_type (str): one of learning_event, task_completion, comment, user
+        target_type (str): one of learning_event, task_completion, comment, user,
+            peer_comment, message
         target_id (str): UUID of target
         reason (str): one of spam, harassment, inappropriate, self_harm, other
         notes (str, optional): free-text context (<=500 chars)

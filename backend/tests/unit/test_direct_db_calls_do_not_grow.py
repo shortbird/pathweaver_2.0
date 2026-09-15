@@ -362,7 +362,15 @@ BASELINES = {
     # peer_policy_repository.org_student_ids (+1: the school pool, read
     # through fetch_all_rows). routes/ and services/ did not move: the
     # observer feed and the service call these.
-    'repositories': 569,
+    # 2026-09-17: 569 -> 582, Friends phase 3 (safety). peer_text_screen_repository
+    # (10: the hold insert and the parent's read of holds, the two pending
+    # backlogs the cron sweep drains, the two settle writes, one read and one
+    # hide each for a peer comment and a direct message) and
+    # content_report_repository (3: one report by id for the takedown, and
+    # the comment and message texts the moderation queue previews). routes/
+    # and services/ did not move: the screen, the sweep, the takedown and the
+    # parent's hide all read and write through these.
+    'repositories': 582,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

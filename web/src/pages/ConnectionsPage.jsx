@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { QRCodeSVG } from 'qrcode.react'
 import * as friends from '../services/friendsAPI'
@@ -398,6 +398,9 @@ export default function ConnectionsPage() {
             >
               {list.active.map((item) => (
                 <PeerRow key={item.id} item={item}>
+                  {item.can_message && (
+                    <Link to={friends.messagesLinkFor(item.peer.id)} className={secondaryBtn}>Message</Link>
+                  )}
                   <button onClick={() => revoke(item.id)} disabled={busy} className={secondaryBtn}>Remove</button>
                 </PeerRow>
               ))}

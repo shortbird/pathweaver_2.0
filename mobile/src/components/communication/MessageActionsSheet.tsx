@@ -2,8 +2,9 @@
  * MessageActionsSheet - long-press menu for a message bubble.
  *
  * Top: the 6 allowed reaction emoji (tap toggles your reaction).
- * Below: contextual actions — Reply, Copy text, Edit (own messages),
- * Delete (own; group admins any group message), Pin/Unpin (group admins).
+ * Below: contextual actions — Reply, Copy text, Edit (own messages), Report
+ * (others' messages), Delete (own; group admins any group message),
+ * Pin/Unpin (group admins).
  *
  * Same bottom-sheet + deferred-action pattern as ui/action-sheet.tsx: the
  * chosen action runs only after the Modal has fully closed, so follow-up
@@ -37,6 +38,9 @@ interface Props {
   onForward?: () => void;
   /** Superadmin only: mail a copy of this message to your own inbox. */
   onEmailToSelf?: () => void;
+  /** Someone else's message: file a report (Friends phase 3). The moderation
+   *  queue can take a direct message down. */
+  onReport?: () => void;
 }
 
 interface Row {
@@ -62,6 +66,7 @@ export function MessageActionsSheet({
   onPin,
   onForward,
   onEmailToSelf,
+  onReport,
 }: Props) {
   const c = useThemeColors();
   // Run the chosen action only AFTER the Modal has fully closed (iOS: a second
@@ -111,6 +116,9 @@ export function MessageActionsSheet({
   }
   if (isOwn && onEdit) {
     rows.push({ key: 'edit', label: 'Edit', icon: 'pencil-outline', onPress: onEdit });
+  }
+  if (!isOwn && onReport) {
+    rows.push({ key: 'report', label: 'Report', icon: 'flag-outline', onPress: onReport });
   }
   if (canPin && onPin) {
     rows.push({
