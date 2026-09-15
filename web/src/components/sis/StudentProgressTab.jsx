@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Link } from 'react-router-dom'
 import { PrinterIcon, InboxIcon } from '@heroicons/react/24/outline'
@@ -21,6 +21,13 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * per-student panel is where a teacher takes a quest off one student's list, or
  * gives one to them (Gryffin, 2026-09-10: "go into a specific student's
  * assignments and remove them").
+ *
+ * The student picker narrows the grid to one row. It exists for check-ins: a
+ * teacher wants to turn the screen toward a student and show them what the
+ * teacher sees, without showing them everyone else (Dallin, 2026-09-15: "a way
+ * to filter by student would be very helpful on that page"). Same request: the
+ * "Tasks done" column stays put while the quest columns scroll under it, and
+ * the grid opens scrolled to its newest quests, which sit at the far right.
  */
 
 const isAssigned = (c) => c.assigned !== false
@@ -73,6 +80,8 @@ const StudentProgressTab = ({ classId, className }) => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [openStudent, setOpenStudent] = useState(null)
+  const [studentFilter, setStudentFilter] = useState('')
+  const scrollerRef = useRef(null)
 
   const load = useCallback(() => {
     if (!classId) return
@@ -88,16 +97,35 @@ const StudentProgressTab = ({ classId, className }) => {
   const quests = data?.quests || []
   const students = data?.students || []
 
+  // A picked student who has since left the roster falls back to everyone
+  // rather than an empty grid.
+  const visible = useMemo(() => {
+    const one = studentFilter && students.find((s) => s.student_id === studentFilter)
+    return one ? [one] : students
+  }, [students, studentFilter])
+
   const summary = useMemo(() => {
-    if (!students.length) return null
+    if (!visible.length) return null
     // Measured against what each student was actually given: a student with
     // nothing assigned has not "started nothing", and one who finished their
     // two of three quests is done.
     const given = (s) => s.cells.filter(isAssigned).length
-    const notStarted = students.filter((s) => given(s) > 0 && s.quests_started === 0).length
-    const allDone = students.filter((s) => given(s) > 0 && s.quests_completed === given(s)).length
+    const notStarted = visible.filter((s) => given(s) > 0 && s.quests_started === 0).length
+    const allDone = visible.filter((s) => given(s) > 0 && s.quests_completed === given(s)).length
     return { notStarted, allDone }
-  }, [students])
+  }, [visible])
+
+  // Quests are in assignment order, so the newest -- the ones a teacher is
+  // actually checking on -- are the rightmost columns, off-screen in any class
+  // with more than a handful. Open on them. Keyed on the column set rather than
+  // on every reload so that removing a quest for one student does not throw the
+  // teacher back to the end of a grid they had scrolled elsewhere.
+  const columnKey = quests.map((q) => q.quest_id).join(',')
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (loading || !el) return
+    el.scrollLeft = el.scrollWidth
+  }, [loading, columnKey])
 
   if (loading) return <p className="text-neutral-500">Loading…</p>
 
@@ -123,7 +151,18 @@ const StudentProgressTab = ({ classId, className }) => {
           Updates on its own as students complete tasks — there is nothing to fill in.
           {summary?.notStarted ? ` ${summary.notStarted} ${summary.notStarted === 1 ? 'student hasn’t' : 'students haven’t'} started anything yet.` : ''}
         </p>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <select
+            value={studentFilter}
+            onChange={(e) => setStudentFilter(e.target.value)}
+            aria-label="Show one student"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-neutral-700 bg-white focus:outline-none focus:ring-2 focus:ring-optio-purple"
+          >
+            <option value="">All students</option>
+            {students.map((s) => (
+              <option key={s.student_id} value={s.student_id}>{s.name}</option>
+            ))}
+          </select>
           {/* Submissions is its own item in the sidebar, which is a long way
               from the page you are on when you wonder what somebody handed in
               (Gryffin, 2026-08-27: "a submissions tab should be under student
@@ -136,7 +175,7 @@ const StudentProgressTab = ({ classId, className }) => {
             <InboxIcon className="w-4 h-4" /> Review submissions
           </Link>
           <button
-            onClick={() => printProgress(className, quests, students)}
+            onClick={() => printProgress(className, quests, visible)}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50"
           >
             <PrinterIcon className="w-4 h-4" /> Print
@@ -144,7 +183,7 @@ const StudentProgressTab = ({ classId, className }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      <div ref={scrollerRef} className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200">
@@ -159,11 +198,11 @@ const StudentProgressTab = ({ classId, className }) => {
                   )}
                 </th>
               ))}
-              <th className="px-3 py-2.5 font-medium text-neutral-600">Tasks done</th>
+              <th className="px-3 py-2.5 font-medium text-neutral-600 sticky right-0 bg-white shadow-[inset_1px_0_0_#e5e7eb] whitespace-nowrap">Tasks done</th>
             </tr>
           </thead>
           <tbody>
-            {students.map((s) => (
+            {visible.map((s) => (
               <tr key={s.student_id} className="border-b border-gray-100 last:border-0">
                 <td className="px-4 py-2.5 font-medium sticky left-0 bg-white">
                   {/* Clicking a name opens what is and isn't done, task by task.
@@ -184,7 +223,7 @@ const StudentProgressTab = ({ classId, className }) => {
                     </span>
                   </td>
                 ))}
-                <td className="px-3 py-2.5 text-center text-neutral-600">
+                <td className="px-3 py-2.5 text-center text-neutral-600 sticky right-0 bg-white shadow-[inset_1px_0_0_#e5e7eb] whitespace-nowrap">
                   {s.tasks_done}<span className="text-neutral-400">/{s.tasks_total || 0}</span>
                 </td>
               </tr>

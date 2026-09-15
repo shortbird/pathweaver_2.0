@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 // The tab links out to the class's submissions, so it needs router context.
@@ -78,8 +78,9 @@ describe('StudentProgressTab', () => {
     })
     render(<StudentProgressTab classId="c1" className="Art" />)
 
-    expect(await screen.findByText('Ada Byron')).toBeInTheDocument()
-    expect(screen.getByText('Blaise Pascal')).toBeInTheDocument()
+    // Each name is also an <option> in the student picker; the row is the button.
+    expect(await screen.findByRole('button', { name: 'Ada Byron' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Blaise Pascal' })).toBeInTheDocument()
     expect(screen.getByText('Bridge Building')).toBeInTheDocument()
     expect(screen.getByText('Poetry Slam')).toBeInTheDocument()
   })
@@ -135,5 +136,120 @@ describe('StudentProgressTab', () => {
     render(<StudentProgressTab classId="c1" className="Art" />)
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Class not found'))
+  })
+})
+
+/**
+ * Check-in mode (Dallin, 2026-09-15). A teacher turns the screen toward one
+ * student: the grid narrows to that student, the total stays in view however
+ * far the quest columns scroll, and the grid opens on the newest quests.
+ */
+describe('StudentProgressTab during a check-in', () => {
+  const threeStudents = () => api.get.mockResolvedValue({
+    data: {
+      quests: QUESTS,
+      students: [
+        student('Ada Byron', [cell('q1', { started: true, completed: true, done: 3, total: 3 }), cell('q2')], 3, 3),
+        student('Blaise Pascal', [cell('q1', { started: true, done: 1, total: 4 }), cell('q2')], 1, 4),
+        student('Carl Gauss', [cell('q1'), cell('q2')], 0, 0),
+      ],
+    },
+  })
+
+  it('narrows the grid to one student, and back to everyone', async () => {
+    threeStudents()
+    render(<StudentProgressTab classId="c1" className="Art" />)
+    await screen.findByRole('button', { name: 'Ada Byron' })
+
+    const picker = screen.getByRole('combobox', { name: 'Show one student' })
+    fireEvent.change(picker, { target: { value: 'Blaise Pascal' } })
+
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getByRole('button', { name: 'Blaise Pascal' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ada Byron' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Carl Gauss' })).not.toBeInTheDocument()
+    // The quest columns are all still there: this is one student's whole row.
+    expect(screen.getByText('Bridge Building')).toBeInTheDocument()
+    expect(screen.getByText('Poetry Slam')).toBeInTheDocument()
+
+    fireEvent.change(picker, { target: { value: '' } })
+    expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(3)
+  })
+
+  it('does not tell the picked student about the other students', async () => {
+    /** "1 student hasn't started anything yet" is about Carl. With Blaise on
+     *  screen it would be a hint about somebody else's work. */
+    threeStudents()
+    render(<StudentProgressTab classId="c1" className="Art" />)
+    expect(await screen.findByText(/1 student hasn’t started anything yet/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Show one student' }),
+      { target: { value: 'Blaise Pascal' } })
+    expect(screen.queryByText(/started anything yet/)).not.toBeInTheDocument()
+  })
+
+  it('prints only the picked student', async () => {
+    threeStudents()
+    const printed = { html: '' }
+    const fakeWindow = {
+      document: { write: (h) => { printed.html += h }, close: vi.fn() },
+      print: vi.fn(),
+    }
+    const open = vi.spyOn(window, 'open').mockReturnValue(fakeWindow)
+    try {
+      render(<StudentProgressTab classId="c1" className="Art" />)
+      await screen.findByRole('button', { name: 'Ada Byron' })
+      fireEvent.change(screen.getByRole('combobox', { name: 'Show one student' }),
+        { target: { value: 'Blaise Pascal' } })
+      fireEvent.click(screen.getByRole('button', { name: /Print/ }))
+
+      expect(fakeWindow.print).toHaveBeenCalled()
+      expect(printed.html).toContain('Blaise Pascal')
+      expect(printed.html).not.toContain('Ada Byron')
+      expect(printed.html).not.toContain('Carl Gauss')
+    } finally {
+      open.mockRestore()
+    }
+  })
+
+  it('keeps the tasks-done column pinned to the right edge', async () => {
+    threeStudents()
+    render(<StudentProgressTab classId="c1" className="Art" />)
+    await screen.findByRole('button', { name: 'Ada Byron' })
+
+    const header = screen.getByRole('columnheader', { name: 'Tasks done' })
+    expect(header.className).toMatch(/\bsticky\b/)
+    expect(header.className).toMatch(/\bright-0\b/)
+    // And every cell under it, or the header pins while the numbers slide away.
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
+    for (const row of rows) {
+      const last = within(row).getAllByRole('cell').at(-1)
+      expect(last.className).toMatch(/\bsticky\b/)
+      expect(last.className).toMatch(/\bright-0\b/)
+    }
+  })
+
+  it('opens scrolled to the newest quests at the far right', async () => {
+    /** jsdom lays nothing out, so scrollWidth is faked and the scrollLeft
+     *  write is captured. */
+    threeStudents()
+    const scrolled = []
+    const proto = HTMLElement.prototype
+    Object.defineProperty(proto, 'scrollWidth', { configurable: true, get: () => 1234 })
+    Object.defineProperty(proto, 'scrollLeft', {
+      configurable: true, get: () => 0, set(v) { scrolled.push([this, v]) },
+    })
+    try {
+      render(<StudentProgressTab classId="c1" className="Art" />)
+      await screen.findByRole('button', { name: 'Ada Byron' })
+      await waitFor(() => expect(scrolled.length).toBeGreaterThan(0))
+      const [el, left] = scrolled.at(-1)
+      expect(left).toBe(1234)
+      expect(el).toContainElement(screen.getByRole('table'))
+    } finally {
+      delete proto.scrollWidth
+      delete proto.scrollLeft
+    }
   })
 })
