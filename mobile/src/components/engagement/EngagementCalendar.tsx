@@ -8,7 +8,8 @@ import { View } from 'react-native';
 import { HStack, VStack, UIText } from '../ui';
 import type { EngagementDay } from '@/src/hooks/useDashboard';
 
-const intensityClasses = [
+// Shared with RhythmBadge's seven-day map, so one palette says "how much".
+export const intensityClasses = [
   'bg-surface-100 dark:bg-dark-surface-200',        // 0: no activity
   'bg-optio-purple/20',    // 1: light
   'bg-optio-purple/40',    // 2: moderate

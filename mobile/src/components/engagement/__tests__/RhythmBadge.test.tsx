@@ -88,3 +88,29 @@ describe('RhythmBadge', () => {
     expect(getByText('Great job!')).toBeTruthy();
   });
 });
+
+describe('RhythmBadge seven-day map', () => {
+  const day = (offset: number) => new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
+
+  it('draws the last seven days, oldest first, from whatever days it is given', () => {
+    const { getByTestId } = render(
+      <RhythmBadge
+        rhythm={{ state: 'in_flow', state_display: 'In Flow', message: '', pattern_description: '' }}
+        days={[{ date: day(0), intensity: 3 }, { date: day(2), intensity: 1 }, { date: day(30), intensity: 4 }]}
+      />
+    );
+    const map = getByTestId('mini-heat-map');
+    expect(map.children).toHaveLength(7);
+    expect(getByTestId(`heat-${day(0)}`)).toBeTruthy();
+    expect(getByTestId(`heat-${day(6)}`)).toBeTruthy();
+  });
+
+  it('label={false} keeps the icon and the map and moves the state to the accessibility label', () => {
+    const { queryByText, getByLabelText, getByTestId } = render(
+      <RhythmBadge rhythm={{ state: 'building', state_display: 'Building', message: '', pattern_description: '' }} days={[]} label={false} />
+    );
+    expect(queryByText('Building')).toBeNull();
+    expect(getByLabelText('Building')).toBeTruthy();
+    expect(getByTestId('mini-heat-map')).toBeTruthy();
+  });
+});

@@ -636,32 +636,8 @@ export const bugReportAPI = {
       }
       return form;
     };
-    // NOTE: deliberately NOT axios. On React Native, posting FormData through
-    // axios fails at the transport layer with ERR_NETWORK ("Network Error",
-    // no status) — the request never leaves the device. RN's own fetch handles
-    // multipart boundaries correctly (the same reason signedUpload uses XHR).
-    // We attach the Bearer token manually and let fetch set Content-Type.
-    const doFetch = (token: string | null) =>
-      fetch(`${API_URL}/api/bug-reports`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: buildForm(),
-        credentials: Platform.OS === 'web' ? 'include' : 'omit',
-      });
-
-    let res = await doFetch(tokenStore.getAccessToken());
-
-    // This raw-fetch path bypasses the axios 401-refresh interceptor, so handle
-    // refresh here. The iOS failure mode (Sentry NODE-B): the in-memory access
-    // token expired while the app sat in the foreground, the report 401'd, and
-    // with no refresh-and-retry the user just saw "Could not send". Refresh once
-    // and retry before giving up.
-    if (res.status === 401) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        res = await doFetch(refreshed);
-      }
-    }
+    // NOTE: deliberately NOT axios -- see postMultipart.
+    const res = await postMultipart('/api/bug-reports', buildForm);
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -676,49 +652,98 @@ export const bugReportAPI = {
 };
 
 /**
- * Upload a profile picture for a child (dependent or linked student).
+ * POST a multipart form with raw fetch, not axios.
  *
- * Deliberately uses raw fetch, not axios: on React Native, posting FormData
- * through axios fails at the transport layer with ERR_NETWORK (the request
- * never leaves the device) — the same reason bugReportAPI.submit and
- * signedUpload avoid axios for multipart. We attach the Bearer token manually,
- * let fetch set the multipart Content-Type/boundary, and refresh-and-retry once
- * on 401 (this path bypasses the axios 401 interceptor).
+ * On React Native, posting FormData through axios fails at the transport
+ * layer with ERR_NETWORK ("Network Error", no status) -- the request never
+ * leaves the device. RN's own fetch handles multipart boundaries correctly
+ * (the same reason signedUpload uses XHR). The Bearer token is attached by
+ * hand and fetch sets the Content-Type.
+ *
+ * This raw-fetch path bypasses the axios 401-refresh interceptor, so refresh
+ * is handled here. The iOS failure mode (Sentry NODE-B): the in-memory access
+ * token expired while the app sat in the foreground, the report 401'd, and
+ * with no refresh-and-retry the user just saw "Could not send". Refresh once
+ * and retry before giving up.
+ *
+ * `buildForm` is called per attempt: RN consumes the multipart body on send,
+ * so a retry needs a fresh FormData. The four multipart posts (bug report,
+ * child avatar, message attachment, family photo) all go through here.
  */
-export async function uploadChildAvatar(
-  childId: string,
-  file: { uri: string; name: string; type: string },
-): Promise<{ avatar_url?: string }> {
-  // Fresh FormData per attempt — RN consumes the multipart body on send, so a
-  // retry needs its own instance.
-  const doFetch = (token: string | null) => {
-    const form = new FormData();
-    form.append('avatar', file as unknown as Blob);
-    return fetch(`${API_URL}/api/parent/child/${childId}/avatar`, {
+async function postMultipart(path: string, buildForm: () => FormData | Promise<FormData>): Promise<Response> {
+  const doFetch = async (token: string | null) =>
+    fetch(`${API_URL}${path}`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form,
+      body: await buildForm(),
       credentials: Platform.OS === 'web' ? 'include' : 'omit',
     });
-  };
 
   let res = await doFetch(tokenStore.getAccessToken());
   if (res.status === 401) {
     const refreshed = await refreshAccessToken();
     if (refreshed) res = await doFetch(refreshed);
   }
+  return res;
+}
 
+/** A picked image, the shape expo-image-picker hands back. */
+export interface PickedFile { uri: string; name: string; type: string }
+
+/**
+ * One file under one field name. Web (dev/preview) pickers return a blob or
+ * data URL rather than a file path, so the bytes are fetched into a Blob
+ * there; React Native's FormData takes the { uri, name, type } shape as is.
+ */
+async function fileForm(field: string, file: PickedFile): Promise<FormData> {
+  const form = new FormData();
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(file.uri)).blob();
+    form.append(field, blob, file.name);
+  } else {
+    form.append(field, file as unknown as Blob);
+  }
+  return form;
+}
+
+/**
+ * Upload one image and return the parsed JSON body. A non-2xx answer throws
+ * an Error carrying `response.status` and the parsed body as `response.data`,
+ * the shape the axios call sites already read (`err.response?.data?.error`).
+ */
+async function uploadImage<T extends object>(path: string, field: string, file: PickedFile, what: string): Promise<T> {
+  const res = await postMultipart(path, () => fileForm(field, file));
+  const body: Record<string, unknown> = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    const err = new Error(`Avatar upload failed (${res.status}) ${detail}`.trim()) as Error & {
-      response?: { status: number; data?: any };
-    };
-    err.response = { status: res.status };
-    try { err.response.data = JSON.parse(detail); } catch { /* non-JSON body */ }
+    const detail = body.error || body.message;
+    const err = new Error(
+      typeof detail === 'string' ? detail : `${what} upload failed (${res.status})`,
+    ) as Error & { response?: { status: number; data?: unknown } };
+    err.response = { status: res.status, data: body };
     throw err;
   }
-  return res.json().catch(() => ({}));
+  return body as T;
 }
+
+/**
+ * Upload a profile picture for a child (dependent or linked student). The
+ * parent-scoped route verifies the relationship; the child's own page and
+ * the family dashboard's cards both land here.
+ */
+export function uploadChildAvatar(childId: string, file: PickedFile): Promise<{ avatar_url?: string }> {
+  return uploadImage<{ avatar_url?: string }>(`/api/parent/child/${childId}/avatar`, 'avatar', file, 'Avatar');
+}
+
+/**
+ * The family photo across the top of the family dashboard
+ * (/api/parent/family-cover: one per parent account, signed on read).
+ */
+export const familyCoverAPI = {
+  get: () => api.get('/api/parent/family-cover'),
+  upload: (file: PickedFile): Promise<{ family_cover_url?: string }> =>
+    uploadImage<{ family_cover_url?: string }>('/api/parent/family-cover', 'cover', file, 'Family photo'),
+  remove: () => api.delete('/api/parent/family-cover'),
+};
 
 /** Attachment metadata returned by POST /api/messages/attachments and stored
  *  on messages. `type` drives rendering (image thumbnail vs tappable chip). */
@@ -807,50 +832,11 @@ export const groupAPI = {
  * Upload a message attachment (photo/video from the library) to
  * POST /api/messages/attachments and get back `{url, type, name, size}` for
  * inclusion in a send call.
- *
- * Same raw-fetch pattern as uploadChildAvatar: axios mangles RN multipart
- * bodies, so we attach the Bearer token manually, let fetch set the multipart
- * boundary, and refresh-and-retry once on 401.
  */
-export async function uploadMessageAttachment(
-  file: { uri: string; name: string; type: string },
-): Promise<MessageAttachment> {
-  // Fresh FormData per attempt — RN consumes the multipart body on send.
-  const buildForm = async () => {
-    const form = new FormData();
-    if (Platform.OS === 'web') {
-      // Web (dev/preview): the picker returns a blob/data URL, not a file path.
-      const blob = await (await fetch(file.uri)).blob();
-      form.append('file', blob, file.name);
-    } else {
-      // React Native FormData accepts the { uri, name, type } file shape.
-      form.append('file', file as unknown as Blob);
-    }
-    return form;
-  };
-  const doFetch = async (token: string | null) =>
-    fetch(`${API_URL}/api/messages/attachments`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: await buildForm(),
-      credentials: Platform.OS === 'web' ? 'include' : 'omit',
-    });
-
-  let res = await doFetch(tokenStore.getAccessToken());
-  if (res.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) res = await doFetch(refreshed);
-  }
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(
-      body?.error || body?.message || `Attachment upload failed (${res.status})`,
-    ) as Error & { response?: { status: number; data?: any } };
-    err.response = { status: res.status, data: body };
-    throw err;
-  }
-  const d = body?.data || body;
+export async function uploadMessageAttachment(file: PickedFile): Promise<MessageAttachment> {
+  type Body = { attachment?: MessageAttachment; data?: { attachment?: MessageAttachment } };
+  const body = await uploadImage<Body>('/api/messages/attachments', 'file', file, 'Attachment');
+  const d = body.data || body;
   return d.attachment as MessageAttachment;
 }
 
