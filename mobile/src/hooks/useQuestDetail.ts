@@ -166,26 +166,37 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       if (!normalized.length) {
         throw new Error('Add a photo, a note or a link before marking this done.');
       }
-      const payload = normalized.map((b: EvidenceBlockInput) => ({
-        block_type: b.type || b.block_type,
-        content: b.content,
-      }));
-      try {
-        await api.post('/api/evidence/helper/upload-for-student/batch', {
-          student_id: studentId,
-          task_id: taskId,
-          blocks: payload,
-        });
-      } catch (err: unknown) {
-        // Same fallback QuestDetailView uses: a backend that predates /batch.
-        if (statusOf(err) !== 404) throw err;
-        for (const block of payload) {
-          await api.post('/api/evidence/helper/upload-for-student', {
+      // Only blocks that are not on the server yet. The Add Evidence sheet
+      // already saves through the helper route and refetches, so by the time
+      // a parent taps Complete every block in hand normally carries a server
+      // id -- and re-posting those wrote each one a second time. iCreate's
+      // teacher saw it as "every student's evidence comes in twice" (ticket
+      // 39b89611): two identical text blocks, 2-5 seconds apart, on every
+      // task a parent finished from the app.
+      const payload = normalized
+        .filter((b: EvidenceBlockInput & { id?: string }) => !b.id)
+        .map((b: EvidenceBlockInput) => ({
+          block_type: b.type || b.block_type,
+          content: b.content,
+        }));
+      if (payload.length) {
+        try {
+          await api.post('/api/evidence/helper/upload-for-student/batch', {
             student_id: studentId,
             task_id: taskId,
-            block_type: block.block_type,
-            content: block.content,
+            blocks: payload,
           });
+        } catch (err: unknown) {
+          // Same fallback QuestDetailView uses: a backend that predates /batch.
+          if (statusOf(err) !== 404) throw err;
+          for (const block of payload) {
+            await api.post('/api/evidence/helper/upload-for-student', {
+              student_id: studentId,
+              task_id: taskId,
+              block_type: block.block_type,
+              content: block.content,
+            });
+          }
         }
       }
       // No evidence_type: the blocks above ARE the evidence, and the completion

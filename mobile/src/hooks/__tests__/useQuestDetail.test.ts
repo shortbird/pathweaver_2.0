@@ -522,6 +522,46 @@ describe('useQuestDetail in parent mode', () => {
     expect(body.get('text_content')).toBeNull();
   });
 
+  it('does not re-post evidence the sheet already saved', async () => {
+    // Ticket 39b89611 (iCreate, 2026-09-15): "Every student's evidence comes in
+    // twice." The Add Evidence sheet saves through the helper route and the
+    // card refetches, so the blocks handed to Complete carry server ids. They
+    // were posted again anyway, and every parent-finished task showed the
+    // teacher two identical blocks.
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    await act(async () => {
+      await result.current.completeTask('task-1', [
+        { id: 'blk-1', type: 'text', content: { text: 'We used Brainquest.' } },
+        { type: 'image', content: { url: 'new.jpg' } },
+      ]);
+    });
+
+    const calls = (api.post as jest.Mock).mock.calls;
+    const uploads = calls.filter(([u]) => u === '/api/evidence/helper/upload-for-student/batch');
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0][1].blocks).toEqual([{ block_type: 'image', content: { url: 'new.jpg' } }]);
+    expect(api.post).toHaveBeenCalledWith('/api/tasks/task-1/complete', expect.anything());
+  });
+
+  it('skips the upload entirely when every block is already saved', async () => {
+    const result = await mounted();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+    await act(async () => {
+      await result.current.completeTask('task-1', [
+        { id: 'blk-1', block_type: 'text', content: { text: 'saved' } },
+      ]);
+    });
+
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/api/evidence/helper/upload-for-student/batch', expect.anything());
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/api/evidence/helper/upload-for-student', expect.anything());
+    expect(api.post).toHaveBeenCalledWith('/api/tasks/task-1/complete', expect.anything());
+  });
+
   it('refuses to finish a child\'s task with nothing behind it', async () => {
     const result = await mounted();
     (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
