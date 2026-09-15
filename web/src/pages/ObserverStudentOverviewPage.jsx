@@ -30,7 +30,6 @@ const ObserverStudentOverviewPage = () => {
         <ChildOverviewContent
           studentId={studentId}
           isDependent={false}
-          viewMode="observer"
         />
       </div>
     </div>

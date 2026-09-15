@@ -5,7 +5,7 @@ import { useRegistrationGate } from '../hooks/useRegistrationGate'
 import { useRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
 import { usePhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 import { roleHomePath } from '../utils/postLoginPath'
-import { useFamilyScope } from '../contexts/FamilyScopeContext'
+import { useFamilyScope, userHasFamily, worksThroughFamily } from '../contexts/FamilyScopeContext'
 
 // A hold that can loop is a hold that can lock a school out.
 //
@@ -157,7 +157,9 @@ const PrivateRoute = ({ requiredRole, blockRoles, requireFamilyScope = false }) 
   // to a parent now, but only pointed at a child (contexts/FamilyScopeContext):
   // an unscoped parent is sent to /family to pick one rather than shown their
   // own empty portfolio, which reads as "the app thinks I'm a student".
-  if (requireFamilyScope && effectiveRole === 'parent') {
+  // worksThroughFamily, not `effectiveRole === 'parent'`: a coordinator who
+  // is also a parent has no student surface of her own either.
+  if (requireFamilyScope && worksThroughFamily(user)) {
     if (familyScope.isLoading) return null
     if (!familyScope.isScoped) return <Navigate to="/family" replace />
   }
@@ -168,10 +170,12 @@ const PrivateRoute = ({ requiredRole, blockRoles, requireFamilyScope = false }) 
     // Use effectiveRole to handle org_managed users correctly
     // For org_managed users, effectiveRole = org_role; for platform users, effectiveRole = role
 
-    // Special case: users with parent relationships can access parent routes
-    // This allows org_admins/advisors who are also parents to access the parent dashboard
-    const hasParentRelationships = user?.has_dependents || user?.has_linked_students
-    const canAccessParentRoutes = allowedRoles.includes('parent') && hasParentRelationships
+    // Anyone with a family may open the parent routes, whatever their primary
+    // role says: an org admin or advisor who is also a parent, or an iCreate
+    // parent whose role column reads org_managed. One predicate for that
+    // (contexts/FamilyScopeContext.userHasFamily); this used to be a private
+    // copy that checked the two flags and not org_roles.
+    const canAccessParentRoutes = allowedRoles.includes('parent') && userHasFamily(user)
 
     const hasAccess =
       allowedRoles.includes(effectiveRole) ||

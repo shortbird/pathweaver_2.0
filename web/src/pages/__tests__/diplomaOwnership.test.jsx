@@ -31,15 +31,11 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
 const mockNavigate = vi.fn()
 let authState = {}
-let actingAsState = {}
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => actingAsState
-}))
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
@@ -213,7 +209,6 @@ describe('DiplomaPage — who is looking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authState = { user: ME, loginTimestamp: 1 }
-    actingAsState = { actingAsDependent: null }
     stubOwnerFetches()
   })
 
@@ -254,33 +249,6 @@ describe('DiplomaPage — who is looking', () => {
     expect(controls).toHaveAttribute('data-is-owner', 'false')
   })
 
-  it('treats a parent acting as their child as the owner of the child\'s diploma', async () => {
-    // The parent is managing the child's account. b87af63e / 3cf90c0e: the page
-    // showed the PARENT's name here, on the child's diploma.
-    actingAsState = {
-      actingAsDependent: { id: 'kid-3', first_name: 'Rory', last_name: 'Doe' }
-    }
-    renderDiploma('/diploma')
-    const controls = await screen.findByTestId('share-controls')
-    expect(controls).toHaveAttribute('data-is-owner', 'true')
-    expect(screen.getByTestId('hero')).toHaveTextContent('Rory Doe')
-  })
-
-  it('builds the share link for the child, not the parent', async () => {
-    // ef73a3bd. A parent acting as their child who copies the share link and
-    // sends it to a grandparent must not be sending their own portfolio.
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    actingAsState = { actingAsDependent: { id: 'kid-3', first_name: 'Rory' } }
-
-    renderDiploma('/diploma')
-    fireEvent.click(await screen.findByTestId('copy-link'))
-
-    await waitFor(() => expect(writeText).toHaveBeenCalled())
-    expect(writeText.mock.calls[0][0]).toContain('/public/diploma/kid-3')
-    expect(writeText.mock.calls[0][0]).not.toContain('me-1')
-  })
-
   it('names the student in the third person for a viewer who is not the owner', async () => {
     api.get.mockResolvedValue({ data: { ...DIPLOMA_PAYLOAD, achievements: [] } })
     renderDiploma('/portfolio/emma-ruiz')
@@ -307,7 +275,6 @@ describe('DiplomaPage — the two public routes unpack identically', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authState = { user: null, loginTimestamp: 0 }
-    actingAsState = { actingAsDependent: null }
   })
 
   afterEach(() => {
@@ -457,7 +424,6 @@ describe('DiplomaPage — the FERPA privacy toggle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authState = { user: ME, loginTimestamp: 1 }
-    actingAsState = { actingAsDependent: null }
   })
 
   afterEach(() => {
@@ -506,23 +472,12 @@ describe('DiplomaPage — the FERPA privacy toggle', () => {
     expect(screen.queryByTestId('consent-confirm')).not.toBeInTheDocument()
   })
 
-  it('reads the visibility status for the child when acting as one', async () => {
-    actingAsState = { actingAsDependent: { id: 'kid-3', first_name: 'Rory' } }
-    stubOwnerFetches()
-
-    renderDiploma('/diploma')
-
-    await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith('/api/portfolio/user/kid-3/visibility-status')
-    })
-  })
 })
 
 describe('DiplomaPage — subject XP', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authState = { user: { id: 'me-1', first_name: 'Sam' }, loginTimestamp: 1 }
-    actingAsState = { actingAsDependent: null }
   })
 
   afterEach(() => {

@@ -517,21 +517,6 @@ export const currentPageShape = () => {
   }
 }
 
-// Switching which account the tab is authenticated as (parent -> child act-as,
-// and back) installs the new token and THEN navigates. `window.location.href`
-// is asynchronous: the page keeps running for a few hundred ms while the next
-// document loads, so every parent-scoped query still in flight re-fires with
-// the CHILD's token and is correctly refused. Those 403s are the authz layer
-// working, not an over-tightened check, but they were being reported as
-// regressions — one act-as tap produced three (Sentry OPTIO-WEB-C / -Q / -P:
-// my-dependents, parent/completions, sis/parent/forms, all within 57ms of the
-// act-as call). Callers mark the switch so the window is exempt; it lapses on
-// its own, so a switch that never navigates re-arms reporting instead of
-// silencing the tab for good.
-const SESSION_SWITCH_QUIET_MS = 10_000
-let sessionSwitchAt = 0
-export const beginSessionSwitch = () => { sessionSwitchAt = Date.now() }
-const inSessionSwitch = () => Date.now() - sessionSwitchAt < SESSION_SWITCH_QUIET_MS
 
 const REPORTABLE = (error: AxiosError<ApiErrorBody>) => {
   const s = error.response?.status
@@ -541,8 +526,6 @@ const REPORTABLE = (error: AxiosError<ApiErrorBody>) => {
       // The phone-verification hold is an expected product state (handled
       // above): every held adult's open tab 403s until they verify.
       && error.response?.data?.code !== 'phone_verification_required'
-      // Both suppressions, added on two branches for two reasons.
-      && !inSessionSwitch()
       // A probe that treats the refusal as its answer (see above).
       && !error.config?.expect403) return true
   return s === 405
@@ -737,7 +720,12 @@ export const lmsAPI = {
   getGradeSyncStatus: () => api.get('/api/lms/grade-sync/status'),
 }
 
-// Parent Dashboard API methods
+// The parent's own reads. Fifteen more methods sat here until 2026-09-15
+// (calendar, insights, task detail, completions, tutor conversations and
+// settings, connection requests, dependent task writes), every one without
+// a caller since the parent dashboard was retired; several pointed at
+// routes the server no longer has. The hooks in hooks/api own the family
+// reads now (useFamilyChildren, useFamilyQuests, useConnectionApprovals).
 export const parentAPI = {
   // Get list of linked students (children)
   getMyChildren: () => api.get('/api/parents/my-children'),
@@ -745,70 +733,9 @@ export const parentAPI = {
   // Get dashboard data for a specific student
   getDashboard: (studentId: string) => api.get(`/api/parent/dashboard/${studentId}`),
 
-  // Get calendar data for a specific student
-  getCalendar: (studentId: string) => api.get(`/api/parent/calendar/${studentId}`),
-
-  // Get progress/XP breakdown by pillar for a student
-  getProgress: (studentId: string) => api.get(`/api/parent/progress/${studentId}`),
-
-  // Get learning insights and analytics for a student
-  getInsights: (studentId: string) => api.get(`/api/parent/insights/${studentId}`),
-
-  // Get task details with evidence (for Calendar tab task detail modal)
-  getTaskDetails: (studentId: string, taskId: string) => api.get(`/api/parent/task/${studentId}/${taskId}`),
-
-  // Get all completed quests for a student
-  getCompletedQuests: (studentId: string) => api.get(`/api/parent/completed-quests/${studentId}`),
-
-  // Get recent completions with evidence (for Insights tab)
-  getRecentCompletions: (studentId: string) => api.get(`/api/parent/completions/${studentId}`),
-
-  // Upload evidence on behalf of student (parent/advisor, no task completion)
-  // Uses helper evidence endpoint - adds evidence blocks without completing the task
-  // Expects JSON: { student_id, task_id, block_type, content }
-  uploadEvidence: (data: JsonBody) =>
-    api.post('/api/evidence/helper/upload-for-student', data),
-
-  // Upload a file (image/document) and get back the URL
-  // Used by parent evidence upload to first upload file, then create evidence block
-  uploadFile: (formData: FormData) =>
-    api.post('/api/uploads/evidence', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }),
-
-  // Get AI tutor conversations for monitoring (Communications tab)
-  getTutorConversations: (studentId: string) => api.get(`/api/parent/communications/${studentId}`),
-
-  // Get specific conversation messages
-  getConversationMessages: (conversationId: string) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
-
-  // Get safety reports for student
-  getSafetyReports: (studentId: string) => api.get(`/api/tutor/parent/safety-reports/${studentId}`),
-
-  // Get parent monitoring settings
-  getSettings: (studentId: string) => api.get(`/api/tutor/parent/settings/${studentId}`),
-
-  // Update parent monitoring settings
-  updateSettings: (studentId: string, settings: JsonBody) => api.put(`/api/tutor/parent/settings/${studentId}`, settings),
-
-  // NEW: Submit connection requests for multiple children (January 2025 Redesign)
-  submitConnectionRequests: (children: unknown[]) => api.post('/api/parents/submit-connection-requests', { children }),
-
-  // NEW: Get parent's submitted connection requests with status (January 2025 Redesign)
-  getMyConnectionRequests: () => api.get('/api/parents/my-connection-requests'),
-
   // Family Settings - Co-Parents management
   getFamilyParents: () => api.get('/api/parents/family-parents'),
   promoteObserver: (observerId: string) => api.post('/api/parents/promote-observer', { observer_id: observerId }),
-
-  // Parent task management for dependents (under-13 managed accounts)
-  createTaskForDependent: (questId: string, data: JsonBody) =>
-    api.post(`/api/family/quests/${questId}/tasks`, data),
-  uncompleteTaskForDependent: (questId: string, taskId: string, data: JsonBody) =>
-    api.post(`/api/family/quests/${questId}/tasks/${taskId}/uncomplete`, data),
-
 }
 
 // Admin Parent Connections API methods (January 2025 Redesign)

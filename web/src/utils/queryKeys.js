@@ -52,6 +52,14 @@ export const queryKeys = {
     // The parent's own children (hooks/api/useFamilyChildren). Keyed by the
     // parent so a masquerade swap does not serve the previous parent's kids.
     children: (parentId) => [...queryKeys.family.all, 'children', parentId],
+    // Where this person is a GUARDIAN (/api/sis/parent/context): the orgs and
+    // the students they may act for there (hooks/api/useSchoolContext). One
+    // fetch for every family page; each used to make its own. No user in
+    // the key: logout clears the cache and masquerade reloads the page.
+    sisContext: () => [...queryKeys.family.all, 'sisContext'],
+    // Where this person is a MEMBER (/api/sis/school/context): the school's
+    // own surfaces, guardian or not. The sidebar and /school read this.
+    schoolContext: () => [...queryKeys.family.all, 'schoolContext'],
     // The family's quests with who is on each (hooks/api/useFamilyQuests).
     quests: () => [...queryKeys.family.all, 'quests'],
     // The parent's family photo (hooks/api/useFamilyCover).

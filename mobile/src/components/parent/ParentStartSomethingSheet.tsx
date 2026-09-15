@@ -1,9 +1,12 @@
 /**
  * ParentStartSomethingSheet - Bottom sheet listing the ways a parent can
- * add new work / take primary parent actions:
+ * add new work:
  *   1. Post a bounty (routes to /bounties/create)
  *   2. Capture a moment (opens CaptureSheet via parent capture flow)
- *   3. Invite an observer (opens InviteObserverSheet)
+ *
+ * "Manage observers" sat here too until 2026-09-15; it is a family setting,
+ * and the Family tab's settings sheet is where it lives. Two doors onto one
+ * sheet is one too many.
  *
  * The parent owns the visibility state of this sheet via the shared store
  * (`useParentStartSomethingStore`). Each row picks an action — the parent
@@ -24,7 +27,6 @@ interface ParentStartSomethingSheetProps {
   visible: boolean;
   onClose: () => void;
   onCaptureMoment: () => void;
-  onInviteObserver: () => void;
 }
 
 interface RowProps {
@@ -62,7 +64,6 @@ export function ParentStartSomethingSheet({
   visible,
   onClose,
   onCaptureMoment,
-  onInviteObserver,
 }: ParentStartSomethingSheetProps) {
   const c = useThemeColors();
   // Run the chosen action only AFTER this sheet has fully closed/unmounted, so
@@ -118,15 +119,6 @@ export function ParentStartSomethingSheet({
             title="Capture a moment"
             subtitle="Log what your kid is doing in real life"
             onPress={closeThen(onCaptureMoment)}
-          />
-          <Row
-            testID="parent-action-invite-observer"
-            icon="people-outline"
-            iconColor="#A21CAF"
-            iconBg="#A21CAF1A"
-            title="Manage observers"
-            subtitle="Share your family link with grandparents, mentors, friends"
-            onPress={closeThen(onInviteObserver)}
           />
         </VStack>
       </VStack>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ChevronDownIcon, ChevronRightIcon, DocumentTextIcon, LinkIcon,
 } from '@heroicons/react/24/outline'
@@ -21,6 +22,12 @@ import { useFamilyStudentClasses } from '../../hooks/api/useFamilyStudentClasses
  *
  * Renders nothing for a student outside a SIS school — most students
  * platform-wide, and not an error.
+ *
+ * The header carries the two doors that were reachable from nowhere after the
+ * parent dashboard was retired (2026-09-15): the printable schedule
+ * (/family/students/:id/schedule, the paper copy families kept asking the
+ * office for) and the school's record of the student
+ * (/family/students/:id, assessments and per-class scores).
  */
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -120,11 +127,21 @@ const StudentClasses = ({ studentId, title = 'Classes' }) => {
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
-        <p className="text-sm text-neutral-500">
-          Open a class to see what the teacher has shared with it.
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
+          <p className="text-sm text-neutral-500">
+            Open a class to see what the teacher has shared with it.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 text-sm flex-shrink-0">
+          <Link to={`/family/students/${studentId}/schedule`} className="text-optio-purple hover:underline">
+            Print schedule
+          </Link>
+          <Link to={`/family/students/${studentId}`} className="text-optio-purple hover:underline">
+            School record
+          </Link>
+        </div>
       </div>
       <div className="space-y-2">
         {classes.map((cls) => <ClassRow key={cls.id} cls={cls} />)}

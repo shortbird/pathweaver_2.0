@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
-import { useActingAs } from '../../contexts/ActingAsContext'
+import { userHasFamily, worksThroughFamily } from '../../contexts/FamilyScopeContext'
 import NotificationBell from '../notifications/NotificationBell'
 import BackButton from './BackButton'
 import { getPostLoginPath } from '../../utils/postLoginPath'
@@ -14,7 +14,6 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const location = useLocation()
   const { user, logout, isAuthenticated, effectiveRole } = useAuth()
   const { organization } = useOrganization()
-  const { actingAsDependent, parentName } = useActingAs()
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Set CSS variable for navbar height so Layout can use dynamic padding
@@ -57,11 +56,11 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
     setMenuOpen(false)
   }, [location.pathname])
 
-  // Display name, avatar and initials; when a parent acts as a child, show the child.
-  const displayName = actingAsDependent
-    ? (`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name)
-    : `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
-  const avatarUrl = actingAsDependent ? actingAsDependent.avatar_url : user?.avatar_url
+  // Display name, avatar and initials of the signed-in person. A parent
+  // working on a child's account stays themselves here (family scope); the
+  // "Dana as Romney" pill went with the act-as session on 2026-09-15.
+  const displayName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim()
+  const avatarUrl = user?.avatar_url
   const initials = displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -70,18 +69,20 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
     .join('') || '?'
 
   // The "who am I" menu destination per role. /overview is the student
-  // portfolio; parents go to their family dashboard instead (acting-as sessions
-  // carry the child's role, so they still resolve to /overview).
+  // portfolio; parents go to their family dashboard instead.
+  // worksThroughFamily, not effectiveRole === 'parent': a coordinator who is
+  // also a parent has no /overview of her own either.
   const profileItem = effectiveRole === 'observer'
     ? { label: 'My Feed', path: '/observer/feed' }
-    : effectiveRole === 'parent'
+    : worksThroughFamily(user)
       ? { label: 'Family', path: '/family' }
       : { label: 'Profile', path: '/overview' }
 
   // Parents have no /overview, so "where do I change my name" had no answer in
   // this menu — the one place people look for it. Deep-link straight into the
   // Family Settings "You" tab rather than leaving them to find the modal.
-  const accountItem = effectiveRole === 'parent'
+  // Offered to anyone with a family, a teacher-parent included.
+  const accountItem = userHasFamily(user)
     ? { label: 'Your account', path: '/family?settings=you' }
     : null
 
@@ -165,15 +166,6 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                {/* Acting As Indicator - Show when parent is acting as child */}
-                {actingAsDependent && parentName && (
-                  <div className="hidden sm:flex items-center gap-1 text-xs font-poppins bg-gradient-primary text-white px-2 py-1 rounded-full">
-                    <span className="font-medium">{parentName}</span>
-                    <span className="opacity-80">as</span>
-                    <span className="font-semibold">{`${actingAsDependent.first_name || ''} ${actingAsDependent.last_name || ''}`.trim() || actingAsDependent.display_name}</span>
-                  </div>
-                )}
-
                 {/* Notification Bell */}
                 <NotificationBell />
 

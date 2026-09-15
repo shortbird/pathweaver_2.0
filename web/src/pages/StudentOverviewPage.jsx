@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useActingAs } from '../contexts/ActingAsContext';
 import { useFamilyScope } from '../contexts/FamilyScopeContext';
 import { useStudentScope } from '../hooks/useStudentScope';
 import api from '../services/api';
@@ -26,19 +25,17 @@ import EditProfileModal from '../components/overview/EditProfileModal';
 
 const StudentOverviewPage = () => {
   const { user, updateUser, loginTimestamp } = useAuth();
-  const { actingAsDependent } = useActingAs();
   const { selectedChild } = useFamilyScope();
   const { params: scopeParams, isDelegated } = useStudentScope();
   const location = useLocation();
 
   // Whose overview: the child a parent is scoped to (contexts/
-  // FamilyScopeContext -- every read below carries the scope), the dependent
-  // of a still-live act-as session (one release, for stale cookies), else the
+  // FamilyScopeContext -- every read below carries the scope), else the
   // signed-in user. The profile row itself is loaded below and wins for
   // display; this only needs the id.
   const effectiveUser = selectedChild
     ? { id: selectedChild.id, first_name: selectedChild.firstName, avatar_url: selectedChild.avatarUrl }
-    : (actingAsDependent || user);
+    : user;
 
   // Data states
   const [loading, setLoading] = useState(true);

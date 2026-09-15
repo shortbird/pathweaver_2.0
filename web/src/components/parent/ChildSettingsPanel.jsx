@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import ChildAvatarUpload from './ChildAvatarUpload'
 import ChildPrivacyCard from './ChildPrivacyCard'
 import ChildFriendsCard from './ChildFriendsCard'
+import ChildConnections from './ChildConnections'
 
 /**
  * One child's settings -- a tab of Family Settings (FamilySettingsModal),
@@ -505,8 +506,12 @@ const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = n
             <ChildPrivacyCard studentId={childId} studentName={childFirstName} />
           </Section>
 
+          {/* The policy first (whether requests come at all, and on what
+              terms), then the requests waiting on the parent and the friends
+              already approved. One section, because they are one decision. */}
           <Section icon={UserGroupIcon} title="Friends">
             <ChildFriendsCard studentId={childId} studentName={childFirstName} />
+            <ChildConnections childId={childId} />
           </Section>
     </div>
   )

@@ -11,8 +11,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The page reads the guardian context through react-query
+// (hooks/api/useSchoolContext), so it needs a client; a fresh one per render
+// keeps the context stub of one test out of the next.
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{ui}</MemoryRouter>
+  </QueryClientProvider>,
+)
 
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('react-hot-toast', () => ({ toast, default: toast }))

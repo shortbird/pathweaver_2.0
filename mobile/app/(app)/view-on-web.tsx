@@ -10,8 +10,13 @@ import { safeOpenURL } from '@/src/utils/linking';
 /** The web build is one SPA on two hosts: the learning app and the staff SIS
  *  console. deepLinkRouter says which one owns the path — sending a SIS path to
  *  www offers a page that host does not serve, which is what an iCreate
- *  coordinator hit tapping her inbox notifications (2026-09-03). */
-const LEARNING_ORIGIN = 'https://www.optioeducation.com';
+ *  coordinator hit tapping her inbox notifications (2026-09-03).
+ *
+ *  The learning app is served from app.optioeducation.com. www is the
+ *  marketing site with a fixed allowlist of 301s onto app; a route missing
+ *  from that list (bare /family, the parent home since 2026-09-15) is a real
+ *  404 page there, so hand-offs go straight to the host that serves them. */
+const LEARNING_ORIGIN = 'https://app.optioeducation.com';
 const SIS_ORIGIN = 'https://sis.optioeducation.com';
 
 export default function ViewOnWebScreen() {

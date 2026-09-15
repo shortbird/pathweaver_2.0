@@ -70,6 +70,12 @@ _INTERP = re.compile(r'\$\{[^}]*\}')
 #   /api/tasks, /api/users/xp, /api/users/badges were dead exports in the mobile app's
 #     services/api.ts (taskAPI.create, userAPI.xp, userAPI.badges). Nothing
 #     called them; they are deleted rather than pointed somewhere.
+# FIXED AND REMOVED 2026-09-15 (parent experience refactor): twelve entries
+#   went with their callers -- the dependent progress report page, three
+#   dead parent-linking components (ParentInvitationSection,
+#   ParentInvitationApproval, AddChildrenModal) and the unused half of
+#   web parentAPI (tutor monitoring, connection requests). Nothing pointed
+#   anywhere new; the buttons had no page to live on.
 KNOWN_DEAD = {
     '/api/admin/ai-quest-review/bulk-reject',
     '/api/admin/organizations/__param__/invitations__param__',
@@ -93,17 +99,8 @@ KNOWN_DEAD = {
     '/api/lms/platforms',
     '/api/lms/sync/assignments',
     '/api/lms/sync/roster',
-    '/api/observers/student/__param__/progress',
-    '/api/observers/student/__param__/report',
     '/api/parent/child-overview',
     '/api/parent/linked',
-    '/api/parents/approve-link/__param__',
-    '/api/parents/decline-link/__param__',
-    '/api/parents/invitations/__param__/approve',
-    '/api/parents/invitations/__param__/decline',
-    '/api/parents/my-connection-requests',
-    '/api/parents/pending-approvals',
-    '/api/parents/pending-invitations',
     '/api/portfolio/__param__',
     '/api/portfolio/__param__/settings',
     '/api/quests/__param__/abandon',
@@ -117,9 +114,6 @@ KNOWN_DEAD = {
     '/api/tutor/chat',
     '/api/tutor/conversations',
     '/api/tutor/conversations/__param__',
-    '/api/tutor/parent/conversations/__param__/messages',
-    '/api/tutor/parent/safety-reports/__param__',
-    '/api/tutor/parent/settings/__param__',
     '/api/tutor/report',
     '/api/tutor/usage',
     '/api/users/__param__/completed-quests',

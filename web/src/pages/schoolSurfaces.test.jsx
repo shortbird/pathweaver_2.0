@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { OrganizationContext } from '../contexts/OrganizationContext'
 
 /**
@@ -46,10 +47,13 @@ const AS_STUDENT = {
   orgs: [{ organization_id: 'org-1', organization_name: 'iCreate', is_guardian: false }],
 }
 
+// The pages read their school through react-query (hooks/api/useSchoolContext).
 const renderIn = (ui, school = { id: 'org-1', name: 'iCreate' }) => render(
-  <OrganizationContext.Provider value={{ school, organization: null, loading: false }}>
-    <MemoryRouter>{ui}</MemoryRouter>
-  </OrganizationContext.Provider>,
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <OrganizationContext.Provider value={{ school, organization: null, loading: false }}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </OrganizationContext.Provider>
+  </QueryClientProvider>,
 )
 
 beforeEach(() => {

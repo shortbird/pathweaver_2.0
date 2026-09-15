@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
+import { useSisParentContext } from '../hooks/api/useSchoolContext'
 
 /**
  * A printable copy of one student's class schedule.
@@ -49,19 +50,22 @@ const FamilyStudentSchedulePage = () => {
     } finally { setClaiming(null) }
   }
 
+  // Which school this student attends, from the shared guardian-context read
+  // (hooks/api/useSchoolContext); the schedule itself is this page's own.
+  const { orgs, loading: ctxLoading, isError: ctxError } = useSisParentContext()
+
   useEffect(() => {
+    if (ctxLoading) return
+    if (ctxError) { setError('Could not load the schedule'); return }
+    const org = (orgs || []).find((o) => (o.students || []).some((s) => s.student_id === studentId))
+    if (!org) {
+      setError('This student is not enrolled at a school that uses schedules.')
+      return
+    }
+    const student = (org.students || []).find((s) => s.student_id === studentId)
     let alive = true
-    api.get('/api/sis/parent/context')
-      .then(async (r) => {
-        const orgs = r.data?.orgs || []
-        const org = orgs.find((o) => (o.students || []).some((s) => s.student_id === studentId))
-        if (!org) {
-          if (alive) setError('This student is not enrolled at a school that uses schedules.')
-          return
-        }
-        const student = (org.students || []).find((s) => s.student_id === studentId)
-        const sched = await api.get(
-          `/api/sis/parent/students/${studentId}/schedule?organization_id=${org.organization_id}`)
+    api.get(`/api/sis/parent/students/${studentId}/schedule?organization_id=${org.organization_id}`)
+      .then((sched) => {
         if (alive) {
           setState({
             schedule: sched.data || {},
@@ -75,7 +79,7 @@ const FamilyStudentSchedulePage = () => {
         if (alive) setError(e?.response?.data?.error || 'Could not load the schedule')
       })
     return () => { alive = false }
-  }, [studentId, reloadKey])
+  }, [studentId, reloadKey, orgs, ctxLoading, ctxError])
 
   if (error) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">{error}</div>
   if (!state) return <div className="max-w-3xl mx-auto px-4 py-8 text-gray-500">Loading…</div>

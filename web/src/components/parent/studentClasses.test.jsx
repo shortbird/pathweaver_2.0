@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import StudentClasses from './StudentClasses'
 
 /**
@@ -17,7 +18,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 const withClient = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+  return render(<QueryClientProvider client={client}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>)
 }
 
 const CONTEXT = {
@@ -131,6 +132,16 @@ describe('StudentClasses', () => {
     const { container } = withClient(<StudentClasses studentId="kid-1" />)
     await waitFor(() => expect(api.get).toHaveBeenCalled())
     await waitFor(() => expect(container.textContent).toBe(''))
+  })
+
+  // The printable schedule and the school's record of the student were
+  // reachable from nowhere once the parent dashboard was retired; this
+  // header is their one door.
+  it('links to the printable schedule and the school record', async () => {
+    withClient(<StudentClasses studentId="kid-1" />)
+    await screen.findByText('Ceramics')
+    expect(screen.getByRole('link', { name: 'Print schedule' })).toHaveAttribute('href', '/family/students/kid-1/schedule')
+    expect(screen.getByRole('link', { name: 'School record' })).toHaveAttribute('href', '/family/students/kid-1')
   })
 
   it('names whose classes these are when asked to', async () => {

@@ -1,7 +1,6 @@
 import React, { useEffect, memo, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useActingAs } from '../contexts/ActingAsContext'
 import { useFamilyScope } from '../contexts/FamilyScopeContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import { useGlobalEngagement, useUnarchiveEnrollment } from '../hooks/api/useQuests'
@@ -256,15 +255,13 @@ const ActiveQuests = memo(({ activeQuests, enrolledCourses, completedQuestsCount
 
 const DashboardPage = () => {
   const { user } = useAuth()
-  const { actingAsDependent } = useActingAs()
   const { selectedChild } = useFamilyScope()
   const [showRhythmModal, setShowRhythmModal] = useState(false)
 
   // Whose dashboard: the child a parent is scoped to (contexts/
-  // FamilyScopeContext -- the reads carry the scope themselves), the dependent
-  // of a still-live act-as session (one release, for stale cookies), else the
+  // FamilyScopeContext -- the reads carry the scope themselves), else the
   // signed-in user.
-  const effectiveUserId = selectedChild?.id || actingAsDependent?.id || user?.id
+  const effectiveUserId = selectedChild?.id || user?.id
 
   // Fetch global engagement data
   const { data: engagement } = useGlobalEngagement()
@@ -326,7 +323,7 @@ const DashboardPage = () => {
   const isNewUser = user?.created_at ?
     (new Date() - new Date(user.created_at)) < 5 * 60 * 1000 : false
 
-  const displayName = selectedChild?.firstName || actingAsDependent?.first_name || user?.first_name
+  const displayName = selectedChild?.firstName || user?.first_name
 
   // Split active quests into in-progress vs completed (100% task completion)
   const allActiveQuests = dashboardData?.active_quests || [];

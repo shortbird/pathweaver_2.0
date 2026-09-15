@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import FamilyHome from './FamilyHome'
@@ -32,11 +32,15 @@ vi.mock('../../hooks/api/useFamilyChildren', () => ({
 }))
 
 // Peer-connection approvals are the child card's own concern, tested with it.
+let approvals = { pending: [], approved: [] }
 vi.mock('../../hooks/api/useConnectionApprovals', () => ({
-  useConnectionApprovals: () => ({ data: { pending: [], approved: [] } }),
+  useConnectionApprovals: () => ({ data: approvals }),
   useDecideConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeConnection: () => ({ mutate: vi.fn(), isPending: false }),
-  forChild: () => ({ pending: [], approved: [] }),
+  forChild: (data, childId) => ({
+    pending: (data?.pending || []).filter((r) => r.student_id === childId),
+    approved: (data?.approved || []).filter((c) => c.student_id === childId),
+  }),
 }))
 
 vi.mock('react-router-dom', async () => {
@@ -207,6 +211,19 @@ describe('FamilyHome', () => {
       expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'you')
     })
 
+    // A friend request is one decision about one child, taken next to the
+    // Friends policy in that child's settings. The card says one is waiting
+    // and opens that tab; the request itself is not on the card.
+    it("announces a waiting friend request on the card and opens that child's settings", async () => {
+      approvals = { pending: [{ id: 'req-1', student_id: 'child-1', requester: { display_name: 'Ada' } }], approved: [] }
+      renderFamilyHome()
+      const line = await screen.findByRole('button', { name: /friend request waiting for you/i })
+      expect(screen.queryByText('Ada')).not.toBeInTheDocument()
+      line.click()
+      expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'child-1')
+      approvals = { pending: [], approved: [] }
+    })
+
     it('opens Family Settings on the tab ?settings= names', async () => {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -233,6 +250,27 @@ describe('FamilyHome', () => {
       renderFamilyHome()
       expect(await screen.findByText('No children on your account yet')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Add your child' })).toBeInTheDocument()
+    })
+
+    // In an SIS school the office links students to their family; a child
+    // added from here would land outside the household. No door, and the
+    // empty state names the school to ask.
+    it('offers no Add-your-child in an SIS school, and says who to ask', async () => {
+      authState = {
+        user: {
+          id: 'parent-1', role: 'org_managed', org_roles: ['parent'], first_name: 'Dana',
+          organization: { id: 'org-1', effective_modules: ['sis'] },
+        },
+        refreshUser: vi.fn(),
+      }
+      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: false }, loading: false }
+      renderFamilyHome()
+      expect(await screen.findByText('No students linked to your account yet')).toBeInTheDocument()
+      expect(screen.getByText(/Ask iCreate to link your student/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Add your child' })).not.toBeInTheDocument()
+      // Family Settings gets no add-child callback either.
+      fireEvent.click(screen.getByRole('button', { name: /Family settings/ }))
+      expect(settingsModal).toHaveBeenLastCalledWith(expect.objectContaining({ isOpen: true, onAddChild: null }))
     })
   })
 

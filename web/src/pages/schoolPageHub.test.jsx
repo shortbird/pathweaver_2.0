@@ -50,6 +50,7 @@ const post = vi.fn(() => Promise.resolve({ data: { success: true } }))
 vi.mock('../services/api', () => ({ default: { get: (...a) => get(...a), post: (...a) => post(...a) } }))
 
 import SchoolPage from './SchoolPage'
+import { familyNavItemsFor } from './school/schoolCards'
 
 // SchoolPage renders MyClassMaterials, which reads through hooks/api
 // (react-query, the paradigm this codebase decided on -- see
@@ -94,16 +95,21 @@ describe('what a guardian gets', () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
   })
 
-  it('offers every school surface as a card', async () => {
-    expect(await cardNames()).toEqual(expect.arrayContaining([
-      'Schedule', 'Billing', 'Absences', 'Calendar',
-      'Resources', 'Directory', 'Portal', 'Requests',
-    ]))
+  // The family doors (billing, absences, checklists, requests, schedule) are
+  // sidebar items under the school's name since 2026-09-15 (see
+  // familyNavItemsFor in ./school/schoolCards); the rail here keeps the
+  // school-life cards only, so the same door is not offered twice on one screen.
+  it('offers the school-life surfaces as cards, and the family doors in the sidebar instead', async () => {
+    const names = await cardNames()
+    expect(names).toEqual(expect.arrayContaining(['Calendar', 'Resources', 'Directory', 'Carpool']))
+    expect(names).not.toContain('Billing')
+    expect(names).not.toContain('Portal')
+    expect(names).not.toContain('Schedule')
   })
 
-  it('groups the rail into My family and School life', async () => {
+  it('has no My family group on the rail any more', async () => {
     const rail = await cardRail()
-    expect(within(rail).getByText('My family')).toBeInTheDocument()
+    expect(within(rail).queryByText('My family')).not.toBeInTheDocument()
     expect(within(rail).getByText('School life')).toBeInTheDocument()
   })
 
@@ -111,24 +117,41 @@ describe('what a guardian gets', () => {
     const rail = await cardRail()
     const href = (name) =>
       within(rail).getByRole('heading', { name }).closest('a').getAttribute('href')
-    expect(href('Billing')).toBe('/family/billing')
-    expect(href('Absences')).toBe('/absences')
     expect(href('Calendar')).toBe('/school-calendar')
     expect(href('Resources')).toBe('/resources')
     expect(href('Directory')).toBe('/family-directory')
-    expect(href('Portal')).toBe('/family/portal')
-    expect(href('Requests')).toBe('/family/forms')
-    expect(href('Schedule')).toBe('/schedule-builder')
+    expect(href('Carpool')).toBe('/carpool')
   })
 
-  it('offers Goal Setting instead where the school runs goals', async () => {
-    schoolContext = {
-      success: true, is_guardian: true,
-      orgs: [{ ...GUARDIAN_ORG, post_registration_flow: 'goals' }],
-    }
-    const names = await cardNames()
+  // The sidebar's list comes from the same catalog; pin the family doors there.
+  it('lists every family door for the sidebar, from the same catalog', () => {
+    const items = familyNavItemsFor(GUARDIAN_ORG, { homepage: true })
+    const byName = Object.fromEntries(items.map((i) => [i.name, i.path]))
+    expect(byName).toEqual({
+      Announcements: '/school',
+      Calendar: '/school-calendar',
+      Schedule: '/schedule-builder',
+      Absences: '/absences',
+      Billing: '/family/billing',
+      Checklists: '/family/portal',
+      Requests: '/family/forms',
+    })
+  })
+
+  it('offers Goal Setting instead where the school runs goals', () => {
+    const names = familyNavItemsFor({ ...GUARDIAN_ORG, post_registration_flow: 'goals' }).map((i) => i.name)
     expect(names).toContain('Goal Setting')
     expect(names).not.toContain('Schedule')
+    expect(names).not.toContain('Announcements')
+  })
+
+  it('offers nothing in the sidebar to a member who guards nobody', () => {
+    expect(familyNavItemsFor(MEMBER_ORG, { homepage: true })).toEqual([])
+  })
+
+  it('drops a door whose building block the school has off', () => {
+    const names = familyNavItemsFor({ ...GUARDIAN_ORG, modules: ['classes', 'attendance', 'calendar'] }).map((i) => i.name)
+    expect(names).toEqual(['Calendar', 'Schedule', 'Absences'])
   })
 })
 

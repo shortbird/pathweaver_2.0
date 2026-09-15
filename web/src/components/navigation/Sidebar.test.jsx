@@ -14,20 +14,25 @@ vi.mock('../../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => ({ actingAsDependent: null, clearActingAs: vi.fn() }),
-}))
 
 // Family scope: which child a parent is working for. Unscoped by default;
 // the family-scope describe below picks one.
 let scopeState = { isScoped: false, selectedChild: null, hasFamily: false, children: [], isLoading: false }
-vi.mock('../../contexts/FamilyScopeContext', () => ({
+vi.mock('../../contexts/FamilyScopeContext', async (importOriginal) => ({
+  ...(await importOriginal()),
   useFamilyScope: () => scopeState,
 }))
 vi.mock('../parent/ProfileSwitcher', () => ({ default: () => <div data-testid="profile-switcher" /> }))
 
+// /api/sis/school/context answers "which of the school's surfaces may this
+// person reach"; the school section below reads it. Everything else the
+// sidebar asks for (courses, classes) answers empty.
+let schoolContext = { success: true, orgs: [], is_guardian: false }
 vi.mock('../../services/api', () => ({
-  default: { get: vi.fn().mockResolvedValue({ data: { courses: [] } }) },
+  default: {
+    get: vi.fn((url) => Promise.resolve(
+      url === '/api/sis/school/context' ? { data: schoolContext } : { data: { courses: [] } })),
+  },
 }))
 
 vi.mock('../../services/masqueradeService', () => ({
@@ -35,11 +40,14 @@ vi.mock('../../services/masqueradeService', () => ({
   exitMasquerade: vi.fn(),
 }))
 
-vi.mock('../parent/ActingAsBanner', () => ({ default: () => null }))
 vi.mock('../admin/MasqueradeBanner', () => ({ default: () => null }))
 
 import Sidebar from './Sidebar'
 import { OPTIO_ACADEMY_ORG_ID } from '../../config/optioAcademy'
+
+beforeEach(() => {
+  schoolContext = { success: true, orgs: [], is_guardian: false }
+})
 
 function renderSidebar() {
   const client = new QueryClient({
@@ -237,17 +245,16 @@ describe('Sidebar — the school item', () => {
   })
 })
 
-describe('Sidebar — the school surfaces moved onto the school page', () => {
-  // Until 2026-08-06 a guardian at a SIS school got eight more nav items on top
-  // of everything else: Schedule Builder, Billing, Absences, School Calendar,
-  // Resources, Directory, Portal, Requests. Fourteen items, eight of them the
-  // same school. They are cards on /school now; the sidebar keeps the school
-  // itself and nothing else about it.
-  const SCHOOL_SURFACES = [
-    /^billing$/i, /^absences$/i, /^school calendar$/i, /^resources$/i,
-    /^directory$/i, /^portal$/i, /^requests$/i, /^schedule builder$/i,
-    /^goal setting$/i,
-  ]
+describe('Sidebar — the school section for a guardian', () => {
+  // From 2026-08-06 to 2026-09-15 the school's family surfaces (billing,
+  // absences, checklists, requests, schedule) were cards on /school and
+  // nothing else: a parent looking for "where do I pay" had to know to open
+  // the school's page first. They are a section under the school's name now,
+  // from the same catalog the /school rail reads (pages/school/schoolCards).
+  const GUARDIAN_ORG = {
+    organization_id: 'org-1', organization_name: 'iCreate',
+    is_guardian: true, post_registration_flow: 'schedule',
+  }
 
   beforeEach(() => {
     localStorage.clear()
@@ -259,14 +266,43 @@ describe('Sidebar — the school surfaces moved onto the school page', () => {
       organization: { id: 'org-1', feature_flags: { sis_enabled: true } },
       school: { id: 'org-1', name: 'iCreate', homepage: true },
     }
+    schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
   })
 
-  it('gives a guardian at a SIS school one item for the school, not nine', () => {
+  it('lists the family doors under the school\'s name', async () => {
     renderSidebar()
-    for (const surface of SCHOOL_SURFACES) {
-      expect(screen.queryByRole('link', { name: surface })).not.toBeInTheDocument()
-    }
-    expect(screen.getByRole('link', { name: /icreate/i })).toHaveAttribute('href', '/school')
+    expect(await screen.findByRole('link', { name: /^billing$/i })).toHaveAttribute('href', '/family/billing')
+    expect(screen.getByRole('link', { name: /^absences$/i })).toHaveAttribute('href', '/absences')
+    expect(screen.getByRole('link', { name: /^checklists$/i })).toHaveAttribute('href', '/family/portal')
+    expect(screen.getByRole('link', { name: /^requests$/i })).toHaveAttribute('href', '/family/forms')
+    expect(screen.getByRole('link', { name: /^schedule$/i })).toHaveAttribute('href', '/schedule-builder')
+    expect(screen.getByRole('link', { name: /^calendar$/i })).toHaveAttribute('href', '/school-calendar')
+    expect(screen.getByText('iCreate')).toBeInTheDocument()
+  })
+
+  it('carries the school\'s own page as Announcements, once', async () => {
+    renderSidebar()
+    await screen.findByRole('link', { name: /^billing$/i })
+    const schoolLinks = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/school')
+    expect(schoolLinks).toHaveLength(1)
+    expect(schoolLinks[0]).toHaveAccessibleName(/announcements/i)
+  })
+
+  it('leaves resources, directory and carpool to the school page', async () => {
+    renderSidebar()
+    await screen.findByRole('link', { name: /^billing$/i })
+    expect(screen.queryByRole('link', { name: /^resources$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^directory$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^carpool$/i })).not.toBeInTheDocument()
+  })
+
+  it('gives a student at the school the school item and no family doors', async () => {
+    authState.user = { id: 's1', role: 'org_managed', org_role: 'student', organization_id: 'org-1', email: 's@example.com' }
+    schoolContext = { success: true, orgs: [{ ...GUARDIAN_ORG, is_guardian: false }], is_guardian: false }
+    renderSidebar()
+    expect(await screen.findByRole('link', { name: /icreate/i })).toHaveAttribute('href', '/school')
+    expect(screen.queryByRole('link', { name: /^billing$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^absences$/i })).not.toBeInTheDocument()
   })
 
   it('keeps the things that are not the school', () => {

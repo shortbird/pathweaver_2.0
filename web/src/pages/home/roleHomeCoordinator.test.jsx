@@ -18,7 +18,10 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 let authState = {}
 let scopeState = { isScoped: false, isLoading: false }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
-vi.mock('../../contexts/FamilyScopeContext', () => ({ useFamilyScope: () => scopeState }))
+vi.mock('../../contexts/FamilyScopeContext', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useFamilyScope: () => scopeState,
+}))
 
 // The homes themselves are covered by their own tests; here only the choice
 // matters, and rendering the real ones would drag in their whole data layer.

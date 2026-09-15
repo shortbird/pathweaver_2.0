@@ -4,27 +4,29 @@ import { useParentChildOverview } from '../../hooks/api/useParentChildOverview';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 import HeroSection from '../overview/HeroSection';
-import CollapsibleSection from '../overview/CollapsibleSection';
 import OverviewLoadingSkeleton from '../overview/OverviewLoadingSkeleton';
 import OverviewErrorState from '../overview/OverviewErrorState';
 import StudentOverviewSections from '../overview/StudentOverviewSections';
 import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard';
-import ParentConversationsViewer from './ParentConversationsViewer';
-import StudentSchedulePreview from './StudentSchedulePreview';
-import StudentClasses from './StudentClasses'
-import StudentAttendanceCard from './StudentAttendanceCard';
 
 /**
- * ChildOverviewContent - Displays StudentOverviewPage components for a child in parent view.
- * Excludes AccountSettings and makes PortfolioSection read-only.
+ * ChildOverviewContent - a student's overview as an OBSERVER sees it
+ * (pages/ObserverStudentOverviewPage): hero, weekly goal, and the read-only
+ * sections, with nothing a guardian would get.
  *
- * @param {string} studentId - The student/child ID
+ * It was the parent dashboard's copy of the child overview until 2026-09-15,
+ * with a `viewMode='parent'` branch carrying the child's AI-tutor
+ * conversations, schedule, classes and attendance. That branch lost its only
+ * caller when the dashboard was retired (a parent reads the child's real
+ * /overview in family scope, and the class pieces live on /school); the
+ * observer page always passed 'observer', so the parent half rendered for
+ * nobody and is gone.
+ *
+ * @param {string} studentId - The student's ID
  * @param {function} onEditClick - Callback when edit button is clicked
- * @param {boolean} isDependent - True if child is under 13 (hides diploma credits)
- * @param {string} viewMode - 'parent' or 'observer' - observers have restricted access
+ * @param {boolean} isDependent - True if the student is under 13 (hides diploma credits)
  */
-const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dependentName = null, viewMode = 'parent' }) => {
-  const isObserver = viewMode === 'observer';
+const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dependentName = null }) => {
   const { data, isLoading, error, refetch } = useParentChildOverview(studentId);
 
   if (isLoading) {
@@ -38,17 +40,6 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
   if (!data) {
     return null;
   }
-
-  const communicationsSection = !isObserver ? (
-    <CollapsibleSection
-      id="communications"
-      title="Communications"
-      icon={<svg className="w-6 h-6 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>}
-      defaultOpen={false}
-    >
-      <ParentConversationsViewer studentId={studentId} />
-    </CollapsibleSection>
-  ) : null;
 
   return (
     <div className="space-y-6">
@@ -95,20 +86,6 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
         studentFirstName={data.user?.first_name}
       />
 
-      {/* Class schedule (SIS families only; renders nothing otherwise) */}
-      {!isObserver && <StudentSchedulePreview studentId={studentId} />}
-
-      {/* The child's classes, each opening to its own handouts. Replaces the
-          flat materials list that grouped by class name further down the page:
-          the class is the thing a parent is looking for, and the handout lives
-          inside it. Guardians only -- the routes behind it are gated on the
-          family relationship, so an observer would get a 403 and an empty card. */}
-      {!isObserver && <StudentClasses studentId={studentId} />}
-
-      {/* What the school recorded. Guardians only, same reasoning as the
-          materials above: the route is gated on the family relationship. */}
-      {!isObserver && <StudentAttendanceCard studentId={studentId} />}
-
       <StudentOverviewSections
         data={data}
         studentId={studentId}
@@ -118,9 +95,8 @@ const ChildOverviewContent = ({ studentId, onEditClick, isDependent = false, dep
         hideEmptySections
         portfolioReadOnly
         showDiplomaCredits={!isDependent}
-        journalViewMode={isObserver ? 'observer' : 'parent'}
-        viewerMode={isObserver ? 'observer' : 'parent'}
-        afterJournal={communicationsSection}
+        journalViewMode="observer"
+        viewerMode="observer"
       />
     </div>
   );
@@ -130,7 +106,7 @@ ChildOverviewContent.propTypes = {
   studentId: PropTypes.string.isRequired,
   onEditClick: PropTypes.func,
   isDependent: PropTypes.bool,
-  viewMode: PropTypes.oneOf(['parent', 'observer'])
+  dependentName: PropTypes.string,
 };
 
 export default ChildOverviewContent;

@@ -7,7 +7,6 @@ import { AuthProvider } from './contexts/AuthContext'
 import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
-import { ActingAsProvider, useActingAs } from './contexts/ActingAsContext'
 import { FamilyScopeProvider, useFamilyScope } from './contexts/FamilyScopeContext'
 import { ConfirmProvider } from './contexts/ConfirmContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -16,7 +15,6 @@ import { warmupBackend } from './utils/retryHelper'
 import { getProgramRoutes } from './programs/registry'
 import { tokenStore } from './services/api'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
-import ActingAsBanner from './components/parent/ActingAsBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import SessionConflictOverlay from './components/SessionConflictOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
@@ -166,7 +164,6 @@ const DocsArticlePage = lazy(() => import('./pages/docs/DocsArticlePage'))
 const CoursePlanMode = lazy(() => import('./pages/admin/CoursePlanMode'))
 const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
-const DependentProgressReport = lazy(() => import('./pages/parent/DependentProgressReport'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 const SchoolPage = lazy(() => import('./pages/SchoolPage'))
 const CarpoolPage = lazy(() => import('./pages/CarpoolPage'))
@@ -213,7 +210,7 @@ const queryClient = new QueryClient({
   },
 })
 
-// Inner component that uses banners (must be inside Router and ActingAsProvider)
+// Inner component that uses banners (must be inside Router)
 function AppContent() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -221,7 +218,6 @@ function AppContent() {
   // after C2 the masquerade JWT can't survive page reload, so any persisted
   // `masquerade_state` may be stale. Banner appears only after backend confirms.
   const [masqueradeState, setMasqueradeState] = useState(null);
-  const { actingAsDependent, clearActingAs } = useActingAs();
   const [consentBlockData, setConsentBlockData] = useState(null);
 
   // Track consecutive status check failures for resilient banner
@@ -302,14 +298,6 @@ function AppContent() {
     }
   };
 
-  const handleSwitchBackToParent = async () => {
-    await clearActingAs();
-    // Force page reload to ensure clean state transition
-    // This is necessary because we're already on /parent/dashboard
-    // and navigate() won't unmount/remount the component
-    window.location.href = '/parent/dashboard';
-  };
-
   // Listen for consent-required events from API interceptor (COPPA compliance)
   useEffect(() => {
     const handleConsentRequired = (event) => {
@@ -341,15 +329,6 @@ function AppContent() {
           <MasqueradeBanner
             targetUser={masqueradeState.target_user}
             onExit={handleExitMasquerade}
-          />
-        </div>
-      )}
-      {/* Acting As Banner - Only show fixed version on mobile, sidebar handles desktop */}
-      {actingAsDependent && (
-        <div className="lg:hidden">
-          <ActingAsBanner
-            dependent={actingAsDependent}
-            onSwitchBack={handleSwitchBackToParent}
           />
         </div>
       )}
@@ -468,7 +447,6 @@ function App() {
           <AuthProvider>
             <AIAccessProvider>
             <OrganizationProvider>
-            <ActingAsProvider>
             <FamilyScopeProvider>
             {/* Serves useConfirm() — the app-wide replacement for
                 `window.confirm`, which silently returns false inside iOS
@@ -574,8 +552,11 @@ function App() {
                 <Route path="dashboard" element={<RoleHome />} />
                 {/* The student dashboard itself. Same component RoleHome renders
                     for students; reachable by role directly so a superadmin can
-                    see the student view without leaving their own home. */}
-                <Route path="student-dashboard" element={<StudentDashboardPage />} />
+                    see the student view without leaving their own home. A
+                    parent reaches it only in family scope (it is the child's). */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="student-dashboard" element={<StudentDashboardPage />} />
+                </Route>
                 {/* Student-only surfaces: parents/observers are bounced to their
                     own home. Students, advisors, org_admins, superadmin unaffected. */}
                 {/* One quest, open to a parent as well. A school can set a quest
@@ -613,18 +594,21 @@ function App() {
                     the notification email. A parent's copy is on the family
                     dashboard, per child; the page sends parents there. */}
                 <Route path="connections/approvals" element={<ConnectionApprovalsPage />} />
-                {/* Course Routes */}
-                <Route path="courses" element={<CourseCatalog />} />
-                <Route path="courses/:courseId" element={<CourseHomepage />} />
+                {/* Course Routes. Learner surfaces: a parent opens them only
+                    pointed at a child, never as their own (empty) enrolments. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="courses" element={<CourseCatalog />} />
+                  <Route path="courses/:courseId" element={<CourseHomepage />} />
+                </Route>
                 {/* Course Builder - backend enforces creator/superadmin permissions */}
                 <Route path="courses/:id/edit" element={<CourseBuilder />} />
                 <Route path="courses/new" element={<CourseBuilder />} />
-                {/* Credit classes (quest_type='class') progress page */}
+                {/* Credit classes (quest_type='class') progress page, and the
+                    guided class creation that doubles as its tutorial. */}
                 <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
                   <Route path="my-classes" element={<MyClasses />} />
+                  <Route path="my-classes/new" element={<StartClassPage />} />
                 </Route>
-                {/* Guided class creation — doubles as the tutorial for how classes work */}
-                <Route path="my-classes/new" element={<StartClassPage />} />
                 {/* Parent/guardian self-service: register your own children for SIS
                     classes. Gated behind completing the iCreate registration + fee —
                     including parent+teacher staff, whose teacher surfaces stay open. */}
@@ -659,9 +643,14 @@ function App() {
                     asking the office for. */}
                 <Route path="family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
                 <Route path="family/billing" element={<FamilyBillingPage />} />
-                {/* Credit & Transcript Routes */}
-                <Route path="credits" element={<CreditTrackerPage />} />
-                <Route path="transcript" element={<TranscriptPage />} />
+                {/* Credit & Transcript Routes: the signed-in student's own
+                    rows, or the scoped child's. An unscoped parent goes to
+                    /family rather than to an empty transcript of their own --
+                    the same rule as /overview below, applied late (2026-09-15). */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="credits" element={<CreditTrackerPage />} />
+                  <Route path="transcript" element={<TranscriptPage />} />
+                </Route>
                 {/* Student Overview - Unified page combining profile, diploma, and constellation.
                     Renders the viewer's OWN student portfolio -- or, for a parent in family
                     scope, the child's. An unscoped parent is sent to /family, because their
@@ -694,16 +683,23 @@ function App() {
                 <Route path="announcements" element={<SchoolPage />} />
                 {/* The carpool board's own door — the same board /school holds. */}
                 <Route path="carpool" element={<CarpoolPage />} />
-                {/* Observer Feedback */}
-                <Route path="feedback" element={<StudentFeedbackPage />} />
+                {/* Observer feedback on the student's work: theirs, or the
+                    scoped child's. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="feedback" element={<StudentFeedbackPage />} />
+                </Route>
                 {/* Observer pages */}
                 <Route path="observer/feed" element={<ObserverFeedPage />} />
                 <Route path="observer/welcome" element={<ObserverWelcomePage />} />
                 <Route path="observer/student/:studentId" element={<ObserverStudentOverviewPage />} />
-                {/* Evidence Reports - shareable evidence with PDF download (February 2026) */}
-                <Route path="evidence-reports" element={<MyEvidenceReports />} />
-                <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
-                <Route path="evidence-reports/:id/edit" element={<EvidenceReportBuilder />} />
+                {/* Evidence Reports - shareable evidence with PDF download
+                    (February 2026). Built from the student's own evidence, so
+                    a parent works on them in family scope. */}
+                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
+                  <Route path="evidence-reports" element={<MyEvidenceReports />} />
+                  <Route path="evidence-reports/new" element={<EvidenceReportBuilder />} />
+                  <Route path="evidence-reports/:id/edit" element={<EvidenceReportBuilder />} />
+                </Route>
                 {/* Bounty Board (March 2026) */}
                 <Route path="bounties" element={<BountyBoardPage />} />
                 <Route path="bounties/create" element={<BountyCreatePage />} />
@@ -773,8 +769,10 @@ function App() {
                 <Route path="parent/dashboard/:studentId" element={<ScopeRedirect to="/family" />} />
                 <Route path="parent/quest/:studentId/:questId" element={<ScopeRedirect to="/quests/:questId" />} />
                 <Route path="parent/child/:childId/journal" element={<ScopeRedirect to="/learning-journal" />} />
-                {/* LMS Features - Parent */}
-                <Route path="parent/students/:studentId/report" element={<DependentProgressReport />} />
+                {/* /parent/students/:id/report (the dependent progress report)
+                    was retired 2026-09-15: nothing linked to it, and the
+                    child's portfolio is the progress surface. */}
+                <Route path="parent/students/:studentId/report" element={<ScopeRedirect to="/overview" />} />
               </Route>
 
               {/* Unknown paths: signed-in users to their app home, everyone
@@ -848,7 +846,6 @@ function App() {
           </Suspense>
             </ConfirmProvider>
             </FamilyScopeProvider>
-            </ActingAsProvider>
             </OrganizationProvider>
             </AIAccessProvider>
         </AuthProvider>

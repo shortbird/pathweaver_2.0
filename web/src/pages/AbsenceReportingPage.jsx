@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
+import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 
 /**
  * Parent/guardian absence reporting (web platform).
@@ -60,9 +61,10 @@ const groupRuns = (list) => {
 }
 
 const AbsenceReportingPage = () => {
-  const [loading, setLoading] = useState(true)
-  const [orgs, setOrgs] = useState([])
-  const [orgId, setOrgId] = useState('')
+  // One shared read of where this person is a guardian (hooks/api/
+  // useSchoolContext); the child ticked first is the one the parent already
+  // picked on the family dashboard, else the first in the list.
+  const { orgs, org, orgId, setOrgId, students, scopedStudentId, loading, isError } = useFamilyOrgSelection()
   const [studentIds, setStudentIds] = useState([])
   // {student_id: {absences: [], classes: []}} for every child in the org, so
   // toggling children never waits on a fetch.
@@ -70,37 +72,24 @@ const AbsenceReportingPage = () => {
   const [form, setForm] = useState({ absence_date: today(), end_date: '', class_id: '', reason: '' })
   const [busy, setBusy] = useState(false)
 
-  const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId])
-  // Memoized: loadAbsences depends on this, and a fresh [] every render would
-  // re-run its effect (and setState) in a loop.
-  const students = useMemo(() => org?.students || [], [org])
   const studentName = useCallback(
     (sid) => students.find((s) => s.student_id === sid)?.name || 'A student',
     [students],
   )
 
   useEffect(() => {
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        const list = r.data?.orgs || []
-        setOrgs(list)
-        if (list.length) {
-          setOrgId(list[0].organization_id)
-          if (list[0].students?.length) setStudentIds([list[0].students[0].student_id])
-        }
-      })
-      .catch(() => toast.error('Could not load absences'))
-      .finally(() => setLoading(false))
-  }, [])
+    if (isError) toast.error('Could not load absences')
+  }, [isError])
 
-  // Keep the selection valid when the org changes.
+  // Keep the selection valid when the org changes; with nothing valid ticked,
+  // tick the scoped child, else the first.
   useEffect(() => {
     if (!students.length) return
     setStudentIds((prev) => {
       const valid = prev.filter((sid) => students.some((s) => s.student_id === sid))
-      return valid.length ? valid : [students[0].student_id]
+      return valid.length ? valid : [scopedStudentId || students[0].student_id]
     })
-  }, [students])
+  }, [students, scopedStudentId])
 
   const loadAbsences = useCallback(() => {
     if (!orgId || !students.length) { setByStudent({}); return }

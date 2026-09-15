@@ -7,16 +7,18 @@ import {
 import { ActiveConnectionRow, PendingConnectionCard } from '../connections/ConnectionApprovalCards'
 
 /**
- * One child's peer connections, on their card on the family dashboard.
+ * One child's peer connections: the requests waiting on the parent and the
+ * friends already approved, with the way to end one.
  *
- * Until 2026-09-15 a parent approved connections on a page of their own
- * (/connections/approvals, "Student connections" in the sidebar) that listed
- * every child's requests together. The request is about one child, and the
- * parent is on that child's card already, so it lives here: a request
- * waiting on the parent renders in full (it is the consent, and the consent
- * text stays where it is stated), and the connections they already approved
- * sit under it with the way to end them. A child with neither renders
- * nothing -- the card stays short.
+ * Lives in the Friends section of the child's settings (ChildSettingsPanel),
+ * under the policy card that decides whether requests come at all. It went
+ * from a page of its own (/connections/approvals, every child together) to
+ * the child's card on the family dashboard on 2026-09-15, and from the card
+ * into settings the same day: the policy (ChildFriendsCard) and the requests
+ * are one decision about one child, and the card carries a count instead. A
+ * request waiting on the parent renders in full (it is the consent, and the
+ * consent text stays where it is stated). A child with neither renders
+ * nothing.
  */
 export default function ChildConnections({ childId }) {
   const { data } = useConnectionApprovals()
@@ -41,10 +43,10 @@ export default function ChildConnections({ childId }) {
   })
 
   return (
-    <section aria-label="Connections" className="mt-3 space-y-2">
+    <section aria-label="Connections" className="mt-4 space-y-2">
       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
         <UsersIcon className="w-3.5 h-3.5" />
-        Connections
+        {pending.length > 0 ? 'Requests and friends' : 'Friends'}
         {pending.length > 0 && (
           <span className="rounded-full bg-optio-pink px-1.5 text-[10px] font-bold leading-4 text-white">
             {pending.length}

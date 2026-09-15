@@ -1,6 +1,5 @@
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useActingAs } from '../contexts/ActingAsContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -34,7 +33,6 @@ import TransferCreditsCard from '../components/diploma/TransferCreditsCard';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
-  const { actingAsDependent } = useActingAs();
   const { slug, userId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,8 +41,9 @@ const DiplomaPage = () => {
   const fromOrgProgress = location.state?.from === 'org-progress';
   const sourceOrgId = location.state?.orgId;
 
-  // Determine effective user: dependent if acting as one, otherwise logged-in user
-  const effectiveUser = actingAsDependent || user;
+  // The signed-in user. (A parent's act-as session used to substitute the
+  // child here; family scope reads the child's diploma through /overview.)
+  const effectiveUser = user;
 
   // Check if this is explicitly a public route
   // Both public routes, not just one. /public/diploma/:userId is recognised by

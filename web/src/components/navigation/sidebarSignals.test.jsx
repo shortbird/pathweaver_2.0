@@ -30,7 +30,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 let authState = { user: null, logout: vi.fn(), isAuthenticated: true }
 let orgState = { organization: null, school: null }
-let actingAsState = { actingAsDependent: null, clearActingAs: vi.fn() }
 let unreadState = { data: undefined }
 let masqueradeState = null
 
@@ -42,9 +41,6 @@ vi.mock('../../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => actingAsState,
-}))
 
 vi.mock('../../hooks/api/useDirectMessages', () => ({
   useUnreadCount: () => unreadState,
@@ -59,15 +55,6 @@ const exitMasquerade = vi.fn()
 vi.mock('../../services/masqueradeService', () => ({
   getMasqueradeState: () => masqueradeState,
   exitMasquerade: (...args) => exitMasquerade(...args),
-}))
-
-vi.mock('../parent/ActingAsBanner', () => ({
-  default: ({ dependent, onSwitchBack }) => (
-    <div data-testid="acting-as-banner">
-      <span>{dependent?.first_name}</span>
-      <button data-testid="switch-back" onClick={onSwitchBack}>Switch back</button>
-    </div>
-  ),
 }))
 
 vi.mock('../admin/MasqueradeBanner', () => ({
@@ -108,7 +95,6 @@ beforeEach(() => {
     isAuthenticated: true,
   }
   orgState = { organization: null, school: null }
-  actingAsState = { actingAsDependent: null, clearActingAs: vi.fn() }
   unreadState = { data: undefined }
   masqueradeState = null
   apiGet.mockResolvedValue({ data: { courses: [], classes: [] } })
@@ -169,37 +155,6 @@ describe('Sidebar — the unread message badge', () => {
     unreadState = { data: { unread_count: 7 } }
     renderSidebar({ isPinned: false, isHovered: false })
     expect(messagesLink()).toHaveTextContent('7')
-  })
-})
-
-describe('Sidebar — acting as a child', () => {
-  it('offers the way out when a parent is inside a child account', () => {
-    actingAsState = {
-      actingAsDependent: { id: 'kid-1', first_name: 'Rory' },
-      clearActingAs: vi.fn(),
-    }
-    renderSidebar()
-    expect(screen.getByTestId('acting-as-banner')).toHaveTextContent('Rory')
-    expect(screen.getByTestId('switch-back')).toBeInTheDocument()
-  })
-
-  it('shows nothing when the parent is themselves', () => {
-    renderSidebar()
-    expect(screen.queryByTestId('acting-as-banner')).not.toBeInTheDocument()
-  })
-
-  it('keeps an exit reachable while collapsed', () => {
-    // The full banner needs the expanded width. Collapsed, the exit becomes a
-    // button that expands the rail -- but there must BE one: a session with no
-    // visible exit is FU-05's failure, a parent left inside their child's
-    // account with the exit button already pressed.
-    actingAsState = {
-      actingAsDependent: { id: 'kid-1', first_name: 'Rory' },
-      clearActingAs: vi.fn(),
-    }
-    renderSidebar({ isPinned: false, isHovered: false })
-    expect(screen.queryByTestId('acting-as-banner')).not.toBeInTheDocument()
-    expect(screen.getByTitle(/Acting as child/)).toBeInTheDocument()
   })
 })
 

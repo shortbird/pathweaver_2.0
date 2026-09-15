@@ -3,7 +3,7 @@ import { useChildSummary } from '../../hooks/api/useFamilyChildren'
 import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard'
 import RhythmBadge from '../quest/RhythmBadge'
 import ChildAvatarUpload from './ChildAvatarUpload'
-import ChildConnections from './ChildConnections'
+import { forChild, useConnectionApprovals } from '../../hooks/api/useConnectionApprovals'
 import { timeAgo } from '../../utils/timeFormat'
 
 /**
@@ -23,7 +23,10 @@ import { timeAgo } from '../../utils/timeFormat'
  * working WITH that child on it; the child's name lands on their full
  * profile (/overview). The child's own pages are the full version
  * of everything summarised here. A child's settings are a tab of Family
- * Settings, reached from the page header, not from the card.
+ * Settings, reached from the page header, not from the card -- except that a
+ * friend request waiting on the parent is announced here as one line that
+ * opens that tab, because the answer is wanted this week and the card is
+ * where the parent looks.
  */
 
 const MAX_QUESTS = 3
@@ -76,7 +79,26 @@ function ActiveQuests({ quests, onOpenQuest }) {
   )
 }
 
-export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile }) {
+/** "1 friend request waiting" -> the child's Friends settings. */
+function PendingRequestsLine({ childId, onOpenSettings }) {
+  const { data } = useConnectionApprovals()
+  const { pending } = forChild(data, childId)
+  if (pending.length === 0) return null
+  return (
+    <button
+      type="button"
+      onClick={onOpenSettings}
+      className="mt-3 w-full text-left text-xs font-medium text-optio-purple hover:underline flex items-center gap-1.5"
+    >
+      <span className="rounded-full bg-optio-pink px-1.5 text-[10px] font-bold leading-4 text-white">
+        {pending.length}
+      </span>
+      {pending.length === 1 ? 'Friend request waiting for you' : `${pending.length} friend requests waiting for you`}
+    </button>
+  )
+}
+
+export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, onOpenSettings }) {
   const { data: summary } = useChildSummary(child.id)
   const quiet = summary && !summary.active_quests?.length
 
@@ -120,7 +142,9 @@ export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile })
         compact
       />
 
-      <ChildConnections childId={child.id} />
+      {onOpenSettings && (
+        <PendingRequestsLine childId={child.id} onOpenSettings={() => onOpenSettings(child)} />
+      )}
     </div>
   )
 }

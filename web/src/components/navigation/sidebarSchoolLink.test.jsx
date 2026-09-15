@@ -23,9 +23,6 @@ vi.mock('../../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState,
 }))
 
-vi.mock('../../contexts/ActingAsContext', () => ({
-  useActingAs: () => ({ actingAsDependent: null, clearActingAs: vi.fn() }),
-}))
 
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn().mockResolvedValue({ data: { courses: [] } }) },
@@ -36,7 +33,6 @@ vi.mock('../../services/masqueradeService', () => ({
   exitMasquerade: vi.fn(),
 }))
 
-vi.mock('../parent/ActingAsBanner', () => ({ default: () => null }))
 vi.mock('../admin/MasqueradeBanner', () => ({ default: () => null }))
 
 import Sidebar from './Sidebar'

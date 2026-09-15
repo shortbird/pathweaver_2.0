@@ -1,12 +1,22 @@
 /**
  * FamilySettingsSheet - ONE place for the family's settings on the phone.
  *
- * Adding a child, each child's picture, login access for a managed profile,
- * their profile, and inviting an observer. Until 2026-09-15 these were
- * spread over a menu behind a three-dot button on the one child showing, the
- * header's avatar menu, and the plus button's sheet; the web dashboard put
- * them in one Family Settings modal with a tab per child, and this is that
- * sheet. The cards on the Family tab carry only Open.
+ * Adding a child, each child's picture, their profile, and inviting an
+ * observer. Until 2026-09-15 these were spread over a menu behind a
+ * three-dot button on the one child showing, the header's avatar menu, and
+ * the plus button's sheet; the web dashboard put them in one Family Settings
+ * modal with a tab per child, and this is that sheet. The cards on the
+ * Family tab carry only Open.
+ *
+ * A child's login, AI access and portfolio privacy are web settings
+ * (FamilySettingsModal -> ChildSettingsPanel). The phone used to offer
+ * "Give login access" here and create the account with a hardcoded
+ * password (and, off iOS, a made-up email); that row now opens the web
+ * settings for that child instead.
+ *
+ * "Add a child" is hidden for a family in an SIS school: the office owns the
+ * roster there, and a child added from the app lands outside the household
+ * that registration, billing and class chats are built on.
  *
  * Opening another sheet from here (Add a kid, Invite an observer) waits for
  * this one to finish closing -- on iOS a second Modal will not present
@@ -14,47 +24,27 @@
  */
 
 import React, { useRef } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import api from '@/src/services/api';
 import { Avatar, AvatarFallbackText, AvatarImage, BottomSheet, Divider, HStack, Heading, UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
+import { useAuthStore } from '@/src/stores/authStore';
 import { useAddKidStore } from '@/src/stores/familyStore';
 import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
 import type { Child } from '@/src/types/family';
-import { confirmAlert, showAlert } from '@/src/utils/alerts';
+import { showAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
+import { userInSisOrg } from '@/src/utils/orgModules';
 import { pickChildAvatar } from './ChildAvatar';
 import { initialsFor, nameFor } from './ChildSwitcher';
 
-/**
- * Give a managed profile its own login. Alert.prompt is iOS only; elsewhere
- * a confirm with a placeholder address the parent changes later.
- */
-async function promote(child: Child) {
-  const first = child.first_name || nameFor(child).split(' ')[0];
-  const create = async (email: string) => {
-    try {
-      await api.post(`/api/dependents/${child.id}/promote`, { email, password: 'TempPass123!' });
-      showAlert('Login created', `${first} can sign in with ${email}.`);
-    } catch (err) {
-      showAlert('Error', extractApiError(err, 'Failed to create login').message);
-    }
-  };
-  if (Alert.prompt) {
-    Alert.prompt('Give Login Access', `Enter an email for ${first}:`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Create Login', onPress: (email?: string) => { if (email?.trim()) create(email.trim()); } },
-    ]);
-    return;
-  }
-  const ok = await confirmAlert({
-    title: 'Give Login Access',
-    message: `This will create a login for ${first}. Contact support to set their email.`,
-    confirmText: 'Create Login',
-  });
-  if (ok) create(`${first.toLowerCase()}@family.optio.com`);
+/** The web Family Settings modal, opened on this child's tab. */
+function openWebSettings(child: Child) {
+  router.push({
+    pathname: '/(app)/view-on-web',
+    params: { path: `/family?settings=${child.id}`, label: 'Login, AI and privacy settings', surface: 'learning' },
+  } as any);
 }
 
 async function changePicture(child: Child) {
@@ -86,6 +76,8 @@ function Row({ icon, label, onPress, testID }: {
 
 export function FamilySettingsSheet({ visible, onClose, kids }: { visible: boolean; onClose: () => void; kids: Child[] }) {
   const c = useThemeColors();
+  const user = useAuthStore((s) => s.user);
+  const canAddChild = !userInSisOrg(user);
   const pendingRef = useRef<(() => void) | null>(null);
   const after = (fn: () => void) => { pendingRef.current = fn; onClose(); };
 
@@ -110,7 +102,9 @@ export function FamilySettingsSheet({ visible, onClose, kids }: { visible: boole
         </HStack>
 
         <Row icon="person-outline" label="Your account" onPress={() => after(() => router.push('/(app)/settings' as any))} />
-        <Row icon="person-add-outline" label="Add a child" testID="family-settings-add-child" onPress={() => after(() => useAddKidStore.getState().open())} />
+        {canAddChild && (
+          <Row icon="person-add-outline" label="Add a child" testID="family-settings-add-child" onPress={() => after(() => useAddKidStore.getState().open())} />
+        )}
         <Row icon="eye-outline" label="Invite an observer" onPress={() => after(() => useInviteObserverStore.getState().open())} />
 
         {kids.map((kid) => {
@@ -136,10 +130,12 @@ export function FamilySettingsSheet({ visible, onClose, kids }: { visible: boole
               {/* The picker runs after the sheet has closed (see pickChildAvatar). */}
               <Row icon="image-outline" label={`Change ${first}'s picture`} onPress={() => after(() => changePicture(kid))} />
               <Row icon="person-circle-outline" label={`${first}'s profile`} onPress={() => after(() => router.push(`/parent/child/${kid.id}` as any))} />
-              {/* A linked student already has a login; only a managed profile gets one here. */}
-              {kid.is_dependent && (
-                <Row icon="key-outline" label="Give login access" onPress={() => after(() => promote(kid))} />
-              )}
+              <Row
+                icon="key-outline"
+                label={`${first}'s login, AI and privacy`}
+                testID={`family-settings-web-${kid.id}`}
+                onPress={() => after(() => openWebSettings(kid))}
+              />
             </View>
           );
         })}

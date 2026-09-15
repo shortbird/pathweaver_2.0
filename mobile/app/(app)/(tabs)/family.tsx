@@ -34,6 +34,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useBreakpoint } from '@/src/hooks/useBreakpoint';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useAddKidStore, useFamilyStore } from '@/src/stores/familyStore';
+import { userInSisOrg } from '@/src/utils/orgModules';
 import { useFerpaApprovals } from '@/src/hooks/useFerpaApprovals';
 import { forChild, useConnectionApprovals } from '@/src/hooks/useConnectionApprovals';
 import { onUploadComplete } from '@/src/services/uploadQueue';
@@ -145,19 +146,27 @@ export default function ParentDashboardPage() {
     );
   }
 
-  // No children
+  // No children. In an SIS school the office links students to their
+  // family (registration, roster import); a child added from the app would
+  // land outside the household, so that door is not offered there.
   if (children.length === 0) {
+    const inSisSchool = userInSisOrg(user);
+    const schoolName = user?.school?.name || 'your school';
     return (
       <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
         <View className="flex-1 items-center justify-center px-8">
           <Ionicons name="people-outline" size={56} color={tc.iconMuted} />
           <Heading size="lg" className="text-typo-500 mt-4 text-center dark:text-dark-typo-500">No students linked</Heading>
           <UIText size="sm" className="text-typo-400 mt-2 text-center dark:text-dark-typo-400">
-            Add a dependent or connect with a student to view their learning dashboard.
+            {inSisSchool
+              ? `Ask ${schoolName} to link your student to your account.`
+              : 'Add a dependent or connect with a student to view their learning dashboard.'}
           </UIText>
-          <Button size="lg" className="mt-6" onPress={() => useAddKidStore.getState().open()}>
-            <ButtonText>Add a Child</ButtonText>
-          </Button>
+          {!inSisSchool && (
+            <Button size="lg" className="mt-6" onPress={() => useAddKidStore.getState().open()}>
+              <ButtonText>Add a Child</ButtonText>
+            </Button>
+          )}
           {/* An exit. This screen is also what a parent sees when the list
               merely FAILED to load — a phone/paperwork hold 403s it and
               useMyChildren catches that as "no children" — and then the only

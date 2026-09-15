@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { isMasquerading } from '../services/masqueradeService'
+import { userHasRole } from '../utils/userRoles'
 
 // Gate for parent registration funnel completion.
 //
@@ -65,11 +66,10 @@ function useRegistrationIncomplete(user, isAuthenticated) {
   return eligible ? state : { checking: false, incomplete: false }
 }
 
-const hasParentRole = (user) => (
-  user?.role === 'parent' ||
-  user?.org_role === 'parent' ||
-  (Array.isArray(user?.org_roles) && user.org_roles.includes('parent'))
-)
+// The parent ROLE, in any of its shapes. Narrower than userHasFamily on
+// purpose: the funnel is for people the school enrolled as parents, not for
+// an advisor who happens to have a dependent on the platform.
+const hasParentRole = (user) => userHasRole(user, 'parent')
 
 // Global gate: a pure parent is bounced to the funnel from everywhere.
 // Dual-role staff (any staff role primary, 'parent' alongside it) are

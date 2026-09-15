@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
+import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 
 /**
  * Family forms (Learning app).
@@ -28,31 +29,26 @@ const StatusPill = ({ status }) => (
 const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 const FamilyFormsPage = () => {
-  const [loading, setLoading] = useState(true)
-  const [orgs, setOrgs] = useState([])
-  const [orgId, setOrgId] = useState('')
+  // One shared read of where this person is a guardian (hooks/api/
+  // useSchoolContext); the student picker starts on the child the parent
+  // already picked on the family dashboard, or blank for the whole family.
+  const { orgs, org, orgId, setOrgId, students, scopedStudentId, loading, isError } = useFamilyOrgSelection()
   const [studentId, setStudentId] = useState('')
   const [formTypes, setFormTypes] = useState({})
   const [submissions, setSubmissions] = useState([])
   const [form, setForm] = useState({ form_type: '', title: '', body: '' })
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(false)
-
-  const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId])
-  const students = org?.students || []
+  const error = isError
 
   useEffect(() => {
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        const list = r.data?.orgs || []
-        setOrgs(list)
-        if (list.length) setOrgId(list[0].organization_id)
-      })
-      .catch(() => { setError(true); toast.error('Could not load your family') })
-      .finally(() => setLoading(false))
-  }, [])
+    if (isError) toast.error('Could not load your family')
+  }, [isError])
 
-  // Keep the selected child valid when the org changes (blank = whole family).
+  // Start on the scoped child; keep the selection valid when the org changes
+  // (blank = whole family).
+  useEffect(() => {
+    if (scopedStudentId) setStudentId((cur) => cur || scopedStudentId)
+  }, [scopedStudentId])
   useEffect(() => {
     if (studentId && !students.some((s) => s.student_id === studentId)) setStudentId('')
   }, [students, studentId])

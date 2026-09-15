@@ -7,7 +7,6 @@ import api from '../services/api'
 import { useUserDashboard } from '../hooks/api/useUserData'
 
 let authState = {}
-let actingAsState = {}
 let dashboardHookData = {}
 let engagementData = {}
 let orgState = {}
@@ -16,9 +15,6 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))
 
-vi.mock('../contexts/ActingAsContext', () => ({
-  useActingAs: () => actingAsState
-}))
 
 vi.mock('../contexts/OrganizationContext', () => ({
   useOrganization: () => orgState
@@ -107,7 +103,6 @@ describe('DashboardPage', () => {
     authState = {
       user: { id: 'user-1', first_name: 'Alex', role: 'student', created_at: '2025-01-01T00:00:00Z' }
     }
-    actingAsState = { actingAsDependent: null }
     orgState = { school: null, organization: null, loading: false }
     api.get.mockResolvedValue({ data: { success: true, announcements: [] } })
     engagementData = {
@@ -432,51 +427,6 @@ describe('DashboardPage', () => {
       renderDashboard()
       expect(screen.getByText('Completed Quests')).toBeInTheDocument()
       expect(screen.getByText('Finished Quest')).toBeInTheDocument()
-    })
-  })
-
-  // ── Acting as a child ─────────────────────────────────────────────────────
-  //
-  // Broken twice: "Fix: Show dependent's dashboard when acting as dependent",
-  // then "Fix: Display dependent's name and prevent parent API calls when
-  // acting as dependent". Both halves matter and they fail differently. The
-  // wrong id means the parent is looking at their own quests believing they
-  // are the child's; the wrong name means the page greets the parent while
-  // showing the child's work, which is how you stop trusting either.
-  describe('acting as a child', () => {
-    const withData = (over = {}) => ({
-      data: { active_quests: [], enrolled_courses: [], stats: {}, ...over },
-      isLoading: false,
-      error: null,
-      refetch: vi.fn()
-    })
-
-    it('asks for the child\'s dashboard, not the parent\'s', () => {
-      authState = { user: { id: 'parent-1', first_name: 'Dana', created_at: '2020-01-01T00:00:00Z' } }
-      actingAsState = { actingAsDependent: { id: 'kid-7', first_name: 'Rory' } }
-      dashboardHookData = withData()
-
-      renderDashboard()
-
-      expect(useUserDashboard).toHaveBeenCalledWith('kid-7', expect.anything())
-      expect(useUserDashboard).not.toHaveBeenCalledWith('parent-1', expect.anything())
-    })
-
-    it('greets the child by name', () => {
-      authState = { user: { id: 'parent-1', first_name: 'Dana', created_at: '2020-01-01T00:00:00Z' } }
-      actingAsState = { actingAsDependent: { id: 'kid-7', first_name: 'Rory' } }
-      dashboardHookData = withData()
-
-      renderDashboard()
-
-      expect(screen.getByText(/Welcome back, Rory!/)).toBeInTheDocument()
-      expect(screen.queryByText(/Dana/)).not.toBeInTheDocument()
-    })
-
-    it('asks for the logged-in user when nobody is being acted as', () => {
-      dashboardHookData = withData()
-      renderDashboard()
-      expect(useUserDashboard).toHaveBeenCalledWith('user-1', expect.anything())
     })
   })
 

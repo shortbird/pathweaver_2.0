@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import BackToSchool from '../components/navigation/BackToSchool'
+import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 // Shared with the SIS Prior Learning page, which uploads into the same pipeline.
 import {
   ACCEPT_ATTR, MAX_FILES, isSupported, kindFor, prettySize,
@@ -66,9 +67,10 @@ const StatusPill = ({ status }) => (
 )
 
 const FamilyPriorLearningPage = () => {
-  const [loading, setLoading] = useState(true)
-  const [orgs, setOrgs] = useState([])
-  const [orgId, setOrgId] = useState('')
+  // One shared read of where this person is a guardian (hooks/api/
+  // useSchoolContext). The students themselves come from the prior-learning
+  // read below (it carries eligibility the context does not).
+  const { orgs, org, orgId, setOrgId, scopedStudentId, loading, isError } = useFamilyOrgSelection()
   const [records, setRecords] = useState([])
   const [students, setStudents] = useState([])
   const [studentId, setStudentId] = useState('')
@@ -81,15 +83,8 @@ const FamilyPriorLearningPage = () => {
   const fileInput = useRef(null)
 
   useEffect(() => {
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        const list = r.data?.orgs || []
-        setOrgs(list)
-        if (list.length) setOrgId(list[0].organization_id)
-      })
-      .catch(() => toast.error('Could not load your family'))
-      .finally(() => setLoading(false))
-  }, [])
+    if (isError) toast.error('Could not load your family')
+  }, [isError])
 
   const load = useCallback(() => {
     if (!orgId) { setRecords([]); setStudents([]); return }
@@ -98,17 +93,18 @@ const FamilyPriorLearningPage = () => {
         setRecords(r.data?.records || [])
         const kids = r.data?.students || []
         setStudents(kids)
+        // Keep a valid choice; else the scoped child, else the only child.
         setStudentId((current) => (
           kids.some((s) => s.student_id === current) ? current
-            : (kids.length === 1 ? kids[0].student_id : '')
+            : kids.some((s) => s.student_id === scopedStudentId) ? scopedStudentId
+              : (kids.length === 1 ? kids[0].student_id : '')
         ))
       })
       .catch(() => toast.error('Could not load your uploads'))
-  }, [orgId])
+  }, [orgId, scopedStudentId])
 
   useEffect(() => { load() }, [load])
 
-  const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId])
   const schoolName = org?.organization_name || 'the school'
 
   const addFiles = (fileList) => {

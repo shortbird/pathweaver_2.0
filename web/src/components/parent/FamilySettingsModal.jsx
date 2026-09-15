@@ -296,13 +296,17 @@ const FamilySettingsModal = ({
         <div className="mb-4 sm:mb-6 space-y-3">
           <GlassTabBar tabs={tabs} active={activeTab} onSelect={setActiveTab} aria-label="Family settings" />
           {/* One add-child door for both ages: the shared AddChildModal asks
-              the birth date and decides dependent vs. own account. */}
-          <div className="flex justify-end">
-            <button type="button" onClick={onAddChild} className="btn-ghost px-3 py-1.5 text-sm">
-              <PlusIcon className="w-4 h-4" />
-              Add a child
-            </button>
-          </div>
+              the birth date and decides dependent vs. own account. Absent
+              (onAddChild null) for a family in an SIS school, whose office
+              owns the roster. */}
+          {onAddChild && (
+            <div className="flex justify-end">
+              <button type="button" onClick={onAddChild} className="btn-ghost px-3 py-1.5 text-sm">
+                <PlusIcon className="w-4 h-4" />
+                Add a child
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Your own account. Name only — email and password changes go through

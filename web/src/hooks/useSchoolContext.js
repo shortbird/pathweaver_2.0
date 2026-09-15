@@ -1,6 +1,3 @@
-import { useEffect, useState } from 'react'
-import api from '../services/api'
-
 /**
  * The school this user is in, for the school-wide pages (calendar, resources,
  * directory).
@@ -15,22 +12,7 @@ import api from '../services/api'
  * using the parent context: for them, "not a guardian" is the correct answer.
  *
  * Returns `orgs: null` while loading, `[]` once it's known there are none.
+ * Since 2026-09-15 this is the shared react-query read in hooks/api, so the
+ * sidebar, /school and these pages make the request once between them.
  */
-export default function useSchoolContext() {
-  const [orgs, setOrgs] = useState(null)
-  const [isGuardian, setIsGuardian] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    api.get('/api/sis/school/context')
-      .then(({ data }) => {
-        if (!active) return
-        setOrgs(data?.orgs || [])
-        setIsGuardian(Boolean(data?.is_guardian))
-      })
-      .catch(() => { if (active) setOrgs([]) })
-    return () => { active = false }
-  }, [])
-
-  return { orgs, isGuardian, loading: orgs === null }
-}
+export { useSchoolContext as default } from './api/useSchoolContext'

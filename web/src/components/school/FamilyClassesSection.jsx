@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
-import api from '../../services/api'
+import { useSisParentContext } from '../../hooks/api/useSchoolContext'
 import StudentClasses from '../parent/StudentClasses'
 
 /**
@@ -20,25 +20,16 @@ import StudentClasses from '../parent/StudentClasses'
  * whose children are not in a SIS school.
  */
 const FamilyClassesSection = () => {
-  const [students, setStudents] = useState([])
-
-  useEffect(() => {
-    let alive = true
-    api.get('/api/sis/parent/context')
-      .then((r) => {
-        if (!alive) return
-        const seen = new Map()
-        for (const org of (r.data?.orgs || [])) {
-          for (const s of (org.students || [])) {
-            if (s.student_id && !seen.has(s.student_id)) seen.set(s.student_id, s)
-          }
-        }
-        setStudents([...seen.values()])
-      })
-      // Not a guardian, or no SIS school. Both are ordinary; render nothing.
-      .catch(() => { if (alive) setStudents([]) })
-    return () => { alive = false }
-  }, [])
+  // The shared guardian-context read (hooks/api/useSchoolContext). Not a
+  // guardian, or no SIS school, answers [] -- both ordinary; render nothing.
+  const { orgs } = useSisParentContext()
+  const seen = new Map()
+  for (const org of (orgs || [])) {
+    for (const s of (org.students || [])) {
+      if (s.student_id && !seen.has(s.student_id)) seen.set(s.student_id, s)
+    }
+  }
+  const students = [...seen.values()]
 
   if (!students.length) return null
 

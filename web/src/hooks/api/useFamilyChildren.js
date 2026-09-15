@@ -14,7 +14,7 @@ import { useAuth } from '../../contexts/AuthContext'
  *
  * This used to be fetched seven times over, by seven components each with
  * its own copy of the union rule (FamilyHomeData, ParentDashboardPage,
- * ProfileSwitcher, ParentInvitationSection, DependentSettingsModal,
+ * ProfileSwitcher, DependentSettingsModal,
  * ConversationList, BountyCreatePage). One hook, one cache entry, one place
  * to invalidate when a child is added, renamed or removed -- see
  * useInvalidateFamilyChildren below.

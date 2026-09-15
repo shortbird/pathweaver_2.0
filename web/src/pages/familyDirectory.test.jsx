@@ -9,9 +9,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // The page carries a BackToSchool link, so it needs a router around it.
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The page reads its school through react-query (hooks/api/useSchoolContext).
+const render = (ui) => rtlRender(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter>{ui}</MemoryRouter>
+  </QueryClientProvider>,
+)
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },

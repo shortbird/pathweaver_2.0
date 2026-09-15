@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
 import { moduleKnownOff } from '../../modules/moduleEnabled'
 import { mergeFeedItems } from '../../components/announcements/UnifiedFeed'
+import { useSisParentContext, useSchoolContext } from '../../hooks/api/useSchoolContext'
 
 /**
  * Data hooks for FamilyHome (pages/home/FamilyHome.jsx).
@@ -33,17 +34,12 @@ const SILENT = {
  * query stays disabled.
  */
 export function useFamilyAttention() {
-  const ctx = useQuery({
-    queryKey: ['family-home', 'sis-context'],
-    queryFn: async () => {
-      const r = await api.get('/api/sis/parent/context')
-      return r.data?.orgs || []
-    },
-    ...SILENT,
-  })
+  // The shared guardian-context read (hooks/api/useSchoolContext), the same
+  // one the family pages and the sidebar start from.
+  const ctx = useSisParentContext()
   // The portal and forms pages both default to the first org; the home digest
   // does the same (multi-school families see the rest on the pages themselves).
-  const org = ctx.data?.[0] || null
+  const org = ctx.orgs?.[0] || null
   const orgId = org?.organization_id
 
   // Each read below is gated server-side on a different building block, and a
@@ -133,15 +129,7 @@ export function useFamilyAttention() {
  * (/api/announcements/archive — SchoolPage's archive, first page only).
  */
 export function useSchoolSection(enabled) {
-  const context = useQuery({
-    queryKey: ['family-home', 'school-context'],
-    queryFn: async () => {
-      const r = await api.get('/api/sis/school/context')
-      return r.data?.success ? (r.data.orgs || [])[0] || null : null
-    },
-    enabled,
-    ...SILENT,
-  })
+  const context = useSchoolContext({ enabled })
 
   const announcements = useQuery({
     queryKey: ['family-home', 'announcements'],
@@ -173,7 +161,7 @@ export function useSchoolSection(enabled) {
   })
 
   return {
-    schoolOrg: context.data || null,
+    schoolOrg: context.orgs?.[0] || null,
     // Merged the way /school merges them, so the board copy of a post that was
     // ALSO sent does not appear twice (mergeFeedItems dedupes on
     // source_announcement_id). Unwrapped back to plain rows, and a board post's

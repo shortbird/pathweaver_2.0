@@ -50,6 +50,9 @@ export interface User {
     name?: string;
     slug?: string;
     feature_flags?: Record<string, any> | null;
+    // Server-computed building blocks (ARCHITECTURE_BLOCKS 4.1); see
+    // utils/orgModules.ts for the one reader.
+    effective_modules?: string[] | null;
   } | null;
   // The SCHOOL this user belongs to, which is NOT the same question as
   // `organization`: a parent is usually a platform user with no

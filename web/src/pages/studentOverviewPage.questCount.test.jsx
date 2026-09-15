@@ -18,9 +18,6 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'student-1', first_name: 'Banks' }, updateUser: vi.fn(), loginTimestamp: 1 }),
 }))
 
-vi.mock('../contexts/ActingAsContext', () => ({
-  useActingAs: () => ({ actingAsDependent: null }),
-}))
 
 vi.mock('../services/api', () => ({
   default: { get: vi.fn(), put: vi.fn() },

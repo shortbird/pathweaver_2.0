@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const { api, contextPayload, schedulePayload } = vi.hoisted(() => {
   const contextPayload = {
@@ -44,11 +45,13 @@ import FamilyStudentSchedulePage from './FamilyStudentSchedulePage'
 
 const renderPage = () =>
   rtlRender(
-    <MemoryRouter initialEntries={['/family/students/s1/schedule']}>
-      <Routes>
-        <Route path="/family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/family/students/s1/schedule']}>
+        <Routes>
+          <Route path="/family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 
 beforeEach(() => {

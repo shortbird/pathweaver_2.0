@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './AuthContext'
 import { useFamilyChildren } from '../hooks/api/useFamilyChildren'
 import { queryKeys } from '../utils/queryKeys'
+import { userHasRole } from '../utils/userRoles'
 
 /**
  * Family scope: which child a parent is currently working as themselves FOR.
@@ -16,11 +17,12 @@ import { queryKeys } from '../utils/queryKeys'
  * The parent stays signed in as themselves: no token swap, no page reload,
  * and the rows a parent writes name the parent.
  *
- * This replaced the "act as" session (ActingAsContext) on 2026-09-15. That
- * mechanism minted the child's credentials for the parent's tab and forced a
- * full reload to flush the query cache; it also admitted only managed
- * under-13 profiles, which is how a parent came to be told she could not
- * help her 12-year-old because he had an email address.
+ * This replaced the "act as" session on 2026-09-15 (its context, restore
+ * service and banners were deleted the same week). That mechanism minted the
+ * child's credentials for the parent's tab and forced a full reload to flush
+ * the query cache; it also admitted only managed under-13 profiles, which is
+ * how a parent came to be told she could not help her 12-year-old because he
+ * had an email address.
  *
  * Rules:
  *  - Scope is entered ONLY by the user (or a legacy-route redirect). It is
@@ -56,14 +58,48 @@ function writeStored(userId, childId) {
   }
 }
 
-/** Does this account have anyone to be a guardian FOR? */
+/**
+ * Does this account have anyone to be a guardian FOR?
+ *
+ * The ONE predicate for "is this a parent" in the web chrome. Sidebar,
+ * PrivateRoute, TopNavbar and the registration gate all read it; until
+ * 2026-09-15 each carried its own copy, and PrivateRoute's omitted org_roles,
+ * so an iCreate parent (role='org_managed', org_roles=['parent']) passed the
+ * parent routes only because effectiveRole happened to say 'parent' too.
+ */
 export function userHasFamily(user) {
   if (!user) return false
   return Boolean(
     user.has_dependents || user.has_linked_students ||
-    user.role === 'parent' || user.org_role === 'parent' ||
-    (Array.isArray(user.org_roles) && user.org_roles.includes('parent')),
+    userHasRole(user, 'parent'),
   )
+}
+
+/**
+ * Roles that give a person a learning-app surface of their OWN: a student
+ * has their own quests, an advisor and an org admin have their teaching home,
+ * a superadmin has everything. A campus coordinator does not: their work is
+ * on the SIS console, so in this app they are a guardian and nothing else.
+ */
+const OWN_SURFACE_ROLES = ['student', 'advisor', 'org_admin', 'superadmin']
+
+/**
+ * Must this person work through a child on the student surfaces?
+ *
+ * True for a parent, a parent who is also an observer, and a parent who is
+ * also a campus coordinator (four of iCreate's coordinators enrol their own
+ * children). False for a student, and for a teacher or org admin who is also
+ * a parent -- they have their own copy of every student page and pick a
+ * child from the ProfileSwitcher when they want the child's.
+ *
+ * This is what PrivateRoute's requireFamilyScope asks. It used to ask
+ * `effectiveRole === 'parent'`, which took org_roles[0]; a coordinator-parent
+ * was 'campus_coordinator' first, skipped the guard, and opened a quest link
+ * as herself (tickets 94f42ce7 / 96ca40f3, 2026-09-15).
+ */
+export function worksThroughFamily(user) {
+  if (!userHasFamily(user)) return false
+  return !OWN_SURFACE_ROLES.some((role) => userHasRole(user, role))
 }
 
 export const FamilyScopeProvider = ({ children }) => {

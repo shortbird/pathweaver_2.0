@@ -20,6 +20,7 @@ import ParentMomentCaptureButton from '../../components/parent/ParentMomentCaptu
 import VisibilityApprovalSection from '../../components/parent/VisibilityApprovalSection'
 import { htmlToText } from '../../utils/richText'
 import { inOptioAcademy } from '../../config/optioAcademy'
+import { moduleEnabled } from '../../modules/moduleEnabled'
 import { useFamilyAttention, useSchoolSection } from './FamilyHomeData'
 
 /**
@@ -169,6 +170,12 @@ export default function FamilyHome() {
   const { schoolOrg, announcements } = useSchoolSection(inSchool)
 
   const [showAddChild, setShowAddChild] = useState(false)
+  // In an SIS school the office links students to their family (registration,
+  // roster import); a child added from here would land outside the household
+  // that billing, class chats and the schedule are built on. So the door is
+  // not offered there, and the empty state says who to ask instead.
+  const canAddChild = !moduleEnabled(user?.organization, 'sis')
+  const schoolName = school?.name || 'your school'
   const [showFamilySettings, setShowFamilySettings] = useState(false)
   const [familySettingsTab, setFamilySettingsTab] = useState('you')
 
@@ -273,21 +280,36 @@ export default function FamilyHome() {
           Your family
         </h2>
         {children.length === 0 ? (
-          <EmptyState
-            icon={UserGroupIcon}
-            title="No children on your account yet"
-            hint="Set up any of your children — we'll ask their birth date and take it from there. Under 13: you manage their profile, no email needed. 13 and older: they get their own login, you stay connected."
-            action={
-              <button type="button" onClick={() => setShowAddChild(true)} className="btn-primary">
-                <PlusIcon className="w-5 h-5" />
-                Add your child
-              </button>
-            }
-          />
+          canAddChild ? (
+            <EmptyState
+              icon={UserGroupIcon}
+              title="No children on your account yet"
+              hint="Set up any of your children — we'll ask their birth date and take it from there. Under 13: you manage their profile, no email needed. 13 and older: they get their own login, you stay connected."
+              action={
+                <button type="button" onClick={() => setShowAddChild(true)} className="btn-primary">
+                  <PlusIcon className="w-5 h-5" />
+                  Add your child
+                </button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={UserGroupIcon}
+              title="No students linked to your account yet"
+              hint={`Ask ${schoolName} to link your student to your account. Once they have, your children appear here.`}
+            />
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {children.map((child) => (
-              <ChildCard key={child.id} child={child} onOpen={openChild} onOpenQuest={openChildQuest} onOpenProfile={openChildProfile} />
+              <ChildCard
+                key={child.id}
+                child={child}
+                onOpen={openChild}
+                onOpenQuest={openChildQuest}
+                onOpenProfile={openChildProfile}
+                onOpenSettings={(c) => openSettings(c.id)}
+              />
             ))}
           </div>
         )}
@@ -317,7 +339,7 @@ export default function FamilyHome() {
         onClose={() => setShowFamilySettings(false)}
         family={children}
         initialTab={familySettingsTab}
-        onAddChild={() => { setShowFamilySettings(false); setShowAddChild(true) }}
+        onAddChild={canAddChild ? () => { setShowFamilySettings(false); setShowAddChild(true) } : null}
         onRefresh={invalidateFamily}
       />
     </div>

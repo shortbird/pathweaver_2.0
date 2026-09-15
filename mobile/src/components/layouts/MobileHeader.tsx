@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore, type PreviewRole } from '@/src/stores/previewRoleStore';
 import { useActingAsStore } from '@/src/stores/actingAsStore';
-import { useAddKidStore } from '@/src/stores/addKidStore';
 import { useUnreadCount } from '@/src/hooks/useNotifications';
 import { useUnreadCount as useUnreadMessages } from '@/src/hooks/useMessages';
 import { useIsObserver, useIsParent } from '@/src/hooks/useStartSomething';
@@ -109,13 +108,11 @@ function AvatarMenu() {
     router.replace(target as any);
   };
 
+  // Family actions (add a child, observers, each child's settings) live in
+  // the Family tab's settings sheet; this menu is the person's own account.
+  // "Add a child" sat here as well until 2026-09-15, a third door onto the
+  // same sheet.
   const menuItems: MenuItem[] = [
-    ...(isParent ? [{
-      key: 'add-child',
-      label: 'Add a child',
-      icon: 'person-add-outline' as keyof typeof Ionicons.glyphMap,
-      onPress: () => { setMenuOpen(false); useAddKidStore.getState().open(); },
-    }] : []),
     {
       key: 'settings',
       label: 'Settings',

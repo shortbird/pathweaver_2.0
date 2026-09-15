@@ -29,12 +29,10 @@ interface ParentStartSomethingFabProps {
 export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethingFabProps) {
   const sheetVisible = useParentStartSomethingStore((s) => s.visible);
   const closeSheet = useParentStartSomethingStore((s) => s.close);
-  // InviteObserverSheet is shared — also opened from the Family tab's
-  // "Invite observer" row via the store.
+  // InviteObserverSheet and AddKidSheet are opened from the Family tab's
+  // settings sheet via their stores; this host only mounts them.
   const inviteVisible = useInviteObserverStore((s) => s.visible);
-  const openInvite = useInviteObserverStore((s) => s.open);
   const closeInvite = useInviteObserverStore((s) => s.close);
-  // AddKidSheet is opened from the header kebab "Add a child" via the store.
   const addKidVisible = useAddKidStore((s) => s.visible);
   const closeAddKid = useAddKidStore((s) => s.close);
 
@@ -44,7 +42,6 @@ export function ParentStartSomethingFab({ onCaptureMoment }: ParentStartSomethin
         visible={sheetVisible}
         onClose={closeSheet}
         onCaptureMoment={onCaptureMoment}
-        onInviteObserver={openInvite}
       />
 
       <InviteObserverSheet

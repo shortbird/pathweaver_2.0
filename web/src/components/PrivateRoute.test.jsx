@@ -10,7 +10,8 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState
 }))
 
-vi.mock('../contexts/FamilyScopeContext', () => ({
+vi.mock('../contexts/FamilyScopeContext', async (importOriginal) => ({
+  ...(await importOriginal()),
   useFamilyScope: () => scopeState
 }))
 
@@ -134,6 +135,21 @@ describe('PrivateRoute', () => {
       renderWithRoute('parent')
       expect(screen.getByText('Protected Content')).toBeInTheDocument()
     })
+
+    // An iCreate parent: role='org_managed', the parent role only in
+    // org_roles, neither flag set. The gate used to read the two flags and
+    // not org_roles, so this account passed only because effectiveRole
+    // happened to say 'parent'. It now reads the one predicate.
+    it('allows an org member whose only parent role is in org_roles', () => {
+      authState = {
+        isAuthenticated: true,
+        user: { id: '1', role: 'org_managed', org_roles: ['campus_coordinator', 'parent'] },
+        effectiveRole: 'campus_coordinator',
+        loading: false
+      }
+      renderWithRoute('parent')
+      expect(screen.getByText('Protected Content')).toBeInTheDocument()
+    })
   })
 
   // --- Family scope ---
@@ -170,6 +186,36 @@ describe('PrivateRoute', () => {
 
     it('never asks a student for a scope', () => {
       authState = { isAuthenticated: true, user: { id: '1', role: 'student' }, effectiveRole: 'student', loading: false }
+      scopeState = { isScoped: false, isLoading: false }
+      renderScoped()
+      expect(screen.getByText('Quest Library')).toBeInTheDocument()
+    })
+
+    // A campus coordinator who is also a parent has no student surface of
+    // her own. effectiveRole says 'campus_coordinator' (org_roles[0]), and
+    // the old `effectiveRole === 'parent'` guard let her open a quest link as
+    // herself (tickets 94f42ce7 / 96ca40f3).
+    it('sends an unscoped coordinator-parent to /family too', () => {
+      authState = {
+        isAuthenticated: true,
+        user: { id: '1', role: 'org_managed', org_roles: ['campus_coordinator', 'parent'] },
+        effectiveRole: 'campus_coordinator',
+        loading: false,
+      }
+      scopeState = { isScoped: false, isLoading: false }
+      renderScoped()
+      expect(screen.getByText('Family Dashboard')).toBeInTheDocument()
+    })
+
+    // A teacher-parent has her own copy of every student page; she enters a
+    // child's through the ProfileSwitcher when she wants to.
+    it('does not ask an advisor-parent for a scope', () => {
+      authState = {
+        isAuthenticated: true,
+        user: { id: '1', role: 'org_managed', org_roles: ['advisor', 'parent'] },
+        effectiveRole: 'advisor',
+        loading: false,
+      }
       scopeState = { isScoped: false, isLoading: false }
       renderScoped()
       expect(screen.getByText('Quest Library')).toBeInTheDocument()

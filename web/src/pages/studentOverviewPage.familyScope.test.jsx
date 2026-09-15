@@ -16,7 +16,6 @@ let studentScope = { params: {}, isDelegated: false }
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'parent-1', first_name: 'Paige', role: 'parent' }, updateUser: vi.fn(), loginTimestamp: 1 }),
 }))
-vi.mock('../contexts/ActingAsContext', () => ({ useActingAs: () => ({ actingAsDependent: null }) }))
 vi.mock('../contexts/FamilyScopeContext', () => ({ useFamilyScope: () => scope }))
 vi.mock('../hooks/useStudentScope', () => ({ useStudentScope: () => studentScope }))
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), put: vi.fn() } }))

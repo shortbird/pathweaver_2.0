@@ -43,10 +43,12 @@ describe('the API boundary', () => {
 
   it('still exports the pieces the app imports by name', () => {
     // A rename that lost an export would be caught by the app failing to build,
-    // but not by anything that says why. These five are the ones imported by
+    // but not by anything that says why. These four are the ones imported by
     // name across the app rather than as the default axios instance.
+    // (beginSessionSwitch was a fifth until the act-as session went,
+    // 2026-09-15.)
     const source = fs.readFileSync(path.join(SERVICES, 'api.ts'), 'utf8')
-    for (const name of ['tokenStore', 'csrfTokenStore', 'beginSessionSwitch',
+    for (const name of ['tokenStore', 'csrfTokenStore',
                         'getAuthHeaders', 'oeaAPI']) {
       expect(source, `api.ts no longer exports ${name}`).toContain(`export const ${name}`)
     }

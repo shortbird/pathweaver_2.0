@@ -3,11 +3,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
-import { useActingAs } from '../../contexts/ActingAsContext'
-import { useFamilyScope } from '../../contexts/FamilyScopeContext'
+import { useFamilyScope, userHasFamily, worksThroughFamily } from '../../contexts/FamilyScopeContext'
 import ProfileSwitcher from '../parent/ProfileSwitcher'
 import { getSisFlagOverride, switchSurfaceInApp } from '../../utils/appSurface'
-import ActingAsBanner from '../parent/ActingAsBanner'
 import MasqueradeBanner from '../admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from '../../services/masqueradeService'
 import api from '../../services/api'
@@ -17,6 +15,8 @@ import { parentHomePath } from '../../utils/postLoginPath'
 import { useUnreadCount } from '../../hooks/api/useDirectMessages'
 import { ageFromDob, CLASS_MIN_AGE } from '../../utils/age'
 import { moduleEnabled } from '../../modules/moduleEnabled'
+import { useSchoolContext } from '../../hooks/api/useSchoolContext'
+import { familyNavItemsFor } from '../../pages/school/schoolCards'
 
 const HOME_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -47,7 +47,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   const { data: unreadData } = useUnreadCount(user?.id)
   const unreadMessages = unreadData?.unread_count || 0
   const { organization, school } = useOrganization()
-  const { actingAsDependent, clearActingAs } = useActingAs()
+  // Which of the school's surfaces this person may reach, and whether they
+  // are a guardian there (one shared fetch; /school reads the same).
+  const { orgs: schoolOrgs } = useSchoolContext({ enabled: Boolean(user?.id && school) })
+  const schoolOrg = schoolOrgs?.[0] || null
   // Family scope: which child a parent is working for. In scope the student
   // surfaces (Home, Quests, Journal, Portfolio) point at that child.
   const { isScoped: inFamilyScope, selectedChild } = useFamilyScope()
@@ -58,7 +61,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // so this stays trivially mockable; it prefers the server-computed
   // effective_modules and falls back to legacy flags (sis_enabled).
   const sisEnabled = (organization ? moduleEnabled(organization, 'sis') : false) || getSisFlagOverride()
-  const [actingAsBannerExpanded, setActingAsBannerExpanded] = useState(false)
   const [masqueradeBannerExpanded, setMasqueradeBannerExpanded] = useState(false)
   const [masqueradeState, setMasqueradeState] = useState(null)
 
@@ -159,7 +161,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   const isStudent = userHasRole('student')
   const isAdvisor = userHasRole('advisor') || user?.has_advisor_assignments
-  const hasParentRelationships = user?.has_dependents || user?.has_linked_students || userHasRole('parent')
+  // One predicate for "has a family" (contexts/FamilyScopeContext); this was
+  // a private copy until 2026-09-15.
+  const hasParentRelationships = userHasFamily(user)
   const hasOrgAdminAccess = user?.is_org_admin || userHasRole('org_admin') || user?.role === 'superadmin'
   // Observer feed: for users who may watch students (superadmin, advisor,
   // parent, observer). The feed page handles empty states.
@@ -182,7 +186,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // A parent's home is the family dashboard (/family, 2026-09-15). Once they
   // have picked a child there, /dashboard is that CHILD's home and it appears
   // here under the child's name, followed by the child's own surfaces.
-  const isParent = role === 'parent'
+  // A guardian with no student surface of their own: a parent, or a parent
+  // who is also an observer or a campus coordinator. A teacher-parent is NOT
+  // one -- their Home is the teaching home, and Family is a second item.
+  const isParent = worksThroughFamily(user)
   const homePath = isParent ? parentHomePath(user, school) : '/dashboard'
 
   const primaryItems = [
@@ -217,7 +224,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
 
   // Quests: a learning surface. Org admins don't work in it; a parent does,
   // but only pointed at a child (family scope), never as themselves.
-  if (role !== 'org_admin' && (role !== 'parent' || inFamilyScope)) {
+  if (role !== 'org_admin' && (!isParent || inFamilyScope)) {
     primaryItems.push({
       name: 'Quests',
       path: '/quests',
@@ -265,7 +272,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Journal: a student learning surface. Hidden from org admins (they manage
   // their org, not a personal journal) and from a parent with no child picked;
   // in family scope it is the child's journal.
-  if (role !== 'org_admin' && (role !== 'parent' || inFamilyScope)) {
+  if (role !== 'org_admin' && (!isParent || inFamilyScope)) {
     learningItems.push({
       name: 'Journal',
       path: '/learning-journal',
@@ -296,8 +303,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // Classes are 13+, matching the mobile gate. A student whose age we don't know
   // still sees it — the page asks for the birthday — but a known under-13 doesn't,
   // so we never advertise something they can't have.
-  const classAge = ageFromDob(inFamilyScope ? selectedChild?.dateOfBirth : user?.date_of_birth)
-  if ((isStudent || user?.role === 'superadmin' || (isParent && inFamilyScope)) && !(classAge !== null && classAge < CLASS_MIN_AGE)) {
+  // Not offered to a parent in family scope: the child's own home links to it,
+  // and the parent sidebar is long enough with the school section below.
+  const classAge = ageFromDob(user?.date_of_birth)
+  if ((isStudent || user?.role === 'superadmin') && !(classAge !== null && classAge < CLASS_MIN_AGE)) {
     learningItems.push({
       name: 'Custom Class',
       path: '/my-classes',
@@ -484,6 +493,17 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
+  // The school's section, named after the school: the family doors (billing,
+  // absences, checklists, requests, schedule or goals, prior learning), the
+  // calendar, and the school's own page when the org front-doors families
+  // through it. One catalog with /school's card rail
+  // (pages/school/schoolCards); the rail keeps the school-life cards and this
+  // takes the family ones. Only for a guardian in an SIS school -- a student
+  // or a teacher who guards nobody gets nothing here and keeps the school
+  // item under Community.
+  const schoolItems = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
+    .map(({ name, path, Icon }) => ({ name, path, icon: <Icon className="w-5 h-5" /> }))
+
   const adminItems = []
 
   // Organization console for org admins or platform admins with an organization
@@ -525,6 +545,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   let navSections = [
     { key: 'primary', title: null, items: primaryItems },
     { key: 'learning', title: 'Learning', items: learningItems },
+    // Before Community, so its "Announcements" wins the path dedupe below over
+    // the Community copy of /school for a guardian.
+    ...(schoolItems.length > 0
+      ? [{ key: 'school', title: school?.name || 'My school', items: schoolItems }]
+      : []),
     { key: 'teaching', title: 'Teaching', items: teachingItems },
     { key: 'community', title: 'Community', items: communityItems },
     { key: 'admin', title: 'Admin', items: adminItems },
@@ -694,37 +719,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
           </nav>
         </div>
 
-        {/* Acting As Banner (when parent is viewing as child) */}
-        {actingAsDependent && (
-          <div className="border-t border-gray-200 py-2 px-2 flex justify-center">
-            {isExpanded ? (
-              <ActingAsBanner
-                dependent={actingAsDependent}
-                onSwitchBack={async () => {
-                  await clearActingAs()
-                  window.location.href = '/family'
-                }}
-                inline={true}
-                isExpanded={actingAsBannerExpanded}
-                onToggleExpand={() => setActingAsBannerExpanded(prev => !prev)}
-              />
-            ) : (
-              <button
-                onClick={() => {
-                  // When collapsed, expand sidebar and show banner
-                  onHoverChange?.(true)
-                  setActingAsBannerExpanded(true)
-                }}
-                title="Acting as child - click to expand"
-                className="w-full flex items-center justify-center rounded-lg bg-gradient-primary text-white min-h-[44px] touch-manipulation px-3 py-3"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Masquerade Banner (when admin is viewing as another user) */}
         {masqueradeState && (

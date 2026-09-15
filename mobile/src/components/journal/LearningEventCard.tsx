@@ -10,7 +10,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { HStack, VStack, UIText, Card, PillarBadge, ActionSheet, type ActionSheetAction } from '../ui';
 import type { LearningEvent, UnifiedTopic } from '@/src/hooks/useJournal';
-import { deleteLearningEvent, assignMomentToTopic } from '@/src/hooks/useJournal';
+import { deleteLearningEvent, assignMomentToTopic, createTopic } from '@/src/hooks/useJournal';
 import api from '@/src/services/api';
 import { TaskPickerSheet, attachMomentToTask, detachMomentFromTask } from './TaskPickerSheet';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
@@ -195,14 +195,16 @@ function LearningEventCardImpl({ event, onPress, onDeleted, onEdit, topics, onAs
     setCreatingTopic(true);
     try {
       const color = TOPIC_COLORS[Math.floor(Math.random() * TOPIC_COLORS.length)];
-      const { data } = await api.post('/api/interest-tracks', {
-        name: newTopicName.trim(),
-        color,
-        icon: 'hardware-chip-outline',
-      });
-      const newTrackId = data.track?.id || data.id;
-      if (newTrackId) {
-        await assignMomentToTopic(event.id, 'track', newTrackId, 'add', childId);
+      // createTopic routes through /api/parent/children/<id>/topics when this
+      // card is a parent's view of a child's moment. It used to post
+      // /api/interest-tracks with no student, which created the track on the
+      // PARENT's account; assigning the child's moment to a track the child
+      // does not own then failed, and the sheet read "Failed to create
+      // topic" (iCreate, 2026-09-14, ticket 4d021453). EditMomentModal has
+      // always used this helper.
+      const track = await createTopic(newTopicName.trim(), { childId, color, icon: 'hardware-chip-outline' });
+      if (track?.id) {
+        await assignMomentToTopic(event.id, 'track', track.id, 'add', childId);
       }
       setNewTopicName('');
       setShowNewTopic(false);

@@ -169,7 +169,11 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // url_map by backend/tests/test_client_api_paths_exist.py) is the thing
 // hooks/api CALLS, not a page fetching by hand, and a page that has migrated is
 // not made hand-rolled again by one imperative call left in a modal.
-const CALL_SITE_BASELINE = 981
+// 981 -> 925 on 2026-09-15: the family pages (portal, forms, absences, prior
+// learning, the student schedule, the school-page classes block) moved their
+// "which school am I in" read onto hooks/api/useSchoolContext, and the dead
+// parent dashboard leftovers went with their calls.
+const CALL_SITE_BASELINE = 925
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/
