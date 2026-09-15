@@ -8,6 +8,7 @@
 - POST /api/admin/stories/<id>/regenerate
 - POST /api/admin/stories/<id>/publish               - from review; 400 with blockers
 - POST /api/admin/stories/<id>/unpublish
+- .../candidates/*                                   - routes/stories/candidates.py
 
 Superadmin only. A story carries a student's id and private evidence pointers,
 and the editor shows thumbnails of a minor's photographs and plays their
@@ -191,6 +192,12 @@ def publish_story(user_id: str):
         'created_by': user_id,
         'updated_by': user_id,
     })
+    # Started from the app's bookmark queue (routes/stories/candidates.py):
+    # the row leaves the queue and remembers the story it became.
+    candidate_id = _uuid_or_none(body.get('candidate_id'), 'candidate_id')
+    if candidate_id:
+        from repositories.story_candidate_repository import StoryCandidateRepository
+        StoryCandidateRepository().resolve(candidate_id, 'started', story['id'])
     generate.kick_background([story['id']])
     logger.info(f'Superadmin {user_id[:8]} started a {mode} story from {source_type} '
                 f'{source_id[:8]}')

@@ -333,7 +333,15 @@ BASELINES = {
     #   school_enrollment_repository.statuses_for_org (+1): every student's
     #     standing at the school, for the org admin's People tab, which had
     #     no way to show a withdrawn student as anything but present.
-    'repositories': 537,
+    # 2026-09-15: 537 -> 546. story_candidate_repository (+8), the table
+    #   behind the app's "flag for a story" bookmark on a feed item: get,
+    #   get_by_target, list_by_status, open_target_ids (one read per feed
+    #   page), flag (insert or reopen), resolve, unflag. And
+    #   story_source_repository.learning_event (+1): the moment behind a
+    #   bookmarked learning_moment, so the queue can show what was flagged.
+    #   Nothing was added above this layer: the feed and the stories routes
+    #   call the repository.
+    'repositories': 546,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

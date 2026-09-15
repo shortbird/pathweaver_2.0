@@ -17,7 +17,7 @@ import { MediaModal } from './MediaModal';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { AudioClipPreview } from '../capture/VoiceRecorder';
 import type { FeedItem } from '@/src/hooks/useFeed';
-import { getViewers, createShareLink, toggleVisibility, toggleFeedHighlight } from '@/src/hooks/useFeed';
+import { getViewers, createShareLink, toggleVisibility, toggleFeedHighlight, toggleStoryCandidate } from '@/src/hooks/useFeed';
 import { haptic } from '@/src/utils/haptics';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
@@ -502,6 +502,8 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const [hidden, setHidden] = useState(false);
   const [isHighlighted, setIsHighlighted] = useState(!!item.is_highlighted);
   const [togglingHighlight, setTogglingHighlight] = useState(false);
+  const [isStoryCandidate, setIsStoryCandidate] = useState(!!item.is_story_candidate);
+  const [togglingCandidate, setTogglingCandidate] = useState(false);
   // Selectors, not the whole store: `useAuthStore()` here re-rendered EVERY
   // mounted card on any auth write. These are the only three fields read.
   const userId = useAuthStore((s) => s.user?.id);
@@ -522,6 +524,8 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     setCommentsCount(item.comments_count);
     setIsConfidential(item.is_confidential);
     setIsHighlighted(!!item.is_highlighted);
+    setIsStoryCandidate(!!item.is_story_candidate);
+    setTogglingCandidate(false);
     setHidden(false);
     setShowComments(false);
     setShowViewersList(false);
@@ -535,22 +539,43 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     setTogglingHighlight(false);
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The feed's handle for this item on the backend: the completion id, or the
+  // learning event id (the feed prefixes it `le_`; both toggles strip that).
+  const targetId = item.type === 'learning_moment'
+    ? (item.learning_event_id || item.id.replace(/^le_/, ''))
+    : (item.completion_id || item.id);
+
   const handleToggleHighlight = async () => {
     if (togglingHighlight) return;
     const next = !isHighlighted;
     setIsHighlighted(next);
     setTogglingHighlight(true);
     try {
-      const id = item.type === 'learning_moment'
-        ? (item.learning_event_id || item.id.replace(/^le_/, ''))
-        : (item.completion_id || item.id);
-      const res = await toggleFeedHighlight({ type: item.type, id, on: next });
+      const res = await toggleFeedHighlight({ type: item.type, id: targetId, on: next });
       setIsHighlighted(res.is_highlighted);
       onHighlightChange?.(item.id, res.is_highlighted);
     } catch {
       setIsHighlighted(!next);
     } finally {
       setTogglingHighlight(false);
+    }
+  };
+
+  // Bookmark for a future story. The superadmin sees most of the good work
+  // here first, on a phone, where the grader's Publish button is out of
+  // reach; the bookmark waits on the web Stories page (/admin/stories).
+  const handleToggleStoryCandidate = async () => {
+    if (togglingCandidate) return;
+    const next = !isStoryCandidate;
+    setIsStoryCandidate(next);
+    setTogglingCandidate(true);
+    try {
+      const res = await toggleStoryCandidate({ type: item.type, id: targetId, on: next });
+      setIsStoryCandidate(res.is_story_candidate);
+    } catch {
+      setIsStoryCandidate(!next);
+    } finally {
+      setTogglingCandidate(false);
     }
   };
 
@@ -837,14 +862,31 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               </Pressable>
             )}
 
-            {/* Superadmin: pin/unpin to the highlight reel */}
+            {/* Superadmin: bookmark for a future story (the web Stories page
+                lists these), and pin/unpin to the highlight reel. */}
+            {canHighlight && (
+              <Pressable
+                onPress={handleToggleStoryCandidate}
+                disabled={togglingCandidate}
+                hitSlop={12}
+                accessibilityLabel={isStoryCandidate ? 'Remove the story bookmark' : 'Flag for a story'}
+                className="flex-row items-center gap-1.5 py-2.5 ml-auto"
+                style={{ opacity: togglingCandidate ? 0.5 : 1 }}
+              >
+                <Ionicons
+                  name={isStoryCandidate ? 'bookmark' : 'bookmark-outline'}
+                  size={26}
+                  color={isStoryCandidate ? '#6D469B' : c.iconMuted}
+                />
+              </Pressable>
+            )}
             {canHighlight && (
               <Pressable
                 onPress={handleToggleHighlight}
                 disabled={togglingHighlight}
                 hitSlop={12}
                 accessibilityLabel={isHighlighted ? 'Remove from highlights' : 'Add to highlights'}
-                className="flex-row items-center gap-1.5 py-2.5 ml-auto"
+                className="flex-row items-center gap-1.5 py-2.5"
                 style={{ opacity: togglingHighlight ? 0.5 : 1 }}
               >
                 <Ionicons
@@ -969,6 +1011,7 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
     // Superadmin's optimistic highlight toggle writes this through the host
     // screen's list; without it the star didn't repaint from that path.
     a.is_highlighted === b.is_highlighted &&
+    a.is_story_candidate === b.is_story_candidate &&
     a.timestamp === b.timestamp
   );
 });

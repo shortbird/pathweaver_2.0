@@ -163,6 +163,8 @@ export const queryKeys = {
       detail: (ticketId) => [...queryKeys.admin.tickets.all, 'detail', ticketId],
       summary: () => [...queryKeys.admin.tickets.all, 'summary'],
     },
+    // Feed items bookmarked in the app for a story (/admin/stories queue).
+    storyCandidates: (status) => [...queryKeys.admin.all, 'story-candidates', status],
   },
 
   // Utility functions

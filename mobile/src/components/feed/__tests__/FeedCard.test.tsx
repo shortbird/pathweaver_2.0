@@ -12,7 +12,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { FeedCard } from '../FeedCard';
 import { createMockFeedItem } from '@/src/__tests__/utils/mockFactories';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
-import { createShareLink, toggleVisibility } from '@/src/hooks/useFeed';
+import { createShareLink, toggleVisibility, toggleStoryCandidate } from '@/src/hooks/useFeed';
 
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
@@ -30,6 +30,8 @@ jest.mock('@/src/hooks/useFeed', () => ({
   getViewers: jest.fn().mockResolvedValue({ viewers: [], total: 0 }),
   createShareLink: jest.fn().mockResolvedValue({ share_url: 'https://example.com/shared/feed/abc123', token: 'abc123' }),
   toggleVisibility: jest.fn().mockResolvedValue({ status: 'success', hidden: true }),
+  toggleFeedHighlight: jest.fn().mockResolvedValue({ is_highlighted: true }),
+  toggleStoryCandidate: jest.fn().mockResolvedValue({ is_story_candidate: true }),
 }));
 jest.mock('../VideoPlayer', () => ({ VideoPlayer: () => null }));
 jest.mock('../DocumentViewer', () => ({ DocumentViewer: () => null }));
@@ -242,5 +244,35 @@ describe('FeedCard', () => {
     const item = createMockFeedItem({ task: { id: 't1', title: 'Task', pillar: 'stem', xp_value: 75 } });
     const { getByText } = render(<FeedCard item={item} />);
     expect(getByText('+75 XP')).toBeTruthy();
+  });
+
+  // ── Story bookmark (superadmin) ──
+
+  it('lets a superadmin flag a task completion for a story, and nobody else', async () => {
+    const item = createMockFeedItem({ completion_id: 'comp-1' });
+    const asStudent = render(<FeedCard item={item} />);
+    expect(asStudent.queryByLabelText('Flag for a story')).toBeNull();
+    asStudent.unmount();
+
+    setAuthAsStudent({ role: 'superadmin' } as any);
+    const { getByLabelText } = render(<FeedCard item={item} />);
+    fireEvent.press(getByLabelText('Flag for a story'));
+    await waitFor(() => expect(toggleStoryCandidate).toHaveBeenCalledWith({
+      type: 'task_completed', id: 'comp-1', on: true,
+    }));
+    expect(getByLabelText('Remove the story bookmark')).toBeTruthy();
+  });
+
+  it('sends a learning moment by its event id', async () => {
+    setAuthAsStudent({ role: 'superadmin' } as any);
+    const item = createMockFeedItem({
+      id: 'le_evt-1', type: 'learning_moment', learning_event_id: 'evt-1', completion_id: undefined,
+      moment: { title: 'Solo flight', description: 'It flew.', pillars: ['stem'] },
+    });
+    const { getByLabelText } = render(<FeedCard item={item} />);
+    fireEvent.press(getByLabelText('Flag for a story'));
+    await waitFor(() => expect(toggleStoryCandidate).toHaveBeenCalledWith({
+      type: 'learning_moment', id: 'evt-1', on: true,
+    }));
   });
 });

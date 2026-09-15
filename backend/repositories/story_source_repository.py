@@ -109,6 +109,14 @@ class StorySourceRepository(BaseRepository):
 
     # ── the student, and the names that must not appear ──────────────────────
 
+    def learning_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        """A learning moment, for the candidates queue. Not a story source yet
+        (Phase 2); the queue shows it so the bookmark is not lost."""
+        rows = self.client.table('learning_events').select(
+            'id, user_id, title, description, ai_generated_title, pillars, source_type, is_confidential, '
+            'attached_task_id, event_date, created_at').eq('id', event_id).limit(1).execute().data
+        return rows[0] if rows else None
+
     def student(self, user_id: str) -> Optional[Dict[str, Any]]:
         rows = self.client.table('users').select(STUDENT_COLUMNS).eq(
             'id', user_id).limit(1).execute().data

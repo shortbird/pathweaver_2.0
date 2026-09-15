@@ -6,6 +6,7 @@ import { Spinner } from '../ui/Spinner'
 import {
   STORY_STATUSES, STORY_STATUS_LABELS, STORY_STATUS_STYLES, SETTING_OPTIONS,
 } from './stories/storyEditorState'
+import StoryCandidatesQueue from './stories/StoryCandidatesQueue'
 
 /** One pill per story status, shared by the list and the editor header. */
 export const StoryStatusPill = ({ status, className = '' }) => {
@@ -39,6 +40,9 @@ const when = (iso) => (iso ? new Date(iso).toLocaleDateString() : '')
  * hatch for a quest that has no finalized item open in the grader right now;
  * it takes a user_quest id because Phase 1 has no per-student quest browser,
  * and always drafts for review so nothing typed by hand publishes unread.
+ *
+ * Above the list: the queue of feed items bookmarked in the mobile app
+ * (StoryCandidatesQueue), each with the same draft-for-review button.
  */
 const StoriesManager = () => {
   const navigate = useNavigate()
@@ -83,6 +87,8 @@ const StoriesManager = () => {
 
   return (
     <div className="space-y-6">
+      <StoryCandidatesQueue />
+
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-b">
           <h2 className="font-semibold text-gray-900">Stories</h2>

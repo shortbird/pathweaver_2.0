@@ -908,6 +908,20 @@ def register_routes(bp):
             except Exception as h_err:
                 logger.warning(f"Could not resolve highlight state: {h_err}")
 
+            # Story bookmarks (story_candidates), for the superadmin's own
+            # feed only: the bookmark is a note to self for the web Stories
+            # page, and nobody else's card carries the state.
+            candidate_completions: set = set()
+            candidate_events: set = set()
+            if effective_role == 'superadmin':
+                try:
+                    from repositories.story_candidate_repository import StoryCandidateRepository
+                    candidate_repo = StoryCandidateRepository(client=supabase)
+                    candidate_completions = candidate_repo.open_target_ids('task_completed', completion_ids)
+                    candidate_events = candidate_repo.open_target_ids('learning_moment', le_ids)
+                except Exception as c_err:
+                    logger.warning(f"Could not resolve story candidate state: {c_err}")
+
             # Build final feed items in the expected format
             feed_items = []
             for item in paginated_items:
@@ -963,6 +977,7 @@ def register_routes(bp):
                         # subject to the viewer's permission.
                         'can_share': viewer_can_share(item['student_id']),
                         'is_highlighted': le_id in highlighted_events,
+                        'is_story_candidate': le_id in candidate_events,
                     })
                 else:
                     # Task-attached evidence item — either a real completion
@@ -1013,6 +1028,7 @@ def register_routes(bp):
                         # aren't shareable.
                         'can_share': bool(item.get('completion_id')) and viewer_can_share(item['student_id']),
                         'is_highlighted': bool(item.get('completion_id')) and item['completion_id'] in highlighted_completions,
+                        'is_story_candidate': bool(item.get('completion_id')) and item['completion_id'] in candidate_completions,
                     })
 
             # Everything the browser will fetch lives in a private bucket:

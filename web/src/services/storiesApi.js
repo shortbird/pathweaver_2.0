@@ -24,11 +24,21 @@ export const errorDetails = (err) => {
 }
 
 export const storiesApi = {
-  /** POST /api/admin/stories/publish -> 202 { story } (status generating). */
-  start: ({ sourceType, sourceId, mode = 'auto' }) =>
+  /** POST /api/admin/stories/publish -> 202 { story } (status generating).
+   *  `candidateId` (optional): the app bookmark this story starts from; the
+   *  backend moves that row out of the queue. */
+  start: ({ sourceType, sourceId, mode = 'auto', candidateId }) =>
     api.post('/api/admin/stories/publish', {
       source_type: sourceType, source_id: sourceId, mode,
+      ...(candidateId ? { candidate_id: candidateId } : {}),
     }).then(unwrap),
+
+  /** Feed items bookmarked in the app for a story (routes/stories/candidates.py). */
+  candidates: (status = 'open') =>
+    api.get('/api/admin/stories/candidates', { params: { status } }).then(unwrap),
+
+  dismissCandidate: (candidateId) =>
+    api.post(`/api/admin/stories/candidates/${candidateId}/dismiss`, {}).then(unwrap),
 
   /** What the grader panel needs before it offers a Publish button. */
   eligibility: (completionId) =>

@@ -15,6 +15,6 @@ admin_stories_bp = Blueprint('admin_stories', __name__, url_prefix='/api/admin/s
 public_stories_bp = Blueprint('public_stories', __name__, url_prefix='/api/public/stories')
 
 # Route modules attach to the blueprints above on import.
-from routes.stories import admin, consents, internal, public  # noqa: E402,F401
+from routes.stories import admin, candidates, consents, internal, public  # noqa: E402,F401
 
 __all__ = ['admin_stories_bp', 'public_stories_bp']

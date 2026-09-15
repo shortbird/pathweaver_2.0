@@ -93,6 +93,9 @@ export interface FeedItem {
   /** Superadmin pinned this item to the highlight reel. Drives the star
    *  toggle on FeedCard and the Highlights feed segment. */
   is_highlighted?: boolean;
+  /** Superadmin bookmarked this item for a future story (story_candidates);
+   *  sent only on the superadmin's own feed. Drives the bookmark on FeedCard. */
+  is_story_candidate?: boolean;
 }
 
 interface UseFeedOptions {
@@ -333,6 +336,24 @@ export async function toggleFeedHighlight(args: {
     on: args.on,
   });
   return { is_highlighted: !!data.is_highlighted };
+}
+
+/** Superadmin only: bookmark a feed item for a future story, or take the
+ *  bookmark off. The queue is the web app's Stories page
+ *  (/admin/stories, "Flagged from the app"). Same id rules as the
+ *  highlight toggle; the backend strips a learning moment's `le_` prefix. */
+export async function toggleStoryCandidate(args: {
+  type: 'task_completed' | 'learning_moment';
+  id: string;
+  on?: boolean;
+}): Promise<{ is_story_candidate: boolean }> {
+  const { data } = await api.post('/api/admin/stories/candidates/toggle', {
+    target_type: args.type,
+    target_id: args.id,
+    on: args.on,
+  });
+  const body = data?.data || data;
+  return { is_story_candidate: !!body?.is_story_candidate };
 }
 
 export async function getViewers(type: 'task_completed' | 'learning_moment', id: string) {
