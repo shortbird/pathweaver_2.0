@@ -4,9 +4,11 @@ Until 2026-09-15 these two routes re-checked, after the guardian gate had
 already passed, that `users.managed_by_parent_id == caller` -- so a parent
 could add a task to a linked teenager's quest but not take it back, and a
 co-guardian of a dependent could do neither. The owner's decision: a parent
-may do everything the child can do. One gate
-(verify_parent_has_access_to_child -> utils.portfolio_access.is_parent_of)
-decides all four routes, and a parent's writes name the parent.
+may do everything the child can do. The three single-child routes declare
+the gate (@student_scope, the same one every student-shaped route uses; the
+body of the route receives the CHILD's id and the parent on g.student_scope),
+enroll-children intersects with children_of_parent, and a parent's writes
+name the parent.
 """
 
 import ast
@@ -14,9 +16,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from flask import Flask
+from flask import Flask, g
 
 from routes import family_quests
+from utils.guardian_scope import StudentScope
 
 
 PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
@@ -31,6 +34,11 @@ def _innermost(view):
     while hasattr(view, '__wrapped__'):
         view = view.__wrapped__
     return view
+
+
+def _as_parent_of(child_id, parent_id=PARENT):
+    """What @student_scope leaves for the body of the route."""
+    g.student_scope = StudentScope(caller_id=parent_id, student_id=child_id, via='parent')
 
 
 class _Query:
@@ -80,11 +88,11 @@ def test_a_parent_of_a_linked_student_may_remove_a_task(app):
         'user_quest_tasks': [{'id': TASK, 'title': 'Read', 'user_id': KID, 'quest_id': QUEST}],
         'quest_task_completions': [],
     }
-    with app.test_request_context(f'/api/family/quests/{QUEST}/tasks/{TASK}?child_id={KID}', method='DELETE'), \
+    with app.test_request_context(f'/api/family/quests/{QUEST}/tasks/{TASK}?student_id={KID}', method='DELETE'), \
             patch.object(family_quests, 'verify_parent_role'), \
-            patch.object(family_quests, 'verify_parent_has_access_to_child', return_value=True), \
             patch.object(family_quests, 'get_supabase_admin_client', return_value=_client(answers, log)):
-        response = _innermost(family_quests.delete_task_for_dependent)(PARENT, QUEST, TASK)
+        _as_parent_of(KID)
+        response = _innermost(family_quests.delete_task_for_dependent)(KID, QUEST, TASK)
     body, status = response
     assert status == 200, body.get_json()
     assert ('delete', 'user_quest_tasks', None) in log
@@ -100,30 +108,62 @@ def test_a_parent_of_a_linked_student_may_uncomplete_a_task(app):
         'user_quests': [{'id': 'uq-1'}],
     }
     with app.test_request_context(f'/api/family/quests/{QUEST}/tasks/{TASK}/uncomplete',
-                                  method='POST', json={'child_id': KID}), \
+                                  method='POST', json={'student_id': KID}), \
             patch.object(family_quests, 'verify_parent_role'), \
-            patch.object(family_quests, 'verify_parent_has_access_to_child', return_value=True), \
             patch.object(family_quests, 'get_supabase_admin_client', return_value=_client(answers, log)):
-        response = _innermost(family_quests.uncomplete_task_for_dependent)(PARENT, QUEST, TASK)
+        _as_parent_of(KID)
+        response = _innermost(family_quests.uncomplete_task_for_dependent)(KID, QUEST, TASK)
     body, status = response if isinstance(response, tuple) else (response, response.status_code)
     assert status == 200, body.get_json()
     assert any(op == 'delete' and table == 'quest_task_completions' for op, table, _ in log)
 
 
-def test_a_non_guardian_is_still_refused(app):
-    with app.test_request_context(f'/api/family/quests/{QUEST}/tasks/{TASK}?child_id={KID}', method='DELETE'), \
-            patch.object(family_quests, 'verify_parent_role'), \
-            patch.object(family_quests, 'verify_parent_has_access_to_child', return_value=False), \
+def test_a_non_guardian_is_refused_by_the_declared_gate(app):
+    """The whole point of declaring it: the refusal is @student_scope's, raised
+    before the view runs, with the same 403 every relationship gate speaks."""
+    from middleware.error_handler import AuthorizationError
+    with app.test_request_context(f'/api/family/quests/{QUEST}/tasks/{TASK}?student_id={KID}', method='DELETE'), \
+            patch('utils.guardian_scope.guardian_relationship', return_value=None), \
             patch.object(family_quests, 'get_supabase_admin_client') as client:
-        body, status = _innermost(family_quests.delete_task_for_dependent)(PARENT, QUEST, TASK)
-    assert status == 403
+        view = family_quests.delete_task_for_dependent.__wrapped__  # below @require_auth
+        with pytest.raises(AuthorizationError):
+            view(PARENT, QUEST, TASK)
     client.assert_not_called()
 
 
-def test_the_managed_only_recheck_is_gone():
-    """The second gate that refused linked students and co-guardians."""
+@pytest.mark.parametrize('route, method, path', [
+    ('create_task_for_dependent', 'POST', f'/api/family/quests/{QUEST}/tasks'),
+    ('delete_task_for_dependent', 'DELETE', f'/api/family/quests/{QUEST}/tasks/{TASK}'),
+    ('uncomplete_task_for_dependent', 'POST', f'/api/family/quests/{QUEST}/tasks/{TASK}/uncomplete'),
+])
+def test_a_request_that_names_no_child_is_a_400(app, route, method, path):
+    """These are a parent's hand on a CHILD's quest; a caller about themselves
+    has the student routes for that."""
+    with app.test_request_context(path, method=method, json={}), \
+            patch.object(family_quests, 'get_supabase_admin_client') as client:
+        g.student_scope = StudentScope(caller_id=PARENT, student_id=PARENT, via='self')
+        args = (PARENT, QUEST) if route == 'create_task_for_dependent' else (PARENT, QUEST, TASK)
+        body, status = _innermost(getattr(family_quests, route))(*args)
+    assert status == 400
+    assert body.get_json()['error'] == 'student_id is required'
+    client.assert_not_called()
+
+
+def test_the_three_single_child_routes_declare_student_scope():
+    from utils.auth.relationships import STUDENT_SCOPE_ATTR
+    for name in ('create_task_for_dependent', 'delete_task_for_dependent', 'uncomplete_task_for_dependent'):
+        view = getattr(family_quests, name)
+        assert getattr(view, STUDENT_SCOPE_ATTR, None) or getattr(view.__wrapped__, STUDENT_SCOPE_ATTR, None), \
+            f'{name} lost its @student_scope'
+
+
+def test_the_inline_guard_is_gone():
+    """One definition: the decorator for the single-child routes, and
+    children_of_parent for the batch. No private predicate in this module."""
+    assert 'verify_parent_has_access_to_child' not in SOURCE
     assert "managed_by_parent_id') != user_id" not in SOURCE
     assert 'only allowed for managed dependents' not in SOURCE
+    assert 'children_of_parent(' in SOURCE
 
 
 def test_a_parent_created_task_names_the_parent():

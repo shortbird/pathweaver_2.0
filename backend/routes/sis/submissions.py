@@ -325,7 +325,64 @@ def review_submission(user_id, completion_id):
         logger.error(f"Error reviewing submission {completion_id}: {e}")
         return jsonify({'success': False, 'error': 'Failed to save review'}), 500
     review = (saved.data or [None])[0]
+    _notify_reviewed(admin, completion, action, org_id)
     return jsonify({'success': True, 'review': review}), 201
+
+
+def _notify_reviewed(admin, completion, action, org_id):
+    """Tell the student, and their guardians, that a teacher looked.
+
+    The student gets the platform's own task_approved / task_revision_requested
+    (the notifiers existed since 2025 and nothing called them); every guardian
+    gets one child_task_reviewed. Best-effort: the review is saved already.
+    """
+    try:
+        from repositories.task_repository import TaskRepository
+        from repositories.user_repository import UserRepository
+        from services.notification_service import NotificationService
+        from utils.class_membership import guardians_by_student
+
+        student_id = completion.get('user_id')
+        if not student_id:
+            return
+        task_title, xp = 'a task', 0
+        task_id = completion.get('user_quest_task_id')
+        if task_id:
+            task = TaskRepository(client=admin).find_by_id(task_id)
+            if task:
+                task_title = task.get('title') or task_title
+                xp = task.get('xp_value') or 0
+        notifier = NotificationService()
+        accepted = action == 'accepted'
+        if accepted:
+            notifier.notify_task_approved(student_id, task_title, xp, task_id or '', organization_id=org_id)
+        else:
+            notifier.notify_task_revision_requested(student_id, task_title, task_id or '', organization_id=org_id)
+
+        guardians = sorted(guardians_by_student([student_id]).get(student_id) or ())
+        if not guardians:
+            return
+        student = UserRepository(client=admin).find_by_id(student_id) or {}
+        first = (student.get('first_name') or (student.get('display_name') or '').split(' ')[0]
+                 or 'your child')
+        message = (f'A teacher accepted {first}\'s work on "{task_title}".' if accepted
+                   else f'A teacher asked {first} to revise "{task_title}".')
+        for guardian_id in guardians:
+            try:
+                notifier.create_notification(
+                    user_id=guardian_id,
+                    notification_type='child_task_reviewed',
+                    title=f'{first}\'s work was reviewed',
+                    message=message,
+                    link=f'/parent/quest/{student_id}/{completion.get("quest_id")}',
+                    metadata={'student_id': student_id, 'completion_id': completion.get('id'),
+                              'action': action},
+                    organization_id=org_id,
+                )
+            except Exception as e:  # noqa: BLE001 -- one failed send must not lose the rest
+                logger.warning(f'child_task_reviewed to {guardian_id[:8]} failed: {e}')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'review notifications skipped for {completion.get("id")}: {e}')
 
 
 @bp.route('/submissions/<completion_id>/review', methods=['DELETE'])

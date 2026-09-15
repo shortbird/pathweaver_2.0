@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BellIcon, CheckIcon, XMarkIcon, PlusIcon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNotificationsFeed, useNotificationActions } from '../../hooks/api/useNotifications'
 import NotificationDetailModal from '../../components/notifications/NotificationDetailModal'
 import SendNotificationModal from '../../components/notifications/SendNotificationModal'
 import { GlassTabBar, Spinner } from '../../components/ui'
@@ -13,90 +13,39 @@ import { GlassTabBar, Spinner } from '../../components/ui'
  * NotificationsPage
  *
  * Full page view of all user notifications with filtering, actions, and modals.
+ * Reads and writes through hooks/api/useNotifications, the same cache the bell
+ * uses, so the two never disagree about what has been read.
  */
 const NotificationsPage = () => {
   const { user } = useAuth()
-  const [notifications, setNotifications] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState('all') // 'all' | 'unread'
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const [showSendModal, setShowSendModal] = useState(false)
+  const { notifications, isLoading, isFetchingNextPage, hasMore, loadMore, refetch } =
+    useNotificationsFeed({ unreadOnly: filter === 'unread', enabled: !!user?.id })
+  const actions = useNotificationActions()
 
   // Check if user can send notifications
   const canSendNotifications = ['advisor', 'org_admin', 'superadmin'].includes(user?.role)
 
-  useEffect(() => {
-    fetchNotifications(true)
-  }, [filter])
-
-  const fetchNotifications = async (reset = false) => {
-    try {
-      setIsLoading(true)
-      const currentPage = reset ? 1 : page
-      const response = await api.get(`/api/notifications?page=${currentPage}&limit=20${filter === 'unread' ? '&unread_only=true' : ''}`)
-
-      if (response.data) {
-        const newNotifications = response.data.notifications || []
-        if (reset) {
-          setNotifications(newNotifications)
-          setPage(1)
-        } else {
-          setNotifications(prev => [...prev, ...newNotifications])
-        }
-        setHasMore(newNotifications.length === 20)
-      }
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error)
-      toast.error('Failed to load notifications')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const markAsRead = async (notificationId) => {
-    try {
-      await api.put(`/api/notifications/${notificationId}/read`, {})
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-      )
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error)
-    }
-  }
+  const markAsRead = (notificationId) => actions.markRead(notificationId).catch(() => {})
 
   const markAllAsRead = async () => {
     try {
-      await api.put('/api/notifications/mark-all-read', {})
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+      await actions.markAllRead()
       toast.success('All notifications marked as read')
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error)
+    } catch {
       toast.error('Failed to mark all as read')
     }
   }
 
   const dismissNotification = async (notificationId, e) => {
     e?.stopPropagation()
-    const notification = notifications.find(n => n.id === notificationId)
-    // Optimistic update - remove immediately
-    setNotifications(prev => prev.filter(n => n.id !== notificationId))
     try {
-      await api.delete(`/api/notifications/${notificationId}`)
-    } catch (error) {
-      // Restore on failure
-      console.error('Failed to dismiss notification:', error)
+      await actions.dismiss(notificationId)
+    } catch {
       toast.error('Failed to dismiss notification')
-      setNotifications(prev => [...prev, notification].sort((a, b) =>
-        new Date(b.created_at) - new Date(a.created_at)
-      ))
     }
-  }
-
-  const loadMore = () => {
-    setPage(prev => prev + 1)
-    fetchNotifications()
   }
 
   const handleNotificationClick = (notification) => {
@@ -109,7 +58,7 @@ const NotificationsPage = () => {
 
   const handleSendSuccess = () => {
     setShowSendModal(false)
-    fetchNotifications(true)
+    refetch()
   }
 
   const getNotificationIcon = (type) => {

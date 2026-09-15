@@ -137,19 +137,19 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
 
 def publish(org_id: str, author_id: str, title: str, content: str,
             audiences: List[str], student_ids: Optional[Set[str]] = None,
-            send_email: bool = True, send_app: bool = True,
+            send_email: bool = False, send_app: bool = True,
             target_label: Optional[str] = None,
             advisor_ids: Optional[Set[str]] = None,
             source_announcement_id: Optional[str] = None,
             attachments: Optional[List[dict]] = None) -> Dict[str, Any]:
     """Store the announcement and fan it out (notifications + optional email).
 
-    `send_email` defaults to True so every existing caller keeps behaving
-    exactly as it did. The SIS composer passes False for a targeted send:
-    iCreate found that an in-app note to one class was also 300 emails, and
-    asked for the email to be the deliberate half ("maybe we keep announcements
-    within the community dashboard only and have the ability to check the box
-    only if we want it emailed too" — 857b5f70).
+    `send_email` defaults to False since 2026-09-15 (ticket b4a4d250): the
+    email is the deliberate half, ticked per send. iCreate found that an
+    in-app note to one class was also 300 emails, and asked for exactly this
+    ("maybe we keep announcements within the community dashboard only and
+    have the ability to check the box only if we want it emailed too" —
+    857b5f70). Until then it defaulted True and every caller had to opt out.
 
     `send_app` (default True, same reasoning) is the other half of the channel
     choice (iCreate, 2026-08-31: email OR app message OR both): False skips the

@@ -177,7 +177,10 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // user from UserDetailsModal (9 hand-rolled calls already) and one bulk POST
 // from AdminUsers (3). Neither is on the migrated list; hooking the new call
 // alone would leave each fetching two ways -- the FamilyBillingPage judgement.
-const CALL_SITE_BASELINE = 927
+// 927 -> 921 on 2026-09-15 (parent refactor, phase 2): the notifications
+// page moved onto hooks/api/useNotifications with the bell, and the OEA page
+// reads the family through fetchFamilyChildren.
+const CALL_SITE_BASELINE = 921
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

@@ -5,7 +5,7 @@ Handles all database operations for dependent profiles (children under 13 manage
 Supports COPPA-compliant dependent profiles without email/password.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from repositories.base_repository import BaseRepository, NotFoundError, PermissionError, ValidationError

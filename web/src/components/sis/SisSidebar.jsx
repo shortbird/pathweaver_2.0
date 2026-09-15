@@ -1,6 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { userHasFamily } from '../../contexts/FamilyScopeContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
 import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
@@ -201,8 +202,11 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
       </div>
 
       <div className="px-3 pt-3">
+        {/* A staff member who is also a parent lands on the family home; the
+            learning app's /dashboard for them is family-scoped and would
+            bounce to /family anyway. */}
         <button
-          onClick={() => switchSurfaceInApp('learning', '/dashboard')}
+          onClick={() => switchSurfaceInApp('learning', userHasFamily(user) ? '/family' : '/dashboard')}
           className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-2 text-sm font-semibold text-white"
         >
           {icon('M11 19l-7-7 7-7m-7 7h18')}

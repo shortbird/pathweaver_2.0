@@ -178,11 +178,19 @@ def _existing_pairs(admin, user_ids, quest_ids):
     return pairs
 
 
-def enroll_students_in_quests(admin, student_ids, quest_ids):
+def enroll_students_in_quests(admin, student_ids, quest_ids, class_id=None):
     """Enroll each student in each quest they are not already enrolled in.
 
     Returns {'enrolled': n, 'tasks': m, 'skipped_existing': k}. Idempotent: the
     second call over the same pairs enrolls nobody.
+
+    Every NEW enrollment tells the student's guardians (class_quest_assigned),
+    whichever door it came through -- the teacher assigning, the scheduled
+    publish sweep, a student joining a class that already has quests. Pass
+    `class_id` so the notice can name the class. Until 2026-09-15 nothing told
+    a parent at all: the quest appeared on the child's dashboard and the
+    family found out when the teacher asked why it was late (iCreate ticket
+    55ef3acf, "Language Studio B vocab quest").
     """
     student_ids = sorted({s for s in (student_ids or []) if s})
     quest_ids = [q for q in dict.fromkeys(quest_ids or []) if q]
@@ -224,7 +232,60 @@ def enroll_students_in_quests(admin, student_ids, quest_ids):
 
     logger.info(f'Class assignment enrolled {enrolled} student-quest pairs '
                 f'({task_count} tasks copied)')
+    if enrolled:
+        _notify_guardians_of_assignment(admin, todo, quests, class_id)
     return {'enrolled': enrolled, 'tasks': task_count, 'skipped_existing': len(have)}
+
+
+def _notify_guardians_of_assignment(admin, pairs, quests, class_id):
+    """One class_quest_assigned per (guardian, child, quest), best-effort.
+
+    Guardians come from utils.class_membership.guardians_by_student -- all
+    three parent links in one batched read for the whole roster, never one
+    lookup per student. A notification failure is logged and dropped: the
+    enrollment it reports already happened.
+    """
+    try:
+        from services.notification_service import NotificationService
+        from utils.class_membership import guardians_by_student
+
+        student_ids = sorted({s for s, _ in pairs})
+        guardians = guardians_by_student(student_ids)
+        if not any(guardians.values()):
+            return
+        repo = ClassQuestAudienceRepository(admin)
+        names = {}
+        for r in repo.named_users(student_ids):
+            names[r['id']] = (r.get('first_name') or (r.get('display_name') or '').split(' ')[0]
+                              or 'your child')
+        label = repo.class_label(class_id) if class_id else None
+        class_name = (label or {}).get('name')
+        org_id = (label or {}).get('organization_id')
+
+        notifier = NotificationService()
+        for student_id, quest_id in pairs:
+            first = names.get(student_id, 'your child')
+            title = (quests.get(quest_id) or {}).get('title') or 'a quest'
+            where = f' in {class_name}' if class_name else ''
+            for guardian_id in sorted(guardians.get(student_id) or ()):
+                try:
+                    notifier.create_notification(
+                        user_id=guardian_id,
+                        notification_type='class_quest_assigned',
+                        title=f'New quest for {first}',
+                        message=f'{first} was assigned "{title}"{where}.',
+                        # The parent's door to the child's copy: the web
+                        # enters family scope and lands on /quests/<id>;
+                        # mobile resolves the same link to the scoped screen.
+                        link=f'/parent/quest/{student_id}/{quest_id}',
+                        metadata={'student_id': student_id, 'quest_id': quest_id,
+                                  'class_id': class_id},
+                        organization_id=org_id,
+                    )
+                except Exception as e:  # noqa: BLE001 -- one failed send must not lose the rest
+                    logger.warning(f'class_quest_assigned to {guardian_id[:8]} failed: {e}')
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'class_quest_assigned fan-out skipped: {e}')
 
 
 def published_links(admin, class_id, quest_ids=None):
@@ -242,19 +303,22 @@ def published_links(admin, class_id, quest_ids=None):
     return rows
 
 
-def enroll_links(admin, links, roster_ids):
+def enroll_links(admin, links, roster_ids, class_id=None):
     """Enroll each link's audience in its quest.
 
     Grouped by audience so a class-wide batch stays one insert: the common case
     is every link for everyone, and that must not turn into a write per quest.
+    `class_id` names the class in the guardians' notice; the sweep's rows
+    carry it, the per-class read's rows do not.
     """
     groups = {}
     for link in links:
+        class_id = class_id or link.get('class_id')
         groups.setdefault(tuple(audience(link, roster_ids)), []).append(link['quest_id'])
     total = _empty()
     for who, quest_ids in groups.items():
         if who:
-            _add(total, enroll_students_in_quests(admin, list(who), quest_ids))
+            _add(total, enroll_students_in_quests(admin, list(who), quest_ids, class_id=class_id))
     return total
 
 
@@ -268,7 +332,7 @@ def enroll_class_in_quests(admin, class_id, quest_ids):
     links = published_links(admin, class_id, quest_ids)
     if not links:
         return _empty()
-    return enroll_links(admin, links, active_student_ids(admin, class_id))
+    return enroll_links(admin, links, active_student_ids(admin, class_id), class_id=class_id)
 
 
 def publish_due_class_quests(admin, now=None):
@@ -298,7 +362,7 @@ def publish_due_class_quests(admin, now=None):
     for class_id, links in by_class.items():
         # Active classes and active students only -- the same rules assignment
         # follows, so a published quest on an archived section stays put.
-        result = enroll_links(admin, links, active_student_ids(admin, class_id))
+        result = enroll_links(admin, links, active_student_ids(admin, class_id), class_id=class_id)
         enrolled += result['enrolled']
         tasks += result['tasks']
     return {'classes': len(by_class), 'enrolled': enrolled, 'tasks': tasks}
@@ -331,7 +395,8 @@ def enroll_student_in_class_quests(admin, class_id, student_id):
     a quest a teacher kept to specific students does not spread to a newcomer.
     """
     return enroll_students_in_quests(
-        admin, [student_id], class_quest_ids(admin, class_id, student_id=student_id))
+        admin, [student_id], class_quest_ids(admin, class_id, student_id=student_id),
+        class_id=class_id)
 
 
 def enroll_in_class_quests(admin, class_id, student_id):

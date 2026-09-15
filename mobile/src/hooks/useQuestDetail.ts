@@ -309,7 +309,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     // uses — success criteria and diploma subjects carry over identically.
     if (studentId) {
       const { data: delegated } = await api.post(`/api/family/quests/${questId}/tasks`, {
-        child_id: studentId,
+        student_id: studentId,
         title: task.title,
         description: task.description,
         pillar: task.pillar,
@@ -366,7 +366,7 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
     // where that rule lives, so parent mode never touches /api/tasks/<id>.
     if (studentId) {
       await api.delete(`/api/family/quests/${questId}/tasks/${taskId}`, {
-        params: { child_id: studentId },
+        params: { student_id: studentId },
       });
     } else {
       await api.delete(`/api/tasks/${taskId}`);

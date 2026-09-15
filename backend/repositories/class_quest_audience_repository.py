@@ -83,6 +83,12 @@ class ClassQuestAudienceRepository:
                         .in_('id', chunk).execute()).data or [])
         return out
 
+    def class_label(self, class_id: str) -> Optional[Dict[str, Any]]:
+        """{name, organization_id} for the class a guardian's notice names."""
+        rows = (self.client.table('org_classes').select('name, organization_id')
+                .eq('id', class_id).limit(1).execute()).data or []
+        return rows[0] if rows else None
+
     # ── user_quests and what sits behind them ────────────────────────────────
 
     def enrollments(self, student_ids: List[str], quest_id: str) -> List[Dict[str, Any]]:

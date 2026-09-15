@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 let authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
@@ -30,15 +31,20 @@ import { setPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherP
 // the sidebar without a QueryClientProvider and only care about the nav items.
 vi.mock('./InboxUnreadBadge', () => ({ default: () => null }))
 
+// The bell in the layout reads notifications through react-query
+// (hooks/api/useNotifications), so the layout needs a client.
 function renderLayout() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter>
-      <Routes>
-        <Route element={<SisLayout />}>
-          <Route index element={<div>CHILD CONTENT</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <Routes>
+          <Route element={<SisLayout />}>
+            <Route index element={<div>CHILD CONTENT</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 

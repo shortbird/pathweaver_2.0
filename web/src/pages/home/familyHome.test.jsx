@@ -3,7 +3,6 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import FamilyHome from './FamilyHome'
-import { OPTIO_ACADEMY_ORG_ID } from '../../config/optioAcademy'
 
 let authState = {}
 let orgState = {}
@@ -342,77 +341,24 @@ describe('FamilyHome', () => {
     })
   })
 
-  describe('school section', () => {
-    const schoolRoutes = {
-      '/api/sis/school/context': {
-        success: true,
-        orgs: [{ organization_id: 'org-1', name: 'iCreate', is_guardian: true }],
-      },
-      '/api/announcements/archive': {
-        success: true,
-        announcements: [
+  describe('the school\'s messages', () => {
+    // The home carried a third copy of the announcements feed (the bell and
+    // /school being the other two) until the sidebar grew a section under
+    // the school's name with Announcements first (2026-09-15). The home no
+    // longer renders or fetches it, in a school or out of one.
+    it('are not on the home, and are not fetched', async () => {
+      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
+      mockApiRoutes({
+        '/api/announcements/archive': { success: true, announcements: [
           { id: 'ann-1', title: 'Spring showcase', content: '<p>Join us Friday</p>', created_at: '2026-08-01T00:00:00Z' },
-        ],
-        total: 1,
-      },
-    }
-
-    it('renders the latest announcements when the user is in a school', async () => {
-      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: false }, loading: false }
-      mockApiRoutes(schoolRoutes)
-      renderFamilyHome()
-
-      expect(await screen.findByText('From iCreate')).toBeInTheDocument()
-      expect(screen.getByText('Spring showcase')).toBeInTheDocument()
-      expect(screen.getByText('Join us Friday')).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'See all' })).toHaveAttribute('href', '/school')
-    })
-
-    it('does not duplicate the school-page card grid on home', async () => {
-      // The same eight buttons used to render on home AND on /school, back to
-      // back for exactly the orgs that render this section first. The cards
-      // live on /school now; home keeps the messages.
-      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
-      mockApiRoutes(schoolRoutes)
-      renderFamilyHome()
-
-      await screen.findByText('From iCreate')
-      expect(screen.queryByRole('link', { name: /Billing/ })).not.toBeInTheDocument()
-      expect(screen.queryByRole('navigation', { name: 'School surfaces' })).not.toBeInTheDocument()
-    })
-
-    it('renders the school section above the child cards for school-homepage orgs', async () => {
-      orgState = { school: { id: 'org-1', name: 'iCreate', homepage: true }, loading: false }
-      mockApiRoutes(schoolRoutes)
-      scopeState.children = [child('child-1', 'Emma Smith')]
-      renderFamilyHome()
-
-      const school = await screen.findByText('From iCreate')
-      const kids = await screen.findByText('Emma Smith')
-      // eslint-disable-next-line no-bitwise
-      expect(school.compareDocumentPosition(kids) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    })
-
-    it('is hidden entirely when the user has no school', async () => {
-      orgState = { school: null, loading: false }
+        ] },
+      })
       renderFamilyHome()
       await screen.findByText('Welcome back, Dana')
       expect(screen.queryByText(/^From /)).not.toBeInTheDocument()
-      expect(api.get).not.toHaveBeenCalledWith('/api/sis/school/context')
-    })
-
-    // Optio Academy runs none of the modules the cards link to, so the section
-    // is skipped there — and skipped means not fetched, not just not rendered.
-    it('is hidden entirely for Optio Academy', async () => {
-      orgState = {
-        school: { id: OPTIO_ACADEMY_ORG_ID, name: 'Optio Academy', homepage: false },
-        loading: false,
-      }
-      mockApiRoutes(schoolRoutes)
-      renderFamilyHome()
-      await screen.findByText('Welcome back, Dana')
-      expect(screen.queryByText(/^From /)).not.toBeInTheDocument()
-      expect(api.get).not.toHaveBeenCalledWith('/api/sis/school/context')
+      expect(screen.queryByText('Spring showcase')).not.toBeInTheDocument()
+      expect(api.get).not.toHaveBeenCalledWith('/api/announcements/archive', expect.anything())
+      expect(api.get).not.toHaveBeenCalledWith('/api/sis/community/feed')
     })
   })
 })

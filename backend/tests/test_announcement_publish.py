@@ -110,7 +110,8 @@ class TestPublish:
         assert payload['title'] == 'Early dismissal'
         assert payload['message'] == 'Friday at noon'
         assert payload['target_audience'] == 'parents'
-        email.assert_called_once()
+        # In-app is the send; email is the box a sender ticks (b4a4d250).
+        email.assert_not_called()
 
     def test_all_three_audiences_are_recorded_as_everyone(self):
         client, table = _client(insert_returns=[{'id': 'ann-1'}])
@@ -222,9 +223,10 @@ class TestCommunityPostCanReachFamilies:
 # people is what messaging is for; an announcement goes to the school.
 @pytest.mark.unit
 class TestEmailIsOptional:
-    """The flag defaults True so every existing caller — the Community Hub
-    composer, scripts — keeps emailing exactly as before. Only the SIS Messaging
-    composer passes False."""
+    """The flag defaults False since 2026-09-15 (ticket b4a4d250): the email
+    is the deliberate half, ticked per send. It defaulted True before, and
+    every caller had to remember to opt out -- iCreate found an in-app note
+    to one class was also 300 emails."""
 
     def _publish(self, **kwargs):
         client, table = _client(insert_returns=[{'id': 'ann-1'}])
@@ -236,8 +238,13 @@ class TestEmailIsOptional:
             out = svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'], **kwargs)
         return out, email
 
-    def test_email_still_goes_out_when_nobody_asks(self):
+    def test_email_stays_home_when_nobody_asks(self):
         out, email = self._publish()
+        email.assert_not_called()
+        assert out['emailed'] is False
+
+    def test_email_goes_out_when_the_box_is_ticked(self):
+        out, email = self._publish(send_email=True)
         email.assert_called_once()
         assert out['emailed'] is True
 
@@ -257,7 +264,7 @@ class TestEmailIsOptional:
              patch('services.notification_service.NotificationService', return_value=notifier), \
              patch('services.announcement_service._email_fanout') as email:
             out = svc.publish('org-1', 'admin-1', 'Snow day', 'No school', ['parents'],
-                              send_app=False)
+                              send_app=False, send_email=True)
         assert out['sent'] == 0
         assert out['recipients'] == 2
         notifier.create_notification.assert_not_called()
@@ -273,7 +280,7 @@ class TestEmailIsOptional:
              patch('services.announcement_service.recipients_for', return_value={'a'}), \
              patch('services.notification_service.NotificationService', return_value=Mock()), \
              patch('services.announcement_service._email_fanout') as email:
-            svc.publish('org-1', 'admin-1', 'T', 'B', ['parents'], attachments=[
+            svc.publish('org-1', 'admin-1', 'T', 'B', ['parents'], send_email=True, attachments=[
                 {'url': 'https://x.supabase.co/storage/v1/object/public/user-uploads/messages/u1/f.pdf',
                  'name': 'f.pdf', 'type': 'file', 'size': 10, 'display_url': 'signed-twin'},
                 'garbage',

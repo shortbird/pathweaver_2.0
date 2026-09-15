@@ -12,10 +12,14 @@ Until 2026-09-15 delete and uncomplete were managed-dependents only -- the
 child had to have been created by THIS parent (managed_by_parent_id) -- on the
 theory that a student with their own login owns their work. The owner's
 decision: a parent may do everything the child can do, whatever the child's
-age or login. All four routes now share one gate,
-verify_parent_has_access_to_child (utils.portfolio_access.is_parent_of), and
-every row a parent writes records them (created_by_user_id /
-enrolled_by_user_id; migration 20260915120000).
+age or login. The three single-child routes declare their gate the way every
+other student-shaped route does, @student_scope(): the request names the
+child as `student_id` (query string, JSON body or form; `child_id` is read as
+an alias for one release of installed apps), `user_id` in the body of the
+route IS the child, and the parent is g.student_scope.caller_id. Enrolling
+several children intersects `child_ids` with utils.class_membership
+.children_of_parent, the same definition. Every row a parent writes records
+them (created_by_user_id / enrolled_by_user_id; migration 20260915120000).
 
 Endpoints:
 - GET  /api/family/quests - The family's quests, with who is on each (2026-09-15)
@@ -25,10 +29,11 @@ Endpoints:
 - DELETE /api/family/quests/<quest_id>/tasks/<task_id> - Remove a child's task
 - POST /api/family/quests/<quest_id>/tasks/<task_id>/uncomplete - Uncomplete a child's task
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from database import get_supabase_admin_client
 from routes.dependents import verify_parent_role
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.pillar_utils import is_valid_pillar, normalize_pillar_name
 from utils.storage_urls import sign_stored_url
 from services.image_service import search_quest_image
@@ -41,17 +46,18 @@ logger = get_logger(__name__)
 bp = Blueprint('family_quests', __name__, url_prefix='/api/family')
 
 
-def verify_parent_has_access_to_child(parent_id: str, child_id: str) -> bool:
-    """Whether a parent may act on this child's quests.
+def _delegated_child():
+    """(parent_id, child_id) for a @student_scope route that must name a
+    child, or None when the caller asked about themselves -- these routes
+    are a parent's hand on a child's quest, so "about myself" is a 400, not
+    a student editing their own quest through the family prefix."""
+    scope = g.student_scope
+    if not scope.delegated:
+        return None
+    return scope.caller_id, scope.student_id
 
-    All three links: managed_by_parent_id (a dependent), an approved
-    parent_student_links row (a student with their own login), and a shared
-    household (how the SIS registration funnel builds a family). One definition,
-    in utils.portfolio_access.is_parent_of -- this used to inline the first two.
-    """
-    from utils.portfolio_access import is_parent_of
-    return is_parent_of(parent_id, child_id)
 
+_NAME_A_CHILD = {'success': False, 'error': 'student_id is required'}
 
 
 @bp.route('/quests', methods=['GET'])
@@ -290,7 +296,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
         #   - any public/catalog quest (is_public), or
         #   - anything, if superadmin.
         # Private quests owned by other families stay blocked. Per-child access
-        # is still verified below via verify_parent_has_access_to_child().
+        # is the intersection with children_of_parent below.
         quest = supabase.table('quests').select('id, created_by, is_public').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
@@ -309,10 +315,14 @@ def enroll_children_in_family_quest(user_id, quest_id):
         enrolled = []
         failed = []
 
+        # One definition of "my child" (all three links), one read for the
+        # whole list rather than one per child.
+        from utils.class_membership import children_of_parent
+        my_children = children_of_parent(user_id)
+
         for child_id in child_ids:
             try:
-                # Verify parent has access to this child
-                if not verify_parent_has_access_to_child(user_id, child_id):
+                if child_id not in my_children:
                     failed.append({'child_id': child_id, 'error': 'No access to this child'})
                     continue
 
@@ -375,24 +385,22 @@ def enroll_children_in_family_quest(user_id, quest_id):
 
 @bp.route('/quests/<quest_id>/tasks', methods=['POST'])
 @require_auth
+@student_scope()
 def create_task_for_dependent(user_id, quest_id):
     """
-    Create a task for a child in a quest. Any verified guardian of the child.
+    Create a task for a child in a quest. Any verified guardian of the child
+    (@student_scope; `student_id` names the child).
     """
     try:
+        delegated = _delegated_child()
+        if not delegated:
+            return jsonify(_NAME_A_CHILD), 400
+        user_id, child_id = delegated
         verify_parent_role(user_id)
 
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'Request body is required'}), 400
-
-        child_id = data.get('child_id')
-        if not child_id:
-            return jsonify({'success': False, 'error': 'child_id is required'}), 400
-
-        # Verify parent has access to this child
-        if not verify_parent_has_access_to_child(user_id, child_id):
-            return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
         # admin client justified: parent creates a task for a dependent; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
@@ -464,22 +472,19 @@ def create_task_for_dependent(user_id, quest_id):
 
 @bp.route('/quests/<quest_id>/tasks/<task_id>', methods=['DELETE'])
 @require_auth
+@student_scope()
 def delete_task_for_dependent(user_id, quest_id, task_id):
     """
     Delete a task from a child's quest enrollment (parent on-behalf-of).
     Mirrors the student drop_task rules: completed tasks cannot be removed.
-    `child_id` is passed as a query param. Any verified guardian of the child.
+    `student_id` is passed as a query param. Any verified guardian of the child.
     """
     try:
+        delegated = _delegated_child()
+        if not delegated:
+            return jsonify(_NAME_A_CHILD), 400
+        user_id, child_id = delegated
         verify_parent_role(user_id)
-
-        child_id = request.args.get('child_id')
-        if not child_id:
-            return jsonify({'success': False, 'error': 'child_id is required'}), 400
-
-        # Verify parent has access to this child
-        if not verify_parent_has_access_to_child(user_id, child_id):
-            return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
         # admin client justified: parent deletes a child's task; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
@@ -508,25 +513,18 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
 
 @bp.route('/quests/<quest_id>/tasks/<task_id>/uncomplete', methods=['POST'])
 @require_auth
+@student_scope()
 def uncomplete_task_for_dependent(user_id, quest_id, task_id):
     """
     Mark a completed task as incomplete for a child.
-    Reverses XP awarded. Any verified guardian of the child.
+    Reverses XP awarded. Any verified guardian of the child (`student_id`).
     """
     try:
+        delegated = _delegated_child()
+        if not delegated:
+            return jsonify(_NAME_A_CHILD), 400
+        user_id, child_id = delegated
         verify_parent_role(user_id)
-
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'error': 'Request body is required'}), 400
-
-        child_id = data.get('child_id')
-        if not child_id:
-            return jsonify({'success': False, 'error': 'child_id is required'}), 400
-
-        # Verify parent has access to this child
-        if not verify_parent_has_access_to_child(user_id, child_id):
-            return jsonify({'success': False, 'error': 'No access to this child'}), 403
 
         # admin client justified: parent reverses a child's task completion; cross-user writes (completions + XP for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()

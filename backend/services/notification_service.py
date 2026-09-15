@@ -48,6 +48,11 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     'peer_reaction',
     # A held text (phase 3): the parent asked to be told exactly this.
     'peer_text_held',
+    # A parent's view of the school day (2026-09-15): a class quest reached
+    # their child, a teacher reviewed the child's work, the teacher's nudge
+    # about unfinished work. The first two did not exist at all before; the
+    # third went out as 'announcement'.
+    'class_quest_assigned', 'child_task_reviewed', 'class_work_reminder',
 }
 
 

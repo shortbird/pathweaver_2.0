@@ -173,10 +173,16 @@ def test_family_quest_task_without_pillar_is_accepted():
     a diploma credit picked. Must reach persistence, not 400."""
     import json
     from unittest.mock import MagicMock, patch
-    from flask import Flask
+    from flask import Flask, g
     from routes import family_quests
+    from utils.guardian_scope import StudentScope
 
-    view = family_quests.create_task_for_dependent.__wrapped__
+    # Below @require_auth and @student_scope: the body of the route, which
+    # receives the CHILD's id and finds the parent on g.student_scope.
+    view = family_quests.create_task_for_dependent
+    while hasattr(view, '__wrapped__'):
+        view = view.__wrapped__
+    KID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
     handed = {}
 
@@ -186,7 +192,7 @@ def test_family_quest_task_without_pillar_is_accepted():
 
     flask_app = Flask(__name__)
     body = {
-        'child_id': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        'student_id': KID,
         'title': 'IEW writing lesson',
         'diploma_subjects': {'Language Arts': 100},
         'xp_value': 100,
@@ -195,12 +201,12 @@ def test_family_quest_task_without_pillar_is_accepted():
         '/api/family/quests/q-1/tasks', method='POST',
         data=json.dumps(body), content_type='application/json',
     ), patch.object(family_quests, 'verify_parent_role'), \
-            patch.object(family_quests, 'verify_parent_has_access_to_child', return_value=True), \
             patch.object(family_quests, 'get_supabase_admin_client', return_value=MagicMock()), \
             patch('routes.quest_personalization.persist_accepted_task', side_effect=fake_persist), \
             patch('utils.xp_permissions.get_effective_role_for', return_value='parent'), \
             patch('services.subject_classification_service.SubjectClassificationService', MagicMock()):
-        response, _status = view('parent-user', 'q-1'), None
+        g.student_scope = StudentScope(caller_id='parent-user', student_id=KID, via='parent')
+        response, _status = view(KID, 'q-1'), None
         payload = response[0].get_json() if isinstance(response, tuple) else response.get_json()
 
     assert payload['success'] is True, payload

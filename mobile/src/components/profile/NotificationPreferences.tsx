@@ -45,6 +45,11 @@ const ROWS: PreferenceRow[] = [
   { type: 'observer_added', label: 'New observers', description: 'When someone is added as an observer.', icon: 'people-outline', roles: ['student'] },
   { type: 'parent_approval_required', label: 'Approval requests', description: 'Your child requests portfolio approval.', icon: 'shield-checkmark-outline', roles: ['parent'] },
   { type: 'announcement', label: 'Announcements', description: 'Program or school announcements.', icon: 'megaphone-outline', roles: ['student', 'parent', 'observer', 'advisor'] },
+  // The school day, for a parent (2026-09-15): the three things a teacher
+  // does to a child's work that a family used to hear about last.
+  { type: 'class_quest_assigned', label: 'New class quests', description: 'When a class quest is assigned to your child.', icon: 'school-outline', roles: ['parent'] },
+  { type: 'child_task_reviewed', label: 'Work reviewed', description: "When a teacher reviews your child's work.", icon: 'checkmark-done-outline', roles: ['parent'] },
+  { type: 'class_work_reminder', label: 'Unfinished work', description: "A teacher's reminder about work still to do.", icon: 'alarm-outline', roles: ['student', 'parent'] },
   // Friends (2026-09-16). Requests and answers reach the student; a parent
   // hears when a request needs them and when a friend was added.
   { type: 'peer_connection_request', label: 'Friend requests', description: 'When another student wants to be friends.', icon: 'person-add-outline', roles: ['student', 'parent'] },

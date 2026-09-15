@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { BellIcon as BellIconSolid } from '@heroicons/react/24/solid'
-import api from '../../services/api'
 import { formatDistanceToNow } from 'date-fns'
 import { useAuth } from '../../contexts/AuthContext'
-import { useNotificationSubscription } from '../../hooks/api/useNotifications'
+import { useNotifications, useNotificationActions } from '../../hooks/api/useNotifications'
 import NotificationDetailModal from './NotificationDetailModal'
 
 /**
@@ -14,58 +13,17 @@ import NotificationDetailModal from './NotificationDetailModal'
  * Displays a bell icon in the navigation with unread notification count.
  * Clicking opens a dropdown showing recent notifications.
  *
- * Features:
- * - Real-time notifications via Supabase Realtime
- * - Unread count badge (updates instantly)
- * - Dropdown with recent notifications
- * - Mark as read on click
- * - Mark all as read button
- * - Link to full notifications page
+ * The list, the polling, the realtime subscription and the four actions all
+ * live in hooks/api/useNotifications, shared with the notifications page, so
+ * a notification read on either surface is read on both at once.
  */
 const NotificationBell = () => {
   const { user } = useAuth()
-  const [notifications, setNotifications] = useState([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const { notifications, unreadCount } = useNotifications(user?.id, { limit: 10 })
+  const { markRead, markAllRead, dismiss, dismissAll } = useNotificationActions()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedNotification, setSelectedNotification] = useState(null)
   const dropdownRef = useRef(null)
-
-  // Fetch on mount, then poll, and catch up whenever the tab is looked at
-  // again. Realtime pushes new ones when it is connected, but it depends on a
-  // channel the cookie-authenticated client cannot always subscribe to, and
-  // when it is not connected the count simply froze until a full page load --
-  // which reads as "I never get notified" (Gryffin, 2026-08-27).
-  useEffect(() => {
-    fetchNotifications()
-    const poll = setInterval(fetchNotifications, 60000)
-    const onFocus = () => fetchNotifications()
-    const onVisible = () => { if (!document.hidden) fetchNotifications() }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      clearInterval(poll)
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [])
-
-  // Handle real-time notification updates
-  const handleNewNotification = useCallback((notification) => {
-    // Add new notification to the top of the list
-    setNotifications(prev => {
-      // Prevent duplicates
-      if (prev.some(n => n.id === notification.id)) {
-        return prev
-      }
-      // Add to beginning, keep max 10
-      return [notification, ...prev].slice(0, 10)
-    })
-    // Increment unread count
-    setUnreadCount(prev => prev + 1)
-  }, [])
-
-  // Subscribe to real-time notifications
-  useNotificationSubscription(user?.id, handleNewNotification)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -79,72 +37,13 @@ const NotificationBell = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const fetchNotifications = async () => {
-    try {
-      const response = await api.get('/api/notifications?limit=10')
-      if (response.data) {
-        setNotifications(response.data.notifications || [])
-        setUnreadCount(response.data.unread_count || 0)
-      }
-    } catch (error) {
-      // Silently fail - notifications are non-critical
-      console.debug('Failed to fetch notifications:', error)
-    }
-  }
-
-  const markAsRead = async (notificationId) => {
-    try {
-      await api.put(`/api/notifications/${notificationId}/read`, {})
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-      )
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error)
-    }
-  }
-
-  const markAllAsRead = async () => {
-    try {
-      await api.put('/api/notifications/mark-all-read', {})
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-      setUnreadCount(0)
-    } catch (error) {
-      console.error('Failed to mark all notifications as read:', error)
-    }
-  }
-
-  const dismissAllNotifications = async () => {
-    try {
-      await api.delete('/api/notifications/delete-all')
-      setNotifications([])
-      setUnreadCount(0)
-    } catch (error) {
-      console.error('Failed to dismiss all notifications:', error)
-    }
-  }
-
-  const dismissNotification = async (e, notificationId) => {
+  const markAsRead = (notificationId) => markRead(notificationId).catch(() => {})
+  const markAllAsRead = () => markAllRead().catch(() => {})
+  const dismissAllNotifications = () => dismissAll().catch(() => {})
+  const dismissNotification = (e, notificationId) => {
     e.preventDefault()
     e.stopPropagation()
-    const notification = notifications.find(n => n.id === notificationId)
-    // Optimistic update - remove immediately
-    setNotifications(prev => prev.filter(n => n.id !== notificationId))
-    if (notification && !notification.is_read) {
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    }
-    try {
-      await api.delete(`/api/notifications/${notificationId}`)
-    } catch (error) {
-      // Restore on failure
-      console.error('Failed to dismiss notification:', error)
-      setNotifications(prev => [...prev, notification].sort((a, b) =>
-        new Date(b.created_at) - new Date(a.created_at)
-      ))
-      if (notification && !notification.is_read) {
-        setUnreadCount(prev => prev + 1)
-      }
-    }
+    dismiss(notificationId).catch(() => {})
   }
 
   /**

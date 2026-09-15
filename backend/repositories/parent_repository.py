@@ -9,7 +9,7 @@ database no longer has and one question -- who are this parent's children --
 that utils.class_membership answers for everyone. Deleted 2026-09-15.
 """
 
-from typing import List, Dict, Optional, Any
+from typing import Dict, Optional, Any
 from repositories.base_repository import BaseRepository, NotFoundError
 from utils.logger import get_logger
 from utils.pagination import fetch_page

@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDownIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../contexts/AuthContext';
-import { useFamilyScope } from '../../contexts/FamilyScopeContext';
+import { useFamilyScope, worksThroughFamily } from '../../contexts/FamilyScopeContext';
 
 /**
  * The family scope switcher: which child the parent is working FOR.
@@ -13,9 +13,11 @@ import { useFamilyScope } from '../../contexts/FamilyScopeContext';
  * -- dashboard, quests, journal, portfolio -- render pointed at that child
  * and every write is made as the parent on the child's account.
  *
- * "Just me" appears only for hybrid users (an org admin or advisor who is
- * also a parent), whose own pages exist. A pure parent has no own dashboard
- * to switch back to; leaving scope takes them to /family instead.
+ * "Just me" appears only for someone whose own pages exist -- an advisor,
+ * org admin or superadmin who is also a parent (worksThroughFamily is the
+ * one predicate for this, shared with PrivateRoute and the Sidebar). A
+ * parent, or a campus coordinator who is a parent, has no own dashboard to
+ * switch back to; leaving scope takes them to /family instead.
  *
  * This component was an orphan for a while -- written for the act-as flow,
  * referenced by nothing -- and was rewired rather than rebuilt. It no longer
@@ -23,7 +25,7 @@ import { useFamilyScope } from '../../contexts/FamilyScopeContext';
  */
 const ProfileSwitcher = ({ compact = false, className = '' }) => {
   const navigate = useNavigate();
-  const { effectiveRole } = useAuth();
+  const { user } = useAuth();
   const { hasFamily, children, selectedChild, isScoped, enterScope, exitScope, isLoading } = useFamilyScope();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -39,7 +41,7 @@ const ProfileSwitcher = ({ compact = false, className = '' }) => {
 
   if (!hasFamily || isLoading || children.length === 0) return null;
 
-  const canBeJustMe = effectiveRole !== 'parent';
+  const canBeJustMe = !worksThroughFamily(user);
 
   const pick = (child) => {
     setIsOpen(false);

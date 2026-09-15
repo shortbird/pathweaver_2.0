@@ -42,8 +42,10 @@ const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * The five console.debug calls the regex scan never saw. Counted, not fixed:
  * converting them to logger.debug gates output that currently prints, and this
  * phase is structural. They are in PHASE_3_HANDOFF.md.
+ * 5 -> 4 on 2026-09-15: NotificationBell's went with its own fetch (the bell
+ * reads through hooks/api/useNotifications now).
  */
-const CONSOLE_BASELINE = 5
+const CONSOLE_BASELINE = 4
 
 let report
 let effectiveConfig

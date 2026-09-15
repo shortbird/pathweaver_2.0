@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import NotificationBell from './NotificationBell'
 
 let authState = {}
@@ -17,8 +18,10 @@ vi.mock('../../services/api', () => ({
   }
 }))
 
-vi.mock('../../hooks/api/useNotifications', () => ({
-  useNotificationSubscription: vi.fn()
+// The list and the actions come through the real hook (hooks/api/useNotifications,
+// shared with the notifications page); only the realtime channel is stubbed.
+vi.mock('../../services/supabaseClient', () => ({
+  supabase: { channel: () => ({ on: () => ({ subscribe: () => ({}) }) }), removeChannel: vi.fn() },
 }))
 
 vi.mock('date-fns', () => ({
@@ -42,10 +45,13 @@ const mockNotifications = [
 ]
 
 function renderBell() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter>
-      <NotificationBell />
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

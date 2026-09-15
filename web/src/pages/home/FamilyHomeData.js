@@ -1,15 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
 import { moduleKnownOff } from '../../modules/moduleEnabled'
-import { mergeFeedItems } from '../../components/announcements/UnifiedFeed'
-import { useSisParentContext, useSchoolContext } from '../../hooks/api/useSchoolContext'
+import { useSisParentContext } from '../../hooks/api/useSchoolContext'
 
 /**
  * Data hooks for FamilyHome (pages/home/FamilyHome.jsx).
  *
  * Every hook here composes EXISTING endpoints — the same ones the management
- * pages use (FamilyPortalPage, FamilyFormsPage, FamilyBillingPage,
- * SchoolPage) — read-only, via react-query. The home is a
+ * pages use (FamilyPortalPage, FamilyFormsPage, FamilyBillingPage) —
+ * read-only, via react-query. The home is a
  * digest, so every source degrades silently: a failed fetch shows nothing,
  * never an error wall. The page each item deep-links to owns error display.
  */
@@ -120,59 +119,4 @@ export function useFamilyAttention() {
   }
 
   return { items }
-}
-
-/**
- * The school digest: which surfaces the school offers this viewer
- * (/api/sis/school/context — SchoolPage's source for its card grid, guardian
- * cards included by is_guardian) and the latest sent messages
- * (/api/announcements/archive — SchoolPage's archive, first page only).
- */
-export function useSchoolSection(enabled) {
-  const context = useSchoolContext({ enabled })
-
-  const announcements = useQuery({
-    queryKey: ['family-home', 'announcements'],
-    queryFn: async () => {
-      // family_view: this page renders only for someone who holds the parent
-      // role (RoleHome), so it is that person's PARENT view of the archive —
-      // a staff role must not pull staff-only notices onto it.
-      const r = await api.get('/api/announcements/archive', { params: { limit: 3, offset: 0, family_view: 1 } })
-      return r.data?.success ? (r.data.announcements || []) : []
-    },
-    enabled,
-    ...SILENT,
-  })
-
-  // The BOARD, which the archive above does not cover. Those two are different
-  // records: the archive holds sends (a notification that went out), the board
-  // holds posts (a notice people come and read). A board-only post -- which is
-  // now the default shape of an announcement -- reached the /school page and
-  // never this one, so the family home said "nothing from your school" on a day
-  // the school had posted.
-  const boardFeed = useQuery({
-    queryKey: ['family-home', 'communityFeed'],
-    queryFn: async () => {
-      const r = await api.get('/api/sis/community/feed')
-      return r.data?.success ? (r.data.announcements || []) : []
-    },
-    enabled,
-    ...SILENT,
-  })
-
-  return {
-    schoolOrg: context.orgs?.[0] || null,
-    // Merged the way /school merges them, so the board copy of a post that was
-    // ALSO sent does not appear twice (mergeFeedItems dedupes on
-    // source_announcement_id). Unwrapped back to plain rows, and a board post's
-    // `body` normalised onto `message`, because SchoolSection renders rows and
-    // reads content || message.
-    announcements: mergeFeedItems({ announcements: boardFeed.data || [] },
-                                  announcements.data || [])
-      .filter((i) => i.kind === 'announcement' || i.kind === 'message')
-      .slice(0, 3)
-      .map((i) => (i.kind === 'announcement'
-        ? { ...i.data, message: i.data.body }
-        : i.data)),
-  }
 }

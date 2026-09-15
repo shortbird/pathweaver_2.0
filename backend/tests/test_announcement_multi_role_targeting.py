@@ -10,7 +10,7 @@ should have as a parent?)" — Marika's only link to the student is a
 household_members row, which the per-student parent resolver did not know.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from services import announcement_service as svc
 

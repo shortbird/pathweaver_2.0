@@ -238,7 +238,10 @@ def create_announcement(org_id: str, user_id: str, data: Dict[str, Any]) -> Dict
                 sent = announcement_service.publish(
                     org_id, user_id, title, _body(data.get('body')) or title, audiences,
                     send_app=bool(data.get('notify_app', True)) if 'notify' in data else True,
-                    send_email=bool(data.get('notify_email')) if 'notify' in data else True,
+                    # Email is the deliberate half (ticket b4a4d250): a caller
+                    # on the old notify_audiences shape gets the app note and
+                    # no email unless it ticked the box.
+                    send_email=bool(data.get('notify_email')),
                     # Tie the send to the post, so an edit or a delete on the
                     # board reaches both halves of what a family sees as one
                     # notice (see announcement_service.revise_for_source).

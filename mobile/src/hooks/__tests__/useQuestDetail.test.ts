@@ -376,7 +376,7 @@ describe('useQuestDetail in parent mode', () => {
     });
 
     expect(api.post).toHaveBeenCalledWith('/api/family/quests/quest-1/tasks', {
-      child_id: 'kid-1',
+      student_id: 'kid-1',
       title: 'Build a truss',
       description: 'Balsa and glue',
       pillar: 'stem',
@@ -423,7 +423,7 @@ describe('useQuestDetail in parent mode', () => {
     });
 
     expect(api.delete).toHaveBeenCalledWith('/api/family/quests/quest-1/tasks/task-1', {
-      params: { child_id: 'kid-1' },
+      params: { student_id: 'kid-1' },
     });
     expect(api.delete).not.toHaveBeenCalledWith('/api/tasks/task-1');
   });

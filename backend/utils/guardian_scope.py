@@ -55,11 +55,14 @@ logger = get_logger(__name__)
 #: JSON body or form field on POST/PUT.
 STUDENT_ID_PARAM = 'student_id'
 
-#: The name the task-completion and personalization routes used before scope
-#: was one thing. Accepted for one release so an app that predates the change
-#: keeps working. routes/dependents_acting_as.py went on 2026-09-15; delete this
-#: alias one release after mobile useQuestDetail.completeTask stops sending it.
-STUDENT_ID_ALIAS = 'acting_as_dependent_id'
+#: The names routes used before scope was one thing, each accepted for one
+#: release so an app that predates the change keeps working:
+#:   acting_as_dependent_id  task completion and personalization, until
+#:                           mobile useQuestDetail.completeTask stops sending it
+#:   child_id                the three single-child /api/family/quests routes,
+#:                           which took @student_scope on 2026-09-15; mobile
+#:                           useQuestDetail sends student_id from the same OTA
+STUDENT_ID_ALIASES = ('acting_as_dependent_id', 'child_id')
 
 
 class GuardianAccessError(OpError):
@@ -228,12 +231,13 @@ def requested_student_id() -> Optional[str]:
     if value:
         return value
 
-    for source in (request.args, body if isinstance(body, dict) else {}, request.form):
-        value = source.get(STUDENT_ID_ALIAS)
-        if value:
-            logger.info(f"{STUDENT_ID_ALIAS} is deprecated; send {STUDENT_ID_PARAM} "
-                        f"({request.method} {request.path})")
-            return value
+    for alias in STUDENT_ID_ALIASES:
+        for source in (request.args, body if isinstance(body, dict) else {}, request.form):
+            value = source.get(alias)
+            if value:
+                logger.info(f"{alias} is deprecated; send {STUDENT_ID_PARAM} "
+                            f"({request.method} {request.path})")
+                return value
 
     return None
 

@@ -342,9 +342,12 @@ def remind_student(user_id, class_id, student_id):
     sent = 0
     for recipient, link in recipients:
         try:
+            # Its own type since 2026-09-15: sent as 'announcement' it read as
+            # one in the bell and could not be turned off without turning off
+            # every school announcement with it.
             notifier.create_notification(
                 user_id=recipient,
-                notification_type='announcement',
+                notification_type='class_work_reminder',
                 title='A reminder about unfinished work',
                 message=body,
                 link=link,
