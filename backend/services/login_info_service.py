@@ -43,10 +43,9 @@ class LoginInfoError(ValueError):
     """The account cannot receive login information; the message says why."""
 
 
-def _admin():
-    from database import get_supabase_admin_client
-    # admin client justified: reached only from @require_admin (superadmin) routes; reads any user's row across orgs to send them their own login details
-    return get_supabase_admin_client()
+# admin client justified: reached only from @require_admin (superadmin) routes;
+#   reads any user's row across orgs to send them their own login details
+from utils.admin_client import admin_client as _admin  # noqa: E402
 
 
 def _is_placeholder(email: Optional[str]) -> bool:

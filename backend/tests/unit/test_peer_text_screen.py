@@ -267,9 +267,9 @@ def test_a_comment_the_screen_could_not_judge_posts_as_pending():
 def _dm_service(student_pair: bool):
     from services.direct_message_service import DirectMessageService
     dms = DirectMessageService()
-    dms.can_message_user = Mock(return_value=True)
-    dms._is_student_pair = Mock(return_value=student_pair)
-    dms.get_or_create_conversation = Mock(side_effect=RuntimeError('stop here'))
+    dms.can_message_user = Mock(return_value=True)  # type: ignore[method-assign]
+    dms._is_student_pair = Mock(return_value=student_pair)  # type: ignore[method-assign]
+    dms.get_or_create_conversation = Mock(side_effect=RuntimeError('stop here'))  # type: ignore[method-assign]
     return dms
 
 
