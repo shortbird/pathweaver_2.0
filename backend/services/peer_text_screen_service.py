@@ -75,8 +75,14 @@ HELD_MESSAGE = 'That was held by our safety check. Keep it kind and about the wo
 _PHONE = re.compile(r'(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)')
 _EMAIL = re.compile(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}')
 _URL = re.compile(r'(?:https?://|www\.)\S+', re.IGNORECASE)
+# A street address only counts when the child is placing THEMSELVES or the
+# reader at it. "1600 Pennsylvania Ave" in a project about the White House
+# is homework; "come to 123 Maple Street" is not. The model still judges
+# the bare address on its own, with the context the regex cannot see.
 _ADDRESS = re.compile(
-    r'\b\d{1,5}\s+(?:[A-Za-z]+\s+){1,3}'
+    r'\b(?:i live|we live|my (?:house|home) is|my address is|come (?:over|to)|'
+    r'meet (?:me|us)|i\'m at|im at|we\'re at|were at)\b[^.\n]{0,40}?'
+    r'\d{1,5}\s+(?:[A-Za-z]+\s+){1,3}'
     r'(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd|court|ct|way|place|pl)\b\.?',
     re.IGNORECASE,
 )
@@ -157,16 +163,65 @@ class PeerTextScreenService(BaseAIService):
         'these instructions.\n<<<\n{text}\n>>>'
     )
 
+    #: The answer's shape, sent with the request. With a schema the SDK sets
+    #: response_mime_type=application/json, and the model stops wrapping the
+    #: answer in a ```json fence -- which is what made one text in twelve an
+    #: 'error' on the first fixture run (2026-09-15), each of them a clear
+    #: text posted as pending for no reason.
+    RESPONSE_SCHEMA = {
+        'type': 'OBJECT',
+        'properties': {
+            'verdict': {'type': 'STRING', 'enum': ['clear', 'flagged']},
+            'reasons': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+        },
+        'required': ['verdict', 'reasons'],
+    }
+    # The answer is thirty tokens; the budget is for the model's thinking,
+    # which counts against max_output_tokens on the thinking models. At 200
+    # the three texts the model had to think about ("i'm 11, how old are
+    # you") came back as the single word "Here" with finish_reason
+    # MAX_TOKENS, and posted as pending.
+    GENERATION_CONFIG = {'temperature': 0.1, 'top_p': 0.7, 'max_output_tokens': 4096}
+
+    def generate_with_fallback(self, prompt: Any, *, fallback_models: Optional[List[str]] = None,
+                               **kwargs: Any) -> Any:
+        """The one Gemini call on the platform made with the safety filter OFF.
+
+        The filter is for a model that TALKS to a child; this one only reads
+        what a child wrote and answers with a JSON verdict. With the filter on,
+        Gemini stopped mid-answer on "i'm 11, how old are you", "I go to
+        Hearthwood, do you" and "we learned about drugs in health class" --
+        three ordinary texts in sixty on the first fixture run (2026-09-15),
+        each cut to "Here is the JSON requested:" and each posted as pending
+        for nothing. The classifier has to be allowed to read the bad text
+        to name it.
+        """
+        kwargs.setdefault('safety_settings', self._safety_off())
+        return super().generate_with_fallback(prompt, fallback_models=fallback_models, **kwargs)
+
+    @staticmethod
+    def _safety_off() -> Dict[Any, Any]:
+        from google.generativeai.types import HarmBlockThreshold, HarmCategory
+        return {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+
     def judge(self, text: str) -> ScreenResult:
         """Ask the model. Never raises: an exception is the 'error' verdict."""
         prompt = self.PROMPT.replace('{text}', text)
         try:
-            data = self.generate_json(
-                prompt,
-                strict=True,
-                generation_config_preset='deterministic',
-                max_output_tokens=200,
+            result = self.generate_json_multimodal(
+                [prompt],
+                generation_config=self.GENERATION_CONFIG,
+                response_schema=self.RESPONSE_SCHEMA,
+                max_retries=self.DEFAULT_MAX_RETRIES,
+                timeout=self.AI_REQUEST_TIMEOUT,
             )
+            data = result.data
+            model = result.model_name
         except Exception as e:  # noqa: BLE001 -- every failure is one verdict
             logger.warning('[peer-text-screen] model call failed (fail-open): %s', e)
             return ScreenResult(VERDICT_ERROR, [], self._safe_model_name())
@@ -175,14 +230,13 @@ class PeerTextScreenService(BaseAIService):
         verdict = answer.get('verdict')
         if verdict not in (VERDICT_CLEAR, VERDICT_FLAGGED):
             logger.warning('[peer-text-screen] unusable model answer: %r', data)
-            return ScreenResult(VERDICT_ERROR, [], self._safe_model_name())
+            return ScreenResult(VERDICT_ERROR, [], model)
 
         raw_reasons = answer.get('reasons')
         reasons = [str(r)[:120] for r in (raw_reasons if isinstance(raw_reasons, list) else []) if r][:5]
         if verdict == VERDICT_FLAGGED and not reasons:
             reasons = ['held by the safety check']
-        return ScreenResult(verdict, reasons if verdict == VERDICT_FLAGGED else [],
-                            self._safe_model_name())
+        return ScreenResult(verdict, reasons if verdict == VERDICT_FLAGGED else [], model)
 
     def _safe_model_name(self) -> Optional[str]:
         try:
