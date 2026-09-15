@@ -134,11 +134,10 @@ def _describe(event, rule, web_url, project_short) -> str:
     if event.get('culprit'):
         lines.append(f"at {event['culprit']}")
     meta = [
-        f"level: {event.get('level')}" if event.get('level') else None,
-        f"environment: {event.get('environment')}" if event.get('environment') else None,
-        f"release: {event.get('release')}" if event.get('release') else None,
+        f"{label}: {event.get(key)}"
+        for key, label in (('level', 'level'), ('environment', 'environment'), ('release', 'release'))
+        if event.get(key)
     ]
-    meta = [m for m in meta if m]
     if meta:
         lines.append(' · '.join(meta))
     if web_url:
@@ -161,7 +160,8 @@ def _ticket_from_alert(data: dict) -> dict:
     short = _short_project(slug)
     rule = data.get('triggered_rule')
     web_url = event.get('web_url')
-    user = event.get('user') if isinstance(event.get('user'), dict) else {}
+    raw_user = event.get('user')
+    user: dict = raw_user if isinstance(raw_user, dict) else {}
     level = str(event.get('level') or '').lower()
 
     title = f"[{short}] {event.get('title') or 'Untitled Sentry issue'}".strip()[:TITLE_MAX]
