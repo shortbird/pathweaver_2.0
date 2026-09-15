@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ViewProps } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
+import { displayImageUrl } from '@/src/services/imageUrl';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -46,11 +47,19 @@ export function AvatarFallbackText({ className = '', children }: { className?: s
  *  disk cache on Android; expo-image caches the decode and recycles its view, so
  *  a feed card scrolling back into place doesn't pay for the avatar twice. */
 export function AvatarImage({ source, className = '' }: { source: { uri: string }; className?: string }) {
+  // Sized with an explicit style, not `w-full h-full`: NativeWind does not
+  // wrap expo-image, so the className never reached it and the image laid
+  // out at 0x0 -- every avatar in the app was a blank purple circle from the
+  // moment the RN <Image> was swapped out (398825a0). The HEIC rewrite is the
+  // same one the feed applies; an iPhone-uploaded avatar is otherwise blank
+  // on Android and the web.
+  const uri = displayImageUrl(source?.uri) || source?.uri;
   return (
     <ExpoImage
-      source={source}
+      source={{ ...source, uri }}
       recyclingKey={source?.uri}
-      className={`w-full h-full ${className}`}
+      className={className}
+      style={{ width: '100%', height: '100%' }}
       contentFit="cover"
       cachePolicy="memory-disk"
       transition={0}

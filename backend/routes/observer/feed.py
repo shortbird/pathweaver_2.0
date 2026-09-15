@@ -450,10 +450,34 @@ def register_routes(bp):
             students_map = {}
             if students_lookup_ids:
                 students = supabase.table('users') \
-                    .select('id, display_name, first_name, last_name, avatar_url, portfolio_slug') \
+                    .select('id, display_name, first_name, last_name, avatar_url, portfolio_slug, organization_id') \
                     .in_('id', students_lookup_ids) \
                     .execute()
                 students_map = {s['id']: s for s in students.data}
+
+            # Platform staff moderate a feed that spans every org, and a card
+            # with only a first name gives no clue which school it belongs
+            # to. Resolve org names once per page; parents and advisors never
+            # get this field, so a family cannot learn another kid's school.
+            org_names = {}
+            if is_platform:
+                org_ids = {s.get('organization_id') for s in students_map.values()}
+                org_ids.discard(None)
+                if org_ids:
+                    orgs = supabase.table('organizations') \
+                        .select('id, name') \
+                        .in_('id', list(org_ids)) \
+                        .execute()
+                    org_names = {o['id']: o.get('name') for o in (orgs.data or [])}
+
+            def student_org(student_id):
+                """{id, name} of the student's org for platform staff, else None."""
+                if not is_platform:
+                    return None
+                org_id = students_map.get(student_id, {}).get('organization_id')
+                if not org_id:
+                    return None
+                return {'id': org_id, 'name': org_names.get(org_id)}
 
             # Resolve capturers (a parent who posted a moment for their child) so
             # the post can show "Posted by <parent>" (bug #27). Only fetch ids we
@@ -953,6 +977,7 @@ def register_routes(bp):
                             'display_name': item['student_name'],
                             'avatar_url': item['student_avatar'],
                             'portfolio_slug': students_map.get(item['student_id'], {}).get('portfolio_slug'),
+                            'organization': student_org(item['student_id']),
                         },
                         'moment': {
                             'title': item['event_title'],
@@ -999,6 +1024,7 @@ def register_routes(bp):
                             'display_name': item['student_name'],
                             'avatar_url': item['student_avatar'],
                             'portfolio_slug': students_map.get(item['student_id'], {}).get('portfolio_slug'),
+                            'organization': student_org(item['student_id']),
                         },
                         'task': {
                             'id': item.get('task_id'),

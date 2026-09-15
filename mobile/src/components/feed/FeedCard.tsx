@@ -622,6 +622,11 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
     ? item.students
     : (item.student ? [item.student] : []);
   const isMultiStudent = feedStudents.length > 1;
+  // "Which school is this?" is the first question a superadmin asks of a
+  // card in the global feed. The backend sends the org only to platform
+  // staff, so presence is the whole gate. Siblings share a school, so one
+  // name covers a multi-student card.
+  const schoolName = feedStudents.find((s) => s.organization?.name)?.organization?.name || null;
   const studentsLabel = isMultiStudent
     ? feedStudents.map((s) => s.display_name || 'Student').join(', ')
     : (item.student?.display_name || 'Student');
@@ -762,6 +767,14 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
                       : 'Learning moment'} · {timeAgo}
                   </UIText>
                 </HStack>
+                {schoolName && (
+                  <HStack className="items-center gap-1">
+                    <Ionicons name="school-outline" size={11} color={c.iconMuted} />
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>
+                      {schoolName}
+                    </UIText>
+                  </HStack>
+                )}
                 {/* Who shared it, when a parent posted for the child (bug #27). */}
                 {!isTask && item.moment?.posted_by && (
                   <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400" numberOfLines={1}>

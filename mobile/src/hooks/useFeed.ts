@@ -18,6 +18,9 @@ export interface FeedStudent {
   /** Public portfolio slug, used to open the student's web portfolio from a
    *  post (bug #11). Absent for older responses / students without one. */
   portfolio_slug?: string | null;
+  /** The student's school. Sent only to platform staff (the global
+   *  moderation feed spans every org); absent for everyone else. */
+  organization?: { id: string; name: string | null } | null;
 }
 
 export interface FeedEvidence {

@@ -129,6 +129,35 @@ describe('FeedCard', () => {
     expect(getByText('Test Student')).toBeTruthy();
   });
 
+  // The backend attaches `organization` only for platform staff, so a card
+  // shows the school exactly when the field arrives -- no role check here.
+  it('shows the school when the feed item carries one', () => {
+    const item = createMockFeedItem({
+      student: { id: 'user-1', display_name: 'Test Student', avatar_url: null, organization: { id: 'org-1', name: 'Hearthwood Academy' } },
+    });
+    const { getByText } = render(<FeedCard item={item} showStudent />);
+    expect(getByText('Hearthwood Academy')).toBeTruthy();
+  });
+
+  it('shows no school line when the feed item has no organization', () => {
+    const item = createMockFeedItem();
+    const { queryByText } = render(<FeedCard item={item} showStudent />);
+    expect(queryByText(/Academy/)).toBeNull();
+  });
+
+  it('shows one school for a card grouped across siblings', () => {
+    const org = { id: 'org-1', name: 'Hearthwood Academy' };
+    const item = createMockFeedItem({
+      student: { id: 'user-1', display_name: 'Sam', avatar_url: null, organization: org },
+      students: [
+        { id: 'user-1', display_name: 'Sam', avatar_url: null, organization: org },
+        { id: 'user-2', display_name: 'Hattie', avatar_url: null, organization: org },
+      ],
+    });
+    const { getAllByText } = render(<FeedCard item={item} showStudent />);
+    expect(getAllByText('Hearthwood Academy')).toHaveLength(1);
+  });
+
   // ── Views ──
 
   it('shows view count', () => {

@@ -590,14 +590,18 @@ export default function FeedScreen() {
   const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [parentWelcomeVisible, setParentWelcomeVisible] = useState(false);
   const [segment, setSegment] = useState<FeedSegment>('feed');
-  // Parent-only: which kid is the feed scoped to. null = all kids. Starts on
-  // the child the parent is working for (stores/familyStore); picking a kid
-  // in the switcher below updates the store too, so Family and Feed agree.
-  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
-  const [selectedKidId, setSelectedKidId] = useState<string | null>(scopedChildId);
   // Superadmin gets a Highlights segment that flips the feed source to the
   // curated highlight reel.
   const isSuperadmin = useAuthStore((s) => s.user?.role) === 'superadmin';
+  // Parent-only: which kid is the feed scoped to. null = all kids. Starts on
+  // the child the parent is working for (stores/familyStore); picking a kid
+  // in the switcher below updates the store too, so Family and Feed agree.
+  // Not for a superadmin: their feed is the global moderation feed, and the
+  // family store picks a first child on its own, which scoped a superadmin
+  // who is also a parent to that one kid -- with one kid, no switcher, so no
+  // way back out.
+  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
+  const [selectedKidId, setSelectedKidId] = useState<string | null>(isSuperadmin ? null : scopedChildId);
   // When a parent filters to a specific kid, pass studentId so the feed
   // scopes to that kid's activity only. null → unfiltered (all kids + own).
   const { items, loading, loadingMore, hasMore, loadMore, refetch, setHighlighted } = useFeed({
