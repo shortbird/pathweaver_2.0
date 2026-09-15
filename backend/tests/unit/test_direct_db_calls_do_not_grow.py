@@ -341,7 +341,19 @@ BASELINES = {
     #   bookmarked learning_moment, so the queue can show what was flagged.
     #   Nothing was added above this layer: the feed and the stories routes
     #   call the repository.
-    'repositories': 546,
+    # 2026-09-16: 546 -> 557. Friends: the per-child policy and its consent
+    # record (repositories/peer_policy_repository.py, 6: the policy row, a
+    # batch of them, the upsert, the consent insert, and the two user reads
+    # the policy service needs) and the parent's oversight reads on top of
+    # peer_connections (repositories/peer_connection_repository.py, 5: the
+    # bulk revoke behind "Friends: off", the live count the confirm dialog
+    # names, the activity window's connections and comments, and the pending
+    # approvals any parent of the child may answer). All new work, all in the
+    # layer that is allowed to have it; services/ FELL by one, because
+    # pending_approvals moved its read down here. Plus one in
+    # parent_digest_repository: the week's newly active connections, so an org
+    # parent's digest carries the friends their child added.
+    'repositories': 558,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -16,7 +16,7 @@ from modules.enabled import (
 from modules.registry import MODULES
 
 CORE = {k for k, m in MODULES.items() if m.default == 'core'}
-LMS_ON = {'journal', 'courses', 'bounties', 'observer'}
+LMS_ON = {'journal', 'courses', 'bounties', 'observer', 'friends'}
 
 # The 14 opt-out SIS module keys plus the no-legacy defaults that ride along
 # once `sis` is on.

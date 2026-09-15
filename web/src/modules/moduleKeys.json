@@ -115,6 +115,14 @@
     "requires": [],
     "requires_any": []
   },
+  "friends": {
+    "default": "on",
+    "gate": "flags",
+    "legacy": null,
+    "parent": null,
+    "requires": [],
+    "requires_any": []
+  },
   "goals": {
     "default": "off",
     "gate": "flags",

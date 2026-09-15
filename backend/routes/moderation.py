@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify
 
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import student_scope
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -80,10 +81,16 @@ def report_content(user_id):
 
 @bp.route('/block', methods=['POST'])
 @require_auth
+@student_scope()
 def block_user(user_id):
     """
     Block another user. Blocked users are hidden from the blocker's feed and
     cannot send them direct messages.
+
+    Through student scope a parent blocks AS the child (`student_id` in the
+    body): the row is the child's, so the block hides the other student from
+    the child's feed and ends any friendship between them. user_blocks keeps
+    one writer either way.
 
     Body:
         blocked_id (str): UUID of user to block
@@ -112,6 +119,7 @@ def block_user(user_id):
 
 @bp.route('/block/<blocked_id>', methods=['DELETE'])
 @require_auth
+@student_scope()
 def unblock_user(user_id, blocked_id):
     """Remove a block."""
     # admin client justified: delete user_blocks row scoped to blocker_id = @require_auth user_id

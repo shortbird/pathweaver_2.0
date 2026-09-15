@@ -1655,6 +1655,33 @@ class EmailService(BaseService):
             }
         )
 
+    def send_peer_friend_added_email(
+        self,
+        parent_email: str,
+        parent_name: str,
+        child_name: str,
+        peer_name: str,
+    ) -> bool:
+        """Tell a parent, after the fact, that their child added a friend.
+
+        The other half of the per-child policy: the parent is no longer on the
+        critical path of every friend request, so they are told every time one
+        goes through, with the Family tab -- list, activity, off switch -- one
+        click away. Sent to platform parents only; org parents get the same
+        fact as a line in the school's weekly digest.
+        """
+        return self.send_templated_email(
+            to_email=parent_email,
+            subject=f"{child_name} added a friend on Optio",
+            template_name='peer_friend_added',
+            context={
+                'parent_name': parent_name,
+                'child_name': child_name,
+                'peer_name': peer_name,
+                'family_url': f"{Config.FRONTEND_URL}/family",
+            }
+        )
+
     def send_course_enrollment_email(
         self,
         user_email: str,
@@ -1801,6 +1828,7 @@ class EmailService(BaseService):
 
         `children` entries carry: name, student_id, tasks[{title, quest, pillar,
         xp}], xp, evidence{photos,videos,files,links,reflections}, moments[str],
+        friends[str] (display names of friends added this week),
         late[{title, class_name, days_late, started}].
         """
         from services.parent_weekly_digest_service import MAX_LATE_SHOWN, MAX_TASKS_SHOWN
@@ -1837,6 +1865,8 @@ class EmailService(BaseService):
 
             evidence = self._digest_evidence_sentence(child.get('evidence'))
             moments = child.get('moments') or []
+            friends = child.get('friends') or []
+            family_settings_url = f"{app_base}/family"
 
             if tasks:
                 headline = (f'{name} finished {len(tasks)} '
@@ -1868,6 +1898,16 @@ class EmailService(BaseService):
                     '<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#374151;">'
                     f'Learning moments logged: {shown}'
                     + (f' and {extra} more' if extra > 0 else '') + '.</p>')
+            if friends:
+                shown = ', '.join(escape(f) for f in friends[:3])
+                extra = len(friends) - 3
+                block.append(
+                    '<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#374151;">'
+                    f'New friends on Optio: {shown}'
+                    + (f' and {extra} more' if extra > 0 else '')
+                    + f'. Friends can see and comment on each other\'s work; you can review '
+                    f'or change this any time from <a href="{family_settings_url}" '
+                    f'style="color:#6D469B;">Family settings</a>.</p>')
 
             if late:
                 items = []
@@ -1903,6 +1943,9 @@ class EmailService(BaseService):
                 lines.append(f"Added {evidence}. See them in the Optio app: {child_url}")
             if moments:
                 lines.append("Learning moments: " + ', '.join(moments[:3]))
+            if friends:
+                lines.append("New friends on Optio: " + ', '.join(friends[:3])
+                             + f". Review or change this at {family_settings_url}")
             if late:
                 lines.append("Still to finish:")
                 for item in late[:MAX_LATE_SHOWN]:

@@ -50,6 +50,10 @@ SCOPED = {
     'tasks.get_my_credit_requests': 'credits',
     'classes.get_student_classes': 'schedule',
     'classes.get_student_agenda': 'schedule',
+    # Friends (2026-09-16): a parent of a dependent sends, accepts and ends
+    # friend requests for them through the same routes the child would use.
+    'connections.get_connections': 'peer_connections',
+    'connections.get_feed': 'activity',
     # writes
     'tasks.complete_task': True,
     'tasks.update_task': True,
@@ -90,6 +94,13 @@ SCOPED = {
     'quest_personalization.accept_task_immediate': True,
     'quest_personalization.skip_task_save_to_library': True,
     'quest_personalization.get_personalization_status': True,
+    'connections.get_eligibility': True,
+    'connections.post_code': True,
+    'connections.post_request': True,
+    'connections.post_respond': True,
+    'connections.post_revoke': True,
+    'moderation.block_user': True,
+    'moderation.unblock_user': True,
 }
 
 #: Routes that resolve `student_id` by hand, and why the decorator does not fit.
@@ -103,7 +114,8 @@ FUNCTION_FORM = {
     'routes/learning_events/crud.py': 'quick capture: the delegated insert is a different row shape (captured_by, source_type)',
     # Not student-scoped routes at all: the student is the SUBJECT of a staff or
     # peer action, gated by relationship_between / org scope in the body.
-    'routes/connections.py': 'peer comment names its student in JSON; relationship_between gates it',
+    'routes/connections.py': 'peer comment names its student in JSON; relationship_between gates it '
+                             '(the student-shaped routes in the same module take the decorator)',
     'routes/credit_dashboard/items.py': 'org reviewer filter, resolved inside the caller org scope',
     'routes/kiosk.py': 'device token flow; the student is the device owner, not the caller',
 }

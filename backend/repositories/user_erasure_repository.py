@@ -109,6 +109,7 @@ OWNED_ROWS: Tuple[Tuple[str, str], ...] = (
     ('peer_comments', 'author_id'),
     ('peer_connections', 'requester_id'),
     ('peer_connections', 'addressee_id'),
+    ('peer_policies', 'student_id'),
     ('device_tokens', 'user_id'),
     ('push_subscriptions', 'user_id'),
     ('notification_preferences', 'user_id'),
@@ -152,6 +153,12 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('organization_course_access', 'granted_by'),
     ('organization_quest_access', 'granted_by'),
     ('parental_consent_log', 'reviewed_by_admin_id'),
+    # The adult who turned Friends on for a child (2026-09-16). The consent
+    # row stays with the child; the adult's id goes.
+    ('parental_consent_log', 'granted_by_user_id'),
+    ('peer_policies', 'set_by_user_id'),
+    ('peer_connections', 'created_by_user_id'),
+    ('peer_connection_approvals', 'decided_by_user_id'),
     ('planned_credits', 'created_by'),
     ('prior_learning_records', 'credited_by'),
     ('prior_learning_records', 'reviewed_by'),

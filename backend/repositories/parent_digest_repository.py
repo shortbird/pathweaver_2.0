@@ -193,6 +193,25 @@ class ParentDigestRepository(BaseRepository):
             ), chunk))
         return rows
 
+    # ── Friends ──────────────────────────────────────────────────────────────
+
+    def friends_activated_since(self, student_ids: List[str],
+                                since_iso: str) -> List[Dict[str, Any]]:
+        """Connections that became active this week and touch these students.
+        Both columns are read because the student may be on either side; the
+        caller sorts out which end is the child."""
+        from utils.validation.sanitizers import pgrst_uuid_list
+        rows: List[Dict[str, Any]] = []
+        for chunk in _chunks(_clean(student_ids)):
+            rows += fetch_all_rows(partial(lambda c: (
+                self.client.table('peer_connections')
+                .select('requester_id, addressee_id, activated_at')
+                .eq('status', 'active').gte('activated_at', since_iso)
+                .or_(f'requester_id.in.({pgrst_uuid_list(c, "student_id")}),'
+                     f'addressee_id.in.({pgrst_uuid_list(c, "student_id")})')
+            ), chunk))
+        return rows
+
     # ── Work with a due date ─────────────────────────────────────────────────
 
     def dated_class_quests(self, class_ids: List[str]) -> List[Dict[str, Any]]:

@@ -726,7 +726,31 @@ emails:
       text: "Review This Request"
       url: "{{ approvals_url }}"
     closing_paragraphs:
-      - "Nothing is shared until both families approve. If you'd rather they didn't connect, you can decline — one 'no' from either side ends the request, and neither student is told which side declined."
+      - "Nothing is shared until each family's rules allow it. If you'd rather they didn't connect, you can decline — one 'no' from either side ends the request, and neither student is told which side declined."
+      - "You're being asked because you set {{ child_name }}'s Friends to \"ask me first\". You can change that, see every friend, or turn Friends off from the Family tab."
+    signature: "support"
+    footer_extra: "You're receiving this because you're listed as {{ child_name }}'s parent or guardian on Optio. Questions? Reply to this email or contact support@optioeducation.com."
+
+  # After the fact. The parent turned Friends on and chose not to be asked
+  # each time; this is the promise that came with that choice -- they are
+  # told every time, and the list and the off switch are one click away.
+  peer_friend_added:
+    subject: "{{ child_name }} added a friend on Optio"
+    title: "{{ child_name }} Added a Friend"
+    salutation: "Hi {{ parent_name }},"
+    paragraphs:
+      - "<strong>{{ child_name }}</strong> and <strong>{{ peer_name }}</strong> are now friends on Optio. This happened under the Friends settings you chose for {{ child_name }}."
+    highlight_box:
+      title: "What friends can do"
+      bullet_points:
+        - "See each other's work and leave comments on it"
+        - "They do not see each other's email address, last name, or date of birth"
+        - "You can remove this friend, block them, or turn Friends off at any time"
+    cta:
+      text: "See {{ child_name }}'s Friends"
+      url: "{{ family_url }}"
+    closing_paragraphs:
+      - "If you'd rather approve each friend first, switch {{ child_name }}'s Friends setting to \"ask me first\" from the Family tab."
     signature: "support"
     footer_extra: "You're receiving this because you're listed as {{ child_name }}'s parent or guardian on Optio. Questions? Reply to this email or contact support@optioeducation.com."
 

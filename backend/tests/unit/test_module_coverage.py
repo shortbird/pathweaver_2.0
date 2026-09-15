@@ -89,7 +89,10 @@ def test_the_wave_actually_attached(flask_app):
     for name, key in (('sis', 'sis'), ('sis_billing', 'billing'),
                       ('sis_attendance', 'attendance'),
                       ('sis_prior_learning', 'prior_learning'),
-                      ('sis_community', 'community')):
+                      ('sis_community', 'community'),
+                      # Not an SIS blueprint: the first LMS-side blueprint to
+                      # take the guard (Friends, 2026-09-16).
+                      ('connections', 'friends')):
         assert BLUEPRINT_MODULES.get(name) == key, (
             f'expected blueprint {name!r} gated by {key!r}, '
             f'got {BLUEPRINT_MODULES.get(name)!r}'

@@ -65,9 +65,11 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': True,
-                                # empty, not absent: this fixture row has no
-                                # feature_flags, so every family module is off
-                                'modules': [],
+                                # this fixture row has no feature_flags, so
+                                # every SIS family module is off; friends is
+                                # the one family-surface module that is on
+                                # unless a school turns it off (2026-09-16)
+                                'modules': ['friends'],
                                 'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
@@ -82,9 +84,9 @@ class TestWhichSchoolAmIIn:
         assert ctx['orgs'] == [{'organization_id': 'org-1',
                                 'organization_name': 'iCreate',
                                 'is_guardian': False,
-                                # empty, not absent: this fixture row has no
-                                # feature_flags, so every family module is off
-                                'modules': [],
+                                # no feature_flags: SIS family modules off,
+                                # friends on by default (see above)
+                                'modules': ['friends'],
                                 'family_first_home': False,
                                 'post_registration_flow': 'schedule',
                                 'prior_learning_enabled': False,
@@ -270,7 +272,7 @@ class TestSuperadminPreviewListing:
         assert out['orgs'][0] == {'organization_id': 'org-1',
                                   'organization_name': 'iCreate',
                                   'is_guardian': False,
-                                  'modules': [],
+                                  'modules': ['friends'],
                                 'family_first_home': False,
                                   'post_registration_flow': 'schedule',
                                   'prior_learning_enabled': False,

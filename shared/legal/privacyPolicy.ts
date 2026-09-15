@@ -15,11 +15,19 @@ import type { LegalDocument } from './types';
  * accurate at all. Added who can read a private portfolio, transcript share
  * links, and the org-administrator approver for students with no linked
  * parent.
+ *
+ * v1.3 (2026-09-16): Friends. Peer connections used to need each student's
+ * parent to approve every connection; now a parent turns Friends on per child
+ * and sets the boundaries, and the connection follows those rules. Described
+ * what a friend can see and can never see, the parent's list, activity view,
+ * remove/block/off controls, and the org administrator standing in for a
+ * student with no parent linked. The "opt out of community features" control
+ * this policy promised since v1.0 now exists.
  */
 export const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
-  effectiveDate: 'August 1, 2026',
-  version: '1.2',
+  effectiveDate: 'September 16, 2026',
+  version: '1.3',
   sections: [
     {
       heading: '1. Introduction',
@@ -93,12 +101,14 @@ export const privacyPolicy: LegalDocument = {
           ],
         },
         { type: 'subheading', text: 'Community and Social Features' },
-        { type: 'paragraph', text: 'When you use community features, we collect:' },
+        { type: 'paragraph', text: 'When you use Friends and other community features, we collect:' },
         {
           type: 'list',
           items: [
-            'Connection/friendship requests and relationships',
-            'Activity feed data shared with connections',
+            'The Friends settings a parent or guardian chose for a child, and who set them',
+            'Friend requests and friendships, including how the request was made (a share code, an invite link, a classmate list, or a parent)',
+            'Comments and reactions between friends on each other\'s work',
+            'Activity feed data shared with friends',
             'Public profile information',
             'Portfolio sharing settings',
           ],
@@ -198,7 +208,7 @@ export const privacyPolicy: LegalDocument = {
             'Award badges and calculate XP across skill pillars',
             'Provide AI Tutor assistance with safety monitoring',
             'Enable parent dashboard access and monitoring',
-            'Facilitate connections between students',
+            'Facilitate friendships between students, within the rules each student\'s parent or guardian set',
             'Manage Optio Academy enrollment and instruction',
             'Monitor and analyze usage patterns to improve the Service',
             'Personalize learning experiences and recommendations',
@@ -268,7 +278,24 @@ export const privacyPolicy: LegalDocument = {
         },
         {
           type: 'paragraph',
-          text: 'For a student under 18, that authority belongs to their parent or guardian — a student can ask, and their parent decides. A student aged 18 or over decides for themselves. For a student in a school or program with no parent account linked, their organization administrator decides; where nobody holds that responsibility, the portfolio cannot be published at all. Activity shared with connections remains visible only to those specific users.',
+          text: 'For a student under 18, that authority belongs to their parent or guardian — a student can ask, and their parent decides. A student aged 18 or over decides for themselves. For a student in a school or program with no parent account linked, their organization administrator decides; where nobody holds that responsibility, the portfolio cannot be published at all. Activity shared with friends remains visible only to those specific users.',
+        },
+        { type: 'subheading', text: 'Friends' },
+        {
+          type: 'paragraph',
+          text: 'Students can be friends on Optio so they can see and encourage each other\'s work. Friends is off for every student until a parent or guardian turns it on. Turning it on is the parent\'s consent to share the child\'s work with the friends the child makes, and we record who gave that consent and when. For a student in a school or program with no parent account linked, the school\'s administrator makes this decision under the school\'s own settings. A student aged 18 or over decides for themselves.',
+        },
+        {
+          type: 'paragraph',
+          text: 'When turning Friends on, a parent chooses the rules: whether each new friend is added right away or needs the parent\'s approval first; who may send the child a friend request (classmates, a code the child shares in person, an invite link, or — if the school allows it — other students at the school); and whether friends may comment on the child\'s work. There is no directory of students and no search by name: a student can only be reached through one of those routes, and a student whose family has not turned Friends on cannot be reached at all.',
+        },
+        {
+          type: 'paragraph',
+          text: 'A friend can see the student\'s display name, profile picture, and the work the student has not marked confidential, and can leave comments and reactions on that work. A friend never sees the student\'s email address, legal last name, date of birth, school, or private goals. Either student can end a friendship or block the other at any time, and blocking hides everything, including past comments.',
+        },
+        {
+          type: 'paragraph',
+          text: 'Parents and guardians keep full visibility and control. From the Family tab a parent can see every friend, see the comments and reactions their child gave and received, remove or block any friend, change the rules, and turn Friends off. Turning Friends off ends every one of the child\'s friendships. Parents are notified each time their child adds a friend.',
         },
         { type: 'subheading', text: 'Who Can See a Private Portfolio' },
         {
@@ -315,7 +342,7 @@ export const privacyPolicy: LegalDocument = {
             'Parents or legal guardians must create and manage accounts on behalf of children under 13',
             'We collect only information necessary to provide the educational service',
             'Parents have the right to review, update, or delete their child\'s information at any time',
-            'Parents can disable specific features (like AI Tutor or community features) for their child',
+            'Parents decide whether their child can have friends on Optio, and can turn AI Tutor and other features off for their child',
             'We do not require children to provide more information than necessary to participate',
             'We never use a child\'s personal information for advertising or to build advertising audiences',
           ],
@@ -429,7 +456,7 @@ export const privacyPolicy: LegalDocument = {
           type: 'list',
           items: [
             'Disable AI Tutor access',
-            'Opt out of community/connection features',
+            'Turn Friends off, or restrict who can send your child a friend request and what friends can do (from the Family tab)',
             'Control parent dashboard access (for students 13+)',
             'Opt out of media release for promotional materials',
           ],

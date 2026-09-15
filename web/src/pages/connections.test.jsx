@@ -3,9 +3,9 @@
  *
  * What's tested is the part that would be unsafe if it broke, not the layout:
  * that there is no way to search for another child, that a student of unknown
- * age is asked rather than refused, that a confirmed under-13 meets an
- * explanation instead of a form they can retry, and that the approval card
- * actually says what is being consented to.
+ * age is asked rather than refused, that a student whose family has not turned
+ * Friends on meets the adult's name instead of a form they can retry, and that
+ * the approval card actually says what is being consented to.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, waitFor } from '@testing-library/react'
@@ -97,27 +97,28 @@ describe('ConnectionsPage', () => {
     expect(await screen.findByText(/only answer this once/i)).toBeInTheDocument()
   })
 
-  it('gives a confirmed under-13 an explanation, not a retryable form', async () => {
+  it('names the adult who can turn Friends on, not a form the student cannot use', async () => {
+    // Since 2026-09-16 the gate is the family's policy. Off is not a dead
+    // end: the reason says who could turn it on, which is the one thing the
+    // student can act on -- and there is no code field to retry against.
     mockLoad({
-      state: 'under_13',
-      reason: 'Connecting with other students is available once you turn 13.',
+      state: 'friends_off',
+      reason: 'Ask Mo to turn on Friends for you.',
+      who_can_enable: 'parent',
     })
     render(<ConnectionsPage />)
 
-    expect(await screen.findByText(/available once you turn 13/i)).toBeInTheDocument()
+    expect(await screen.findByText(/ask mo to turn on friends/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/date of birth/i)).toBeNull()
     expect(screen.queryByLabelText(/enter their code/i)).toBeNull()
   })
 
-  it('points a dependent at their parent rather than at a form they cannot use', async () => {
-    mockLoad({
-      state: 'needs_parent_dob',
-      reason: 'Your parent needs to add your date of birth before you can connect.',
-    })
+  it('says so when the school has turned Friends off', async () => {
+    mockLoad({ state: 'module_off', reason: 'Friends is not turned on at your school.' })
     render(<ConnectionsPage />)
 
-    expect(await screen.findByText(/your parent needs to add/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/what's your date of birth/i)).toBeNull()
+    expect(await screen.findByText(/not turned on at your school/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/enter their code/i)).toBeNull()
   })
 
   it('sends a request by code and says approval is still needed', async () => {

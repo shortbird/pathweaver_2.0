@@ -14,7 +14,12 @@ from app_config import Config
 logger = get_logger(__name__)
 
 # Notification types that should trigger web push notifications
-WEB_PUSH_NOTIFICATION_TYPES = {'message_received'}
+WEB_PUSH_NOTIFICATION_TYPES = {
+    'message_received',
+    # A parent's Friends inbox: a request to answer, or a friend added
+    # under their policy. Both are theirs to act on from the Family tab.
+    'peer_connection_needs_approval', 'peer_friend_added',
+}
 
 # Notification types that should trigger mobile push notifications.
 # Keep this in lockstep with notifications.type CHECK constraint (the
@@ -34,6 +39,12 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     'parent_approval_required',
     'diploma_credit_requested', 'org_approved_credit',
     'class_submitted_for_review',
+    # Friends. A request, an answer, a comment on your work: each is
+    # something the student (or their parent) is waiting on. Until
+    # 2026-09-16 none of these pushed, so a friend request sat unseen
+    # until the next time the app happened to be opened.
+    'peer_connection_request', 'peer_connection_needs_approval',
+    'peer_connection_approved', 'peer_friend_added', 'peer_comment',
 }
 
 

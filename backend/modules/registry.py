@@ -85,6 +85,14 @@ def _defs() -> Tuple[ModuleDef, ...]:
                   surfaces=('learning', 'mobile')),
         ModuleDef('observer', 'Observer Access', 'community', ('Observer Access',),
                   surfaces=('learning', 'mobile')),
+        # Friends: peer connections, the friends feed, peer comments. A parent
+        # turns it on per child (peer_policies); this is the SCHOOL's switch
+        # above that -- off, and no student in the org can be asked or ask,
+        # whatever their family set. On by default because the per-child
+        # default is off: a school that does nothing has a feature no family
+        # has enabled yet, not a feature every child is in.
+        ModuleDef('friends', 'Friends', 'community', ('Friends',),
+                  surfaces=('learning', 'mobile', 'family')),
         # The LMS-core teacher toolkit: class create/roster/progress, task
         # verification, check-ins. Core so an LMS-only school always has it.
         ModuleDef('teaching', 'Teaching', 'operations',

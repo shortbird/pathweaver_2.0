@@ -61,7 +61,7 @@ FLAT_GATES = (
 )
 
 # Top-level keys that are known and deliberately not booleans.
-KNOWN_TOP_LEVEL = set(FLAT_GATES) | {'sis_settings', 'oea_settings', 'modules'}
+KNOWN_TOP_LEVEL = set(FLAT_GATES) | {'sis_settings', 'oea_settings', 'modules', 'friends_settings'}
 
 ORG_COLUMNS = (
     'id, name, slug, is_active, archived_at, feature_flags, '

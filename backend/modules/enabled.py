@@ -141,3 +141,15 @@ def enabled_set(org_id: Optional[str]) -> FrozenSet[str]:
     if not org_id:
         return frozenset(k for k, m in MODULES.items() if m.default == 'core')
     return effective_modules_for_row(_org_row(org_id))
+
+
+def org_flags(org_id: Optional[str]) -> Dict:
+    """The org's feature_flags, through the same per-request cache the module
+    gate uses. For readers of a CONFIG dict inside feature_flags (the Friends
+    org defaults, say) that would otherwise re-fetch the organizations row the
+    gate has already read on this request. Empty dict for no org, a missing
+    org, or a read error -- callers treat absence as "platform default"."""
+    if not org_id:
+        return {}
+    row = _org_row(org_id)
+    return dict((row or {}).get('feature_flags') or {})

@@ -278,6 +278,35 @@ def _week_moments(repo: ParentDigestRepository, student_ids: List[str],
     return out
 
 
+def _week_friends(repo: ParentDigestRepository, student_ids: List[str],
+                  since_iso: str) -> Dict[str, List[str]]:
+    """Friends added this week, by student, as display names.
+
+    The per-child Friends policy (2026-09-16) took the parent off the critical
+    path of each request; this line is the other half of that bargain for an
+    org parent, who gets the school's digest rather than one email per friend.
+    The name shown is the friend's display name -- the only shape of another
+    student a family ever sees -- never a surname.
+    """
+    out: Dict[str, List[str]] = {sid: [] for sid in student_ids}
+    rows = repo.friends_activated_since(student_ids, since_iso)
+    if not rows:
+        return out
+    wanted = set(student_ids)
+    friend_ids = set()
+    pairs = []
+    for row in rows:
+        a, b = row.get('requester_id'), row.get('addressee_id')
+        for child, friend in ((a, b), (b, a)):
+            if child in wanted and friend:
+                pairs.append((child, friend))
+                friend_ids.add(friend)
+    names = repo.users_by_ids(sorted(friend_ids), 'id, display_name, first_name')
+    for child, friend in pairs:
+        out[child].append(_display_name(names.get(friend), 'A student'))
+    return out
+
+
 # ── What is still open ───────────────────────────────────────────────────────
 
 def _late_work(repo: ParentDigestRepository, enrollments: Dict[str, List[str]],
@@ -388,6 +417,7 @@ def build_org_digests(org_row: Dict[str, Any], now: datetime) -> List[Dict[str, 
     since = now - timedelta(days=7)
     work = _week_work(repo, student_ids, since)
     moments = _week_moments(repo, student_ids, since.astimezone(_zone(org_row)).date())
+    friends = _week_friends(repo, student_ids, since.isoformat())
     late = _late_work(repo, enrollments, class_names, now)
 
     by_parent: Dict[str, List[Dict[str, Any]]] = {}
@@ -400,6 +430,7 @@ def build_org_digests(org_row: Dict[str, Any], now: datetime) -> List[Dict[str, 
             'xp': summary['xp'],
             'evidence': summary['evidence'],
             'moments': moments.get(student_id) or [],
+            'friends': friends.get(student_id) or [],
             'late': late.get(student_id) or [],
         }
         for parent_id in guardians.get(student_id, []):

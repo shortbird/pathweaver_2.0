@@ -1,31 +1,41 @@
-"""Peer connections: two students, both families' consent, one mutual link.
+"""Peer connections: two students, each family's rules, one mutual link.
 
 The safety argument for this feature lives in four places, and all four are in
 this module so they can be read together rather than reconstructed from six
 route handlers:
 
-  * ``age_check`` -- a neutral, one-shot age screen. It records the answer it is
+  * ``age_check`` -- a neutral, one-shot age screen for the one population
+    that has nobody else to answer for them (a platform student with no
+    parent linked and no date of birth on file). It records the answer it is
     given, including "under 13", and locks it. An age screen that rejects the
     honest answer and leaves the form open is not a gate, it is a hint.
-  * ``request_by_code`` -- discovery without a directory. Students exchange a
-    short code in person; nobody can look a child up by name.
-  * ``_resolve_approver`` -- one accountable adult per side, never one family
-    consenting for another, and the school standing in only where the school
-    exception actually applies.
+  * ``request`` -- discovery without a directory. A student is reached by a
+    code handed over in person or by link, by being in the same class, by the
+    school's own pool where the school turned that on, or by their parent. No
+    one can look a child up by name, and a student whose family has not
+    turned Friends on cannot be reached at all.
+  * ``_side_consent`` -- one accountable adult per side, never one family
+    consenting for another. Since 2026-09-16 that adult's answer is usually
+    already on file: the parent set a per-child policy
+    (services/peer_policy_service) and this reads it. A side whose policy
+    says "ask me first" still waits for an explicit answer; a side whose
+    policy is off ends the request. The school stands in only for a student
+    with no parent linked, and only for a peer at the same school.
   * ``_maybe_activate`` -- the single place a connection becomes 'active', so
     there is exactly one answer to "what did we require before these two
-    children could see each other's work".
+    children could see each other's work". It is also where the parents who
+    did not answer explicitly are told, after the fact, that it happened.
 
-Everything downstream (portfolio_access.is_peer_of, the comment endpoints) reads
-the resulting status and re-derives nothing.
+Everything downstream (portfolio_access.is_peer_of, the comment endpoints)
+reads the resulting status and re-derives nothing.
 
 ADMIN CLIENT USAGE: this service uses get_supabase_admin_client() throughout.
 Every operation is inherently cross-user -- a student writing a row about
 another student, a parent answering for a child, a service resolving who a
 child's accountable adult is -- and none of it is expressible as the caller's
 own RLS scope. Access control is the explicit gating in each function: the
-caller must be a participant (``_require_participant``) or the named approver
-(``_require_approver``) of the row they are touching.
+caller must be a participant (``_require_participant``), a parent of one
+(``pa.is_parent_of``), or the named approver of the row they are touching.
 """
 
 from datetime import date, datetime, timedelta
@@ -35,6 +45,7 @@ import secrets
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
 from utils import portfolio_access as pa
+from services import peer_policy_service as policy_svc
 
 logger = get_logger(__name__)
 
@@ -51,13 +62,27 @@ CODE_LENGTH = 8
 
 MAX_COMMENT_LENGTH = 1000
 
-# Eligibility states returned to the frontend. The entry point is shown for
-# every state except 'under_13' -- an ineligible student should meet a clear,
-# warm explanation, not a menu item that silently does nothing.
-ELIGIBLE = 'eligible'
-NEEDS_DOB = 'needs_dob'
-UNDER_13 = 'under_13'
-NEEDS_PARENT_DOB = 'needs_parent_dob'
+# Eligibility states returned to the frontend. Each says what the student is
+# asked to do next, which is the distinction the old portfolio gate got wrong
+# by showing an under-18 explanation to people whose age was simply unknown.
+ELIGIBLE = 'eligible'          # Friends is on for this student
+NEEDS_DOB = 'needs_dob'        # nobody to answer for them and no age on file
+FRIENDS_OFF = 'friends_off'    # off; `who_can_enable` says who could turn it on
+MODULE_OFF = 'module_off'      # the school switched the feature off
+
+# Where a request came from. Recorded on the row, checked against the
+# addressee's request_sources.
+SOURCE_CODE = 'code'
+SOURCE_LINK = 'link'
+SOURCE_CLASSMATES = 'classmates'
+SOURCE_SCHOOL = 'school'
+SOURCE_PARENT = 'parent'
+PEER_ID_SOURCES = (SOURCE_CLASSMATES, SOURCE_SCHOOL)
+
+# The text a student sees for every reason a code did not work. One message
+# for "no such code", "expired", "that family has Friends off" and "blocked":
+# a differentiated error turns the code field into an oracle.
+CODE_REFUSED = 'That code is not valid or has expired.'
 
 
 class PeerConnectionError(Exception):
@@ -82,12 +107,12 @@ def _iso(dt):
 # ---------------------------------------------------------------------------
 
 def eligibility(user_id: str) -> Dict[str, Any]:
-    """What state is this student in with respect to peer connections?
+    """What state is this student in with respect to Friends?
 
-    Returns {'state', 'reason'}. The frontend shows the entry point for every
-    state but UNDER_13; the states differ in what the student is asked to do
-    next, which is the distinction the old portfolio gate got wrong by showing
-    an under-18 explanation to people whose age was simply unknown.
+    Returns {'state', 'reason', 'who_can_enable', 'policy'}. The entry point
+    is shown for every state; what differs is what the student is asked to do
+    next: nothing (eligible), tell us their age (needs_dob), or ask a named
+    adult (friends_off).
     """
     user = _admin().table('users').select(
         'id, date_of_birth, date_of_birth_locked_at, is_dependent'
@@ -95,27 +120,30 @@ def eligibility(user_id: str) -> Dict[str, Any]:
     user = user[0] if user else None
 
     if not user:
-        return {'state': UNDER_13, 'reason': 'Account not found'}
+        return {'state': FRIENDS_OFF, 'reason': 'Account not found',
+                'who_can_enable': None, 'policy': None}
 
-    if not user.get('date_of_birth'):
-        # A dependent cannot set their own date of birth (their parent manages
-        # it), so pointing them at the age screen would be a dead end.
-        if user.get('is_dependent'):
-            return {
-                'state': NEEDS_PARENT_DOB,
-                'reason': ('Your parent needs to add your date of birth before '
-                           'you can connect with other students.'),
-            }
-        return {'state': NEEDS_DOB, 'reason': 'We need your date of birth first.'}
+    policy = policy_svc.effective_policy(user_id)
 
-    if pa.is_under_13(user):
-        return {
-            'state': UNDER_13,
-            'reason': ('Connecting with other students is available once '
-                       'you turn 13.'),
-        }
+    if policy.origin == policy_svc.ORIGIN_MODULE_OFF:
+        return {'state': MODULE_OFF, 'reason': policy.reason,
+                'who_can_enable': None, 'policy': None}
 
-    return {'state': ELIGIBLE, 'reason': None}
+    if policy.enabled:
+        return {'state': ELIGIBLE, 'reason': None, 'who_can_enable': None,
+                'policy': policy.to_dict()}
+
+    # Off. A platform student with nobody to answer for them and no age on
+    # file is the one case where the student can still do something
+    # themselves: tell us their age. An adult may then turn Friends on; a
+    # minor is pointed at linking a parent.
+    if (policy.who_can_enable == 'nobody' and not user.get('date_of_birth')
+            and not user.get('is_dependent')):
+        return {'state': NEEDS_DOB, 'reason': 'We need your date of birth first.',
+                'who_can_enable': None, 'policy': None}
+
+    return {'state': FRIENDS_OFF, 'reason': policy.reason,
+            'who_can_enable': policy.who_can_enable, 'policy': None}
 
 
 def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
@@ -125,7 +153,9 @@ def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
     validation error on an under-13 date, which for a profile editor is right
     and for an age screen is precisely backwards: the child gets an error and a
     form still waiting for input, so they try 2010 instead. Here the honest
-    answer is accepted, stored, and locked, and the student is told no.
+    answer is accepted, stored, and locked, and the student is told what
+    happens next -- an adult may turn Friends on for themselves; a minor is
+    asked to link a parent.
 
     The lock is what makes the gate real. Without it a blocked student walks to
     Account Settings and edits their birthday (see the matching refusal in
@@ -171,7 +201,7 @@ def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
     under_13 = pa.is_under_13({'date_of_birth': dob.isoformat()})
     logger.info(
         "[peer-connections] age screen for user %s: %s",
-        str(user_id)[:8], 'under_13' if under_13 else 'eligible'
+        str(user_id)[:8], 'under_13' if under_13 else 'thirteen_plus'
     )
 
     # Crossing into adulthood removes the parental portfolio gate, which is a
@@ -184,13 +214,16 @@ def age_check(user_id: str, dob_str: str) -> Dict[str, Any]:
             "their portfolio.", str(user_id)[:8]
         )
 
+    policy_svc._invalidate(user_id)
     return eligibility(user_id)
 
 
-def _require_eligible(user_id: str) -> None:
-    state = eligibility(user_id)
-    if state['state'] != ELIGIBLE:
-        raise PeerConnectionError(state['reason'] or 'Not eligible')
+def _require_eligible(user_id: str) -> policy_svc.EffectivePolicy:
+    """Friends must be on for this student. Returns the policy in force."""
+    policy = policy_svc.effective_policy(user_id)
+    if not policy.enabled:
+        raise PeerConnectionError(policy.reason or 'Friends is not turned on for you yet.')
+    return policy
 
 
 # ---------------------------------------------------------------------------
@@ -248,8 +281,16 @@ def _resolve_code(code: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Approver resolution
+# Consent resolution
 # ---------------------------------------------------------------------------
+
+def _same_org(student_id: str, other_student_id: str) -> bool:
+    orgs = _admin().table('users').select('id, organization_id') \
+        .in_('id', [student_id, other_student_id]).execute().data or []
+    org_by_user = {r['id']: r.get('organization_id') for r in orgs}
+    a_org, b_org = org_by_user.get(student_id), org_by_user.get(other_student_id)
+    return bool(a_org and a_org == b_org)
+
 
 def _resolve_approver(student_id: str, other_student_id: str) -> Dict[str, Any]:
     """The adult who may consent to THIS student joining THIS connection.
@@ -276,19 +317,47 @@ def _resolve_approver(student_id: str, other_student_id: str) -> Dict[str, Any]:
         return approver
 
     # org_admin fallback -- same-org only.
-    admin = _admin()
-    orgs = admin.table('users').select('id, organization_id') \
-        .in_('id', [student_id, other_student_id]).execute().data or []
-    org_by_user = {r['id']: r.get('organization_id') for r in orgs}
-    a_org, b_org = org_by_user.get(student_id), org_by_user.get(other_student_id)
-
-    if a_org and a_org == b_org:
+    if _same_org(student_id, other_student_id):
         return approver
 
     raise PeerConnectionError(
         'Connecting with a student outside your school needs a parent or '
         'guardian to approve it. Ask an adult to link their account to yours.'
     )
+
+
+def _side_consent(student_id: str, other_student_id: str) -> Dict[str, Any]:
+    """How THIS student's side of a connection gets its adult's answer.
+
+    Returns {'mode': 'auto' | 'ask_first', 'approver': {...}} -- or raises
+    when the side cannot consent at all (policy off, or a school standing in
+    for a peer at another school).
+
+    The policy is the parent's answer on file. 'auto' means it was given when
+    they turned Friends on and set no further condition; the approval row is
+    written approved, attributed to them, method 'policy'. 'ask_first' means
+    they asked to be asked; the row is written pending and they are notified,
+    exactly as every connection worked before 2026-09-16.
+    """
+    policy = policy_svc.effective_policy(student_id)
+    if not policy.enabled:
+        name = _display_name(student_id)
+        raise PeerConnectionError(
+            f"{name}'s family hasn't turned on Friends yet.")
+
+    approver = policy.approver
+    if not approver:
+        # A child row with no setter on record (the setter's account was
+        # erased) or an org default with no admin: fall back to the same
+        # resolution the old flow used, narrowing included.
+        approver = _resolve_approver(student_id, other_student_id)
+    elif approver.get('kind') == 'org_admin' and not _same_org(student_id, other_student_id):
+        raise PeerConnectionError(
+            'Connecting with a student outside your school needs a parent or '
+            'guardian to approve it. Ask an adult to link their account to yours.'
+        )
+
+    return {'mode': policy.approval_mode, 'approver': approver}
 
 
 # ---------------------------------------------------------------------------
@@ -312,25 +381,83 @@ def _require_participant(connection: Dict[str, Any], user_id: str) -> str:
     raise PeerConnectionError('Connection not found')
 
 
-def request_by_code(requester_id: str, code: str) -> Dict[str, Any]:
-    """Start a connection by entering another student's share code."""
-    _require_eligible(requester_id)
+def _verify_pool(requester_id: str, peer_id: str, source: str) -> None:
+    """A request by id must come from a pool the platform vouches for.
 
-    addressee_id = _resolve_code(code)
-    if not addressee_id:
-        # Deliberately identical message for "no such code" and "expired": a
-        # differentiated error turns the code field into an oracle for probing
-        # which codes exist.
-        raise PeerConnectionError('That code is not valid or has expired.')
+    'classmates': the two share an ACTIVE class, the same definition the class
+    student chat uses (utils.class_membership). 'school': same org, and the
+    school turned its pool on. Anything else is a directory lookup wearing a
+    different name, and there is no directory here.
+    """
+    from utils import class_membership as cm
+
+    if source == SOURCE_CLASSMATES:
+        if cm.student_class_ids(requester_id) & cm.student_class_ids(peer_id):
+            return
+        raise PeerConnectionError('You can only add classmates this way.')
+
+    if source == SOURCE_SCHOOL:
+        requester_policy = policy_svc.effective_policy(requester_id)
+        settings = policy_svc.org_friends_settings(requester_policy.organization_id)
+        if settings['school_pool'] and _same_org(requester_id, peer_id):
+            return
+        raise PeerConnectionError('Your school has not turned on school-wide Friends.')
+
+    raise PeerConnectionError('That is not a way to add a friend.')
+
+
+def request(requester_id: str, *, code: Optional[str] = None,
+            peer_id: Optional[str] = None, source: Optional[str] = None,
+            acting_user_id: Optional[str] = None) -> Dict[str, Any]:
+    """Start a connection: by another student's share code, or by naming a
+    student from a vetted pool.
+
+    ``acting_user_id`` is the guardian when the request is made on the
+    student's behalf through student scope; the row records them and the
+    source is 'parent', which the other family's policy always admits.
+    """
+    _require_eligible(requester_id)
+    delegated = bool(acting_user_id and acting_user_id != requester_id)
+
+    if code:
+        addressee_id = _resolve_code(code)
+        if not addressee_id:
+            raise PeerConnectionError(CODE_REFUSED)
+        pool = SOURCE_LINK if source == SOURCE_LINK else SOURCE_CODE
+        refusal = CODE_REFUSED
+    elif peer_id:
+        if source not in PEER_ID_SOURCES:
+            raise PeerConnectionError('That is not a way to add a friend.')
+        try:
+            addressee_id = pgrst_uuid(peer_id, 'peer_id')
+        except Exception as _exc:
+            raise PeerConnectionError('Student not found') from _exc
+        if addressee_id == requester_id:
+            raise PeerConnectionError('That is you.')
+        _verify_pool(requester_id, addressee_id, source)
+        pool = source
+        refusal = None   # a classmate is someone you already know
+    else:
+        raise PeerConnectionError('Enter a code or pick a classmate.')
 
     if addressee_id == requester_id:
         raise PeerConnectionError('That is your own code.')
 
-    if pa.is_under_13_by_id(addressee_id):
-        raise PeerConnectionError('That code is not valid or has expired.')
-
     if pa.is_blocked_between(requester_id, addressee_id):
-        raise PeerConnectionError('That code is not valid or has expired.')
+        raise PeerConnectionError(refusal or 'Student not found')
+
+    # The other family's rules. Off means unreachable; a source they did not
+    # allow means unreachable by THIS route. A code holder with Friends off is
+    # indistinguishable from an invalid code on purpose.
+    addressee_policy = policy_svc.effective_policy(addressee_id)
+    recorded_source = SOURCE_PARENT if delegated else pool
+    if not addressee_policy.enabled:
+        raise PeerConnectionError(
+            refusal or f"{_display_name(addressee_id)}'s family hasn't turned on Friends yet.")
+    if not addressee_policy.allows_source(recorded_source):
+        raise PeerConnectionError(
+            refusal or f"{_display_name(addressee_id)}'s family only accepts "
+                       "requests another way.")
 
     admin = _admin()
     existing = admin.table('peer_connections').select('id, status').or_(
@@ -342,7 +469,7 @@ def request_by_code(requester_id: str, code: str) -> Dict[str, Any]:
     if existing:
         status = existing[0]['status']
         if status == 'active':
-            raise PeerConnectionError('You are already connected.')
+            raise PeerConnectionError('You are already friends.')
         if status in ('pending_addressee', 'pending_approval'):
             raise PeerConnectionError('There is already a request between you.')
         # 'declined' / 'revoked': a previous answer was no. Reusing the row
@@ -352,6 +479,8 @@ def request_by_code(requester_id: str, code: str) -> Dict[str, Any]:
             'requester_id': requester_id,
             'addressee_id': addressee_id,
             'status': 'pending_addressee',
+            'source': recorded_source,
+            'created_by_user_id': acting_user_id if delegated else None,
             'updated_at': _iso(_now()),
             'responded_at': None,
             'activated_at': None,
@@ -366,27 +495,59 @@ def request_by_code(requester_id: str, code: str) -> Dict[str, Any]:
             'requester_id': requester_id,
             'addressee_id': addressee_id,
             'status': 'pending_addressee',
+            'source': recorded_source,
+            'created_by_user_id': acting_user_id if delegated else None,
         }).execute().data[0]
 
-    # The code has done its job. Retiring it here means a code handed to one
-    # person cannot be reused by whoever else saw it over their shoulder.
-    admin.table('peer_connect_codes').update({'revoked_at': _iso(_now())}) \
-        .eq('user_id', addressee_id).is_('revoked_at', 'null').execute()
+    if code:
+        # The code has done its job. Retiring it here means a code handed to one
+        # person cannot be reused by whoever else saw it over their shoulder.
+        admin.table('peer_connect_codes').update({'revoked_at': _iso(_now())}) \
+            .eq('user_id', addressee_id).is_('revoked_at', 'null').execute()
 
-    _notify(addressee_id, 'peer_connection_request',
-            'A student wants to connect',
-            f"{_display_name(requester_id)} sent you a connection request.",
-            link='/connections')
+    requester_name = _display_name(requester_id)
+    who = f"{requester_name}'s parent" if delegated else requester_name
+    if addressee_policy.is_dependent:
+        # No login of their own; the request is answered by their parent, from
+        # the Family tab, on their behalf.
+        for guardian_id in _guardians_of(addressee_id):
+            _notify(guardian_id, 'peer_connection_request',
+                    f"A friend request for {_display_name(addressee_id)}",
+                    f"{who} sent {_display_name(addressee_id)} a friend request.",
+                    link='/family')
+    else:
+        _notify(addressee_id, 'peer_connection_request',
+                'A student wants to be friends',
+                f"{who} sent you a friend request.",
+                link='/connections')
 
     return conn
 
 
+def _decline(admin, connection_id: str) -> Dict[str, Any]:
+    """A request that ends before anyone's adult is asked: the student said
+    no, or a side turned out unable to consent."""
+    return admin.table('peer_connections').update({
+        'status': 'declined',
+        'responded_at': _iso(_now()),
+        'updated_at': _iso(_now()),
+    }).eq('id', connection_id).execute().data[0]
+
+
 def respond_to_request(addressee_id: str, connection_id: str,
-                       accept: bool) -> Dict[str, Any]:
+                       accept: bool,
+                       acting_user_id: Optional[str] = None) -> Dict[str, Any]:
     """The receiving student accepts or declines.
 
-    Accepting does not connect anyone. It moves the request to the grown-ups,
-    and creates one pending approval per side.
+    Accepting settles each side against its family's policy. Where both are
+    'auto' the connection is active before this returns; where a side is
+    'ask_first' it waits for that adult, as every connection did before
+    2026-09-16. Where a side's policy is off -- it was on when the request
+    was made and is not now -- the request is declined outright.
+
+    ``acting_user_id`` is the guardian when a parent accepts on a child's
+    behalf. Their own side's 'ask_first' is satisfied by the act: the parent
+    just said yes, and asking them again would be a form for its own sake.
     """
     conn = _get_connection(connection_id)
     if conn['addressee_id'] != addressee_id:
@@ -396,48 +557,63 @@ def respond_to_request(addressee_id: str, connection_id: str,
 
     admin = _admin()
     if not accept:
-        updated = admin.table('peer_connections').update({
-            'status': 'declined',
-            'responded_at': _iso(_now()),
-            'updated_at': _iso(_now()),
-        }).eq('id', connection_id).execute().data[0]
-        return updated
+        return _decline(admin, connection_id)
 
     _require_eligible(addressee_id)
-
     requester_id = conn['requester_id']
 
-    # Resolve BOTH approvers before writing either. If one side has no eligible
-    # approver, the connection must not sit half-consented in a parent's inbox
-    # -- that would ask a real parent to approve something that can never
-    # complete, and their "yes" would be on record for a link that never formed.
-    approvers = {
-        addressee_id: _resolve_approver(addressee_id, requester_id),
-        requester_id: _resolve_approver(requester_id, addressee_id),
-    }
+    # Resolve BOTH sides before writing either. If one side cannot consent,
+    # the connection must not sit half-consented in a parent's inbox -- that
+    # would ask a real parent to approve something that can never complete,
+    # and their "yes" would be on record for a link that never formed.
+    try:
+        sides = {
+            addressee_id: _side_consent(addressee_id, requester_id),
+            requester_id: _side_consent(requester_id, addressee_id),
+        }
+    except PeerConnectionError:
+        _decline(admin, connection_id)
+        raise
 
-    updated = admin.table('peer_connections').update({
+    admin.table('peer_connections').update({
         'status': 'pending_approval',
         'responded_at': _iso(_now()),
         'updated_at': _iso(_now()),
-    }).eq('id', connection_id).execute().data[0]
+    }).eq('id', connection_id).execute()
 
-    for student_id, approver in approvers.items():
-        admin.table('peer_connection_approvals').insert({
+    delegated = bool(acting_user_id and acting_user_id != addressee_id)
+    for student_id, side in sides.items():
+        approver = side['approver']
+        other = requester_id if student_id == addressee_id else addressee_id
+        row = {
             'connection_id': connection_id,
             'student_id': student_id,
             'approver_id': approver['user_id'],
             'approver_kind': approver['kind'],
-        }).execute()
+        }
+        parent_is_answering = (delegated and student_id == addressee_id
+                               and pa.is_parent_of(acting_user_id, student_id))
+        settled = side['mode'] == 'auto' or parent_is_answering
+        if settled:
+            row.update({
+                'status': 'approved',
+                'method': 'explicit' if parent_is_answering else 'policy',
+                'decided_by_user_id': acting_user_id if parent_is_answering else None,
+                'responded_at': _iso(_now()),
+            })
+        else:
+            row.update({'status': 'pending', 'method': 'explicit'})
+        admin.table('peer_connection_approvals').insert(row).execute()
+        if settled:
+            continue
 
-        other = requester_id if student_id == addressee_id else addressee_id
         _notify(
             approver['user_id'], 'peer_connection_needs_approval',
-            'A connection needs your approval',
-            f"{_display_name(student_id)} wants to connect with "
+            'A friend request needs your approval',
+            f"{_display_name(student_id)} wants to be friends with "
             f"{_display_name(other)}. They would be able to see and comment on "
             f"each other's work.",
-            link='/connections/approvals',
+            link='/family' if approver['kind'] == 'parent' else '/connections/approvals',
         )
 
         # And out of band. The in-app notification only reaches an approver who
@@ -446,32 +622,24 @@ def respond_to_request(addressee_id: str, connection_id: str,
         # look, to two students, like a silent refusal.
         _email_approver(approver, student_id, other)
 
-    return updated
+    return _maybe_activate(connection_id)
 
 
 def _email_approver(approver: Dict[str, Any], student_id: str,
                     other_id: str) -> None:
-    """Best-effort approval email. A send failure must not fail the accept.
-
-    The in-app notification is already written by the time this runs, so the
-    request is never lost -- worst case the approver has to find it by signing
-    in, which is exactly where they were before this email existed.
-    """
+    """Send the approval request email. Best-effort, like _notify: the in-app
+    notification is already written, so a bounced email must not roll back an
+    accept the two students already made."""
+    rows = _admin().table('users').select('id, email, first_name, display_name') \
+        .eq('id', approver['user_id']).limit(1).execute().data or []
+    if not rows or not rows[0].get('email'):
+        return
+    adult = rows[0]
     try:
-        rows = _admin().table('users').select('id, email, first_name, display_name') \
-            .eq('id', approver['user_id']).limit(1).execute().data or []
-        if not rows or not rows[0].get('email'):
-            logger.warning(
-                "[peer-connections] no email for approver %s; in-app only",
-                str(approver['user_id'])[:8])
-            return
-        row = rows[0]
-
         from services.email_service import email_service
         email_service.send_peer_connection_approval_email(
-            approver_email=row['email'],
-            approver_name=(row.get('first_name') or row.get('display_name')
-                           or 'there'),
+            approver_email=adult['email'],
+            approver_name=adult.get('first_name') or adult.get('display_name') or 'there',
             child_name=_display_name(student_id),
             peer_name=_display_name(other_id),
             approver_kind=approver.get('kind') or 'parent',
@@ -483,17 +651,27 @@ def _email_approver(approver: Dict[str, Any], student_id: str,
 
 def approver_decision(approver_id: str, connection_id: str,
                       approve: bool) -> Dict[str, Any]:
-    """A parent (or same-org admin) answers for their own side."""
+    """An adult answers for one side.
+
+    The recorded approver may answer, and so may any current parent of that
+    side's student: a policy set by one parent must not lock the other parent
+    out of a request the family is being asked about. Who actually answered
+    is stamped on the row.
+    """
     admin = _admin()
     rows = admin.table('peer_connection_approvals').select('*') \
-        .eq('connection_id', connection_id).eq('approver_id', approver_id) \
-        .limit(1).execute().data or []
-    if not rows:
-        raise PeerConnectionError('Approval request not found')
-    approval = rows[0]
+        .eq('connection_id', connection_id).eq('status', 'pending') \
+        .execute().data or []
 
-    if approval['status'] != 'pending':
-        raise PeerConnectionError('You have already answered this request.')
+    approval = None
+    for row in rows:
+        if row.get('approver_id') == approver_id or pa.is_parent_of(approver_id, row['student_id']):
+            approval = row
+            break
+    if approval is None:
+        # Either nothing is pending or this adult is not one who may answer.
+        # The two are told apart below only for the adult who IS entitled.
+        raise PeerConnectionError('Approval request not found')
 
     conn = _get_connection(connection_id)
     if conn['status'] != 'pending_approval':
@@ -501,21 +679,21 @@ def approver_decision(approver_id: str, connection_id: str,
 
     admin.table('peer_connection_approvals').update({
         'status': 'approved' if approve else 'declined',
+        'decided_by_user_id': approver_id,
         'responded_at': _iso(_now()),
     }).eq('id', approval['id']).execute()
 
     if not approve:
-        # One "no" ends it. There is no majority here: each approver speaks for
-        # one child, and a family declining is not outvoted by the other family.
-        admin.table('peer_connections').update({
+        # One "no" ends it. There is no majority here.
+        conn = admin.table('peer_connections').update({
             'status': 'declined',
             'updated_at': _iso(_now()),
-        }).eq('id', connection_id).execute()
+        }).eq('id', connection_id).execute().data[0]
         for uid in (conn['requester_id'], conn['addressee_id']):
-            _notify(uid, 'peer_connection_declined', 'Connection not approved',
-                    'A parent or guardian did not approve this connection.',
+            _notify(uid, 'peer_connection_declined', 'Friend request not approved',
+                    'A parent or guardian did not approve the request.',
                     link='/connections')
-        return _get_connection(connection_id)
+        return conn
 
     return _maybe_activate(connection_id)
 
@@ -526,10 +704,12 @@ def _maybe_activate(connection_id: str) -> Dict[str, Any]:
     The single writer of 'active'. portfolio_access.is_peer_of trusts this
     status and re-derives nothing, so this function is the complete answer to
     what was required before two children could see each other's work: both
-    students said yes, and both students' own accountable adults said yes.
+    students said yes, and both students' own accountable adults said yes --
+    on file in advance under a policy, or explicitly for this request.
     """
     admin = _admin()
-    approvals = admin.table('peer_connection_approvals').select('status') \
+    approvals = admin.table('peer_connection_approvals') \
+        .select('status, student_id, method, decided_by_user_id') \
         .eq('connection_id', connection_id).execute().data or []
 
     if len(approvals) < 2 or any(a['status'] != 'approved' for a in approvals):
@@ -543,20 +723,87 @@ def _maybe_activate(connection_id: str) -> Dict[str, Any]:
 
     for uid in (conn['requester_id'], conn['addressee_id']):
         other = conn['addressee_id'] if uid == conn['requester_id'] else conn['requester_id']
-        _notify(uid, 'peer_connection_approved', 'You are connected',
+        _notify(uid, 'peer_connection_approved', 'You are now friends',
                 f"You and {_display_name(other)} can now see and comment on "
                 f"each other's work.",
                 link='/connections')
 
+    _tell_parents_after_the_fact(conn, approvals)
     return conn
+
+
+def _guardians_of(student_id: str) -> List[str]:
+    """Every guardian of one student, through all three link types."""
+    from utils.class_membership import guardians_by_student
+    return sorted(guardians_by_student([student_id]).get(student_id) or ())
+
+
+def _tell_parents_after_the_fact(conn: Dict[str, Any],
+                                 approvals: List[Dict[str, Any]]) -> None:
+    """Tell each side's parents that a friend was added.
+
+    The policy model moves the parent off the critical path, and this is the
+    other half of that bargain: they are told every time, with a link to the
+    Family tab where the list and the off switch live. A parent who answered
+    THIS request explicitly already knows and is skipped. Best-effort, like
+    every notification here: the connection is already active.
+    """
+    answered = {a.get('decided_by_user_id') for a in approvals if a.get('decided_by_user_id')}
+    for student_id in (conn['requester_id'], conn['addressee_id']):
+        other = conn['addressee_id'] if student_id == conn['requester_id'] else conn['requester_id']
+        try:
+            guardians = [g for g in _guardians_of(student_id) if g not in answered]
+            if not guardians:
+                continue
+            child_name = _display_name(student_id)
+            peer_name = _display_name(other)
+            for guardian_id in guardians:
+                _notify(guardian_id, 'peer_friend_added',
+                        f"{child_name} added a friend",
+                        f"{child_name} and {peer_name} are now friends on Optio. "
+                        f"They can see and comment on each other's work.",
+                        link='/family')
+            _email_friend_added(guardians, child_name, peer_name)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[peer-connections] after-the-fact notice for %s failed: %s",
+                           str(student_id)[:8], e)
+
+
+def _email_friend_added(guardian_ids: List[str], child_name: str,
+                        peer_name: str) -> None:
+    """Email the guardians who will not get it any other way.
+
+    Org parents get a line in the school's weekly digest; platform parents
+    have no digest, so this is their only out-of-band signal. A guardian with
+    an org on their account is skipped here and picked up by the digest.
+    """
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    people = PeerPolicyRepository().users_by_ids(
+        guardian_ids, 'id, email, first_name, display_name, organization_id')
+    for guardian_id in guardian_ids:
+        adult = people.get(guardian_id) or {}
+        if adult.get('organization_id') or not adult.get('email'):
+            continue
+        try:
+            from services.email_service import email_service
+            email_service.send_peer_friend_added_email(
+                parent_email=adult['email'],
+                parent_name=adult.get('first_name') or adult.get('display_name') or 'there',
+                child_name=child_name,
+                peer_name=peer_name,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[peer-connections] friend-added email to %s failed: %s",
+                           str(guardian_id)[:8], e)
 
 
 def revoke(user_id: str, connection_id: str,
            reason: Optional[str] = None) -> Dict[str, Any]:
-    """End an active connection.
+    """End a connection.
 
-    Available to either student and to either side's recorded approver. A
-    parent who approved must be able to withdraw as easily as they consented;
+    Available to either student, to either student's parents, and to either
+    side's recorded approver. A parent who consented -- by policy or by
+    answering -- must be able to withdraw as easily as they consented;
     consent that can only be granted is not consent. Mirrors the symmetry
     portfolio_access documents for publishing.
     """
@@ -564,6 +811,9 @@ def revoke(user_id: str, connection_id: str,
     admin = _admin()
 
     allowed = user_id in (conn['requester_id'], conn['addressee_id'])
+    if not allowed:
+        allowed = (pa.is_parent_of(user_id, conn['requester_id'])
+                   or pa.is_parent_of(user_id, conn['addressee_id']))
     if not allowed:
         approvers = admin.table('peer_connection_approvals') \
             .select('approver_id').eq('connection_id', connection_id) \
@@ -617,7 +867,7 @@ def _display_name(user_id: str) -> str:
 
 
 def list_connections(user_id: str) -> Dict[str, Any]:
-    """Everything this student needs to render the connections page."""
+    """Everything this student needs to render the friends page."""
     admin = _admin()
     rows = admin.table('peer_connections').select('*').or_(
         f'requester_id.eq.{pgrst_uuid(user_id, "user_id")},'
@@ -632,7 +882,9 @@ def list_connections(user_id: str) -> Dict[str, Any]:
             'id': conn['id'],
             'status': conn['status'],
             'peer': _peer_profile(other_id),
+            'source': conn.get('source'),
             'created_at': conn['created_at'],
+            'activated_at': conn.get('activated_at'),
         }
         if conn['status'] == 'active':
             active.append(item)
@@ -681,6 +933,9 @@ def feed(user_id: str, limit: int = 20,
     means my hidden items stay visible to me and my classmate's hidden items are
     dropped before assembly, not filtered at render time where a future caller
     could forget.
+
+    ``author_shape='peer'`` keeps every author on this feed to the shape
+    _peer_profile promises: display name and avatar, never a legal surname.
     """
     from services.activity_feed_service import build_activity_feed
 
@@ -692,17 +947,20 @@ def feed(user_id: str, limit: int = 20,
             limit=limit,
             cursor=cursor,
             confidential_ok_for={user_id},
+            author_shape='peer',
         ),
         'peer_count': len(peers),
     }
 
 
 def pending_approvals(approver_id: str) -> List[Dict[str, Any]]:
-    """Connection approvals waiting on this adult."""
-    admin = _admin()
-    rows = admin.table('peer_connection_approvals').select(
-        'id, connection_id, student_id, approver_kind, created_at'
-    ).eq('approver_id', approver_id).eq('status', 'pending').execute().data or []
+    """Connection approvals waiting on this adult: the ones naming them, plus
+    any for a child they are a parent of (so a co-parent can answer)."""
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    from utils.class_membership import children_of_parent
+
+    rows = PeerConnectionRepository().pending_approvals_for(
+        approver_id, children_of_parent(approver_id))
 
     out = []
     for row in rows:
@@ -731,14 +989,11 @@ def approved_connections(approver_id: str) -> List[Dict[str, Any]]:
 
     Approval is not the end of a parent's involvement, and a consent screen that
     disappears the moment you click Approve leaves them with nothing to manage
-    afterwards. Revocation was available in the API from the start (``revoke``
-    accepts either side's recorded approver) but had no surface, which meant a
-    parent who changed their mind had to ask support -- a right you can only
-    exercise by emailing someone is not much of a right.
-
-    Scoped to connections THIS adult approved. A parent sees their own child's
-    links and nothing about the other family beyond who their child is
-    connected to.
+    afterwards. Scoped to connections THIS adult approved -- by answering, or
+    by the policy they set. A parent sees their own child's links and nothing
+    about the other family beyond who their child is connected to. The
+    per-child list on the Family tab (list_connections through student scope)
+    is the fuller view; this one serves the school-admin approvals page.
     """
     admin = _admin()
     rows = admin.table('peer_connection_approvals').select(
@@ -767,6 +1022,74 @@ def approved_connections(approver_id: str) -> List[Dict[str, Any]]:
     return out
 
 
+def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
+    """What happened between this student and their friends lately, for the
+    parent's oversight view: friends added and removed, comments given and
+    received. Read-only. Reactions join this in phase 2."""
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    from utils.storage_urls import sign_in_place
+
+    days = max(1, min(int(days or 30), 90))
+    since = _iso(_now() - timedelta(days=days))
+    repo = PeerConnectionRepository()
+    connections = repo.connections_touching(student_id, since)
+    comments = repo.comments_involving(student_id, since)
+
+    other_ids = set()
+    for c in connections:
+        other_ids.add(c['addressee_id'] if c['requester_id'] == student_id else c['requester_id'])
+    for c in comments:
+        other_ids.add(c['author_id'] if c['author_id'] != student_id else c['student_id'])
+    other_ids.discard(student_id)
+
+    people = PeerPolicyRepository().users_by_ids(
+        list(other_ids) + [student_id], 'id, display_name, first_name, avatar_url')
+    profiles = {
+        uid: {'id': uid,
+              'display_name': u.get('display_name') or u.get('first_name') or 'A student',
+              'avatar_url': u.get('avatar_url')}
+        for uid, u in people.items()
+    }
+    sign_in_place(list(profiles.values()), ['avatar_url'])
+
+    def _profile(uid):
+        return profiles.get(uid) or {'id': uid, 'display_name': 'A student', 'avatar_url': None}
+
+    return {
+        'since': since,
+        'days': days,
+        'connections': [
+            {
+                'id': c['id'],
+                'status': c['status'],
+                'source': c.get('source'),
+                'peer': _profile(c['addressee_id'] if c['requester_id'] == student_id
+                                 else c['requester_id']),
+                'created_at': c.get('created_at'),
+                'activated_at': c.get('activated_at'),
+                'revoked_at': c.get('revoked_at'),
+                'revoke_reason': c.get('revoke_reason'),
+            }
+            for c in connections
+        ],
+        'comments': [
+            {
+                'id': c['id'],
+                'direction': 'given' if c['author_id'] == student_id else 'received',
+                'peer': _profile(c['author_id'] if c['author_id'] != student_id else c['student_id']),
+                'text': c.get('comment_text'),
+                'created_at': c.get('created_at'),
+                'hidden_at': c.get('hidden_at'),
+                'learning_event_id': c.get('learning_event_id'),
+                'task_completion_id': c.get('task_completion_id'),
+                'quest_id': c.get('quest_id'),
+            }
+            for c in comments
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Comments
 # ---------------------------------------------------------------------------
@@ -780,10 +1103,14 @@ def add_comment(author_id: str, student_id: str, text: str,
     The gate is is_peer_of, which is also what let the author see the work in
     the first place -- so a revoked connection or a fresh block silences the
     comment box on the next request, with no separate permission to keep in
-    sync.
+    sync. On top of that, the work owner's family decides whether friends
+    may comment at all (friends_can).
     """
     if not pa.is_peer_of(author_id, student_id):
         raise PeerConnectionError('You are not connected with this student.')
+
+    if 'comment' not in policy_svc.effective_policy(student_id).friends_can:
+        raise PeerConnectionError("This student's family has turned off comments.")
 
     text = (text or '').strip()
     if not text:
@@ -805,7 +1132,7 @@ def add_comment(author_id: str, student_id: str, text: str,
         'comment_text': text,
     }).execute().data[0]
 
-    _notify(student_id, 'peer_comment', 'A student commented on your work',
+    _notify(student_id, 'peer_comment', 'A friend commented on your work',
             f"{_display_name(author_id)} left a comment.",
             link='/connections')
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
-import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, LockClosedIcon, UserIcon } from '@heroicons/react/24/outline'
+import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, LockClosedIcon, UserIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateChildName } from '../../services/dependentAPI'
 import toast from 'react-hot-toast'
 import ChildAvatarUpload from './ChildAvatarUpload'
 import ChildPrivacyCard from './ChildPrivacyCard'
+import ChildFriendsCard from './ChildFriendsCard'
 
 /**
  * One child's settings -- a tab of Family Settings (FamilySettingsModal),
@@ -26,6 +27,8 @@ import ChildPrivacyCard from './ChildPrivacyCard'
  * - AI features -- the master switch and the three per-feature switches.
  * - Privacy -- who may see this child's portfolio (ChildPrivacyCard, which
  *   used to be Family Settings' own "Privacy" tab, one card per child).
+ * - Friends -- whether this child may have friends on Optio, and on what
+ *   terms (ChildFriendsCard, 2026-09-16). The parent's consent lives here.
  *
  * Observers are NOT here: the family Observers tab lists every observer
  * with a per-child access switch, which is the same control at the family
@@ -500,6 +503,10 @@ const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = n
 
           <Section icon={LockClosedIcon} title="Privacy">
             <ChildPrivacyCard studentId={childId} studentName={childFirstName} />
+          </Section>
+
+          <Section icon={UserGroupIcon} title="Friends">
+            <ChildFriendsCard studentId={childId} studentName={childFirstName} />
           </Section>
     </div>
   )

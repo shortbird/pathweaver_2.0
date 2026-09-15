@@ -25,6 +25,7 @@ vi.mock('../../services/dependentAPI', () => ({
   addDependentLogin: vi.fn(), toggleDependentAIAccess: vi.fn(), updateDependentAIFeatures: vi.fn(), updateChildName: vi.fn(),
 }))
 vi.mock('./ChildPrivacyCard', () => ({ default: ({ studentName }) => <div data-testid="privacy-card">Privacy for {studentName}</div> }))
+vi.mock('./ChildFriendsCard', () => ({ default: ({ studentName }) => <div data-testid="friends-card">Friends for {studentName}</div> }))
 vi.mock('framer-motion', () => ({ motion: { span: (p) => <span {...p} /> } }))
 
 const FAMILY = [

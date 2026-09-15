@@ -27,8 +27,12 @@ CURRENT_TOS_VERSION = "1.1"
 # 1.1 (2026-06-16): added advertising-audience data-sharing disclosure + opt-out.
 # 1.2 (2026-08-01): portfolio visibility corrected to private-by-default with
 #   parent control; added private-portfolio readers and transcript links.
-CURRENT_PRIVACY_POLICY_VERSION = "1.2"
+# 1.3 (2026-09-16): Friends. A parent enables peer connections per child and
+#   sets the boundaries; described what a friend sees and never sees, the
+#   parent's list, activity view and off switch, and the org administrator
+#   standing in for a student with no parent linked.
+CURRENT_PRIVACY_POLICY_VERSION = "1.3"
 
 # Date when current versions became effective (must match the shared docs)
 TOS_EFFECTIVE_DATE = "2026-08-01"
-PRIVACY_POLICY_EFFECTIVE_DATE = "2026-08-01"
+PRIVACY_POLICY_EFFECTIVE_DATE = "2026-09-16"

@@ -34,6 +34,7 @@ def build_activity_feed(
     limit: int = 20,
     cursor: Optional[str] = None,
     confidential_ok_for: Optional[Set[str]] = None,
+    author_shape: str = 'full',
 ) -> Dict[str, Any]:
     """Assemble a chronological feed of task completions and learning moments.
 
@@ -46,6 +47,12 @@ def build_activity_feed(
         cursor: ISO timestamp; returns items strictly older than this.
         confidential_ok_for: owners whose ``is_confidential`` items to include.
             Anyone not in this set has their hidden items dropped entirely.
+        author_shape: 'full' gives each author's display name, first and last
+            name and avatar -- what a parent, observer or teacher sees.
+            'peer' gives display name and avatar only, the shape
+            peer_connection_service._peer_profile promises: a friend is
+            consent to show your work, not your legal surname. The peer feed
+            shipped last_name for a month before this flag existed.
 
     Returns {'items', 'has_more', 'next_cursor'}.
     """
@@ -401,6 +408,12 @@ def build_activity_feed(
 
     def _author(owner_id):
         info = students_map.get(owner_id, {})
+        if author_shape == 'peer':
+            return {
+                'id': owner_id,
+                'display_name': info.get('display_name') or info.get('first_name'),
+                'avatar_url': info.get('avatar_url'),
+            }
         return {
             'id': owner_id,
             'display_name': info.get('display_name'),

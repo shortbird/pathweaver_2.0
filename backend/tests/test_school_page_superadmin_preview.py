@@ -69,7 +69,7 @@ class TestSchoolContextForOrg:
             'orgs': [{'organization_id': 'org-1',
                       'organization_name': 'iCreate',
                       'is_guardian': False,
-                      'modules': [],
+                      'modules': ['friends'],
                       'family_first_home': False,
                       'post_registration_flow': 'goals',
                       'prior_learning_enabled': False,

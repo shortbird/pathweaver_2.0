@@ -11,11 +11,12 @@ import api from '../services/api'
  *
  * Two things about the design are load-bearing rather than cosmetic:
  *
- *   1. THERE IS NO SEARCH BOX. You cannot look another student up. You connect
- *      by typing a code they handed you in person, which is why a stranger has
- *      no way to reach a child here. If you find yourself adding a directory or
- *      a "people you may know" list, that is the safety property being removed,
- *      not a feature being added.
+ *   1. THERE IS NO GLOBAL SEARCH. You cannot look another student up by name.
+ *      Discovery is limited to pools the platform vouches for: a code handed
+ *      over in person or by link, classmates, a parent connecting two
+ *      families, and (where a school opts in) the school itself. If you find
+ *      yourself adding a directory or a "people you may know" list, that is
+ *      the safety property being removed, not a feature being added.
  *
  *   2. THE AGE QUESTION IS NEUTRAL AND ASKED FIRST. The DOB prompt does not say
  *      "you must be 13+" above the input — that just tells a ten-year-old which
@@ -23,18 +24,22 @@ import api from '../services/api'
  *      after the answer is given. The answer is also one-shot: the backend locks
  *      it, so the copy here promises nothing it can't keep.
  *
- * The entry point is shown to every student who is 13+ OR whose age we don't
- * know yet (state 'needs_dob'). Only a confirmed under-13 sees a dead end, and
- * it is a warm one rather than a validation error.
+ * Since 2026-09-16 the gate is the family's Friends policy, not the student's
+ * age: a parent turns Friends on per child (Family settings) and the student
+ * connects inside the rules the parent chose. The entry point is shown when
+ * Friends is on. When it is off, the page names who could turn it on rather
+ * than presenting a dead end. The age screen remains for the one population
+ * with nobody to answer for them -- a platform student with no parent linked
+ * and no date of birth on file.
  *
- * Backed by /api/connections (see backend/services/peer_connection_service.py,
- * which is where the actual rules live).
+ * Backed by /api/connections (see backend/services/peer_connection_service.py
+ * and peer_policy_service.py, which is where the actual rules live).
  */
 
 const STATE_ELIGIBLE = 'eligible'
 const STATE_NEEDS_DOB = 'needs_dob'
-const STATE_UNDER_13 = 'under_13'
-const STATE_NEEDS_PARENT_DOB = 'needs_parent_dob'
+const STATE_FRIENDS_OFF = 'friends_off'
+const STATE_MODULE_OFF = 'module_off'
 
 function Avatar({ peer }) {
   if (peer?.avatar_url) {
@@ -173,14 +178,15 @@ export default function ConnectionsPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-neutral-900">Connections</h1>
+      <h1 className="text-2xl font-bold text-neutral-900">Friends</h1>
       <p className="text-neutral-600 mt-1">
-        Connect with another student to see and comment on each other's work.
+        Be friends with another student to see and comment on each other's work.
       </p>
 
-      {/* Confirmed under 13. A dead end, but an explanation rather than an
-          error — they did nothing wrong by being ten. */}
-      {state === STATE_UNDER_13 && (
+      {/* Friends is off for this student. Not a dead end: the reason names
+          the adult who can turn it on, because that is the one thing the
+          student can act on. */}
+      {state === STATE_FRIENDS_OFF && (
         <div className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-5">
           <p className="text-neutral-800">{eligibility.reason}</p>
           <p className="text-sm text-neutral-600 mt-2">
@@ -190,7 +196,7 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      {state === STATE_NEEDS_PARENT_DOB && (
+      {state === STATE_MODULE_OFF && (
         <div className="mt-6 rounded-lg border border-neutral-200 bg-neutral-50 p-5">
           <p className="text-neutral-800">{eligibility.reason}</p>
         </div>
@@ -277,8 +283,9 @@ export default function ConnectionsPage() {
 
           <div className="mt-6 rounded-lg bg-neutral-50 border border-neutral-200 p-4">
             <p className="text-sm text-neutral-700">
-              Both of you have to say yes, and then both of your parents or
-              guardians approve it. Either of you, or either grown-up, can undo a
+              Both of you have to say yes. Your families set the rules: some
+              parents want to approve each friend first, and yours are told
+              whenever you add one. Either of you, or either grown-up, can undo a
               connection at any time.
             </p>
           </div>

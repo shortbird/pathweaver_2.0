@@ -3,10 +3,16 @@
 Each test names the way the feature could be unsafe rather than the branch it
 covers. The four things that must stay true:
 
-  * an under-13 cannot get in, and cannot retry their way in
-  * both families consent, and one family never consents for another
+  * a student whose family has not turned Friends on cannot get in, cannot be
+    reached, and cannot retry their way in
+  * both families consent -- on file under a policy, or explicitly -- and one
+    family never consents for another
   * a school only stands in where the school exception applies
   * revocation and blocking actually cut access off
+
+The policy model itself (who may set it, the consent record, what "off"
+does) is tested in test_peer_policy.py; the lifecycle under it in
+test_peer_connection_lifecycle.py.
 """
 
 from datetime import date, timedelta
@@ -132,11 +138,11 @@ def test_age_screen_records_an_under_13_answer_instead_of_rejecting_it():
                                  'date_of_birth_locked_at': None,
                                  'is_dependent': False})
     with patch.object(svc, '_admin', return_value=client):
-        with patch.object(svc, 'eligibility', return_value={'state': svc.UNDER_13,
+        with patch.object(svc, 'eligibility', return_value={'state': svc.FRIENDS_OFF,
                                                             'reason': 'x'}):
             result = svc.age_check('u1', _dob(10))
 
-    assert result['state'] == svc.UNDER_13
+    assert result['state'] == svc.FRIENDS_OFF
     written = [u for (t, u) in store['updates'] if t == 'users']
     assert written, 'the under-13 date of birth must be persisted, not discarded'
     assert written[0]['date_of_birth_locked_at'] is not None
@@ -168,27 +174,57 @@ def test_age_screen_refuses_a_dependent():
             svc.age_check('u1', _dob(14))
 
 
+def _off(who_can_enable, reason='off', origin='none'):
+    from services.peer_policy_service import EffectivePolicy
+    return EffectivePolicy(student_id='u1', enabled=False, origin=origin,
+                           reason=reason, who_can_enable=who_can_enable)
+
+
 def test_eligibility_sends_unknown_age_to_the_screen_not_to_a_refusal():
-    """A student of unknown age must be asked, not told no. This is the
-    distinction the old portfolio gate got wrong by showing the under-18
-    explanation to people whose age simply wasn't on file."""
+    """A platform student with nobody to answer for them and no age on file
+    must be asked, not told no. This is the distinction the old portfolio gate
+    got wrong by showing the under-18 explanation to people whose age simply
+    wasn't on file."""
     from services import peer_connection_service as svc
 
     client, _ = _fake_admin({'id': 'u1', 'date_of_birth': None,
                              'date_of_birth_locked_at': None,
                              'is_dependent': False})
-    with patch.object(svc, '_admin', return_value=client):
+    with patch.object(svc, '_admin', return_value=client), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=_off('nobody')):
         assert svc.eligibility('u1')['state'] == svc.NEEDS_DOB
 
 
 def test_eligibility_points_a_dependent_at_their_parent():
+    """A dependent has a parent by construction. Off means the parent has
+    not turned it on -- say so, rather than sending the child to an age
+    screen they cannot answer."""
     from services import peer_connection_service as svc
 
     client, _ = _fake_admin({'id': 'u1', 'date_of_birth': None,
                              'date_of_birth_locked_at': None,
                              'is_dependent': True})
-    with patch.object(svc, '_admin', return_value=client):
-        assert svc.eligibility('u1')['state'] == svc.NEEDS_PARENT_DOB
+    with patch.object(svc, '_admin', return_value=client), \
+         patch.object(svc.policy_svc, 'effective_policy',
+                      return_value=_off('parent', 'Ask Mo to turn on Friends for you.')):
+        out = svc.eligibility('u1')
+
+    assert out['state'] == svc.FRIENDS_OFF
+    assert out['who_can_enable'] == 'parent'
+    assert 'Mo' in out['reason']
+
+
+def test_eligibility_reports_the_school_switch():
+    from services import peer_connection_service as svc
+    from services.peer_policy_service import ORIGIN_MODULE_OFF
+
+    client, _ = _fake_admin({'id': 'u1', 'date_of_birth': _dob(14),
+                             'date_of_birth_locked_at': None,
+                             'is_dependent': False})
+    with patch.object(svc, '_admin', return_value=client), \
+         patch.object(svc.policy_svc, 'effective_policy',
+                      return_value=_off(None, 'school off', origin=ORIGIN_MODULE_OFF)):
+        assert svc.eligibility('u1')['state'] == svc.MODULE_OFF
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +307,7 @@ def test_activation_requires_both_sides(approvals, expect_active):
                           return_value={'id': 'c1', 'status': 'pending_approval',
                                         'requester_id': 'a', 'addressee_id': 'b'}):
             with patch.object(svc, '_notify'), \
+                 patch.object(svc, '_tell_parents_after_the_fact'), \
                  patch.object(svc, '_display_name', return_value='Sam'):
                 result = svc._maybe_activate('c1')
 
@@ -342,10 +379,29 @@ def test_commenting_requires_an_active_connection():
             svc.add_comment('a', 'b', 'nice work', learning_event_id='le1')
 
 
+def _comments_on():
+    from services.peer_policy_service import EffectivePolicy
+    return EffectivePolicy(student_id='b', enabled=True, friends_can=['see', 'comment'])
+
+
+def test_a_family_that_turned_comments_off_is_honoured():
+    """friends_can is the work owner's family's decision, checked after
+    is_peer_of: a friend who may see the work still may not write on it."""
+    from services import peer_connection_service as svc
+    from services.peer_policy_service import EffectivePolicy
+
+    see_only = EffectivePolicy(student_id='b', enabled=True, friends_can=['see'])
+    with patch.object(svc.pa, 'is_peer_of', return_value=True), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=see_only):
+        with pytest.raises(svc.PeerConnectionError, match='turned off comments'):
+            svc.add_comment('a', 'b', 'nice work', learning_event_id='le1')
+
+
 def test_a_comment_must_name_exactly_one_item():
     from services import peer_connection_service as svc
 
-    with patch.object(svc.pa, 'is_peer_of', return_value=True):
+    with patch.object(svc.pa, 'is_peer_of', return_value=True), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=_comments_on()):
         with pytest.raises(svc.PeerConnectionError, match='exactly one item'):
             svc.add_comment('a', 'b', 'hi', learning_event_id='le1',
                             quest_id='q1')
@@ -356,7 +412,8 @@ def test_a_comment_must_name_exactly_one_item():
 def test_empty_comment_is_refused():
     from services import peer_connection_service as svc
 
-    with patch.object(svc.pa, 'is_peer_of', return_value=True):
+    with patch.object(svc.pa, 'is_peer_of', return_value=True), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=_comments_on()):
         with pytest.raises(svc.PeerConnectionError, match='cannot be empty'):
             svc.add_comment('a', 'b', '   ', learning_event_id='le1')
 
@@ -364,7 +421,8 @@ def test_empty_comment_is_refused():
 def test_overlong_comment_is_refused():
     from services import peer_connection_service as svc
 
-    with patch.object(svc.pa, 'is_peer_of', return_value=True):
+    with patch.object(svc.pa, 'is_peer_of', return_value=True), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=_comments_on()):
         with pytest.raises(svc.PeerConnectionError, match='characters or fewer'):
             svc.add_comment('a', 'b', 'x' * (svc.MAX_COMMENT_LENGTH + 1),
                             learning_event_id='le1')
@@ -407,23 +465,34 @@ def test_an_invalid_and_an_expired_code_are_indistinguishable():
     with patch.object(svc, '_require_eligible'):
         with patch.object(svc, '_resolve_code', return_value=None):
             with pytest.raises(svc.PeerConnectionError) as expired:
-                svc.request_by_code('a', 'EXPIRED1')
+                svc.request('a', code='EXPIRED1')
             with pytest.raises(svc.PeerConnectionError) as missing:
-                svc.request_by_code('a', 'NOSUCH12')
+                svc.request('a', code='NOSUCH12')
 
     assert str(expired.value) == str(missing.value)
 
 
-def test_an_under_13_code_holder_cannot_be_connected_to():
-    """Both ends of a connection are age-gated. Checking only the initiator
-    would let a 14-year-old pull a 10-year-old in."""
+def test_a_code_holder_whose_family_has_friends_off_looks_like_an_invalid_code():
+    """Both ends of a connection are policy-gated. Checking only the
+    initiator would let a student whose family said yes pull in one whose
+    family said nothing -- and a distinct error would tell the initiator
+    which families have not turned Friends on."""
     from services import peer_connection_service as svc
+    from services.peer_policy_service import EffectivePolicy
 
-    with patch.object(svc, '_require_eligible'):
-        with patch.object(svc, '_resolve_code', return_value='child'):
-            with patch.object(svc.pa, 'is_under_13_by_id', return_value=True):
-                with pytest.raises(svc.PeerConnectionError, match='not valid'):
-                    svc.request_by_code('a', 'CODE1234')
+    off = EffectivePolicy(student_id='child', enabled=False, who_can_enable='parent')
+    with patch.object(svc, '_require_eligible'), \
+         patch.object(svc, '_resolve_code', return_value='child'), \
+         patch.object(svc.pa, 'is_blocked_between', return_value=False), \
+         patch.object(svc.policy_svc, 'effective_policy', return_value=off):
+        with pytest.raises(svc.PeerConnectionError) as refused:
+            svc.request('a', code='CODE1234')
+    with patch.object(svc, '_require_eligible'), \
+         patch.object(svc, '_resolve_code', return_value=None):
+        with pytest.raises(svc.PeerConnectionError) as missing:
+            svc.request('a', code='NOSUCH12')
+
+    assert str(refused.value) == str(missing.value)
 
 
 def test_you_cannot_connect_to_yourself():
@@ -432,7 +501,7 @@ def test_you_cannot_connect_to_yourself():
     with patch.object(svc, '_require_eligible'):
         with patch.object(svc, '_resolve_code', return_value='a'):
             with pytest.raises(svc.PeerConnectionError, match='your own code'):
-                svc.request_by_code('a', 'CODE1234')
+                svc.request('a', code='CODE1234')
 
 
 def test_share_codes_avoid_ambiguous_glyphs():
@@ -510,9 +579,14 @@ def test_an_approver_with_no_email_is_skipped_quietly():
     mail.send_peer_connection_approval_email.assert_not_called()
 
 
-def test_both_approvers_are_emailed_when_the_second_student_accepts():
-    """One email per side. Emailing only the initiator's parent would leave the
-    other family's approval sitting in an inbox nobody checks."""
+def _ask_first(sid, oid):
+    return {'mode': 'ask_first', 'approver': {'user_id': f'parent_of_{sid}', 'kind': 'parent'}}
+
+
+def test_both_approvers_are_emailed_when_both_families_asked_to_be_asked():
+    """One email per ask-first side. Emailing only the initiator's parent
+    would leave the other family's approval sitting in an inbox nobody
+    checks."""
     from services import peer_connection_service as svc
 
     conn = {'id': 'c1', 'status': 'pending_addressee',
@@ -527,15 +601,43 @@ def test_both_approvers_are_emailed_when_the_second_student_accepts():
          patch.object(svc, '_require_eligible'), \
          patch.object(svc, '_display_name', side_effect=lambda uid: uid), \
          patch.object(svc, '_notify'), \
-         patch.object(svc, '_resolve_approver',
-                      side_effect=lambda sid, oid: {'user_id': f'parent_of_{sid}',
-                                                    'kind': 'parent',
-                                                    'first_name': 'P'}), \
+         patch.object(svc, '_maybe_activate', return_value={**conn, 'status': 'pending_approval'}), \
+         patch.object(svc, '_side_consent', side_effect=_ask_first), \
          patch.object(svc, '_email_approver') as mailer:
         svc.respond_to_request('b', 'c1', accept=True)
 
     emailed = {c.args[0]['user_id'] for c in mailer.call_args_list}
     assert emailed == {'parent_of_a', 'parent_of_b'}
+
+
+def test_a_family_that_consented_by_policy_is_not_emailed_to_approve():
+    """Their answer is already on file. Asking again would be the old
+    critical-path parent approval wearing a new name."""
+    from services import peer_connection_service as svc
+
+    conn = {'id': 'c1', 'status': 'pending_addressee',
+            'requester_id': 'a', 'addressee_id': 'b'}
+    client = Mock()
+    client.table.return_value.update.return_value.eq.return_value.execute.return_value = Mock(
+        data=[{**conn, 'status': 'pending_approval'}])
+    client.table.return_value.insert.return_value.execute.return_value = Mock(data=[{}])
+
+    def consent(sid, oid):
+        mode = 'auto' if sid == 'a' else 'ask_first'
+        return {'mode': mode, 'approver': {'user_id': f'parent_of_{sid}', 'kind': 'parent'}}
+
+    with patch.object(svc, '_admin', return_value=client), \
+         patch.object(svc, '_get_connection', return_value=conn), \
+         patch.object(svc, '_require_eligible'), \
+         patch.object(svc, '_display_name', side_effect=lambda uid: uid), \
+         patch.object(svc, '_notify'), \
+         patch.object(svc, '_maybe_activate', return_value={**conn, 'status': 'pending_approval'}), \
+         patch.object(svc, '_side_consent', side_effect=consent), \
+         patch.object(svc, '_email_approver') as mailer:
+        svc.respond_to_request('b', 'c1', accept=True)
+
+    emailed = {c.args[0]['user_id'] for c in mailer.call_args_list}
+    assert emailed == {'parent_of_b'}
 
 
 def test_no_email_goes_out_when_the_student_declines():
@@ -706,7 +808,8 @@ def test_either_student_and_either_approver_may_revoke():
         data=[{**conn, 'status': 'revoked'}]
     )
 
-    with patch.object(svc, '_admin', return_value=client):
+    with patch.object(svc, '_admin', return_value=client), \
+         patch.object(svc.pa, 'is_parent_of', return_value=False):
         with patch.object(svc, '_get_connection', return_value=conn):
             for who in ('a', 'b', 'mum', 'dad'):
                 assert svc.revoke(who, 'c1')['status'] == 'revoked'
