@@ -118,6 +118,11 @@ export const reportContent = (targetType, targetId, reason) =>
 /** Where a friend chat lives: the Messages page, opened on that person. */
 export const messagesLinkFor = (userId) => `/messages?user=${encodeURIComponent(userId)}`
 
+/** A student whose family has Friends off asks the parent to turn it on.
+ *  Every guardian gets a notification and an email. Three a day. */
+export const askParent = () =>
+  api.post('/api/connections/ask-parent', {}).then(unwrap)
+
 // -- the parent's side --------------------------------------------------------
 
 export const getChildPolicy = (childId) =>

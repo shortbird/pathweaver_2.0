@@ -780,6 +780,44 @@ emails:
     signature: "support"
     footer_extra: "Questions? Reply to this email or contact support@optioeducation.com."
 
+  # A student whose family has Friends off tapped "Ask my parent". The kid
+  # drives it, the parent consents: this is the one prompt a parent gets
+  # to open the setting they otherwise have to find three screens deep.
+  friends_ask_parent:
+    subject: "{{ child_name }} would like to use Friends on Optio"
+    title: "{{ child_name }} Is Asking for Friends"
+    salutation: "Hi {{ parent_name }},"
+    paragraphs:
+      - "<strong>{{ child_name }}</strong> would like to add friends on Optio, so they can see and encourage each other's work. Friends is off for {{ child_name }} until you turn it on."
+    highlight_box:
+      title: "What turning it on means"
+      bullet_points:
+        - "You choose the rules: whether each friend is added right away or asks you first, who may send {{ child_name }} a request, and what friends can do"
+        - "Friends see {{ child_name }}'s display name, picture, and the work they share. Never an email address, last name, date of birth, or school"
+        - "Everything students write to each other passes a safety check first"
+        - "You see every friend and everything said, and you can remove a friend, block one, or turn Friends off at any time"
+    cta:
+      text: "Open {{ child_name }}'s Friends settings"
+      url: "{{ family_url }}"
+    closing_paragraphs:
+      - "If you'd rather not, you don't need to do anything. {{ child_name }} can ask again another day."
+    signature: "support"
+    footer_extra: "You're receiving this because you're listed as {{ child_name }}'s parent or guardian on Optio. Questions? Reply to this email or contact support@optioeducation.com."
+
+  # Once a day to the superadmins, only when something is waiting.
+  moderation_daily_digest:
+    subject: "Moderation: {{ pending_reports }} report(s) waiting, {{ holds_24h }} text(s) held today"
+    title: "Moderation Digest"
+    salutation: "Hi {{ admin_name }},"
+    paragraphs:
+      - "<strong>{{ pending_reports }}</strong> report(s) are waiting for review, and the safety screen held <strong>{{ holds_24h }}</strong> text(s) between students in the last day."
+    cta:
+      text: "Open the moderation queue"
+      url: "{{ queue_url }}"
+    closing_paragraphs:
+      - "Held texts are in the Holds tab. A hold that should not have happened is worth a look at the screen's prompt."
+    signature: "support"
+
   course_enrollment:
     subject: "Welcome to '{{ course_title }}' on Optio!"
     title: "Welcome to Your New Course!"

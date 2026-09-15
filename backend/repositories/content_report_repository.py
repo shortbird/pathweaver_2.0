@@ -27,6 +27,13 @@ class ContentReportRepository(BaseRepository):
             .eq('id', report_id).limit(1).execute().data or []
         return rows[0] if rows else None
 
+    def count_pending(self) -> int:
+        """Reports nobody has looked at. count='exact', never len(): the
+        queue is unbounded and PostgREST caps a page at 1,000."""
+        res = self.client.table(self.table_name).select('id', count='exact') \
+            .eq('status', 'pending').limit(1).execute()
+        return int(res.count or 0)
+
     def peer_comment_texts(self, ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """{comment_id: {text, author_id, hidden_at}} for the queue's preview."""
         if not ids:

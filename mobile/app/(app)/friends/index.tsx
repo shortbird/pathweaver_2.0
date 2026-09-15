@@ -20,7 +20,7 @@ import { View, ScrollView, Pressable, ActivityIndicator, TextInput, Platform, us
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useFriends, type ConnectionItem } from '@/src/hooks/useFriends';
+import { useFriends, askParent, type ConnectionItem } from '@/src/hooks/useFriends';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Avatar, AvatarFallbackText, AvatarImage } from '@/src/components/ui';
 import { confirmAlert, showAlert } from '@/src/utils/alerts';
@@ -68,6 +68,21 @@ export default function FriendsScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
   const { eligibility, connections, loading, busy, error, refetch, respond, revoke, submitDob } = useFriends();
+
+  // Friends is off and a parent can turn it on: the kid reaches the switch.
+  const [asked, setAsked] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const ask = useCallback(async () => {
+    setAsking(true);
+    try {
+      await askParent();
+      setAsked(true);
+    } catch (err) {
+      showAlert('Could not send that', extractApiError(err).message);
+    } finally {
+      setAsking(false);
+    }
+  }, []);
   const [dob, setDob] = useState('');
 
   const answer = useCallback(async (item: ConnectionItem, accept: boolean) => {
@@ -147,6 +162,15 @@ export default function FriendsScreen() {
                   <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
                     In the meantime, your parent, guardian, and teachers can already see everything you make.
                   </UIText>
+                  {eligibility?.who_can_enable === 'parent' && (
+                    asked ? (
+                      <UIText size="sm" className="font-poppins-medium" testID="ask-parent-sent">Asked. Your parent will get a message and an email.</UIText>
+                    ) : (
+                      <Button onPress={ask} disabled={asking} className="self-start mt-1" testID="ask-parent-button">
+                        <ButtonText>Ask my parent</ButtonText>
+                      </Button>
+                    )
+                  )}
                 </VStack>
               </Card>
             )}

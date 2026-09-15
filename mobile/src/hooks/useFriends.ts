@@ -305,6 +305,13 @@ export async function reportContent(targetType: ReportTarget, targetId: string, 
   await api.post('/api/moderation/report', { target_type: targetType, target_id: targetId, reason });
 }
 
+/** A student whose family has Friends off asks the parent to turn it on.
+ *  Every guardian gets a notification and an email. Three a day. */
+export async function askParent(): Promise<{ asked: number }> {
+  const res = await api.post('/api/connections/ask-parent', {});
+  return unwrap(res);
+}
+
 /** Where a friend chat lives: the Messages tab, opened on that person. */
 export function messagesRouteFor(userId: string): string {
   return `/(app)/(tabs)/messages?user=${encodeURIComponent(userId)}`;

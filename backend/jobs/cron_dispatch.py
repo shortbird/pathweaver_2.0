@@ -167,6 +167,13 @@ def main():
     _run("parent-weekly-digest", f"{base}/api/parent-digest/internal/sweep",
          cron_secret, failures, base=base)
 
+    # Once/day (14:00 UTC, morning in Utah): the moderation digest. Reports
+    # nobody has looked at and what the safety screen held in the last day,
+    # emailed to the superadmins. Sends nothing when both are zero.
+    if now.hour == 14 and now.minute < 10:
+        _run("moderation-daily-digest", f"{base}/api/admin/moderation/internal/daily-digest",
+             cron_secret, failures, base=base)
+
     # Hourly: Google Calendar booking poll (the "scheduled a video chat"
     # conversion trigger). No-ops until the calendar credential is configured.
     if now.minute < 10:

@@ -28,6 +28,7 @@ import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useChildDashboard } from '@/src/hooks/useParent';
 import type { Child } from '@/src/types/family';
 import type { ConnectionApprovals } from '@/src/hooks/useConnectionApprovals';
+import { FriendsOffNudge } from './FriendsOffNudge';
 import type { QuestRhythm } from '@/src/hooks/useFamilyQuests';
 import { formatRelativeTime } from '@/src/utils/timeAgo';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
@@ -208,6 +209,8 @@ export function ChildCard({
         childId={child.id}
         childFirstName={firstName}
       />
+
+      <FriendsOffNudge childId={child.id} childFirstName={firstName} />
     </Card>
   );
 }

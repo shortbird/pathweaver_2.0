@@ -91,6 +91,50 @@ def update_report(user_id, report_id):
         return jsonify({'error': 'Failed to update report'}), 500
 
 
+@bp.route('/holds', methods=['GET'])
+@require_admin
+def list_holds(user_id):
+    """What the safety screen held (Friends phase 3), newest first. Read-only:
+    a hold is a record of a text that was never delivered, so there is
+    nothing to restore. This is where a false positive gets noticed."""
+    try:
+        limit = min(int(request.args.get('limit', 100)), 200)
+    except ValueError:
+        return jsonify({'error': 'limit must be an integer'}), 400
+    from services.content_takedown_service import recent_holds
+    try:
+        return jsonify({'holds': recent_holds(limit)}), 200
+    except Exception as e:
+        logger.error(f"Error listing holds: {e}")
+        return jsonify({'error': 'Failed to list holds'}), 500
+
+
+def _cron_or_superadmin() -> bool:
+    """The dual gate the other sweeps use: X-Cron-Secret, or a signed-in
+    superadmin triggering it by hand."""
+    from utils.cron_auth import is_valid_cron_secret
+    if is_valid_cron_secret(request.headers.get('X-Cron-Secret')):
+        return True
+    from utils.session_manager import session_manager
+    from utils.roles import get_effective_role
+    uid = session_manager.get_effective_user_id()
+    if not uid:
+        return False
+    # admin client justified: one users row to confirm the caller is a superadmin before running an internal job by hand
+    row = get_supabase_admin_client().table('users').select('role') \
+        .eq('id', uid).limit(1).execute().data
+    return bool(row and get_effective_role(row[0]) == 'superadmin')
+
+
+@bp.route('/internal/daily-digest', methods=['POST'])
+def moderation_daily_digest():
+    """Cron entrypoint, once a day: email the superadmins what is waiting."""
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    from services.content_takedown_service import daily_digest
+    return jsonify({'success': True, **daily_digest()}), 200
+
+
 @bp.route('/internal/text-screen-sweep', methods=['POST'])
 def text_screen_sweep():
     """Cron entrypoint: re-screen peer text that posted while the model was
@@ -104,19 +148,9 @@ def text_screen_sweep():
     the same dual gate as the other sweeps.
     """
     from app_config import Config
-    from utils.cron_auth import is_valid_cron_secret
 
-    if not is_valid_cron_secret(request.headers.get('X-Cron-Secret')):
-        from utils.session_manager import session_manager
-        from utils.roles import get_effective_role
-        uid = session_manager.get_effective_user_id()
-        # admin client justified: one users row to confirm the caller is a superadmin before running the sweep by hand
-        row = None
-        if uid:
-            row = get_supabase_admin_client().table('users').select('role') \
-                .eq('id', uid).limit(1).execute().data
-        if not (row and get_effective_role(row[0]) == 'superadmin'):
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     from services.peer_text_screen_service import rescreen_pending
     limit = request.args.get('limit', type=int) or Config.PEER_TEXT_SCREEN_SWEEP_LIMIT

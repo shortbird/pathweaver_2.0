@@ -432,6 +432,18 @@ def delete_comment(user_id, comment_id):
         return _fail(e)
 
 
+@bp.route('/ask-parent', methods=['POST'])
+@require_auth
+@rate_limit(calls=3, period=86400, per_user=True)
+def ask_parent(user_id):
+    """The student asks their parent to turn Friends on. Three a day: a
+    reminder is fine, a drumbeat is not."""
+    try:
+        return success_response(data=svc.ask_parent(user_id))
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
 @bp.route('/comments/<comment_id>/hide', methods=['POST'])
 @require_auth
 @validate_uuid_param('comment_id')

@@ -1682,6 +1682,29 @@ class EmailService(BaseService):
             }
         )
 
+    def send_friends_ask_parent_email(
+        self,
+        parent_email: str,
+        parent_name: str,
+        child_name: str,
+    ) -> bool:
+        """The child asked for Friends; the parent is the one who can say yes.
+
+        Sent to every guardian, org parents included: unlike the after-the-fact
+        notice this is a request waiting on them, and the weekly digest is too
+        slow for a kid standing at the door.
+        """
+        return self.send_templated_email(
+            to_email=parent_email,
+            subject=f"{child_name} would like to use Friends on Optio",
+            template_name='friends_ask_parent',
+            context={
+                'parent_name': parent_name,
+                'child_name': child_name,
+                'family_url': f"{Config.FRONTEND_URL}/family",
+            }
+        )
+
     def send_course_enrollment_email(
         self,
         user_email: str,

@@ -788,6 +788,51 @@ def _tell_parents_after_the_fact(conn: Dict[str, Any],
                            str(student_id)[:8], e)
 
 
+def ask_parent(user_id: str) -> Dict[str, Any]:
+    """The child asks the adult who can turn Friends on.
+
+    The policy model put the parent at the switch and off the critical path;
+    this is how a kid reaches the switch. Every guardian gets a notification
+    and an email with the Family tab one tap away. Only meaningful in the
+    friends_off state with a parent to ask -- an adult student sets their
+    own, an org student with no parent is the school's decision, and a
+    student whose school has the module off has nobody to ask.
+    """
+    state = eligibility(user_id)
+    if state['state'] != FRIENDS_OFF or state.get('who_can_enable') != 'parent':
+        raise PeerConnectionError('There is nobody to ask for this account.')
+    guardians = _guardians_of(user_id)
+    if not guardians:
+        raise PeerConnectionError('There is nobody to ask for this account.')
+
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    child_name = _display_name(user_id)
+    people = PeerPolicyRepository().users_by_ids(
+        guardians, 'id, email, first_name, display_name')
+    for guardian_id in guardians:
+        _notify(guardian_id, 'parent_approval_required',
+                f"{child_name} would like to use Friends",
+                f"{child_name} asked to add friends on Optio. Friends is off until "
+                f"you turn it on from the Family tab.",
+                link='/family')
+        adult = people.get(guardian_id) or {}
+        if not adult.get('email'):
+            continue
+        try:
+            from services.email_service import email_service
+            email_service.send_friends_ask_parent_email(
+                parent_email=adult['email'],
+                parent_name=adult.get('first_name') or adult.get('display_name') or 'there',
+                child_name=child_name,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[peer-connections] ask-parent email to %s failed: %s",
+                           str(guardian_id)[:8], e)
+    logger.info('[friends] %s asked %d guardian(s) to turn Friends on',
+                str(user_id)[:8], len(guardians))
+    return {'asked': len(guardians)}
+
+
 def _email_friend_added(guardian_ids: List[str], child_name: str,
                         peer_name: str) -> None:
     """Email the guardians who will not get it any other way.

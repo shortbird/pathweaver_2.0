@@ -62,6 +62,19 @@ class PeerTextScreenRepository(BaseRepository):
             .eq('author_id', author_id).gte('created_at', since_iso) \
             .order('created_at', desc=True).execute().data or []
 
+    def recent_holds(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Every hold, newest first, for the moderation queue's Holds tab --
+        the place a false positive is found."""
+        return self.client.table(self.table_name) \
+            .select('id, author_id, recipient_id, surface, stage, text, reasons, model, created_at') \
+            .order('created_at', desc=True).limit(limit).execute().data or []
+
+    def holds_since(self, since_iso: str) -> int:
+        """How many holds since `since_iso`, for the daily digest."""
+        res = self.client.table(self.table_name).select('id', count='exact') \
+            .gte('created_at', since_iso).limit(1).execute()
+        return int(res.count or 0)
+
     # -- the pending backlog ---------------------------------------------------
 
     def pending_comments(self, limit: int) -> List[Dict[str, Any]]:

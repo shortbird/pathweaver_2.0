@@ -182,6 +182,13 @@ export default function ConnectionsPage() {
   )
   const revoke = (id) => run(() => friends.revoke(id), 'Removed.')
 
+  // Friends is off and a parent can turn it on: the kid reaches the switch.
+  const [asked, setAsked] = useState(false)
+  const askParent = () => run(async () => {
+    await friends.askParent()
+    setAsked(true)
+  }, 'Sent. Your parent got a message and an email.')
+
   const copyLink = async () => {
     if (!myCode) return
     await navigator.clipboard.writeText(friends.inviteLinkFor(myCode.code))
@@ -212,6 +219,17 @@ export default function ConnectionsPage() {
             In the meantime, your parent, guardian, and teachers can already see
             everything you make.
           </p>
+          {eligibility.who_can_enable === 'parent' && (
+            <div className="mt-4">
+              {asked ? (
+                <p className="text-sm text-neutral-700">Asked. Your parent will get a message and an email.</p>
+              ) : (
+                <button type="button" onClick={askParent} disabled={busy} className={primaryBtn}>
+                  Ask my parent
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 

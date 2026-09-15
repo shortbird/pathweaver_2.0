@@ -370,7 +370,14 @@ BASELINES = {
     # the comment and message texts the moderation queue previews). routes/
     # and services/ did not move: the screen, the sweep, the takedown and the
     # parent's hide all read and write through these.
-    'repositories': 582,
+    # 2026-09-15 (later): 582 -> 585. The moderator's side of the same
+    # feature: the Holds tab's read and the two counts the daily digest
+    # emails (pending reports, holds in the last day), both count='exact'.
+    # 2026-09-15 (evening): 585 -> 588. StorySourceRepository learns credit
+    # classes: every live completion of a class the review credited as a
+    # whole, and the live evidence document standing in for the review round
+    # such a completion never had (POE 2026 could not become a story).
+    'repositories': 588,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

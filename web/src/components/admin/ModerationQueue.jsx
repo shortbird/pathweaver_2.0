@@ -7,6 +7,10 @@ const STATUS_TABS = [
   { value: 'dismissed', label: 'Dismissed' },
   { value: 'actioned', label: 'Actioned' },
   { value: 'all', label: 'All' },
+  // Not a report status: what the safety screen held between students
+  // (Friends phase 3). Read-only; a hold was never delivered, so there is
+  // nothing to restore. This is where a false positive gets noticed.
+  { value: 'holds', label: 'Holds' },
 ]
 
 const REASON_LABELS = {
@@ -43,14 +47,21 @@ export default function ModerationQueue() {
   const [error, setError] = useState(null)
   const [updating, setUpdating] = useState(null)
 
+  const [holds, setHolds] = useState([])
+
   const fetchReports = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const { data } = await api.get('/api/admin/moderation/reports', {
-        params: { status, limit: 100 },
-      })
-      setReports(data.reports || [])
+      if (status === 'holds') {
+        const { data } = await api.get('/api/admin/moderation/holds', { params: { limit: 100 } })
+        setHolds(data.holds || [])
+      } else {
+        const { data } = await api.get('/api/admin/moderation/reports', {
+          params: { status, limit: 100 },
+        })
+        setReports(data.reports || [])
+      }
     } catch (err) {
       setError(err?.response?.data?.error || 'Failed to load reports')
     } finally {
@@ -86,7 +97,7 @@ export default function ModerationQueue() {
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Moderation Queue</h2>
-          <p className="text-sm text-gray-500">Review user-filed reports on feed content.</p>
+          <p className="text-sm text-gray-500">Review user-filed reports, and what the safety screen held between students.</p>
         </div>
         <button
           onClick={fetchReports}
@@ -112,13 +123,24 @@ export default function ModerationQueue() {
         ))}
       </div>
 
-      {loading && <div className="text-sm text-gray-500 py-8 text-center">Loading reports…</div>}
+      {loading && <div className="text-sm text-gray-500 py-8 text-center">Loading…</div>}
       {error && <div className="text-sm text-red-600 py-4">{error}</div>}
-      {!loading && !error && reports.length === 0 && (
+
+      {status === 'holds' && !loading && !error && (
+        holds.length === 0 ? (
+          <div className="text-sm text-gray-500 py-8 text-center">The safety screen has not held anything.</div>
+        ) : (
+          <div className="space-y-3">
+            {holds.map((h) => <HoldRow key={h.id} hold={h} />)}
+          </div>
+        )
+      )}
+
+      {status !== 'holds' && !loading && !error && reports.length === 0 && (
         <div className="text-sm text-gray-500 py-8 text-center">No reports in this view.</div>
       )}
 
-      {!loading && reports.length > 0 && (
+      {status !== 'holds' && !loading && reports.length > 0 && (
         <div className="space-y-3">
           {reports.map((report) => (
             <ReportRow
@@ -129,6 +151,27 @@ export default function ModerationQueue() {
             />
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function HoldRow({ hold }) {
+  const what = hold.surface === 'message' ? 'Direct message' : "Friend's comment"
+  const when = hold.stage === 'refused' ? 'held before it was sent' : 'hidden after it posted'
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 bg-white">
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <span className="inline-block text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{what}</span>
+        <span className="inline-block text-xs font-semibold bg-amber-50 text-amber-700 px-2 py-0.5 rounded">{when}</span>
+        {hold.model && <span className="text-xs text-gray-400">{hold.model}</span>}
+      </div>
+      <div className="text-xs text-gray-500 mb-1">
+        {formatDate(hold.created_at)} · {hold.author?.display_name} to {hold.recipient?.display_name}
+      </div>
+      <div className="text-sm text-gray-800 border border-gray-200 p-2 rounded">{hold.text}</div>
+      {hold.reasons?.length > 0 && (
+        <div className="text-xs text-gray-500 mt-1">{hold.reasons.join('; ')}</div>
       )}
     </div>
   )

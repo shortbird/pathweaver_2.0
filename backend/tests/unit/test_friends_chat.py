@@ -12,6 +12,8 @@ What must stay true:
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from services import peer_connection_service as svc
 from services.peer_policy_service import EffectivePolicy
 
@@ -151,3 +153,51 @@ def test_the_contact_list_adds_friends_with_the_peer_shape():
     assert friend['relationship'] == 'friend'
     assert friend['last_name'] == ''
     assert 'email' not in friend
+
+
+# ---------------------------------------------------------------------------
+# "Ask my parent" -- how a kid reaches the switch
+# ---------------------------------------------------------------------------
+
+def test_a_kid_with_friends_off_asks_every_guardian():
+    email = Mock()
+    people = Mock()
+    people.users_by_ids.return_value = {
+        'mum': {'id': 'mum', 'email': 'mum@example.com', 'first_name': 'Ann'},
+        'dad': {'id': 'dad', 'email': None, 'first_name': 'Bo'},
+    }
+    with patch.object(svc, 'eligibility', return_value={'state': 'friends_off', 'who_can_enable': 'parent'}), \
+         patch.object(svc, '_guardians_of', return_value=['dad', 'mum']), \
+         patch.object(svc, '_display_name', return_value='Jane'), \
+         patch.object(svc, '_notify') as notify, \
+         patch('repositories.peer_policy_repository.PeerPolicyRepository', return_value=people), \
+         patch('services.email_service.email_service', email):
+        out = svc.ask_parent('kid')
+    assert out == {'asked': 2}
+    assert {c.args[0] for c in notify.call_args_list} == {'mum', 'dad'}
+    assert notify.call_args_list[0].args[1] == 'parent_approval_required'
+    # Only the guardian with an address gets the email.
+    email.send_friends_ask_parent_email.assert_called_once()
+    assert email.send_friends_ask_parent_email.call_args.kwargs['parent_email'] == 'mum@example.com'
+    assert email.send_friends_ask_parent_email.call_args.kwargs['child_name'] == 'Jane'
+
+
+@pytest.mark.parametrize('state', [
+    {'state': 'eligible', 'who_can_enable': None},
+    {'state': 'friends_off', 'who_can_enable': 'org_admin'},
+    {'state': 'friends_off', 'who_can_enable': 'nobody'},
+    {'state': 'module_off', 'who_can_enable': None},
+])
+def test_there_is_nobody_to_ask_outside_the_parent_case(state):
+    with patch.object(svc, 'eligibility', return_value=state), \
+         patch.object(svc, '_notify') as notify:
+        with pytest.raises(svc.PeerConnectionError, match='nobody to ask'):
+            svc.ask_parent('kid')
+    notify.assert_not_called()
+
+
+def test_the_ask_route_is_rate_limited_per_user():
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / 'routes' / 'connections.py').read_text()
+    block = src.split("@bp.route('/ask-parent'")[1].split('def ask_parent')[0]
+    assert 'rate_limit(calls=3, period=86400, per_user=True)' in block

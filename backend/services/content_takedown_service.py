@@ -94,3 +94,66 @@ def with_previews(reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             item['preview'] = {'text': None, 'author_id': None, 'hidden': True, 'gone': True}
         out.append(item)
     return out
+
+
+# --- what the moderator sees ----------------------------------------------------
+
+def recent_holds(limit: int = 100) -> List[Dict[str, Any]]:
+    """The Holds tab: what the screen held, with the two students named the
+    way the parent view names them (display name and avatar, no surname)."""
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    rows = PeerTextScreenRepository().recent_holds(limit)
+    ids = {r['author_id'] for r in rows} | {r['recipient_id'] for r in rows}
+    people = PeerPolicyRepository().users_by_ids(list(ids), 'id, display_name, first_name, organization_id')
+
+    def _who(uid):
+        u = people.get(uid) or {}
+        return {'id': uid, 'display_name': u.get('display_name') or u.get('first_name') or 'A student',
+                'organization_id': u.get('organization_id')}
+
+    return [{**r, 'author': _who(r['author_id']), 'recipient': _who(r['recipient_id'])} for r in rows]
+
+
+def daily_digest(now=None) -> Dict[str, Any]:
+    """Once a day, tell the superadmins what is waiting: reports nobody has
+    looked at, and what the screen held in the last day. Sends nothing when
+    both are zero -- an empty digest teaches people to ignore the digest.
+    """
+    from datetime import timedelta
+    from app_config import Config
+    from repositories.user_repository import UserRepository
+    from services.email_service import email_service
+    from utils.timestamps import utcnow
+
+    now = now or utcnow()
+    since = (now - timedelta(days=1)).isoformat()
+    pending = ContentReportRepository().count_pending()
+    holds = PeerTextScreenRepository().holds_since(since)
+    if not pending and not holds:
+        return {'sent': 0, 'pending_reports': 0, 'holds_24h': 0}
+
+    # admin client justified: the digest goes to every superadmin, read by role
+    admins = UserRepository(client=ContentReportRepository().client).find_by_role('superadmin')
+    sent = 0
+    for admin in admins:
+        if not admin.get('email'):
+            continue
+        try:
+            ok = email_service.send_templated_email(
+                to_email=admin['email'],
+                subject=f"Moderation: {pending} report(s) waiting, {holds} text(s) held today",
+                template_name='moderation_daily_digest',
+                context={
+                    'admin_name': admin.get('first_name') or admin.get('display_name') or 'there',
+                    'pending_reports': pending,
+                    'holds_24h': holds,
+                    'queue_url': f"{Config.FRONTEND_URL}/admin/moderation",
+                },
+            )
+            sent += 1 if ok else 0
+        except Exception as e:  # noqa: BLE001
+            logger.warning('[moderation-digest] email to %s failed: %s', admin['email'], e)
+    logger.info('[moderation-digest] %d pending report(s), %d hold(s); %d email(s) sent',
+                pending, holds, sent)
+    return {'sent': sent, 'pending_reports': pending, 'holds_24h': holds}
+

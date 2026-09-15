@@ -4,6 +4,7 @@ import WeeklyXpGoalCard from '../overview/WeeklyXpGoalCard'
 import RhythmBadge from '../quest/RhythmBadge'
 import ChildAvatarUpload from './ChildAvatarUpload'
 import { forChild, useConnectionApprovals } from '../../hooks/api/useConnectionApprovals'
+import FriendsOffNudge from './FriendsOffNudge'
 import { timeAgo } from '../../utils/timeFormat'
 
 /**
@@ -145,6 +146,11 @@ export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, o
       {onOpenSettings && (
         <PendingRequestsLine childId={child.id} onOpenSettings={() => onOpenSettings(child)} />
       )}
+      <FriendsOffNudge
+        childId={child.id}
+        childFirstName={child.firstName || child.name}
+        onOpenSettings={onOpenSettings ? () => onOpenSettings(child) : undefined}
+      />
     </div>
   )
 }
