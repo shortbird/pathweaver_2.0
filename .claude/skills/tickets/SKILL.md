@@ -26,6 +26,15 @@ and only the service role reaches it, which the MCP is.
 | `resolution` | text | What was done. Written when a ticket is closed. |
 | `triage_notes` | text | Internal notes: what you found, what it pairs with, what blocks it. |
 
+A `sentry` ticket is opened by `POST /api/webhooks/sentry` when an issue alert
+fires on optio-backend, optio-web or optio-mobile. `extra.sentry` carries the
+issue link (`web_url`), level, environment, release and the rule that fired;
+`extra.sentry_issue_id` is `<project>:<issue id>`. A repeat alert appends a
+line to `triage_notes` on the open ticket instead of opening another; an alert
+after the ticket is closed opens a fresh one that names the old id. Fix the
+Sentry issue, not the ticket: resolve the ticket when the fix is on `main`, and
+resolve the Sentry issue too or it will file again on the next regression.
+
 Columns worth reading on a ticket: `title`, `message`, `steps`, `current_route`
 (the page), `user_email`, `user_role`, `organization_id` (join `organizations`
 for the name), `platform`, `app_version`, and for mobile reports the

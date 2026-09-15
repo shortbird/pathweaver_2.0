@@ -155,6 +155,54 @@ class BugReportRepository(BaseRepository):
             logger.error(f"Error updating bug_report {report_id}: {e}")
             raise DatabaseError("Failed to update bug report") from e
 
+    def find_latest_by_sentry_issue(self, sentry_key: str) -> Optional[Dict[str, Any]]:
+        """The newest ticket a Sentry issue has, open or closed, if any.
+
+        `sentry_key` is `<project slug>:<issue id>`, stored by the webhook in
+        extra.sentry_issue_id (indexed, see the 20260916140000 migration).
+        The webhook decides what to do with the answer: note a repeat on an
+        open ticket, or open a fresh one that names a closed one, because an
+        issue that fires again after its fix is a regression, not the same bug.
+        """
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select('id, status, resolved_at, triage_notes')
+                .eq('source', 'sentry')
+                .eq('extra->>sentry_issue_id', sentry_key)
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
+        except APIError as e:
+            logger.error(f"Error looking up bug_report for sentry issue {sentry_key}: {e}")
+            raise DatabaseError("Failed to look up bug report") from e
+
+    def append_triage_note(self, report_id: str, note: str) -> Dict[str, Any]:
+        """Add a line to triage_notes without touching what is already there.
+
+        Read-then-write rather than a SQL concat: the tracker is edited by one
+        superadmin and one webhook, and a lost line from a same-second race is
+        a note about a repeat event, which the next repeat rewrites anyway.
+        """
+        try:
+            current = (
+                self.client.table(self.table_name)
+                .select('triage_notes')
+                .eq(self.id_column, report_id)
+                .limit(1)
+                .execute()
+            )
+        except APIError as e:
+            logger.error(f"Error reading bug_report {report_id} notes: {e}")
+            raise DatabaseError("Failed to read bug report") from e
+        if not current.data:
+            raise NotFoundError(f"bug_report {report_id} not found")
+        existing = (current.data[0].get('triage_notes') or '').rstrip()
+        combined = f"{existing}\n{note}" if existing else note
+        return self.update_fields(report_id, {'triage_notes': combined})
+
     def update_status(
         self,
         report_id: str,

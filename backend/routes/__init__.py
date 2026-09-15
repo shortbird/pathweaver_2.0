@@ -406,6 +406,10 @@ def register_all(app):
     from routes import bug_reports
     app.register_blueprint(bug_reports.bp)
 
+    # ── Sentry issue alerts -> tickets (signed webhook, no session) ───────────
+    from routes.sentry_webhook import bp as sentry_webhook_bp
+    app.register_blueprint(sentry_webhook_bp)
+
     # ── SIS (Student Information System) — microschool management console ──────
     from routes.sis import register_sis_routes
     register_sis_routes(app)

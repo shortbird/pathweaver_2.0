@@ -173,7 +173,20 @@ function TicketBody({ ticket }) {
             {[ticket.app_version, ticket.build_number, ticket.ota_update_id].filter(Boolean).join(' · ')}
           </Field>
         )}
-        {ticket.sentry_event_id && <Field label="Sentry event">{ticket.sentry_event_id}</Field>}
+        {ticket.extra?.sentry?.web_url ? (
+          <Field label="Sentry issue">
+            <a
+              href={ticket.extra.sentry.web_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-optio-purple hover:underline"
+            >
+              {ticket.extra.sentry.project}#{ticket.extra.sentry.issue_id}
+            </a>
+          </Field>
+        ) : ticket.sentry_event_id ? (
+          <Field label="Sentry event">{ticket.sentry_event_id}</Field>
+        ) : null}
       </dl>
 
       {(ticket.breadcrumbs || ticket.recent_api_calls || ticket.recent_console_errors || ticket.extra) && (

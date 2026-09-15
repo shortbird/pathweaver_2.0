@@ -44,6 +44,7 @@ export const SOURCE_LABELS = {
   web: 'Web reporter',
   perch: 'Imported from Perch',
   hq: 'Filed by hand',
+  sentry: 'Sentry alert',
 }
 
 export const formatWhen = (iso) => {

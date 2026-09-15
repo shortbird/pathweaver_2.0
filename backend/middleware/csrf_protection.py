@@ -144,6 +144,11 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # that is compared in constant time. Listed here rather than relying on
     # "no auth cookie" alone, so the exemption is deliberate and visible.
     'inbound_email.inbound_email',
+    # Sentry issue-alert webhook (opens a ticket in bug_reports). Server-to-
+    # server, no session, and every delivery is HMAC-SHA256 signed with the
+    # internal integration's client secret (Sentry-Hook-Signature), checked in
+    # constant time before anything is read.
+    'sentry_webhook.sentry_webhook',
 })
 
 # The registration funnel is also served under its DEPRECATED /api/icreate

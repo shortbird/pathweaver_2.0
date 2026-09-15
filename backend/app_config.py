@@ -403,6 +403,15 @@ class Config:
     SENTRY_DSN = os.getenv('SENTRY_DSN')
     SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT')
 
+    # The other direction: Sentry issue alerts POST to /api/webhooks/sentry and
+    # open a ticket in bug_reports (routes/sentry_webhook.py). This is the
+    # Client Secret of the "Optio Tickets" internal integration in the
+    # shortbird Sentry org; every delivery carries an HMAC-SHA256 of its body
+    # in Sentry-Hook-Signature keyed on it. Unset = the endpoint refuses
+    # everything, so a forgotten secret cannot become an open ticket-injection
+    # URL. Set on the prod backend only; dev errors do not file tickets.
+    SENTRY_WEBHOOK_SECRET = os.getenv('SENTRY_WEBHOOK_SECRET')
+
     # File upload paths (M5) — UPLOAD_FOLDER below is the global default;
     # this is the evidence-specific subfolder used by routes/evidence_documents.
     EVIDENCE_UPLOAD_FOLDER = os.getenv('EVIDENCE_UPLOAD_FOLDER', 'uploads/evidence')

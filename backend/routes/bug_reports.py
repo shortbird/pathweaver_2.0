@@ -1,6 +1,6 @@
 """The platform ticket tracker: /api/bug-reports.
 
-One table for every Optio platform report. Three senders write to it:
+One table for every Optio platform report. Four senders write to it:
 
   * the mobile app's shake-to-report sheet (message + steps + a diagnostics
     blob: current route, recent API calls, console errors, device/build, an
@@ -9,7 +9,9 @@ One table for every Optio platform report. Three senders write to it:
     (web/src/components/feedback/IssueReporter.jsx), which replaced the Perch
     widget on 2026-09-14 so reports stop leaving for a separate app;
   * a hand-filed row (source 'hq'), and the open Perch tickets imported the
-    day Perch was retired (source 'perch').
+    day Perch was retired (source 'perch');
+  * Sentry issue alerts on the three Optio projects, through the signed
+    webhook in routes/sentry_webhook.py (source 'sentry', since 2026-09-15).
 
 Superadmin triages in /admin/tickets. Claude Code reads and resolves rows over
 the Supabase MCP (see .claude/skills/tickets/SKILL.md), which is why the
@@ -44,8 +46,8 @@ MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024  # 10MB (matches bucket file_size_limit)
 ALLOWED_STATUSES = {'new', 'triaged', 'fixing', 'resolved', 'wont_fix'}
 ALLOWED_TYPES = {'bug', 'feature', 'question', 'tweak'}
 ALLOWED_PRIORITIES = {'low', 'normal', 'high', 'urgent'}
-# What a sender may claim about itself. 'perch' and 'hq' are set by hand, never
-# over the API.
+# What a sender may claim about itself. 'perch' and 'hq' are set by hand and
+# 'sentry' by the webhook, never over this API.
 CLIENT_SOURCES = {'mobile', 'web'}
 TITLE_MAX = 120
 
