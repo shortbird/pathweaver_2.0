@@ -90,6 +90,21 @@ describe('QuestCardSimple', () => {
   })
 
   // --- Quest states ---
+  describe('class assignment label', () => {
+    it('names the class on a class quest with no due date', () => {
+      // Ticket 55ef3acf: the class name only rendered beside a due chip, so a
+      // class quest without a deadline gave no hint which class set it.
+      renderCard({ user_enrollment: false,
+        class_assignment: { class_id: 'c-1', class_name: 'Language Studio B', due_date: null } })
+      expect(screen.getByText('Language Studio B')).toBeInTheDocument()
+    })
+
+    it('shows nothing for a quest the student picked themselves', () => {
+      renderCard({ user_enrollment: false, class_assignment: null })
+      expect(screen.queryByText('Language Studio B')).not.toBeInTheDocument()
+    })
+  })
+
   describe('not started state', () => {
     it('shows Start Quest button', () => {
       renderCard({ user_enrollment: null })

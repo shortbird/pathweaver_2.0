@@ -182,13 +182,18 @@ const QuestCardSimple = ({ quest }) => {
 
             {/* Title Overlay */}
             <div className="absolute inset-x-0 bottom-0 p-4">
-              {due && (
+              {/* The class is named whenever the quest is schoolwork, due date
+                  or not -- a class quest with no deadline still belongs to
+                  Language Studio B, and that name is how a parent finds it. */}
+              {(due || assignment.class_name) && (
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${dueChipOverlayClasses(due)}`}
-                  >
-                    {due.label}
-                  </span>
+                  {due && (
+                    <span
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold whitespace-nowrap ${dueChipOverlayClasses(due)}`}
+                    >
+                      {due.label}
+                    </span>
+                  )}
                   {assignment.class_name && (
                     <span className="text-[11px] text-white/90 font-medium truncate drop-shadow">
                       {assignment.class_name}

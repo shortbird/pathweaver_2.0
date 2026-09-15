@@ -53,6 +53,11 @@ interface ActiveQuest {
   image_url?: string | null;
   quests?: { id?: string; title?: string; image_url?: string | null };
   rhythm?: QuestRhythm | null;
+  /** Set when a class assigned this quest; null for one the child picked.
+   *  The class name is how a parent tells schoolwork from a free choice
+   *  (ticket 55ef3acf: "Language Studio B has a vocab quest that we have no
+   *  idea how to find as a parent"). */
+  class_assignment?: { class_id?: string; class_name?: string | null; due_date?: string | null } | null;
 }
 
 /** "1,250 XP · 3 active quests · 4-day streak · Active 2d ago" */
@@ -156,6 +161,11 @@ export function ChildCard({
                   )}
                   <VStack className="flex-1 min-w-0" space="xs">
                     <UIText size="sm" numberOfLines={1}>{quest.title || q.title}</UIText>
+                    {q.class_assignment?.class_name ? (
+                      <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1} testID={`child-quest-class-${questId}`}>
+                        {q.class_assignment.class_name}
+                      </UIText>
+                    ) : null}
                     <View style={{ alignSelf: 'flex-start' }}>
                       <RhythmBadge rhythm={q.rhythm || null} days={q.rhythm?.last_7_days || null} compact />
                     </View>

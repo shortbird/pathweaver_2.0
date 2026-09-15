@@ -13,6 +13,7 @@ from utils.pillar_utils import get_pillar_name
 from utils.logger import get_logger
 from utils.storage_urls import sign_stored_url
 from routes.parent.engagement import quest_rhythm
+from utils.class_assignments import student_class_assignments
 import logging
 
 logger = get_logger(__name__)
@@ -180,6 +181,15 @@ def get_parent_dashboard(user_id, student_id):
                 if task_id:
                     completions_map[qid].append(task_id)
 
+        # Which of these a class set, and when it is due. A quest a teacher
+        # attached to Language Studio B is on the child's list like any other,
+        # and a parent reading the family dashboard could not tell it from one
+        # the child picked -- "a vocab quest that we have no idea how to find
+        # as a parent" (Marika Connole, iCreate, ticket 55ef3acf). Same helper
+        # the student's own dashboard uses (dashboard_service.
+        # _attach_class_assignment), so the two pages agree on which class.
+        class_assignments = student_class_assignments(supabase, student_id)
+
         # Build active quests list
         active_quests = []
         for uq in active_quests_response.data:
@@ -194,6 +204,7 @@ def get_parent_dashboard(user_id, student_id):
                 'title': quest['title'],
                 'image_url': quest.get('image_url') or quest.get('header_image_url'),
                 'started_at': uq['started_at'],
+                'class_assignment': class_assignments.get(quest_id),
                 'progress': {
                     'completed_tasks': completed_tasks,
                     'total_tasks': total_tasks,

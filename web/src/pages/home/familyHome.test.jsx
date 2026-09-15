@@ -157,6 +157,28 @@ describe('FamilyHome', () => {
       expect(screen.queryByText('Under 13')).not.toBeInTheDocument()
     })
 
+    it('names the class under a quest a class set', async () => {
+      // Ticket 55ef3acf (Marika Connole, iCreate): "Language Studio B has a
+      // vocab quest that we have no idea how to find as a parent." The quest
+      // was on the card; nothing said which class put it there.
+      summaries['child-1'] = {
+        student: { total_xp: 0, streak_days: 0 },
+        stats: { active_quests_count: 2 },
+        learning_rhythm: { last_activity_date: null },
+        active_quests: [
+          { quest_id: 'q-vocab', title: 'Building Words with Prefixes and Roots', progress: {},
+            rhythm: { state: 'in_flow', state_display: 'In Flow', last_7_days: [] },
+            class_assignment: { class_id: 'cls-1', class_name: 'Language Studio B', due_date: null } },
+          { quest_id: 'q-own', title: 'Backyard Birds', progress: {},
+            rhythm: { state: 'in_flow', state_display: 'In Flow', last_7_days: [] },
+            class_assignment: null },
+        ],
+      }
+      renderFamilyHome()
+      expect(await screen.findByText('Language Studio B')).toBeInTheDocument()
+      expect(screen.getAllByText('Language Studio B')).toHaveLength(1)
+    })
+
     it("the child's name opens their full profile in their scope", async () => {
       renderFamilyHome()
       ;(await screen.findByRole('button', { name: 'Emma Smith' })).click()

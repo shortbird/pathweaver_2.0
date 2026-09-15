@@ -35,7 +35,8 @@ const summary = {
   stats: { active_quests_count: 4 },
   active_quests: [
     { quest_id: 'q-1', title: 'Build a drone', rhythm: { state: 'in_flow', state_display: 'In Flow', message: '', pattern_description: '', last_7_days: [{ date: new Date().toISOString().slice(0, 10), intensity: 3 }] } },
-    { quest_id: 'q-2', title: 'Second' },
+    { quest_id: 'q-2', title: 'Second',
+      class_assignment: { class_id: 'cls-1', class_name: 'Language Studio B', due_date: null } },
     { quest_id: 'q-3', title: 'Third' },
     { quest_id: 'q-4', title: 'Fourth' },
   ],
@@ -78,6 +79,16 @@ describe('ChildCard', () => {
     // Rhythm, not a progress bar: the label and the seven-day map.
     expect(getByText('Active')).toBeTruthy();
     expect(getByLabelText('Open Build a drone with Romney')).toBeTruthy();
+  });
+
+  it('names the class under a quest a class set, and nothing under a free choice', () => {
+    // Ticket 55ef3acf: a class quest sat on the list like any other, so a
+    // parent could not tell Language Studio B's vocab quest from a quest the
+    // child picked, nor find it by the class name they knew.
+    const { getByTestId, queryByTestId, getByText } = renderCard();
+    expect(getByText('Language Studio B')).toBeTruthy();
+    expect(getByTestId('child-quest-class-q-2')).toBeTruthy();
+    expect(queryByTestId('child-quest-class-q-1')).toBeNull();
   });
 
   it('routes Open, a quest row and the name to the handlers', () => {

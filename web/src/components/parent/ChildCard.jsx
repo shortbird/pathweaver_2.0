@@ -57,6 +57,13 @@ function ActiveQuests({ quests, onOpenQuest }) {
               className="w-full rounded-lg px-1.5 py-1 -mx-1.5 text-left hover:bg-optio-purple/5 transition-colors"
             >
               <span className="block text-sm text-gray-900 truncate">{q.title}</span>
+              {/* The class that set it, when one did. A class quest sits on
+                  the child's list like any other, and a parent could not tell
+                  Language Studio B's vocab quest from a quest the child picked
+                  (Marika Connole, iCreate, ticket 55ef3acf). */}
+              {q.class_assignment?.class_name && (
+                <span className="block text-xs text-gray-500 truncate">{q.class_assignment.class_name}</span>
+              )}
               <RhythmBadge rhythm={q.rhythm} days={q.rhythm?.last_7_days} size="sm" className="mt-1" />
             </button>
           </li>
