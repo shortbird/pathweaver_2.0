@@ -30,6 +30,8 @@ Rate limits here are deliberate rather than boilerplate:
     caller from farming validation responses.
 """
 
+from typing import Optional
+
 from flask import Blueprint, g, request
 
 from middleware.rate_limiter import rate_limit
@@ -56,8 +58,9 @@ def _fail(e: Exception):
     return error_response(str(e), status_code=400)
 
 
-def _acting_user_id() -> str:
-    """The signed-in person, whoever the request is about."""
+def _acting_user_id() -> Optional[str]:
+    """The signed-in person, whoever the request is about. None outside a
+    scoped route, where the service treats the caller as the student."""
     scope = getattr(g, 'student_scope', None)
     return scope.caller_id if scope else None
 
