@@ -117,7 +117,18 @@ def contact_details(text: str) -> List[str]:
 
 
 class PeerTextScreenService(BaseAIService):
-    """The model half of the screen. One short JSON call per text."""
+    """The model half of the screen. One short JSON call per text.
+
+    The call sits INSIDE the request that posts the comment or sends the
+    message, so a kid is waiting on it. The platform defaults (two attempts
+    of 45 seconds, for long generations) would leave a child staring at a
+    spinner for a minute and a half while Gemini is slow, and fail-open only
+    helps once the call has actually failed. One short attempt: a verdict in
+    a few seconds, or the pending path and the sweep.
+    """
+
+    DEFAULT_MAX_RETRIES = 1
+    AI_REQUEST_TIMEOUT = 8  # seconds, per attempt
 
     PROMPT = (
         'You screen short messages that one student (age 8 to 18) writes to '
