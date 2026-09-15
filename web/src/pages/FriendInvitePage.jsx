@@ -68,7 +68,7 @@ export default function FriendInvitePage() {
         <h1 className="text-2xl font-bold text-neutral-900 mt-2">Someone wants to be your friend on Optio</h1>
         <p className="font-mono text-2xl tracking-widest text-optio-purple mt-4" aria-label={`Code ${code}`}>{code}</p>
         <p className="text-sm text-neutral-600 mt-3">
-          Friends see and cheer on each other's work. Both of you have to say yes, and your families set the rules.
+          Friends see and cheer on each other&rsquo;s work. Both of you have to say yes, and your families set the rules.
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <a

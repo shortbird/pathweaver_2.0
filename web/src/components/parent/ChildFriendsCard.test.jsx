@@ -10,6 +10,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import api from '../../services/api'
+import ChildFriendsCard from './ChildFriendsCard'
 
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn(), put: vi.fn(), post: vi.fn() }
@@ -23,8 +25,6 @@ vi.mock('@heroicons/react/24/outline', () => ({
 }))
 vi.mock('qrcode.react', () => ({ QRCodeSVG: () => <svg data-testid="qr" /> }))
 
-import api from '../../services/api'
-import ChildFriendsCard from './ChildFriendsCard'
 
 const ON = {
   enabled: true, approval_mode: 'auto', request_sources: ['classmates', 'code', 'link'],

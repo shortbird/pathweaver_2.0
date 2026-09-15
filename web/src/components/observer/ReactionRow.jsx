@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
+import { bool, object, shape, string } from 'prop-types';
 import { REACTIONS, setReaction, clearReaction } from '../../services/friendsAPI';
 
 /**
@@ -74,14 +74,14 @@ export default function ReactionRow({ target, summary, canReact }) {
 }
 
 ReactionRow.propTypes = {
-  target: PropTypes.shape({
-    studentId: PropTypes.string.isRequired,
-    completionId: PropTypes.string,
-    learningEventId: PropTypes.string,
+  target: shape({
+    studentId: string.isRequired,
+    completionId: string,
+    learningEventId: string,
   }).isRequired,
-  summary: PropTypes.shape({
-    by_key: PropTypes.object,
-    mine: PropTypes.string,
+  summary: shape({
+    by_key: object,
+    mine: string,
   }),
-  canReact: PropTypes.bool,
+  canReact: bool,
 };

@@ -93,7 +93,7 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
       const data = res.data?.data || res.data || {};
       setPolicy(data.policy || null);
       setCanSet(!!data.can_set);
-    } catch (e) {
+    } catch {
       setPolicy(null);
     } finally {
       setLoading(false);
@@ -124,7 +124,7 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
     try {
       const res = await api.get(`/api/connections/children/${studentId}/friends-count`);
       setConfirmingOff((res.data?.data || res.data || {}).active || 0);
-    } catch (e) {
+    } catch {
       setConfirmingOff(0);
     }
   };

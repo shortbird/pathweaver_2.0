@@ -12,6 +12,8 @@ import { render as rtlRender, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import ConnectionsPage from './ConnectionsPage'
+import ConnectionApprovalsPage from './ConnectionApprovalsPage'
 
 const render = (ui) => rtlRender(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -36,8 +38,6 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
-import ConnectionsPage from './ConnectionsPage'
-import ConnectionApprovalsPage from './ConnectionApprovalsPage'
 
 const EMPTY = { active: [], incoming: [], outgoing: [], awaiting_approval: [] }
 
@@ -105,7 +105,7 @@ describe('ConnectionsPage', () => {
     mockLoad({ state: 'needs_dob', reason: 'We need your date of birth first.' })
     render(<ConnectionsPage />)
 
-    expect(await screen.findByLabelText(/what's your date of birth/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/what[’']s your date of birth/i)).toBeInTheDocument()
   })
 
   it('does not tell the student the age rule before asking the question', async () => {
@@ -114,7 +114,7 @@ describe('ConnectionsPage', () => {
     mockLoad({ state: 'needs_dob', reason: 'We need your date of birth first.' })
     render(<ConnectionsPage />)
 
-    await screen.findByLabelText(/what's your date of birth/i)
+    await screen.findByLabelText(/what[’']s your date of birth/i)
     expect(screen.queryByText(/13/)).toBeNull()
   })
 

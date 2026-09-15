@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import PropTypes from 'prop-types';
+import { bool, func, oneOf, string } from 'prop-types';
 import { toast } from 'react-hot-toast';
 import { EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
 import api from '../../services/api';
@@ -142,10 +142,10 @@ export default function FeedItemMenu({ targetType, targetId, studentId, studentN
 }
 
 FeedItemMenu.propTypes = {
-  targetType: PropTypes.oneOf(['learning_event', 'task_completion']).isRequired,
-  targetId: PropTypes.string.isRequired,
-  studentId: PropTypes.string,
-  studentName: PropTypes.string,
-  isFriend: PropTypes.bool,
-  onHidden: PropTypes.func,
+  targetType: oneOf(['learning_event', 'task_completion']).isRequired,
+  targetId: string.isRequired,
+  studentId: string,
+  studentName: string,
+  isFriend: bool,
+  onHidden: func,
 };

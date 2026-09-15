@@ -199,7 +199,7 @@ export default function ConnectionsPage() {
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-2xl font-bold text-neutral-900">Friends</h1>
       <p className="text-neutral-600 mt-1">
-        Be friends with another student to see and cheer on each other's work.
+        Be friends with another student to see and cheer on each other&rsquo;s work.
       </p>
 
       {/* Friends is off for this student. Not a dead end: the reason names
@@ -228,7 +228,7 @@ export default function ConnectionsPage() {
       {state === STATE_NEEDS_DOB && (
         <form onSubmit={submitDob} className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
           <label htmlFor="dob" className="block font-medium text-neutral-900">
-            What's your date of birth?
+            What&rsquo;s your date of birth?
           </label>
           <input
             id="dob"

@@ -10,10 +10,11 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 
+import FriendInvitePage from './FriendInvitePage'
+
+// Read lazily by the mocked hook, so declaring it after the import is fine.
 let authState = { isAuthenticated: false, loading: false, effectiveRole: null }
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => authState }))
-
-import FriendInvitePage from './FriendInvitePage'
 
 const renderAt = (path) => render(
   <MemoryRouter initialEntries={[path]}>
