@@ -64,6 +64,24 @@ describe('GroupChatWindow', () => {
     expect(screen.getByText('Bo Lee')).toBeInTheDocument()
   })
 
+  it('names the surface a message was sent from when the backend supplies it', () => {
+    groupMessages = {
+      data: {
+        messages: [
+          { id: 'm1', sender_id: 'u1', message_content: 'Mine', sent_from: 'web', created_at: '2025-01-01T10:00:00Z' },
+          { id: 'm2', sender_id: 'other', message_content: 'Theirs', sent_from: 'mobile', sender: { first_name: 'Bo', last_name: 'Lee' }, created_at: '2025-01-01T10:01:00Z' },
+          { id: 'm3', sender_id: 'other', message_content: 'Older', sender: { first_name: 'Bo', last_name: 'Lee' }, created_at: '2025-01-01T10:02:00Z' }
+        ]
+      },
+      isLoading: false
+    }
+    render(<GroupChatWindow group={group} />)
+    expect(screen.getByLabelText('Sent from Web')).toBeInTheDocument()
+    expect(screen.getByLabelText('Sent from Mobile')).toBeInTheDocument()
+    // One message had no stamp (pre-2026-09-16 or a non-superadmin viewer): two tags, not three.
+    expect(screen.getAllByLabelText(/Sent from/)).toHaveLength(2)
+  })
+
   it('shows the pinned banner and the announcement-only notice for non-admins', () => {
     groupDetails = {
       data: {

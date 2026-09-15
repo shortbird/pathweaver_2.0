@@ -85,8 +85,13 @@ export interface Message {
    *  its original content/attachments are retained for moderation, and the
    *  client shows a "Deleted" indicator instead of the tombstone. */
   deleted_visible_to_admin?: boolean;
+  /** Which surface sent it. Present only for superadmin viewers (the backend
+   *  strips it for everyone else); null on rows older than 2026-09-16. */
+  sent_from?: MessageSentFrom | null;
   isOptimistic?: boolean;
 }
+
+export type MessageSentFrom = 'mobile' | 'web' | 'sis' | 'email';
 
 /** A child of the viewing guardian who is in this chat's class. */
 export interface GroupStudent {

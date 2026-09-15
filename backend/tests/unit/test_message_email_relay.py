@@ -118,8 +118,10 @@ def _inbound(**overrides):
 def test_reply_from_the_relay_owner_is_delivered():
     status, _, service = _inbound()
     assert status == 'delivered'
+    # The request is the mail provider's webhook, so the surface is named
+    # rather than inferred from the request (utils/client_platform.py).
     service.return_value.send_message.assert_called_once_with(
-        'superadmin-id', 'member-id', 'On it.'
+        'superadmin-id', 'member-id', 'On it.', sent_from='email',
     )
 
 

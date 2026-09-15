@@ -41,6 +41,7 @@ import {
 import {
   ReactionPills,
   ReplyQuote,
+  SentFromTag,
   MessageAttachments,
   ComposerBanner,
   PendingAttachmentChips,
@@ -450,6 +451,7 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
                     </>
                   )}
                   <View className="flex-row items-center justify-end mt-1 gap-2">
+                    <SentFromTag sentFrom={msg.sent_from} isMine={isMine} visible={isSuperadmin} />
                     {msg.edited_at && !msg.is_deleted ? (
                       <UIText
                         size="xs"

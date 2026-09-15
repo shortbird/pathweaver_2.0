@@ -3,6 +3,7 @@ import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import {
   ReplyQuote,
+  SentFromTag,
   AttachmentList,
   ReactionsRow,
   MessageActionBar,
@@ -168,11 +169,14 @@ const MessageThread = ({
                   </>
                 )}
                 <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-opacity-20 border-current gap-2 flex-wrap">
-                  <span className={`text-xs ${isSender ? 'text-white/80' : 'text-gray-500'}`}>
-                    {formatTime(message.created_at)}
-                    {message.edited_at && !isDeleted && (
-                      <span className={isSender ? 'text-white/60' : 'text-gray-400'}> (edited)</span>
-                    )}
+                  <span className={`inline-flex items-center gap-1.5 text-xs ${isSender ? 'text-white/80' : 'text-gray-500'}`}>
+                    <SentFromTag sentFrom={message.sent_from} light={isSender} />
+                    <span>
+                      {formatTime(message.created_at)}
+                      {message.edited_at && !isDeleted && (
+                        <span className={isSender ? 'text-white/60' : 'text-gray-400'}> (edited)</span>
+                      )}
+                    </span>
                   </span>
                   {isSender && !isDeleted && (
                     <span className="text-xs text-white/80">

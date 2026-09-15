@@ -44,6 +44,7 @@ import {
 import {
   ReactionPills,
   ReplyQuote,
+  SentFromTag,
   MessageAttachments,
   ComposerBanner,
   PendingAttachmentChips,
@@ -687,6 +688,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
                     </>
                   )}
                   <View className="flex-row items-center justify-end gap-2" style={{ marginTop: 4 }}>
+                    <SentFromTag sentFrom={msg.sent_from} isMine={isMine} visible={isSuperadmin} />
                     {pinnedId === msg.id && !msg.is_deleted ? (
                       <Ionicons name="pin" size={10} color={isMine ? 'rgba(255,255,255,0.6)' : c.textFaint} />
                     ) : null}

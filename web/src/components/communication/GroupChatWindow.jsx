@@ -23,6 +23,7 @@ import MessageInput from './MessageInput'
 import MessageText from './MessageText'
 import {
   ReplyQuote,
+  SentFromTag,
   AttachmentList,
   ReactionsRow,
   MessageActionBar,
@@ -376,10 +377,13 @@ const GroupChatWindow = ({ group, onBack }) => {
                             <AttachmentList attachments={msg.attachments} light={isOwn} />
                           </>
                         )}
-                        <p className={`text-xs mt-1 ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-                          {formatTime(msg.created_at)}
-                          {msg.edited_at && !isDeleted && ' (edited)'}
-                          {msg.isOptimistic && ' (Sending...)'}
+                        <p className={`flex items-center gap-1.5 text-xs mt-1 ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
+                          <SentFromTag sentFrom={msg.sent_from} light={isOwn} />
+                          <span>
+                            {formatTime(msg.created_at)}
+                            {msg.edited_at && !isDeleted && ' (edited)'}
+                            {msg.isOptimistic && ' (Sending...)'}
+                          </span>
                         </p>
                       </div>
 

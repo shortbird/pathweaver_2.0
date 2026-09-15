@@ -139,6 +139,16 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
+  // Say which surface this is. The backend stamps it on every message a user
+  // sends (direct_messages.sent_from) so a superadmin can tell a mobile
+  // message from a web one. Native only: the web target is a browser, and a
+  // custom header there means a CORS preflight the API would have to allow;
+  // the backend already tells that case apart by its Origin
+  // (backend/utils/client_platform.py).
+  if (Platform.OS !== 'web') {
+    config.headers['X-Optio-Client'] = 'mobile';
+  }
+
   // Let axios set Content-Type for FormData
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];

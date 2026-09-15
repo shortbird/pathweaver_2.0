@@ -25,6 +25,31 @@ export const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Footer label for a message's origin. The backend only puts `sent_from` on a
+// row for a superadmin viewer (messaging_extras_service.enrich_messages), so
+// for everyone else there is nothing to label.
+const SENT_FROM_LABELS = { mobile: 'Mobile', web: 'Web', sis: 'SIS', email: 'Email' }
+
+/**
+ * "MOBILE" / "WEB" in a bubble's footer: which surface sent the message.
+ * Renders nothing when the row carries no `sent_from` -- every non-superadmin
+ * viewer, and every message from before 2026-09-16.
+ */
+export const SentFromTag = ({ sentFrom, light = false }) => {
+  const label = sentFrom ? SENT_FROM_LABELS[sentFrom] : null
+  if (!label) return null
+  return (
+    <span
+      aria-label={`Sent from ${label}`}
+      className={`inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+        light ? 'bg-white/20 text-white/90' : 'bg-gray-100 text-gray-500'
+      }`}
+    >
+      {label}
+    </span>
+  )
+}
+
 /**
  * Small quoted block above a message's content showing what it replies to.
  * `light` renders it for use on the gradient (own-message) bubble.

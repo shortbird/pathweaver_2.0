@@ -23,7 +23,7 @@ import { describeMediaError } from '@/src/utils/mediaErrors';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { uploadMessageAttachment, type MessageAttachment } from '@/src/services/api';
 import { MediaModal } from '@/src/components/feed/MediaModal';
-import type { MessageReaction, ReplyPreview } from '@/src/hooks/useMessages';
+import type { MessageReaction, MessageSentFrom, ReplyPreview } from '@/src/hooks/useMessages';
 
 /** The only reactions the backend accepts (ALLOWED_REACTIONS). */
 export const REACTION_EMOJI = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
@@ -103,6 +103,57 @@ export function ReactionPills({
 }
 
 // ── Quoted reply block (inside the bubble, above the content) ─────────────────
+
+/** Footer label for a message's origin, superadmin only. */
+const SENT_FROM_LABELS: Record<MessageSentFrom, string> = {
+  mobile: 'Mobile',
+  web: 'Web',
+  sis: 'SIS',
+  email: 'Email',
+};
+
+/**
+ * "Mobile" / "Web" in a bubble's footer: which surface the message was sent
+ * from. The backend only puts `sent_from` on the row for a superadmin viewer,
+ * so this renders for nobody else; the `visible` guard is belt and braces for
+ * a payload that arrived some other way.
+ */
+export function SentFromTag({
+  sentFrom,
+  isMine,
+  visible,
+}: {
+  sentFrom?: MessageSentFrom | null;
+  isMine: boolean;
+  visible: boolean;
+}) {
+  const c = useThemeColors();
+  const label = sentFrom ? SENT_FROM_LABELS[sentFrom] ?? null : null;
+  if (!visible || !label) return null;
+  return (
+    <View
+      accessibilityLabel={`Sent from ${label}`}
+      style={{
+        borderRadius: 4,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        backgroundColor: isMine ? 'rgba(255,255,255,0.18)' : c.surfaceMuted,
+      }}
+    >
+      <UIText
+        size="xs"
+        className="font-poppins-semibold"
+        style={{
+          fontSize: 10,
+          letterSpacing: 0.4,
+          color: isMine ? 'rgba(255,255,255,0.85)' : c.textMuted,
+        }}
+      >
+        {label.toUpperCase()}
+      </UIText>
+    </View>
+  );
+}
 
 export function ReplyQuote({ replyTo, isMine }: { replyTo?: ReplyPreview | null; isMine: boolean }) {
   const c = useThemeColors();

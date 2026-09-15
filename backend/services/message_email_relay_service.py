@@ -422,8 +422,10 @@ def handle_inbound(*, to_header: Optional[str], envelope_to: Optional[str],
     if not body:
         return 'empty', 'reply had no text'
 
+    # The request here is the mail provider's webhook, not the owner's client,
+    # so the surface is named explicitly rather than read off the request.
     message = DirectMessageService().send_message(
-        relay['owner_id'], relay['recipient_id'], body
+        relay['owner_id'], relay['recipient_id'], body, sent_from='email',
     )
 
     now = datetime.now(timezone.utc).isoformat()

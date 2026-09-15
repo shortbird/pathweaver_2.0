@@ -440,7 +440,8 @@ class DirectMessageService(BaseService):
     def send_message(self, sender_id: str, recipient_id: str, content: str,
                      reply_to_message_id: Optional[str] = None,
                      attachments: Optional[list] = None,
-                     sent_by_user_id: Optional[str] = None) -> Dict[str, Any]:
+                     sent_by_user_id: Optional[str] = None,
+                     sent_from: Optional[str] = None) -> Dict[str, Any]:
         """
         Send a message from one user to another. Supports replying to a message
         and attachments ([{url, type, name, size}], pre-uploaded).
@@ -448,10 +449,19 @@ class DirectMessageService(BaseService):
         sent_by_user_id: set only by the school-inbox route — the staff member
         who wrote a message the school account is sending.
 
+        sent_from: the surface the message came from. Left None by every
+        client-facing caller, which is the point: it is read off the request
+        (utils/client_platform.py) so no route has to remember to pass it. The
+        email relay passes 'email' because its request is the mail provider's
+        webhook, not a user's client.
+
         Returns:
             Created message record (enriched with reply preview)
         """
         from services import messaging_extras_service as extras
+        from utils.client_platform import request_client_platform
+        if sent_from is None:
+            sent_from = request_client_platform()
         try:
             # Verify permission
             if not self.can_message_user(sender_id, recipient_id):
@@ -479,6 +489,7 @@ class DirectMessageService(BaseService):
                 'reply_to_message_id': reply_to_message_id,
                 'attachments': clean_atts,
                 'sent_by_user_id': sent_by_user_id,
+                'sent_from': sent_from,
                 'read_at': None,
                 'created_at': datetime.utcnow().isoformat()
             }
@@ -499,8 +510,11 @@ class DirectMessageService(BaseService):
 
             row = result.data[0]
             enriched = extras.enrich_messages('dm', [row], sender_id)[0]
-            # Instant delivery to whoever has this conversation open.
-            extras.broadcast_dm(conversation['id'], 'message', enriched)
+            # Instant delivery to whoever has this conversation open. The
+            # broadcast reaches every participant, so it carries only what a
+            # non-superadmin may see; the sender's own response keeps it all.
+            extras.broadcast_dm(conversation['id'], 'message',
+                                extras.broadcast_payload(enriched))
             return enriched
 
         except Exception as e:

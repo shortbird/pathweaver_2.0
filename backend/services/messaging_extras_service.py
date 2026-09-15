@@ -63,6 +63,23 @@ def broadcast_group(group_id: str, event: str, payload: Dict[str, Any]) -> None:
     broadcast(f'group:{group_id}', event, payload)
 
 
+# Fields a superadmin viewer gets in a fetched page but nobody else does.
+# enrich_messages gates them per viewer; a broadcast has no viewer, it reaches
+# every participant at once, so it must not carry them at all.
+SUPERADMIN_ONLY_FIELDS = ('sent_from', 'deleted_visible_to_admin')
+
+
+def broadcast_payload(row: Dict[str, Any]) -> Dict[str, Any]:
+    """An enriched message row with the superadmin-only fields removed.
+
+    Send enriches the new row for the SENDER and then broadcasts the same
+    dict to the whole thread. When the sender is a superadmin that dict
+    carries `sent_from`, and every other participant's realtime handler
+    would have received it. The sender's own HTTP response is untouched.
+    """
+    return {k: v for k, v in row.items() if k not in SUPERADMIN_ONLY_FIELDS}
+
+
 # ── Attachments (metadata validation; upload handled by MediaUploadService) ───
 # Message attachments live in the private `user-uploads` bucket. What is stored
 # on the row is the canonical pointer; the signed, expiring URL is minted per
@@ -441,14 +458,21 @@ def enrich_messages(message_type: str, messages: List[Dict[str, Any]],
     Superadmin viewers keep the original content of deleted messages (flagged
     with `deleted_visible_to_admin`) so they can moderate; all other viewers get
     the content/attachments stripped down to a tombstone.
+
+    Superadmin viewers also keep `sent_from` (mobile / web / sis / email); it is
+    removed from the row for everyone else. This is the only place that
+    decides who sees it, so every page of messages must come through here.
     """
     ids = [m['id'] for m in messages]
     reactions = reactions_for_messages(message_type, ids, viewer_id)
-    # Only pay for the role lookup when a deleted message (or a reply target that
-    # might be deleted) is actually in this batch.
+    # Only pay for the role lookup when something in this batch is gated on it:
+    # a deleted message, a reply target that might be deleted, or a sent_from
+    # stamp (every message since 2026-09-16, so in practice every page).
     needs_role = any(m.get('is_deleted') for m in messages) or \
-        any(m.get('reply_to_message_id') for m in messages)
-    reveal_deleted = _viewer_is_superadmin(viewer_id) if needs_role else False
+        any(m.get('reply_to_message_id') for m in messages) or \
+        any(m.get('sent_from') for m in messages)
+    is_superadmin = _viewer_is_superadmin(viewer_id) if needs_role else False
+    reveal_deleted = is_superadmin
     replies = reply_previews(message_type, messages, reveal_deleted=reveal_deleted)
     out = []
     for m in messages:
@@ -461,6 +485,8 @@ def enrich_messages(message_type: str, messages: List[Dict[str, Any]],
             else:
                 row['message_content'] = ''
                 row['attachments'] = []
+        if not is_superadmin:
+            row.pop('sent_from', None)
         row['reactions'] = reactions.get(m['id'], [])
         if m.get('reply_to_message_id'):
             row['reply_to'] = replies.get(m['reply_to_message_id'])

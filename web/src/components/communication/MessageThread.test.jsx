@@ -28,4 +28,21 @@ describe('MessageThread', () => {
     render(<MessageThread messages={[]} otherUser={{ id: 'other' }} isLoading={false} />)
     expect(screen.queryByText('Hello there')).not.toBeInTheDocument()
   })
+
+  // The backend puts `sent_from` on a row only for a superadmin viewer, so a
+  // bubble that carries it names the surface, and one without it says nothing.
+  it('names the surface a message was sent from when the backend supplies it', () => {
+    const stamped = [
+      { ...messages[0], sent_from: 'mobile' },
+      { ...messages[1], sent_from: 'web' }
+    ]
+    render(<MessageThread messages={stamped} otherUser={{ id: 'other' }} isLoading={false} />)
+    expect(screen.getByLabelText('Sent from Mobile')).toHaveTextContent('Mobile')
+    expect(screen.getByLabelText('Sent from Web')).toHaveTextContent('Web')
+  })
+
+  it('shows no surface for a message the backend did not stamp', () => {
+    render(<MessageThread messages={messages} otherUser={{ id: 'other' }} isLoading={false} />)
+    expect(screen.queryByLabelText(/Sent from/)).not.toBeInTheDocument()
+  })
 })
