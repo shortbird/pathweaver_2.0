@@ -29,6 +29,7 @@ import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizati
 import type { Story } from '../../data/stories.schema'
 import {
   cardProps,
+  creditPending,
   evidenceBesidesHero,
   formatDate,
   heroOf,
@@ -71,6 +72,7 @@ interface Props {
 const { story, relatedStories, hubSlugs } = Astro.props
 const hubs = new Set(hubSlugs)
 const published = isPublished(story)
+const pending = creditPending(story)
 const sections = sectionsByKind(story)
 const lander = landerFor(story)
 const hero = heroOf(story)
@@ -238,7 +240,9 @@ const counted = lander
           <section aria-labelledby="the-tasks">
             <h2 id="the-tasks" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">The tasks</h2>
             <p class="text-neutral-500 font-medium mb-5">
-              Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.
+              {pending
+                ? 'Each task is submitted and reviewed on its own. XP is earned per task; the credit is the sum, once a licensed teacher awards it.'
+                : 'Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.'}
             </p>
             <TaskList rows={sections.tasks.rows} />
           </section>
@@ -273,7 +277,7 @@ const counted = lander
           )}
           <p class="mt-5 text-neutral-700 font-medium leading-relaxed">{creditExplainer(xpPerCredit(story))}</p>
           <div class="mt-8 grid gap-5 sm:grid-cols-2 items-stretch">
-            <Receipt {...story.receipt} />
+            <Receipt {...story.receipt} pending={pending} />
             <a
               href={counted.href}
               data-track={counted.track}

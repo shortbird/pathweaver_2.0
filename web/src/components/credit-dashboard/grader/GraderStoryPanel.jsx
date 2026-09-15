@@ -5,12 +5,14 @@ import StoryConsentPanel from '../../admin/stories/StoryConsentPanel'
 import { STORY_STATUS_LABELS, STORY_STATUS_STYLES } from '../../admin/stories/storyEditorState'
 
 /**
- * One click from a finalized credit item to a story on www.
+ * One click from a credit item to a story on www.
  *
- * Shown to a superadmin under the decision column once credit is final. The
- * primary button drafts, safety-checks and publishes without an editing
- * step; "Draft for review instead" makes the same story but parks it for the
- * editor. Either way the server answers 202 and the work runs on a thread,
+ * Shown to a superadmin under the decision column at any stage of review:
+ * a story drafted before the credit lands says so on its receipt, and a
+ * regenerate after the review moves it to earned. The primary button
+ * drafts, safety-checks and publishes without an editing step; "Draft for
+ * review instead" makes the same story but parks it for the editor. Either
+ * way the server answers 202 and the work runs on a thread,
  * so the panel polls the story every few seconds until its status settles
  * and then shows the outcome in place: the www link and the AI's concerns,
  * the blockers that sent it to review, or the error and a retry.
@@ -149,6 +151,12 @@ const GraderStoryPanel = ({
             onChange={(consent) => setElig(e => ({ ...e, data: { ...(e.data || {}), consent } }))}
           />
 
+          {data.credited === false && (
+            <p className="text-xs text-amber-700" data-testid="story-credit-pending">
+              Credit is not in yet. The story will say the review is still open; regenerate it after you finalize.
+            </p>
+          )}
+
           {result?.story ? (
             <StoryOutcome
               result={result}
@@ -172,11 +180,13 @@ const GraderStoryPanel = ({
                 <button
                   type="button"
                   onClick={() => start({ sourceType: 'quest', sourceId: quest?.user_quest_id, mode: 'auto' })}
-                  disabled={!!busy || !quest?.complete || !quest?.user_quest_id}
+                  disabled={!!busy || !quest?.can_start || !quest?.user_quest_id}
                   aria-busy={busy === 'auto:quest'}
-                  title={quest && !quest.complete
-                    ? `The quest is not complete yet (${quest.finalized_count ?? 0} of ${quest.task_count ?? 0} tasks finalized)`
-                    : undefined}
+                  title={quest && !quest.can_start
+                    ? 'Nothing has been submitted in this quest yet'
+                    : quest && quest.credited_task_count < quest.submitted_task_count
+                      ? `${quest.credited_task_count ?? 0} of ${quest.submitted_task_count ?? 0} submitted tasks credited so far`
+                      : undefined}
                   className="btn-quiet flex-1 min-h-[44px]"
                 >
                   {busy === 'auto:quest' ? 'Starting…' : 'Publish whole quest'}

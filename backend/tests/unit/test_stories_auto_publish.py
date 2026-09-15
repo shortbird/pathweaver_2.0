@@ -124,7 +124,7 @@ def _video(n: int) -> ImageCandidate:
                           label='Dream', kind='video')
 
 
-def _source(images: int = 2) -> StorySource:
+def _source(images: int = 2, credited: bool = True) -> StorySource:
     student = StudentSource(user_id=STUDENT_ID, first_name='Anna', date_of_birth='2012-01-01',
                             grade_level=None, setting='homeschool', is_org_student=False,
                             organization_id=None, identity_names=['Anna', 'Lindqvist'],
@@ -139,7 +139,9 @@ def _source(images: int = 2) -> StorySource:
                               for n in range(1, images + 1)],
                       ai_criteria=[{'index': 1, 'criterion': 'Built it', 'verdict': 'met', 'note': 'yes'}],
                       rounds=[RoundSource(1, '2026-09-01', 'approved', 'Good.', None)],
-                      finalized_at='2026-09-05T00:00:00+00:00', diploma_status='finalized')
+                      finalized_at='2026-09-05T00:00:00+00:00' if credited else None,
+                      diploma_status='finalized' if credited else 'pending_review',
+                      credited=credited)
     return StorySource(source_type='credit_submission', source_id=COMPLETION_ID, student=student,
                        quest=QuestSource('q1', 'Bridge Build', 'Design a bridge.', ''), tasks=[task])
 
@@ -815,8 +817,29 @@ class TestLandsInReview:
 
 
 class TestGates:
+    def test_a_submission_still_under_review_publishes_and_says_so(self, world, monkeypatch):
+        """Credit is not a gate (2026-09-15). The story goes out, the receipt
+        and the payload say the review is open, and nothing claims credit."""
+        world['source_repo'] = FakeSourceRepo(status='pending_review')
+        monkeypatch.setattr(generate, '_load', lambda row, admin: _source(credited=False))
+        out = generate.run(STORY_ID)
+        assert out['status'] == 'published'
+        story = _story(world)
+        assert story['receipt']['state'] == 'pending'
+        assert story['receipt']['credit'] == '0.07 credit'          # 150 XP; the stored line stays clean
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        assert view['credit_state'] == 'pending'
+        assert view['receipt']['credit'] == '150 XP'                 # the state travels beside it
+
+    def test_a_credited_submission_says_awarded(self, world):
+        generate.run(STORY_ID)
+        story = _story(world)
+        assert story['receipt']['state'] == 'awarded'
+        view = publish.public_view(story, world['asset_repo'].for_story(STORY_ID))
+        assert view['credit_state'] == 'awarded'
+        assert view['receipt']['credit'] == '150 XP'
+
     @pytest.mark.parametrize('setup, code', [
-        (dict(status='pending_review'), 'source_not_finalized'),
         (dict(merged='c9'), 'merged'),
         (dict(confidential=True), 'confidential'),
     ])

@@ -5,18 +5,14 @@ rounds, the task's Definition of Done, the quest, the student's reflections and
 -- for the scrubber -- the names that must never appear: the student's own,
 every linked parent's, and the organization's. Nothing here is written back.
 
-Column names are verified against production on 2026-09-11. `is_confidential`,
-`merged_into` and `diploma_status` on the completion are the three gates the
-orchestrator reads before a single byte of evidence is loaded.
-
-A credit class (`quests.quest_type='class'`) is the exception to the third
-gate: its credit is awarded once for the whole class
-(`class_review_status='credit_awarded'`), so its completions never carry a
-`diploma_status` of their own and never got a review round. `user_quest()`
-embeds the quest so `utils.quest_status` can say so, and `evidence_blocks_for`
-reads the live evidence document in place of the snapshot a round would have
-held. POE 2026 is where this bit: every camper's week was credited and none
-of it could become a story.
+Column names are verified against production on 2026-09-11. `is_confidential`
+and `merged_into` on the completion are the two gates the orchestrator reads
+before a single byte of evidence is loaded. `diploma_status` is not a gate
+(since 2026-09-15): it and the embedded quest's `class_review_status` tell
+source_quest.credited whether the work has earned credit yet, and the story
+says so. `evidence_blocks_for` reads the live evidence document for a
+completion that never had a review round: a draft, or a POE day credited with
+its whole class.
 """
 
 from __future__ import annotations
@@ -113,20 +109,9 @@ class StorySourceRepository(BaseRepository):
         return self.client.table('user_quest_tasks').select(TASK_COLUMNS).eq(
             'user_quest_id', user_quest_id).order('order_index').execute().data or []
 
-    def finalized_completions_for_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
-        """Only what a human finalized. Pending, returned and merged-away
-        completions are not part of a story about earned credit."""
-        ids = [t for t in (task_ids or []) if t]
-        if not ids:
-            return []
-        rows = self.client.table('quest_task_completions').select(COMPLETION_COLUMNS).in_(
-            'user_quest_task_id', ids).eq('diploma_status', 'finalized').execute().data or []
-        return [r for r in rows if not r.get('merged_into')]
-
     def completions_for_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
-        """Every live completion, whatever its diploma_status. For a credit
-        class, where the class review credited the whole week at once and no
-        completion was ever finalized on its own."""
+        """Every live completion, whatever its diploma_status. Merged-away
+        ones are dropped here; confidential ones are the orchestrator's call."""
         ids = [t for t in (task_ids or []) if t]
         if not ids:
             return []

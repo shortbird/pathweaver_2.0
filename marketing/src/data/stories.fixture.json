@@ -100,6 +100,7 @@
     "hero_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/basketball.png",
     "hero_alt": "The basketball project in the Optio app",
     "og_image_url": null,
+    "credit_state": "awarded",
     "source": { "type": "credit_submission" }
   },
   {
@@ -191,6 +192,7 @@
     "hero_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
     "hero_alt": "The finished stop motion film",
     "og_image_url": "https://auth.optioeducation.com/storage/v1/object/public/site-assets/screenshots/stop_motion.png",
+    "credit_state": "pending",
     "source": { "type": "quest" }
   }
 ]

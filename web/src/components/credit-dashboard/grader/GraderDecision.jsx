@@ -166,11 +166,12 @@ const GraderDecision = ({
         </section>
       )}
 
-      {/* Superadmin only, and only once credit is final: a story drawn from
-          work that could still be sent back would publish something the
-          reviewer has not signed off on. Keyed so the next item gets a fresh
-          panel instead of the previous student's poll. */}
-      {isSuperadmin && status === 'finalized' && (
+      {/* Superadmin only. Since 2026-09-15 the credit state is not a gate: a
+          story may start the day the work is submitted, and the page says
+          whether the credit is earned or still under review. Keyed so the
+          next item gets a fresh panel instead of the previous student's
+          poll. */}
+      {isSuperadmin && (
         <GraderStoryPanel
           key={item.completion_id}
           completionId={item.completion_id}

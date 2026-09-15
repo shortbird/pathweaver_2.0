@@ -136,6 +136,13 @@ export const storySchema = z.object({
   credit_fraction: z.string(),
   /** The platform rule the explainer quotes. Absent from payloads older than 2026-09-12. */
   credit_rule: z.object({ xp_per_credit: z.number().int().positive() }).optional(),
+  /**
+   * Whether the credit line is a fact or a forecast. A story may publish
+   * before a licensed teacher finalizes the credit (since 2026-09-15); the
+   * receipt and the card then say the review is open. Absent from older
+   * payloads, and every one of those was published after the credit landed.
+   */
+  credit_state: z.enum(['awarded', 'pending']).optional(),
   task_count: z.number().int().nonnegative(),
   sections: z.array(storySection),
   faq: z.array(z.object({ q: z.string(), a: z.string() })),

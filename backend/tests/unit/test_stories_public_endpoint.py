@@ -113,8 +113,8 @@ class TestPublicView:
         assert set(view) == {
             'slug', 'title', 'dek', 'status', 'published_at', 'updated_at', 'author', 'student',
             'activity', 'receipt', 'subject', 'subject_slug', 'subject_split', 'xp_awarded',
-            'credit_fraction', 'credit_rule', 'task_count', 'sections', 'faq', 'hero',
-            'hero_image_url', 'hero_alt', 'og_image_url', 'source'}
+            'credit_fraction', 'credit_rule', 'credit_state', 'task_count', 'sections', 'faq',
+            'hero', 'hero_image_url', 'hero_alt', 'og_image_url', 'source'}
         assert view['status'] == 'published'
         assert view['author'] == {'name': 'Dr. Tanner Bowman', 'title': 'Founder, Optio'}
         # An anonymized story names nobody, not even generically: the page

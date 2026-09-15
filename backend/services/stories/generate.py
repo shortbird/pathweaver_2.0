@@ -7,9 +7,7 @@
 The gates run before a byte of evidence is read, in this order, and each has
 its own reason so the grader can say why:
 
-    source_not_finalized   the submission is not finalized / the quest not complete
-                           (a credit class counts once its class review awarded
-                           credit; source_quest.credited is the rule)
+    source_empty           the quest has no submission at all
     merged                 the completion was merged into a newer one
     confidential           the student marked it confidential
     ai_disabled            the family switched AI off for this student
@@ -41,7 +39,7 @@ from services.stories.consent_service import scope_of, tier_for
 from services.stories.source import StorySource, scrubber_for
 from services.stories import source_quest
 from services.stories.source_completion import SourceNotFound
-from services.stories.source_quest import QuestNotComplete
+from services.stories.source_quest import NothingSubmitted
 
 logger = get_logger(__name__)
 
@@ -162,9 +160,9 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
         completion = source_repo.completion(source_id)
         if not completion:
             raise Refused('source_not_found', 'The submission no longer exists.')
-        quest = source_repo.quest(completion.get('quest_id')) if completion.get('quest_id') else None
-        if not source_quest.credited(completion, quest):
-            raise Refused('source_not_finalized', 'The submission is not finalized.')
+        # Credit is not a gate (2026-09-15): a story may start the day the
+        # work is submitted. The source carries whether it has been credited
+        # and the prompt and the receipt say so.
         if completion.get('merged_into'):
             raise Refused('merged', 'The submission was merged into a newer one.')
         if completion.get('is_confidential'):
@@ -174,9 +172,9 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
         user_quest = source_repo.user_quest(source_id)
         if not source_id or not user_quest:
             raise Refused('source_not_found', 'The quest enrolment no longer exists.')
-        completions, tasks = source_quest.finalized_completions(source_repo, source_id, user_quest)
-        if not source_quest.is_complete(user_quest, tasks, completions) or not completions:
-            raise Refused('source_not_finalized', 'The quest is not complete.')
+        completions, _tasks = source_quest.live_completions(source_repo, source_id)
+        if not completions:
+            raise Refused('source_empty', 'Nothing has been submitted in this quest yet.')
         if any(c.get('is_confidential') for c in completions):
             raise Refused('confidential', 'A submission in this quest is confidential.')
         student_id = user_quest.get('user_id')
@@ -202,8 +200,8 @@ def _load(row: Dict[str, Any], *, admin) -> StorySource:
         return source_completion.load(row['source_id'], admin=admin)
     except SourceNotFound as e:
         raise Refused('source_not_found', str(e)) from e
-    except QuestNotComplete as e:
-        raise Refused('source_not_finalized', str(e)) from e
+    except NothingSubmitted as e:
+        raise Refused('source_empty', str(e)) from e
 
 
 def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,

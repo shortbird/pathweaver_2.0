@@ -184,6 +184,10 @@ export function cardProps(story: Story) {
     icon: story.receipt.icon,
     setting: story.student.setting,
     published_at: story.published_at,
+    credit_pending: creditPending(story),
   }
 }
 export type StoryCardProps = ReturnType<typeof cardProps>
+
+/** True while a licensed teacher has not finalized the credit behind a story. */
+export const creditPending = (story: Story) => story.credit_state === 'pending'

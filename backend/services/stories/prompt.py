@@ -31,6 +31,7 @@ from generated.credits import XP_PER_CREDIT
 from services.stories.activities import STORY_ACTIVITY_SLUGS
 from services.stories.schema import JSON_EXAMPLE
 from services.stories.source import (
+    CREDIT_AWARDED,
     ImageCandidate,
     StorySource,
     TaskSource,
@@ -40,7 +41,7 @@ from services.stories.source import (
 )
 
 #: Bumped whenever the prompt or the schema changes.
-PROMPT_VERSION = 'story-draft/2026-09-12.2'
+PROMPT_VERSION = 'story-draft/2026-09-15.1'
 
 MAX_EVIDENCE_TEXT_CHARS = 2500
 MAX_REFLECTION_CHARS = 1500
@@ -101,8 +102,10 @@ def build_prompt(source: StorySource, *, student_label: str,
     unit = 'project' if is_quest else 'assignment'
     credit_words = (f'{credit} of {primary}' if credit_fraction_for(source.xp_total) >= CREDIT_IN_PROSE_FROM
                     else f'{source.xp_total} XP toward a {primary} credit')
+    became = ('how that work became credit on a transcript' if source.credit_state == CREDIT_AWARDED
+              else 'how that work is becoming credit on a transcript')
     return f"""You are writing a short case study for a school's public website. It tells
-parents what one student did and how that work became credit on a transcript.
+parents what one student did and {became}.
 The story is {shape}.
 
 The reader is a parent searching for whether an activity like this can count
@@ -124,15 +127,14 @@ WHAT IT COUNTED FOR (facts; copy the numbers exactly)
 Optio uses XP instead of letter grades. A licensed teacher reviews the
 evidence against the task's criteria and awards the XP.
 {XP_PER_CREDIT} XP is one high school credit.
-This {unit} earned {credit_words}.
+{_credit_state_lines(source, unit=unit, credit_words=credit_words)}
 Subject credit: {subjects_str}
 Primary subject: {primary}
-Tasks finalized: {len(source.tasks)}
 In what_it_counted_for, write two or three sentences in your own words: what
-subject this counted toward, that it was one {unit} among many on the way to
-a full credit, and why the evidence is what earned it. Credit is never based
-on hours, seat time or logged time. Do not say it is. The reviewer is "a
-licensed teacher", never "certified".
+subject this counts toward, that it was one {unit} among many on the way to
+a full credit, and why the evidence is what {'earned' if source.credit_state == CREDIT_AWARDED else 'earns'} it.
+Credit is never based on hours, seat time or logged time. Do not say it is.
+The reviewer is "a licensed teacher", never "certified".
 {_credit_number_rule(source)}
 
 {_tasks_section(source.tasks)}
@@ -153,7 +155,7 @@ ACTIVITY AND RECEIPT
 - receipt.activity: the real-life activity in under 40 characters, the way a
   parent would name it ("Fall club soccer season", "A semester of piano").
 - receipt.course: "{primary}".
-- receipt.credit: "{credit}".
+- receipt.credit: "{credit}"{'' if source.credit_state == CREDIT_AWARDED else ' (the page marks it pending itself; do not)'}.
 - receipt.icon: the one that fits the activity.
 
 FAQ
@@ -183,6 +185,27 @@ Return JSON in exactly this shape:
 #: is 0.05 credit, which is true and reads as a joke in a title or a dek; the
 #: receipt on the page makes the same call (publish.RECEIPT_XP_BELOW_CREDITS).
 CREDIT_IN_PROSE_FROM = 0.5
+
+
+def _credit_state_lines(source: StorySource, *, unit: str, credit_words: str) -> str:
+    """The sentence the model may build on, and the tense it must keep.
+
+    A story drafted before the review is done says what the work is worth and
+    that the review is open. It never says the credit was earned, awarded or
+    counted: that would put a claim on a public page that a reviewer has not
+    made. The same story, regenerated after the credit lands, says earned.
+    """
+    submitted = len(source.tasks)
+    if source.credit_state == CREDIT_AWARDED:
+        return (f'This {unit} earned {credit_words}.\n'
+                f'Tasks credited: {submitted} of {submitted}')
+    credited = source.credited_task_count
+    return (f'This {unit} is worth {credit_words} once a licensed teacher awards it.\n'
+            f'Tasks submitted: {submitted}. Tasks credited so far: {credited}.\n'
+            'THE REVIEW IS STILL OPEN. Say what the work is worth and that a licensed\n'
+            'teacher is reviewing it. Do not write that the credit was earned, awarded,\n'
+            'approved, counted or added to a transcript, anywhere on the page, and do\n'
+            'not invent a review outcome.')
 
 
 def _credit_number_rule(source: StorySource) -> str:

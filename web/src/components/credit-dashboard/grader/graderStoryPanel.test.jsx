@@ -30,7 +30,8 @@ const ELIGIBLE = {
   success: true,
   consent: null,
   existing_story: null,
-  quest: { user_quest_id: 'uq1', title: 'Bridge', complete: true, task_count: 5, finalized_count: 5 },
+  credited: true,
+  quest: { user_quest_id: 'uq1', title: 'Bridge', can_start: true, complete: true, task_count: 5, submitted_task_count: 5, credited_task_count: 5 },
   student_user_id: 'stu1',
   is_org_student: false,
 }
@@ -119,9 +120,10 @@ describe('where the panel appears', () => {
     expect(screen.queryByRole('region', { name: 'Story for www' })).toBeNull()
   })
 
-  it('is hidden until credit is final', () => {
+  it('shows before credit is final too, since 2026-09-15', async () => {
     renderGrader({ role: 'superadmin', status: 'pending_review' })
-    expect(screen.queryByRole('region', { name: 'Story for www' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Story for www' })).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Publish story' })
   })
 })
 
@@ -145,12 +147,21 @@ describe('the buttons', () => {
     expect(publishCalls()[0][1]).toEqual({ source_type: 'quest', source_id: 'uq1', mode: 'auto' })
   })
 
-  it('cannot publish an unfinished quest', async () => {
-    eligibility = { ...ELIGIBLE, quest: { ...ELIGIBLE.quest, complete: false, finalized_count: 3 } }
+  it('cannot publish a quest with nothing submitted', async () => {
+    eligibility = { ...ELIGIBLE, quest: { ...ELIGIBLE.quest, can_start: false, complete: false, submitted_task_count: 0, credited_task_count: 0 } }
     renderPanel()
     const button = await screen.findByRole('button', { name: /Publish whole quest/ })
     expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/3 of 5/))
+    expect(button).toHaveAttribute('title', 'Nothing has been submitted in this quest yet')
+  })
+
+  it('publishes a partly credited quest and says how far the credit has got', async () => {
+    eligibility = { ...ELIGIBLE, credited: false, quest: { ...ELIGIBLE.quest, complete: false, submitted_task_count: 4, credited_task_count: 1 } }
+    renderPanel()
+    const button = await screen.findByRole('button', { name: /Publish whole quest/ })
+    expect(button).toBeEnabled()
+    expect(button).toHaveAttribute('title', '1 of 4 submitted tasks credited so far')
+    expect(screen.getByTestId('story-credit-pending')).toHaveTextContent('Credit is not in yet')
   })
 
   it('drafts for review on the small link', async () => {

@@ -182,7 +182,9 @@ class TestThePrompt:
         assert 'never "0.1 credit"' in text                            # a sliver of credit is said as XP
         assert 'Optio uses XP instead of letter grades.' in text
         assert '2000 XP is one high school credit.' in text
-        assert 'Credit is never based\non hours, seat time or logged time. Do not say it is.' in text
+        assert 'Tasks credited: 1 of 1' in text
+        assert 'THE REVIEW IS STILL OPEN' not in text
+        assert 'Credit is never based on hours, seat time or logged time. Do not say it is.' in text
         assert 'Setting: Optio Academy, a WASC-accredited online private school.' in text
         assert '[T1] [name] load test' in text
         assert '[C1] Built the bridge' in text
@@ -202,6 +204,20 @@ class TestThePrompt:
         text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
         assert 'This assignment earned 0.5 credit of Science.' in text
         assert 'reads as a joke' not in text
+
+    def test_an_uncredited_source_is_told_the_review_is_open(self, source):
+        """A story drafted before the grader finalizes must not claim credit."""
+        source.tasks[0].credited = False
+        text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
+        assert source.credit_state == 'pending'
+        assert 'how that work is becoming credit on a transcript' in text
+        assert 'This assignment is worth 200 XP toward a Science credit once a licensed teacher awards it.' in text
+        assert 'Tasks submitted: 1. Tasks credited so far: 0.' in text
+        assert 'THE REVIEW IS STILL OPEN' in text
+        assert 'Do not write that the credit was earned, awarded,' in text
+        assert 'why the evidence is what earns it' in text
+        assert 'the page marks it pending itself; do not' in text
+        assert 'This assignment earned' not in text
 
     def test_an_anonymized_story_names_nobody_not_even_generically(self, source):
         text = prompt_mod.build_prompt(source, student_label='A high school student',
@@ -328,7 +344,7 @@ class TestAssemble:
         assert story['xp_awarded'] == 200
         assert story['credit_fraction'] == 0.1
         assert story['receipt'] == {'activity': 'Backyard bridge build', 'course': 'Science',
-                                    'credit': '0.1 credit', 'icon': 'flask'}
+                                    'credit': '0.1 credit', 'icon': 'flask', 'state': 'awarded'}
         assert story['activity_slug'] == 'other'
         assert story['grade_band'] == 'high'
         assert story['setting'] == 'academy'

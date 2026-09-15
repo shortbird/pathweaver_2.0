@@ -302,6 +302,10 @@ def assemble(source: StorySource, draft: DraftResult, *, student_label: str, tie
         'course': subject,
         'credit': credit_display(fraction),
         'icon': valid_icon(receipt_raw.get('icon'), activity_slug, primary_key),
+        # Whether the credit line is a fact or a forecast. The source decides,
+        # the editor cannot change it, and a regenerate after the review
+        # lands flips it to awarded.
+        'state': source.credit_state,
     }
 
     title = _plain(data.get('title'), MAX_TITLE_CHARS)

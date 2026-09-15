@@ -33,7 +33,7 @@ from generated.credits import XP_PER_CREDIT
 from services import marketing_site
 from services.stories import assets as assets_mod
 from services.stories.anonymize import is_generic_label
-from services.stories.source import credit_display, subject_slug
+from services.stories.source import CREDIT_AWARDED, CREDIT_PENDING, credit_display, subject_slug
 
 logger = get_logger(__name__)
 
@@ -57,9 +57,20 @@ PUBLIC_SECTION_KINDS = ('what_they_did', 'tasks', 'evidence', 'what_reviewer_loo
 RECEIPT_XP_BELOW_CREDITS = 0.5
 
 
+def credit_state_of(story: Dict[str, Any]) -> str:
+    """`awarded` or `pending`, off the receipt the drafter wrote. A story from
+    before the state existed (2026-09-15) was gated on finalized credit, so
+    the absence of the field means awarded."""
+    raw_receipt = story.get('receipt')
+    receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
+    return CREDIT_PENDING if receipt.get('state') == CREDIT_PENDING else CREDIT_AWARDED
+
+
 def receipt_credit_line(story: Dict[str, Any]) -> Optional[str]:
     """What the receipt's second line says: the stored credit line, or the XP
-    when the credit is a sliver of one."""
+    when the credit is a sliver of one. Whether that line is earned or still
+    under review is `credit_state` beside it; the page renders the state, the
+    line stays a number."""
     raw_receipt = story.get('receipt')
     receipt: Dict[str, Any] = raw_receipt if isinstance(raw_receipt, dict) else {}
     try:
@@ -650,6 +661,9 @@ def public_view(story: Dict[str, Any], assets: List[Dict[str, Any]],
         'xp_awarded': story.get('xp_awarded'),
         'credit_fraction': credit_display(story.get('credit_fraction')),
         'credit_rule': {'xp_per_credit': XP_PER_CREDIT},
+        # awarded | pending. The card and the receipt on www read it; a payload
+        # from before 2026-09-15 has no field and every such story was awarded.
+        'credit_state': credit_state_of(story),
         'task_count': task_count,
         'sections': sections,
         'faq': faq,

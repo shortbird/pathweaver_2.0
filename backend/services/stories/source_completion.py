@@ -1,9 +1,10 @@
 """A story from one credit submission.
 
 `load(completion_id)` returns a StorySource with exactly one TaskSource. The
-gates (finalized, not merged, not confidential, not an org student) are NOT
-applied here: the orchestrator reads the flags off the dataclass and decides,
-so the reason a story was refused is one place, not two.
+gates (not merged, not confidential) are NOT applied here: the orchestrator
+reads the flags off the dataclass and decides, so the reason a story was
+refused is one place, not two. Whether the work has been credited is a fact
+on the task (source_quest.credited), not a gate.
 """
 
 from __future__ import annotations
@@ -42,8 +43,11 @@ def load(completion_id: str, *, repo=None, admin=None,
         raise SourceNotFound(f'student for completion {completion_id} not found')
     scrubber = scrubber_for(student)
 
+    from services.stories.source_quest import credited
+
+    quest_row = repo.quest(completion.get('quest_id')) if completion.get('quest_id') else None
     task = build_task(repo, completion, index=1, scrubber=scrubber, admin=admin,
-                      load_images=load_images)
+                      load_images=load_images, credited=credited(completion, quest_row))
 
     user_quest = None
     task_row = repo.task(completion.get('user_quest_task_id')) or {}

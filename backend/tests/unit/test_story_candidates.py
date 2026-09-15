@@ -124,7 +124,7 @@ def world(monkeypatch):
     monkeypatch.setattr('repositories.story_candidate_repository.StoryCandidateRepository',
                         lambda client=None: candidate_repo)
     monkeypatch.setattr('services.stories.source_quest.status',
-                        lambda uq, repo=None, admin=None: {'complete': True, 'finalized_task_count': 3, 'task_count': 3})
+                        lambda uq, repo=None, admin=None: {'can_start': True, 'complete': True, 'submitted_task_count': 3, 'credited_task_count': 3, 'task_count': 3})
     monkeypatch.setattr(generate, 'kick_background', lambda ids, admin=None: state['kicked'].extend(ids) or True)
     monkeypatch.setattr(Config, 'STORIES_ENABLED', True)
 
@@ -225,11 +225,13 @@ class TestQueue:
         assert row['sources']['quest']['source_id'] == USER_QUEST
         assert row['sources']['quest']['complete'] is True
 
-    def test_an_unfinalized_task_says_why_it_cannot_start_yet(self, client):
+    def test_an_unfinalized_task_can_start_and_says_the_credit_is_not_in(self, client):
+        """Credit is not a gate (2026-09-15): the row says where the credit stands."""
         self._flag(client, 'task_completed', DRAFT_COMPLETION)
         row = client.get('/api/admin/stories/candidates').get_json()['data']['candidates'][0]
-        assert row['sources']['credit_submission']['eligible'] is False
-        assert row['sources']['credit_submission']['reasons'] == ['source_not_finalized']
+        assert row['item']['credited'] is False
+        assert row['sources']['credit_submission']['eligible'] is True
+        assert row['sources']['credit_submission']['reasons'] == []
 
     def test_a_day_of_a_credited_class_can_start_a_story(self, client):
         """POE: the class review credited the week; no day was ever finalized."""
@@ -237,6 +239,7 @@ class TestQueue:
         row = client.get('/api/admin/stories/candidates').get_json()['data']['candidates'][0]
         assert row['item']['title'] == 'POE Day 3'
         assert row['item']['diploma_status'] == 'none'
+        assert row['item']['credited'] is True
         assert row['sources']['credit_submission']['eligible'] is True
         assert row['sources']['credit_submission']['reasons'] == []
         assert row['sources']['quest']['source_id'] == CLASS_USER_QUEST

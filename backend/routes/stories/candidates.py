@@ -8,7 +8,7 @@ The superadmin sees most of the good work first in the app's feed, on a
 phone, where the grader's Publish button and the console's paste-an-id form
 are both out of reach. The bookmark is the bridge: one tap in the feed, and
 the item waits on the web Stories page with what the reviewer needs to decide
--- who, what, whether it is finalized, whether a story already exists -- and
+-- who, what, whether the credit is in yet, whether a story already exists -- and
 the same Draft-for-review button the console already has. Starting a story
 from the queue (POST /publish with `candidate_id`) moves the row to `started`.
 
@@ -121,8 +121,6 @@ def _enrich(candidate: Dict[str, Any], story_repo, source_repo) -> Dict[str, Any
         reasons: List[str] = []
         if not completion:
             reasons.append('missing')
-        elif not source_quest.credited(completion, quest):
-            reasons.append('source_not_finalized')
         if completion.get('is_confidential'):
             reasons.append('confidential')
         quest_status = source_quest.status(user_quest_id, repo=source_repo) if user_quest_id else None
@@ -131,6 +129,7 @@ def _enrich(candidate: Dict[str, Any], story_repo, source_repo) -> Dict[str, Any
             'quest_title': quest.get('title'),
             'completed_at': completion.get('completed_at'),
             'diploma_status': completion.get('diploma_status'),
+            'credited': source_quest.credited(completion, quest),
         }
         out['sources'] = {
             'credit_submission': {
@@ -141,8 +140,10 @@ def _enrich(candidate: Dict[str, Any], story_repo, source_repo) -> Dict[str, Any
             },
             'quest': {
                 'source_id': user_quest_id,
+                'can_start': bool((quest_status or {}).get('can_start')),
                 'complete': bool((quest_status or {}).get('complete')),
-                'finalized_task_count': (quest_status or {}).get('finalized_task_count', 0),
+                'submitted_task_count': (quest_status or {}).get('submitted_task_count', 0),
+                'credited_task_count': (quest_status or {}).get('credited_task_count', 0),
                 'task_count': (quest_status or {}).get('task_count', 0),
                 'existing_story': _serialize(story_repo.get_by_source('quest', user_quest_id)) if user_quest_id else None,
             },

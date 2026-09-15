@@ -22,18 +22,28 @@ const finalizedTask = {
   id: 'cand-1', target_type: 'task_completed', target_id: 'comp-1', note: 'the drone video',
   created_at: '2026-09-15T00:00:00Z', flagged_by_name: 'Dr. Tanner',
   student: { id: 's1', display_name: 'Romney H.' },
-  item: { title: 'Build a drone', quest_title: 'Flight' },
+  item: { title: 'Build a drone', quest_title: 'Flight', credited: true },
   sources: {
     credit_submission: { source_id: 'comp-1', eligible: true, reasons: [], existing_story: null },
-    quest: { source_id: 'uq-1', complete: false, finalized_task_count: 1, task_count: 3, existing_story: null },
+    quest: { source_id: 'uq-1', can_start: true, complete: false, submitted_task_count: 2, credited_task_count: 1, task_count: 3, existing_story: null },
   },
 }
+// Credit is not a gate (2026-09-15): a task still under review can start a
+// story; the row says the credit is pending. A confidential one cannot.
 const draftTask = {
   ...finalizedTask, id: 'cand-2', target_id: 'comp-2', note: null,
-  item: { title: 'Paint the wing', quest_title: 'Flight' },
+  item: { title: 'Paint the wing', quest_title: 'Flight', credited: false },
   sources: {
-    credit_submission: { source_id: 'comp-2', eligible: false, reasons: ['source_not_finalized'], existing_story: null },
-    quest: { source_id: 'uq-1', complete: false, finalized_task_count: 1, task_count: 3, existing_story: null },
+    credit_submission: { source_id: 'comp-2', eligible: true, reasons: [], existing_story: null },
+    quest: { source_id: 'uq-1', can_start: true, complete: false, submitted_task_count: 2, credited_task_count: 1, task_count: 3, existing_story: null },
+  },
+}
+const confidentialTask = {
+  ...finalizedTask, id: 'cand-4', target_id: 'comp-4', note: null,
+  item: { title: 'A private letter', quest_title: 'Flight', credited: false },
+  sources: {
+    credit_submission: { source_id: 'comp-4', eligible: false, reasons: ['confidential'], existing_story: null },
+    quest: { source_id: 'uq-9', can_start: false, complete: false, submitted_task_count: 0, credited_task_count: 0, task_count: 3, existing_story: null },
   },
 }
 const moment = {
@@ -76,14 +86,23 @@ describe('StoryCandidatesQueue', () => {
     expect(navigate).toHaveBeenCalledWith('/admin/stories/story-9')
   })
 
-  it('will not draft from a task that is not finalized, and says why', async () => {
+  it('drafts from a task still under review and says the credit is pending', async () => {
     renderQueue()
     const buttons = await screen.findAllByRole('button', { name: 'Draft from this task' })
-    expect(buttons[1]).toBeDisabled()
-    expect(screen.getByText('(not finalized in credit review yet)')).toBeInTheDocument()
+    expect(buttons[1]).toBeEnabled()
+    expect(screen.getByText('credit pending')).toBeInTheDocument()
     const whole = screen.getAllByRole('button', { name: 'Draft from the whole quest' })
-    expect(whole[0]).toBeDisabled()
-    expect(screen.getAllByText('(1/3 finalized)').length).toBe(2)
+    expect(whole[0]).toBeEnabled()
+    expect(screen.getAllByText('(2/3 submitted, 1 credited)').length).toBe(2)
+  })
+
+  it('will not draft from a confidential task, nor from a quest with nothing submitted', async () => {
+    storiesApi.candidates.mockResolvedValue({ candidates: [confidentialTask] })
+    renderQueue()
+    const button = await screen.findByRole('button', { name: 'Draft from this task' })
+    expect(button).toBeDisabled()
+    expect(screen.getByText('(marked confidential)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Draft from the whole quest' })).toBeDisabled()
   })
 
   it('dismisses a bookmark', async () => {

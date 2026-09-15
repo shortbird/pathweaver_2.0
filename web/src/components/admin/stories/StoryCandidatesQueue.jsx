@@ -23,7 +23,6 @@ import {
  */
 
 const REASONS = {
-  source_not_finalized: 'not finalized in credit review yet',
   confidential: 'marked confidential',
   missing: 'the submission is gone',
 }
@@ -52,6 +51,9 @@ function CandidateRow({ candidate, onStart, onDismiss, onOpenStory, busy }) {
         <p className="text-sm text-gray-700 truncate">
           {item.title || 'Untitled'}
           {isTask && item.quest_title && <span className="text-gray-400"> in {item.quest_title}</span>}
+          {isTask && item.credited === false && (
+            <span className="ml-2 text-xs text-amber-700">credit pending</span>
+          )}
         </p>
         {!isTask && item.description && (
           <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{item.description}</p>
@@ -84,17 +86,15 @@ function CandidateRow({ candidate, onStart, onDismiss, onOpenStory, busy }) {
               <span className="inline-flex items-center gap-1.5">
                 <button
                   type="button"
-                  disabled={busy || !quest.complete}
+                  disabled={busy || !quest.can_start}
                   onClick={() => onStart(candidate, 'quest', quest.source_id)}
                   className="btn-quiet px-3 py-1.5 text-sm"
                 >
                   Draft from the whole quest
                 </button>
-                {!quest.complete && (
-                  <span className="text-xs text-gray-400">
-                    ({quest.finalized_task_count}/{quest.task_count} finalized)
-                  </span>
-                )}
+                <span className="text-xs text-gray-400">
+                  ({quest.submitted_task_count}/{quest.task_count} submitted, {quest.credited_task_count} credited)
+                </span>
               </span>
             )}
           </>

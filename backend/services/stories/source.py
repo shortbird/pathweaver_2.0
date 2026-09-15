@@ -3,7 +3,14 @@
 `StorySource` is the seam between the loaders (source_completion,
 source_quest, and Phase 2's source_learning_moment) and everything after them
 (the safety pass, the prompt, the drafter). A task story has one `TaskSource`;
-a quest story has one per finalized task plus the student's reflections.
+a quest story has one per submitted task plus the student's reflections.
+
+Credit is a fact about the source, not a gate on it (since 2026-09-15). Each
+task says whether its work has been credited -- finalized by a reviewer, or
+part of a class whose review credited the whole -- and the source rolls that
+up into `credit_state`: "awarded" when every task is credited, "pending"
+otherwise. The prompt and the receipt read it so a story drafted while the
+review is still open never claims the credit was earned.
 
 Everything textual in here has already been through the scrubber. The loaders
 build the scrubber from the student's identity names and scrub as they read,
@@ -44,6 +51,8 @@ from services.stories.anonymize import Scrubber, grade_band
 logger = get_logger(__name__)
 
 FINALIZED = 'finalized'
+CREDIT_AWARDED = 'awarded'
+CREDIT_PENDING = 'pending'
 
 #: A PDF larger than this is not published (and not sent to the model): the
 #: story worker shares a 512MB container, and Gemini's inline request ceiling
@@ -164,6 +173,7 @@ class TaskSource:
     rounds: List[RoundSource] = field(default_factory=list)
     finalized_at: Optional[str] = None
     diploma_status: Optional[str] = None
+    credited: bool = False        # finalized on its own, or its class review awarded credit
     is_confidential: bool = False
     merged_into: Optional[str] = None
     evidence_flags: List[str] = field(default_factory=list)
@@ -221,6 +231,16 @@ class StorySource:
     def finalized_at(self) -> Optional[str]:
         stamps = [t.finalized_at for t in self.tasks if t.finalized_at]
         return max(stamps) if stamps else None
+
+    @property
+    def credited_task_count(self) -> int:
+        return sum(1 for t in self.tasks if t.credited)
+
+    @property
+    def credit_state(self) -> str:
+        """`awarded` when every task's work has been credited, else `pending`."""
+        return CREDIT_AWARDED if self.tasks and all(t.credited for t in self.tasks) \
+            else CREDIT_PENDING
 
     @property
     def subject_split(self) -> Dict[str, int]:
@@ -749,8 +769,12 @@ def _document_excerpt(blob: bytes, scrubber: Scrubber) -> Optional[str]:
 
 def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubber,
                admin, image_offset: int = 0, load_images: bool = True,
-               quote_offset: int = 0, link_offset: int = 0) -> TaskSource:
-    """Everything the story needs about one finalized submission.
+               quote_offset: int = 0, link_offset: int = 0,
+               credited: bool = False) -> TaskSource:
+    """Everything the story needs about one submission.
+
+    `credited` is the loader's verdict (source_quest.credited): it knows the
+    quest, this function does not.
 
     `images` holds every file candidate for the task -- images, videos and
     PDFs -- in the order the evidence was submitted; `quotes` and `links` the
@@ -787,10 +811,11 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
     quotes: List[QuoteCandidate] = []
     links: List[LinkCandidate] = []
     flags: List[str] = []
-    # A finalized submission has a round, and the round's snapshot is the
-    # evidence the reviewer saw. A credit-class completion (POE and the like)
-    # was credited as part of the whole class and never got a round, so its
-    # evidence is the live document, read in the same block shape.
+    # A submission that went through credit review has a round, and the
+    # round's snapshot is the evidence the reviewer saw. One that has not
+    # (still a draft, or credited with its whole class the way POE was)
+    # has no round, so its evidence is the live document, read in the same
+    # block shape.
     if rounds:
         snapshot = rounds[-1].get('evidence_snapshot')
     else:
@@ -915,6 +940,7 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
         rounds=rounds_from_rows(rounds, scrubber),
         finalized_at=completion.get('finalized_at'),
         diploma_status=completion.get('diploma_status'),
+        credited=bool(credited),
         is_confidential=bool(completion.get('is_confidential')),
         merged_into=completion.get('merged_into'),
         evidence_flags=flags,

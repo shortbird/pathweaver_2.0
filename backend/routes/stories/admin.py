@@ -36,7 +36,7 @@ from services.stories import assets as assets_mod
 from services.stories import consent_service, generate, publish
 from services.stories import safety as safety_mod
 from services.stories.activities import normalize_activity_slug, valid_icon
-from services.stories.source import subject_key
+from services.stories.source import CREDIT_AWARDED, subject_key
 
 from . import admin_stories_bp as bp
 
@@ -219,8 +219,6 @@ def eligibility(user_id: str, completion_id: str):
     student_id = completion.get('user_id')
     reasons: List[str] = []
     quest = source_repo.quest(completion.get('quest_id')) if completion.get('quest_id') else None
-    if not source_quest.credited(completion, quest):
-        reasons.append('source_not_finalized')
     if completion.get('merged_into'):
         reasons.append('merged')
     if completion.get('is_confidential'):
@@ -239,14 +237,18 @@ def eligibility(user_id: str, completion_id: str):
         'student_user_id': student_id,
         'eligible': not reasons,
         'reasons': reasons,
+        # Not a gate: the story says whether the credit is earned or pending.
+        'credited': source_quest.credited(completion, quest),
         # The same shape the detail view sends, so the grader chip and the
         # editor panel read one thing.
         'consent': _consent_view(student_id),
         'existing_story': _serialize(story_repo.get_by_source('credit_submission', completion_id)),
         'quest': {
             'user_quest_id': user_quest_id,
+            'can_start': bool((quest_status or {}).get('can_start')),
             'complete': bool((quest_status or {}).get('complete')),
-            'finalized_task_count': (quest_status or {}).get('finalized_task_count', 0),
+            'submitted_task_count': (quest_status or {}).get('submitted_task_count', 0),
+            'credited_task_count': (quest_status or {}).get('credited_task_count', 0),
             'task_count': (quest_status or {}).get('task_count', 0),
             'existing_story': _serialize(quest_story),
         },
@@ -309,10 +311,14 @@ def update_story(user_id: str, story_id: str):
     if 'receipt' in changes:
         receipt = changes['receipt'] if isinstance(changes['receipt'], dict) else {}
         primary = subject_key(story.get('subject'))
+        stored_receipt = story.get('receipt') if isinstance(story.get('receipt'), dict) else {}
         changes['receipt'] = {
             'activity': str(receipt.get('activity') or '')[:60],
             'course': str(receipt.get('course') or story.get('subject') or '')[:80],
-            'credit': str(receipt.get('credit') or (story.get('receipt') or {}).get('credit') or ''),
+            'credit': str(receipt.get('credit') or stored_receipt.get('credit') or ''),
+            # Not editable: the source decided it, and only a regenerate may
+            # move it (from pending to awarded once the review lands).
+            'state': stored_receipt.get('state') or CREDIT_AWARDED,
             'icon': valid_icon(receipt.get('icon'), changes.get('activity_slug')
                                or story.get('activity_slug'), primary),
         }

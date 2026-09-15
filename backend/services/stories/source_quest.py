@@ -1,23 +1,23 @@
 """A story from a student's whole quest.
 
-`load(user_quest_id)` pools every FINALIZED completion in the enrolment: one
-TaskSource per finalized task, subjects and XP summed across them, the primary
+`load(user_quest_id)` pools every live completion in the enrolment: one
+TaskSource per submitted task, subjects and XP summed across them, the primary
 subject the one with the most XP, and the student's own reflections from
-`user_quests.reflection_notes`. Pending, returned and merged-away completions
-are not part of it; a story about credit earned cannot cite work still under
-review.
+`user_quests.reflection_notes`. Merged-away completions are not part of it;
+confidential ones are refused upstream by the orchestrator.
 
-A quest is complete for this purpose when `completed_at` is set, or when every
-required task has a finalized completion. Both are checked here because the
-grader's eligibility panel needs the same answer, without loading evidence.
+Credit is not a gate here (since 2026-09-15; it was). A story can start the
+day the work is submitted. Each task carries whether its work has been
+credited, and the source's `credit_state` says whether the story may call the
+credit earned or must say the review is still open. `credited()` is the one
+rule: a completion is credited when a reviewer finalized it, or when it
+belongs to a credit class whose review awarded credit to the whole class
+(`utils.quest_status`; POE is the case that made this explicit -- its days
+never get a `diploma_status` or a review round of their own).
 
-A credit class is different: `utils.quest_status` says its credit is awarded
-once, for the whole class, on `quests.class_review_status`, and its
-completions never get a `diploma_status` or a review round of their own. For
-such a quest every live completion counts and the class is complete the
-moment credit is awarded. `credited()` is the one rule the orchestrator, the
-grader's eligibility call and the bookmark queue all read, so a single POE
-day can start a story the same way a finalized submission can.
+`is_complete` and `status()` are information for the grader panel and the
+bookmark queue, not gates: whether the enrolment is finished, how many tasks
+have a submission, how many are credited.
 """
 
 from __future__ import annotations
@@ -40,8 +40,8 @@ from utils.quest_status import enrollment_completed_at, is_class_credit_awarded
 logger = get_logger(__name__)
 
 
-class QuestNotComplete(Exception):
-    """The quest is still open and has unfinished required tasks."""
+class NothingSubmitted(Exception):
+    """The enrolment has no live completion: there is no work to write about."""
 
 
 def credited(completion: Optional[Dict[str, Any]], quest: Optional[Dict[str, Any]]) -> bool:
@@ -54,22 +54,17 @@ def credited(completion: Optional[Dict[str, Any]], quest: Optional[Dict[str, Any
     return is_class_credit_awarded(quest)
 
 
-def finalized_completions(repo, user_quest_id: str,
-                          user_quest: Optional[Dict[str, Any]] = None
-                          ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """(credited completions in task order, the quest's tasks).
+def live_completions(repo, user_quest_id: str) -> Tuple[List[Dict[str, Any]],
+                                                       List[Dict[str, Any]]]:
+    """(every live completion in task order, the quest's tasks).
 
-    Pass the enrolment row when it is already loaded; it decides whether
-    "credited" means finalized one by one or awarded to the class at once.
+    Live means not merged into a newer one. Status does not matter: a draft
+    submission is work the student did, and the story says what state the
+    credit is in.
     """
-    if user_quest is None:
-        user_quest = repo.user_quest(user_quest_id) or {}
     tasks = repo.tasks_for_user_quest(user_quest_id)
     task_ids = [t['id'] for t in tasks if t.get('id')]
-    if is_class_credit_awarded(user_quest.get('quests')):
-        completions = repo.completions_for_tasks(task_ids)
-    else:
-        completions = repo.finalized_completions_for_tasks(task_ids)
+    completions = repo.completions_for_tasks(task_ids)
     order = {tid: i for i, tid in enumerate(task_ids)}
     completions.sort(key=lambda c: order.get(c.get('user_quest_task_id'), len(order)))
     return completions, tasks
@@ -77,6 +72,8 @@ def finalized_completions(repo, user_quest_id: str,
 
 def is_complete(user_quest: Dict[str, Any], tasks: List[Dict[str, Any]],
                 completions: List[Dict[str, Any]]) -> bool:
+    """Whether the enrolment is finished: `completed_at` set, its class review
+    awarded credit, or every required task has a submission."""
     if user_quest.get('completed_at'):
         return True
     if is_class_credit_awarded(user_quest.get('quests')):
@@ -89,9 +86,9 @@ def is_complete(user_quest: Dict[str, Any], tasks: List[Dict[str, Any]],
 
 
 def status(user_quest_id: str, *, repo=None, admin=None) -> Optional[Dict[str, Any]]:
-    """For the grader panel: is the quest complete, and how many tasks count.
-
-    None when the enrolment does not exist. No evidence is loaded.
+    """For the grader panel and the bookmark queue: can a story start from
+    this quest, and where its credit stands. None when the enrolment does not
+    exist. No evidence is loaded.
     """
     from repositories.story_source_repository import StorySourceRepository
 
@@ -99,11 +96,14 @@ def status(user_quest_id: str, *, repo=None, admin=None) -> Optional[Dict[str, A
     user_quest = repo.user_quest(user_quest_id)
     if not user_quest:
         return None
-    completions, tasks = finalized_completions(repo, user_quest_id, user_quest)
+    completions, tasks = live_completions(repo, user_quest_id)
+    quest = user_quest.get('quests')
     return {
         'user_quest_id': user_quest_id,
+        'can_start': bool(completions),
         'complete': is_complete(user_quest, tasks, completions),
-        'finalized_task_count': len(completions),
+        'submitted_task_count': len(completions),
+        'credited_task_count': sum(1 for c in completions if credited(c, quest)),
         'task_count': len(tasks),
     }
 
@@ -122,19 +122,18 @@ def load(user_quest_id: str, *, repo=None, admin=None,
         raise SourceNotFound(f'student for user_quest {user_quest_id} not found')
     scrubber = scrubber_for(student)
 
-    completions, tasks = finalized_completions(repo, user_quest_id, user_quest)
-    if not is_complete(user_quest, tasks, completions):
-        raise QuestNotComplete(
-            f'user_quest {user_quest_id} has unfinished required tasks')
+    completions, _tasks = live_completions(repo, user_quest_id)
     if not completions:
-        raise QuestNotComplete(f'user_quest {user_quest_id} has no finalized task')
+        raise NothingSubmitted(f'user_quest {user_quest_id} has no submission')
+    quest = user_quest.get('quests')
 
     task_sources = []
     image_offset = quote_offset = link_offset = 0
     for index, completion in enumerate(completions, start=1):
         task = build_task(repo, completion, index=index, scrubber=scrubber, admin=admin,
                           image_offset=image_offset, load_images=load_images,
-                          quote_offset=quote_offset, link_offset=link_offset)
+                          quote_offset=quote_offset, link_offset=link_offset,
+                          credited=credited(completion, quest))
         image_offset += len(task.images)
         quote_offset += len(task.quotes)
         link_offset += len(task.links)

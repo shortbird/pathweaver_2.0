@@ -1,13 +1,14 @@
 """A story from a whole quest: what is pooled, what is left out.
 
-Only finalized completions count, subjects and XP are summed across them, the
+Every live completion counts, subjects and XP are summed across them, the
 primary subject is the one with the most XP, and the student's reflections
-arrive already scrubbed.
+arrive already scrubbed. Credit is a fact on each task, not a gate: the
+source's credit_state is `awarded` only when every task is credited.
 
-The exception is a credit class: its review credits the whole class at once,
-its completions never get a diploma_status or a round, and its evidence is
-the live document. POE 2026 was credited this way and no camper's week could
-become a story until the source learned the rule.
+A credit class is credited once, for the whole class; its completions never
+get a diploma_status or a round, and its evidence is the live document. POE
+2026 was credited this way and no camper's week could become a story until
+the source learned the rule.
 """
 
 from __future__ import annotations
@@ -77,9 +78,6 @@ class FakeRepo:
 
     def user_quest(self, uid): return self.user_quests.get(uid)
     def tasks_for_user_quest(self, uid): return [t for t in self.tasks if t['user_quest_id'] == uid]
-    def finalized_completions_for_tasks(self, ids):
-        return [c for c in self.completions if c['user_quest_task_id'] in ids
-                and c['diploma_status'] == 'finalized' and not c.get('merged_into')]
     def completions_for_tasks(self, ids):
         return [c for c in self.completions if c['user_quest_task_id'] in ids
                 and not c.get('merged_into')]
@@ -113,16 +111,27 @@ def _no_ai_review(monkeypatch):
         lambda self, cid: None)
 
 
-def test_only_finalized_completions_become_tasks():
+def test_every_live_completion_becomes_a_task_whatever_its_status():
     source = source_quest.load(USER_QUEST_ID, repo=FakeRepo(completed_at='2026-09-03'), admin=None)
-    assert [t.completion_id for t in source.tasks] == ['c1', 'c2']
-    assert [t.index for t in source.tasks] == [1, 2]
+    assert [t.completion_id for t in source.tasks] == ['c1', 'c2', 'c3']
+    assert [t.index for t in source.tasks] == [1, 2, 3]
+    assert [t.credited for t in source.tasks] == [True, True, False]
+    assert source.credited_task_count == 2
+    assert source.credit_state == 'pending'
     assert source.source_type == 'quest'
     assert source.finalized_at == '2026-09-02T00:00:00+00:00'
 
 
+def test_credit_state_is_awarded_only_when_every_task_is_credited():
+    repo = FakeRepo(completed_at='2026-09-03', completions=[_completion(1), _completion(2)])
+    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
+    assert [t.credited for t in source.tasks] == [True, True]
+    assert source.credit_state == 'awarded'
+
+
 def test_subjects_and_xp_are_pooled_and_the_primary_is_the_largest():
-    source = source_quest.load(USER_QUEST_ID, repo=FakeRepo(completed_at='2026-09-03'), admin=None)
+    repo = FakeRepo(completed_at='2026-09-03', completions=[_completion(1), _completion(2)])
+    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
     assert source.subject_split == {'science': 100, 'fine_arts': 150}
     assert source.xp_total == 250
     assert source.primary_subject == 'fine_arts'
@@ -137,7 +146,6 @@ def test_reflections_are_scrubbed_in_every_shape():
 
 
 def test_org_name_is_scrubbed_for_an_org_student():
-    """Phase 1 refuses org students upstream; the loader still scrubs the org."""
     source = source_quest.load(USER_QUEST_ID, repo=FakeRepo(completed_at='2026-09-03', org=True),
                                admin=None)
     assert source.is_org_student
@@ -156,24 +164,26 @@ def test_every_text_field_is_scrubbed_including_feedback_and_titles():
     assert source.student.first_name == 'May'
 
 
-def test_complete_when_every_required_task_is_finalized_even_without_completed_at():
-    source = source_quest.load(USER_QUEST_ID, repo=FakeRepo(completed_at=None), admin=None)
-    assert len(source.tasks) == 2
+def test_an_unreviewed_submission_reads_its_evidence_from_the_live_document():
+    """No round to snapshot from: a pending task's evidence is the document."""
+    repo = FakeRepo(completed_at=None, completions=[_completion(1, status='pending_review')])
+    repo.completions[0]['task_id'] = 'task-1'
+    repo.live_blocks['task-1'] = [{'id': 'b', 'block_type': 'text',
+                                  'content': {'text': 'Maya is still writing.'}}]
+    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
+    assert source.tasks[0].evidence_texts == ['[name] is still writing.']
+    assert source.tasks[0].rounds == []
+    assert not source.tasks[0].credited
+    assert source.credit_state == 'pending'
 
 
-def test_not_complete_when_a_required_task_is_still_pending():
-    repo = FakeRepo(completed_at=None, completions=[_completion(1), _completion(2, status='pending_review')])
-    with pytest.raises(source_quest.QuestNotComplete):
+def test_a_quest_with_nothing_submitted_cannot_start():
+    repo = FakeRepo(completed_at=None, completions=[])
+    with pytest.raises(source_quest.NothingSubmitted):
         source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
     assert source_quest.status(USER_QUEST_ID, repo=repo) == {
-        'user_quest_id': USER_QUEST_ID, 'complete': False,
-        'finalized_task_count': 1, 'task_count': 3}
-
-
-def test_completed_at_alone_is_enough_but_needs_one_finalized_task():
-    repo = FakeRepo(completed_at='2026-09-03', completions=[_completion(1, status='pending_review')])
-    with pytest.raises(source_quest.QuestNotComplete):
-        source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
+        'user_quest_id': USER_QUEST_ID, 'can_start': False, 'complete': False,
+        'submitted_task_count': 0, 'credited_task_count': 0, 'task_count': 3}
 
 
 def test_merged_completions_are_left_out():
@@ -190,10 +200,19 @@ def test_missing_enrolment_raises_source_not_found():
 
 
 def test_status_counts_without_loading_evidence():
+    """Complete, because completed_at is set; two of three credited."""
     repo = FakeRepo(completed_at='2026-09-03')
     assert source_quest.status(USER_QUEST_ID, repo=repo) == {
-        'user_quest_id': USER_QUEST_ID, 'complete': True,
-        'finalized_task_count': 2, 'task_count': 3}
+        'user_quest_id': USER_QUEST_ID, 'can_start': True, 'complete': True,
+        'submitted_task_count': 3, 'credited_task_count': 2, 'task_count': 3}
+
+
+def test_status_says_incomplete_while_a_required_task_has_no_submission():
+    repo = FakeRepo(completed_at=None, completions=[_completion(1)])
+    status = source_quest.status(USER_QUEST_ID, repo=repo)
+    assert status['can_start'] is True          # one submission is enough to start
+    assert status['complete'] is False          # t2 is required and has nothing
+    assert status['submitted_task_count'] == 1
 
 
 # ── a credit class: credited once, for the whole class ───────────────────────
@@ -215,6 +234,8 @@ def test_a_credited_class_pools_every_completion_from_the_live_document():
     source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
     assert [t.completion_id for t in source.tasks] == ['c1', 'c2']
     assert [t.diploma_status for t in source.tasks] == ['none', 'none']
+    assert [t.credited for t in source.tasks] == [True, True]
+    assert source.credit_state == 'awarded'
     # No round to snapshot from: the evidence is the document as it stands.
     assert source.tasks[0].evidence_texts == ['Day 1: [name] played the organ.']
     assert source.tasks[1].evidence_texts == ['Day 2: [name] played the organ.']
@@ -226,15 +247,17 @@ def test_a_credited_class_pools_every_completion_from_the_live_document():
     assert source.finalized_at is None
 
 
-def test_a_class_still_under_review_is_not_complete():
-    with pytest.raises(source_quest.QuestNotComplete):
-        source_quest.load(USER_QUEST_ID, repo=_class_repo('submitted_for_review'), admin=None)
+def test_a_class_still_under_review_loads_as_pending_credit():
+    source = source_quest.load(USER_QUEST_ID, repo=_class_repo('submitted_for_review'), admin=None)
+    assert [t.credited for t in source.tasks] == [False, False]
+    assert source.credit_state == 'pending'
+    assert source.quest_completed_at is None
 
 
-def test_status_counts_the_class_completions_as_finalized_tasks():
+def test_status_counts_the_class_completions_as_credited():
     status = source_quest.status(USER_QUEST_ID, repo=_class_repo('credit_awarded'))
-    assert status == {'user_quest_id': USER_QUEST_ID, 'complete': True,
-                      'finalized_task_count': 2, 'task_count': 2}
+    assert status == {'user_quest_id': USER_QUEST_ID, 'can_start': True, 'complete': True,
+                      'submitted_task_count': 2, 'credited_task_count': 2, 'task_count': 2}
 
 
 def test_credited_is_the_one_rule():
@@ -249,11 +272,3 @@ def test_credited_is_the_one_rule():
     assert not source_quest.credited(pending, regular)
     assert not source_quest.credited(pending, None)
     assert not source_quest.credited(None, credited_class)
-
-
-def test_a_regular_quest_still_ignores_unfinalized_completions():
-    """The class rule must not leak: without the embed, 'none' stays out."""
-    repo = FakeRepo(completed_at='2026-09-03',
-                    completions=[_completion(1), _completion(2, status='none')])
-    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
-    assert [t.completion_id for t in source.tasks] == ['c1']
