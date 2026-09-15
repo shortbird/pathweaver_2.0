@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import api from '../../services/api'
+import * as moderation from '../../services/moderationAPI'
 
 const STATUS_TABS = [
   { value: 'pending', label: 'Pending' },
@@ -54,13 +54,9 @@ export default function ModerationQueue() {
     setError(null)
     try {
       if (status === 'holds') {
-        const { data } = await api.get('/api/admin/moderation/holds', { params: { limit: 100 } })
-        setHolds(data.holds || [])
+        setHolds(await moderation.getHolds(100))
       } else {
-        const { data } = await api.get('/api/admin/moderation/reports', {
-          params: { status, limit: 100 },
-        })
-        setReports(data.reports || [])
+        setReports(await moderation.getReports(status, 100))
       }
     } catch (err) {
       setError(err?.response?.data?.error || 'Failed to load reports')
@@ -76,7 +72,7 @@ export default function ModerationQueue() {
   const updateStatus = async (id, newStatus) => {
     setUpdating(id)
     try {
-      await api.patch(`/api/admin/moderation/reports/${id}`, { status: newStatus })
+      await moderation.updateReport(id, newStatus)
       // Remove from current view if no longer matching filter
       if (status !== 'all' && status !== newStatus) {
         setReports((prev) => prev.filter((r) => r.id !== id))
