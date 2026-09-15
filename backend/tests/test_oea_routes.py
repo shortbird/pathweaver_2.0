@@ -190,7 +190,6 @@ def _authenticated_as(user_id):
     with patch('utils.auth.token_utils.verify_token', return_value=user_id), \
          patch('utils.session_manager.session_manager.verify_access_token',
                return_value={'user_id': user_id}), \
-         patch('utils.session_manager.session_manager.verify_acting_as_token', return_value=None), \
          patch('utils.session_manager.session_manager.verify_masquerade_token', return_value=None):
         yield
 

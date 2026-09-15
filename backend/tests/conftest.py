@@ -210,13 +210,14 @@ def sample_quest_submission():
 @pytest.fixture
 def mock_verify_token():
     """Mock token verification (both legacy and session_manager paths)"""
+    # verify_acting_as_token went with act-as-dependent on 2026-09-15; patching
+    # a name the object no longer has raises at fixture setup and takes every
+    # route test down with it.
     with patch('utils.auth.token_utils.verify_token') as legacy_mock, \
          patch('utils.session_manager.session_manager.verify_access_token') as sm_mock, \
-         patch('utils.session_manager.session_manager.verify_acting_as_token') as acting_mock, \
          patch('utils.session_manager.session_manager.verify_masquerade_token') as mq_mock:
         legacy_mock.return_value = 'test-user-123'
         sm_mock.return_value = {'user_id': 'test-user-123'}
-        acting_mock.return_value = None
         mq_mock.return_value = None
         yield legacy_mock
 
