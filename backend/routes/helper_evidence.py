@@ -15,7 +15,8 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import require_relationship_to
-from utils.roles import get_effective_role  # A2: org_managed users have actual role in org_role
+from utils.roles import get_effective_roles  # A2: org_managed users have actual role(s) in org_roles
+from utils.sis_roles import STAFF_ROLES
 from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 from repositories import (
@@ -77,19 +78,28 @@ def resolve_helper_role(user_id, student_user_id) -> str:
     So: try every claim the caller could hold, and return the one that let them
     in. The answer is not cosmetic -- it becomes `uploaded_by_role`, which
     decides who may delete the block afterwards.
+
+    The role gate reads ALL of the caller's roles and takes staff from
+    sis_roles.STAFF_ROLES. It was a hand-written ('advisor', 'org_admin') and a
+    single get_effective_role() until 2026-09-15, which is exactly the family of
+    bug sis_roles.py exists to end: a campus coordinator with three enrolled
+    children (org_roles = [campus_coordinator, parent]) was neither of those
+    two strings, and her primary role was not 'parent', so she was refused at
+    the door with "Only advisors and parents can upload evidence for students"
+    before either claim was ever consulted (tickets 96ca40f3 / 94f42ce7).
     """
     user = UserRepository().find_by_id(user_id)
     if not user:
         raise NotFoundError("User not found")
 
-    user_role = get_effective_role(user)  # A2: resolves org_managed -> real role
+    roles = set(get_effective_roles(user))  # A2: resolves org_managed -> real role(s)
 
     # Superadmin keeps the universal access both verify_* helpers grant.
-    if user_role == 'superadmin':
+    if 'superadmin' in roles:
         return 'advisor'
 
-    is_staff = user_role in ('advisor', 'org_admin')
-    if not is_staff and user_role != 'parent':
+    is_staff = bool(roles & set(STAFF_ROLES))
+    if not is_staff and 'parent' not in roles:
         raise AuthorizationError("Only advisors and parents can upload evidence for students")
 
     if is_staff and has_advisor_claim(user_id, student_user_id):

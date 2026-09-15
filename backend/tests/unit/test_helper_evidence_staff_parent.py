@@ -119,6 +119,52 @@ def test_org_managed_staff_resolve_through_org_role():
         assert helper_evidence.resolve_helper_role(ADVISOR_MOM, HER_KID) == 'parent'
 
 
+def _resolve_org(org_roles, *, org_role=None, advisor_of=(), parent_of=(), student=HER_KID):
+    """Like _resolve, for an org_managed caller with an org_roles array."""
+    with patch.object(helper_evidence, 'UserRepository') as user_repo, \
+         patch.object(helper_evidence, 'has_advisor_claim',
+                      side_effect=lambda _c, s: s in advisor_of), \
+         patch.object(helper_evidence, 'has_parent_claim',
+                      side_effect=lambda _c, s: s in parent_of):
+        user_repo.return_value.find_by_id.return_value = {
+            'id': ADVISOR_MOM, 'role': 'org_managed',
+            'org_role': org_role, 'org_roles': org_roles,
+        }
+        return helper_evidence.resolve_helper_role(ADVISOR_MOM, student)
+
+
+def test_campus_coordinator_who_is_also_a_parent_uploads_as_a_parent():
+    """Tickets 96ca40f3 / 94f42ce7: iCreate's coordinator could not submit
+    evidence for any of her three children. Her row is
+    org_roles = [campus_coordinator, parent]; the gate compared the primary
+    role alone against ('advisor', 'org_admin') and refused before asking
+    whether she is the child's mother.
+    """
+    assert _resolve_org(['campus_coordinator', 'parent'],
+                        org_role='campus_coordinator',
+                        parent_of=(HER_KID,)) == 'parent'
+
+
+def test_campus_coordinator_alone_is_staff():
+    """A coordinator with only the one role is staff (sis_roles.STAFF_ROLES),
+    so her own child via managed_by_parent_id still resolves through the
+    parent claim, and a student she is assigned to through the advisor claim.
+    """
+    assert _resolve_org(['campus_coordinator'], parent_of=(HER_KID,)) == 'parent'
+    assert _resolve_org(['campus_coordinator'], advisor_of=(TAUGHT_STUDENT,),
+                        student=TAUGHT_STUDENT) == 'advisor'
+
+
+def test_parent_role_anywhere_in_org_roles_counts():
+    """The gate must read every role, not the first one."""
+    assert _resolve_org(['advisor', 'parent'], parent_of=(HER_KID,)) == 'parent'
+
+
+def test_org_managed_student_is_still_refused():
+    with pytest.raises(AuthorizationError, match="Only advisors and parents"):
+        _resolve_org(['student'], parent_of=(HER_KID,))
+
+
 def test_unknown_caller_is_not_found():
     with patch.object(helper_evidence, 'UserRepository') as user_repo:
         user_repo.return_value.find_by_id.return_value = None
