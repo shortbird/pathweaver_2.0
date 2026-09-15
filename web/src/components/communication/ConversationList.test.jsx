@@ -107,6 +107,30 @@ describe('ConversationList', () => {
     expect(screen.getByText('New group')).toBeInTheDocument()
   })
 
+  it('shows New group to a coordinator who is also a parent', () => {
+    // Ticket b2340714: iCreate's coordinator is org_managed with
+    // org_roles [campus_coordinator, parent]. The gate read the primary role
+    // only, against a list without campus_coordinator, so she had no button
+    // while the server (GROUP_CREATOR_ROLES) would have let her through.
+    authState = { user: { id: 'cc1', role: 'org_managed', org_role: 'campus_coordinator',
+      org_roles: ['campus_coordinator', 'parent'] } }
+    renderList()
+    expect(screen.getByText('New group')).toBeInTheDocument()
+  })
+
+  it('shows New group to a parent whose teaching role is not primary', () => {
+    authState = { user: { id: 'pa1', role: 'org_managed', org_role: 'parent',
+      org_roles: ['parent', 'advisor'] } }
+    renderList()
+    expect(screen.getByText('New group')).toBeInTheDocument()
+  })
+
+  it('keeps New group away from a plain parent', () => {
+    authState = { user: { id: 'p1', role: 'org_managed', org_role: 'parent', org_roles: ['parent'] } }
+    renderList()
+    expect(screen.queryByText('New group')).not.toBeInTheDocument()
+  })
+
   // ?user=<id> is how "Message Dana" on the carpool board arrives at Messages:
   // the board links out instead of composing a one-shot DM of its own.
   describe('the ?user= deep link', () => {

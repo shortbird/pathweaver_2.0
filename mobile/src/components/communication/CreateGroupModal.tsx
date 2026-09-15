@@ -185,8 +185,14 @@ export function CreateGroupModal({ visible, onClose, onCreated }: Props) {
                 />
               </View>
 
+              {/* nestedScrollEnabled: this list sits inside the sheet's own
+                  ScrollView, and on Android a nested vertical ScrollView does
+                  not scroll unless it says so -- the outer one takes the
+                  gesture. The list showed its first six contacts and stopped,
+                  which is where "I couldn't get it to let me make a group
+                  larger than 6" came from (ticket b2340714, Samsung). */}
               <View className="border border-surface-200 dark:border-dark-surface-300 rounded-lg overflow-hidden" style={{ maxHeight: 200 }}>
-                <ScrollView>
+                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   {filtered.length > 0 ? (
                     filtered.map((c) => {
                       const isSelected = selected.some((s) => s.id === c.id);

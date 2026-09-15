@@ -28,7 +28,7 @@ import { CreateGroupModal } from '@/src/components/communication/CreateGroupModa
 import { ChildMessagesView } from '@/src/components/communication/ChildMessagesView';
 import { ComposeSheet } from '@/src/components/communication/ComposeSheet';
 import { requestNotificationsRefresh } from '@/src/hooks/useNotifications';
-import { effectiveRoleOf } from '@/src/utils/effectiveRole';
+import { effectiveRoleOf, userHasRole } from '@/src/utils/effectiveRole';
 
 interface SelectedConversation {
   id: string;
@@ -79,8 +79,14 @@ export default function MessagesScreen() {
     return () => setTabBarHidden(false);
   }, [selected, showChildMessages, isMobile, setTabBarHidden]);
 
-  // Check if user can create groups (advisor, org_admin, superadmin)
-  const canCreateGroups = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole || '');
+  // Who gets the New group button. Mirrors GROUP_CREATOR_ROLES in
+  // backend/services/group_message_service.py, and reads EVERY role the
+  // person holds: iCreate's coordinator is org_roles [campus_coordinator,
+  // parent], and a primary-role check against a list that also lacked
+  // campus_coordinator hid the button from her while the server would have
+  // let her through (ticket b2340714, "the link to start a group message
+  // isn't working for me").
+  const canCreateGroups = userHasRole(user, 'advisor', 'org_admin', 'campus_coordinator', 'superadmin');
 
   const handleGroupCreated = (group: any) => {
     refetchGroups();

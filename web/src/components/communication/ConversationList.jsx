@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { observerAPI } from '../../services/api'
 import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
 import { useFamilyChildren } from '../../hooks/api/useFamilyChildren'
+import { userHasRole } from '../../utils/userRoles'
 import {
   mergeContacts,
   sortContacts,
@@ -326,11 +327,13 @@ const ConversationList = ({
   const [searchQuery, setSearchQuery] = React.useState('')
   const [searchParams] = useSearchParams()
 
-  // Get effective role (resolves org_managed to org_role)
-  const effectiveRole = user?.role === 'org_managed' && user?.org_role ? user.org_role : user?.role
-
-  // Check if user can create groups (advisor, org_admin, superadmin)
-  const canCreateGroups = ['advisor', 'org_admin', 'superadmin'].includes(effectiveRole)
+  // Who gets the New group button. Mirrors GROUP_CREATOR_ROLES in
+  // backend/services/group_message_service.py, and reads every role the
+  // person holds rather than the primary one: a coordinator who is also a
+  // parent (org_roles [campus_coordinator, parent]) was hidden the button by
+  // a primary-role check that also lacked campus_coordinator (ticket b2340714).
+  const canCreateGroups = ['advisor', 'org_admin', 'campus_coordinator', 'superadmin']
+    .some((role) => userHasRole(user, role))
 
   // The parent's linked children, from the one family fetch every parent
   // surface shares (hooks/api/useFamilyChildren). Same raw rows this used to
