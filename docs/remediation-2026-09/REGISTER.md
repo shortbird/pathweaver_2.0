@@ -30,7 +30,7 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | [SEC-18](#sec-18--csrf-exemption-list-stays-a-central-list) | WONTFIX | Confirmed 2026-09-11 |
 | [OPS-05](#ops-05--main-keeps-direct-push-with-no-branch-protection) | WONTFIX | Confirmed 2026-09-11 |
 | [BUG-1](#bug-1--eight-referenceerrors-in-the-web-app) | FIXED | All ten files fixed 2026-09-10. **Seven were dead code** — read the correction |
-| [BUG-2](#bug-2--33-app-layer-queries-against-dropped-tables) | OPEN | 33 calls to tables production does not have |
+| [BUG-2](#bug-2--33-app-layer-queries-against-dropped-tables) | OPEN | 18 calls to tables production does not have (33 until 2026-09-15; the observer-request, parent-connection-request and parent quest/evidence view clusters were deleted) |
 | [BUG-3](#bug-3--rls-findings-from-the-integration-suite) | OPEN | Four findings, asserted in tests, not fixed |
 | [BUG-4](#bug-4--questsquest_type-defaults-to-a-value-its-own-check-rejects) | OPEN | Every `INSERT` omitting the column fails |
 | [BUG-5](#bug-5--subjectdistributioneditor-writes-keys-outside-the-enum) | OPEN | A live editor writes four subject keys nothing else recognises |
@@ -38,6 +38,7 @@ reasons, recorded so a future audit does not re-raise it as an unexamined gap.
 | [CI-07](#ci-07--the-ota-publishes-when-the-deploy-does-not) | CLOSED | Fixed 2026-09-11: the OTA needs `deploy` |
 | [GAP-1](#gap-1--the-carried-forward-gaps) | OPEN | Smaller gaps noted inside closed items |
 | [GAP-2](#gap-2--the-handoff-leftovers-nothing-else-tracks) | NEEDS-USER | Seven left of nine; stale docs and Render renames decided 2026-09-11 |
+| [GAP-3](#gap-3--the-parent-act-as-session-is-dead-code-with-a-24-hour-tail) | CLOSED | Deleted 2026-09-15; the alias and the cookie clear stay one release |
 
 ### OPS-01b — local development still reads production
 
@@ -188,24 +189,28 @@ code on a route nobody reaches — which of the two is a per-site question.
 
 | Table | App-layer calls | Where |
 |---|---|---|
-| `parent_connection_requests` | 8 | `repositories/parent_repository.py` |
-| `observer_requests` | 5 | `routes/observer_requests.py` |
 | `promo_codes` | 4 | `routes/auth/registration.py`, `routes/auth/google_oauth.py` |
 | `quest_tasks` | 3 | `routes/student_ai_assistance.py`, `services/credit_mapping_service.py` |
 | `task_merges` | 3 | `routes/credit_dashboard/{merge,items}.py` |
 | `ai_generation_metrics` | 3 | `services/ai_quest_review_service.py` |
 | `friendships` | 2 | `repositories/user_repository.py` |
-| `user_quest_deadlines` | 2 | `routes/parent/{quests_view,evidence_view}.py` |
 | `task_merge_sources`, `ai_prompt_versions`, `quest_template_task_flags` | 1 each | — |
+
+**Closed 2026-09-15 (parent experience refactor, phase 2)** and moved to
+CLOSED_FINDINGS: the three clusters that were whole features removed at the
+database and left in the code. `parent_connection_requests` (8, the
+request-and-approve flow in `repositories/parent_repository.py` and
+`routes/admin/parent_connections.py`), `observer_requests` (5,
+`routes/observer_requests.py`) and `user_quest_deadlines` (2,
+`routes/parent/{quests_view,evidence_view}.py`) -- deleted outright, with
+their registrations and client methods. 33 -> 18.
 
 Nine more in `backend/scripts/`. Ratcheted by
 `test_dropped_tables_are_not_queried.py`, which stops the number growing and
 prints the list.
 
-Worth doing as its own bugfix pass: for each site, decide whether the feature is
-dead (delete the route) or the table was renamed (repoint it). The observer and
-parent-connection clusters look like whole features that were removed at the
-database and left in the code.
+Still worth doing for the rest: for each site, decide whether the feature is
+dead (delete the route) or the table was renamed (repoint it).
 
 ### BUG-3 — RLS findings from the integration suite
 
@@ -448,42 +453,19 @@ failure mode the header warns about. None is urgent; all are decisions.
 
 ### GAP-3 — the parent act-as session is dead code with a 24-hour tail
 
-**Status: OPEN, delete in the release after 2026-09-15.** The family dashboard
-release replaced the token-swapping "act as" session with family scope: a
-parent works on a child's account as themselves, `student_id` on the child's
-own routes, gated by `utils.auth.relationships.student_scope`. No client
-starts an act-as session any more, but a parent whose 24-hour
-`acting_as_token` cookie was minted before the deploy still needs the exit
-(`/stop-acting-as` and the "Switch back" banner). One release later, delete
-together, in this order so nothing references a missing piece:
+**Status: CLOSED 2026-09-15.** Steps 1, 3 and 4 shipped with the parent
+experience refactor (phase 1 on the web, phase 2 on the backend and mobile);
+the entry is in CLOSED_FINDINGS. Two pieces remain on purpose, each one
+release behind the client that still sends it:
 
-1. Backend: `routes/dependents_acting_as.py` (both routes, and its
-   `register(bp)` call in `routes/dependents.py`),
-   `utils.token_authority.is_acting_as_still_authorized` and the
-   `acting_as_token` reads in `utils/session_manager.py`, the
-   `acting_as_body_tokens` helper in `routes/auth/token_delivery.py`, and
-   `tests/unit/test_acting_as_guardian_parity.py`,
-   `tests/unit/test_acting_as_cookie.py`.
-2. Backend: the `acting_as_dependent_id` alias in
-   `utils.guardian_scope.requested_student_id` (STUDENT_ID_ALIAS) and the
-   mobile app's second form field in `useQuestDetail.completeTask`.
-3. Web: `contexts/ActingAsContext.jsx`, `services/actingAsRestore.js`,
-   `components/parent/ActingAsBanner.jsx`, `beginSessionSwitch` in
-   `services/api.ts`, and the `actingAsDependent` reads left in
-   `DashboardPage`, `DiplomaPage`, `StudentOverviewPage`, `Sidebar`,
-   `TopNavbar`, `App.jsx`.
-4. Mobile: `actingAsStore.startActingAs` / `stopActingAs` and the
-   `'dependent'` mode (the store stays for admin masquerade), and the
-   `forChildId` / `forChildName` route params on `(tabs)/quests.tsx`.
-5. Also retire the parent-shaped fallbacks the mobile app keeps for one
-   release of preview OTAs against a stale backend: the `/api/parent/<id>/
-   engagement` fallback in `useGlobalEngagement`, and the `/api/parent/
-   children/<id>/...` write fallbacks in `useJournal` (`deleteLearningEvent`,
-   `updateLearningEvent`, `assignMomentToTopic`). The backend routes behind
-   them stay -- observers read them.
+- `STUDENT_ID_ALIAS` (`acting_as_dependent_id`) in `utils/guardian_scope.py`,
+  until mobile `useQuestDetail.completeTask` drops its second form field.
+- `session_manager.clear_acting_as_cookie` and the `acting_as_token` clear in
+  `clear_auth_cookies`, so a browser that still carries the cookie has it
+  cleared on logout. Nothing sets or reads it.
 
-Admin masquerade (`routes/admin/masquerade.py`, `services/masqueradeService.js`)
-is a different mechanism and is not part of this.
+Step 5 (the parent-shaped fallbacks in mobile `useGlobalEngagement` and
+`useJournal`) is untouched and stays here as its own small item.
 
 ---
 

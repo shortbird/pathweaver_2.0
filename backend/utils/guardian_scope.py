@@ -57,7 +57,8 @@ STUDENT_ID_PARAM = 'student_id'
 
 #: The name the task-completion and personalization routes used before scope
 #: was one thing. Accepted for one release so an app that predates the change
-#: keeps working; delete with routes/dependents_acting_as.py.
+#: keeps working. routes/dependents_acting_as.py went on 2026-09-15; delete this
+#: alias one release after mobile useQuestDetail.completeTask stops sending it.
 STUDENT_ID_ALIAS = 'acting_as_dependent_id'
 
 

@@ -2,11 +2,11 @@
  * Quest Detail route — the signed-in learner's own quest, or, for a parent in
  * family scope, the CHILD's copy of it.
  *
- * The screen itself lives in QuestDetailView. A parent reaches it two ways:
- * from anywhere in the child's own screens (this route, with the child from
- * stores/familyStore) and from the explicit deep link
- * app/(app)/parent/quest/[studentId]/[questId].tsx. One component, so the
- * views cannot drift apart.
+ * The screen itself lives in QuestDetailView. A parent reaches it from the
+ * Family tab, the family quests section, the OEA credits page and old
+ * `/parent/quest/<sid>/<qid>` links alike: every one of them points the
+ * family scope (stores/familyStore) at the child and lands here. The second
+ * route that used to carry the child in its path went on 2026-09-15.
  */
 
 import React from 'react';

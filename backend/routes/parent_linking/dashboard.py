@@ -48,57 +48,18 @@ from routes.parent_linking import bp
 @require_auth
 def get_linked_children(user_id):
     """
-    Get list of students linked to this parent account.
-    Returns student details and learning progress.
+    The children linked to this parent through an approved
+    parent_student_links row, with their learning progress.
+
+    An adapter over services.family_children_service since 2026-09-15: the
+    one child list, filtered to the linked ones, in the shape this route
+    always returned. New clients read GET /api/family/children, which also
+    carries managed profiles and household-only students.
     """
     try:
-        # admin client justified: parent-student link lifecycle (request/approve/revoke); cross-user writes to parent_student_links + cross-user reads of users for invitee lookup gated by user_id from @require_auth + status checks
-        supabase = get_supabase_admin_client()
-
-        # Get all linked students (only approved links)
-        links_response = supabase.table('parent_student_links').select('''
-            id,
-            student_user_id,
-            created_at,
-            users!parent_student_links_student_user_id_fkey(
-                id,
-                first_name,
-                last_name,
-                avatar_url,
-                level,
-                total_xp,
-                ai_features_enabled,
-                ai_chatbot_enabled,
-                ai_lesson_helper_enabled,
-                ai_task_generation_enabled
-            )
-        ''').eq('parent_user_id', user_id).eq('status', 'approved').execute()
-
-        if not links_response.data:
-            return jsonify({'children': []}), 200
-
-        # Build response from joined data
-        children = []
-        for link in links_response.data:
-            student = link.get('users')
-            if student:
-                children.append({
-                    'link_id': link['id'],
-                    'student_id': link['student_user_id'],
-                    'student_first_name': student.get('first_name'),
-                    'student_last_name': student.get('last_name'),
-                    'student_avatar_url': student.get('avatar_url'),
-                    'student_level': student.get('level', 1),
-                    'student_total_xp': student.get('total_xp', 0),
-                    'ai_features_enabled': student.get('ai_features_enabled', False),
-                    'ai_chatbot_enabled': student.get('ai_chatbot_enabled', True),
-                    'ai_lesson_helper_enabled': student.get('ai_lesson_helper_enabled', True),
-                    'ai_task_generation_enabled': student.get('ai_task_generation_enabled', True),
-                    'linked_since': link['created_at']
-                })
-
-        # Private-bucket child photos: one batch for the family.
-        sign_in_place(children, ['student_avatar_url'])
+        from services import family_children_service
+        children = family_children_service.as_linked_rows(
+            family_children_service.children_of(user_id))
         return jsonify({'children': children}), 200
 
     except Exception as e:

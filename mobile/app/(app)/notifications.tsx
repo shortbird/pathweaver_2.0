@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useNotifications } from '@/src/hooks/useNotifications';
-import { resolveDeepLink } from '@/src/services/deepLinkRouter';
+import { prepareRoute, resolveDeepLink } from '@/src/services/deepLinkRouter';
 import api from '@/src/services/api';
 import {
   VStack, HStack, Heading, UIText, Card, Button, ButtonText,
@@ -211,6 +211,7 @@ export default function NotificationsScreen() {
     if (!resolved || resolved.target === '/(app)/notifications') {
       return false;
     }
+    prepareRoute(resolved);
     try {
       // router.navigate, not push — reuses the route if it's already in the
       // stack instead of stacking a duplicate on repeated taps (same rationale

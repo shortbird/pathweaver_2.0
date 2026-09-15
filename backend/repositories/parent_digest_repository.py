@@ -18,7 +18,7 @@ school's students is how a query silently becomes a 414.
 """
 
 from functools import partial
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from repositories.base_repository import BaseRepository
 from utils.db_fetch import fetch_all_rows
@@ -86,29 +86,6 @@ class ParentDigestRepository(BaseRepository):
             for r in rows:
                 out[r['id']] = r
         return out
-
-    def managing_parents(self, student_ids: List[str]) -> List[Tuple[str, str]]:
-        """(student_id, parent_id) from users.managed_by_parent_id — under 13."""
-        pairs = []
-        for chunk in _chunks(_clean(student_ids)):
-            rows = (self.client.table('users').select('id, managed_by_parent_id')
-                    .in_('id', chunk).execute()).data or []
-            pairs += [(r['id'], r['managed_by_parent_id'])
-                      for r in rows if r.get('managed_by_parent_id')]
-        return pairs
-
-    def approved_links(self, student_ids: List[str]) -> List[Tuple[str, str]]:
-        """(student_id, parent_id) from parent_student_links — 13 and over."""
-        pairs = []
-        for chunk in _chunks(_clean(student_ids)):
-            rows = fetch_all_rows(partial(lambda c: (
-                self.client.table('parent_student_links')
-                .select('parent_user_id, student_user_id')
-                .in_('student_user_id', c).eq('status', 'approved')
-            ), chunk))
-            pairs += [(r['student_user_id'], r['parent_user_id']) for r in rows
-                      if r.get('student_user_id') and r.get('parent_user_id')]
-        return pairs
 
     def opted_out(self, parent_ids: List[str], notification_type: str) -> Set[str]:
         out: Set[str] = set()

@@ -7,6 +7,7 @@ import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import { usePreviewRoleStore } from '../stores/previewRoleStore';
 import { useAddKidStore, useFamilyStore } from '../stores/familyStore';
+import { effectiveRoleOf } from '../utils/effectiveRole';
 import { useHoldEpoch } from '../stores/holdStore';
 import { useRefetchOnForeground } from './useRefetchOnForeground';
 import type { LearningEvent, UnifiedTopic } from './useJournal';
@@ -47,13 +48,11 @@ export function useMyChildren() {
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Resolve effective role the same way the rest of the app does (org_managed
-  // users use org_role; superadmin previewing-as honors the preview).
-  const effectiveRole = (() => {
-    if (user?.role === 'superadmin' && previewRole) return previewRole;
-    if (user?.org_role && user?.role === 'org_managed') return user.org_role;
-    return user?.role;
-  })();
+  // Resolve effective role the same way the rest of the app does (the shared
+  // rule in @shared/roles; superadmin previewing-as honors the preview).
+  const effectiveRole = (user?.role === 'superadmin' && previewRole)
+    ? previewRole
+    : effectiveRoleOf(user);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -69,16 +68,19 @@ export function useMyChildren() {
     //              (For pure observers, that endpoint returns only observer
     //              links + dependents — no advisor noise.)
     // - Everyone else (parent, advisor-who-is-also-a-parent, superadmin):
-    //              dependents + parent_student_links via my-dependents.
+    //              GET /api/family/children -- every child through all three
+    //              parent links (managed profile, approved link, household).
+    //              Until 2026-09-15 this read my-dependents, which knew two
+    //              of the three, so a funnel-registered family's child was on
+    //              the web and missing from this tab.
     (async () => {
       const merged: Child[] = [];
       const seen = new Set<string>();
 
       // Students never have dependents/advisees. CaptureSheet mounts this hook
       // on every role, so without this gate a student opening the capture sheet
-      // fires GET /api/dependents/my-dependents and gets a guaranteed 403
-      // ("Only parent accounts can manage dependent profiles") — pure wasted
-      // round-trips and Sentry noise (NODE-7). Skip the call entirely for them.
+      // fires a family read that can only ever answer [] — a wasted round trip
+      // on every open (NODE-7). Skip the call entirely for them.
       if (effectiveRole === 'student') {
         if (!cancelled) {
           setChildren([]);
@@ -115,17 +117,16 @@ export function useMyChildren() {
         }
       } else {
         try {
-          const { data } = await api.get('/api/dependents/my-dependents');
-          for (const kid of (data.dependents || data || [])) {
+          const { data } = await api.get('/api/family/children');
+          for (const kid of (data?.children || [])) {
             if (kid?.id && !seen.has(kid.id)) {
               merged.push(kid);
               seen.add(kid.id);
             }
           }
         } catch {
-          // Not a parent / no dependents — empty list is the correct state.
-          // NOT correct for a hold 403, which also lands here; holdEpoch above
-          // is what gets this refetched once the hold lifts.
+          // A failed read leaves the list empty. A hold 403 also lands here;
+          // holdEpoch above is what gets this refetched once the hold lifts.
         }
       }
 

@@ -170,10 +170,11 @@ export function FamilyQuestsSection({ kids }: { kids: Child[] }) {
       router.push(`/(app)/quests/${quest.id}` as any);
       return;
     }
-    // The child's copy, with the family scope pointed at them so the header
-    // and the other tabs agree on who the parent is working with.
+    // The child's copy: the same quest screen, with the family scope pointed
+    // at them so the header and the other tabs agree on who the parent is
+    // working with.
     setSelected(member.user_id);
-    router.push(`/parent/quest/${member.user_id}/${quest.id}` as any);
+    router.push(`/(app)/quests/${quest.id}` as any);
   };
 
   const addChild = async (quest: FamilyQuest, kid: Child) => {

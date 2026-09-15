@@ -91,8 +91,13 @@ DROPPED_TABLES = (
     'user_segments',
 )
 
-#: Measured 2026-09-10. Ratchet down, never up.
-APP_LAYER_CALLS = 33
+#: Measured 2026-09-10 at 33. Ratchet down, never up.
+#: 33 -> 18 on 2026-09-15: routes/observer_requests.py (observer_requests),
+#: routes/parent/quests_view.py and evidence_view.py (user_quest_deadlines),
+#: the request-and-approve routes in routes/admin/parent_connections.py and
+#: the fourteen dead ParentRepository methods behind them
+#: (parent_connection_requests, parent_invitations) were deleted outright.
+APP_LAYER_CALLS = 18
 SCRIPT_CALLS = 9
 
 APP_DIRS = ('routes', 'services', 'repositories', 'middleware', 'utils', 'jobs', 'modules')
@@ -157,11 +162,11 @@ def test_the_scan_still_finds_the_known_call_sites():
     """A regex that stops matching turns this whole file into a no-op."""
     found = _scan(APP_DIRS)
     total = sum(found.values())
-    assert total >= 20, (
+    assert total >= 10, (
         f'Only {total} call sites found, against a known {APP_LAYER_CALLS}. '
-        'Either 13 of them were genuinely repaired -- lower APP_LAYER_CALLS and '
-        'say so -- or the pattern stopped matching, which is how a ratchet '
-        'passes by measuring nothing.'
+        'Either most of them were genuinely repaired -- lower APP_LAYER_CALLS '
+        'and this floor, and say so -- or the pattern stopped matching, which '
+        'is how a ratchet passes by measuring nothing.'
     )
 
 

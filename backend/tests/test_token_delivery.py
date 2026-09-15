@@ -157,9 +157,8 @@ _LEGITIMATE_TOKEN_ISSUERS = {
     # RETIRED 2026-09-07 (FU-05): routes/dependents.py used to be here, because
     # acting-as had no cookie of its own -- the token was replayed as a Bearer,
     # so gating the body would have deleted the feature rather than hardened it.
-    # It has a cookie now (session_manager.set_acting_as_cookie, read by
-    # get_effective_user_id), and both /act-as and /stop-acting-as go through
-    # token_delivery. The allowlist is down to the two machine-to-machine
+    # It got a cookie, then the whole acting-as session went (2026-09-15,
+    # REGISTER GAP-3). The allowlist is down to the two machine-to-machine
     # grants, which is what it was meant to hold.
 }
 
@@ -168,7 +167,6 @@ _CREDENTIAL_FIELDS = (
     'app_refresh_token',
     'refresh_token',
     'masquerade_refresh_token',
-    'acting_as_refresh_token',
 )
 
 
@@ -240,55 +238,3 @@ class TestTheServerAndClientAgree:
                 'to match or those users lose their session')
 
 
-@pytest.mark.unit
-class TestStopActingAsDeEscalation:
-    """/stop-acting-as hands a parent back their OWN session.
-
-    It was returning the parent's own access token and 30-day refresh token in
-    the JSON body to every caller, and setting no cookies at all -- the same
-    defect SEC-03 fixed on masquerade's /exit, in the endpoint right next to it.
-    That is the widest possible delivery of the longest-lived credential the
-    platform issues, to a browser that did not need it.
-
-    This is separable from the rest of acting-as, which still needs its body
-    token because that flow has no cookie of its own (FU-05). De-escalation is
-    different: what it returns is the caller's own cookie-anchored session.
-    """
-
-    PARENT_ID = '11111111-1111-1111-1111-111111111111'
-
-    def _stop(self, client, headers):
-        from unittest.mock import MagicMock, patch
-        from utils.session_manager import session_manager
-
-        PARENT_ID = self.PARENT_ID
-        admin = MagicMock()
-        admin.table.return_value.select.return_value.eq.return_value.single \
-            .return_value.execute.return_value = MagicMock(
-                data={'id': PARENT_ID, 'display_name': 'Pat'})
-        with patch('routes.dependents_acting_as.get_supabase_admin_client', return_value=admin), \
-             patch.object(session_manager, 'get_deescalation_user_id',
-                          return_value=PARENT_ID):
-            return client.post('/api/dependents/stop-acting-as', json={}, headers=headers)
-
-    def test_a_cookie_capable_browser_gets_cookies_and_no_body_tokens(self, client):
-        resp = self._stop(client, {'User-Agent': CHROME, 'Origin': _v1_origin()})
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert 'access_token' not in body, (
-            "the parent's own tokens must not travel in a body a script can read "
-            "when the browser can hold an httpOnly cookie")
-        assert 'refresh_token' not in body
-        cookies = resp.headers.getlist('Set-Cookie')
-        assert any('access_token=' in c for c in cookies), (
-            'the endpoint set no cookies, so a cookie-capable browser would be '
-            'left with no session at all')
-
-    def test_a_header_auth_client_still_gets_its_tokens(self, client):
-        """Safari/iOS and the mobile app cannot use our cookies. Gating them out
-        would not harden anything, it would log the parent out."""
-        resp = self._stop(client, {'User-Agent': IPHONE})
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert body.get('access_token'), 'header-auth client lost its way back'
-        assert body.get('refresh_token')

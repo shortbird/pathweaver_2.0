@@ -8,21 +8,9 @@ import api from './api'
  * create / get / update / delete / promote were exported here without a
  * caller until 2026-09-15 (AddChildModal posts /api/dependents/add-child
  * itself; promotion is "add a login" below). Deleted rather than kept.
+ * getMyDependents went the same day: the family list is
+ * hooks/api/useFamilyChildren over GET /api/family/children.
  */
-
-/**
- * Get all dependents for the logged-in parent
- * @returns {Promise<{success: boolean, dependents: Array, count: number}>}
- */
-export const getMyDependents = async () => {
-  try {
-    const response = await api.get('/api/dependents/my-dependents')
-    return response.data
-  } catch (error) {
-    console.error('Error fetching dependents:', error)
-    throw error
-  }
-}
 
 /**
  * Add login credentials to a dependent (child keeps dependent status)
@@ -101,7 +89,6 @@ export const updateChildName = async (studentId, name) => {
 }
 
 export default {
-  getMyDependents,
   addDependentLogin,
   toggleDependentAIAccess,
   updateDependentAIFeatures,

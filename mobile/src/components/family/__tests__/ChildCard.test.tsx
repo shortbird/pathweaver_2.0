@@ -1,7 +1,7 @@
 /**
  * One child's card on the Family tab: picture (tap to set), stat line,
- * quests with rhythm, the weekly goal line, and the peer connections
- * waiting on the parent.
+ * quests with rhythm, the weekly goal line, and a count of the friend
+ * requests waiting on the parent (answered on the child's Friends screen).
  */
 
 import React from 'react';
@@ -47,14 +47,13 @@ const noConnections = { pending: [], approved: [] };
 function renderCard(props: Partial<React.ComponentProps<typeof ChildCard>> = {}) {
   const handlers = {
     onOpen: jest.fn(), onOpenQuest: jest.fn(), onOpenProfile: jest.fn(), onBrowseQuests: jest.fn(),
-    onDecideConnection: jest.fn().mockResolvedValue(undefined), onRevokeConnection: jest.fn().mockResolvedValue(undefined),
+    onOpenFriends: jest.fn(),
   };
   const result = render(
     <ChildCard
       child={child}
       refreshKey={0}
       connections={noConnections}
-      connectionsBusy={false}
       {...handlers}
       {...props}
     />,
@@ -146,7 +145,10 @@ describe('ChildCard', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith(750, null));
   });
 
-  it('puts a pending connection request on the card, in full, with Approve and Decline', async () => {
+  it('counts the friend requests waiting on the parent and opens the Friends screen', () => {
+    /* The full consent card (what the other child would see, Approve /
+       Decline) lives on the child's Friends screen since 2026-09-15; the
+       card carries the count and the door, the way the web card does. */
     const connections = {
       pending: [{
         id: 'r-1', connection_id: 'c-1', approver_kind: 'parent' as const,
@@ -154,15 +156,17 @@ describe('ChildCard', () => {
       }],
       approved: [{ connection_id: 'c-0', child: { id: 'kid-1', display_name: 'Romney Hanna' }, peer: { id: 'peer-0', display_name: 'Banks H.' } }],
     };
-    const { getByText, getByLabelText, handlers } = renderCard({ connections });
-    expect(getByText('Romney Hanna wants to connect with Tyler T.')).toBeTruthy();
-    expect(getByText(/You can undo this at any time/)).toBeTruthy();
-    expect(getByText('Connected with Banks H.')).toBeTruthy();
+    const { getByText, queryByText, handlers } = renderCard({ connections });
+    expect(getByText('Friend request waiting for you')).toBeTruthy();
+    expect(queryByText('Approve')).toBeNull();
+    expect(queryByText('Connected with Banks H.')).toBeNull();
 
-    fireEvent.press(getByText('Approve'));
-    await waitFor(() => expect(handlers.onDecideConnection).toHaveBeenCalledWith('c-1', true));
+    fireEvent.press(getByText('Friend request waiting for you'));
+    expect(handlers.onOpenFriends).toHaveBeenCalledWith(child);
+  });
 
-    fireEvent.press(getByLabelText('Remove the connection with Banks H.'));
-    await waitFor(() => expect(handlers.onRevokeConnection).toHaveBeenCalledWith('c-0'));
+  it('shows nothing about friends when no request is waiting', () => {
+    const { queryByText } = renderCard();
+    expect(queryByText(/waiting for you/)).toBeNull();
   });
 });

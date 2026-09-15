@@ -33,7 +33,6 @@ import type { QuestRhythm } from '@/src/hooks/useFamilyQuests';
 import { formatRelativeTime } from '@/src/utils/timeAgo';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { ChildAvatar } from './ChildAvatar';
-import { ChildConnections } from './ChildConnections';
 import { WeeklyXpGoalLine } from './WeeklyXpGoalLine';
 import { initialsFor, nameFor } from './ChildSwitcher';
 
@@ -81,10 +80,10 @@ interface ChildCardProps {
   child: Child;
   /** Bumped by the tab on pull-to-refresh and on focus; the card refetches. */
   refreshKey: number;
+  /** The approver's rows about this child; the card shows how many wait. */
   connections: ConnectionApprovals;
-  connectionsBusy: boolean;
-  onDecideConnection: (connectionId: string, approve: boolean) => Promise<void>;
-  onRevokeConnection: (connectionId: string) => Promise<void>;
+  /** Opens the child's Friends screen (policy, list, requests). */
+  onOpenFriends: (child: Child) => void;
   onOpen: (child: Child) => void;
   onOpenQuest: (child: Child, questId: string) => void;
   onOpenProfile: (child: Child) => void;
@@ -94,7 +93,7 @@ interface ChildCardProps {
 }
 
 export function ChildCard({
-  child, refreshKey, connections, connectionsBusy, onDecideConnection, onRevokeConnection,
+  child, refreshKey, connections, onOpenFriends,
   onOpen, onOpenQuest, onOpenProfile, onBrowseQuests,
 }: ChildCardProps) {
   const c = useThemeColors();
@@ -201,14 +200,27 @@ export function ChildCard({
 
       <WeeklyXpGoalLine studentId={child.id} />
 
-      <ChildConnections
-        connections={connections}
-        busy={connectionsBusy}
-        onDecide={onDecideConnection}
-        onRevoke={onRevokeConnection}
-        childId={child.id}
-        childFirstName={firstName}
-      />
+      {/* A friend request waiting on the parent's yes: the count, and the
+          door to the Friends screen where it is answered. The card carried
+          the whole consent card until 2026-09-15; the web card shows the
+          same one line. */}
+      {connections.pending.length > 0 && (
+        <Pressable
+          onPress={() => onOpenFriends(child)}
+          accessibilityRole="button"
+          accessibilityLabel={`${connections.pending.length} friend request${connections.pending.length === 1 ? '' : 's'} waiting for you. Open ${firstName}'s friends`}
+          testID={`child-friend-requests-${child.id}`}
+          className="mt-3 flex-row items-center gap-2"
+        >
+          <Ionicons name="people-outline" size={14} color={c.brand} />
+          <UIText size="xs" className="flex-1 text-optio-purple dark:text-optio-purple-light font-poppins-medium">
+            {connections.pending.length === 1
+              ? 'Friend request waiting for you'
+              : `${connections.pending.length} friend requests waiting for you`}
+          </UIText>
+          <Ionicons name="chevron-forward" size={14} color={c.iconMuted} />
+        </Pressable>
+      )}
 
       <FriendsOffNudge childId={child.id} childFirstName={firstName} />
     </Card>

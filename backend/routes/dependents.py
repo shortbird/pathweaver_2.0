@@ -110,23 +110,27 @@ def verify_parent_role(user_id: str, check_relationships: bool = False):
 @require_auth
 def get_my_dependents(user_id):
     """
-    Get all dependent profiles for the logged-in parent.
+    Every child of the logged-in guardian.
+
+    An adapter over services.family_children_service since 2026-09-15 -- the
+    same list GET /api/family/children returns, in the shape this route always
+    had (a superset of it). Until then this called the SQL function
+    get_parent_dependents, which knew two of the three parent links and so
+    left a funnel-registered family's child off the mobile Family tab.
+    Installed mobile builds still call here; new clients call
+    /api/family/children. Delete this one release after they do.
 
     Returns:
-        200: List of dependents with metadata
+        200: List of children with metadata
         403: User is not a parent or doesn't have parent relationships
     """
     try:
         # Allow users with parent relationships to view their dependents
         verify_parent_role(user_id, check_relationships=True)
 
-        # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
-        supabase = get_supabase_admin_client()
-        dependent_repo = DependentRepository(client=supabase)
-
-        dependents = dependent_repo.get_parent_dependents(user_id)
-        # Child avatars are private-bucket objects; one batch for the family.
-        sign_in_place(dependents, ['avatar_url'])
+        from services import family_children_service
+        dependents = family_children_service.as_dependent_rows(
+            family_children_service.children_of(user_id))
 
         return jsonify({
             'success': True,
@@ -1298,12 +1302,3 @@ def export_dependent_progress_report(user_id, dependent_id):
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': 'Failed to export progress report'}), 500
-
-
-# ── Acting as a dependent ─────────────────────────────────────────────────────
-# The two endpoints that change who the caller IS live in their own module
-# (FU-05 put this file over the 1400-line route cap). Registered here rather
-# than in routes/__init__.py so the blueprint still has exactly one owner.
-from routes.dependents_acting_as import register as _register_acting_as  # noqa: E402
-
-_register_acting_as(bp)

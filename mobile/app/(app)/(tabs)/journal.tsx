@@ -33,6 +33,9 @@ import { onUploadComplete } from '@/src/services/uploadQueue';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useSelectedChild } from '@/src/stores/familyStore';
+import { useIsParent } from '@/src/hooks/useStartSomething';
+import { nameFor } from '@/src/components/family/ChildSwitcher';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
 
@@ -42,20 +45,35 @@ type ViewType = 'unassigned' | 'topic' | 'track' | 'quest';
 type MobileTab = 'topics' | 'detail';
 
 /**
- * The Learning Journal. Rendered both as the student's own tab (no props) and
- * as the parent's view of a child's journal (pass `studentId`). In parent mode
- * the same UI is reused, but data + mutations route through the parent-scoped
+ * The Learning Journal. The student's own tab, or -- for a parent -- the
+ * journal of the child in family scope (stores/familyStore), switched from
+ * the header like every other parent surface. In parent mode the same UI
+ * is reused, but data + mutations route through the parent-scoped
  * endpoints, edits are limited to moments the parent captured, and the
  * capture goes through the parent capture flow instead of the student one.
  * Everything else -- rename, delete and evolve a topic, edit or delete a
  * moment -- works for the child the way it does for the student (family
  * scope, 2026-09-15; useJournal's helpers take the child and fall back to the
  * older parent-only endpoints against a backend that predates the scope).
+ *
+ * Until 2026-09-15 a parent reached this through a second route,
+ * parent/journal/<studentId>, which rendered this screen with the child as
+ * a prop; the Journal tab itself showed the parent's own empty journal. One
+ * screen, one source for "which child" now. The props remain for a caller
+ * that names a child explicitly.
  */
-export default function JournalScreen({ studentId, headerTitle }: { studentId?: string; headerTitle?: string } = {}) {
+export default function JournalScreen({ studentId: studentIdProp, headerTitle }: { studentId?: string; headerTitle?: string } = {}) {
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
+  const isParentUser = useIsParent();
+  const scopedChild = useSelectedChild();
+  const studentId = studentIdProp ?? (isParentUser ? scopedChild?.id : undefined);
   const isParent = !!studentId;
+  // A caller that named the child gets a back arrow; the tab gets the page
+  // header with the child switcher.
+  const fromRoute = !!studentIdProp;
+  const scopedFirst = scopedChild ? (scopedChild.first_name || nameFor(scopedChild).split(' ')[0]) : '';
+  const title = headerTitle || (isParent && scopedFirst && !fromRoute ? `${scopedFirst}'s Journal` : 'Journal');
   const currentUserId = useAuthStore((s) => s.user?.id);
   const c = useThemeColors();
 
@@ -512,7 +530,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
           {/* Sidebar */}
           <View className="w-72 bg-white dark:bg-dark-surface-100 border-r border-surface-200 dark:border-dark-surface-300 px-3 pt-4">
             <HStack className="items-center justify-between px-3 mb-3">
-              <Heading size="md">{headerTitle || 'Journal'}</Heading>
+              <Heading size="md">{title}</Heading>
               <HStack className="items-center gap-2">
                 <Pressable
                   onPress={refetchCurrentView}
@@ -666,7 +684,7 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
     <SafeAreaView className="flex-1 bg-surface-50 dark:bg-dark-surface-50" edges={['top', 'left', 'right']}>
       {mobileTab === 'topics' ? (
         <VStack className="flex-1">
-          {isParent ? (
+          {fromRoute ? (
             <HStack className="items-center gap-2 px-4 py-3">
               <Pressable
                 onPress={() => router.back()}
@@ -676,10 +694,10 @@ export default function JournalScreen({ studentId, headerTitle }: { studentId?: 
               >
                 <Ionicons name="chevron-back" size={24} color="#1F1B29" />
               </Pressable>
-              <Heading size="lg" numberOfLines={1} className="flex-1">{headerTitle || 'Journal'}</Heading>
+              <Heading size="lg" numberOfLines={1} className="flex-1">{title}</Heading>
             </HStack>
           ) : (
-            <PageHeader title="Journal" />
+            <PageHeader title={title} />
           )}
 
           {/* Unassigned now lives as the first tile inside the Topics grid

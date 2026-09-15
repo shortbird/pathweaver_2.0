@@ -1,8 +1,12 @@
 /**
- * Acting-As Store - Zustand store for parent "act as dependent" and admin masquerade.
+ * Acting-As Store - Zustand store for admin masquerade.
  *
- * When active, swaps the auth token so all API calls execute as the target user.
- * A banner is shown across the app with a "Switch Back" button.
+ * When active, swaps the auth token so all API calls execute as the target
+ * user; the header shows an "as <name>" badge and the avatar menu carries the
+ * exit. Until 2026-09-15 this store also held a parent's "act as dependent"
+ * mode (a swapped token for the child); family scope (stores/familyStore)
+ * replaced it, the buttons that started it were gone, and the half of this
+ * store that served it went with the backend routes (REGISTER GAP-3).
  */
 
 import { create } from 'zustand';
@@ -33,7 +37,7 @@ function forceReload(path: string) {
   }
 }
 
-export type ActingAsMode = 'dependent' | 'masquerade';
+export type ActingAsMode = 'masquerade';
 
 export interface ActingAsTarget {
   id: string;
@@ -49,15 +53,11 @@ interface ActingAsState {
   target: ActingAsTarget | null;
   /** Whether we're currently acting as someone */
   isActive: boolean;
-  /** 'dependent' for parent->child, 'masquerade' for admin->user */
+  /** 'masquerade' while an admin is another user; null otherwise */
   mode: ActingAsMode | null;
   /** Loading state for switch operations */
   switching: boolean;
 
-  /** Parent starts acting as a dependent child */
-  startActingAs: (dependent: ActingAsTarget) => Promise<void>;
-  /** Stop acting as dependent, restore parent tokens */
-  stopActingAs: () => Promise<void>;
   /** Admin masquerade as any user */
   startMasquerade: (userId: string) => Promise<void>;
   /** Stop admin masquerade */
@@ -69,6 +69,9 @@ interface ActingAsState {
 }
 
 const STORAGE_KEY = 'optio_acting_as';
+// The admin's own tokens while masquerading. The key names predate the
+// masquerade-only store (they held a parent's tokens too); a rename would
+// orphan what installed builds saved.
 const PARENT_ACCESS_KEY = 'optio_parent_access';
 const PARENT_REFRESH_KEY = 'optio_parent_refresh';
 
@@ -108,87 +111,6 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
   isActive: false,
   mode: null,
   switching: false,
-
-  startActingAs: async (dependent) => {
-    set({ switching: true });
-    try {
-      // Save parent tokens before switching
-      const parentAccess = tokenStore.getAccessToken();
-      const parentRefresh = tokenStore.getRefreshToken();
-      if (parentAccess) saveToStorage(PARENT_ACCESS_KEY, parentAccess);
-      if (parentRefresh) saveToStorage(PARENT_REFRESH_KEY, parentRefresh);
-
-      // Get acting-as token from backend
-      const { data } = await api.post(`/api/dependents/${dependent.id}/act-as`, {});
-      const actingAsToken = data.acting_as_token;
-
-      // Use the acting-as refresh token (not the parent's) so a token refresh
-      // re-mints an acting-as token instead of silently reverting to the parent.
-      await tokenStore.setTokens(actingAsToken, data.acting_as_refresh_token || parentRefresh || '');
-
-      // Persist state
-      saveToStorage(STORAGE_KEY, JSON.stringify({
-        target: dependent,
-        mode: 'dependent',
-      }));
-
-      set({
-        target: dependent,
-        isActive: true,
-        mode: 'dependent',
-        switching: false,
-      });
-
-      if (Platform.OS !== 'web') {
-        await refetchAuthUser();
-      }
-
-      // Full page reload to flush all cached data from parent session
-      forceReload('/dashboard');
-    } catch (err) {
-      set({ switching: false });
-      throw err;
-    }
-  },
-
-  stopActingAs: async () => {
-    set({ switching: true });
-    try {
-      // Ask backend for fresh parent tokens
-      const { data } = await api.post('/api/dependents/stop-acting-as', {});
-      if (data.success) {
-        await tokenStore.setTokens(data.access_token, data.refresh_token);
-      } else {
-        // Fallback: restore from sessionStorage
-        const parentAccess = getFromStorage(PARENT_ACCESS_KEY);
-        const parentRefresh = getFromStorage(PARENT_REFRESH_KEY);
-        if (parentAccess && parentRefresh) {
-          await tokenStore.setTokens(parentAccess, parentRefresh);
-        }
-      }
-    } catch {
-      // Fallback: restore from sessionStorage
-      const parentAccess = getFromStorage(PARENT_ACCESS_KEY);
-      const parentRefresh = getFromStorage(PARENT_REFRESH_KEY);
-      if (parentAccess && parentRefresh) {
-        await tokenStore.setTokens(parentAccess, parentRefresh);
-      }
-    }
-
-    // Clean up
-    removeFromStorage(STORAGE_KEY);
-    removeFromStorage(PARENT_ACCESS_KEY);
-    removeFromStorage(PARENT_REFRESH_KEY);
-
-    set({ target: null, isActive: false, mode: null, switching: false });
-
-    if (Platform.OS !== 'web') {
-      await refetchAuthUser();
-    }
-
-    // Full page reload to flush cached dependent data
-    forceReload('/family');
-  },
 
   startMasquerade: async (userId) => {
     set({ switching: true });
@@ -281,11 +203,11 @@ export const useActingAsStore = create<ActingAsState>((set, get) => ({
       }
     }
 
-    // Parent->dependent acting-as isn't a server-tracked masquerade (it's a
-    // separate acting-as token), so trust the persisted state as before.
-    if (storedState?.target && storedState?.mode === 'dependent') {
-      set({ target: storedState.target, isActive: true, mode: 'dependent' });
-      return;
+    // A 'dependent' entry left by a build from before 2026-09-15: that mode is
+    // gone, and the token it went with is what the server refuses now.
+    if (storedState && storedState.mode !== 'masquerade') {
+      removeFromStorage(STORAGE_KEY);
+      storedState = null;
     }
 
     // For masquerade, the access token is the source of truth -- masquerading

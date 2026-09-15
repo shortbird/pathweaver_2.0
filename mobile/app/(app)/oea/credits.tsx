@@ -22,6 +22,7 @@ import type {
   UnlinkedCourseQuest,
 } from '@/src/components/oea/types';
 import { safeOpenURL } from '@/src/utils/linking';
+import { useFamilyStore } from '@/src/stores/familyStore';
 
 const GRADES: LetterGrade[] = ['A', 'B', 'C', 'D', 'F'];
 
@@ -216,21 +217,25 @@ export default function CreditsScreen() {
   };
 
   // Open the quest for this course (work + evidence + journal live there).
-  // This screen is the PARENT dashboard, so route to the parent quest view
-  // (upload evidence on the student's behalf) — the student quest route would
-  // bounce a parent back to their own dashboard. Creates the quest on first
-  // use for credits added before the course-as-quest feature.
-  const questPath = (questId: string) => `/(app)/parent/quest/${studentId}/${questId}`;
+  // This screen is the PARENT dashboard: the family scope is pointed at the
+  // student first, so the quest screen shows the student's copy (upload
+  // evidence on their behalf) rather than bouncing the parent to their own
+  // dashboard. Creates the quest on first use for credits added before the
+  // course-as-quest feature.
+  const openQuestScreen = (questId: string) => {
+    if (studentId) useFamilyStore.getState().setSelected(studentId);
+    router.push(`/(app)/quests/${questId}` as any);
+  };
   const openQuest = async (credit: OEACredit) => {
     if (openingQuest) return;
     if (credit.quest_id) {
-      router.push(questPath(credit.quest_id) as any);
+      openQuestScreen(credit.quest_id);
       return;
     }
     setOpeningQuest(true);
     try {
       const { data } = await oeaAPI.ensureCreditQuest(credit.id);
-      if (data?.quest_id) router.push(questPath(data.quest_id) as any);
+      if (data?.quest_id) openQuestScreen(data.quest_id);
     } catch (err) {
       setError(extractApiError(err, 'Could not open the quest.').message);
     } finally {

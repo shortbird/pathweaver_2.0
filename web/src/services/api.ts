@@ -727,9 +727,6 @@ export const lmsAPI = {
 // routes the server no longer has. The hooks in hooks/api own the family
 // reads now (useFamilyChildren, useFamilyQuests, useConnectionApprovals).
 export const parentAPI = {
-  // Get list of linked students (children)
-  getMyChildren: () => api.get('/api/parents/my-children'),
-
   // Get dashboard data for a specific student
   getDashboard: (studentId: string) => api.get(`/api/parent/dashboard/${studentId}`),
 
@@ -740,26 +737,6 @@ export const parentAPI = {
 
 // Admin Parent Connections API methods (January 2025 Redesign)
 export const adminParentConnectionsAPI = {
-  // Get all connection requests with filters
-  getConnectionRequests: (filters: QueryParams = {}) => {
-    const params = new URLSearchParams();
-    if (filters.status) params.append('status', String(filters.status));
-    if (filters.parent_id) params.append('parent_id', String(filters.parent_id));
-    if (filters.start_date) params.append('start_date', String(filters.start_date));
-    if (filters.end_date) params.append('end_date', String(filters.end_date));
-    if (filters.page) params.append('page', String(filters.page));
-    if (filters.limit) params.append('limit', String(filters.limit));
-    return api.get(`/api/admin/parent-connections/requests?${params.toString()}`);
-  },
-
-  // Approve a connection request
-  approveConnectionRequest: (requestId: string, adminNotes = '') =>
-    api.post(`/api/admin/parent-connections/requests/${requestId}/approve`, { admin_notes: adminNotes }),
-
-  // Reject a connection request
-  rejectConnectionRequest: (requestId: string, adminNotes: string) =>
-    api.post(`/api/admin/parent-connections/requests/${requestId}/reject`, { admin_notes: adminNotes }),
-
   // Get all active parent-student links
   getActiveLinks: (filters: QueryParams = {}) => {
     const params = new URLSearchParams();

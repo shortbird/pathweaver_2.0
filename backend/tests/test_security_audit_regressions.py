@@ -17,10 +17,13 @@ import pytest
 
 @pytest.mark.unit
 class TestImpersonationRefreshIsReauthorized:
-    """A masquerade/acting-as refresh token used to be renewed purely from its
-    own claims: no database check that the grant still stood, and a re-stamped
+    """A masquerade refresh token used to be renewed purely from its own
+    claims: no database check that the grant still stood, and a re-stamped
     `iat` that slid the expiry forward forever. A demoted superadmin kept
-    impersonating anyone, permanently, with no way to revoke it."""
+    impersonating anyone, permanently, with no way to revoke it. (The parent
+    acting-as token had the same check until the session itself was deleted
+    on 2026-09-15; a stale one of those is now simply not a credential -- see
+    test_verify_token_access_only.)"""
 
     def _sm(self):
         from utils.session_manager import session_manager
@@ -46,13 +49,20 @@ class TestImpersonationRefreshIsReauthorized:
             assert result is not None
             assert result[2] == 'victim-1'
 
-    def test_acting_as_refresh_refused_once_the_custody_link_is_gone(self, app):
+    def test_a_pre_deletion_acting_as_refresh_token_is_not_renewed(self, app):
+        """An installed app may still hold an acting_as_refresh token minted
+        before 2026-09-15. It re-mints nothing: the type is unknown to the
+        rotation now, so the parent falls back to their own session."""
+        import jwt
+        from datetime import datetime, timezone, timedelta
         sm = self._sm()
         with app.test_request_context():
-            token = sm.generate_acting_as_refresh_token('parent-1', 'child-1')
-            with patch('utils.token_authority.is_acting_as_still_authorized',
-                       return_value=False):
-                assert sm._refresh_impersonation_session(token) is None
+            now = datetime.now(timezone.utc)
+            token = jwt.encode({
+                'user_id': 'parent-1', 'acting_as': 'child-1', 'type': 'acting_as_refresh',
+                'iat': now, 'exp': now + timedelta(days=1),
+            }, sm.secret_key, algorithm='HS256')
+            assert sm._refresh_impersonation_session(token) is None
 
     def test_refreshing_cannot_slide_the_absolute_deadline(self, app):
         """The whole bug in one assertion: `iat` re-stamps on every refresh, so

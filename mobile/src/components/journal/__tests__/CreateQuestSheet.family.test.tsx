@@ -7,6 +7,7 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import { CreateQuestSheet } from '../CreateQuestSheet';
 import { createFamilyQuest } from '@/src/hooks/useFamilyQuests';
 import { createMockChild } from '@/src/__tests__/utils/mockFactories';
@@ -66,6 +67,8 @@ describe('CreateQuestSheet (family)', () => {
     fireEvent.changeText(getByPlaceholderText('e.g. Build my first drone'), 'Garden');
     fireEvent.press(getByText('Create Quest'));
     await waitFor(() => expect(createFamilyQuest).toHaveBeenCalledWith({ title: 'Garden' }, ['kid-a']));
-    expect(router.push).toHaveBeenCalledWith('/parent/quest/kid-a/q-new?new=1');
+    // The child's copy is the one quest screen with the family scope set.
+    expect(useFamilyStore.getState().selectedChildId).toBe('kid-a');
+    expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-new?new=1');
   });
 });

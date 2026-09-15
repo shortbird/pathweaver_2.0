@@ -85,7 +85,6 @@ def generate_endpoint_specs(app):
         # Observer
         'observer': 'Observer',
         'observers_v1': 'Observer',
-        'observer_requests': 'Observer',
 
         # Advisor
         'advisor': 'Advisor',

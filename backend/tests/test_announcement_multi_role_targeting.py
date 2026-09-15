@@ -26,16 +26,16 @@ MEMBERS = [
 ]
 
 
-def _recipients(audiences, advisor_ids=None, exclude=None,
-                household_rows=None, guardian_rows=None, parents_per_student=None):
-    calls = [MEMBERS]
-    if 'parents' in audiences:
-        calls += [household_rows or [], guardian_rows or []]
-    notifier = Mock()
-    notifier.get_parents_for_student.side_effect = \
-        lambda sid: (parents_per_student or {}).get(sid, [])
-    with patch.object(svc, 'fetch_all_rows', side_effect=calls), \
-         patch('services.notification_service.NotificationService', return_value=notifier):
+def _recipients(audiences, advisor_ids=None, exclude=None, guardians_of=None):
+    """guardians_of: {student_id: {guardian_id}} as utils.class_membership
+    .guardians_by_student would answer -- the one definition of parent."""
+    def parents_of_students(student_ids):
+        out = set()
+        for sid in student_ids:
+            out |= set((guardians_of or {}).get(sid, ()))
+        return out
+    with patch.object(svc, 'fetch_all_rows', return_value=MEMBERS), \
+         patch('utils.class_membership.parents_of_students', side_effect=parents_of_students):
         return svc.recipients_by_role('org-1', audiences,
                                       exclude_user_id=exclude,
                                       advisor_ids=advisor_ids)
@@ -58,11 +58,10 @@ def test_author_kept_when_picked_by_name_dropped_otherwise():
     assert 'adv-1' not in broad['advisors']
 
 
-def test_household_guardians_join_the_parents_bucket():
-    out = _recipients(
-        ['parents'],
-        household_rows=[{'household_id': 'hh-1', 'user_id': 'stu-1'}],
-        guardian_rows=[{'user_id': 'marika', 'relationship': 'guardian'}],
-        parents_per_student={'stu-1': [{'id': 'guardian-1'}]},
-    )
+def test_parents_come_from_the_one_definition_of_parent():
+    """Every guardian the shared resolver names -- including a household-only
+    second guardian (Marika, 2026-08-26) -- lands in the parents bucket. This
+    file no longer patches household rows by hand: the household link is the
+    resolver's job, and test_one_definition_of_parent keeps it there."""
+    out = _recipients(['parents'], guardians_of={'stu-1': {'guardian-1', 'marika'}})
     assert out['parents'] == {'guardian-1', 'marika'}

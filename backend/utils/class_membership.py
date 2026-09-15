@@ -297,23 +297,39 @@ def parents_of_students(student_ids) -> Set[str]:
     return out
 
 
-def children_of_parent(parent_id: str) -> Set[str]:
-    """Every student this guardian is linked to, through all three links:
-    managed_by_parent_id, an approved parent_student_links row, or a shared
-    household (see guardians_by_student for why the third matters)."""
-    out: Set[str] = set()
+def links_of_parent(parent_id: str) -> Dict[str, Dict[str, bool]]:
+    """{child_id: {'managed': bool, 'linked': bool, 'household': bool}} for
+    every student this guardian is linked to, through all three links:
+
+        managed    users.managed_by_parent_id names this guardian
+        linked     an approved parent_student_links row
+        household  guardian and student share a household
+
+    The flags are what the family child list (/api/family/children) reports
+    per child, so a settings screen can tell a managed profile (the guardian
+    owns the login) from a linked student (their own account) without asking
+    a second endpoint. Best-effort like the rest of this module.
+    """
+    out: Dict[str, Dict[str, bool]] = {}
     if not parent_id:
         return out
+
+    def mark(child_id: Optional[str], link: str) -> None:
+        if child_id and child_id != parent_id:
+            out.setdefault(child_id, {'managed': False, 'linked': False, 'household': False})[link] = True
+
     try:
         from config.constants import GUARDIAN_RELATIONSHIPS
         admin = _admin()
         rows = (admin.table('users').select('id')
                 .eq('managed_by_parent_id', parent_id).execute()).data or []
-        out.update(r['id'] for r in rows if r.get('id'))
+        for r in rows:
+            mark(r.get('id'), 'managed')
         links = (admin.table('parent_student_links').select('student_user_id')
                  .eq('parent_user_id', parent_id)
                  .eq('status', 'approved').execute()).data or []
-        out.update(l['student_user_id'] for l in links if l.get('student_user_id'))
+        for l in links:
+            mark(l.get('student_user_id'), 'linked')
 
         mine = (admin.table('household_members').select('household_id')
                 .eq('user_id', parent_id)
@@ -323,11 +339,18 @@ def children_of_parent(parent_id: str) -> Set[str]:
             kids = (admin.table('household_members').select('user_id')
                     .in_('household_id', chunk)
                     .eq('relationship', 'student').execute()).data or []
-            out.update(k['user_id'] for k in kids if k.get('user_id'))
+            for k in kids:
+                mark(k.get('user_id'), 'household')
     except Exception as e:  # noqa: BLE001
-        logger.warning(f'children_of_parent failed for {parent_id}: {e}')
-    out.discard(parent_id)
+        logger.warning(f'links_of_parent failed for {parent_id}: {e}')
     return out
+
+
+def children_of_parent(parent_id: str) -> Set[str]:
+    """Every student this guardian is linked to, through all three links:
+    managed_by_parent_id, an approved parent_student_links row, or a shared
+    household (see guardians_by_student for why the third matters)."""
+    return set(links_of_parent(parent_id))
 
 
 def children_in_classes(parent_id: str, class_ids) -> Dict[str, Set[str]]:

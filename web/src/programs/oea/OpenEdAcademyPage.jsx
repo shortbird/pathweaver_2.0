@@ -16,8 +16,8 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import { OrganizationContext } from '../../contexts/OrganizationContext'
-import { getMyDependents } from '../../services/dependentAPI'
-import { oeaAPI, parentAPI } from '../../services/api'
+import { fetchFamilyChildren } from '../../hooks/api/useFamilyChildren'
+import { oeaAPI } from '../../services/api'
 import OEACreditsView from './OEACreditsView'
 
 function PageShell({ title, subtitle, children }) {
@@ -47,26 +47,10 @@ function PageShell({ title, subtitle, children }) {
   )
 }
 
-function studentLabel(s) {
-  return s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Student'
-}
-
-// The students a parent manages for OEA come from two relationships: managed
-// dependents (managed_by_parent_id) and approved parent<->student links
-// (org students keep their own login). Normalize both to { id, name } and
-// dedupe so each student appears once.
-function mergeStudents(dependents, children) {
-  const byId = new Map()
-  for (const d of dependents || []) {
-    byId.set(d.id, { id: d.id, name: studentLabel(d) })
-  }
-  for (const c of children || []) {
-    const id = c.student_id
-    if (!id || byId.has(id)) continue
-    const name = `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim() || 'Student'
-    byId.set(id, { id, name })
-  }
-  return [...byId.values()]
+// The students a parent manages for OEA: the one family list every parent
+// surface shares (hooks/api/useFamilyChildren), reduced to { id, name }.
+function mergeStudents(children) {
+  return (children || []).map((c) => ({ id: c.id, name: c.name }))
 }
 
 function ParentView() {
@@ -78,12 +62,11 @@ function ParentView() {
 
   const load = useCallback(async () => {
     try {
-      const [depRes, childRes, enrRes] = await Promise.all([
-        getMyDependents().catch(() => ({ dependents: [] })),
-        parentAPI.getMyChildren().catch(() => ({ data: { children: [] } })),
+      const [children, enrRes] = await Promise.all([
+        fetchFamilyChildren().catch(() => []),
         oeaAPI.enrollments().catch(() => ({ data: { enrollments: [] } })),
       ])
-      setStudents(mergeStudents(depRes?.dependents, childRes?.data?.children))
+      setStudents(mergeStudents(children))
       const byStudent = {}
       for (const e of enrRes?.data?.enrollments || []) byStudent[e.student_id] = e
       setEnrollments(byStudent)

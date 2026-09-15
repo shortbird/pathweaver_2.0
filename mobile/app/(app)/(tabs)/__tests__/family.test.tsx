@@ -124,7 +124,7 @@ describe('ParentDashboardPage', () => {
 
     fireEvent.press(getAllByLabelText('Open Build a drone with Romney')[0]);
     expect(useFamilyStore.getState().selectedChildId).toBe('kid-a');
-    expect(router.push).toHaveBeenCalledWith('/parent/quest/kid-a/q-1');
+    expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-1');
 
     // The name opens the full profile.
     fireEvent.press(getByLabelText("Open Hope Hanna's profile"));

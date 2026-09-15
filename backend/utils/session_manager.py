@@ -43,7 +43,6 @@ class SessionManager:
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=Config.REFRESH_TOKEN_EXPIRY_DAYS)
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
-        self.acting_as_token_expiry = timedelta(hours=24)  # Acting as dependent sessions (longer for parents)
 
         # Absolute ceilings on an impersonation session, measured from the
         # ORIGINAL grant (`iat0`) rather than the current token's `iat`. The
@@ -51,13 +50,11 @@ class SessionManager:
         # them a refresh re-stamps `iat` and slides the deadline forward on every
         # call, so a one-hour masquerade renews itself forever.
         #
-        # The two differ because the grants differ. A superadmin masquerading is
-        # a support action inside one sitting, so it gets a working day and then
-        # has to be re-granted through @require_admin. A parent acting as their
-        # own dependent is an ongoing custodial relationship, and expiring it
-        # every few hours would just train families to re-authenticate reflexively.
+        # A superadmin masquerading is a support action inside one sitting, so
+        # it gets a working day and then has to be re-granted through
+        # @require_admin. (A parent's acting-as session had a 30-day cap here
+        # until 2026-09-15; family scope replaced the session.)
         self.masquerade_max_lifetime = timedelta(hours=8)
-        self.acting_as_max_lifetime = timedelta(days=30)
 
         # Session timeout configuration (independent of token expiry)
         # This provides an additional layer of security by enforcing absolute session timeouts
@@ -394,20 +391,6 @@ class SessionManager:
         response.set_cookie('role_view_token', '', **cookie_kwargs)
         return response
 
-    def generate_acting_as_token(self, parent_id: str, dependent_id: str) -> str:
-        """Generate a JWT acting-as token (parent acting as dependent)"""
-        payload = {
-            'sub': dependent_id,  # CRITICAL: Supabase RLS expects 'sub' for dependent user
-            'user_id': parent_id,  # Keep parent ID for audit trail
-            'acting_as': dependent_id,
-            'type': 'acting_as_dependent',
-            'role': POSTGREST_ROLE,
-            'version': self.token_version,  # Add version for rotation tracking
-            'exp': datetime.now(timezone.utc) + self.acting_as_token_expiry,
-            'iat': datetime.now(timezone.utc)
-        }
-        return jwt.encode(payload, self.secret_key, algorithm='HS256')
-
     def generate_masquerade_refresh_token(self, admin_id: str, target_user_id: str,
                                           origin_iat: Optional[int] = None) -> str:
         """Generate a refresh token for a masquerade session.
@@ -437,28 +420,6 @@ class SessionManager:
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
 
-    def generate_acting_as_refresh_token(self, parent_id: str, dependent_id: str,
-                                         origin_iat: Optional[int] = None) -> str:
-        """Generate a refresh token for a parent acting-as-dependent session.
-
-        Same rationale as generate_masquerade_refresh_token: keeps the dependent
-        identity stable across token refreshes on native (no cookie anchor), and
-        `origin_iat` pins the original grant so refreshing cannot extend it
-        indefinitely.
-        """
-        now = datetime.now(timezone.utc)
-        payload = {
-            'sub': dependent_id,
-            'user_id': parent_id,  # parent identity, mirrors generate_acting_as_token
-            'acting_as': dependent_id,
-            'type': 'acting_as_refresh',
-            'version': self.token_version,
-            'exp': now + self.refresh_token_expiry,
-            'iat': now,
-            'iat0': origin_iat if origin_iat is not None else int(now.timestamp()),
-        }
-        return jwt.encode(payload, self.secret_key, algorithm='HS256')
-    
     def verify_access_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode an access token (supports graceful key rotation)"""
         # Try current secret key first
@@ -563,38 +524,8 @@ class SessionManager:
 
         return None
 
-    def verify_acting_as_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify and decode an acting-as token (supports graceful key rotation)"""
-        # Try current secret key first
-        try:
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') == 'acting_as_dependent':
-                # Check session timeout
-                if self.is_session_expired(payload):
-                    logger.info("[SessionManager] Acting-as token rejected: session timeout exceeded")
-                    return None
-                return payload
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            logger.debug("intentional swallow", exc_info=True)
-
-        # Fallback to previous secret key during rotation period
-        if self.previous_secret_key:
-            try:
-                payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
-                if payload.get('type') == 'acting_as_dependent':
-                    # Check session timeout
-                    if self.is_session_expired(payload):
-                        logger.info("[SessionManager] Acting-as token (old key) rejected: session timeout exceeded")
-                        return None
-                    logger.info(f"[SessionManager] Acting-as token validated with previous secret (version: {payload.get('version', 'unknown')})")
-                    return payload
-            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-                logger.debug("intentional swallow", exc_info=True)
-
-        return None
-
     def _verify_impersonation_refresh_token(self, token: str, expected_type: str) -> Optional[Dict[str, Any]]:
-        """Verify a masquerade/acting-as refresh token (supports key rotation)."""
+        """Verify a masquerade refresh token (supports key rotation)."""
         for key, label in ((self.secret_key, 'current'), (self.previous_secret_key, 'previous')):
             if not key:
                 continue
@@ -614,10 +545,6 @@ class SessionManager:
     def verify_masquerade_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode a masquerade refresh token."""
         return self._verify_impersonation_refresh_token(token, 'masquerade_refresh')
-
-    def verify_acting_as_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify and decode an acting-as refresh token."""
-        return self._verify_impersonation_refresh_token(token, 'acting_as_refresh')
 
     def set_auth_cookies(self, response, user_id: str, access_token: str = None, refresh_token: str = None):
         """Set secure httpOnly cookies for authentication (works for both same-origin and cross-origin)
@@ -712,42 +639,15 @@ class SessionManager:
         logger.info(f"[SessionManager] Masquerade cookie set | TTL: {int(self.masquerade_token_expiry.total_seconds())}s")
         return response
 
-    def set_acting_as_cookie(self, response, acting_as_token: str):
-        """Set the httpOnly acting_as_token cookie.
-
-        The parent -> dependent equivalent of set_masquerade_cookie, added by
-        FU-05. Until it existed the acting-as JWT was readable JSON in the
-        response body and nothing else, because session_manager had no cookie
-        to read it from -- so gating the body the way SEC-03 gated masquerade's
-        would have deleted the feature rather than hardened it.
-        """
-        partitioned = self.is_cross_origin
-        cookie_kwargs = {
-            'httponly': True,
-            'secure': self.cookie_secure,
-            'samesite': self.cookie_samesite,
-            'path': '/',
-            'partitioned': partitioned,
-        }
-        if self.cookie_domain:
-            cookie_kwargs['domain'] = self.cookie_domain
-        response.set_cookie(
-            'acting_as_token',
-            acting_as_token,
-            max_age=int(self.acting_as_token_expiry.total_seconds()),
-            **cookie_kwargs,
-        )
-        logger.info(
-            "[SessionManager] Acting-as cookie set | TTL: "
-            f"{int(self.acting_as_token_expiry.total_seconds())}s")
-        return response
-
     def clear_acting_as_cookie(self, response):
         """Clear only the acting_as_token cookie (leaves the parent's own auth
-        intact). Cleared with AND without the domain attribute for the same
-        reason clear_auth_cookies does it: a cookie set one way is not cleared
-        by the other, and a stale acting-as cookie leaves a parent inside their
-        child's account with no way out."""
+        intact). Nothing sets that cookie since 2026-09-15 (the parent
+        acting-as session is gone, REGISTER GAP-3), and nothing reads it, so a
+        stale one is inert; this stays one release so a browser that still
+        carries one gets it cleared on logout paths that call here. Cleared
+        with AND without the domain attribute for the same reason
+        clear_auth_cookies does it: a cookie set one way is not cleared by the
+        other."""
         partitioned = self.is_cross_origin
         cookie_kwargs = {
             'expires': 0,
@@ -865,14 +765,6 @@ class SessionManager:
                 logger.debug(f"[SessionManager] Masquerade token auth for admin {admin_id[:8]}...")
                 return admin_id
 
-            # Try acting-as token (parent acting as dependent)
-            acting_as_payload = self.verify_acting_as_token(token)
-            if acting_as_payload:
-                # Return the parent's user_id, not the dependent
-                parent_id = acting_as_payload.get('user_id')
-                logger.debug(f"[SessionManager] Acting-as token auth for parent {parent_id[:8]}...")
-                return parent_id
-
             # A Bearer that verifies as nothing ends the request here, exactly
             # as it does in get_effective_user_id(). Falling through to the
             # cookies used to give one request two answers -- @require_auth
@@ -884,17 +776,15 @@ class SessionManager:
             # silently got their own authority back while the UI still showed
             # them inside the target's account. (SEC-08)
             #
-            # Anything that must survive a dead Bearer -- logging out, stepping
-            # out of an acting-as session -- goes through
-            # get_deescalation_user_id() and says so.
+            # Anything that must survive a dead Bearer -- logging out -- goes
+            # through get_deescalation_user_id() and says so.
             logger.warning(
                 "[SessionManager] Authorization header present but token "
                 "verification failed")
             return None
 
-        # Cookie fallback. Check the elevated-session cookies first so an active
-        # masquerade or acting-as session takes precedence over the caller's own
-        # access cookie.
+        # Cookie fallback. Check the elevated-session cookie first so an active
+        # masquerade takes precedence over the caller's own access cookie.
         masquerade_cookie = request.cookies.get('masquerade_token')
         if masquerade_cookie:
             mq_payload = self.verify_masquerade_token(masquerade_cookie)
@@ -902,14 +792,6 @@ class SessionManager:
                 admin_id = mq_payload.get('user_id')
                 logger.debug(f"[SessionManager] Masquerade cookie auth for admin {admin_id[:8]}...")
                 return admin_id
-
-        acting_as_cookie = request.cookies.get('acting_as_token')
-        if acting_as_cookie:
-            aa_payload = self.verify_acting_as_token(acting_as_cookie)
-            if aa_payload:
-                parent_id = aa_payload.get('user_id')
-                logger.debug(f"[SessionManager] Acting-as cookie auth for parent {parent_id[:8]}...")
-                return parent_id
 
         access_token = request.cookies.get('access_token')
         if access_token:
@@ -938,18 +820,13 @@ class SessionManager:
         return None
 
     def get_effective_user_id(self) -> Optional[str]:
-        """Get the effective user ID (masquerade/acting-as target if applicable, else actual user)"""
+        """Get the effective user ID (masquerade target if applicable, else actual user)"""
         # Check Authorization header first
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
 
-            # Try acting-as token first (parent acting as dependent)
-            acting_as_payload = self.verify_acting_as_token(token)
-            if acting_as_payload:
-                return acting_as_payload.get('acting_as')
-
-            # Try masquerade token second (admin masquerading as user)
+            # Try masquerade token first (admin masquerading as user)
             masquerade_payload = self.verify_masquerade_token(token)
             if masquerade_payload:
                 return masquerade_payload.get('masquerade_as')
@@ -973,12 +850,6 @@ class SessionManager:
             if mq_payload:
                 return mq_payload.get('masquerade_as')
 
-        acting_as_cookie = request.cookies.get('acting_as_token')
-        if acting_as_cookie:
-            aa_payload = self.verify_acting_as_token(acting_as_cookie)
-            if aa_payload:
-                return aa_payload.get('acting_as')
-
         access_token = request.cookies.get('access_token')
         if access_token:
             payload = self.verify_access_token(access_token)
@@ -992,7 +863,7 @@ class SessionManager:
 
         The deliberate exception to the fail-closed rule in
         get_current_user_id(). Use it ONLY where the outcome can exclusively
-        REMOVE access -- logging out, stepping out of an acting-as session.
+        REMOVE access -- logging out.
 
         There, refusing to identify the caller is the unsafe answer: a logout
         that cannot name the user does not write last_logout_at and does not
@@ -1004,14 +875,12 @@ class SessionManager:
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
             for verify in (self.verify_access_token,
-                           self.verify_masquerade_token,
-                           self.verify_acting_as_token):
+                           self.verify_masquerade_token):
                 payload = verify(token)
                 if payload and payload.get('user_id'):
                     return payload['user_id']
 
         for cookie_name, verify in (('masquerade_token', self.verify_masquerade_token),
-                                    ('acting_as_token', self.verify_acting_as_token),
                                     ('access_token', self.verify_access_token)):
             cookie = request.cookies.get(cookie_name)
             if cookie:
@@ -1022,15 +891,10 @@ class SessionManager:
         return None
 
     def get_actual_admin_id(self) -> Optional[str]:
-        """Get the actual admin/parent user ID (during masquerade or acting-as, returns admin/parent not target)"""
+        """Get the actual admin user ID (during masquerade, returns the admin, not the target)"""
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
-
-            # Check if this is an acting-as token (parent acting as dependent)
-            acting_as_payload = self.verify_acting_as_token(token)
-            if acting_as_payload:
-                return acting_as_payload.get('user_id')  # This is the parent ID
 
             # Check if this is a masquerade token
             masquerade_payload = self.verify_masquerade_token(token)
@@ -1115,38 +979,6 @@ class SessionManager:
             logger.debug(f"[SessionManager] Re-minted masquerade tokens for admin {admin_id[:8]}... as {target_id[:8]}...")
             return new_access, new_refresh, target_id, issued_at
 
-        aa = self.verify_acting_as_refresh_token(refresh_token)
-        if aa:
-            parent_id = aa.get('user_id')
-            dependent_id = aa.get('acting_as')
-            if not parent_id or not dependent_id:
-                return None
-
-            origin_iat, issued_at = self._impersonation_timestamps(aa)
-            if self._impersonation_grant_expired(origin_iat, self.acting_as_max_lifetime):
-                logger.info(
-                    f"[SessionManager] Acting-as refresh refused: grant older than "
-                    f"{self.acting_as_max_lifetime} (parent {parent_id[:8]}...)")
-                return None
-
-            from utils import token_authority
-            if not token_authority.is_acting_as_still_authorized(parent_id, dependent_id):
-                logger.warning(
-                    f"[SessionManager] Acting-as refresh refused: {dependent_id[:8]}... "
-                    f"is no longer a dependent of {parent_id[:8]}...")
-                return None
-            if token_authority.session_revoked_since(parent_id, issued_at):
-                logger.info(
-                    f"[SessionManager] Acting-as refresh refused: sessions revoked "
-                    f"for parent {parent_id[:8]}...")
-                return None
-
-            new_access = self.generate_acting_as_token(parent_id, dependent_id)
-            new_refresh = self.generate_acting_as_refresh_token(
-                parent_id, dependent_id, origin_iat=origin_iat)
-            logger.debug(f"[SessionManager] Re-minted acting-as tokens for parent {parent_id[:8]}... as {dependent_id[:8]}...")
-            return new_access, new_refresh, dependent_id, issued_at
-
         return None
 
     @staticmethod
@@ -1184,10 +1016,10 @@ class SessionManager:
         if not refresh_token:
             return None
 
-        # Impersonation refresh tokens (masquerade / acting-as) re-mint an
-        # impersonation access token so the session keeps the TARGET identity
-        # across refreshes. Without this, the 401-refresh path would mint a plain
-        # access token for the admin/parent and silently revert the session.
+        # A masquerade refresh token re-mints a masquerade access token so the
+        # session keeps the TARGET identity across refreshes. Without this, the
+        # 401-refresh path would mint a plain access token for the admin and
+        # silently revert the session.
         # Checked before verify_refresh_token, which only accepts type='refresh'.
         impersonation = self._refresh_impersonation_session(refresh_token)
         if impersonation:

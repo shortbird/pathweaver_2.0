@@ -13,10 +13,8 @@ invitation belongs to an org whose feature_flags.registration.enabled is true
 (reads still fall back to the legacy feature_flags.icreate_registration key —
 see utils/registration_config.py).
 
-Served at /api/registration/*. /api/icreate/* is a DEPRECATED alias, registered
-in routes/__init__.py so a browser mid-registration and the
-previously-deployed web build keep working across the deploy; remove it once
-neither is in play.
+Served at /api/registration/*. (/api/icreate/* was an alias of it from the
+2026-08-25 rename until 2026-09-15.)
 
 Account-first flow: the parent creates their Optio account (or signs into an
 existing one) BEFORE seeing the rest of the form.

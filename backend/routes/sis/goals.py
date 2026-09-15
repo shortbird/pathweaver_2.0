@@ -12,8 +12,9 @@ Org config lives in organizations.feature_flags.sis_settings:
 - school_year: 'YYYY-YYYY' (absent = computed from today's date)
 
 NEW, additive (/api/sis/goals). Parent endpoints use @require_auth and authorize
-by family relationship (parent_student_links or managed_by_parent_id); staff
-endpoints are role-gated and org-scoped via sis_service.resolve_org_id.
+by family relationship (@require_relationship_to / children_of_parent, which
+know all three parent links); staff endpoints are role-gated and org-scoped via
+sis_service.resolve_org_id.
 """
 
 from datetime import datetime
@@ -78,25 +79,14 @@ def _full_name(u):
     return name or u.get('username') or u.get('email') or 'Unnamed'
 
 
-def _my_student_ids(admin, parent_id):
-    """All students this caller parents: approved links + managed dependents."""
-    ids = set()
-    links = (admin.table('parent_student_links')
-             .select('student_user_id')
-             .eq('parent_user_id', parent_id)
-             .eq('status', 'approved')
-             .execute()).data or []
-    ids.update(l['student_user_id'] for l in links)
-    deps = (admin.table('users').select('id')
-            .eq('managed_by_parent_id', parent_id)
-            .eq('is_dependent', True)
-            .execute()).data or []
-    ids.update(d['id'] for d in deps)
-    return list(ids)
-
-
-def _is_my_student(admin, parent_id, student_id):
-    return student_id in _my_student_ids(admin, parent_id)
+def _my_student_ids(parent_id):
+    """All students this caller parents. One definition, in
+    utils.class_membership.children_of_parent -- the version that lived here
+    until 2026-09-15 knew only parent_student_links and managed_by_parent_id,
+    so a guardian who registered through the SIS funnel (a household row and
+    nothing else) saw an empty goals page for their own child."""
+    from utils.class_membership import children_of_parent
+    return sorted(children_of_parent(parent_id))
 
 
 def _sanitize_subjects(raw):
@@ -146,19 +136,9 @@ def _org_admin_ids(admin, org_id):
             or (isinstance(u.get('org_roles'), list) and 'org_admin' in u['org_roles'])]
 
 
-def _parent_ids_for_student(admin, student_id):
-    ids = set()
-    links = (admin.table('parent_student_links')
-             .select('parent_user_id')
-             .eq('student_user_id', student_id)
-             .eq('status', 'approved')
-             .execute()).data or []
-    ids.update(l['parent_user_id'] for l in links)
-    row = (admin.table('users').select('managed_by_parent_id')
-           .eq('id', student_id).limit(1).execute()).data
-    if row and row[0].get('managed_by_parent_id'):
-        ids.add(row[0]['managed_by_parent_id'])
-    return list(ids)
+def _parent_ids_for_student(student_id):
+    from utils.class_membership import parents_of_students
+    return sorted(parents_of_students([student_id]))
 
 
 # ── Parent-facing ─────────────────────────────────────────────────────────────
@@ -167,9 +147,9 @@ def _parent_ids_for_student(admin, student_id):
 def my_goals(user_id):
     """The caller's students at goals-mode schools, each with the current
     school-year goal row (or null) and the org's goal-setting config."""
-    # admin client justified: cross-user read of the caller's children (parent_student_links / managed_by_parent_id) + their orgs' feature_flags; scoped to _my_student_ids
+    # admin client justified: cross-user read of the caller's children + their orgs' feature_flags; scoped to _my_student_ids (children_of_parent)
     admin = get_supabase_admin_client()
-    student_ids = _my_student_ids(admin, user_id)
+    student_ids = _my_student_ids(user_id)
     if not student_ids:
         return jsonify({'success': True, 'students': []})
 
@@ -231,10 +211,9 @@ def save_goals(user_id, student_id):
     Body: {direction, direction_notes, subjects: [{subject, year_goal, long_term}],
     submit: bool}. submit=true sets status='submitted'; editing a reviewed row
     returns it to 'submitted' while preserving the review history fields."""
-    # admin client justified: writes the child's sis_student_goals row; gated by the _is_my_student parent-linkage check immediately below
+    # admin client justified: writes the child's sis_student_goals row; the
+    # parent-child relationship is enforced by @require_relationship_to above
     admin = get_supabase_admin_client()
-    if not _is_my_student(admin, user_id, student_id):
-        return jsonify({'success': False, 'error': 'Not authorized for this student'}), 403
 
     student_rows = (admin.table('users')
                     .select('id, first_name, last_name, display_name, username, email, '
@@ -409,7 +388,7 @@ def review_goal(user_id, goal_id):
                     .eq('id', goal['student_user_id']).limit(1).execute()).data
     student_name = _full_name(student_rows[0]) if student_rows else 'your student'
     _notify(
-        _parent_ids_for_student(admin, goal['student_user_id']),
+        _parent_ids_for_student(goal['student_user_id']),
         'Goals reviewed',
         f"The school reviewed the goals you set for {student_name}.",
         organization_id=org_id,

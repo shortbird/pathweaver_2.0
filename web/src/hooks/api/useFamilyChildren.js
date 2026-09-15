@@ -6,11 +6,12 @@ import { useAuth } from '../../contexts/AuthContext'
 /**
  * The parent's children, once.
  *
- * Approved parent_student_links (/api/parents/my-children) plus managed
- * under-13 dependents (/api/dependents/my-dependents), merged into one list.
- * The my-dependents RPC returns linked students too, so anything already in
- * `children` is stripped from `dependents` -- linked kids are independent
- * accounts, not managed profiles, and must not appear twice.
+ * GET /api/family/children: every child of the signed-in guardian through
+ * all three links (a managed profile, an approved parent-student link, a
+ * shared household), hydrated and avatar-signed by the backend. Until
+ * 2026-09-15 this hook unioned two older routes itself, and neither of them
+ * knew the household link, so a family that registered through the SIS
+ * funnel could be missing a child here.
  *
  * This used to be fetched seven times over, by seven components each with
  * its own copy of the union rule (FamilyHomeData, ParentDashboardPage,
@@ -19,9 +20,12 @@ import { useAuth } from '../../contexts/AuthContext'
  * to invalidate when a child is added, renamed or removed -- see
  * useInvalidateFamilyChildren below.
  *
- * Each child: { id, name, firstName, avatarUrl, isDependent, dateOfBirth, raw }
- * where `raw` is the row as its endpoint returned it, for the modals that
- * still read endpoint-specific fields.
+ * Each child: { id, name, firstName, avatarUrl, isDependent, managedByMe,
+ * dateOfBirth, links, raw } where `raw` is the row as the endpoint returned
+ * it (id, first_name, last_name, display_name, email, avatar_url,
+ * date_of_birth, age, is_dependent, managed_by_me, promotion_eligible,
+ * organization_id, total_xp, level, active_quest_count, links, the four AI
+ * flags), for the modals that read those fields directly.
  */
 export function useFamilyChildren(options = {}) {
   const { user } = useAuth()
@@ -36,42 +40,26 @@ export function useFamilyChildren(options = {}) {
   })
 }
 
+export function toFamilyChild(row) {
+  const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.display_name || 'Child'
+  return {
+    id: row.id,
+    name,
+    firstName: row.first_name || name.split(' ')[0],
+    avatarUrl: row.avatar_url || null,
+    isDependent: Boolean(row.is_dependent),
+    managedByMe: Boolean(row.managed_by_me),
+    dateOfBirth: row.date_of_birth || null,
+    links: row.links || {},
+    raw: row,
+  }
+}
+
 export async function fetchFamilyChildren() {
-  // expect403: an account with no parent role is refused by both routes, and
-  // that refusal is the ordinary answer here, not a regression for Sentry.
-  const [childrenRes, dependentsRes] = await Promise.allSettled([
-    api.get('/api/parents/my-children', { expect403: true }),
-    api.get('/api/dependents/my-dependents', { expect403: true }),
-  ])
-  const children = childrenRes.status === 'fulfilled'
-    ? (childrenRes.value.data?.children || [])
-    : []
-  const dependentsRaw = dependentsRes.status === 'fulfilled'
-    ? (dependentsRes.value.data?.dependents || [])
-    : []
-  const childIds = new Set(children.map((c) => c.student_id))
-  return [
-    ...children.map((c) => ({
-      id: c.student_id,
-      name: `${c.student_first_name || ''} ${c.student_last_name || ''}`.trim() || 'Student',
-      firstName: c.student_first_name || 'Student',
-      avatarUrl: c.avatar_url || null,
-      isDependent: false,
-      dateOfBirth: c.date_of_birth || null,
-      raw: c,
-    })),
-    ...dependentsRaw
-      .filter((d) => !childIds.has(d.id))
-      .map((d) => ({
-        id: d.id,
-        name: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.display_name || 'Child',
-        firstName: d.first_name || (d.display_name || 'Child').split(' ')[0],
-        avatarUrl: d.avatar_url || null,
-        isDependent: true,
-        dateOfBirth: d.date_of_birth || null,
-        raw: d,
-      })),
-  ]
+  // A signed-in account that is nobody's guardian gets an empty list, not a
+  // refusal, so there is no 403 to expect here.
+  const res = await api.get('/api/family/children')
+  return (res.data?.children || []).map(toFamilyChild)
 }
 
 /** Refetch the family after a child is added, edited or removed. */

@@ -52,8 +52,8 @@ beforeEach(() => {
   setAuthAsParent();
   jest.clearAllMocks();
   mockSearchParams.edit = undefined;
-  // Mock dependents fetch (fires on mount)
-  (api.get as jest.Mock).mockResolvedValue({ data: { dependents: [] } });
+  // The family list (useMyChildren) fires on mount
+  (api.get as jest.Mock).mockResolvedValue({ data: { children: [] } });
 });
 
 afterEach(() => {

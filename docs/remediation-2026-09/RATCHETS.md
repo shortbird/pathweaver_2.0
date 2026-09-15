@@ -45,7 +45,7 @@ Four rules, learned the hard way:
 | 23 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
 | 5 `get_user_client` + 12 `supabase` client constructions in new route files | `backend/tests/unit/test_new_routes_use_repositories.py` | The repository pattern, for new code only |
 | 113 direct `os.getenv`/`os.environ` reads outside the app layers | `backend/tests/unit/test_config_access_ratchet.py` | Rule 9's other half. The app layers themselves are at zero (see §2) |
-| 33 app-layer + 9 script queries against dropped tables | `backend/tests/unit/test_dropped_tables_are_not_queried.py` | 500s from tables production does not have. Invisible to every other check here |
+| 18 app-layer + 9 script queries against dropped tables | `backend/tests/unit/test_dropped_tables_are_not_queried.py` | 500s from tables production does not have. Invisible to every other check here |
 | 6 writes to `users.is_org_admin` | `backend/tests/unit/test_role_rules_are_enforced.py` | The flag is derived by a trigger; a hand-written value is silently reverted |
 | 293 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
 | 981 hand-rolled fetch call sites | `web/src/__tests__/dataFetchingParadigm.test.js` | QF-03. Counts **call sites**, not files, so a pure component split does not move it |

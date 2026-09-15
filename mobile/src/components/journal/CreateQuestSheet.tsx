@@ -19,6 +19,7 @@ import React, { useEffect, useState } from 'react';
 import { TextInput, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import api from '@/src/services/api';
 import {
   VStack, HStack, UIText, Heading, Button, ButtonText, BottomSheet,
@@ -93,7 +94,8 @@ export function CreateQuestSheet({ visible, onClose, onCreated, forChild, family
           // opens the task wizard on its AI step. A brand-new quest has no
           // tasks and no template to copy from; landing on an empty list read
           // as "the AI didn't generate anything".
-          router.push(`/parent/quest/${forChild.id}/${questId}?new=1` as any);
+          useFamilyStore.getState().setSelected(forChild.id);
+          router.push(`/(app)/quests/${questId}?new=1` as any);
         }
         return;
       }

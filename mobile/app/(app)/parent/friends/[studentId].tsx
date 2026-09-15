@@ -27,6 +27,8 @@ import QRCode from 'react-native-qrcode-svg';
 import api from '@/src/services/api';
 import { useFriends, issueCode, requestFriend, inviteLinkFor, hidePeerComment, type ConnectionItem } from '@/src/hooks/useFriends';
 import { useFriendPolicy, REQUEST_SOURCES } from '@/src/hooks/useFriendPolicy';
+import { forChild, useConnectionApprovals } from '@/src/hooks/useConnectionApprovals';
+import { ChildConnections } from '@/src/components/family/ChildConnections';
 import { useMyChildren } from '@/src/hooks/useParent';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { VStack, HStack, Heading, UIText, Card, Button, ButtonText, Avatar, AvatarFallbackText, AvatarImage, Divider } from '@/src/components/ui';
@@ -111,6 +113,14 @@ export default function ParentChildFriendsScreen() {
 
   const { policy, canSet, loading: policyLoading, saving, save, friendsCount } = useFriendPolicy(studentId);
   const { connections, loading, busy, refetch, respond, revoke } = useFriends(studentId);
+  // The "ask me first" half: requests waiting on THIS parent's yes, from the
+  // approver-side read (/api/connections/approvals). Answering one changes
+  // the student-scoped list too, so both refetch together.
+  const approvals = useConnectionApprovals();
+  const decideApproval = useCallback(async (connectionId: string, approve: boolean) => {
+    await approvals.decide(connectionId, approve);
+    await refetch();
+  }, [approvals, refetch]);
   const [code, setCode] = useState('');
   const [childCode, setChildCode] = useState<{ code: string; expires_at: string } | null>(null);
   const [sending, setSending] = useState(false);
@@ -344,6 +354,13 @@ export default function ParentChildFriendsScreen() {
 
               {enabled && (
                 <>
+                  {/* Requests waiting on this parent's yes ("ask me first") */}
+                  <ChildConnections
+                    connections={forChild(approvals.data, studentId)}
+                    busy={approvals.busy}
+                    onDecide={decideApproval}
+                  />
+
                   {/* Requests the parent answers, and the ones in flight */}
                   {(incoming.length > 0 || awaiting.length > 0 || outgoing.length > 0) && (
                     <Card variant="outline" size="md">

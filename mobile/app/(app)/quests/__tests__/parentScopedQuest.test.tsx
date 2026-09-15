@@ -1,19 +1,24 @@
 /**
- * Parent quest view - the kid's own quest screen, rendered for a parent.
+ * The quest screen, rendered for a parent in family scope: the kid's own
+ * screen, pointed at the kid.
  *
  * What these tests pin down is the part that is easy to get wrong once one
- * component serves two viewers: the reads carry `student_id`, and the controls
- * on screen are exactly the ones the backend's write rules allow. A managed
- * dependent's parent may finish and remove tasks; the parent of a student with
- * their own login may only add to their work.
+ * component serves two viewers: the reads carry `student_id` (the child in
+ * stores/familyStore), and the controls on screen are exactly the ones the
+ * backend's write rules allow. A managed dependent's parent may finish and
+ * remove tasks; the parent of a student with their own login may only add to
+ * their work. Until 2026-09-15 this was a second route with the child in its
+ * path; the assertions are unchanged.
  */
 
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
-import ParentQuestViewPage from '../[studentId]/[questId]';
+import QuestDetailScreen from '../[id]';
 import api from '@/src/services/api';
 import { setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
+import { useFamilyStore } from '@/src/stores/familyStore';
+import { createMockChild } from '@/src/__tests__/utils/mockFactories';
 
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
@@ -93,12 +98,18 @@ function mockQuestRead(viewer_context: typeof dependentContext, quest: any = bas
 beforeEach(() => {
   setAuthAsParent();
   jest.clearAllMocks();
-  (useLocalSearchParams as jest.Mock).mockReturnValue({ studentId: 'kid-1', questId: 'quest-1' });
+  (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'quest-1' });
+  useFamilyStore.setState({
+    parentId: 'parent-1',
+    children: [createMockChild({ id: 'kid-1', first_name: 'Ada', display_name: 'Ada' })],
+    selectedChildId: 'kid-1',
+  });
   mockQuestRead(dependentContext);
 });
 
 afterEach(() => {
   clearAuthState();
+  useFamilyStore.getState().clear();
 });
 
 // This used to swallow an AggregateError out of render() and return null, and
@@ -108,10 +119,10 @@ afterEach(() => {
 // Skeleton threw from its mount effect. Fixed in src/__tests__/setup.tsx.
 // Render plainly; a throw here is a bug, not weather.
 function renderScreen() {
-  return render(<ParentQuestViewPage />);
+  return render(<QuestDetailScreen />);
 }
 
-describe('ParentQuestViewPage', () => {
+describe('QuestDetailScreen in family scope', () => {
   it("reads the CHILD's copy of the quest, not the parent's", async () => {
     const result = renderScreen();
 
@@ -186,9 +197,7 @@ describe('ParentQuestViewPage', () => {
   });
 
   it('opens the wizard on its AI step for a quest the parent just created', async () => {
-    (useLocalSearchParams as jest.Mock).mockReturnValue({
-      studentId: 'kid-1', questId: 'quest-1', new: '1',
-    });
+    (useLocalSearchParams as jest.Mock).mockReturnValue({ id: 'quest-1', new: '1' });
     mockQuestRead(linkedContext, { ...baseQuest, quest_tasks: [] });
     const result = renderScreen();
 

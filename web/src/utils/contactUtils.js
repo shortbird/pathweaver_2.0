@@ -96,12 +96,12 @@ export function normalizeContact(contact, source) {
       break
 
     case 'child':
-      // From parentAPI.getMyChildren() - prefixed fields
-      userId = contact.student_id
-      displayName = `${contact.student_first_name || ''} ${contact.student_last_name || ''}`.trim() || contact.student_display_name
-      firstName = contact.student_first_name
-      lastName = contact.student_last_name
-      avatarUrl = contact.student_avatar_url
+      // A row from GET /api/family/children (hooks/api/useFamilyChildren `raw`)
+      userId = contact.id
+      displayName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.display_name
+      firstName = contact.first_name
+      lastName = contact.last_name
+      avatarUrl = contact.avatar_url
       role = 'student'
       relationshipType = 'child'
       break

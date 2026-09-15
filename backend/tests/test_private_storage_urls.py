@@ -751,7 +751,6 @@ _AVATAR_READ_PATHS = (
     'backend/routes/admin/masquerade.py',
     'backend/routes/account_deletion.py',           # GDPR export links
     'backend/repositories/user_repository.py',
-    'backend/repositories/parent_repository.py',
     'backend/repositories/advisor_repository.py',
     'backend/repositories/analytics_repository.py',
     'backend/services/advisor_service.py',
@@ -898,7 +897,7 @@ class TestEvidenceListPathsSignInOneBatch:
 
     def test_a_page_of_evidence_blocks_costs_one_call_per_bucket(self, sign_blocks, storage_client):
         """The parent completions feed flattens blocks from many documents into
-        one signing call — see quests_view.sign_blocks_for_response."""
+        one signing call."""
         blocks = [
             {'id': f'b{i}', 'block_type': 'image', 'content': {
                 'url': f'{PUBLIC_BASE}/quest-evidence/doc{i}/photo.jpg',
@@ -1024,8 +1023,6 @@ class TestEvidenceSigningFailureYieldsNone:
 # call fails here rather than in a parent's screenshot three weeks later.
 _EVIDENCE_READ_PATHS = (
     'backend/routes/quest/detail.py',                    # the student's own quest page
-    'backend/routes/parent/evidence_view.py',            # parent opening a child's evidence
-    'backend/routes/parent/quests_view.py',
     'backend/routes/parent/learning_moments.py',
     'backend/routes/advisor/learning_moments.py',
     'backend/routes/evidence_documents.py',              # the evidence editor itself
@@ -1079,8 +1076,6 @@ class TestEvidenceReadPathsSign:
         the batched helpers exist to prevent."""
         list_paths = (
             'backend/routes/quest/detail.py',
-            'backend/routes/parent/evidence_view.py',
-            'backend/routes/parent/quests_view.py',
             'backend/routes/parent/learning_moments.py',
             'backend/routes/advisor/learning_moments.py',
             'backend/routes/admin/student_task_management.py',

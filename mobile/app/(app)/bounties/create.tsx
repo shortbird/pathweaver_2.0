@@ -18,9 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import api, { bountyAPI } from '@/src/services/api';
+import { bountyAPI } from '@/src/services/api';
 import { haptic } from '@/src/utils/haptics';
 import { createBounty, updateBounty } from '@/src/hooks/useBounties';
+import { useMyChildren } from '@/src/hooks/useParent';
 import { pillarKeys, getPillar } from '@/src/config/pillars';
 import { useAuthStore } from '@/src/stores/authStore';
 import { usePreviewRoleStore } from '@/src/stores/previewRoleStore';
@@ -66,7 +67,6 @@ export default function CreateBountyPage() {
     return d;
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [dependents, setDependents] = useState<any[]>([]);
   const [selectedKids, setSelectedKids] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -116,42 +116,10 @@ export default function CreateBountyPage() {
     })();
   }, [editId]);
 
-  // Fetch dependents / linked students for the family-visibility kid selector
-  useEffect(() => {
-    (async () => {
-      const allKids: any[] = [];
-      const seenIds = new Set<string>();
-      try {
-        const res = await api.get('/api/dependents/my-dependents');
-        for (const kid of (res.data.dependents || [])) {
-          if (!seenIds.has(kid.id)) { allKids.push(kid); seenIds.add(kid.id); }
-        }
-      } catch { /* not a parent */ }
-      try {
-        // 13+ kids connected via approved parent-student links
-        const res = await api.get('/api/parents/my-children');
-        for (const child of (res.data.children || [])) {
-          const kidId = child.student_id;
-          if (kidId && !seenIds.has(kidId)) {
-            allKids.push({ id: kidId, display_name: `${child.student_first_name || ''} ${child.student_last_name || ''}`.trim() || 'Student' });
-            seenIds.add(kidId);
-          }
-        }
-      } catch { /* not a parent */ }
-      try {
-        const res = await api.get('/api/observers/my-students');
-        for (const link of (res.data.students || [])) {
-          const kidId = link.student_id || link.id;
-          const info = link.student || {};
-          if (kidId && !seenIds.has(kidId)) {
-            allKids.push({ id: kidId, display_name: info.display_name || `${info.first_name || ''} ${info.last_name || ''}`.trim() || 'Student' });
-            seenIds.add(kidId);
-          }
-        }
-      } catch { /* no linked students */ }
-      setDependents(allKids);
-    })();
-  }, []);
+  // The kids the family-visibility selector offers: the one family list every
+  // parent surface shares (useMyChildren picks the source by role -- a
+  // guardian's children, or an observer's linked students).
+  const { children: dependents } = useMyChildren();
 
   const addDeliverable = () => setDeliverables([...deliverables, '']);
   const removeDeliverable = (i: number) => {

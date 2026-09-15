@@ -376,8 +376,7 @@ const LearningJournalPage = () => {
       {/* Quick Capture FAB */}
       {isParentView ? (
         <ParentMomentCaptureButton
-          children={[]}
-          dependents={[{ id: childId, display_name: studentName || 'your child' }]}
+          family={[{ id: childId, name: studentName || 'your child', isDependent: true }]}
           selectedChildId={childId}
           onSuccess={handleCaptureSuccess}
         />

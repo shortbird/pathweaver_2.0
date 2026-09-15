@@ -12,7 +12,23 @@ export type ResolvedRoute = {
   target: string;
   /** query params to pass to the screen */
   params?: Record<string, string>;
+  /** Point the family scope at this child before navigating. The parent's
+   *  view of a child's quest or journal is the child's own screen with the
+   *  scope set (stores/familyStore), not a route of its own. */
+  scopeChildId?: string;
 };
+
+/** Apply what a resolved route asks for before navigation. Every caller of
+ *  resolveDeepLink runs this first; a link that names a child sets the family
+ *  scope so the screen it lands on shows that child. */
+export function prepareRoute(resolved: ResolvedRoute | null | undefined): void {
+  if (resolved?.scopeChildId) {
+    // Lazy: the store pulls in expo-secure-store, which the pure resolver
+    // must not need at import time (tests, the not-found screen).
+    const { useFamilyStore } = require('../stores/familyStore');
+    useFamilyStore.getState().setSelected(resolved.scopeChildId);
+  }
+}
 
 /** Which web host owns a path that mobile hands off to the browser.
  *
@@ -248,13 +264,15 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   if (questDetail) return { target: `/(app)/quests/${questDetail[1]}` };
 
   // Parent → kid's quest detail. The web app uses `/parent/quest/<sid>/<qid>`
-  // and the mobile app mirrors that path under the (app) group.
+  // and mobile mirrored it as a route until 2026-09-15; it is the child's
+  // own quest screen with the family scope pointed at the child now (the
+  // link shape stays, notifications already sent carry it).
   const parentQuest = path.match(/^\/parent\/quest\/([^/]+)\/([^/]+)$/);
-  if (parentQuest) return { target: `/(app)/parent/quest/${parentQuest[1]}/${parentQuest[2]}` };
+  if (parentQuest) return { target: `/(app)/quests/${parentQuest[2]}`, scopeChildId: parentQuest[1] };
 
-  // Parent → kid's journal.
+  // Parent → kid's journal: the Journal tab, scoped to the child.
   const parentJournal = path.match(/^\/parent\/journal\/([^/]+)$/);
-  if (parentJournal) return { target: `/(app)/parent/journal/${parentJournal[1]}` };
+  if (parentJournal) return { target: '/(app)/(tabs)/journal', scopeChildId: parentJournal[1] };
 
   // Parent bounty review queue → mobile parent's bounty tab (review queue is
   // the default surface there).

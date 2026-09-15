@@ -5,7 +5,6 @@ never touches the database. But two of the things it signs are *delegations of
 authority* rather than statements of identity:
 
   * a masquerade token says "this superadmin may act as that user"
-  * an acting-as token says "this parent may act as that dependent"
 
 Both were previously granted once and then renewed forever from the claims in
 the expiring token, so the authority survived the thing that granted it: a
@@ -126,40 +125,3 @@ def is_masquerade_still_authorized(admin_id: str, target_id: str = None) -> bool
         return False
 
 
-def is_acting_as_still_authorized(parent_id: str, dependent_id: str) -> bool:
-    """True iff `dependent_id` is still a dependent `parent_id` may act for.
-
-    MUST mirror DependentRepository.get_dependent()'s default authorization,
-    which is what gates the original grant in routes/dependents.py. The two are
-    a pair: this runs on every subsequent request, so a check that is stricter
-    than the grant hands out a token that dies on its first use. When
-    get_dependent widened from "the managing parent" to "any guardian"
-    (household guardians included), this had to widen with it.
-
-    The is_dependent filter is the part that must NOT relax: a student with
-    their own login is never impersonable, by anyone.
-
-    Fails CLOSED, for the same reason as the masquerade check.
-    """
-    if not parent_id or not dependent_id:
-        return False
-    try:
-        rows = (_admin().table('users').select('id, is_dependent, managed_by_parent_id')
-                .eq('id', dependent_id).limit(1).execute()).data
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"[TokenAuthority] Acting-as re-check failed for {dependent_id[:8]}...: {e}")
-        return False
-    if not rows:
-        return False
-    row = rows[0]
-    if not row.get('is_dependent'):
-        return False
-    if row.get('managed_by_parent_id') == parent_id:
-        return True
-    try:
-        from utils.portfolio_access import is_parent_of
-        return is_parent_of(parent_id, dependent_id)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"[TokenAuthority] Acting-as guardian check failed for "
-                       f"{dependent_id[:8]}...: {e}")
-        return False

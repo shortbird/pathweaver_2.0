@@ -33,14 +33,12 @@ describe('useConnectionApprovals', () => {
     expect(result.current.data.approved).toHaveLength(1);
   });
 
-  it('decide and revoke post, then refetch', async () => {
+  it('decide posts, then refetches', async () => {
     const { result } = renderHook(() => useConnectionApprovals());
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => { await result.current.decide('c-1', true); });
     expect(api.post).toHaveBeenCalledWith('/api/connections/c-1/approve', { approve: true });
-    await act(async () => { await result.current.revoke('c-0'); });
-    expect(api.post).toHaveBeenCalledWith('/api/connections/c-0/revoke', {});
-    expect(api.get).toHaveBeenCalledTimes(3);
+    expect(api.get).toHaveBeenCalledTimes(2);
   });
 });
 

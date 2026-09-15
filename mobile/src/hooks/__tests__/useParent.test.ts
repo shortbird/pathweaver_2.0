@@ -43,7 +43,7 @@ describe('useMyChildren', () => {
     expect(result.current.children).toHaveLength(0);
 
     (api.get as jest.Mock).mockResolvedValueOnce({
-      data: { dependents: [createMockChildUnder13()] },
+      data: { children: [createMockChildUnder13()] },
     });
     act(() => { holdLifted(); });
 
@@ -52,9 +52,9 @@ describe('useMyChildren', () => {
     });
   });
 
-  it('fetches children from /api/dependents/my-dependents', async () => {
+  it('fetches children from /api/family/children', async () => {
     const children = [createMockChild13Plus(), createMockChildUnder13()];
-    (api.get as jest.Mock).mockResolvedValueOnce({ data: { dependents: children } });
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { children } });
 
     const { result } = renderHook(() => useMyChildren());
 
@@ -62,13 +62,13 @@ describe('useMyChildren', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(api.get).toHaveBeenCalledWith('/api/dependents/my-dependents');
+    expect(api.get).toHaveBeenCalledWith('/api/family/children');
     expect(result.current.children).toHaveLength(2);
   });
 
   it('filters 13+ children by date_of_birth', async () => {
     const children = [createMockChild13Plus(), createMockChildUnder13()];
-    (api.get as jest.Mock).mockResolvedValueOnce({ data: { dependents: children } });
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { children } });
 
     const { result } = renderHook(() => useMyChildren());
 
@@ -87,7 +87,7 @@ describe('useMyChildren', () => {
 
   it('filters under-13 children by date_of_birth', async () => {
     const children = [createMockChild13Plus(), createMockChildUnder13()];
-    (api.get as jest.Mock).mockResolvedValueOnce({ data: { dependents: children } });
+    (api.get as jest.Mock).mockResolvedValueOnce({ data: { children } });
 
     const { result } = renderHook(() => useMyChildren());
 

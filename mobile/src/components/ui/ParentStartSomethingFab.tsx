@@ -14,7 +14,7 @@
 import React from 'react';
 import { useParentStartSomethingStore } from '@/src/stores/parentStartSomethingStore';
 import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
-import { useAddKidStore } from '@/src/stores/addKidStore';
+import { useAddKidStore } from '@/src/stores/familyStore';
 import { ParentStartSomethingSheet } from '@/src/components/parent/ParentStartSomethingSheet';
 import { InviteObserverSheet } from '@/src/components/parent/InviteObserverSheet';
 import { AddKidSheet } from '@/src/components/parent/AddKidSheet';

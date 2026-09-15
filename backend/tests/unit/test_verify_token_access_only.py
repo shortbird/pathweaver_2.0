@@ -68,8 +68,6 @@ class TestOnlyAnAccessTokenAuthenticates:
     @pytest.mark.parametrize('mint', [
         'generate_masquerade_token',
         'generate_masquerade_refresh_token',
-        'generate_acting_as_token',
-        'generate_acting_as_refresh_token',
     ])
     def test_no_impersonation_token_authenticates_as_its_holder(
             self, session_manager, no_supabase_fallback, mint):

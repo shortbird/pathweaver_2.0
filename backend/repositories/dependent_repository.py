@@ -163,51 +163,6 @@ class DependentRepository(BaseRepository):
             logger.error(f"Error creating dependent for parent {parent_id}: {e}")
             raise ValidationError(f"Failed to create dependent: {str(e)}") from e
 
-    def get_parent_dependents(self, parent_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all dependents for a parent.
-
-        Args:
-            parent_id: Parent user ID
-
-        Returns:
-            List of dependent profiles with metadata
-        """
-        try:
-            # Use the database function for optimized query
-            result = self.client.rpc('get_parent_dependents', {
-                'p_parent_id': parent_id
-            }).execute()
-
-            dependents = result.data or []
-
-            # Transform keys to match expected format
-            formatted_dependents = []
-            for dep in dependents:
-                formatted_dependents.append({
-                    'id': dep.get('dependent_id'),
-                    'display_name': dep.get('dependent_name'),
-                    'first_name': dep.get('first_name'),
-                    'last_name': dep.get('last_name'),
-                    'date_of_birth': dep.get('date_of_birth'),
-                    'avatar_url': dep.get('avatar_url'),
-                    'promotion_eligible': dep.get('promotion_eligible', False),
-                    'total_xp': dep.get('total_xp', 0),
-                    'active_quest_count': dep.get('active_quest_count', 0),
-                    'ai_features_enabled': dep.get('ai_features_enabled', False),
-                    'ai_chatbot_enabled': dep.get('ai_chatbot_enabled', True),
-                    'ai_lesson_helper_enabled': dep.get('ai_lesson_helper_enabled', True),
-                    'ai_task_generation_enabled': dep.get('ai_task_generation_enabled', True),
-                    'email': dep.get('email'),
-                    'age': self._calculate_age(datetime.strptime(dep.get('date_of_birth'), '%Y-%m-%d').date()) if dep.get('date_of_birth') else None
-                })
-
-            return formatted_dependents
-
-        except Exception as e:
-            logger.error(f"Error fetching dependents for parent {parent_id}: {e}")
-            return []
-
     def get_dependent(self, dependent_id: str, parent_id: str,
                       owner_only: bool = False) -> Dict[str, Any]:
         """

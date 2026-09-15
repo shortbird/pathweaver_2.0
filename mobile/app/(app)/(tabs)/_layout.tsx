@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { View, Image, Pressable } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Sidebar } from '@/src/components/layouts/Sidebar';
-import { ActingAsBanner } from '@/src/components/layouts/ActingAsBanner';
 import { CaptureSheet } from '@/src/components/capture/CaptureSheet';
 import { StartSomethingFab } from '@/src/components/ui/StartSomethingFab';
 import { ParentStartSomethingFab } from '@/src/components/ui/ParentStartSomethingFab';
@@ -79,7 +78,6 @@ export default function TabsLayout() {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
         {isDesktop && <ObserverHeader />}
-        <ActingAsBanner />
         <Tabs
           initialRouteName="feed"
           screenOptions={{
@@ -168,8 +166,7 @@ export default function TabsLayout() {
       <View className="flex-1 flex-row bg-surface-50 dark:bg-dark-surface">
         <Sidebar />
         <View className="flex-1">
-          <ActingAsBanner />
-          <Tabs
+            <Tabs
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },
@@ -202,7 +199,6 @@ export default function TabsLayout() {
   if (isParent) {
     return (
       <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
-        <ActingAsBanner />
         <Tabs
           initialRouteName="family"
           screenOptions={{
@@ -305,7 +301,6 @@ export default function TabsLayout() {
   // ── Mobile: tabs with center capture button ──
   return (
     <View className="flex-1 bg-surface-50 dark:bg-dark-surface">
-      <ActingAsBanner />
       <Tabs
         initialRouteName="dashboard"
         screenOptions={{

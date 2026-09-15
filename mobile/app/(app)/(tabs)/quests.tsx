@@ -5,7 +5,7 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Image, Pressable, ScrollView, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useScrollToTop } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -119,16 +119,12 @@ export default function QuestsScreen() {
 
   // Family scope: a parent browsing FOR a child. The child comes from the
   // family store (picked on the Family tab); creating or adding a quest lands
-  // on the CHILD's account. The forChildId/forChildName route params are the
-  // pre-2026-09-15 carrier and still honoured for one release of deep links.
-  const params = useLocalSearchParams<{ forChildId?: string; forChildName?: string }>();
+  // on the CHILD's account. (Until 2026-09-15 a forChildId route param could
+  // name the child too; the store is the one carrier now.)
   const isParent = useIsParent();
   const scopedChild = useSelectedChild();
-  const paramChildId = typeof params.forChildId === 'string' ? params.forChildId : null;
-  const forChildId = paramChildId || (isParent ? scopedChild?.id || null : null);
-  const forChildName = typeof params.forChildName === 'string'
-    ? params.forChildName
-    : (scopedChild?.first_name || scopedChild?.display_name?.split(' ')[0] || 'your child');
+  const forChildId = isParent ? scopedChild?.id || null : null;
+  const forChildName = scopedChild?.first_name || scopedChild?.display_name?.split(' ')[0] || 'your child';
   const forChild = forChildId ? { id: forChildId, name: forChildName } : null;
   const [createForChildOpen, setCreateForChildOpen] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -144,7 +140,7 @@ export default function QuestsScreen() {
     setAddingId(questId);
     try {
       await api.post(`/api/family/quests/${questId}/enroll-children`, { child_ids: [forChildId] });
-      router.push(`/parent/quest/${forChildId}/${questId}` as any);
+      router.push(`/(app)/quests/${questId}` as any);
     } catch (e: any) {
       showAlert('Could not add quest', e?.response?.data?.error || 'Failed to add this quest. Try again.');
     } finally {

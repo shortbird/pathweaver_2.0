@@ -20,7 +20,7 @@ account -- an admin who cannot tell whose permissions are answering is the one
 thing masquerade must never be.
 
 De-escalation is the deliberate exception, and it is a named method rather than
-a fallthrough: logging out or stepping out of acting-as must work with a dead
+a fallthrough: logging out must work with a dead
 token, because refusing to identify the caller there means NOT revoking.
 """
 
@@ -148,13 +148,14 @@ class TestDeescalationIsTheNamedException:
             assert sm.get_current_user_id() is None
             assert sm.get_deescalation_user_id() == USER
 
-    def test_stepping_out_of_acting_as_works_after_the_token_dies(
+    def test_a_stale_bearer_over_a_live_cookie_still_names_the_cookie_holder(
             self, sm, request_ctx):
-        """Acting-as tokens last 24h; the parent's own cookie outlives them and
-        the parent still needs the way out."""
-        parent_cookie = sm.generate_access_token(USER)
-        with request_ctx(bearer='dead.acting.as',
-                         cookies={'access_token': parent_cookie}):
+        """A dead Bearer (an installed app replaying a token minted before
+        2026-09-15, say) with the person's own cookie beside it: logout must
+        still know who is leaving."""
+        own_cookie = sm.generate_access_token(USER)
+        with request_ctx(bearer='dead.bearer',
+                         cookies={'access_token': own_cookie}):
             assert sm.get_deescalation_user_id() == USER
 
     def test_it_still_needs_a_credential_that_verifies(self, sm, request_ctx):
@@ -170,10 +171,9 @@ class TestDeescalationIsTheNamedException:
         for path in sorted(routes.rglob('*.py')):
             if 'get_deescalation_user_id' in path.read_text(encoding='utf-8'):
                 callers.add(path.relative_to(routes).as_posix())
-        # dependents.py -> dependents_acting_as.py on 2026-09-07: the two
-        # acting-as views moved to their own module when FU-05's cookie work
-        # put the parent file over the route-size cap. Still exactly two
-        # de-escalating routes -- logging out, and stepping out of acting-as.
-        assert callers == {'auth/login/core.py', 'dependents_acting_as.py'}, (
+        # Exactly one de-escalating route since 2026-09-15: logging out.
+        # (Stepping out of a parent acting-as session was the other until the
+        # session itself was deleted, REGISTER GAP-3.)
+        assert callers == {'auth/login/core.py'}, (
             'get_deescalation_user_id() accepts any credential the request '
             f'carries; it belongs only on routes that REMOVE access: {callers}')

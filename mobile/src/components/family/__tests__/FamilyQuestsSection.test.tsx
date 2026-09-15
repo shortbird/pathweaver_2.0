@@ -76,7 +76,7 @@ describe('FamilyQuestsSection', () => {
     const { getByLabelText } = render(<FamilyQuestsSection kids={kids} />);
     fireEvent.press(getByLabelText("Open Romney's copy"));
     expect(useFamilyStore.getState().selectedChildId).toBe('kid-a');
-    expect(router.push).toHaveBeenCalledWith('/parent/quest/kid-a/q-1');
+    expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-1');
 
     fireEvent.press(getByLabelText('Open your copy'));
     expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-1');

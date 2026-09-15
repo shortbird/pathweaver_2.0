@@ -7,7 +7,7 @@ import {
   addNotificationResponseListener,
   getInitialNotificationLink,
 } from '@/src/services/pushNotifications';
-import { resolveDeepLink } from '@/src/services/deepLinkRouter';
+import { prepareRoute, resolveDeepLink } from '@/src/services/deepLinkRouter';
 import { processUploadQueue } from '@/src/services/uploadQueue';
 import { UploadStatusPill } from '@/src/components/ui/UploadStatusPill';
 import { View, ActivityIndicator, AppState } from 'react-native';
@@ -60,6 +60,7 @@ export default function AppLayout() {
   const navigateToLink = useCallback((link: string | null) => {
     const resolved = resolveDeepLink(link);
     const target = resolved?.target ?? '/(app)/notifications';
+    prepareRoute(resolved);
     setTimeout(() => {
       try {
         if (resolved?.params) {

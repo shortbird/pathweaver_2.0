@@ -1,7 +1,10 @@
 /**
  * ChildMessagesView - Parent (or superadmin) read-only view of a child's
- * message history. Three drill-down levels in one component:
- *   children list -> child's conversations -> a conversation's messages.
+ * message history. Two drill-down levels in one component:
+ *   the scoped child's conversations -> a conversation's messages.
+ * Which child is the family scope (stores/familyStore), switched with the
+ * same ChildSwitcher row every other parent surface uses; this view had its
+ * own child list until 2026-09-15, the fourth copy of that picker.
  * This is VIEW-only: there is no input bar and nothing is marked read.
  */
 
@@ -19,7 +22,8 @@ import {
   type Conversation,
 } from '@/src/hooks/useMessages';
 import { useMyChildren, type Child } from '@/src/hooks/useParent';
-import { useFamilyStore } from '@/src/stores/familyStore';
+import { useSelectedChild } from '@/src/stores/familyStore';
+import { ChildSwitcher } from '@/src/components/family/ChildSwitcher';
 
 interface Props {
   onBack: () => void;
@@ -64,26 +68,19 @@ function Header({ title, subtitle, onBack }: { title: string; subtitle?: string;
 }
 
 export function ChildMessagesView({ onBack, isMobile }: Props) {
-  // The family list every parent surface shares (it used to fetch its own
-  // copy from /api/messages/children -- the same children, a fourth picker).
+  // The family list every parent surface shares; the hook also reconciles
+  // the family scope against it, so useSelectedChild below is never stale.
   const { children, loading } = useMyChildren();
-  const scopedChildId = useFamilyStore((s) => s.selectedChildId);
-  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
+  const child = useSelectedChild() as Child | null;
   const [conversation, setConversation] = useState<Conversation | null>(null);
-
-  // With exactly one linked child, skip the picker and go straight to their
-  // conversations. The "back" button at that level then exits the view.
-  // Otherwise start on the child the parent is working for (family scope).
-  const onlyChild = children.length === 1 ? children[0] : null;
-  const scopedChild = children.find((c) => c.id === scopedChildId) || null;
-  const child = selectedChild || onlyChild || scopedChild;
+  const c = useThemeColors();
 
   const Container: any = isMobile ? SafeAreaView : View;
   const containerProps: any = isMobile
     ? { className: 'flex-1 bg-white dark:bg-dark-surface-100', edges: ['top'] }
     : { className: 'flex-1 bg-white dark:bg-dark-surface-100' };
 
-  // ── Level 3: a conversation's messages (read-only) ──
+  // ── Level 2: a conversation's messages (read-only) ──
   if (child && conversation) {
     return (
       <Container {...containerProps}>
@@ -96,94 +93,46 @@ export function ChildMessagesView({ onBack, isMobile }: Props) {
     );
   }
 
-  // ── Level 2: the child's conversations ──
+  // ── Level 1: the scoped child's conversations, switcher on top ──
   if (child) {
     return (
       <Container {...containerProps}>
         <ChildConversationList
           child={child}
-          singleChild={!!onlyChild}
-          onBack={() => (onlyChild ? onBack() : setSelectedChild(null))}
+          switcher={children.length > 1 ? <ChildSwitcher onSelect={() => setConversation(null)} /> : null}
+          onBack={onBack}
           onSelect={setConversation}
         />
       </Container>
     );
   }
 
-  // ── Level 1: pick a child (only when there are 0 or 2+ children) ──
+  // ── No child in scope: loading, or nobody linked ──
   return (
     <Container {...containerProps}>
       <Header title="My children's messages" subtitle="Read-only" onBack={onBack} />
-      <ChildPicker children={children} loading={loading} onSelect={setSelectedChild} />
+      {loading ? (
+        <Spinner />
+      ) : (
+        <View className="items-center py-16 px-6">
+          <Ionicons name="people-outline" size={40} color={c.iconMuted} />
+          <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
+            No linked children found.
+          </UIText>
+        </View>
+      )}
     </Container>
-  );
-}
-
-function ChildPicker({
-  children,
-  loading,
-  onSelect,
-}: {
-  children: Child[];
-  loading: boolean;
-  onSelect: (child: Child) => void;
-}) {
-  const c = useThemeColors();
-
-  if (loading) return <Spinner />;
-
-  if (!children.length) {
-    return (
-      <View className="items-center py-16 px-6">
-        <Ionicons name="people-outline" size={40} color={c.iconMuted} />
-        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 mt-3 text-center">
-          No linked children found.
-        </UIText>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView className="flex-1">
-      {children.map((child) => {
-        const name = childName(child);
-        return (
-          <Pressable
-            key={child.id}
-            onPress={() => onSelect(child)}
-            className="flex-row items-center px-4 py-3 border-b border-surface-100 dark:border-dark-surface-200 active:bg-surface-100 dark:active:bg-dark-surface-200"
-          >
-            <Avatar size="md">
-              {child.avatar_url ? (
-                <AvatarImage source={{ uri: child.avatar_url }} />
-              ) : (
-                <AvatarFallbackText>{name.charAt(0).toUpperCase()}</AvatarFallbackText>
-              )}
-            </Avatar>
-            <View className="flex-1 ml-3">
-              <UIText size="sm" className="font-poppins-semibold text-typo-700 dark:text-dark-typo-700" numberOfLines={1}>
-                {name}
-              </UIText>
-              <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                View conversations
-              </UIText>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
-          </Pressable>
-        );
-      })}
-    </ScrollView>
   );
 }
 
 function ChildConversationList({
   child,
-  singleChild,
+  switcher,
   onBack,
   onSelect,
 }: {
   child: Child;
-  singleChild?: boolean;
+  switcher?: React.ReactNode;
   onBack: () => void;
   onSelect: (conv: Conversation) => void;
 }) {
@@ -194,10 +143,11 @@ function ChildConversationList({
   return (
     <>
       <Header
-        title={singleChild ? `${name}'s messages` : name}
+        title={`${name}'s messages`}
         subtitle="Read-only conversations"
         onBack={onBack}
       />
+      {switcher ? <View className="px-4">{switcher}</View> : null}
       {loading ? (
         <Spinner />
       ) : !conversations.length ? (

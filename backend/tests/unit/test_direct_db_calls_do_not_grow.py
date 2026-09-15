@@ -198,7 +198,14 @@ BASELINES = {
     # route -- so they are lowered here in the same commit, per rule 2 at the
     # top of docs/remediation-2026-09/RATCHETS.md. A layer that drops and keeps
     # the old ceiling is that much of a fix nobody would notice being undone.
-    'routes': 2330,
+    # 2026-09-15 (parent refactor, phase 2): 2330 -> 2292. Deleted outright:
+    # routes/observer_requests.py, routes/parent/quests_view.py and
+    # evidence_view.py, routes/dependents_acting_as.py, the three
+    # request-and-approve routes in routes/admin/parent_connections.py;
+    # sis/goals.py and the my-children / my-dependents routes now ask
+    # utils.class_membership and services.family_children_service instead
+    # of reading the link tables themselves.
+    'routes': 2292,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -246,7 +253,12 @@ BASELINES = {
     #   - sis_messaging_service reads org_classes and class_meetings to build
     #     the "teachers of this class" and "teaching on Tuesday" presets. Both
     #     are org-wide lists behind fetch_all_rows, assembled for a picker.
-    'services': 1843,
+    # 2026-09-15 (parent refactor, phase 2): 1843 -> 1840. notification_service
+    # .get_parents_for_student and announcement_service lost their private
+    # copies of "who is this child's parent" (utils.class_membership answers
+    # now); family_children_service is new but reads through
+    # repositories/family_repository.
+    'services': 1840,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -377,7 +389,12 @@ BASELINES = {
     # classes: every live completion of a class the review credited as a
     # whole, and the live evidence document standing in for the review round
     # such a completion never had (POE 2026 could not become a story).
-    'repositories': 588,
+    # 2026-09-15 (parent refactor, phase 2): 588 -> 568. Fourteen dead
+    # ParentRepository methods over two dropped tables, DependentRepository
+    # .get_parent_dependents (the SQL function behind my-dependents) and
+    # ParentDigestRepository.managing_parents / approved_links went; the new
+    # FamilyRepository (two reads, one family at a time) came.
+    'repositories': 568,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -407,7 +424,11 @@ BASELINES = {
     # This module IS the shared answer to "who belongs to a class" and owns its
     # own reads by design -- the whole reason it lives in utils/ is that
     # repositories need it and may not import services.
-    'utils': 147,
+    # 2026-09-15 (parent refactor, phase 2): 147 -> 145. children_of_parent
+    # now derives from links_of_parent (same four reads, once);
+    # token_authority.is_acting_as_still_authorized went with the acting-as
+    # session (REGISTER GAP-3).
+    'utils': 145,
     'jobs': 7,
     'middleware': 3,
     'modules': 1,
@@ -453,7 +474,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2330 + 1843
+UPPER_TOTAL_BASELINE = 2292 + 1840
 
 
 def test_the_upper_layers_do_not_grow_in_total():

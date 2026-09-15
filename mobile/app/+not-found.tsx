@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { getInitialNotificationLink } from '@/src/services/pushNotifications';
-import { resolveDeepLink } from '@/src/services/deepLinkRouter';
+import { prepareRoute, resolveDeepLink } from '@/src/services/deepLinkRouter';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 /**
@@ -37,6 +37,7 @@ export default function NotFound() {
         const link = await getInitialNotificationLink();
         const resolved = resolveDeepLink(link);
         if (!cancelled && resolved?.target) {
+          prepareRoute(resolved);
           setHref(resolved.params
             ? { pathname: resolved.target, params: resolved.params }
             : resolved.target);

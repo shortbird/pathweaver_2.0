@@ -1,29 +1,25 @@
 /**
- * ChildConnections - one child's friends, on their card.
+ * ChildConnections - the friend requests waiting on the parent's yes, for
+ * one child. The "ask me first" half of the Friends policy.
  *
  * A request waiting on the parent renders in full: it is the consent, and
  * the consent text stays where it is stated -- what the other student would
  * be able to see, and that it can be undone later. A consent screen that
  * says "approve connection?" and nothing else is a click, not a consent.
- * The connections already approved sit under it with the way to end them:
- * revocation was always in the API, but with no surface a parent who
- * changed their mind had to email support.
  *
- * Since 2026-09-16 the card also carries the way INTO the child's Friends
- * screen (parent/friends/<id>): the policy, the whole list, the requests a
- * parent answers on a dependent's behalf, and the "connect with a friend"
- * flow. The card stays a summary.
+ * This sat on the child's Family-tab card until 2026-09-15, next to a
+ * second list of the same friendships with a second Remove; the card now
+ * carries a one-line count that opens the child's Friends screen
+ * (parent/friends/<id>), and this section lives there, above the policy
+ * that produced it. The approved list it used to carry is the Friends list
+ * on that screen.
  */
 
 import React from 'react';
-import { Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { HStack, UIText, VStack, Button, ButtonText, Card } from '@/src/components/ui';
-import { useThemeColors } from '@/src/hooks/useThemeColors';
-import { confirmAlert, showAlert } from '@/src/utils/alerts';
+import { UIText, VStack, HStack, Button, ButtonText, Card } from '@/src/components/ui';
+import { showAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
-import type { ApprovedConnection, ConnectionApprovals, PendingConnection } from '@/src/hooks/useConnectionApprovals';
+import type { ConnectionApprovals, PendingConnection } from '@/src/hooks/useConnectionApprovals';
 
 const DISCLOSURE = [
   "They would each be able to see the other's portfolio and work",
@@ -36,10 +32,6 @@ interface Props {
   connections: ConnectionApprovals;
   busy: boolean;
   onDecide: (connectionId: string, approve: boolean) => Promise<void>;
-  onRevoke: (connectionId: string) => Promise<void>;
-  /** The child this card is about; opens their Friends screen. */
-  childId?: string;
-  childFirstName?: string;
 }
 
 function PendingCard({ request, busy, onDecide }: { request: PendingConnection; busy: boolean; onDecide: Props['onDecide'] }) {
@@ -79,72 +71,17 @@ function PendingCard({ request, busy, onDecide }: { request: PendingConnection; 
   );
 }
 
-function ActiveRow({ connection, busy, onRevoke }: { connection: ApprovedConnection; busy: boolean; onRevoke: Props['onRevoke'] }) {
-  const c = useThemeColors();
-  const revoke = async () => {
-    const ok = await confirmAlert({
-      title: 'Remove this connection?',
-      message: `${connection.child.display_name} and ${connection.peer.display_name} will no longer see each other's work.`,
-      confirmText: 'Remove',
-      destructive: true,
-    });
-    if (!ok) return;
-    try {
-      await onRevoke(connection.connection_id);
-    } catch (err) {
-      showAlert('Could not remove that connection', extractApiError(err).message);
-    }
-  };
+export function ChildConnections({ connections, busy, onDecide }: Props) {
+  const { pending } = connections;
+  if (pending.length === 0) return null;
   return (
-    <HStack className="items-center gap-2 rounded-lg border border-surface-200 dark:border-dark-surface-300 px-3 py-2">
-      <Ionicons name="people-outline" size={14} color={c.iconMuted} />
-      <UIText size="sm" className="flex-1" numberOfLines={1}>Connected with {connection.peer.display_name}</UIText>
-      <Pressable
-        onPress={revoke}
-        disabled={busy}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`Remove the connection with ${connection.peer.display_name}`}
-      >
-        <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">Remove</UIText>
-      </Pressable>
-    </HStack>
-  );
-}
-
-export function ChildConnections({ connections, busy, onDecide, onRevoke, childId, childFirstName }: Props) {
-  const c = useThemeColors();
-  const { pending, approved } = connections;
-  const open = childId ? () => router.push(`/(app)/parent/friends/${childId}` as any) : undefined;
-  return (
-    <VStack className="mt-3" space="xs">
-      <HStack className="items-center gap-1.5">
+    <Card variant="outline" size="md" testID="child-connections">
+      <VStack space="xs">
         <UIText size="xs" className="font-poppins-semibold uppercase tracking-wider text-typo-500 dark:text-dark-typo-500">
-          Friends
+          Waiting on you
         </UIText>
-        {pending.length > 0 && (
-          <UIText size="xs" className="rounded-full bg-optio-pink px-1.5 text-white font-poppins-bold" style={{ fontSize: 10, lineHeight: 16 }}>
-            {pending.length}
-          </UIText>
-        )}
-      </HStack>
-      {pending.map((r) => <PendingCard key={r.connection_id} request={r} busy={busy} onDecide={onDecide} />)}
-      {approved.map((a) => <ActiveRow key={a.connection_id} connection={a} busy={busy} onRevoke={onRevoke} />)}
-      {open && (
-        <Pressable
-          onPress={open}
-          accessibilityRole="button"
-          accessibilityLabel={`Manage ${childFirstName || 'this child'}'s friends`}
-          testID={`child-friends-${childId}`}
-          className="flex-row items-center gap-2 py-2"
-        >
-          <Ionicons name="people-outline" size={16} color={c.brand} />
-          <UIText size="sm" className="flex-1 text-optio-purple font-poppins-medium">
-            {approved.length > 0 || pending.length > 0 ? 'Manage friends and settings' : `Friends settings for ${childFirstName || 'this child'}`}
-          </UIText>
-          <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
-        </Pressable>
-      )}
-    </VStack>
+        {pending.map((r) => <PendingCard key={r.connection_id} request={r} busy={busy} onDecide={onDecide} />)}
+      </VStack>
+    </Card>
   );
 }

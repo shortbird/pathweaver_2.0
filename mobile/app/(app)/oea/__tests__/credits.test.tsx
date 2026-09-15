@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import CreditsScreen from '../credits';
 import { oeaAPI } from '@/src/services/api';
 import { router } from 'expo-router';
@@ -82,7 +83,9 @@ describe('CreditsScreen', () => {
     await waitFor(() => expect(getByText('Add work evidence & learning logs')).toBeTruthy());
     fireEvent.press(getByText('Add work evidence & learning logs'));
 
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/parent/quest/stu-1/q-algebra'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-algebra'));
+    // The student's copy: the family scope is pointed at the student first.
+    expect(useFamilyStore.getState().selectedChildId).toBe('stu-1');
     // Already linked — no need to create a quest.
     expect(oeaAPI.ensureCreditQuest).not.toHaveBeenCalled();
   });
@@ -100,7 +103,7 @@ describe('CreditsScreen', () => {
     fireEvent.press(getByText('Add work evidence & learning logs'));
 
     await waitFor(() => expect(oeaAPI.ensureCreditQuest).toHaveBeenCalledWith('c1'));
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/parent/quest/stu-1/q-new'));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-new'));
   });
 
   it('marks a course complete with a grade', async () => {

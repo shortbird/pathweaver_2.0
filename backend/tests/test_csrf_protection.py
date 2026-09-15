@@ -224,7 +224,7 @@ def test_exemption_is_endpoint_name_based_not_view_resolution(app):
     view functions existing at init_csrf() time."""
     from middleware.csrf_protection import _is_csrf_exempt
     # Endpoint of a blueprint registered AFTER init_csrf ran.
-    assert _is_csrf_exempt(app, 'icreate_registration.confirm_payment')
+    assert _is_csrf_exempt(app, 'registration.confirm_payment')
     # Unknown endpoints are not exempt.
-    assert not _is_csrf_exempt(app, 'icreate_registration.nope')
+    assert not _is_csrf_exempt(app, 'registration.nope')
     assert not _is_csrf_exempt(app, None)

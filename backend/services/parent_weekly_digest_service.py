@@ -159,19 +159,18 @@ def _days_late(due_date: Optional[str], now: datetime) -> Optional[int]:
 # ── Guardians ────────────────────────────────────────────────────────────────
 
 def _guardians(repo: ParentDigestRepository, student_ids: List[str]) -> Dict[str, List[str]]:
-    """{student_id: [parent_user_id]} from both linkage mechanisms.
+    """{student_id: [parent_user_id]} through every link the platform has.
 
-    Under 13 the guardian is `users.managed_by_parent_id`; 13 and over it is an
-    approved `parent_student_links` row. A digest that knew only one of the two
-    would silently skip half the school — the same trap
-    NotificationService.get_parents_for_student documents.
+    utils.class_membership.guardians_by_student is the one definition:
+    users.managed_by_parent_id, an approved parent_student_links row, and a
+    guardian in the child's household. Until 2026-09-15 this function read the
+    first two itself, so a family that registered through the SIS funnel -- a
+    household row and nothing else -- would never have received the digest.
+    `repo` stays in the signature so the callers and their tests are untouched.
     """
-    out: Dict[str, List[str]] = {sid: [] for sid in student_ids}
-    for student_id, parent_id in (repo.managing_parents(student_ids)
-                                  + repo.approved_links(student_ids)):
-        if student_id in out and parent_id not in out[student_id]:
-            out[student_id].append(parent_id)
-    return out
+    from utils.class_membership import guardians_by_student
+    found = guardians_by_student(student_ids)
+    return {sid: sorted(found.get(sid) or ()) for sid in student_ids}
 
 
 # ── The week ─────────────────────────────────────────────────────────────────

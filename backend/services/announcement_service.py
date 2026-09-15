@@ -118,22 +118,13 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
     if 'advisors' in audiences:
         by_role['advisors'] = {m['id'] for m in advisors}
     if 'parents' in audiences:
-        from services.notification_service import NotificationService
-        notifier = NotificationService()
-        parents: Set[str] = set()
-        for s in students:
-            try:
-                for p in (notifier.get_parents_for_student(s['id']) or []):
-                    if p.get('id'):
-                        parents.add(p['id'])
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f"Could not resolve parents for student {s['id']}: {e}")
-        # The SIS's third parent link: household guardians. A second guardian in
-        # the household of a dependent child has no parent_student_links row and
-        # managed_by_parent_id already names guardian #1, so resolving parents
-        # per student alone skipped them (iCreate, 2026-08-26: "Marika didn't
-        # get it (seems like she should have as a parent?)").
-        parents |= _household_guardians_of([s['id'] for s in students])
+        # One definition of "parent", all three links (managed_by_parent_id,
+        # parent_student_links, household guardians), one batched read. The
+        # household link used to be patched in here by hand after a second
+        # guardian was skipped (iCreate, 2026-08-26: "Marika didn't get it
+        # (seems like she should have as a parent?)").
+        from utils.class_membership import parents_of_students
+        parents: Set[str] = parents_of_students([s['id'] for s in students])
         by_role['parents'] = parents
     for role, ids in by_role.items():
         # The author does not notify themselves — unless they were picked by
@@ -142,28 +133,6 @@ def recipients_by_role(org_id: str, audiences: Iterable[str],
             continue
         ids.discard(exclude_user_id)
     return by_role
-
-
-def _household_guardians_of(student_ids: List[str]) -> Set[str]:
-    """Guardians who share a household with any of these students."""
-    if not student_ids:
-        return set()
-    try:
-        member_rows = fetch_all_rows(lambda: (
-            _admin().table('household_members').select('household_id, user_id')
-            .in_('user_id', student_ids)
-        ))
-        household_ids = list({r['household_id'] for r in member_rows})
-        if not household_ids:
-            return set()
-        guardian_rows = fetch_all_rows(lambda: (
-            _admin().table('household_members').select('user_id, relationship')
-            .in_('household_id', household_ids).eq('relationship', 'guardian')
-        ))
-        return {r['user_id'] for r in guardian_rows if r.get('user_id')}
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"Could not resolve household guardians: {e}")
-        return set()
 
 
 def publish(org_id: str, author_id: str, title: str, content: str,

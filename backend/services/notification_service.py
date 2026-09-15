@@ -793,73 +793,28 @@ class NotificationService(BaseService):
         )
 
     def get_parents_for_student(self, student_id: str) -> List[Dict[str, Any]]:
-        """
-        Get all parents linked to a student.
+        """Every guardian of a student, as user rows with id, names and
+        organization_id.
 
-        Checks both:
-        - managed_by_parent_id (dependent students under 13)
-        - parent_student_links table (linked students 13+)
-
-        Args:
-            student_id: The student's user ID
-
-        Returns:
-            List of parent user records with id and display_name
+        The relationship itself comes from utils.class_membership
+        .guardians_by_student -- all three links (managed_by_parent_id, an
+        approved parent_student_links row, a shared household). Until
+        2026-09-15 this method kept its own two-link copy, so a household-only
+        guardian got no notification about their own child's work while the
+        same guardian could open the child's dashboard.
         """
         try:
-            from repositories.parent_repository import ParentRepository
+            from utils.class_membership import guardians_by_student
 
-            # Use self.supabase which is already a fresh client
-            admin_client = self.supabase
-
-            parents = []
-            parent_ids_found = set()
-            logger.info(f"[get_parents_for_student] Looking for parents of student {student_id[:8]}...")
-
-            # Method 1: Check if student has a managing parent (dependent under 13)
-            student_result = admin_client.table('users') \
-                .select('managed_by_parent_id') \
-                .eq('id', student_id) \
-                .limit(1) \
-                .execute()
-
-            student_data = student_result.data[0] if student_result.data else None
-
-            if student_data and student_data.get('managed_by_parent_id'):
-                parent_id = student_data['managed_by_parent_id']
-                logger.info(f"[get_parents_for_student] Found managing parent: {parent_id[:8]}")
-                parent = admin_client.table('users') \
-                    .select('id, display_name, first_name, last_name, organization_id') \
-                    .eq('id', parent_id) \
-                    .single() \
-                    .execute()
-                if parent.data:
-                    parents.append(parent.data)
-                    parent_ids_found.add(parent_id)
-                    logger.info("[get_parents_for_student] Added managing parent to list")
-
-            # Method 2: Check parent_student_links for linked parents (13+ students)
-            parent_repo = ParentRepository(client=admin_client)
-            linked_parents = parent_repo.find_parents(student_id)
-            logger.info(f"[get_parents_for_student] Found {len(linked_parents)} parent_student_links")
-
-            for link in linked_parents:
-                parent_data = link.get('parent')
-                if parent_data and parent_data.get('id') not in parent_ids_found:
-                    # Get full parent info including organization_id
-                    parent_info = admin_client.table('users') \
-                        .select('id, display_name, first_name, last_name, organization_id') \
-                        .eq('id', parent_data['id']) \
-                        .single() \
-                        .execute()
-                    if parent_info.data:
-                        parents.append(parent_info.data)
-                        parent_ids_found.add(parent_data['id'])
-                        logger.info(f"[get_parents_for_student] Added linked parent {parent_data['id'][:8]}")
-
-            logger.info(f"[get_parents_for_student] Total parents found: {len(parents)}")
-            return parents
-
+            parent_ids = sorted(guardians_by_student([student_id]).get(student_id) or ())
+            if not parent_ids:
+                return []
+            rows = self.supabase.table('users') \
+                .select('id, display_name, first_name, last_name, organization_id') \
+                .in_('id', parent_ids) \
+                .execute().data or []
+            by_id = {r['id']: r for r in rows if r.get('id')}
+            return [by_id[pid] for pid in parent_ids if pid in by_id]
         except Exception as e:
             logger.error(f"Error getting parents for student: {str(e)}", exc_info=True)
             return []

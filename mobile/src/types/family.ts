@@ -16,4 +16,15 @@ export interface Child {
   is_dependent: boolean;
   date_of_birth: string | null;
   role: string;
+  // The rest arrive from GET /api/family/children; the observer list
+  // (/api/observers/my-students) does not carry them.
+  /** This guardian owns the child's login (users.managed_by_parent_id). */
+  managed_by_me?: boolean;
+  /** Which of the three parent links hold for this guardian. */
+  links?: { managed: boolean; linked: boolean; household: boolean };
+  organization_id?: string | null;
+  level?: number;
+  active_quest_count?: number;
+  age?: number | null;
+  email?: string | null;
 }

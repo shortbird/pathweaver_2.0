@@ -51,7 +51,6 @@ DEPENDENT_ROUTES = {
     'dependents.add_dependent_login': 'dependent_id',
     'dependents.delete_dependent': 'dependent_id',
     'dependents.export_dependent_progress_report': 'dependent_id',
-    'dependents.generate_acting_as_token': 'dependent_id',
     'dependents.get_dependent': 'dependent_id',
     'dependents.get_dependent_progress_report': 'dependent_id',
     'dependents.promote_dependent': 'dependent_id',

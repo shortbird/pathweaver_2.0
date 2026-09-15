@@ -8,6 +8,11 @@
  * modal with a tab per child, and this is that sheet. The cards on the
  * Family tab carry only Open.
  *
+ * Each child's Friends policy (on/off, ask me first, who may ask, what
+ * friends may do) is the child's Friends screen (parent/friends/<id>),
+ * reached from here the way the web reaches it from the child's settings
+ * tab. A request waiting on the parent shows its count on the row.
+ *
  * A child's login, AI access and portfolio privacy are web settings
  * (FamilySettingsModal -> ChildSettingsPanel). The phone used to offer
  * "Give login access" here and create the account with a hardcoded
@@ -55,8 +60,10 @@ async function changePicture(child: Child) {
   }
 }
 
-function Row({ icon, label, onPress, testID }: {
+function Row({ icon, label, onPress, testID, badge }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; testID?: string;
+  /** A count waiting on the parent, shown as a pill. */
+  badge?: number;
 }) {
   const c = useThemeColors();
   return (
@@ -64,17 +71,28 @@ function Row({ icon, label, onPress, testID }: {
       onPress={onPress}
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={badge ? `${label}, ${badge} waiting for you` : label}
       className="flex-row items-center gap-3 py-3 active:opacity-70"
     >
       <Ionicons name={icon} size={18} color={c.brand} />
       <UIText size="sm" className="flex-1 font-poppins-medium">{label}</UIText>
+      {badge ? (
+        <UIText size="xs" className="rounded-full bg-optio-pink px-1.5 text-white font-poppins-bold" style={{ fontSize: 10, lineHeight: 16 }}>
+          {badge}
+        </UIText>
+      ) : null}
       <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
     </Pressable>
   );
 }
 
-export function FamilySettingsSheet({ visible, onClose, kids }: { visible: boolean; onClose: () => void; kids: Child[] }) {
+export function FamilySettingsSheet({ visible, onClose, kids, pendingFriendRequests }: {
+  visible: boolean;
+  onClose: () => void;
+  kids: Child[];
+  /** {childId: number of friend requests waiting on the parent}. */
+  pendingFriendRequests?: Record<string, number>;
+}) {
   const c = useThemeColors();
   const user = useAuthStore((s) => s.user);
   const canAddChild = !userInSisOrg(user);
@@ -130,6 +148,13 @@ export function FamilySettingsSheet({ visible, onClose, kids }: { visible: boole
               {/* The picker runs after the sheet has closed (see pickChildAvatar). */}
               <Row icon="image-outline" label={`Change ${first}'s picture`} onPress={() => after(() => changePicture(kid))} />
               <Row icon="person-circle-outline" label={`${first}'s profile`} onPress={() => after(() => router.push(`/parent/child/${kid.id}` as any))} />
+              <Row
+                icon="people-outline"
+                label={`${first}'s friends`}
+                testID={`family-settings-friends-${kid.id}`}
+                badge={pendingFriendRequests?.[kid.id]}
+                onPress={() => after(() => router.push(`/(app)/parent/friends/${kid.id}` as any))}
+              />
               <Row
                 icon="key-outline"
                 label={`${first}'s login, AI and privacy`}

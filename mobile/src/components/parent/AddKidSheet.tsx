@@ -15,7 +15,7 @@ import {
 } from '../ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert } from '@/src/utils/alerts';
-import { useAddKidStore } from '@/src/stores/addKidStore';
+import { useAddKidStore } from '@/src/stores/familyStore';
 
 interface AddKidSheetProps {
   visible: boolean;

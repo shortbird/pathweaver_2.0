@@ -30,6 +30,7 @@ import { PillarRadar } from '@/src/components/engagement/PillarRadar';
 import { ProfileActivityFeed } from '@/src/components/feed/ProfileActivityFeed';
 import { SubjectCreditsGrid } from '@/src/components/portfolio/SubjectCreditsGrid';
 import { useChildOverview, useChildJournal } from '@/src/hooks/useParent';
+import { useFamilyStore } from '@/src/stores/familyStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 
 const PILLAR_LABELS: Record<string, string> = {
@@ -59,6 +60,12 @@ function initialsFromStudent(s: any): string {
 
 export default function ChildProfileScreen() {
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
+  // The child's journal is the Journal tab with the family scope pointed at
+  // them (the per-child journal route went on 2026-09-15).
+  const openJournal = () => {
+    useFamilyStore.getState().setSelected(studentId);
+    router.push('/(app)/(tabs)/journal' as any);
+  };
   const c = useThemeColors();
   const { overview, loading, refetch } = useChildOverview(studentId || null);
   const { topics: childTopics } = useChildJournal(studentId || null);
@@ -207,7 +214,7 @@ export default function ChildProfileScreen() {
               <VStack space="sm">
                 <HStack className="items-center justify-between">
                   <Heading size="md">Journal Topics</Heading>
-                  <Pressable onPress={() => router.push(`/(app)/parent/journal/${studentId}` as any)} hitSlop={8}>
+                  <Pressable onPress={() => openJournal()} hitSlop={8}>
                     <UIText size="sm" className="text-optio-purple font-poppins-medium">View all</UIText>
                   </Pressable>
                 </HStack>
@@ -216,7 +223,7 @@ export default function ChildProfileScreen() {
                     {childTopics.map((t: any) => (
                       <Pressable
                         key={t.id}
-                        onPress={() => router.push(`/(app)/parent/journal/${studentId}` as any)}
+                        onPress={() => openJournal()}
                         className="flex-row items-center gap-1.5 px-3 py-2 rounded-full bg-surface-100 dark:bg-dark-surface-200"
                         style={{ minHeight: 36 }}
                       >

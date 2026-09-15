@@ -51,13 +51,12 @@ def claims():
 @pytest.mark.unit
 class TestTokensThatReachPostgrest:
     """get_user_client() takes the access_token cookie or the Bearer header --
-    and during an impersonation that header carries the masquerade or acting-as
-    token, so all three have to be right."""
+    and during a masquerade that header carries the masquerade token, so both
+    have to be right."""
 
     @pytest.mark.parametrize('name, mint', [
         ('access', lambda sm: sm.generate_access_token(USER)),
         ('masquerade', lambda sm: sm.generate_masquerade_token(USER, TARGET)),
-        ('acting_as', lambda sm: sm.generate_acting_as_token(USER, TARGET)),
     ])
     def test_it_claims_the_authenticated_role(self, claims, name, mint):
         assert claims(mint)['role'] == 'authenticated'
@@ -65,12 +64,11 @@ class TestTokensThatReachPostgrest:
     @pytest.mark.parametrize('name, mint, expected_sub', [
         ('access', lambda sm: sm.generate_access_token(USER), USER),
         ('masquerade', lambda sm: sm.generate_masquerade_token(USER, TARGET), TARGET),
-        ('acting_as', lambda sm: sm.generate_acting_as_token(USER, TARGET), TARGET),
     ])
     def test_sub_is_the_identity_rls_should_evaluate(self, claims, name, mint, expected_sub):
-        """auth.uid() reads `sub`. During an impersonation that must be the
-        person being viewed, not the admin or parent doing the viewing --
-        otherwise RLS answers for the wrong account."""
+        """auth.uid() reads `sub`. During a masquerade that must be the
+        person being viewed, not the admin doing the viewing -- otherwise RLS
+        answers for the wrong account."""
         assert claims(mint)['sub'] == expected_sub
 
 
@@ -87,8 +85,6 @@ class TestTheClaimNamesARealPostgresRole:
             lambda sm: sm.generate_refresh_token(USER),
             lambda sm: sm.generate_masquerade_token(USER, TARGET),
             lambda sm: sm.generate_masquerade_refresh_token(USER, TARGET),
-            lambda sm: sm.generate_acting_as_token(USER, TARGET),
-            lambda sm: sm.generate_acting_as_refresh_token(USER, TARGET),
             lambda sm: sm.generate_role_view_token(USER, 'advisor'),
         ]
         for mint in minters:

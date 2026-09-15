@@ -63,18 +63,18 @@ class TestRecipients:
             out = svc.recipients_for('org-1', ['students', 'advisors'])
         assert out == {'stu1', 'stu2', 'adv1'}   # admins aren't an audience
 
-    def test_parents_are_resolved_per_student(self):
+    def test_parents_are_resolved_through_their_children(self):
         """A platform parent has no organization_id, so a plain org filter would
-        miss them — they're found through their child."""
+        miss them — they're found through their child, by the one shared
+        resolver (utils.class_membership.parents_of_students)."""
         client, _ = _client()
-        notifier = Mock()
-        notifier.get_parents_for_student.side_effect = lambda sid: (
-            [{'id': f'parent-of-{sid}'}]
-        )
         with patch('services.announcement_service._admin', return_value=client), \
-             patch('services.notification_service.NotificationService', return_value=notifier):
+             patch('utils.class_membership.parents_of_students',
+                   side_effect=lambda sids: {f'parent-of-{sid}' for sid in sids}) as resolver:
             out = svc.recipients_for('org-1', ['parents'])
         assert out == {'parent-of-stu1', 'parent-of-stu2'}
+        resolver.assert_called_once()
+        assert set(resolver.call_args.args[0]) == {'stu1', 'stu2'}
 
     def test_the_author_never_gets_their_own_announcement(self):
         client, _ = _client()
@@ -83,11 +83,11 @@ class TestRecipients:
         assert out == {'stu2'}
 
     def test_a_parent_lookup_failure_does_not_lose_the_rest(self):
+        """The resolver is best-effort (it logs and returns what it found), so
+        a lookup failure yields no parents rather than a 500."""
         client, _ = _client()
-        notifier = Mock()
-        notifier.get_parents_for_student.side_effect = RuntimeError('boom')
         with patch('services.announcement_service._admin', return_value=client), \
-             patch('services.notification_service.NotificationService', return_value=notifier):
+             patch('utils.class_membership.parents_of_students', return_value=set()):
             assert svc.recipients_for('org-1', ['parents']) == set()
 
 

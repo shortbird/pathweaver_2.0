@@ -1,7 +1,7 @@
 /**
  * One settings sheet for the family: add a child, invite an observer, and
- * each child's picture, profile and a door to their web-only settings
- * (login, AI, privacy).
+ * each child's picture, profile, Friends, and a door to their web-only
+ * settings (login, AI, privacy).
  */
 
 import React from 'react';
@@ -50,6 +50,19 @@ describe('FamilySettingsSheet', () => {
     expect(getByLabelText("Romney's login, AI and privacy")).toBeTruthy();
     expect(getByLabelText("Timmy's login, AI and privacy")).toBeTruthy();
     expect(queryByLabelText('Give login access')).toBeNull();
+  });
+
+  it("opens the child's Friends screen, with the requests waiting on the parent counted", () => {
+    useAuthStore.setState({ user: { id: 'p1', role: 'parent', organization: null } as any });
+    const onClose = jest.fn();
+    const { getByLabelText, getByTestId, rerender } = render(
+      <FamilySettingsSheet visible onClose={onClose} kids={kids} pendingFriendRequests={{ 'kid-a': 2 }} />,
+    );
+    expect(getByLabelText("Romney's friends, 2 waiting for you")).toBeTruthy();
+    expect(getByLabelText("Timmy's friends")).toBeTruthy();
+    fireEvent.press(getByTestId('family-settings-friends-kid-a'));
+    rerender(<FamilySettingsSheet visible={false} onClose={onClose} kids={kids} />);
+    expect(router.push).toHaveBeenCalledWith('/(app)/parent/friends/kid-a');
   });
 
   it("opens the web Family Settings on that child's tab", () => {

@@ -35,15 +35,11 @@ class TestParentRoutesImport:
         """Test routes.parent package can be imported without errors."""
         from routes.parent import (
             dashboard_overview_bp,
-            quests_view_bp,
-            evidence_view_bp,
             analytics_insights_bp,
             analytics_bp,
             register_parent_blueprints
         )
         assert dashboard_overview_bp is not None
-        assert quests_view_bp is not None
-        assert evidence_view_bp is not None
         assert analytics_insights_bp is not None
         assert analytics_bp is not None
         assert callable(register_parent_blueprints)
@@ -76,8 +72,10 @@ class TestParentRoutesImport:
         """
         import routes.parent as parent_pkg
         assert hasattr(parent_pkg, 'dashboard_overview_bp')
-        assert hasattr(parent_pkg, 'quests_view_bp')
-        assert hasattr(parent_pkg, 'evidence_view_bp')
+        # quests_view and evidence_view were deleted 2026-09-15 (no caller,
+        # and both read a dropped table).
+        assert not hasattr(parent_pkg, 'quests_view_bp')
+        assert not hasattr(parent_pkg, 'evidence_view_bp')
 
 
 @pytest.mark.unit
@@ -98,16 +96,6 @@ class TestParentBlueprintUrlPrefixes:
         """Test dashboard_overview has /api/parent prefix."""
         from routes.parent import dashboard_overview_bp
         assert dashboard_overview_bp.url_prefix == '/api/parent'
-
-    def test_quests_view_prefix(self):
-        """Test quests_view has /api/parent prefix."""
-        from routes.parent import quests_view_bp
-        assert quests_view_bp.url_prefix == '/api/parent'
-
-    def test_evidence_view_prefix(self):
-        """Test evidence_view has /api/parent prefix."""
-        from routes.parent import evidence_view_bp
-        assert evidence_view_bp.url_prefix == '/api/parent'
 
     def test_analytics_insights_prefix(self):
         """Test analytics_insights has /api/parent prefix."""
@@ -149,10 +137,14 @@ class TestDependentRoutesExist:
         from routes import dependents
         assert dependents.bp is not None
 
-    def test_act_as_route_exists(self):
-        """Test /<id>/act-as route is defined."""
-        from routes import dependents
-        assert dependents.bp is not None
+    def test_act_as_route_is_gone(self):
+        """/<id>/act-as and /stop-acting-as were deleted 2026-09-15 (REGISTER
+        GAP-3): family scope replaced the swapped-token session, and the web
+        and mobile callers went in Phase 1 and 2 of the parent refactor."""
+        from app import app
+        rules = {r.rule for r in app.url_map.iter_rules()}
+        assert '/api/dependents/<string:dependent_id>/act-as' not in rules
+        assert '/api/dependents/stop-acting-as' not in rules
 
 
 @pytest.mark.unit

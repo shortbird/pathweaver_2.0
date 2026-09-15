@@ -123,11 +123,15 @@ export default function ParentDashboardPage() {
   };
   const openChildQuest = (child: Child, questId: string) => {
     setSelected(child.id);
-    router.push(`/parent/quest/${child.id}/${questId}` as any);
+    router.push(`/(app)/quests/${questId}` as any);
   };
   const openChildProfile = (child: Child) => {
     setSelected(child.id);
     router.push(`/parent/child/${child.id}` as any);
+  };
+  const openChildFriends = (child: Child) => {
+    setSelected(child.id);
+    router.push(`/(app)/parent/friends/${child.id}` as any);
   };
   // The catalog (browse, create, add -- everything lands on the kid's
   // account). Hidden from the parent tab bar but still a registered route
@@ -269,9 +273,7 @@ export default function ParentDashboardPage() {
                     child={child}
                     refreshKey={refreshKey}
                     connections={forChild(connections.data, child.id)}
-                    connectionsBusy={connections.busy}
-                    onDecideConnection={connections.decide}
-                    onRevokeConnection={connections.revoke}
+                    onOpenFriends={openChildFriends}
                     onOpen={openChild}
                     onOpenQuest={openChildQuest}
                     onOpenProfile={openChildProfile}
@@ -289,7 +291,12 @@ export default function ParentDashboardPage() {
         </VStack>
       </ScrollView>
 
-      <FamilySettingsSheet visible={settingsOpen} onClose={() => setSettingsOpen(false)} kids={children} />
+      <FamilySettingsSheet
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        kids={children}
+        pendingFriendRequests={Object.fromEntries(children.map((k) => [k.id, forChild(connections.data, k.id).pending.length]))}
+      />
     </SafeAreaView>
   );
 }

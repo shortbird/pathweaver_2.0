@@ -6,11 +6,13 @@
  * and `approved` (connections they said yes to, which they may end at any
  * time). Until 2026-09-15 the app had no surface for this at all -- the web
  * had a page of its own, and a parent on the phone got an email pointing at
- * it. Each request renders on the card of the child it is about
- * (components/family/ChildConnections), the way the web dashboard does it.
+ * it. The Family tab reads this once for the count on each child's card;
+ * the child's Friends screen (parent/friends/<id>) renders the requests in
+ * full (components/family/ChildConnections) and answers them.
  *
- * Read once at the Family tab and handed down, so ten children do not make
- * ten reads of the same list.
+ * Ending a friendship is the Friends list's Remove (hooks/useFriends
+ * .revoke, in student scope); the approver-side revoke this hook carried
+ * was the same call from a second surface and went with the card list.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -79,18 +81,7 @@ export function useConnectionApprovals() {
     }
   }, [refetch]);
 
-  /** End a connection the caller approved. Either side's approver may. */
-  const revoke = useCallback(async (connectionId: string) => {
-    setBusy(true);
-    try {
-      await api.post(`/api/connections/${connectionId}/revoke`, {});
-      await refetch();
-    } finally {
-      setBusy(false);
-    }
-  }, [refetch]);
-
-  return { data, loading, busy, refetch, decide, revoke };
+  return { data, loading, busy, refetch, decide };
 }
 
 /** The rows about one child, for that child's card. */

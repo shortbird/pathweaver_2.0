@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { resolveDeepLink, isSisSurfacePath } from '../deepLinkRouter';
+import { prepareRoute, resolveDeepLink, isSisSurfacePath } from '../deepLinkRouter';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -175,10 +175,27 @@ describe('resolveDeepLink', () => {
     );
   });
 
-  it('resolves parent journal deep links', () => {
-    expect(resolveDeepLink('/parent/journal/student-1')?.target).toBe(
-      '/(app)/parent/journal/student-1',
-    );
+  it("resolves a parent's child-journal link to the Journal tab, scoped to the child", () => {
+    const resolved = resolveDeepLink('/parent/journal/student-1');
+    expect(resolved?.target).toBe('/(app)/(tabs)/journal');
+    expect(resolved?.scopeChildId).toBe('student-1');
+  });
+
+  it("resolves a parent's child-quest link to the quest screen, scoped to the child", () => {
+    /* The per-child route was deleted 2026-09-15; links already delivered
+       in notifications keep landing on the same screen. */
+    const resolved = resolveDeepLink('/parent/quest/student-1/quest-9');
+    expect(resolved?.target).toBe('/(app)/quests/quest-9');
+    expect(resolved?.scopeChildId).toBe('student-1');
+  });
+
+  it('prepareRoute points the family scope at the child a link names', () => {
+    const { useFamilyStore } = require('@/src/stores/familyStore');
+    useFamilyStore.setState({ selectedChildId: null });
+    prepareRoute(resolveDeepLink('/parent/quest/student-1/quest-9'));
+    expect(useFamilyStore.getState().selectedChildId).toBe('student-1');
+    prepareRoute(resolveDeepLink('/feed'));
+    expect(useFamilyStore.getState().selectedChildId).toBe('student-1');
   });
 
   it('keeps the query string in the view-on-web path param', () => {

@@ -17,20 +17,19 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-const getMyDependents = vi.fn()
-vi.mock('../../services/dependentAPI', () => ({
-  getMyDependents: (...args) => getMyDependents(...args),
+// The one family list every parent surface shares.
+const fetchFamilyChildren = vi.fn()
+vi.mock('../../hooks/api/useFamilyChildren', () => ({
+  fetchFamilyChildren: (...args) => fetchFamilyChildren(...args),
 }))
 
 const enrollments = vi.fn()
-const getMyChildren = vi.fn()
 const markHelpVideoOpened = vi.fn()
 vi.mock('../../services/api', () => ({
   oeaAPI: {
     enrollments: (...args) => enrollments(...args),
     markHelpVideoOpened: (...args) => markHelpVideoOpened(...args),
   },
-  parentAPI: { getMyChildren: (...args) => getMyChildren(...args) },
 }))
 
 // Mock the credits dashboard so its own fetch doesn't run; surface the readOnly
@@ -51,8 +50,7 @@ const renderPage = () =>
 describe('OpenEdAcademyPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getMyDependents.mockResolvedValue({ dependents: [{ id: 'stu-1', display_name: 'Ada Lovelace' }] })
-    getMyChildren.mockResolvedValue({ data: { children: [] } })
+    fetchFamilyChildren.mockResolvedValue([{ id: 'stu-1', name: 'Ada Lovelace' }])
     enrollments.mockResolvedValue({ data: { enrollments: [] } })
     markHelpVideoOpened.mockResolvedValue({ data: { success: true } })
   })
@@ -66,7 +64,7 @@ describe('OpenEdAcademyPage', () => {
     // The editable/read-only credits dashboard is not rendered in the parent landing.
     expect(screen.queryByTestId('credits-view')).not.toBeInTheDocument()
     // Parent never fetches their own credits as a student.
-    expect(getMyDependents).toHaveBeenCalled()
+    expect(fetchFamilyChildren).toHaveBeenCalled()
   })
 
   it('student sees a read-only view of their own diploma', async () => {
@@ -77,7 +75,7 @@ describe('OpenEdAcademyPage', () => {
     const view = screen.getByTestId('credits-view')
     expect(view).toHaveTextContent('read-only')
     // Students do not load the parent student list.
-    expect(getMyDependents).not.toHaveBeenCalled()
+    expect(fetchFamilyChildren).not.toHaveBeenCalled()
   })
 
   it('records the open when a parent clicks through to the getting-started video', async () => {

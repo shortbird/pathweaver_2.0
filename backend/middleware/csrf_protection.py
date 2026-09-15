@@ -151,17 +151,6 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'sentry_webhook.sentry_webhook',
 })
 
-# The registration funnel is also served under its DEPRECATED /api/icreate
-# prefix (routes/__init__.py registers the blueprint a second time as
-# 'icreate_registration'), which gives every view a second endpoint name. Mirror
-# the exemptions onto it rather than hand-listing them, so the two prefixes
-# cannot drift while the alias exists. Delete this along with the alias.
-CSRF_ALIAS_PREFIX = 'icreate_registration.'
-CSRF_EXEMPT_ENDPOINTS = frozenset(CSRF_EXEMPT_ENDPOINTS | {
-    CSRF_ALIAS_PREFIX + name.split('.', 1)[1]
-    for name in CSRF_EXEMPT_ENDPOINTS if name.startswith('registration.')
-})
-
 
 def _is_csrf_exempt(app, endpoint):
     """Whether the resolved endpoint is exempt from CSRF enforcement, via the

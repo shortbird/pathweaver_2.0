@@ -12,8 +12,7 @@ const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public
  * Matches the QuickCaptureButton styling from the student dashboard.
  */
 const ParentMomentCaptureButton = ({
-  children = [],
-  dependents = [],
+  family = [],
   selectedChildId = null,
   onSuccess = null
 }) => {
@@ -36,19 +35,12 @@ const ParentMomentCaptureButton = ({
     return () => clearTimeout(timeoutId);
   }, []);
 
-  // Combine children and dependents into a single list
-  const allChildren = [
-    ...(children || []).map(c => ({
-      id: c.student_id,
-      name: `${c.student_first_name} ${c.student_last_name || ''}`.trim(),
-      isDependent: false
-    })),
-    ...(dependents || []).map(d => ({
-      id: d.id,
-      name: d.display_name,
-      isDependent: true
-    }))
-  ];
+  // The family list as hooks/api/useFamilyChildren shapes it.
+  const allChildren = (family || []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    isDependent: c.isDependent,
+  }));
 
   // Don't render if no children
   if (allChildren.length === 0) {
@@ -128,14 +120,10 @@ const ParentMomentCaptureButton = ({
 };
 
 ParentMomentCaptureButton.propTypes = {
-  children: PropTypes.arrayOf(PropTypes.shape({
-    student_id: PropTypes.string.isRequired,
-    student_first_name: PropTypes.string.isRequired,
-    student_last_name: PropTypes.string
-  })),
-  dependents: PropTypes.arrayOf(PropTypes.shape({
+  family: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.string.isRequired,
-    display_name: PropTypes.string.isRequired
+    name: PropTypes.string.isRequired,
+    isDependent: PropTypes.bool,
   })),
   selectedChildId: PropTypes.string,
   onSuccess: PropTypes.func

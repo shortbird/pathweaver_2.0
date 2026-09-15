@@ -41,6 +41,14 @@ CANONICAL = {
 PATTERNS = (
     re.compile(r"""\.eq\(\s*['"]managed_by_parent_id['"]"""),
     re.compile(r"""\.table\(\s*['"]parent_student_links['"]"""),
+    # The SQL function behind the old /api/dependents/my-dependents read: two
+    # links, no households. Mobile's Family tab was fed by it until 2026-09-15.
+    re.compile(r"""\.rpc\(\s*['"]get_parent_dependents['"]"""),
+    # Repository methods that each answered the question with two links.
+    re.compile(r"""\.find_parents\("""),
+    re.compile(r"""\.find_children\("""),
+    re.compile(r"""\.managing_parents\("""),
+    re.compile(r"""\.approved_links\("""),
 )
 
 #: Measured 2026-09-10, after the seven access checks named in the plan started
@@ -53,7 +61,12 @@ PATTERNS = (
 #:
 #: The number is here to stop it GROWING while that sweep happens. Lower it as
 #: each one moves over.
-BASELINE = 115
+#:
+#: 2026-09-15: 115 -> 107 after notification_service, announcement_service,
+#: sis/goals.py, the weekly digest and the my-children / my-dependents routes
+#: moved over, and the five extra patterns
+#: above were added (they matched nothing new once those four were done).
+BASELINE = 107
 
 
 def _count():
@@ -92,6 +105,49 @@ def test_the_canonical_modules_exist():
     """A stale path here would silently exempt nothing and hide a real copy."""
     missing = [str(p) for p in CANONICAL if not (BACKEND / p).exists()]
     assert not missing, f'CANONICAL names files that no longer exist: {missing}'
+
+
+#: Bodies that once carried their own two-link copy and now must call the
+#: resolver. (file, function name, resolver name it must call.) Each of these
+#: fed a family-facing surface -- the bell, the announcement fan-out, the goals
+#: page, the weekly digest -- so a regression here is a guardian who is let
+#: into the child's dashboard and never told about the child's work.
+NAMED_READERS = (
+    (Path('services') / 'notification_service.py', 'get_parents_for_student', 'guardians_by_student'),
+    (Path('services') / 'announcement_service.py', 'recipients_by_role', 'parents_of_students'),
+    (Path('services') / 'parent_weekly_digest_service.py', '_guardians', 'guardians_by_student'),
+    (Path('routes') / 'sis' / 'goals.py', '_my_student_ids', 'children_of_parent'),
+    (Path('routes') / 'sis' / 'goals.py', '_parent_ids_for_student', 'parents_of_students'),
+)
+
+
+def _function_body(source: str, name: str) -> str:
+    """The text of `def name(` up to the next def or class at the same or a
+    shallower indentation (a nested helper inside it stays part of it)."""
+    head = f'def {name}('
+    assert head in source, f'{name} is gone; update NAMED_READERS'
+    before, after = source.split(head, 1)
+    indent = len(before.rsplit('\n', 1)[-1])
+    lines = after.split('\n')
+    body = [lines[0]]
+    for line in lines[1:]:
+        stripped = line.lstrip()
+        if stripped.startswith(('def ', 'class ', '@')) and len(line) - len(stripped) <= indent:
+            break
+        body.append(line)
+    return '\n'.join(body)
+
+
+def test_named_readers_call_the_resolver():
+    for rel, fn, resolver in NAMED_READERS:
+        body = _function_body((BACKEND / rel).read_text(encoding='utf-8'), fn)
+        assert f'{resolver}(' in body, (
+            f'{rel}::{fn} no longer calls {resolver}. It used to keep its own '
+            'two-link copy of "who is this child\'s parent", which skipped '
+            'household-only guardians. Call the resolver.'
+        )
+        for pattern in PATTERNS:
+            assert not pattern.search(body), f'{rel}::{fn} reads a link table directly'
 
 
 def test_the_relationship_gate_delegates_to_the_one_definition():

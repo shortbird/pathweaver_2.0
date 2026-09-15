@@ -446,15 +446,17 @@ class TestSendOnce:
 # ── Recipients ───────────────────────────────────────────────────────────────
 
 class TestRecipients:
-    def test_both_guardian_mechanisms_are_read(self):
+    def test_guardians_come_from_the_one_definition_of_parent(self):
         """Under 13 the guardian is users.managed_by_parent_id; 13 and over it is
-        an approved parent_student_links row. Reading one and not the other
-        silently skips half a school."""
-        repo = fake_repo({
-            'users': [{'id': 'kid-1', 'managed_by_parent_id': 'mum'}],
-            'parent_student_links': [{'student_user_id': 'kid-1', 'parent_user_id': 'dad'}],
-        })
-        assert set(digest._guardians(repo, ['kid-1'])['kid-1']) == {'mum', 'dad'}
+        an approved parent_student_links row; a funnel family is a household
+        row. The digest asks utils.class_membership.guardians_by_student, which
+        knows all three, rather than reading two of them itself."""
+        with patch('utils.class_membership.guardians_by_student',
+                   return_value={'kid-1': {'mum', 'dad', 'step'}}) as resolver:
+            out = digest._guardians(fake_repo({}), ['kid-1', 'kid-2'])
+        resolver.assert_called_once_with(['kid-1', 'kid-2'])
+        assert set(out['kid-1']) == {'mum', 'dad', 'step'}
+        assert out['kid-2'] == []
 
     def test_a_parent_who_opted_out_is_dropped(self):
         repo = fake_repo({'notification_preferences': [

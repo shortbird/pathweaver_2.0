@@ -230,10 +230,6 @@ export default function FamilyHome() {
     setShowAddChild(false)
   }
 
-  // ParentMomentCaptureButton reads the two raw lists the endpoints return.
-  const linkedRaw = children.filter((c) => !c.isDependent).map((c) => c.raw)
-  const dependentsRaw = children.filter((c) => c.isDependent).map((c) => c.raw)
-
   if (isLoading) {
     return <PageLoader className="min-h-[60vh]" />
   }
@@ -323,8 +319,7 @@ export default function FamilyHome() {
 
       {/* Capture a moment for a child from here, without opening their journal. */}
       <ParentMomentCaptureButton
-        children={linkedRaw}
-        dependents={dependentsRaw}
+        family={children}
         onSuccess={invalidateFamily}
       />
 
