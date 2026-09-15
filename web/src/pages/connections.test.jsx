@@ -41,10 +41,15 @@ import ConnectionApprovalsPage from './ConnectionApprovalsPage'
 
 const EMPTY = { active: [], incoming: [], outgoing: [], awaiting_approval: [] }
 
-const mockLoad = (eligibility, connections = EMPTY) => {
+vi.mock('qrcode.react', () => ({ QRCodeSVG: () => <svg data-testid="qr" /> }))
+
+const NO_SUGGESTIONS = { classmates: [], school: [], school_pool: false }
+
+const mockLoad = (eligibility, connections = EMPTY, suggestions = NO_SUGGESTIONS) => {
   api.get.mockImplementation((url) => {
     if (url.includes('eligibility')) return Promise.resolve({ data: { data: eligibility } })
     if (url.includes('approvals')) return Promise.resolve({ data: { data: { pending: [], approved: [] } } })
+    if (url.includes('suggestions')) return Promise.resolve({ data: { data: suggestions } })
     return Promise.resolve({ data: { data: connections } })
   })
 }
@@ -57,18 +62,41 @@ beforeEach(() => {
 describe('ConnectionsPage', () => {
   it('never offers a way to search for another student', async () => {
     // The safety property, asserted directly. A directory of children is the
-    // part of a "friends" feature that lets a stranger reach one; connections
-    // here start from a code handed over in person. If a search box ever
-    // appears, this test should fail loudly rather than the reviewer noticing.
+    // part of a "friends" feature that lets a stranger reach one; discovery
+    // here is limited to vetted pools (classmates, a code, a link). If a
+    // search box ever appears, this test should fail loudly rather than the
+    // reviewer noticing.
     mockLoad({ state: 'eligible', reason: null })
     render(<ConnectionsPage />)
 
-    await screen.findByText('Your code')
+    await screen.findByRole('tab', { name: 'Your code' })
 
     expect(screen.queryByPlaceholderText(/search/i)).toBeNull()
     expect(screen.queryByRole('searchbox')).toBeNull()
     expect(screen.queryByText(/find (a )?student/i)).toBeNull()
     expect(screen.queryByText(/people you may know/i)).toBeNull()
+  })
+
+  it('lists classmates whose families opened the pool, and asks with one tap', async () => {
+    // The server already dropped anyone whose family has Friends off; the
+    // page shows exactly what it was given, with the class as context.
+    mockLoad({ state: 'eligible', reason: null }, EMPTY, {
+      classmates: [{ peer: { id: 'p1', display_name: 'Ada' }, class_names: ['Robotics'], state: 'none', connection_id: null },
+                   { peer: { id: 'p2', display_name: 'Linus' }, class_names: ['Robotics'], state: 'active', connection_id: 'c1' }],
+      school: [], school_pool: false,
+    })
+    api.post.mockResolvedValue({ data: { data: { id: 'c9', status: 'pending_addressee' } } })
+    render(<ConnectionsPage />)
+
+    expect(await screen.findByText('Ada')).toBeInTheDocument()
+    expect(screen.getByText('Robotics')).toBeInTheDocument()
+    expect(screen.getByText('Linus')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Ask' })).toHaveLength(1)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ask' }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/connections/request', { peer_id: 'p1', source: 'classmates' })
+    })
   })
 
   it('asks a student of unknown age for their birthday instead of refusing them', async () => {
@@ -121,13 +149,14 @@ describe('ConnectionsPage', () => {
     expect(screen.queryByLabelText(/enter their code/i)).toBeNull()
   })
 
-  it('sends a request by code and says approval is still needed', async () => {
-    // The success message must not read as "you are now connected" — two
-    // students and two grown-ups still have to say yes.
+  it('sends a request by code and says the other side still has to answer', async () => {
+    // The success message must not read as "you are now connected" -- the
+    // other student has to accept, and their family's rules decide the rest.
     mockLoad({ state: 'eligible', reason: null })
     api.post.mockResolvedValue({ data: { data: { id: 'c1', status: 'pending_addressee' } } })
     render(<ConnectionsPage />)
 
+    await userEvent.click(await screen.findByRole('tab', { name: 'Enter a code' }))
     const input = await screen.findByLabelText(/enter their code/i)
     await userEvent.type(input, 'abcd2345')
     await userEvent.click(screen.getByRole('button', { name: /send request/i }))
@@ -135,7 +164,7 @@ describe('ConnectionsPage', () => {
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/api/connections/request', { code: 'ABCD2345' })
     })
-    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/approve/i))
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/accept/i))
   })
 
   it('surfaces the server refusal rather than a generic error', async () => {
@@ -146,6 +175,7 @@ describe('ConnectionsPage', () => {
     })
     render(<ConnectionsPage />)
 
+    await userEvent.click(await screen.findByRole('tab', { name: 'Enter a code' }))
     const input = await screen.findByLabelText(/enter their code/i)
     await userEvent.type(input, 'NOSUCH12')
     await userEvent.click(screen.getByRole('button', { name: /send request/i }))

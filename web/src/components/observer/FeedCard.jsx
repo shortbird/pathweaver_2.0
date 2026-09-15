@@ -22,6 +22,9 @@ import MediaCarousel from './MediaCarousel';
 import LinkPreviewCard from '../evidence/preview/LinkPreviewCard';
 import VideoLinkPreview from '../evidence/preview/VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
+import ReactionRow from './ReactionRow';
+import FeedItemMenu from './FeedItemMenu';
+import { getPeerComments, postPeerComment, deletePeerComment } from '../../services/friendsAPI';
 import { getVideoEmbedUrl, getVideoAspectClass, isVideoSharingLink, isUploadedVideoUrl } from '../../utils/videoUtils';
 import useHidePillars from '../../hooks/useHidePillars';
 
@@ -60,6 +63,9 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   const [sharing, setSharing] = useState(false);
   const [localItem, setLocalItem] = useState(item);
   const [isHidden, setIsHidden] = useState(item.is_confidential || false);
+  // Set after the viewer blocks the author or removes the friendship; the
+  // card leaves the page without a refetch.
+  const [gone, setGone] = useState(false);
   const [togglingVisibility, setTogglingVisibility] = useState(false);
 
   // Sync local item when prop changes
@@ -83,6 +89,12 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   // Whose work this card shows. The student themselves is the author; a
   // parent, observer or teacher looking at it is not.
   const isAuthor = Boolean(user?.id && item.student?.id && user.id === item.student.id);
+  // A connected friend's item (Friends, 2026-09-16). Comments read and write
+  // peer_comments -- a separate table from an adult's observer_comments on
+  // purpose -- reactions are tappable, and there is no share button: seeing a
+  // friend's work is not licence to publish it.
+  const isPeerItem = localItem.viewer_relationship === 'peer';
+  const peerTarget = { studentId: localItem.student?.id, completionId, learningEventId };
 
   useEffect(() => {
     if (commentsExpanded && comments.length === 0 && hasSocialTarget) {
@@ -94,6 +106,18 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     if (!hasSocialTarget) return;
     setLoadingComments(true);
     try {
+      if (isPeerItem) {
+        const rows = await getPeerComments(peerTarget);
+        // Shape a peer comment the way the list renders an observer's.
+        setComments(rows.map((r) => ({
+          id: r.id,
+          comment_text: r.comment_text,
+          created_at: r.created_at,
+          observer_id: r.author_id,
+          observer: { display_name: r.author?.display_name, avatar_url: r.author?.avatar_url },
+        })));
+        return;
+      }
       const response = isLearningMoment
         ? await observerAPI.getLearningEventComments(learningEventId)
         : await observerAPI.getCompletionComments(completionId);
@@ -128,7 +152,9 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || submitting || isStudentView || !hasSocialTarget) return;
+    // A student may comment on a FRIEND's item from their own feed; it is
+    // their own items they may not comment on (isStudentView).
+    if (!newComment.trim() || submitting || (isStudentView && !isPeerItem) || !hasSocialTarget) return;
     if (newComment.length > MAX_COMMENT_LENGTH) {
       setError(`Comment must be ${MAX_COMMENT_LENGTH} characters or less`);
       return;
@@ -136,7 +162,9 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     setSubmitting(true);
     setError('');
     try {
-      if (isLearningMoment) {
+      if (isPeerItem) {
+        await postPeerComment(peerTarget, newComment.trim());
+      } else if (isLearningMoment) {
         await observerAPI.postLearningEventComment(
           localItem.student.id,
           learningEventId,
@@ -168,7 +196,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     if (deletingCommentId) return;
     setDeletingCommentId(commentId);
     try {
-      await observerAPI.deleteComment(commentId);
+      if (isPeerItem) await deletePeerComment(commentId);
+      else await observerAPI.deleteComment(commentId);
       setComments(prev => prev.filter(c => c.id !== commentId));
       setCommentsCount(prev => Math.max(0, prev - 1));
     } catch (err) {
@@ -183,6 +212,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
     if (!user) return false;
     // Comment author can delete their own comment
     if (comment.observer_id === user.id) return true;
+    // A friend's comment: only its author, or the student whose work it is.
+    if (isPeerItem) return isAuthor;
     // Superadmin can delete any comment
     if (user.role === 'superadmin') return true;
     // Parents can delete comments on their children's work
@@ -349,6 +380,8 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
   const evidenceBlocks = (localItem.evidence?.blocks || []).filter(b => b && b.url);
   const hasEvidenceBlocks = evidenceBlocks.length > 0;
 
+  if (gone) return null;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mx-2 sm:mx-0">
       {/* 1. Student name header */}
@@ -385,6 +418,17 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
               Completed a task in <span className="font-medium text-gray-700">{localItem.quest?.title}</span>
             </p>
           </div>
+        )}
+        {/* Report / block / remove friend -- someone else's post only. */}
+        {!isAuthor && localItem.student?.id && (
+          <FeedItemMenu
+            targetType={isLearningMoment ? 'learning_event' : 'task_completion'}
+            targetId={(isLearningMoment ? learningEventId : completionId) || localItem.id}
+            studentId={localItem.student.id}
+            studentName={localItem.student.display_name || localItem.student.first_name || 'this user'}
+            isFriend={isPeerItem}
+            onHidden={() => setGone(true)}
+          />
         )}
       </div>
 
@@ -554,6 +598,18 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
         </div>
       )}
 
+      {/* Friends' reactions: tappable for a peer, read-only for the owner and
+          their adults. Keyed on the item so a reused card never carries the
+          previous item's counts. */}
+      {(isPeerItem || Object.keys(localItem.reactions?.by_key || {}).length > 0) && (
+        <ReactionRow
+          key={`reactions-${localItem.id}`}
+          target={peerTarget}
+          summary={localItem.reactions}
+          canReact={isPeerItem && !!hasSocialTarget}
+        />
+      )}
+
       {/* 6. Views/comment/edit buttons */}
       <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex items-center gap-4">
         {/* "Viewed by" is the AUTHOR's list, and the backend enforces that --
@@ -584,10 +640,11 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
             {commentsCount > 0 && <span className="text-sm">{commentsCount}</span>}
           </button>
         )}
-        {hasSocialTarget && (
+        {hasSocialTarget && !isPeerItem && localItem.can_share !== false && (
           <button
             onClick={handleShare}
             disabled={sharing}
+            aria-label="Share"
             className="flex items-center gap-1 p-2 text-gray-700 hover:text-gray-500 transition-colors disabled:opacity-50"
           >
             <ShareIcon className="w-6 h-6" />
@@ -655,7 +712,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
       {/* 8. Previous comments */}
       {commentsExpanded && (
         <div className="border-t border-gray-100 bg-gray-50">
-          {!isStudentView && hasSocialTarget && (
+          {(!isStudentView || isPeerItem) && hasSocialTarget && (
             <form onSubmit={handleSubmitComment} className="p-3 sm:p-4 border-b border-gray-100 bg-white">
               <div className="flex gap-2">
                 <input
@@ -733,7 +790,7 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
               </div>
             ) : (
               <div className="p-4 text-center text-gray-500 text-sm">
-                {isStudentView ? 'No comments yet' : 'No comments yet. Be the first to encourage!'}
+                {isStudentView && !isPeerItem ? 'No comments yet' : 'No comments yet. Be the first to encourage!'}
               </div>
             )}
           </div>

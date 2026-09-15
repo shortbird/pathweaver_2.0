@@ -62,6 +62,18 @@ CODE_LENGTH = 8
 
 MAX_COMMENT_LENGTH = 1000
 
+# The reaction palette. Every key is encouragement; there is no "like" to
+# count and no negative option (core_philosophy.md: belonging, not
+# competition). Order is display order.
+REACTIONS = (
+    ('proud', 'Proud of you'),
+    ('inspired', 'This inspires me'),
+    ('curious', 'Tell me more'),
+    ('keep_going', 'Keep going'),
+    ('thanks', 'Thanks for sharing'),
+)
+REACTION_KEYS = tuple(k for k, _ in REACTIONS)
+
 # Eligibility states returned to the frontend. Each says what the student is
 # asked to do next, which is the distinction the old portfolio gate got wrong
 # by showing an under-18 explanation to people whose age was simply unknown.
@@ -426,15 +438,22 @@ def request(requester_id: str, *, code: Optional[str] = None,
         pool = SOURCE_LINK if source == SOURCE_LINK else SOURCE_CODE
         refusal = CODE_REFUSED
     elif peer_id:
-        if source not in PEER_ID_SOURCES:
-            raise PeerConnectionError('That is not a way to add a friend.')
         try:
             addressee_id = pgrst_uuid(peer_id, 'peer_id')
         except Exception as _exc:
             raise PeerConnectionError('Student not found') from _exc
         if addressee_id == requester_id:
             raise PeerConnectionError('That is you.')
-        _verify_pool(requester_id, addressee_id, source)
+        if delegated and source == SOURCE_PARENT:
+            # A parent naming another family's child from the school
+            # directory. The directory is the school's own vetted pool, so
+            # the check is the same one the school pool makes: same org.
+            if not _same_org(requester_id, addressee_id):
+                raise PeerConnectionError('Student not found')
+        elif source in PEER_ID_SOURCES:
+            _verify_pool(requester_id, addressee_id, source)
+        else:
+            raise PeerConnectionError('That is not a way to add a friend.')
         pool = source
         refusal = None   # a classmate is someone you already know
     else:
@@ -940,17 +959,30 @@ def feed(user_id: str, limit: int = 20,
     from services.activity_feed_service import build_activity_feed
 
     peers = active_peer_ids(user_id)
-    return {
-        **build_activity_feed(
-            _admin(),
-            [user_id] + peers,
-            limit=limit,
-            cursor=cursor,
-            confidential_ok_for={user_id},
-            author_shape='peer',
-        ),
-        'peer_count': len(peers),
-    }
+    page = build_activity_feed(
+        _admin(),
+        [user_id] + peers,
+        limit=limit,
+        cursor=cursor,
+        confidential_ok_for={user_id},
+        author_shape='peer',
+    )
+
+    # Reactions and the viewer's relationship, per item, so the web feed card
+    # renders the same social row the mobile one does (phase 2).
+    items = page.get('items') or []
+    completion_ids = [i.get('completion_id') for i in items if i.get('completion_id')]
+    le_ids = [i.get('learning_event_id') for i in items if i.get('learning_event_id')]
+    by_target = reactions_for_feed(completion_ids, le_ids, user_id)
+    none = {'by_key': {}, 'mine': None}
+    for i in items:
+        owner = (i.get('student') or {}).get('id')
+        i['viewer_relationship'] = 'self' if owner == user_id else 'peer'
+        i['reactions'] = by_target.get(i.get('completion_id') or i.get('learning_event_id'), none)
+        # A friend may see the work; publishing it is a different consent.
+        i['can_share'] = owner == user_id
+
+    return {**page, 'peer_count': len(peers)}
 
 
 def pending_approvals(approver_id: str) -> List[Dict[str, Any]]:
@@ -1024,22 +1056,25 @@ def approved_connections(approver_id: str) -> List[Dict[str, Any]]:
 
 def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
     """What happened between this student and their friends lately, for the
-    parent's oversight view: friends added and removed, comments given and
-    received. Read-only. Reactions join this in phase 2."""
+    parent's oversight view: friends added and removed, comments and
+    reactions given and received. Read-only."""
     from repositories.peer_connection_repository import PeerConnectionRepository
     from repositories.peer_policy_repository import PeerPolicyRepository
     from utils.storage_urls import sign_in_place
 
     days = max(1, min(int(days or 30), 90))
     since = _iso(_now() - timedelta(days=days))
+    from repositories.peer_reaction_repository import PeerReactionRepository
+
     repo = PeerConnectionRepository()
     connections = repo.connections_touching(student_id, since)
     comments = repo.comments_involving(student_id, since)
+    reactions = PeerReactionRepository().involving(student_id, since)
 
     other_ids = set()
     for c in connections:
         other_ids.add(c['addressee_id'] if c['requester_id'] == student_id else c['requester_id'])
-    for c in comments:
+    for c in comments + reactions:
         other_ids.add(c['author_id'] if c['author_id'] != student_id else c['student_id'])
     other_ids.discard(student_id)
 
@@ -1087,7 +1122,208 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
             }
             for c in comments
         ],
+        'reactions': [
+            {
+                'id': r['id'],
+                'direction': 'given' if r['author_id'] == student_id else 'received',
+                'peer': _profile(r['author_id'] if r['author_id'] != student_id else r['student_id']),
+                'reaction': r.get('reaction'),
+                'label': dict(REACTIONS).get(r.get('reaction'), r.get('reaction')),
+                'created_at': r.get('created_at'),
+                'learning_event_id': r.get('learning_event_id'),
+                'task_completion_id': r.get('task_completion_id'),
+                'quest_id': r.get('quest_id'),
+            }
+            for r in reactions
+        ],
     }
+
+
+# ---------------------------------------------------------------------------
+# Discovery: the vetted pools
+# ---------------------------------------------------------------------------
+
+def suggestions(user_id: str) -> Dict[str, Any]:
+    """Students this one may ask to be friends, from the pools the platform
+    vouches for, with the state of any request already between them.
+
+    Classmates: everyone sharing an ACTIVE class with the caller, the same
+    definition the class student chat uses. School: everyone at the caller's
+    org, only when the school turned its pool on. Not listed: the caller,
+    anyone blocked either way, and -- deliberately -- anyone whose family has
+    not turned Friends on or does not accept requests from this pool. A list
+    that showed them would be a directory of children whose parents opted
+    out, which is the one list this feature must never produce.
+
+    Returns {'classmates': [...], 'school': [...], 'school_pool': bool}. Each
+    entry: {'peer', 'class_names', 'state', 'connection_id'}.
+    """
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    from utils import class_membership as cm
+    from utils.storage_urls import sign_in_place
+
+    policy = _require_eligible(user_id)
+    conn_repo = PeerConnectionRepository()
+
+    # -- classmates -------------------------------------------------------
+    class_ids = cm.student_class_ids(user_id)
+    classmates_by_class: Dict[str, set] = {}
+    for cid in class_ids:
+        classmates_by_class[cid] = cm.class_student_ids(cid) - {user_id}
+    classmate_ids = set().union(*classmates_by_class.values()) if classmates_by_class else set()
+
+    # -- school pool ------------------------------------------------------
+    settings = policy_svc.org_friends_settings(policy.organization_id)
+    school_ids: set = set()
+    if settings['school_pool'] and policy.organization_id:
+        school_ids = _org_student_ids(policy.organization_id) - {user_id}
+
+    candidates = classmate_ids | school_ids
+    if not candidates:
+        return {'classmates': [], 'school': [], 'school_pool': settings['school_pool']}
+
+    blocked = conn_repo.blocked_either_way(user_id, candidates)
+    candidates -= blocked
+
+    # The other family's rules, in one batch. No row means the org default
+    # (for an org student with no parent) or off; effective_policy resolves
+    # each, cached per request.
+    open_to: Dict[str, set] = {}
+    for cid in candidates:
+        other = policy_svc.effective_policy(cid)
+        if not other.enabled:
+            continue
+        open_to[cid] = set(other.request_sources)
+
+    states = conn_repo.states_with(user_id, list(open_to))
+    people = PeerPolicyRepository().users_by_ids(
+        list(open_to), 'id, display_name, first_name, avatar_url')
+    class_names = _class_names(list(class_ids)) if class_ids else {}
+
+    def _entry(cid: str, classes: List[str]) -> Dict[str, Any]:
+        u = people.get(cid) or {}
+        st = states.get(cid) or {}
+        status = st.get('status')
+        if status == 'active':
+            state = 'active'
+        elif status == 'pending_addressee':
+            state = st.get('direction') or 'outgoing'
+        elif status == 'pending_approval':
+            state = 'awaiting_approval'
+        else:
+            state = 'none'
+        return {
+            'peer': {'id': cid,
+                     'display_name': u.get('display_name') or u.get('first_name') or 'A student',
+                     'avatar_url': u.get('avatar_url')},
+            'class_names': classes,
+            'state': state,
+            'connection_id': st.get('id') if state != 'none' else None,
+        }
+
+    classmates_out = []
+    for cid in sorted(classmate_ids & set(open_to)):
+        if 'classmates' not in open_to[cid]:
+            continue
+        classes = sorted(class_names.get(k, 'Class') for k, members in classmates_by_class.items()
+                         if cid in members)
+        classmates_out.append(_entry(cid, classes))
+
+    school_out = []
+    for cid in sorted((school_ids - classmate_ids) & set(open_to)):
+        if 'school' not in open_to[cid]:
+            continue
+        school_out.append(_entry(cid, []))
+
+    for group in (classmates_out, school_out):
+        sign_in_place([e['peer'] for e in group], ['avatar_url'])
+        group.sort(key=lambda e: e['peer']['display_name'].lower())
+
+    return {'classmates': classmates_out, 'school': school_out,
+            'school_pool': settings['school_pool']}
+
+
+def _org_student_ids(org_id: str) -> set:
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    return PeerPolicyRepository().org_student_ids(org_id)
+
+
+def _class_names(class_ids: List[str]) -> Dict[str, str]:
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    return PeerConnectionRepository().class_names(class_ids)
+
+
+# ---------------------------------------------------------------------------
+# Reactions
+# ---------------------------------------------------------------------------
+
+def _one_target(learning_event_id, task_completion_id, quest_id) -> Dict[str, Optional[str]]:
+    targets = [t for t in (learning_event_id, task_completion_id, quest_id) if t]
+    if len(targets) != 1:
+        raise PeerConnectionError('A reaction must be on exactly one item.')
+    return {'learning_event_id': learning_event_id,
+            'task_completion_id': task_completion_id,
+            'quest_id': quest_id}
+
+
+def set_reaction(author_id: str, student_id: str, reaction: str,
+                 learning_event_id: Optional[str] = None,
+                 task_completion_id: Optional[str] = None,
+                 quest_id: Optional[str] = None) -> Dict[str, Any]:
+    """React to a friend's work. Same gate as a comment: is_peer_of, plus the
+    owner's family must let friends see the work at all (they always can once
+    connected; 'see' is the floor of friends_can). Tapping the key already
+    set clears it, so one endpoint is the whole toggle."""
+    from repositories.peer_reaction_repository import PeerReactionRepository
+
+    if not pa.is_peer_of(author_id, student_id):
+        raise PeerConnectionError('You are not connected with this student.')
+    if reaction not in REACTION_KEYS:
+        raise PeerConnectionError('That is not one of the reactions.')
+    target = _one_target(learning_event_id, task_completion_id, quest_id)
+
+    repo = PeerReactionRepository()
+    row = repo.set(author_id, student_id, reaction, target)
+
+    _notify(student_id, 'peer_reaction', 'A friend reacted to your work',
+            f"{_display_name(author_id)}: {dict(REACTIONS)[reaction]}",
+            link='/connections')
+    return {'reaction': row.get('reaction', reaction)}
+
+
+def clear_reaction(author_id: str, learning_event_id: Optional[str] = None,
+                   task_completion_id: Optional[str] = None,
+                   quest_id: Optional[str] = None) -> None:
+    """Take a reaction back. No gate beyond authorship: the row is the
+    author's own, and a friend who was just blocked must still be able to
+    remove what they left."""
+    from repositories.peer_reaction_repository import PeerReactionRepository
+    PeerReactionRepository().clear(author_id, _one_target(learning_event_id, task_completion_id, quest_id))
+
+
+def reactions_for_feed(completion_ids: List[str], learning_event_ids: List[str],
+                       viewer_id: Optional[str]) -> Dict[str, Dict[str, Any]]:
+    """{target_id: {'by_key', 'mine'}} for a page of feed items. Best-effort:
+    a feed that cannot read reactions is a feed without reactions, not a 500."""
+    from repositories.peer_reaction_repository import PeerReactionRepository
+    try:
+        return PeerReactionRepository().for_targets(completion_ids, learning_event_ids, viewer_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[peer-connections] reactions read failed: %s', e)
+        return {}
+
+
+def peer_comment_counts(completion_ids: List[str],
+                        learning_event_ids: List[str]) -> Dict[str, int]:
+    """Visible peer comments per item, for merging into a feed's totals.
+    Best-effort, like reactions_for_feed."""
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    try:
+        return PeerConnectionRepository().comment_counts(completion_ids, learning_event_ids)
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[peer-connections] peer comment counts failed: %s', e)
+        return {}
 
 
 # ---------------------------------------------------------------------------

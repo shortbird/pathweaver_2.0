@@ -174,6 +174,67 @@ def get_feed(user_id):
                                           cursor=request.args.get('cursor')))
 
 
+@bp.route('/suggestions', methods=['GET'])
+@require_auth
+@student_scope()
+def get_suggestions(user_id):
+    """Who the student may ask, from the vetted pools: classmates, and the
+    school where it opted in. Never a search; never anyone whose family has
+    not turned Friends on."""
+    try:
+        return success_response(data=svc.suggestions(user_id))
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
+@bp.route('/reactions', methods=['GET'])
+@require_auth
+def get_reactions_palette(user_id):
+    """The fixed palette, in display order, so the clients render one list."""
+    return success_response(data={
+        'reactions': [{'key': k, 'label': label} for k, label in svc.REACTIONS],
+    })
+
+
+@bp.route('/reactions', methods=['POST'])
+@require_auth
+@rate_limit(calls=120, period=3600, per_user=True)
+def post_reaction(user_id):
+    """React to a friend's work. Body: student_id (the work owner), reaction,
+    and exactly one of task_completion_id / learning_event_id / quest_id."""
+    data = request.get_json() or {}
+    try:
+        out = svc.set_reaction(
+            author_id=user_id,
+            student_id=data.get('student_id'),
+            reaction=data.get('reaction'),
+            learning_event_id=data.get('learning_event_id'),
+            task_completion_id=data.get('task_completion_id'),
+            quest_id=data.get('quest_id'),
+        )
+        return success_response(data=out)
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
+@bp.route('/reactions', methods=['DELETE'])
+@require_auth
+def delete_reaction(user_id):
+    """Take a reaction back. The target comes on the query string (a DELETE
+    has no body worth relying on): one of task_completion_id /
+    learning_event_id / quest_id."""
+    try:
+        svc.clear_reaction(
+            user_id,
+            learning_event_id=request.args.get('learning_event_id'),
+            task_completion_id=request.args.get('task_completion_id'),
+            quest_id=request.args.get('quest_id'),
+        )
+        return success_response(data={'deleted': True})
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
 # ---------------------------------------------------------------------------
 # The parent's side: the policy, the oversight view
 # ---------------------------------------------------------------------------

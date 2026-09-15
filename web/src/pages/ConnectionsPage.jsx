@@ -1,22 +1,28 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../services/api'
+import { QRCodeSVG } from 'qrcode.react'
+import * as friends from '../services/friendsAPI'
 
 /**
- * Peer connections — the student's side.
+ * Friends — the student's page.
  *
  * Students asked to add each other as friends so they could see each other's
- * work and comment on it. What makes that safe is mostly invisible from here,
+ * work and cheer it on. What makes that safe is mostly invisible from here,
  * and deliberately so: the page's job is to make the safe path the obvious one.
  *
  * Two things about the design are load-bearing rather than cosmetic:
  *
  *   1. THERE IS NO GLOBAL SEARCH. You cannot look another student up by name.
- *      Discovery is limited to pools the platform vouches for: a code handed
- *      over in person or by link, classmates, a parent connecting two
- *      families, and (where a school opts in) the school itself. If you find
- *      yourself adding a directory or a "people you may know" list, that is
- *      the safety property being removed, not a feature being added.
+ *      Discovery is limited to pools the platform vouches for: classmates (you
+ *      share an active class and already see them in the class chat), a code
+ *      the other student shows you in person or sends as a link, a parent
+ *      connecting two families, and (where a school opts in) the school
+ *      itself. If you find yourself adding a directory or a "people you may
+ *      know" list, that is the safety property being removed, not a feature
+ *      being added. A student whose family has not turned Friends on is in no
+ *      pool at all, and a code of theirs answers "not valid" exactly as a code
+ *      that never existed would.
  *
  *   2. THE AGE QUESTION IS NEUTRAL AND ASKED FIRST. The DOB prompt does not say
  *      "you must be 13+" above the input — that just tells a ten-year-old which
@@ -26,14 +32,16 @@ import api from '../services/api'
  *
  * Since 2026-09-16 the gate is the family's Friends policy, not the student's
  * age: a parent turns Friends on per child (Family settings) and the student
- * connects inside the rules the parent chose. The entry point is shown when
- * Friends is on. When it is off, the page names who could turn it on rather
- * than presenting a dead end. The age screen remains for the one population
- * with nobody to answer for them -- a platform student with no parent linked
- * and no date of birth on file.
+ * connects inside the rules the parent chose. When it is off, the page names
+ * who could turn it on rather than presenting a dead end. The age screen
+ * remains for the one population with nobody to answer for them — a platform
+ * student with no parent linked and no date of birth on file.
  *
- * Backed by /api/connections (see backend/services/peer_connection_service.py
- * and peer_policy_service.py, which is where the actual rules live).
+ * Arrives with ?code= from an invite link (FriendInvitePage stashes it for a
+ * signed-out visitor and sends them here after login).
+ *
+ * Backed by /api/connections (backend/services/peer_connection_service.py and
+ * peer_policy_service.py, which is where the actual rules live).
  */
 
 const STATE_ELIGIBLE = 'eligible'
@@ -41,23 +49,30 @@ const STATE_NEEDS_DOB = 'needs_dob'
 const STATE_FRIENDS_OFF = 'friends_off'
 const STATE_MODULE_OFF = 'module_off'
 
+const STATE_LABEL = {
+  none: null,
+  outgoing: 'Request sent',
+  incoming: 'Wants to be your friend',
+  awaiting_approval: 'Waiting on a grown-up',
+  active: 'Friends',
+}
+
 function Avatar({ peer }) {
   if (peer?.avatar_url) {
     return <img src={peer.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
   }
-  const initial = (peer?.display_name || '?').charAt(0).toUpperCase()
   return (
-    <div className="h-10 w-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink text-white flex items-center justify-center font-semibold">
-      {initial}
+    <div className="h-10 w-10 rounded-full bg-optio-purple/10 text-optio-purple flex items-center justify-center font-semibold">
+      {(peer?.display_name || '?').charAt(0).toUpperCase()}
     </div>
   )
 }
 
 function Section({ title, description, children }) {
   return (
-    <section className="mb-8">
-      <h2 className="text-lg font-semibold text-neutral-900">{title}</h2>
-      {description && <p className="text-sm text-neutral-600 mt-1">{description}</p>}
+    <section className="mt-6">
+      <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">{title}</h2>
+      {description && <p className="text-sm text-neutral-500 mt-1">{description}</p>}
       <div className="mt-3 space-y-2">{children}</div>
     </section>
   )
@@ -76,25 +91,29 @@ function PeerRow({ item, children }) {
   )
 }
 
+const primaryBtn = 'rounded-md bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1.5 text-sm text-white font-medium disabled:opacity-50'
+const secondaryBtn = 'rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 disabled:opacity-50'
+
 export default function ConnectionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [eligibility, setEligibility] = useState(null)
   const [connections, setConnections] = useState(null)
   const [loading, setLoading] = useState(true)
   const [dob, setDob] = useState('')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState((searchParams.get('code') || '').toUpperCase())
   const [myCode, setMyCode] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [tab, setTab] = useState(searchParams.get('code') ? 'code' : 'classmates')
+  const [suggestions, setSuggestions] = useState(null)
+  const arrivedByLink = !!searchParams.get('code')
 
   const load = useCallback(async () => {
     try {
-      const [elig, conns] = await Promise.all([
-        api.get('/api/connections/eligibility'),
-        api.get('/api/connections'),
-      ])
-      setEligibility(elig.data?.data || elig.data)
-      setConnections(conns.data?.data || conns.data)
+      const [elig, conns] = await Promise.all([friends.getEligibility(), friends.getConnections()])
+      setEligibility(elig)
+      setConnections(conns)
     } catch {
-      toast.error('Could not load your connections.')
+      toast.error('Could not load your friends.')
     } finally {
       setLoading(false)
     }
@@ -102,13 +121,37 @@ export default function ConnectionsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const loadSuggestions = useCallback(async () => {
+    try {
+      setSuggestions(await friends.getSuggestions())
+    } catch {
+      setSuggestions({ classmates: [], school: [], school_pool: false })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (eligibility?.state === STATE_ELIGIBLE && tab === 'classmates' && suggestions === null) loadSuggestions()
+  }, [eligibility?.state, tab, suggestions, loadSuggestions])
+
+  const run = async (fn, okMessage) => {
+    setBusy(true)
+    try {
+      await fn()
+      if (okMessage) toast.success(okMessage)
+      await load()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Something went wrong.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const submitDob = async (e) => {
     e.preventDefault()
     if (!dob) return
     setBusy(true)
     try {
-      const res = await api.post('/api/connections/age-check', { date_of_birth: dob })
-      setEligibility(res.data?.data || res.data)
+      setEligibility(await friends.submitDob(dob))
     } catch (err) {
       toast.error(err.response?.data?.error || 'Could not save your date of birth.')
     } finally {
@@ -116,71 +159,47 @@ export default function ConnectionsPage() {
     }
   }
 
-  const generateCode = async () => {
-    setBusy(true)
-    try {
-      const res = await api.post('/api/connections/code', {})
-      setMyCode(res.data?.data || res.data)
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not create a code.')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const generateCode = () => run(async () => setMyCode(await friends.issueCode()))
 
   const submitCode = async (e) => {
     e.preventDefault()
     if (!code.trim()) return
-    setBusy(true)
-    try {
-      await api.post('/api/connections/request', { code: code.trim().toUpperCase() })
+    await run(async () => {
+      await friends.requestFriend({ code, source: arrivedByLink ? 'link' : undefined })
       setCode('')
-      toast.success('Request sent. They need to accept, then both your grown-ups approve.')
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not send that request.')
-    } finally {
-      setBusy(false)
-    }
+      if (arrivedByLink) setSearchParams({}, { replace: true })
+    }, 'Request sent. They need to accept, and their family\'s rules decide the rest.')
   }
 
-  const respond = async (id, accept) => {
-    setBusy(true)
-    try {
-      await api.post(`/api/connections/${id}/respond`, { accept })
-      toast.success(accept ? 'Sent to your grown-ups for approval.' : 'Request declined.')
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not respond.')
-    } finally {
-      setBusy(false)
-    }
+  const askClassmate = (s) => run(async () => {
+    await friends.requestFriend({ peerId: s.peer.id, source: s.class_names?.length ? 'classmates' : 'school' })
+    await loadSuggestions()
+  }, `Request sent to ${s.peer.display_name}.`)
+
+  const respond = (id, accept) => run(
+    () => friends.respond(id, accept),
+    accept ? 'Accepted.' : 'Request declined.',
+  )
+  const revoke = (id) => run(() => friends.revoke(id), 'Removed.')
+
+  const copyLink = async () => {
+    if (!myCode) return
+    await navigator.clipboard.writeText(friends.inviteLinkFor(myCode.code))
+    toast.success('Link copied. It works for a week.')
   }
 
-  const revoke = async (id) => {
-    setBusy(true)
-    try {
-      await api.post(`/api/connections/${id}/revoke`, {})
-      toast.success('Connection removed.')
-      load()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not remove that connection.')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const state = eligibility?.state
+  const list = useMemo(() => connections || { active: [], incoming: [], outgoing: [], awaiting_approval: [] }, [connections])
 
   if (loading) {
     return <div className="max-w-2xl mx-auto p-6 text-neutral-500">Loading...</div>
   }
 
-  const state = eligibility?.state
-
   return (
     <div className="max-w-2xl mx-auto p-6">
       <h1 className="text-2xl font-bold text-neutral-900">Friends</h1>
       <p className="text-neutral-600 mt-1">
-        Be friends with another student to see and comment on each other's work.
+        Be friends with another student to see and cheer on each other's work.
       </p>
 
       {/* Friends is off for this student. Not a dead end: the reason names
@@ -219,11 +238,7 @@ export default function ConnectionsPage() {
             className="mt-2 w-full rounded-md border border-neutral-300 px-3 py-2"
             required
           />
-          <button
-            type="submit"
-            disabled={busy || !dob}
-            className="mt-3 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 text-white font-medium disabled:opacity-50"
-          >
+          <button type="submit" disabled={busy || !dob} className={`mt-3 ${primaryBtn} px-4 py-2`}>
             Continue
           </button>
           <p className="text-sm text-neutral-500 mt-3">
@@ -235,50 +250,102 @@ export default function ConnectionsPage() {
 
       {state === STATE_ELIGIBLE && (
         <>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-lg border border-neutral-200 bg-white p-5">
-              <h2 className="font-semibold text-neutral-900">Your code</h2>
-              <p className="text-sm text-neutral-600 mt-1">
-                Show this to someone in person. It expires in a week.
-              </p>
-              {myCode ? (
-                <p className="mt-3 font-mono text-2xl tracking-widest text-optio-purple">
-                  {myCode.code}
-                </p>
-              ) : (
+          {/* Add a friend: the vetted pools, as tabs. */}
+          <div className="mt-6 rounded-lg border border-neutral-200 bg-white">
+            <div role="tablist" aria-label="Add a friend" className="flex border-b border-neutral-200">
+              {[['classmates', 'Classmates'], ['code', 'Your code'], ['enter', 'Enter a code']].map(([key, label]) => (
                 <button
-                  onClick={generateCode}
-                  disabled={busy}
-                  className="mt-3 rounded-md border border-optio-purple px-4 py-2 text-optio-purple font-medium disabled:opacity-50"
+                  key={key}
+                  role="tab"
+                  aria-selected={tab === key}
+                  onClick={() => setTab(key)}
+                  className={`flex-1 px-3 py-2.5 text-sm font-medium ${tab === key ? 'text-optio-purple border-b-2 border-optio-purple' : 'text-neutral-500'}`}
                 >
-                  Get a code
+                  {label}
                 </button>
-              )}
+              ))}
             </div>
 
-            <form onSubmit={submitCode} className="rounded-lg border border-neutral-200 bg-white p-5">
-              <label htmlFor="peer-code" className="block font-semibold text-neutral-900">
-                Enter their code
-              </label>
-              <p className="text-sm text-neutral-600 mt-1">
-                Type the code another student gave you.
-              </p>
-              <input
-                id="peer-code"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                maxLength={8}
-                placeholder="ABCD2345"
-                className="mt-3 w-full rounded-md border border-neutral-300 px-3 py-2 font-mono tracking-widest"
-              />
-              <button
-                type="submit"
-                disabled={busy || !code.trim()}
-                className="mt-3 rounded-md bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 text-white font-medium disabled:opacity-50"
-              >
-                Send request
-              </button>
-            </form>
+            {tab === 'classmates' && (
+              <div className="p-5">
+                {suggestions === null ? (
+                  <p className="text-sm text-neutral-500">Loading classmates...</p>
+                ) : suggestions.classmates.length === 0 && suggestions.school.length === 0 ? (
+                  <p className="text-sm text-neutral-600">
+                    No classmates to add right now. Use a code instead.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {suggestions.classmates.map((s) => (
+                      <PeerRow key={s.peer.id} item={{ peer: s.peer, statusLabel: STATE_LABEL[s.state] || s.class_names.join(' · ') }}>
+                        {s.state === 'none' && (
+                          <button onClick={() => askClassmate(s)} disabled={busy} className={primaryBtn}>Ask</button>
+                        )}
+                      </PeerRow>
+                    ))}
+                    {suggestions.school.length > 0 && (
+                      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide pt-2">At your school</p>
+                    )}
+                    {suggestions.school.map((s) => (
+                      <PeerRow key={s.peer.id} item={{ peer: s.peer, statusLabel: STATE_LABEL[s.state] }}>
+                        {s.state === 'none' && (
+                          <button onClick={() => askClassmate(s)} disabled={busy} className={primaryBtn}>Ask</button>
+                        )}
+                      </PeerRow>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'code' && (
+              <div className="p-5 flex flex-col items-center text-center">
+                <h2 className="font-semibold text-neutral-900">Your code</h2>
+                <p className="text-sm text-neutral-600 mt-1">
+                  Show this to a friend in person, or send them the link. It works for a week.
+                </p>
+                {myCode ? (
+                  <>
+                    <div className="mt-4 rounded-lg bg-white p-3 border border-neutral-200">
+                      <QRCodeSVG value={friends.inviteLinkFor(myCode.code)} size={168} />
+                    </div>
+                    <p className="mt-3 font-mono text-2xl tracking-widest text-optio-purple" aria-label={`Your code is ${myCode.code}`}>
+                      {myCode.code}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button onClick={copyLink} className={secondaryBtn}>Copy link</button>
+                      <button onClick={generateCode} disabled={busy} className={secondaryBtn}>New code</button>
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={generateCode} disabled={busy} className={`mt-4 ${secondaryBtn} border-optio-purple text-optio-purple px-4 py-2 font-medium`}>
+                    Get a code
+                  </button>
+                )}
+              </div>
+            )}
+
+            {tab === 'enter' && (
+              <form onSubmit={submitCode} className="p-5">
+                <label htmlFor="peer-code" className="block font-semibold text-neutral-900">
+                  Enter their code
+                </label>
+                <p className="text-sm text-neutral-600 mt-1">
+                  Type the code another student gave you.
+                </p>
+                <input
+                  id="peer-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  maxLength={8}
+                  placeholder="ABCD2345"
+                  className="mt-3 w-full rounded-md border border-neutral-300 px-3 py-2 font-mono tracking-widest"
+                />
+                <button type="submit" disabled={busy || !code.trim()} className={`mt-3 ${primaryBtn} px-4 py-2`}>
+                  Send request
+                </button>
+              </form>
+            )}
           </div>
 
           <div className="mt-6 rounded-lg bg-neutral-50 border border-neutral-200 p-4">
@@ -291,77 +358,47 @@ export default function ConnectionsPage() {
           </div>
 
           <div className="mt-8">
-            {connections?.incoming?.length > 0 && (
-              <Section title="Requests for you">
-                {connections.incoming.map((item) => (
-                  <PeerRow key={item.id} item={item}>
-                    <button
-                      onClick={() => respond(item.id, true)}
-                      disabled={busy}
-                      className="rounded-md bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1.5 text-sm text-white font-medium disabled:opacity-50"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => respond(item.id, false)}
-                      disabled={busy}
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 disabled:opacity-50"
-                    >
-                      Decline
-                    </button>
+            {list.incoming.length > 0 && (
+              <Section title="Wants to be friends">
+                {list.incoming.map((item) => (
+                  <PeerRow key={item.id} item={{ ...item, statusLabel: item.source === 'parent' ? 'Sent by their parent' : null }}>
+                    <button onClick={() => respond(item.id, true)} disabled={busy} className={primaryBtn}>Accept</button>
+                    <button onClick={() => respond(item.id, false)} disabled={busy} className={secondaryBtn}>Decline</button>
                   </PeerRow>
                 ))}
               </Section>
             )}
 
-            {connections?.awaiting_approval?.length > 0 && (
+            {list.awaiting_approval.length > 0 && (
               <Section
-                title="Waiting on grown-ups"
-                description="Both of you said yes. Now each of your parents or guardians needs to approve."
+                title="Waiting on a grown-up"
+                description="Both of you said yes. A parent still has to say yes."
               >
-                {connections.awaiting_approval.map((item) => (
+                {list.awaiting_approval.map((item) => (
                   <PeerRow key={item.id} item={{ ...item, statusLabel: 'Waiting for approval' }}>
-                    <button
-                      onClick={() => revoke(item.id)}
-                      disabled={busy}
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
+                    <button onClick={() => revoke(item.id)} disabled={busy} className={secondaryBtn}>Cancel</button>
                   </PeerRow>
                 ))}
               </Section>
             )}
 
-            {connections?.outgoing?.length > 0 && (
-              <Section title="Requests you sent">
-                {connections.outgoing.map((item) => (
+            {list.outgoing.length > 0 && (
+              <Section title="Sent">
+                {list.outgoing.map((item) => (
                   <PeerRow key={item.id} item={{ ...item, statusLabel: 'Waiting for them to accept' }}>
-                    <button
-                      onClick={() => revoke(item.id)}
-                      disabled={busy}
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
+                    <button onClick={() => revoke(item.id)} disabled={busy} className={secondaryBtn}>Cancel</button>
                   </PeerRow>
                 ))}
               </Section>
             )}
 
             <Section
-              title="Connected"
-              description={connections?.active?.length ? null : 'No connections yet.'}
+              title="Friends"
+              description={list.active.length ? null : 'No friends yet. Add a classmate, or share your code.'}
             >
-              {connections?.active?.map((item) => (
+              {list.active.map((item) => (
                 <PeerRow key={item.id} item={item}>
-                  <button
-                    onClick={() => revoke(item.id)}
-                    disabled={busy}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
+                  <button onClick={() => revoke(item.id)} disabled={busy} className={secondaryBtn}>Remove</button>
                 </PeerRow>
               ))}
             </Section>

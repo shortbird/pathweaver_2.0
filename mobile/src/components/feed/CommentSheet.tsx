@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { postComment, getComments } from '@/src/hooks/useFeed';
 import type { FeedItem } from '@/src/hooks/useFeed';
+import { getPeerComments, postPeerComment } from '@/src/hooks/useFriends';
 import { extractApiError } from '@/src/services/apiError';
 import { formatMonthDayTime } from '@/src/utils/timeAgo';
 import {
@@ -65,9 +66,14 @@ interface CommentSheetProps {
   item: FeedItem;
   onClose: () => void;
   onCommentPosted?: () => void;
+  /** 'peer' when the viewer is a connected friend of the work's owner
+   *  (Friends, 2026-09-16): comments then read and write peer_comments,
+   *  which is a separate table from an adult's observer_comments on
+   *  purpose. Default 'adult' is every other viewer, unchanged. */
+  audience?: 'adult' | 'peer';
 }
 
-export function CommentSheet({ visible, item, onClose, onCommentPosted }: CommentSheetProps) {
+export function CommentSheet({ visible, item, onClose, onCommentPosted, audience = 'adult' }: CommentSheetProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -106,11 +112,26 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
     return () => { subShow.remove(); subHide.remove(); };
   }, [keyboardPad]);
 
+  const peerTarget = {
+    studentId: item.student?.id || '',
+    completionId: isTask ? (item.completion_id || cleanId) : null,
+    learningEventId: isTask ? null : (item.learning_event_id || cleanId),
+  };
+
   const fetchComments = async () => {
     setLoading(true);
     try {
-      const result = await getComments(item.type, item.id);
-      setComments(result);
+      if (audience === 'peer') {
+        const rows = await getPeerComments(peerTarget);
+        setComments(rows.map((r) => ({
+          id: r.id,
+          user_display_name: r.author?.display_name,
+          comment_text: r.comment_text,
+          created_at: r.created_at,
+        })));
+      } else {
+        setComments(await getComments(item.type, item.id));
+      }
     } catch {
       // Non-critical
     } finally {
@@ -125,12 +146,16 @@ export function CommentSheet({ visible, item, onClose, onCommentPosted }: Commen
     try {
       // Use the canonical completion/learning-event handle the feed provides
       // (item.id can be a composite "<completionId>_<blockId>" that isn't a real id).
-      await postComment({
-        studentId: item.student.id,
-        completionId: isTask ? (item.completion_id || cleanId) : null,
-        learningEventId: isTask ? null : (item.learning_event_id || cleanId),
-        text: text.trim(),
-      });
+      if (audience === 'peer') {
+        await postPeerComment(peerTarget, text.trim());
+      } else {
+        await postComment({
+          studentId: item.student.id,
+          completionId: isTask ? (item.completion_id || cleanId) : null,
+          learningEventId: isTask ? null : (item.learning_event_id || cleanId),
+          text: text.trim(),
+        });
+      }
       setText('');
       await fetchComments();
       onCommentPosted?.();

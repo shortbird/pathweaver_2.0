@@ -491,3 +491,24 @@ def test_the_peer_author_shape_carries_no_surname():
     full_view = build_activity_feed(supabase, ['peer'])
     author = full_view['items'][0]['author'] if 'author' in full_view['items'][0] else full_view['items'][0]['student']
     assert author.get('last_name') == 'Surname'
+
+
+def test_the_peer_feed_stamps_relationship_reactions_and_share():
+    """The web feed card reads these off each item: a friend's item is
+    'peer', carries its reactions, and is never shareable by the viewer."""
+    page = {'items': [
+        {'id': 'tc1', 'completion_id': 'tc1', 'student': {'id': 'a'}},
+        {'id': 'le_1', 'learning_event_id': 'le1', 'student': {'id': 'b'}},
+    ], 'has_more': False, 'next_cursor': None}
+    with patch.object(svc, 'active_peer_ids', return_value=['b']), \
+         patch.object(svc, '_admin'), \
+         patch('services.activity_feed_service.build_activity_feed', return_value=page), \
+         patch.object(svc, 'reactions_for_feed',
+                      return_value={'le1': {'by_key': {'proud': 1}, 'mine': 'proud'}}):
+        out = svc.feed('a')
+
+    mine, theirs = out['items']
+    assert mine['viewer_relationship'] == 'self' and mine['can_share'] is True
+    assert mine['reactions'] == {'by_key': {}, 'mine': None}
+    assert theirs['viewer_relationship'] == 'peer' and theirs['can_share'] is False
+    assert theirs['reactions'] == {'by_key': {'proud': 1}, 'mine': 'proud'}

@@ -65,8 +65,17 @@ def register_routes(bp):
           student_id is supplied, superadmin can scope to any user regardless of
           observer/advisor links.
 
+        Also includes the caller's FRIENDS (active peer connections, Friends
+        phase 2). A student's feed is their own work plus their friends';
+        `scope` narrows it. Friends' items carry viewer_relationship='peer',
+        are never shareable by the viewer, and count peer comments and
+        reactions the way every other item does.
+
         Query params:
             student_id: (optional) Filter to specific student
+            scope: (optional) self | friends | all (default all). Only the
+                caller's own peer connections are affected; linked students
+                and children are always in.
             limit: (optional) Number of items, default 20
             cursor: (optional) Pagination cursor (completion timestamp)
 
@@ -75,6 +84,9 @@ def register_routes(bp):
         """
         observer_id = user_id
         student_id_filter = request.args.get('student_id')
+        scope = (request.args.get('scope') or 'all').strip().lower()
+        if scope not in ('self', 'friends', 'all'):
+            scope = 'all'
         limit = min(int(request.args.get('limit', 20)), 50)
         cursor = request.args.get('cursor')
         # Highlight reel filter: superadmin-curated subset of feed items
@@ -118,6 +130,9 @@ def register_routes(bp):
             # existing privacy boundary.
             is_superadmin_global = (is_platform and not student_id_filter)
 
+            # Students reachable only through a peer connection (see below).
+            peer_only_ids: set = set()
+
             if is_superadmin_global:
                 student_ids = []
                 evidence_permissions = {}
@@ -157,11 +172,14 @@ def register_routes(bp):
                         student_ids.append(sid)
                         evidence_permissions[sid] = True  # Parents can view their children's evidence
 
-                # Get linked students (13+, via parent_student_links)
+                # Get linked students (13+, via parent_student_links). Both
+                # spellings of a live link, the way portfolio_access reads it;
+                # this read accepted only 'approved' until 2026-09-16.
+                from utils.portfolio_access import ACTIVE_LINK_STATUSES
                 linked_students = supabase.table('parent_student_links') \
                     .select('student_user_id') \
                     .eq('parent_user_id', observer_id) \
-                    .eq('status', 'approved') \
+                    .in_('status', list(ACTIVE_LINK_STATUSES)) \
                     .execute()
                 for linked in linked_students.data:
                     sid = linked['student_user_id']
@@ -173,6 +191,31 @@ def register_routes(bp):
                 if observer_id not in student_ids:
                     student_ids.append(observer_id)
                     evidence_permissions[observer_id] = True
+
+                # Friends. Someone this caller is actively connected to, whose
+                # family let it happen (peer_connection_service). A friend
+                # who is ALSO a linked student or child keeps that stronger
+                # grant; `peer_only_ids` is the set the peer rules apply to:
+                # no share link, and the peer comment endpoint.
+                # With a student_id filter the friends are resolved too, so a
+                # friend's own page (mobile /friends/<id>) reads through the
+                # same grant; scope narrows only the unfiltered feed.
+                if scope in ('all', 'friends'):
+                    from services.peer_connection_service import active_peer_ids
+                    try:
+                        friends = active_peer_ids(observer_id)
+                    except Exception as peer_err:
+                        logger.warning(f"Could not resolve friends for feed {observer_id[:8]}: {peer_err}")
+                        friends = []
+                    for pid in friends:
+                        if pid not in student_ids:
+                            student_ids.append(pid)
+                            evidence_permissions[pid] = True
+                            peer_only_ids.add(pid)
+                    if scope == 'friends' and not student_id_filter:
+                        student_ids = [sid for sid in student_ids if sid in peer_only_ids]
+                        if not student_ids:
+                            return jsonify({'items': [], 'has_more': False}), 200
 
                 # Exclude blocked users (never hide own content)
                 try:
@@ -545,7 +588,21 @@ def register_routes(bp):
                     return True
                 if post_student_id == observer_id:
                     return True
+                # A friend may see the work; publishing it to the open
+                # internet is a disclosure their family never consented to.
+                if post_student_id in peer_only_ids:
+                    return False
                 return bool(evidence_permissions.get(post_student_id))
+
+            def viewer_relationship(post_student_id):
+                """What the viewer is to this item's owner, so the client
+                picks the right comment endpoint and hides what a peer may
+                not do. 'adult' covers every link that is not self or peer."""
+                if post_student_id == observer_id:
+                    return 'self'
+                if post_student_id in peer_only_ids:
+                    return 'peer'
+                return 'adult'
 
             # Build feed items from task-evidence blocks. ALL blocks belonging to
             # the same task+student (one capture / one evidence document) are
@@ -904,6 +961,18 @@ def register_routes(bp):
             except Exception as comments_error:
                 logger.warning(f"Could not fetch observer_comments for learning events: {comments_error}")
 
+            # Peer comments count alongside observer comments so the number on
+            # a card matches what opening it shows (the two are stored apart
+            # on purpose). Reactions ride the same page read.
+            from services.peer_connection_service import peer_comment_counts, reactions_for_feed
+            for target_id, n in peer_comment_counts(completion_ids, le_ids).items():
+                if target_id in completion_ids:
+                    comments_count[target_id] = comments_count.get(target_id, 0) + n
+                if target_id in le_ids:
+                    le_comments_count[target_id] = le_comments_count.get(target_id, 0) + n
+            reactions_by_target = reactions_for_feed(completion_ids, le_ids, observer_id)
+            no_reactions = {'by_key': {}, 'mine': None}
+
             # Highlighted state for each item, so the FeedCard star button can
             # reflect the current pin/unpin status. In highlights_only mode the
             # set is just whatever made it through the filter above; in the
@@ -998,6 +1067,8 @@ def register_routes(bp):
                         'media': item.get('media_items', []),
                         'views_count': le_views_count.get(le_id, 0),
                         'comments_count': le_comments_count.get(le_id, 0),
+                        'reactions': reactions_by_target.get(le_id, no_reactions),
+                        'viewer_relationship': viewer_relationship(item['student_id']),
                         # A learning moment is always shareable via its event id,
                         # subject to the viewer's permission.
                         'can_share': viewer_can_share(item['student_id']),
@@ -1048,6 +1119,8 @@ def register_routes(bp):
                         'xp_awarded': item.get('task_xp', 0),
                         'views_count': views_count.get(item.get('completion_id'), 0),
                         'comments_count': comments_count.get(item.get('completion_id'), 0),
+                        'reactions': reactions_by_target.get(item.get('completion_id'), no_reactions),
+                        'viewer_relationship': viewer_relationship(item['student_id']),
                         # Task evidence is shareable only once it has a real
                         # completion (the share endpoint keys off completion_id).
                         # Draft helper-evidence blocks with no completion yet

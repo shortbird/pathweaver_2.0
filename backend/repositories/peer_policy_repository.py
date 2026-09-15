@@ -70,6 +70,18 @@ class PeerPolicyRepository(BaseRepository):
             .eq('id', user_id).limit(1).execute().data or []
         return rows[0] if rows else None
 
+    def org_student_ids(self, org_id: str) -> set:
+        """Every student at one org -- the school pool. Org-sized, so read
+        through fetch_all_rows rather than trusting a single page."""
+        from utils.db_fetch import fetch_all_rows
+        from utils.validation.sanitizers import pgrst_uuid
+        rows = fetch_all_rows(lambda: (
+            self.client.table('users').select('id, role, org_role')
+            .eq('organization_id', pgrst_uuid(org_id, 'org_id'))
+        ))
+        return {r['id'] for r in rows
+                if r.get('org_role') == 'student' or r.get('role') == 'student'}
+
     def users_by_ids(self, user_ids: Iterable[str], columns: str) -> Dict[str, Dict[str, Any]]:
         ids = [u for u in set(user_ids or []) if u]
         if not ids:

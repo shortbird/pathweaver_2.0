@@ -353,7 +353,16 @@ BASELINES = {
     # pending_approvals moved its read down here. Plus one in
     # parent_digest_repository: the week's newly active connections, so an org
     # parent's digest carries the friends their child added.
-    'repositories': 558,
+    # 2026-09-16: 558 -> 569, Friends phase 2. peer_reaction_repository (5:
+    # the upsert, the clear, the two per-column page reads behind the feed's
+    # counts, and the activity window's read), peer_connection_repository
+    # (+5: the states between one student and a list of classmates, the
+    # blocks either way, the two per-column peer comment counts a feed page
+    # merges in, and the class names a suggestion is labelled with), and
+    # peer_policy_repository.org_student_ids (+1: the school pool, read
+    # through fetch_all_rows). routes/ and services/ did not move: the
+    # observer feed and the service call these.
+    'repositories': 569,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

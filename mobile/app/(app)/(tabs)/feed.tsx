@@ -519,6 +519,22 @@ const FeedListHeader = React.memo(function FeedListHeader({
               <UIText size="xs" className="text-optio-purple font-poppins-medium">Tips</UIText>
             </Pressable>
           )}
+          {/* Friends (2026-09-16). Not a sixth tab: the bar is full, and a
+              friend's WORK already arrives in this feed. This is where the
+              friendships are managed. Students only; a parent works a
+              child's friends from the Family tab. */}
+          {!isObserver && !isParent && (
+            <Pressable
+              onPress={() => router.push('/(app)/friends' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Friends"
+              testID="feed-friends-button"
+              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-lg bg-optio-purple/10 active:bg-optio-purple/20"
+            >
+              <Ionicons name="people-outline" size={16} color={c.brand} />
+              <UIText size="xs" className="text-optio-purple font-poppins-medium">Friends</UIText>
+            </Pressable>
+          )}
         </HStack>
       </View>
       {isObserver && (

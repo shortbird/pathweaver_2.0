@@ -3,6 +3,8 @@ import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import Button from '../ui/Button';
 import { UserGroupIcon } from '@heroicons/react/24/outline';
+import { QRCodeSVG } from 'qrcode.react';
+import * as friends from '../../services/friendsAPI';
 
 /**
  * ChildFriendsCard - a parent's Friends settings for one child.
@@ -29,12 +31,59 @@ const SOURCES = [
   { key: 'school', label: 'Anyone at their school', help: 'Only if the school has turned this on' },
 ];
 
+/** The code a friend's invite link carried in (/f/<CODE> -> /family?friend_code=). */
+function codeFromUrl() {
+  try {
+    return friends.codeFrom(new URLSearchParams(window.location.search).get('friend_code')) || '';
+  } catch {
+    return '';
+  }
+}
+
 const ChildFriendsCard = ({ studentId, studentName }) => {
   const [policy, setPolicy] = useState(null);
   const [canSet, setCanSet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirmingOff, setConfirmingOff] = useState(null); // number of friends, when asking
+  const [code, setCode] = useState(codeFromUrl);
+  const [childCode, setChildCode] = useState(null);
+  const [sending, setSending] = useState(false);
+
+  // A parent connects the child by the other student's code (or the link it
+  // came in), or hands the child's own code to the other family. Both go
+  // through student scope: the request is the child's, made by the parent.
+  const sendCode = async (e) => {
+    e.preventDefault();
+    if (code.trim().length !== 8) return;
+    setSending(true);
+    try {
+      await friends.requestFriend({ code, studentId });
+      setCode('');
+      toast.success('Request sent. The other student, or their parent, will see it next.');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not send that request.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const getChildCode = async () => {
+    setSending(true);
+    try {
+      setChildCode(await friends.issueCode(studentId));
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not create a code.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const copyChildLink = async () => {
+    if (!childCode) return;
+    await navigator.clipboard.writeText(friends.inviteLinkFor(childCode.code));
+    toast.success('Link copied. It works for a week.');
+  };
 
   const load = useCallback(async () => {
     if (!studentId) return;
@@ -211,6 +260,40 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
                 </label>
               ))}
               <p className="text-xs text-gray-500">You can always connect {studentName} with a friend yourself.</p>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="text-sm font-medium text-gray-900">Connect {studentName} with a friend</legend>
+            <p className="text-xs text-gray-500 mt-1">Ask the other family for their child&rsquo;s code, or send them {studentName}&rsquo;s.</p>
+            <form onSubmit={sendCode} className="mt-2 flex gap-2">
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                maxLength={8}
+                placeholder="Their code, e.g. ABCD2345"
+                aria-label="Enter their code"
+                className="flex-1 min-w-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono tracking-widest"
+              />
+              <Button type="submit" size="sm" disabled={sending || code.trim().length !== 8}>Send request</Button>
+            </form>
+            <div className="mt-3">
+              {childCode ? (
+                <div className="flex items-center gap-4">
+                  <QRCodeSVG value={friends.inviteLinkFor(childCode.code)} size={88} />
+                  <div>
+                    <p className="font-mono text-lg tracking-widest text-optio-purple" aria-label={`${studentName}'s code is ${childCode.code}`}>{childCode.code}</p>
+                    <div className="flex gap-2 mt-1">
+                      <button type="button" onClick={copyChildLink} className="text-sm font-medium text-optio-purple hover:underline">Copy link</button>
+                      <button type="button" onClick={getChildCode} disabled={sending} className="text-sm text-gray-500 hover:underline">New code</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={getChildCode} disabled={sending} className="text-sm font-medium text-optio-purple hover:underline">
+                  Get {studentName}&rsquo;s code
+                </button>
+              )}
             </div>
           </fieldset>
 

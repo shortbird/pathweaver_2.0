@@ -20,11 +20,25 @@ describe('resolveDeepLink', () => {
 
   it('maps observer legacy routes to feed tab', () => {
     expect(resolveDeepLink('/feedback')?.target).toBe('/(app)/(tabs)/feed');
-    expect(resolveDeepLink('/connections')?.target).toBe('/(app)/(tabs)/feed');
-    // Sub-paths of /connections are the same web surface — approvals links
-    // used to fall through to the notifications-list fallback.
-    expect(resolveDeepLink('/connections/approvals')?.target).toBe('/(app)/(tabs)/feed');
     expect(resolveDeepLink('/observer/feed')?.target).toBe('/(app)/(tabs)/feed');
+  });
+
+  it('sends friend notifications to the Friends screen, and a parent to Family', () => {
+    // Every peer_* notification links to /connections. Until 2026-09-16 it
+    // landed on the Feed tab, where nothing about the request showed.
+    expect(resolveDeepLink('/connections')?.target).toBe('/(app)/friends');
+    expect(resolveDeepLink('/connections/')?.target).toBe('/(app)/friends');
+    // The approvals page is the school admin's; a parent meets the request
+    // on the child's card on the Family tab.
+    expect(resolveDeepLink('/connections/approvals')?.target).toBe('/(app)/(tabs)/family');
+  });
+
+  it('opens an invite link on Add a friend with the code filled in', () => {
+    const r = resolveDeepLink('/f/abcd2345');
+    expect(r?.target).toBe('/(app)/friends/add');
+    expect(r?.params).toEqual({ code: 'ABCD2345' });
+    // Not a code: falls through, never a made-up route.
+    expect(resolveDeepLink('/f/nope')?.target).not.toBe('/(app)/friends/add');
   });
 
   it('maps main tab paths', () => {

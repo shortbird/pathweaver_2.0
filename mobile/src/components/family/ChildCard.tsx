@@ -195,6 +195,8 @@ export function ChildCard({
         busy={connectionsBusy}
         onDecide={onDecideConnection}
         onRevoke={onRevokeConnection}
+        childId={child.id}
+        childFirstName={firstName}
       />
     </Card>
   );

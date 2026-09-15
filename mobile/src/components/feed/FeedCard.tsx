@@ -24,6 +24,7 @@ import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
+import { ReactionRow } from './ReactionRow';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { formatTimeAgo } from '@/src/utils/timeAgo';
 import { getImageRatio, setImageRatio, clampRatio, DEFAULT_RATIO } from './imageRatioCache';
@@ -511,6 +512,9 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
   const userOrgRole = useAuthStore((s) => s.user?.org_role);
   const c = useThemeColors();
   const canHighlight = userRole === 'superadmin';
+  // Friends (2026-09-16). A connected peer's item: reactions are tappable,
+  // comments go to the peer endpoint, and there is no share button.
+  const isPeerItem = item.viewer_relationship === 'peer';
 
   // A list can reuse a cell's component instance for a different feed item, and
   // prop-seeded useState initializers (views/comments/privacy/etc.) do NOT
@@ -846,6 +850,22 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
             </HStack>
           )}
 
+          {/* Friends' reactions: tappable for a peer, read-only for the owner
+              and their adults. Keyed so a recycled cell never carries the
+              previous item's counts. */}
+          {(isPeerItem || (item.reactions && Object.keys(item.reactions.by_key || {}).length > 0)) && (
+            <ReactionRow
+              key={`reactions-${item.id}`}
+              target={{
+                studentId: item.student?.id || '',
+                completionId: isTask ? (item.completion_id || null) : null,
+                learningEventId: isTask ? null : (item.learning_event_id || item.id.replace(/^le_/, '')),
+              }}
+              summary={item.reactions}
+              canReact={isPeerItem && !!(item.completion_id || item.learning_event_id || !isTask)}
+            />
+          )}
+
           {/* Social actions — bigger icons + tap targets so comment/views/share
               are easy to hit (bug: "buttons need to be bigger"). */}
           <HStack className="items-center gap-5 pt-1 border-t border-surface-100 dark:border-dark-surface-300 mt-1">
@@ -869,7 +889,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
               )}
             </Pressable>
 
-            {canShare && (
+            {canShare && !isPeerItem && (
               <Pressable onPress={handleShare} disabled={sharing} hitSlop={12} accessibilityLabel="Share" className="flex-row items-center gap-1.5 py-2.5" style={{ opacity: sharing ? 0.5 : 1 }}>
                 <Ionicons name="share-outline" size={26} color={isConfidential ? c.border : c.iconMuted} />
               </Pressable>
@@ -968,6 +988,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
         <CommentSheet
           visible={showComments}
           item={item}
+          audience={isPeerItem ? 'peer' : 'adult'}
           onClose={() => setShowComments(false)}
           onCommentPosted={() => setCommentsCount((c) => c + 1)}
         />
@@ -982,6 +1003,7 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
           targetId={moderationTargetId}
           studentId={item.student?.id || null}
           studentName={item.student?.display_name || 'this user'}
+          isFriend={isPeerItem}
           onBlocked={() => setHidden(true)}
         />
       )}
@@ -1006,6 +1028,8 @@ export const FeedCard = memo(FeedCardImpl, (prev, next) => {
   if (prev.isActive !== next.isActive) return false;
   const a = prev.item;
   const b = next.item;
+  if (a.viewer_relationship !== b.viewer_relationship) return false;
+  if (a.reactions !== b.reactions) return false;
   // Multi-kid grouped posts: the `students` list can change (e.g. a sibling kid
   // added/removed) while every scalar field stays equal. Compare it explicitly,
   // or the card's avatars/names go stale (it showed combined then reverted to

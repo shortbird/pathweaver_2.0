@@ -45,6 +45,7 @@ MOBILE_PUSH_NOTIFICATION_TYPES = {
     # until the next time the app happened to be opened.
     'peer_connection_request', 'peer_connection_needs_approval',
     'peer_connection_approved', 'peer_friend_added', 'peer_comment',
+    'peer_reaction',
 }
 
 

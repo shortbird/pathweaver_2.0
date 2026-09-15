@@ -1,5 +1,5 @@
 /**
- * ChildConnections - one child's peer connections, on their card.
+ * ChildConnections - one child's friends, on their card.
  *
  * A request waiting on the parent renders in full: it is the consent, and
  * the consent text stays where it is stated -- what the other student would
@@ -7,13 +7,18 @@
  * says "approve connection?" and nothing else is a click, not a consent.
  * The connections already approved sit under it with the way to end them:
  * revocation was always in the API, but with no surface a parent who
- * changed their mind had to email support. A child with neither renders
- * nothing, and the card stays short.
+ * changed their mind had to email support.
+ *
+ * Since 2026-09-16 the card also carries the way INTO the child's Friends
+ * screen (parent/friends/<id>): the policy, the whole list, the requests a
+ * parent answers on a dependent's behalf, and the "connect with a friend"
+ * flow. The card stays a summary.
  */
 
 import React from 'react';
 import { Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { HStack, UIText, VStack, Button, ButtonText, Card } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { confirmAlert, showAlert } from '@/src/utils/alerts';
@@ -32,6 +37,9 @@ interface Props {
   busy: boolean;
   onDecide: (connectionId: string, approve: boolean) => Promise<void>;
   onRevoke: (connectionId: string) => Promise<void>;
+  /** The child this card is about; opens their Friends screen. */
+  childId?: string;
+  childFirstName?: string;
 }
 
 function PendingCard({ request, busy, onDecide }: { request: PendingConnection; busy: boolean; onDecide: Props['onDecide'] }) {
@@ -104,14 +112,15 @@ function ActiveRow({ connection, busy, onRevoke }: { connection: ApprovedConnect
   );
 }
 
-export function ChildConnections({ connections, busy, onDecide, onRevoke }: Props) {
+export function ChildConnections({ connections, busy, onDecide, onRevoke, childId, childFirstName }: Props) {
+  const c = useThemeColors();
   const { pending, approved } = connections;
-  if (pending.length === 0 && approved.length === 0) return null;
+  const open = childId ? () => router.push(`/(app)/parent/friends/${childId}` as any) : undefined;
   return (
     <VStack className="mt-3" space="xs">
       <HStack className="items-center gap-1.5">
         <UIText size="xs" className="font-poppins-semibold uppercase tracking-wider text-typo-500 dark:text-dark-typo-500">
-          Connections
+          Friends
         </UIText>
         {pending.length > 0 && (
           <UIText size="xs" className="rounded-full bg-optio-pink px-1.5 text-white font-poppins-bold" style={{ fontSize: 10, lineHeight: 16 }}>
@@ -121,6 +130,21 @@ export function ChildConnections({ connections, busy, onDecide, onRevoke }: Prop
       </HStack>
       {pending.map((r) => <PendingCard key={r.connection_id} request={r} busy={busy} onDecide={onDecide} />)}
       {approved.map((a) => <ActiveRow key={a.connection_id} connection={a} busy={busy} onRevoke={onRevoke} />)}
+      {open && (
+        <Pressable
+          onPress={open}
+          accessibilityRole="button"
+          accessibilityLabel={`Manage ${childFirstName || 'this child'}'s friends`}
+          testID={`child-friends-${childId}`}
+          className="flex-row items-center gap-2 py-2"
+        >
+          <Ionicons name="people-outline" size={16} color={c.brand} />
+          <UIText size="sm" className="flex-1 text-optio-purple font-poppins-medium">
+            {approved.length > 0 || pending.length > 0 ? 'Manage friends and settings' : `Friends settings for ${childFirstName || 'this child'}`}
+          </UIText>
+          <Ionicons name="chevron-forward" size={16} color={c.iconMuted} />
+        </Pressable>
+      )}
     </VStack>
   );
 }

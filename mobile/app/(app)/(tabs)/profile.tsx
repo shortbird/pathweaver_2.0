@@ -515,6 +515,24 @@ export default function ProfileScreen() {
             </CollapsibleSection>
           )}
 
+          {/* Friends (2026-09-16): the second way in, beside the Feed header. */}
+          {isStudent && (
+            <Pressable onPress={() => router.push('/(app)/friends' as any)} testID="profile-friends-link">
+              <Card variant="elevated" size="md">
+                <HStack className="items-center gap-3">
+                  <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: `${c.brand}15`, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="people-outline" size={22} color={c.brand} />
+                  </View>
+                  <VStack className="flex-1">
+                    <UIText size="sm" className="font-poppins-semibold">Friends</UIText>
+                    <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">See and cheer on each other's work</UIText>
+                  </VStack>
+                  <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
+                </HStack>
+              </Card>
+            </Pressable>
+          )}
+
           {/* Observer management (students) */}
           {isStudent && (
             <CollapsibleSection title="Who Can See My Activity">

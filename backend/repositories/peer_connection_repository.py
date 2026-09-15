@@ -19,6 +19,8 @@ from utils.logger import get_logger
 from utils.timestamps import now_iso
 from utils.validation.sanitizers import pgrst_uuid, pgrst_uuid_list
 
+TARGET_COLUMNS = ('task_completion_id', 'learning_event_id', 'quest_id')
+
 logger = get_logger(__name__)
 
 
@@ -34,6 +36,72 @@ class PeerConnectionRepository(BaseRepository):
             # scope under RLS. The route/service gate decides; this only reads.
             client = get_supabase_admin_client()
         super().__init__(client=client)
+
+    def states_with(self, user_id: str, peer_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
+        """{peer_id: {'id', 'status', 'direction'}} for every connection row
+        between this user and any of `peer_ids`, whatever its status. Feeds
+        the suggestions list, so a classmate who already has a request open
+        is shown with its state rather than offered again."""
+        ids = sorted(p for p in set(peer_ids or []) if p and p != user_id)
+        if not ids:
+            return {}
+        rows = self.client.table(self.table_name) \
+            .select('id, requester_id, addressee_id, status') \
+            .or_(f'and(requester_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'addressee_id.in.({pgrst_uuid_list(ids, "peer_id")})),'
+                 f'and(addressee_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'requester_id.in.({pgrst_uuid_list(ids, "peer_id")}))') \
+            .execute().data or []
+        out: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            outgoing = r['requester_id'] == user_id
+            peer = r['addressee_id'] if outgoing else r['requester_id']
+            out[peer] = {'id': r['id'], 'status': r['status'],
+                         'direction': 'outgoing' if outgoing else 'incoming'}
+        return out
+
+    def blocked_either_way(self, user_id: str, other_ids: Iterable[str]) -> set:
+        """The subset of `other_ids` with a block in either direction."""
+        ids = sorted(o for o in set(other_ids or []) if o and o != user_id)
+        if not ids:
+            return set()
+        rows = self.client.table('user_blocks').select('blocker_id, blocked_id') \
+            .or_(f'and(blocker_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'blocked_id.in.({pgrst_uuid_list(ids, "other_id")})),'
+                 f'and(blocked_id.eq.{pgrst_uuid(user_id, "user_id")},'
+                 f'blocker_id.in.({pgrst_uuid_list(ids, "other_id")}))') \
+            .execute().data or []
+        out = set()
+        for r in rows:
+            out.add(r['blocked_id'] if r['blocker_id'] == user_id else r['blocker_id'])
+        return out
+
+    def class_names(self, class_ids: Iterable[str]) -> Dict[str, str]:
+        """{class_id: name} for the classes a suggestion is labelled with."""
+        ids = [c for c in set(class_ids or []) if c]
+        if not ids:
+            return {}
+        rows = self.client.table('org_classes').select('id, name') \
+            .in_('id', ids).execute().data or []
+        return {r['id']: r.get('name') or 'Class' for r in rows}
+
+    def comment_counts(self, completion_ids: Iterable[str],
+                       learning_event_ids: Iterable[str]) -> Dict[str, int]:
+        """{target_id: count} of visible peer comments on a page of feed
+        items, for merging into the card totals the way
+        activity_feed_service does."""
+        out: Dict[str, int] = {}
+        for col, ids in (('task_completion_id', list(completion_ids or [])),
+                         ('learning_event_id', list(learning_event_ids or []))):
+            ids = [i for i in ids if i]
+            if not ids:
+                continue
+            rows = self.client.table('peer_comments').select(col) \
+                .in_(col, ids).is_('hidden_at', 'null').execute().data or []
+            for r in rows:
+                if r.get(col):
+                    out[r[col]] = out.get(r[col], 0) + 1
+        return out
 
     def revoke_all_active_for(self, student_id: str, *, revoked_by: str,
                               reason: str) -> int:

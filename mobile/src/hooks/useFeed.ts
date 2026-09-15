@@ -99,11 +99,25 @@ export interface FeedItem {
   /** Superadmin bookmarked this item for a future story (story_candidates);
    *  sent only on the superadmin's own feed. Drives the bookmark on FeedCard. */
   is_story_candidate?: boolean;
+  /** What the viewer is to this item's owner (Friends, 2026-09-16). 'peer'
+   *  items take the peer comment endpoint and can be reacted to; a peer can
+   *  never share them. Absent from older responses: treated as 'adult'. */
+  viewer_relationship?: 'self' | 'peer' | 'adult';
+  /** Friends' reactions on this item: counts per key, and the viewer's own.
+   *  Keys are the palette in hooks/useFriends (REACTIONS). */
+  reactions?: {
+    by_key: Partial<Record<'proud' | 'inspired' | 'curious' | 'keep_going' | 'thanks', number>>;
+    mine: 'proud' | 'inspired' | 'curious' | 'keep_going' | 'thanks' | null;
+  };
 }
 
 interface UseFeedOptions {
   studentId?: string;
   limit?: number;
+  /** Which of the caller's own peer connections to include: 'all' (own +
+   *  friends, the default), 'self' (own only), 'friends' (friends only).
+   *  Linked students and children are always in. */
+  scope?: 'self' | 'friends' | 'all';
   /** When true, returns only items the superadmin has pinned to the highlight
    *  reel (the "show-off" feed). */
   highlightsOnly?: boolean;
@@ -234,6 +248,9 @@ export function useFeed(options: UseFeedOptions = {}) {
       if (options.highlightsOnly) {
         params.highlights_only = 'true';
       }
+      if (options.scope) {
+        params.scope = options.scope;
+      }
 
       if (cursor) params.cursor = cursor;
       if (options.limit) params.limit = String(options.limit);
@@ -279,7 +296,7 @@ export function useFeed(options: UseFeedOptions = {}) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [isAuthenticated, userId, options.studentId, options.limit, options.highlightsOnly]);
+  }, [isAuthenticated, userId, options.studentId, options.limit, options.highlightsOnly, options.scope]);
 
   useEffect(() => {
     cursorRef.current = null;

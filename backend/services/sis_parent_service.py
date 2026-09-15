@@ -1517,7 +1517,14 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
         if not slot or not u:
             continue
         if m.get('relationship') == 'student':
-            slot['students'].append(u.get('first_name') or (u.get('display_name') or '').split(' ')[0] or 'Student')
+            first = u.get('first_name') or (u.get('display_name') or '').split(' ')[0] or 'Student'
+            slot['students'].append(first)
+            # Friends (2026-09-16): a parent connects their child with a
+            # family from this directory by naming the child. The id is
+            # what POST /api/connections/request needs; the pool check on
+            # that route is the same one the school pool makes (same org),
+            # so an id here opens nothing the directory did not already.
+            slot.setdefault('student_entries', []).append({'id': u['id'], 'first_name': first})
         elif m.get('relationship') in GUARDIAN_RELATIONSHIPS:
             slot['guardians'].append({'name': _student_name(u), 'email': u.get('email')})
 
@@ -1545,6 +1552,8 @@ def family_directory(user_id: str, org_id: str) -> Optional[List[Dict[str, Any]]
             'carpool_interest': bool(h.get('carpool_interest')),
             'guardians': guardians,
             'students': sorted(by_household[h['id']]['students']),
+            'student_entries': sorted(by_household[h['id']].get('student_entries', []),
+                                      key=lambda e: e['first_name']),
         })
     return out
 

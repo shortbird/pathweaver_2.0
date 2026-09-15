@@ -45,6 +45,14 @@ const ROWS: PreferenceRow[] = [
   { type: 'observer_added', label: 'New observers', description: 'When someone is added as an observer.', icon: 'people-outline', roles: ['student'] },
   { type: 'parent_approval_required', label: 'Approval requests', description: 'Your child requests portfolio approval.', icon: 'shield-checkmark-outline', roles: ['parent'] },
   { type: 'announcement', label: 'Announcements', description: 'Program or school announcements.', icon: 'megaphone-outline', roles: ['student', 'parent', 'observer', 'advisor'] },
+  // Friends (2026-09-16). Requests and answers reach the student; a parent
+  // hears when a request needs them and when a friend was added.
+  { type: 'peer_connection_request', label: 'Friend requests', description: 'When another student wants to be friends.', icon: 'person-add-outline', roles: ['student', 'parent'] },
+  { type: 'peer_connection_approved', label: 'New friends', description: 'When a friend request goes through.', icon: 'people-outline', roles: ['student'] },
+  { type: 'peer_connection_needs_approval', label: 'Friend approvals', description: 'When a friend request needs your answer.', icon: 'shield-checkmark-outline', roles: ['parent'] },
+  { type: 'peer_friend_added', label: 'Friends added', description: 'When your child adds a friend.', icon: 'people-outline', roles: ['parent'] },
+  { type: 'peer_comment', label: 'Friend comments', description: 'When a friend comments on your work.', icon: 'chatbox-ellipses-outline', roles: ['student'] },
+  { type: 'peer_reaction', label: 'Friend reactions', description: 'When a friend reacts to your work.', icon: 'sparkles-outline', roles: ['student'] },
 ];
 
 /**

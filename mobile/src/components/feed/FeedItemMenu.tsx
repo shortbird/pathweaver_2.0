@@ -3,6 +3,11 @@
  *
  * Lets the user report a feed item or block the student who posted it.
  * Required for App Store Guideline 1.2 (user-generated content moderation).
+ *
+ * The block row said "Unfollow" until 2026-09-16, which was the wrong word
+ * once the person could be a friend: a block is a block (it hides them, ends
+ * the friendship, and beats every other grant), and a friend gets a gentler
+ * "Remove friend" beside it that ends the friendship and nothing more.
  */
 
 import React, { useState } from 'react';
@@ -12,6 +17,7 @@ import { Heading, UIText, Button, ButtonText, VStack, Divider, BottomSheet } fro
 import api from '@/src/services/api';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
+import { extractApiError } from '@/src/services/apiError';
 
 type Reason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
 type TargetType = 'learning_event' | 'task_completion';
@@ -31,6 +37,8 @@ export interface FeedItemMenuProps {
   targetId: string;
   studentId: string | null;
   studentName: string;
+  /** The poster is a connected friend of the viewer. */
+  isFriend?: boolean;
   onBlocked?: () => void;
 }
 
@@ -41,6 +49,7 @@ export function FeedItemMenu({
   targetId,
   studentId,
   studentName,
+  isFriend = false,
   onBlocked,
 }: FeedItemMenuProps) {
   const [stage, setStage] = useState<'root' | 'reason' | 'submitting'>('root');
@@ -60,8 +69,8 @@ export function FeedItemMenu({
       });
       showAlert('Thanks', 'We received your report and will review it.');
       reset();
-    } catch (err: any) {
-      showAlert('Error', err?.response?.data?.error || 'Could not submit report.');
+    } catch (err: unknown) {
+      showAlert('Error', extractApiError(err, 'Could not submit report.').message);
       setStage('reason');
     }
   };
@@ -72,9 +81,9 @@ export function FeedItemMenu({
       return;
     }
     const confirmed = await confirmAlert({
-      title: `Unfollow ${studentName}?`,
-      message: `You will no longer see ${studentName}'s posts in your feed. They will not be notified.`,
-      confirmText: 'Unfollow',
+      title: `Block ${studentName}?`,
+      message: `You will no longer see ${studentName}'s posts, and they will not see yours. They will not be notified.`,
+      confirmText: 'Block',
       destructive: true,
     });
     if (!confirmed) return;
@@ -82,8 +91,33 @@ export function FeedItemMenu({
       await api.post('/api/moderation/block', { blocked_id: studentId });
       onBlocked?.();
       reset();
-    } catch (err: any) {
-      showAlert('Error', err?.response?.data?.error || 'Could not unfollow user.');
+    } catch (err: unknown) {
+      showAlert('Error', extractApiError(err, 'Could not block this user.').message);
+    }
+  };
+
+  const removeFriend = async () => {
+    if (!studentId) {
+      reset();
+      return;
+    }
+    const confirmed = await confirmAlert({
+      title: `Remove ${studentName} as a friend?`,
+      message: "You will no longer see each other's work. They will not be told.",
+      confirmText: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      // The connection id is not on the card; the list knows it.
+      const res = await api.get('/api/connections');
+      const active: { id: string; peer?: { id?: string } }[] = (res.data?.data || res.data || {}).active || [];
+      const conn = active.find((x) => x?.peer?.id === studentId);
+      if (conn) await api.post(`/api/connections/${conn.id}/revoke`, {});
+      onBlocked?.();
+      reset();
+    } catch (err: unknown) {
+      showAlert('Error', extractApiError(err, 'Could not remove this friend.').message);
     }
   };
 
@@ -94,13 +128,21 @@ export function FeedItemMenu({
           <Pressable onPress={() => setStage('reason')} className="py-3">
             <HStackRow icon="flag-outline" label="Report this post" />
           </Pressable>
+          {studentId && isFriend && (
+            <>
+              <Divider />
+              <Pressable onPress={removeFriend} className="py-3">
+                <HStackRow icon="person-remove-outline" label={`Remove ${studentName} as a friend`} />
+              </Pressable>
+            </>
+          )}
           {studentId && (
             <>
               <Divider />
               <Pressable onPress={blockStudent} className="py-3">
                 <HStackRow
                   icon="close-circle"
-                  label={`Unfollow ${studentName}`}
+                  label={`Block ${studentName}`}
                   destructive
                 />
               </Pressable>
@@ -143,7 +185,7 @@ export function FeedItemMenu({
   );
 }
 
-function HStackRow({ icon, label, destructive }: { icon: any; label: string; destructive?: boolean }) {
+function HStackRow({ icon, label, destructive }: { icon: keyof typeof Ionicons.glyphMap; label: string; destructive?: boolean }) {
   const c = useThemeColors();
   const color = destructive ? '#DC2626' : c.text;
   return (

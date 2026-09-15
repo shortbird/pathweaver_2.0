@@ -139,9 +139,13 @@ export function isSisSurfacePath(rawPath: string): boolean {
 const REMAP: [RegExp, string][] = [
   [/^\/parent-dashboard\/?$/, '/(app)/(tabs)/family'],
   [/^\/feedback\/?$/, '/(app)/(tabs)/feed'],
-  // Sub-paths too ("/connections/approvals") — the web page's tabs are all the
-  // same surface from mobile's point of view.
-  [/^\/connections(\/.*)?$/, '/(app)/(tabs)/feed'],
+  // Friends (2026-09-16). "/connections" is the student's Friends page on
+  // web and the notification link for every peer event; "/connections/
+  // approvals" is the school admin's approvals page, which on mobile a
+  // parent meets on the Family tab instead. Until this date every one of
+  // these landed on the Feed tab, where nothing about the request showed.
+  [/^\/connections\/approvals\/?$/, '/(app)/(tabs)/family'],
+  [/^\/connections(\/.*)?$/, '/(app)/friends'],
   [/^\/quests\/?$/, '/(app)/(tabs)/quests'],
   [/^\/observer\/feed\/?$/, '/(app)/(tabs)/feed'],
   [/^\/profile\/?$/, '/(app)/(tabs)/profile'],
@@ -184,6 +188,13 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   const queryIndex = link.indexOf('?');
   const path = queryIndex === -1 ? link : link.slice(0, queryIndex);
   const query = queryIndex === -1 ? '' : link.slice(queryIndex + 1);
+
+  // A friend's invite link ("/f/ABCD2345"): the code travels in the path. The
+  // Add-a-friend screen pre-fills it; the request itself still needs a tap.
+  const invite = path.match(/^\/f\/([A-Za-z0-9]{8})\/?$/);
+  if (invite) {
+    return { target: '/(app)/friends/add', params: { code: invite[1].toUpperCase() } };
+  }
 
   // Bounty-submission notifications point the WEB app at its review queue
   // ("/bounties?tab=review&bounty=<id>&claim=<id>"). Mobile has a dedicated

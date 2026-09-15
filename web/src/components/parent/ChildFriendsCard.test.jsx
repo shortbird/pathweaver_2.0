@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../services/api', () => ({
-  default: { get: vi.fn(), put: vi.fn() }
+  default: { get: vi.fn(), put: vi.fn(), post: vi.fn() }
 }))
 
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -21,6 +21,7 @@ vi.mock('react-hot-toast', () => ({ toast, default: toast }))
 vi.mock('@heroicons/react/24/outline', () => ({
   UserGroupIcon: (props) => <svg data-testid="friends-icon" {...props} />,
 }))
+vi.mock('qrcode.react', () => ({ QRCodeSVG: () => <svg data-testid="qr" /> }))
 
 import api from '../../services/api'
 import ChildFriendsCard from './ChildFriendsCard'
@@ -121,6 +122,27 @@ describe('ChildFriendsCard', () => {
     mountWith({ ...OFF, origin: 'module_off' })
     expect(await screen.findByText(/not turned on at robin/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /turn on/i })).toBeNull()
+  })
+
+  it('connects the child by another student\'s code, through student scope', async () => {
+    mountWith(ON)
+    api.post.mockResolvedValue({ data: { data: { id: 'c-9', status: 'pending_addressee' } } })
+    const input = await screen.findByLabelText(/enter their code/i)
+    await userEvent.type(input, 'abcd2345')
+    await userEvent.click(screen.getByRole('button', { name: /send request/i }))
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/api/connections/request', { code: 'ABCD2345', student_id: 's1' })
+    })
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/request sent/i))
+  })
+
+  it('mints the child\'s own code for the other family', async () => {
+    mountWith(ON)
+    api.post.mockResolvedValue({ data: { data: { code: 'WXYZ2345', expires_at: 'x' } } })
+    await userEvent.click(await screen.findByRole('button', { name: /get robin.s code/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/connections/code', { student_id: 's1' }))
+    expect(await screen.findByText('WXYZ2345')).toBeInTheDocument()
+    expect(screen.getByTestId('qr')).toBeInTheDocument()
   })
 
   it('surfaces the server refusal', async () => {

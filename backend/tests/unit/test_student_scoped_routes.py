@@ -54,6 +54,7 @@ SCOPED = {
     # friend requests for them through the same routes the child would use.
     'connections.get_connections': 'peer_connections',
     'connections.get_feed': 'activity',
+    'connections.get_suggestions': True,
     # writes
     'tasks.complete_task': True,
     'tasks.update_task': True,
