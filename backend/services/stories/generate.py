@@ -8,6 +8,8 @@ The gates run before a byte of evidence is read, in this order, and each has
 its own reason so the grader can say why:
 
     source_not_finalized   the submission is not finalized / the quest not complete
+                           (a credit class counts once its class review awarded
+                           credit; source_quest.credited is the rule)
     merged                 the completion was merged into a newer one
     confidential           the student marked it confidential
     ai_disabled            the family switched AI off for this student
@@ -37,6 +39,7 @@ from utils.timestamps import now_iso
 from services.stories import anonymize, drafter as drafter_mod, publish, safety
 from services.stories.consent_service import scope_of, tier_for
 from services.stories.source import StorySource, scrubber_for
+from services.stories import source_quest
 from services.stories.source_completion import SourceNotFound
 from services.stories.source_quest import QuestNotComplete
 
@@ -159,7 +162,8 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
         completion = source_repo.completion(source_id)
         if not completion:
             raise Refused('source_not_found', 'The submission no longer exists.')
-        if completion.get('diploma_status') != 'finalized':
+        quest = source_repo.quest(completion.get('quest_id')) if completion.get('quest_id') else None
+        if not source_quest.credited(completion, quest):
             raise Refused('source_not_finalized', 'The submission is not finalized.')
         if completion.get('merged_into'):
             raise Refused('merged', 'The submission was merged into a newer one.')
@@ -167,11 +171,10 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
             raise Refused('confidential', 'The student marked this submission confidential.')
         student_id = completion.get('user_id')
     elif source_type == 'quest':
-        from services.stories import source_quest
         user_quest = source_repo.user_quest(source_id)
         if not source_id or not user_quest:
             raise Refused('source_not_found', 'The quest enrolment no longer exists.')
-        completions, tasks = source_quest.finalized_completions(source_repo, source_id)
+        completions, tasks = source_quest.finalized_completions(source_repo, source_id, user_quest)
         if not source_quest.is_complete(user_quest, tasks, completions) or not completions:
             raise Refused('source_not_finalized', 'The quest is not complete.')
         if any(c.get('is_confidential') for c in completions):

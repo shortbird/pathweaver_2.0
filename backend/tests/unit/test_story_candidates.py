@@ -22,6 +22,8 @@ ADMIN = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 STUDENT = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
 COMPLETION = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
 DRAFT_COMPLETION = 'cccccccc-cccc-cccc-cccc-000000000002'
+CLASS_DAY_COMPLETION = 'cccccccc-0000-4000-8000-00000000c1a5'
+CLASS_USER_QUEST = 'cccccccc-0000-4000-8000-00000000c1a6'
 EVENT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
 USER_QUEST = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
 
@@ -83,11 +85,26 @@ class FakeSourceRepo:
         if cid == DRAFT_COMPLETION:
             return {'id': cid, 'user_id': STUDENT, 'diploma_status': 'draft', 'merged_into': None,
                     'is_confidential': False, 'user_quest_task_id': 't1', 'quest_id': 'q1'}
+        if cid == CLASS_DAY_COMPLETION:
+            # A POE day: never finalized on its own, credited with the class.
+            return {'id': cid, 'user_id': STUDENT, 'diploma_status': 'none', 'merged_into': None,
+                    'is_confidential': False, 'user_quest_task_id': 't-poe', 'quest_id': 'q-poe'}
         return None
     def user_quest(self, uid):
+        if uid == CLASS_USER_QUEST:
+            return {'id': uid, 'user_id': STUDENT, 'completed_at': None,
+                    'quests': {'id': 'q-poe', 'quest_type': 'class',
+                               'class_review_status': 'credit_awarded'}}
         return {'id': uid, 'user_id': STUDENT} if uid == USER_QUEST else None
-    def task(self, tid): return {'id': tid, 'user_quest_id': USER_QUEST, 'title': 'Build a drone'}
-    def quest(self, qid): return {'id': qid, 'title': 'Flight'}
+    def task(self, tid):
+        if tid == 't-poe':
+            return {'id': tid, 'user_quest_id': CLASS_USER_QUEST, 'title': 'POE Day 3'}
+        return {'id': tid, 'user_quest_id': USER_QUEST, 'title': 'Build a drone'}
+    def quest(self, qid):
+        if qid == 'q-poe':
+            return {'id': qid, 'title': 'Pipe Organ Encounter', 'quest_type': 'class',
+                    'class_review_status': 'credit_awarded'}
+        return {'id': qid, 'title': 'Flight'}
     def learning_event(self, eid):
         return {'id': eid, 'user_id': STUDENT, 'title': 'First solo flight', 'description': 'It flew.',
                 'pillars': ['stem'], 'is_confidential': False, 'event_date': '2026-09-12'} if eid == EVENT else None
@@ -213,6 +230,16 @@ class TestQueue:
         row = client.get('/api/admin/stories/candidates').get_json()['data']['candidates'][0]
         assert row['sources']['credit_submission']['eligible'] is False
         assert row['sources']['credit_submission']['reasons'] == ['source_not_finalized']
+
+    def test_a_day_of_a_credited_class_can_start_a_story(self, client):
+        """POE: the class review credited the week; no day was ever finalized."""
+        self._flag(client, 'task_completed', CLASS_DAY_COMPLETION)
+        row = client.get('/api/admin/stories/candidates').get_json()['data']['candidates'][0]
+        assert row['item']['title'] == 'POE Day 3'
+        assert row['item']['diploma_status'] == 'none'
+        assert row['sources']['credit_submission']['eligible'] is True
+        assert row['sources']['credit_submission']['reasons'] == []
+        assert row['sources']['quest']['source_id'] == CLASS_USER_QUEST
 
     def test_a_learning_moment_is_kept_with_no_source_yet(self, client):
         self._flag(client, 'learning_moment', f'le_{EVENT}')

@@ -3,6 +3,11 @@
 Only finalized completions count, subjects and XP are summed across them, the
 primary subject is the one with the most XP, and the student's reflections
 arrive already scrubbed.
+
+The exception is a credit class: its review credits the whole class at once,
+its completions never get a diploma_status or a round, and its evidence is
+the live document. POE 2026 was credited this way and no camper's week could
+become a story until the source learned the rule.
 """
 
 from __future__ import annotations
@@ -37,14 +42,24 @@ def _completion(n, status='finalized', confidential=False, merged=None):
 
 
 class FakeRepo:
-    def __init__(self, *, completed_at=None, tasks=None, completions=None, org=False):
+    def __init__(self, *, completed_at=None, tasks=None, completions=None, org=False,
+                 class_status=None):
+        # class_status set = a credit class (quest_type 'class') in that
+        # review state, embedded the way the repository embeds it.
+        quest_embed = None
+        if class_status:
+            quest_embed = {'id': QUEST_ID, 'quest_type': 'class',
+                           'class_review_status': class_status,
+                           'class_review_submitted_at': '2026-07-25T13:05:21+00:00'}
         self.user_quests = {USER_QUEST_ID: {
             'id': USER_QUEST_ID, 'user_id': STUDENT_ID, 'quest_id': QUEST_ID,
             'started_at': '2026-08-01', 'completed_at': completed_at, 'is_active': True,
             'status': 'active',
             'reflection_notes': {'intro': 'Maya and Coach Reyes planned it.',
                                  'end': ['We showed it at Hearthwood Academy.', {'text': 'Done.'}]},
-            'archived_at': None}}
+            'archived_at': None, 'quests': quest_embed}}
+        self.live_blocks = {}          # task_id -> the student's live evidence blocks
+        self.rounds_read = []          # completion ids whose rounds were asked for
         self.tasks = tasks if tasks is not None else [
             _task(1, 100, {'Science': 100}),
             _task(2, 150, {'Fine Arts': 150}),
@@ -65,8 +80,16 @@ class FakeRepo:
     def finalized_completions_for_tasks(self, ids):
         return [c for c in self.completions if c['user_quest_task_id'] in ids
                 and c['diploma_status'] == 'finalized' and not c.get('merged_into')]
+    def completions_for_tasks(self, ids):
+        return [c for c in self.completions if c['user_quest_task_id'] in ids
+                and not c.get('merged_into')]
+    def evidence_blocks_for(self, user_id, task_id):
+        return list(self.live_blocks.get(task_id, [])) if user_id == STUDENT_ID else []
     def completion(self, cid): return next((c for c in self.completions if c['id'] == cid), None)
     def rounds_for_completion(self, cid):
+        self.rounds_read.append(cid)
+        if any(c['id'] == cid and c['diploma_status'] != 'finalized' for c in self.completions):
+            return []          # a completion nobody finalized never got a round
         return [{'id': f'r-{cid}', 'completion_id': cid, 'round_number': 1,
                  'evidence_snapshot': [{'id': 'b', 'block_type': 'text',
                                         'content': {'text': 'Maya wrote this.'}}],
@@ -171,3 +194,66 @@ def test_status_counts_without_loading_evidence():
     assert source_quest.status(USER_QUEST_ID, repo=repo) == {
         'user_quest_id': USER_QUEST_ID, 'complete': True,
         'finalized_task_count': 2, 'task_count': 3}
+
+
+# ── a credit class: credited once, for the whole class ───────────────────────
+
+def _class_repo(status):
+    repo = FakeRepo(
+        completed_at=None, class_status=status,
+        tasks=[_task(1, 200, {'Fine Arts': 200}), _task(2, 200, {'Fine Arts': 200})],
+        completions=[_completion(1, status='none'), _completion(2, status='none')])
+    for n in (1, 2):
+        repo.completions[n - 1]['task_id'] = f'task-{n}'
+        repo.live_blocks[f'task-{n}'] = [{'id': f'b{n}', 'block_type': 'text',
+                                          'content': {'text': f'Day {n}: Maya played the organ.'}}]
+    return repo
+
+
+def test_a_credited_class_pools_every_completion_from_the_live_document():
+    repo = _class_repo('credit_awarded')
+    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
+    assert [t.completion_id for t in source.tasks] == ['c1', 'c2']
+    assert [t.diploma_status for t in source.tasks] == ['none', 'none']
+    # No round to snapshot from: the evidence is the document as it stands.
+    assert source.tasks[0].evidence_texts == ['Day 1: [name] played the organ.']
+    assert source.tasks[1].evidence_texts == ['Day 2: [name] played the organ.']
+    assert source.tasks[0].rounds == []
+    assert source.xp_total == 400
+    assert source.primary_subject == 'fine_arts'
+    # The class review date stands in for the completed_at the award never set.
+    assert source.quest_completed_at == '2026-07-25T13:05:21+00:00'
+    assert source.finalized_at is None
+
+
+def test_a_class_still_under_review_is_not_complete():
+    with pytest.raises(source_quest.QuestNotComplete):
+        source_quest.load(USER_QUEST_ID, repo=_class_repo('submitted_for_review'), admin=None)
+
+
+def test_status_counts_the_class_completions_as_finalized_tasks():
+    status = source_quest.status(USER_QUEST_ID, repo=_class_repo('credit_awarded'))
+    assert status == {'user_quest_id': USER_QUEST_ID, 'complete': True,
+                      'finalized_task_count': 2, 'task_count': 2}
+
+
+def test_credited_is_the_one_rule():
+    finalized = {'diploma_status': 'finalized'}
+    pending = {'diploma_status': 'none'}
+    credited_class = {'quest_type': 'class', 'class_review_status': 'credit_awarded'}
+    reviewing_class = {'quest_type': 'class', 'class_review_status': 'submitted_for_review'}
+    regular = {'quest_type': 'standard', 'class_review_status': 'credit_awarded'}
+    assert source_quest.credited(finalized, None)
+    assert source_quest.credited(pending, credited_class)
+    assert not source_quest.credited(pending, reviewing_class)
+    assert not source_quest.credited(pending, regular)
+    assert not source_quest.credited(pending, None)
+    assert not source_quest.credited(None, credited_class)
+
+
+def test_a_regular_quest_still_ignores_unfinalized_completions():
+    """The class rule must not leak: without the embed, 'none' stays out."""
+    repo = FakeRepo(completed_at='2026-09-03',
+                    completions=[_completion(1), _completion(2, status='none')])
+    source = source_quest.load(USER_QUEST_ID, repo=repo, admin=None)
+    assert [t.completion_id for t in source.tasks] == ['c1']

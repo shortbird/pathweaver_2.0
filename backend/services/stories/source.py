@@ -787,7 +787,14 @@ def build_task(repo, completion: Dict[str, Any], *, index: int, scrubber: Scrubb
     quotes: List[QuoteCandidate] = []
     links: List[LinkCandidate] = []
     flags: List[str] = []
-    snapshot = rounds[-1].get('evidence_snapshot') if rounds else None
+    # A finalized submission has a round, and the round's snapshot is the
+    # evidence the reviewer saw. A credit-class completion (POE and the like)
+    # was credited as part of the whole class and never got a round, so its
+    # evidence is the live document, read in the same block shape.
+    if rounds:
+        snapshot = rounds[-1].get('evidence_snapshot')
+    else:
+        snapshot = repo.evidence_blocks_for(completion.get('user_id'), completion.get('task_id'))
     if load_images and isinstance(snapshot, list) and snapshot:
         refs = _source_refs(snapshot)
         loader_snapshot, index_map, videos = _split_stored_videos(snapshot)

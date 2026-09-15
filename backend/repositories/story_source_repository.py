@@ -8,6 +8,15 @@ every linked parent's, and the organization's. Nothing here is written back.
 Column names are verified against production on 2026-09-11. `is_confidential`,
 `merged_into` and `diploma_status` on the completion are the three gates the
 orchestrator reads before a single byte of evidence is loaded.
+
+A credit class (`quests.quest_type='class'`) is the exception to the third
+gate: its credit is awarded once for the whole class
+(`class_review_status='credit_awarded'`), so its completions never carry a
+`diploma_status` of their own and never got a review round. `user_quest()`
+embeds the quest so `utils.quest_status` can say so, and `evidence_blocks_for`
+reads the live evidence document in place of the snapshot a round would have
+held. POE 2026 is where this bit: every camper's week was credited and none
+of it could become a story.
 """
 
 from __future__ import annotations
@@ -33,11 +42,18 @@ TASK_COLUMNS = (
 )
 QUEST_COLUMNS = (
     'id, title, description, big_idea, header_image_url, image_url, organization_id, '
-    'transcript_subject'
+    'transcript_subject, quest_type, class_review_status, class_review_submitted_at'
 )
+# The embedded quest is the shape utils.quest_status reads: a user_quests row
+# with its quest under `quests`.
 USER_QUEST_COLUMNS = (
     'id, user_id, quest_id, started_at, completed_at, is_active, status, '
-    'reflection_notes, archived_at'
+    'reflection_notes, archived_at, '
+    'quests(id, quest_type, class_review_status, class_review_submitted_at)'
+)
+EVIDENCE_BLOCK_COLUMNS = (
+    'id, document_id, block_type, content, order_index, created_at, is_private, '
+    'uploaded_by_user_id, uploaded_by_role'
 )
 STUDENT_COLUMNS = (
     'id, first_name, last_name, display_name, preferred_name, role, org_role, '
@@ -106,6 +122,31 @@ class StorySourceRepository(BaseRepository):
         rows = self.client.table('quest_task_completions').select(COMPLETION_COLUMNS).in_(
             'user_quest_task_id', ids).eq('diploma_status', 'finalized').execute().data or []
         return [r for r in rows if not r.get('merged_into')]
+
+    def completions_for_tasks(self, task_ids: List[str]) -> List[Dict[str, Any]]:
+        """Every live completion, whatever its diploma_status. For a credit
+        class, where the class review credited the whole week at once and no
+        completion was ever finalized on its own."""
+        ids = [t for t in (task_ids or []) if t]
+        if not ids:
+            return []
+        rows = self.client.table('quest_task_completions').select(COMPLETION_COLUMNS).in_(
+            'user_quest_task_id', ids).execute().data or []
+        return [r for r in rows if not r.get('merged_into')]
+
+    def evidence_blocks_for(self, user_id: str, task_id: str) -> List[Dict[str, Any]]:
+        """The student's live evidence for one task, in the exact shape a
+        review round snapshots (routes/tasks/credit.py copies these rows
+        verbatim). Empty when the task has no document."""
+        if not user_id or not task_id:
+            return []
+        docs = self.client.table('user_task_evidence_documents').select('id').eq(
+            'task_id', task_id).eq('user_id', user_id).limit(1).execute().data or []
+        if not docs:
+            return []
+        return self.client.table('evidence_document_blocks').select(
+            EVIDENCE_BLOCK_COLUMNS).eq('document_id', docs[0]['id']).order(
+            'order_index').execute().data or []
 
     # ── the student, and the names that must not appear ──────────────────────
 

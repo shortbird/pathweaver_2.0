@@ -218,7 +218,8 @@ def eligibility(user_id: str, completion_id: str):
 
     student_id = completion.get('user_id')
     reasons: List[str] = []
-    if completion.get('diploma_status') != 'finalized':
+    quest = source_repo.quest(completion.get('quest_id')) if completion.get('quest_id') else None
+    if not source_quest.credited(completion, quest):
         reasons.append('source_not_finalized')
     if completion.get('merged_into'):
         reasons.append('merged')

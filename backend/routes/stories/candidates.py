@@ -121,7 +121,7 @@ def _enrich(candidate: Dict[str, Any], story_repo, source_repo) -> Dict[str, Any
         reasons: List[str] = []
         if not completion:
             reasons.append('missing')
-        elif completion.get('diploma_status') != 'finalized':
+        elif not source_quest.credited(completion, quest):
             reasons.append('source_not_finalized')
         if completion.get('is_confidential'):
             reasons.append('confidential')
