@@ -62,12 +62,12 @@ export default function TabsLayout() {
   // the global Capture button can open the sheet pre-scoped to that quest.
   const questCaptureContext = useCaptureContextStore((s) => s.quest);
 
-  // Restore persisted preview state on entry. Passing the real role lets a
-  // superadmin default into the Student shell when they have no stored choice.
-  // Keyed on userRole so it runs once the user is loaded (and re-resolves if
-  // the account changes), but never re-fires on an in-session "Exit preview".
+  // Restore the persisted preview choice on entry (web only; there is no
+  // default). Keyed on userRole so it runs once the user is loaded (and
+  // re-resolves if the account changes), but never re-fires on an in-session
+  // "Exit preview".
   useEffect(() => {
-    restorePreviewRole(userRole);
+    restorePreviewRole();
   }, [restorePreviewRole, userRole]);
 
   // ── Observer: feed + center "+" + bounties, minimal chrome ──

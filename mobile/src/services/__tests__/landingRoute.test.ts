@@ -47,8 +47,8 @@ describe('landingRouteForUser', () => {
     } as any)).toBe('/(app)/(tabs)/family');
   });
 
-  it('sends superadmins to the dashboard even with dependents (default Student preview shell)', () => {
+  it('sends a superadmin where their own account goes: Family with children, dashboard without', () => {
     expect(landingRouteForUser({ ...base, role: 'superadmin' })).toBe('/(app)/(tabs)/dashboard');
-    expect(landingRouteForUser({ ...base, role: 'superadmin', has_dependents: true })).toBe('/(app)/(tabs)/dashboard');
+    expect(landingRouteForUser({ ...base, role: 'superadmin', has_dependents: true })).toBe('/(app)/(tabs)/family');
   });
 });
