@@ -419,7 +419,13 @@ const SchoolInboxPage = () => {
         // composers for one act, and the office had to choose between them
         // before writing anything. Reaching a chosen set of people is what the
         // messaging tabs beside this one are for now.
-        <BoardAnnouncementsTab orgId={isSuperadmin ? orgId : null} admin={admin} />
+        //
+        // The tab gets the real orgId, not the withOrg-style "null for own org"
+        // idiom: it is a data gate there (useCommunityAnnouncements is enabled
+        // only with one), and null left every non-superadmin on "Loading…" for
+        // good (iCreate, 2026-09-15, 72dabff8 / 83092eae / 83c94d73). The
+        // server pins a non-superadmin to their own org whatever is sent.
+        <BoardAnnouncementsTab orgId={orgId} admin={admin} />
       ) : (
       <div className="flex h-[72vh] min-h-[440px] bg-white border border-gray-200 rounded-xl overflow-hidden">
         {/* Thread list */}

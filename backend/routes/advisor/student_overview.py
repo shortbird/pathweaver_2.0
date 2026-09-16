@@ -140,8 +140,12 @@ def get_student_overview(user_id, student_id):
         )
 
         # 1. Get student profile
+        # email/username/roles: the record page's Edit profile modal decides
+        # from them whether to show an email field and which roles are ticked.
+        # Without them it showed an empty, required email box for every kid.
         student_response = supabase.table('users').select('''
-            id, first_name, last_name, avatar_url, created_at, total_xp
+            id, first_name, last_name, avatar_url, created_at, total_xp,
+            email, username, role, org_role, org_roles
         ''').eq('id', student_id).single().execute()
 
         if not student_response.data:
@@ -589,7 +593,12 @@ def get_student_overview(user_id, student_id):
                 'first_name': student.get('first_name'),
                 'last_name': student.get('last_name'),
                 'avatar_url': sign_stored_url(student.get('avatar_url')),
-                'created_at': student.get('created_at')
+                'created_at': student.get('created_at'),
+                'email': student.get('email'),
+                'username': student.get('username'),
+                'role': student.get('role'),
+                'org_role': student.get('org_role'),
+                'org_roles': student.get('org_roles'),
             },
             'dashboard': {
                 'total_xp': total_xp,

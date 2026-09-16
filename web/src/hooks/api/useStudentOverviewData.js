@@ -44,7 +44,14 @@ export function useStudentOverviewData(studentId, endpoint) {
           first_name: apiData.student.first_name,
           last_name: apiData.student.last_name,
           avatar_url: apiData.student.avatar_url,
-          created_at: apiData.student.created_at
+          created_at: apiData.student.created_at,
+          // For the Edit profile modal: whether there is an email to require,
+          // a username to show instead, and which roles are already held.
+          email: apiData.student.email ?? null,
+          username: apiData.student.username ?? null,
+          role: apiData.student.role,
+          org_role: apiData.student.org_role,
+          org_roles: apiData.student.org_roles
         },
         memberSince: apiData.student.created_at,
 

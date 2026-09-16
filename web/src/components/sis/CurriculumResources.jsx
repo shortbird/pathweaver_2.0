@@ -2,8 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   SparklesIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon,
-  PencilSquareIcon, TrashIcon, DocumentDuplicateIcon,
+  PencilSquareIcon, TrashIcon, DocumentDuplicateIcon, Bars3Icon,
 } from '@heroicons/react/24/outline'
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, useSortable, arrayMove, verticalListSortingStrategy, sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import api from '../../services/api'
 import CurriculumMaterials from './CurriculumMaterials'
 import { withOrg } from '../../pages/sis/useSisOrg'
@@ -39,6 +46,19 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * still handle course links, so the decision is reversible; only the way to
  * create one is gone.
  */
+
+// One quest row of the list above, movable by its handle. Kept to the <li> and
+// the sortable wiring; what goes inside is the caller's, so the row reads the
+// same whether it can move or not.
+function SortableRow({ id, disabled, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 }
+  return (
+    <li ref={setNodeRef} style={style} className="py-1.5 text-sm bg-white">
+      {children({ handle: { ...attributes, ...listeners } })}
+    </li>
+  )
+}
 
 const Empty = ({ children }) => <p className="text-sm text-neutral-400">{children}</p>
 
@@ -363,18 +383,27 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
       .then((r) => setQuestOptions(r.data?.quests || [])).catch(() => setQuestOptions([]))
   }, [orgId, curriculumId, canManage, quests.length])
 
-  const saveQuests = async (next) => {
+  // The list is shown in its new shape before the server answers and put back
+  // if it refuses; a reorder that waited for the round trip felt stuck.
+  // `notify` is whether the parent page needs to know. It does for an add or
+  // a removal (the master table's counts change); it does not for a pure
+  // reorder, and telling it anyway was the "page refresh" (iCreate, 2026-09-15,
+  // 4b7d347c): CurriculumPage.load() unmounts its whole table into "Loading…",
+  // which takes this component and the open quest with it.
+  const saveQuests = async (next, { notify = true } = {}) => {
+    const before = quests
+    setQuests(next)
     setBusy(true)
     try {
       const { data } = await api.put(withOrg(`/api/sis/curriculum/${curriculumId}/quests`, orgId),
         { quest_ids: next.map((q) => q.id) })
-      setQuests(next)
       // Say where it landed. The bug this replaced was silent: an admin attached
       // a quest, was told nothing, and the students never saw it.
       const n = data?.pushed_to_classes || 0
       if (n) toast.success(`Added to ${n} class${n === 1 ? '' : 'es'}`)
-      onChanged?.()
+      if (notify) onChanged?.()
     } catch (err) {
+      setQuests(before)
       toast.error(err?.response?.data?.error || 'Could not save the quest set')
       load()
     } finally { setBusy(false) }
@@ -404,10 +433,23 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
   const moveQuest = (index, delta) => {
     const to = index + delta
     if (to < 0 || to >= quests.length) return
-    const next = [...quests]
-    const [row] = next.splice(index, 1)
-    next.splice(to, 0, row)
-    saveQuests(next)
+    saveQuests(arrayMove(quests, index, to), { notify: false })
+  }
+
+  // "I do prefer it where you can grab the line item with your mouse and move
+  // it up and down over arrows" (iCreate, 2026-09-15, 9c4d1faf). The handle
+  // is the only thing that drags: the row itself is the disclosure button and
+  // the panel it opens has its own task list.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const onDragEnd = ({ active, over }) => {
+    if (!over || active.id === over.id) return
+    const from = quests.findIndex((q) => q.id === active.id)
+    const to = quests.findIndex((q) => q.id === over.id)
+    if (from < 0 || to < 0) return
+    saveQuests(arrayMove(quests, from, to), { notify: false })
   }
 
   const resetNew = () => {
@@ -462,12 +504,22 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
           what they have, with their own due dates.
         </p>
         {!quests.length ? <Empty>Nothing saved yet.</Empty> : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={quests.map((q) => q.id)} strategy={verticalListSortingStrategy}>
           <ul className="divide-y divide-gray-50 mb-2">
             {quests.map((q, i) => {
               const open = expandedId === q.id
               return (
-                <li key={q.id} className="py-1.5 text-sm">
+                <SortableRow key={q.id} id={q.id} disabled={!canManage || busy || quests.length < 2}>
+                  {({ handle }) => (<>
                   <div className="flex items-center gap-2">
+                    {canManage && quests.length > 1 && (
+                      <button type="button" {...handle} disabled={busy}
+                        aria-label={`Drag ${q.title} to reorder`}
+                        className="shrink-0 p-0.5 text-gray-400 hover:text-optio-purple cursor-grab active:cursor-grabbing touch-none disabled:opacity-30">
+                        <Bars3Icon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {canManage && quests.length > 1 && (
                       <span className="shrink-0 inline-flex flex-col -my-1">
                         <button type="button" onClick={() => moveQuest(i, -1)} disabled={busy || i === 0}
@@ -532,10 +584,13 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                       }}
                     />
                   )}
-                </li>
+                  </>)}
+                </SortableRow>
               )
             })}
           </ul>
+          </SortableContext>
+          </DndContext>
         )}
         {canManage && (
           <>

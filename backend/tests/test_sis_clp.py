@@ -141,19 +141,23 @@ class TestClpStudent:
                    return_value=record or {'finished': False, 'notes': None}), \
              patch('services.sis_learning_day_service.get_selection', return_value=learning_day), \
              patch('services.sis_clp_service.catalog.list_classes', return_value=_CATALOG), \
+             patch('services.sis_waitlist_service.queue_positions',
+                   return_value={w['id']: 1 for w in waitlist}), \
              patch('services.sis_clp_service._admin', return_value=_client(tables)):
             return clp.get_clp_student('org1', 's1')
 
     def test_annotates_enrollment_and_waitlist_and_builds_schedule(self):
         out = self._run(
             enrolled=[{'class_id': 'c1'}],
-            waitlist=[{'id': 'w9', 'class_id': 'c2', 'status': 'waiting', 'position': 2}],
+            waitlist=[{'id': 'w9', 'class_id': 'c2', 'status': 'waiting', 'position': 14}],
         )
         by_id = {c['class_id']: c for c in out['classes']}
         assert by_id['c1']['is_enrolled'] is True
         assert by_id['c2']['on_waitlist'] is True
         assert by_id['c2']['waitlist_entry_id'] == 'w9'
-        assert by_id['c2']['waitlist_position'] == 2
+        # Place in line, not the stored position: 14 is a high-water mark left
+        # by students who came and went (ba6a89fc), and this one is first.
+        assert by_id['c2']['waitlist_position'] == 1
         assert by_id['c3']['is_enrolled'] is False and by_id['c3']['on_waitlist'] is False
         # Times trimmed to HH:MM for the frontend.
         assert by_id['c1']['meetings'][0]['start_time'] == '09:00'

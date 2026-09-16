@@ -254,7 +254,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
                   <span className="text-neutral-500">{icon(item.d)}</span>
                   {item.name}
                   {item.path === '/inbox' && (
-                    <InboxUnreadBadge orgId={activeOrg?.id || null} isSuperadmin={isSuperadmin} />
+                    <InboxUnreadBadge orgId={activeOrg?.id || null} isSuperadmin={isSuperadmin} admin={isAdmin} />
                   )}
                 </NavLink>
               ))}

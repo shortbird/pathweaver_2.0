@@ -102,8 +102,10 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
           onCancel={() => setEditing(null)}
         />
       )}
-      {loading && <p className="text-neutral-500">Loading…</p>}
-      {!loading && !items.length && <p className="text-neutral-500">No announcements yet.</p>}
+      {/* Without an org the query never runs, so "Loading…" would never end. */}
+      {!orgId && <p className="text-neutral-500">Pick a school to see its announcements.</p>}
+      {orgId && loading && <p className="text-neutral-500">Loading…</p>}
+      {orgId && !loading && !items.length && <p className="text-neutral-500">No announcements yet.</p>}
       <div className="space-y-3">
         {items.map((a) => (
           <div key={a.id} className={`bg-white rounded-xl border p-4 ${a.pinned ? 'border-optio-purple/40' : 'border-gray-200'}`}>

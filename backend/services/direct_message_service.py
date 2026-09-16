@@ -889,6 +889,40 @@ class DirectMessageService(BaseService):
         ).eq('id', convo['id']).execute()
         return value
 
+    def count_threads_needing_reply(self, user_id: str) -> int:
+        """Threads where the other side spoke last and this account has not
+        marked the thread resolved since.
+
+        This is the number the school console's inbox shows on its Needs-reply
+        tab, and the sidebar badge has to say the same thing. It used to say
+        unread MESSAGES -- five from one chatty parent counted five, class
+        chats the page cannot even show counted too -- which read as "9+"
+        beside a page listing three threads (iCreate, 2026-09-15, 4b364a4c:
+        "Why does it say I have 9+ messages when I only have 3 unanswered?").
+
+        Same rule as SchoolInboxPage.needsReply; change both or neither. Runs
+        over get_user_conversations so it sees exactly the threads the page
+        lists, and shares that list's row ceiling.
+        """
+        try:
+            count = 0
+            for c in self.get_user_conversations(user_id):
+                last_at = c.get('last_message_at')
+                if not last_at:
+                    continue
+                resolved_at = c.get('resolved_at')
+                if resolved_at and resolved_at >= last_at:
+                    continue
+                # A thread with no recorded last sender (older payload) still
+                # counts as owed a reply -- better to show one than hide one.
+                if c.get('last_message_sender_id') == user_id:
+                    continue
+                count += 1
+            return count
+        except Exception as e:
+            logger.error(f"Error counting threads needing reply: {str(e)}")
+            return 0
+
     def get_unread_count(self, user_id: str) -> int:
         """
         Get total unread message count for a user (drives the Messages tab badge).

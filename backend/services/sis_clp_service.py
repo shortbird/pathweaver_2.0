@@ -296,6 +296,10 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
         .in_('status', ['waiting', 'offered']).execute()
     ).data or []
     wl_by_class = {w['class_id']: w for w in wl_rows}
+    # Place in line, not the stored position (a high-water mark -- see
+    # sis_waitlist_service.live_ranks).
+    from services import sis_waitlist_service as waitlist_service
+    ranks = waitlist_service.queue_positions(org_id, [w['class_id'] for w in wl_rows])
 
     classes = catalog.list_classes(org_id)
     out_classes: List[Dict[str, Any]] = []
@@ -322,7 +326,7 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
             'is_enrolled': c['id'] in enrolled_ids,
             'on_waitlist': bool(wl),
             'waitlist_entry_id': wl['id'] if wl else None,
-            'waitlist_position': wl.get('position') if wl else None,
+            'waitlist_position': ranks.get(wl['id']) if wl else None,
         })
 
     out_classes.sort(key=lambda c: (c['name'] or '').lower())
@@ -373,12 +377,13 @@ def open_requests(org_id: str, student_id: str,
             .in_('status', ['waiting', 'offered']).execute()
         ).data or []
         from services import sis_waitlist_service as waitlist_service
+        ranks = waitlist_service.queue_positions(org_id, [r['class_id'] for r in rows])
         waitlist = []
         for r in rows:
             entry = {
                 'entry_id': r['id'], 'class_id': r['class_id'],
                 'class_name': names.get(r['class_id']) or 'Class',
-                'status': r.get('status'), 'position': r.get('position'),
+                'status': r.get('status'), 'position': ranks.get(r['id']),
                 'offer_expires_at': r.get('offer_expires_at'),
                 'sections': [],
             }

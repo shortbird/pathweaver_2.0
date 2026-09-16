@@ -346,3 +346,39 @@ class TestSeatHolds:
         assert cat.is_full(10, 9, held=1) is True
         assert cat.is_full(10, 9, held=0) is False
         assert cat.is_full(None, 9, held=5) is False  # unlimited stays unlimited
+
+
+@pytest.mark.unit
+class TestLiveRanks:
+    """What the office SEES is a place in line. The stored position is a
+    high-water mark, and on Art Expeditions it read "#14" over a queue of
+    three (iCreate, 2026-09-16, ba6a89fc)."""
+
+    ENTRIES = [
+        {'id': 'a', 'status': 'promoted', 'position': 1},
+        {'id': 'b', 'status': 'declined', 'position': 2},
+        {'id': 'c', 'status': 'waiting', 'position': 5},
+        {'id': 'd', 'status': 'offered', 'position': 3},
+        {'id': 'e', 'status': 'expired', 'position': 4},
+        {'id': 'f', 'status': 'waiting', 'position': 14},
+    ]
+
+    def test_only_live_rows_hold_a_place(self):
+        assert wl.live_ranks(self.ENTRIES) == {'d': 1, 'c': 2, 'f': 3}
+
+    def test_the_place_follows_position_order_not_the_number(self):
+        assert wl.live_ranks(self.ENTRIES)['f'] == 3  # stored 14, third in line
+
+    def test_empty(self):
+        assert wl.live_ranks([]) == {}
+
+    def test_list_for_class_annotates_each_row(self):
+        rows = [dict(r, student_user_id='s') for r in self.ENTRIES]
+        chain = Mock()
+        for name in ('table', 'select', 'eq', 'in_', 'order'):
+            getattr(chain, name).return_value = chain
+        chain.execute.side_effect = [Mock(data=rows), Mock(data=[])]
+        with patch.object(wl, '_admin', return_value=chain):
+            out = wl.list_for_class('org-1', 'c1')
+        assert [(r['id'], r.get('queue_position')) for r in out] == [
+            ('a', None), ('b', None), ('c', 2), ('d', 1), ('e', None), ('f', 3)]

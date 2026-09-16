@@ -51,10 +51,11 @@ def _table_client(by_table):
 class TestOpenRequests:
     def test_lists_waitlist_and_pending_exceptions_with_class_names(self):
         client = _table_client({'sis_waitlist_entries': [
-            {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'position': 2,
+            {'id': 'w1', 'class_id': 'c1', 'status': 'waiting', 'position': 14,
              'offer_expires_at': None},
         ]})
         with patch('services.sis_clp_service._admin', return_value=client), \
+             patch('services.sis_waitlist_service.queue_positions', return_value={'w1': 1}), \
              patch('services.sis_exception_service.list_requests', return_value=[
                  {'id': 'x1', 'student_user_id': 's1', 'class_id': 'c2',
                   'class_name': 'Pottery', 'message': 'She is 7', 'created_at': 'now'},
@@ -63,7 +64,7 @@ class TestOpenRequests:
              ]):
             out = clp.open_requests('org-1', 's1', [{'class_id': 'c1', 'name': 'Lego Lab'}])
         assert out['waitlist'][0]['class_name'] == 'Lego Lab'
-        assert out['waitlist'][0]['position'] == 2
+        assert out['waitlist'][0]['position'] == 1  # place in line, not the stored 14
         # Another student's request must never leak into this meeting screen.
         assert [r['request_id'] for r in out['age_exceptions']] == ['x1']
 

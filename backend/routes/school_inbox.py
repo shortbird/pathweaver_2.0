@@ -175,13 +175,19 @@ def resolve_thread(user_id: str, conversation_id: str):
 @bp.route('/unread-count', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def unread_count(user_id: str):
-    """Unread member messages across the whole inbox (SIS sidebar badge)."""
+    """Threads in the shared inbox waiting for the office's reply (SIS
+    sidebar badge).
+
+    Threads, not messages: the badge sits on the page that lists threads, and
+    the two disagreed (iCreate, 2026-09-15, 4b364a4c). `unread_count` keeps
+    its name because the badge reads it; `needs_reply_threads` says what it is.
+    """
     try:
         ctx, err = _resolve_inbox(user_id)
         if err:
             return err
-        count = message_service.get_unread_count(ctx['inbox_user_id'])
-        return success_response({'unread_count': count})
+        count = message_service.count_threads_needing_reply(ctx['inbox_user_id'])
+        return success_response({'unread_count': count, 'needs_reply_threads': count})
     except Exception as e:
         logger.error(f"Error getting school inbox unread count: {str(e)}")
         return error_response('Failed to get unread count', status_code=500,

@@ -97,6 +97,23 @@ def next_position(entries: List[Dict[str, Any]]) -> int:
     return (max(positions) + 1) if positions else 1
 
 
+def live_ranks(entries: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Place in line, 1-based, for every entry still waiting or holding an
+    offer, keyed by entry id. Promoted, declined and expired rows get none.
+
+    `position` is a high-water mark: stamped once at join time and never
+    reused, so the thirteen students who came and went off Art Expeditions
+    keep 1-13 and the next joiner is #14 behind two people. The CLP printed
+    that 14 beside a class tab listing three (iCreate, 2026-09-16, ba6a89fc:
+    "it says she's #14 ... I see nowhere near that number of waitlisted
+    students"). The column stays -- pick_next_to_offer and restore-after-
+    withdrawal depend on it -- and only what is SHOWN is the rank.
+    """
+    live = [e for e in (entries or []) if e.get('status') in ('waiting', 'offered')]
+    live.sort(key=lambda e: (e.get('position') or 0))
+    return {e['id']: i + 1 for i, e in enumerate(live)}
+
+
 def pick_next_to_offer(entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """The lowest-position entry still 'waiting' (or None)."""
     waiting = [e for e in (entries or []) if e.get('status') == 'waiting']
@@ -106,6 +123,24 @@ def pick_next_to_offer(entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]
 
 
 # ── DB-backed operations ─────────────────────────────────────────────────────
+def queue_positions(org_id: str, class_ids: List[str]) -> Dict[str, int]:
+    """Entry id -> place in line, for every live entry on the given classes.
+
+    One read for all of them: the CLP and the family schedule name a student's
+    place on several waitlists at once. A student sits on a handful of lists
+    and each holds tens of live rows, so this stays far under the row cap.
+    """
+    from repositories.sis_waitlist_repository import SisWaitlistRepository
+    rows = SisWaitlistRepository(client=_admin()).live_entries_for_classes(org_id, class_ids)
+    by_class: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        by_class.setdefault(r['class_id'], []).append(r)
+    out: Dict[str, int] = {}
+    for entries in by_class.values():
+        out.update(live_ranks(entries))
+    return out
+
+
 def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     rows = (
         _admin().table('sis_waitlist_entries')
@@ -114,6 +149,9 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     ).data or []
     if not rows:
         return []
+    ranks = live_ranks(rows)
+    for r in rows:
+        r['queue_position'] = ranks.get(r['id'])
     student_ids = list({r['student_user_id'] for r in rows})
     users = {
         u['id']: u for u in (

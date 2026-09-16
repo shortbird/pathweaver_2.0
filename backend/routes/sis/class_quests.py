@@ -35,9 +35,11 @@ Python above every read/write.
 """
 
 
+import uuid
+
 from flask import Blueprint, request, jsonify
 
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, validate_uuid_param
 from utils.logger import get_logger
 from utils.quest_completion import is_quest_done
 from utils.validation import validate_uuid
@@ -62,6 +64,7 @@ from services.class_quest_enrollment import (
     withdraw_students_from_quest,
 )
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
+from repositories.notification_repository import NotificationRepository
 from database import get_supabase_admin_client
 from utils import person_name
 from datetime import datetime
@@ -203,6 +206,20 @@ def _student_ids_or_error(data, roster_ids):
 
 
 
+def _front_office_call(user_id, class_row):
+    """Who a call from this room goes to, and who is calling. Shared by the
+    call and its cancellation so the same people hear both."""
+    org_id = class_row['organization_id']
+    # admin client justified: reads the caller's own name row and the org's staff list for a fan-out the route has already authorized through _authorize
+    admin = get_supabase_admin_client()
+    caller = (admin.table('users').select('display_name, first_name, last_name')
+              .eq('id', user_id).limit(1).execute()).data
+    from utils import person_name
+    who = person_name.full_name(caller[0], 'A teacher') if caller else 'A teacher'
+    staff = [s for s in sis_service.front_office_staff(org_id) if s['id'] != user_id]
+    return org_id, who, staff
+
+
 @bp.route('/classes/<class_id>/call-for-help', methods=['POST'])
 @require_auth
 def call_for_help(user_id, class_id):
@@ -219,35 +236,80 @@ def call_for_help(user_id, class_id):
     is called too: a school may have no coordinator on shift, and a call for
     help that reaches nobody would be worse than no button.
 
-    Deliberately fire-and-forget with no record of its own. This is somebody
-    raising a hand, not a ticket; the answer to it arrives in person.
+    Fire-and-forget with no record of its own -- this is somebody raising a
+    hand, not a ticket; the answer arrives in person. The one thing kept is a
+    call id on each notification, so the hand can go back down (the cancel
+    route below). The answer names who was called, because a count alone left
+    the caller with "NO idea where that call even went" (851764d3).
     """
     class_row, admin, err = _authorize(user_id, class_id)
     if err:
         return err
-    org_id = class_row['organization_id']
+    # An admin viewing the console as a teacher is looking, not teaching. The
+    # call would go out under the teacher's name to every phone in the front
+    # office -- including the admin's own (iCreate, 2026-09-15, 851764d3: "I
+    # accidentally hit call for help when previewing as Nicole Connole").
+    if getattr(request, 'masquerade_admin_id', None):
+        return jsonify({'success': False,
+                        'error': 'Call for help is off while you are viewing as someone else.'}), 409
     note = (request.get_json() or {}).get('note') or ''
     note = str(note).strip()[:200]
 
-    caller = (admin.table('users').select('display_name, first_name, last_name')
-              .eq('id', user_id).limit(1).execute()).data
-    from utils import person_name
-    who = person_name.full_name(caller[0], 'A teacher') if caller else 'A teacher'
-
-    recipients = sis_service.front_office_ids(org_id)
+    org_id, who, staff = _front_office_call(user_id, class_row)
+    class_name = class_row.get('name') or 'a class'
+    call_id = str(uuid.uuid4())
     # One NotificationService for the whole fan-out — see sis_notifications.notify.
     from services.notification_service import NotificationService
     service = NotificationService()
-    for rid in recipients:
-        if rid == user_id:
-            continue
+    for s in staff:
         sis_notifications.notify(
-            rid,
-            f'Help needed in {class_row.get("name") or "a class"}',
+            s['id'],
+            f'Help needed in {class_name}',
             f'{who} asked for someone to come{f": {note}" if note else "."}',
-            link=f'/classes?class_id={class_id}', organization_id=org_id,
+            # The classes page opens a class from ?class=. This said ?class_id=,
+            # which it ignores, so "View details" landed on the bare list
+            # (iCreate, 2026-09-15, a1848ed6).
+            link=f'/classes?class={class_id}', organization_id=org_id,
+            metadata={'help_call_id': call_id, 'class_id': class_id},
             service=service)
-    return jsonify({'success': True, 'notified': len([r for r in recipients if r != user_id])})
+    return jsonify({
+        'success': True,
+        'notified': len(staff),
+        'call_id': call_id,
+        'names': [s.get('first_name') or s.get('name') or 'Staff' for s in staff],
+    })
+
+
+@bp.route('/classes/<class_id>/call-for-help/<call_id>/cancel', methods=['POST'])
+@require_auth
+@validate_uuid_param('call_id')
+def cancel_call_for_help(user_id, class_id, call_id):
+    """The hand goes back down.
+
+    iCreate, 2026-09-15 (b25bfa75): "It'd be nice to retract a call for help if
+    you accidentally push it!" The bell entries are deleted, and because the
+    phones have already buzzed, the same people get one line saying it is off
+    -- otherwise somebody walks to a room where nothing is wrong.
+    """
+    class_row, admin, err = _authorize(user_id, class_id)
+    if err:
+        return err
+    org_id, who, staff = _front_office_call(user_id, class_row)
+    # Only this org's rows carrying this call id: the id is the one minted for
+    # the caller above, and nothing else writes help_call_id.
+    NotificationRepository(client=admin).delete_help_call(org_id, call_id)
+    class_name = class_row.get('name') or 'a class'
+    from services.notification_service import NotificationService
+    service = NotificationService()
+    for s in staff:
+        sis_notifications.notify(
+            s['id'],
+            f'No longer needed in {class_name}',
+            f'{who} cancelled the call for help.',
+            link=f'/classes?class={class_id}', organization_id=org_id,
+            metadata={'help_call_id': call_id, 'cancelled': True, 'class_id': class_id},
+            service=service)
+    return jsonify({'success': True, 'notified': len(staff)})
 
 
 # ── Assigned quests ───────────────────────────────────────────────────────────

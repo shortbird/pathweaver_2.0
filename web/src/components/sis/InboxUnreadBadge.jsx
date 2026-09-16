@@ -22,37 +22,46 @@ import { withOrg } from '../../pages/sis/useSisOrg'
  */
 const REFETCH_MS = 60000
 
-const unreadFrom = (res) => {
+// Threads waiting for a reply -- what the inbox page counts -- not unread
+// messages. Messages made it "9+" against a page of three threads (iCreate,
+// 2026-09-15, 4b364a4c): one chatty parent counted five, and class chats the
+// page cannot show counted too.
+const threadsFrom = (res) => {
   const data = res?.data?.data ?? res?.data ?? {}
-  return Number(data.unread_count ?? data.count ?? data.unread ?? 0) || 0
+  return Number(data.needs_reply_threads ?? 0) || 0
 }
 
-const InboxUnreadBadge = ({ orgId = null, isSuperadmin = false }) => {
+// `admin` is the sidebar's answer (its own role check, minus a teacher
+// preview) so this badge cannot ask for the school inbox on a preview the
+// sidebar has already stopped drawing admin nav for.
+const InboxUnreadBadge = ({ orgId = null, isSuperadmin = false, admin = undefined }) => {
   const { user } = useAuth()
-  const admin = isSisAdmin(user)
+  const isAdmin = admin === undefined ? isSisAdmin(user) : admin
 
   const { data: count = 0 } = useQuery({
-    queryKey: ['sis', 'inboxUnread', orgId, admin],
-    enabled: Boolean(user?.id) && !(admin && isSuperadmin && !orgId),
+    queryKey: ['sis', 'inboxUnread', orgId, isAdmin],
+    enabled: Boolean(user?.id) && !(isAdmin && isSuperadmin && !orgId),
     refetchInterval: REFETCH_MS,
     staleTime: REFETCH_MS / 2,
     queryFn: async () => {
-      const requests = [api.get('/api/messages/unread-count').catch(() => null)]
-      if (admin) {
+      const requests = [api.get('/api/messages/unread-count?threads=1').catch(() => null)]
+      if (isAdmin) {
         requests.push(
-          api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null))
+          // expect403: a refusal is an empty half, not a page to Sentry
+          // (OPTIO-WEB-24: an admin's tab polling under a masquerade cookie).
+          api.get(withOrg('/api/school-inbox/unread-count', isSuperadmin ? orgId : null), { expect403: true })
             .catch(() => null),
         )
       }
       const results = await Promise.all(requests)
-      return results.reduce((n, r) => n + unreadFrom(r), 0)
+      return results.reduce((n, r) => n + threadsFrom(r), 0)
     },
   })
 
   if (!count) return null
   return (
     <span
-      aria-label={`${count} unread message${count === 1 ? '' : 's'}`}
+      aria-label={`${count} thread${count === 1 ? '' : 's'} waiting for a reply`}
       className="ml-auto min-w-[20px] rounded-full bg-optio-pink px-1.5 py-0.5 text-center text-[11px] font-semibold leading-tight text-white"
     >
       {count > 9 ? '9+' : count}

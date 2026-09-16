@@ -223,12 +223,15 @@ const SubmissionsPage = () => {
       .catch(() => { /* class filter stays empty */ })
   }, [orgId])
 
-  const load = useCallback(() => {
+  // When the list (and the signed evidence URLs in it) last arrived.
+  const loadedAt = useRef(0)
+  const load = useCallback(({ quiet = false } = {}) => {
     if (!orgId) return
-    setLoading(true)
+    if (!quiet) setLoading(true)
     const params = `scope=${scope}${classId ? `&class_id=${classId}` : ''}`
     api.get(withOrg(`/api/sis/submissions?${params}`, orgId))
       .then((r) => {
+        loadedAt.current = Date.now()
         const list = r.data?.submissions || []
         setSubmissions(list)
         setCounts(r.data?.counts || { new: 0, reviewed: 0 })
@@ -247,10 +250,30 @@ const SubmissionsPage = () => {
           list.some((s) => s.completion_id === prev) ? prev : (list[0]?.completion_id || null))
       })
       .catch(() => toast.error('Failed to load submissions'))
-      .finally(() => setLoading(false))
+      .finally(() => { if (!quiet) setLoading(false) })
   }, [orgId, scope, classId])
 
   useEffect(() => { load() }, [load])
+
+  // The evidence links are signed URLs, good for an hour from the load above.
+  // A teacher who read through the class and clicked "poems.pdf" seventy
+  // minutes later got Supabase's InvalidJWT page instead (Gryffin,
+  // 2026-09-15, d270e78f). So the list is fetched again, without the loading
+  // flash, when the tab comes back after a while and on a timer well inside
+  // the hour -- fresh signatures under the same links.
+  useEffect(() => {
+    const STALE_MS = 10 * 60 * 1000
+    const refresh = () => { if (Date.now() - loadedAt.current > STALE_MS) load({ quiet: true }) }
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    const timer = setInterval(refresh, 20 * 60 * 1000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      clearInterval(timer)
+    }
+  }, [load])
 
   const selected = useMemo(
     () => submissions.find((s) => s.completion_id === selectedId) || null,

@@ -75,6 +75,33 @@ beforeEach(() => {
 })
 
 describe('SubmissionsPage', () => {
+  it('fetches the list again, quietly, when the tab comes back after a while', async () => {
+    // The evidence links are signed URLs good for an hour from the load. A
+    // teacher who clicked "poems.pdf" seventy minutes in got Supabase's
+    // InvalidJWT page (Gryffin, 2026-09-15, d270e78f).
+    render(<SubmissionsPage />)
+    await screen.findByText('New (2)')
+    const loads = () => api.get.mock.calls.filter((c) => c[0].includes('/api/sis/submissions?')).length
+    expect(loads()).toBe(1)
+
+    // Coming straight back is not a reason to reload.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(loads()).toBe(1)
+
+    // Eleven minutes later it is.
+    const realNow = Date.now
+    Date.now = () => realNow() + 11 * 60 * 1000
+    try {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await waitFor(() => expect(loads()).toBe(2))
+      // Quiet: the list stays on screen while it refreshes.
+      expect(screen.getByText('New (2)')).toBeInTheDocument()
+    } finally {
+      Date.now = realNow
+    }
+  })
+
   it('loads the queue with scope counts and shows the first submission', async () => {
     render(<SubmissionsPage />)
     expect(await screen.findByText('New (2)')).toBeInTheDocument()

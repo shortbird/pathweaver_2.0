@@ -469,8 +469,17 @@ def get_unread_count(user_id: str):
         direct_unread = message_service.get_unread_count(user_id)
         group_unread = GroupMessageService().get_unread_total(user_id)
 
+        # The school console's badge asks for threads waiting on the caller
+        # (?threads=1) -- what its inbox page lists -- rather than message
+        # counts. Opt-in: it walks the conversation list, and the messenger's
+        # badge polls this route every minute without needing it.
+        threads = None
+        if request.args.get('threads') in ('1', 'true'):
+            threads = message_service.count_threads_needing_reply(user_id)
+
         return success_response({
             'unread_count': direct_unread + group_unread,
+            'needs_reply_threads': threads,
             # Broken out so a wrong badge can be attributed to a surface
             # without re-deriving both halves by hand.
             'direct_unread': direct_unread,

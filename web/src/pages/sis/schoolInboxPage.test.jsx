@@ -37,7 +37,9 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
 
 // The board tab drags in TipTap; this page only has to mount it.
 vi.mock('../../components/sis/BoardAnnouncementsTab', () => ({
-  default: () => <div>composer-stub</div>,
+  // Prints its orgId: the tab loads nothing without one, and the page once
+  // handed it null for everybody but a superadmin.
+  default: ({ orgId }) => <div>composer-stub {orgId || 'no-org'}</div>,
 }))
 // Realtime needs a Supabase socket; the hook is covered by its own tests.
 vi.mock('../../hooks/api/useMessagingRealtime', () => ({
@@ -214,10 +216,11 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('shows the announcements composer on its tab, for teachers too', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />, { route: '/inbox?tab=announcements' })
-    expect(await screen.findByText('composer-stub')).toBeInTheDocument()
+    // With the org it is for -- not null -- or the list never loads.
+    expect(await screen.findByText('composer-stub org-1')).toBeInTheDocument()
     // And the tabs switch back to threads.
     fireEvent.click(screen.getByRole('button', { name: /^My messages/ }))
-    expect(screen.queryByText('composer-stub')).not.toBeInTheDocument()
+    expect(screen.queryByText(/composer-stub/)).not.toBeInTheDocument()
   })
 
   // ── The personal inbox (2026-09-10) ────────────────────────────────────────

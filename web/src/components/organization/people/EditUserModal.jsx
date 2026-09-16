@@ -94,10 +94,17 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove, onSetStandin
     setError('')
 
     try {
+      // Email goes only when this modal was handed the user's email in the
+      // first place. The student record page opens it with a thin row (id and
+      // names), and sending its empty field wiped a real address; requiring
+      // one blocked a plain rename of a kid who has none (iCreate,
+      // 2026-09-16, 7962081e: "I can't edit the name of a student without
+      // adding in an email").
+      const knowsEmail = 'email' in user || 'username' in user
       await api.put(`/api/admin/users/${user.id}`, {
         first_name: formData.first_name,
         last_name: formData.last_name,
-        email: formData.email
+        ...(knowsEmail ? { email: formData.email } : {})
       })
 
       const originalRoles = getEffectiveRoles()
@@ -157,13 +164,17 @@ function EditUserModal({ orgId, user, onClose, onSuccess, onRemove, onSetStandin
             </div>
           ) : (
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1">
+                Email{user.email ? '' : ' (optional)'}
+              </label>
+              {/* Required only where an address exists: a kid the school set
+                  up has none, and a rename must not demand one. */}
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple outline-none"
-                required
+                required={Boolean(user.email)}
               />
             </div>
           )}

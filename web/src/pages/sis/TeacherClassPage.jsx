@@ -5,6 +5,8 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisTeacherClass } from '../../hooks/api/useSisTeacherClass'
 import { useSisOrg, withOrg } from './useSisOrg'
+import { getPreviewTeacher } from './teacherPreview'
+import { isMasquerading } from '../../services/masqueradeService'
 import StudentProgressTab from '../../components/sis/StudentProgressTab'
 import ClassCurriculum from '../../components/discussion/ClassCurriculum'
 import ClassMessagesTab from '../../components/sis/ClassMessagesTab'
@@ -68,6 +70,19 @@ const fmtTime = (hhmm) => {
 // old ?tab=discussion links land there.
 const TAB_ALIASES = { gradebook: 'progress', discussion: 'messages' }
 
+// "Molly, Katrine and 8 others" -- first names, since the office is people
+// the teacher knows; the count is the fallback when the server sent none.
+const nameList = (names, n) => {
+  const shown = names.slice(0, 3)
+  const rest = n - shown.length
+  if (!shown.length) return `${n} ${n === 1 ? 'person' : 'people'}`
+  if (rest <= 0) {
+    return shown.length === 1 ? shown[0]
+      : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`
+  }
+  return `${shown.join(', ')} and ${rest} other${rest === 1 ? '' : 's'}`
+}
+
 const TeacherClassPage = () => {
   const { classId } = useParams()
   const { orgId, activeOrg } = useSisOrg()
@@ -88,20 +103,44 @@ const TeacherClassPage = () => {
   // system, and one who will be around a while goes on as an assistant teacher.
   const [subSheet, setSubSheet] = useState(false)
   const [calling, setCalling] = useState(false)
+  // The call this page last sent, until it is cancelled or the page is left.
+  const [call, setCall] = useState(null)
+  // An admin looking at the console as a teacher is not in the room. The
+  // server refuses the call under a masquerade anyway; here the button goes,
+  // as every other write does in preview (iCreate, 2026-09-15, 851764d3: "I
+  // accidentally hit call for help when previewing as Nicole Connole").
+  const previewing = Boolean(getPreviewTeacher()) || isMasquerading()
 
   // Deliberately no confirm dialog: somebody who needs a person in the room
-  // should not have to answer a question first. The toast names how many were
-  // reached, so an accidental tap is visible and can be waved off in person.
+  // should not have to answer a question first. The toast names WHO was
+  // reached -- a count alone left the caller with "NO idea where that call
+  // even went" (851764d3) -- and an accidental tap can be cancelled.
   const callForHelp = async () => {
     setCalling(true)
     try {
       const { data } = await api.post(`/api/sis/classes/${classId}/call-for-help`, {})
-      const n = data?.notified || 0
+      const names = Array.isArray(data?.names) ? data.names : []
+      const n = data?.notified || names.length
+      if (n && data?.call_id) setCall({ id: data.call_id })
       toast.success(n
-        ? `Called ${n} ${n === 1 ? 'person' : 'people'} in the front office`
+        ? `Called ${nameList(names, n)} in the front office`
         : 'Nobody in the front office to call — tell the office directly')
     } catch (err) {
       toast.error(err?.response?.data?.error || 'Could not send that')
+    } finally { setCalling(false) }
+  }
+
+  // "It'd be nice to retract a call for help if you accidentally push it!"
+  // (iCreate, 2026-09-15, b25bfa75). The same people are told it is off.
+  const cancelCall = async () => {
+    if (!call?.id) return
+    setCalling(true)
+    try {
+      await api.post(`/api/sis/classes/${classId}/call-for-help/${call.id}/cancel`, {})
+      setCall(null)
+      toast.success('Cancelled. The front office has been told.')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not cancel that')
     } finally { setCalling(false) }
   }
   // Which student's health alert is expanded. Hover-only tooltips were
@@ -171,10 +210,17 @@ const TeacherClassPage = () => {
               button'... when a teacher needed help in the class." It rings the
               front office's bell and pushes to their phone — the surface they
               already watch — rather than adding one they would have to learn. */}
-          <button onClick={callForHelp} disabled={calling}
-            className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
-            {calling ? 'Calling…' : 'Call for help'}
-          </button>
+          {!previewing && (call ? (
+            <button onClick={cancelCall} disabled={calling}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium text-neutral-700 hover:bg-gray-50 disabled:opacity-50">
+              {calling ? 'Cancelling…' : 'Cancel call for help'}
+            </button>
+          ) : (
+            <button onClick={callForHelp} disabled={calling}
+              className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+              {calling ? 'Calling…' : 'Call for help'}
+            </button>
+          ))}
           <button onClick={() => setSubSheet(true)}
             className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
             Substitute sheet

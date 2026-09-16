@@ -192,16 +192,14 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
+                  {/* The title shares its line only with the buttons. The two
+                      chips sit on a line of their own below: with them beside
+                      it, in the narrow column under /curriculum, the title was
+                      the one flexible thing in the row and was squeezed to
+                      nothing once the subject chip arrived (iCreate,
+                      2026-09-15, 41020b5a: "I can't actually see the names of
+                      the tasks though, now that the subject tag is there"). */}
                   <span className="flex-1 min-w-0 truncate text-neutral-800">{t.title}</span>
-                  <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
-                    {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
-                  </span>
-                  {/* The credit the task earns, on the row rather than only in
-                      the editor: a task filed under the wrong subject looks
-                      exactly like a right one until you open it. */}
-                  <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
-                    {(t.diploma_subjects || []).map((s) => SUBJECT_LABEL[s] || s).join(' · ') || 'No subject'}
-                  </span>
                   {editable && (
                     <>
                       {tasks.length > 1 && (
@@ -224,6 +222,19 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
                         aria-label="Remove task"><TrashIcon className="w-4 h-4" /></button>
                     </>
                   )}
+                </div>
+              )}
+              {editingId !== t.id && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-neutral-500">
+                    {PILLAR_LABEL[t.pillar] || t.pillar} · {t.xp_value} XP{t.is_required ? ' · required' : ''}
+                  </span>
+                  {/* The credit the task earns, on the row rather than only in
+                      the editor: a task filed under the wrong subject looks
+                      exactly like a right one until you open it. */}
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
+                    {(t.diploma_subjects || []).map((s) => SUBJECT_LABEL[s] || s).join(' · ') || 'No subject'}
+                  </span>
                 </div>
               )}
               {/* What this particular task needs: the worksheet for step 3, the

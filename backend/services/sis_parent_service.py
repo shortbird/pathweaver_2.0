@@ -756,10 +756,13 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         .in_('status', ['waiting', 'offered']).execute()
     ).data or []
     by_id = {c['id']: c for c in all_classes}
+    # Place in line, not the stored high-water mark (sis_waitlist_service.live_ranks).
+    from services import sis_waitlist_service
+    ranks = sis_waitlist_service.queue_positions(org_id, [w['class_id'] for w in waitlist_rows])
     waitlist = [{
         'entry_id': w['id'], 'class_id': w['class_id'],
         'class_name': (by_id.get(w['class_id']) or {}).get('name') or 'Class',
-        'position': w.get('position'), 'status': w.get('status'),
+        'position': ranks.get(w['id']), 'status': w.get('status'),
         'meetings': (by_id.get(w['class_id']) or {}).get('meetings') or [],
     } for w in waitlist_rows]
 
@@ -973,7 +976,9 @@ def add_class(user_id: str, org_id: str, student_user_id: str, class_id: str) ->
         entry = sis_waitlist_service.add_to_waitlist(org_id, class_id, student_user_id)
         if (entry or {}).get('already_enrolled'):
             return {'enrolled': True, 'already': True}
-        return {'waitlisted': True, 'position': (entry or {}).get('position')}
+        ranks = sis_waitlist_service.queue_positions(org_id, [class_id])
+        return {'waitlisted': True,
+                'position': ranks.get((entry or {}).get('id')) or (entry or {}).get('position')}
 
     _admin().table('class_enrollments').upsert({
         'class_id': class_id,

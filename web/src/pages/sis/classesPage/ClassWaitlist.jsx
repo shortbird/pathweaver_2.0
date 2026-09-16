@@ -259,7 +259,10 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
                   clipped — which is why the age looked missing rather than
                   absent (iCreate, 2026-08-13: "I also can't see the age here"). */}
               <span className="text-neutral-700 min-w-0 flex items-baseline gap-1.5">
-                <span className="min-w-0 truncate">#{e.position} · {e.student_name}</span>
+                {/* queue_position is the place in line; history rows (promoted,
+                    declined, expired) have none. The stored position is a
+                    high-water mark and read as "#14" over three people. */}
+                <span className="min-w-0 truncate">{e.queue_position ? `#${e.queue_position} · ` : ''}{e.student_name}</span>
                 {e.student_age != null && <span className="shrink-0 text-xs text-neutral-400">age {e.student_age}</span>}
                 <span className={`shrink-0 text-xs ${meta.tone}`}>{meta.label}</span>
                 {expiry && <span className="shrink-0 text-xs text-neutral-400">({expiry})</span>}
