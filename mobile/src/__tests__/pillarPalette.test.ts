@@ -108,9 +108,11 @@ describe("mobile derives from it rather than copying it", () => {
  * flipped back by someone matching them to a stale screenshot.
  */
 describe('every surface now agrees with shared/data/pillars.json', () => {
+  // web/src/constants/brandStyles.js was on this list until 2026-09-15, when
+  // it was deleted as dead code: nothing in the web app imported it. A file
+  // that does not exist cannot hold a wrong copy.
   const SPELLS_PILLAR_HEXES = [
     'web/tailwind.config.js',
-    'web/src/constants/brandStyles.js',
     'web/src/utils/pillarMappings.js',
   ];
 

@@ -39,9 +39,6 @@ jest.mock('@/src/components/capture/CaptureModal', () => ({
 jest.mock('@/src/components/journal/EditMomentModal', () => ({
   EditMomentModal: () => null,
 }));
-jest.mock('@/src/components/journal/QuestTasksSection', () => ({
-  QuestTasksSection: () => null,
-}));
 jest.mock('@/src/components/journal/GenerateTasksModal', () => ({
   GenerateTasksModal: () => null,
 }));
