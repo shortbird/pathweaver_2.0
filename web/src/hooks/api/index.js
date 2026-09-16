@@ -41,3 +41,10 @@ export {
   useAdminTicketSummary,
   useUpdateAdminTicket,
 } from './useAdminTickets';
+export {
+  useTrainingLinks,
+  useTrainingLinksProgress,
+  useSaveTrainingLink,
+  useDeleteTrainingLink,
+  useSetTrainingLinkDone,
+} from './useTrainingLinks';

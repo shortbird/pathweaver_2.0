@@ -155,7 +155,8 @@ def _ack_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str, Any]]
     if audience != 'staff':
         return []
     rows = (_admin().table('org_resources')
-            .select('id, title, audience, visible_to_roles, requires_ack, version_date, updated_at')
+            .select('id, title, audience, visible_to_roles, visible_to_user_ids, '
+                    'requires_ack, version_date, updated_at, is_training')
             .eq('organization_id', org_id).eq('requires_ack', True)
             .order('sort_order').order('title').execute()).data or []
     rows = [r for r in rows if (r.get('audience') or 'families') in ('staff', 'all')]
@@ -173,11 +174,16 @@ def _ack_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str, Any]]
         # An acknowledgment covers the version it was given for. Re-versioning a
         # policy is how the office asks everyone to read it again.
         current = bool(mine) and ((r.get('version_date') or '') <= (mine.get('version_date') or ''))
+        # A required training link is the same obligation with a different
+        # home: it is done on the Training page, not the Resources page,
+        # which hides training rows (routes/sis/training_links.py).
+        training = bool(r.get('is_training'))
         out.append({
             'id': f"ack:{r['id']}",
             'type': 'ack',
-            'title': f"Acknowledge: {r.get('title') or 'Document'}",
-            'context': 'Staff resources',
+            'title': (f"Training: {r.get('title') or 'Untitled'}" if training
+                      else f"Acknowledge: {r.get('title') or 'Document'}"),
+            'context': 'Training' if training else 'Staff resources',
             'status': 'done' if current else 'todo',
             'native_status': 'acknowledged' if current else 'pending',
             'due_date': None,
@@ -185,7 +191,7 @@ def _ack_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str, Any]]
             'assigned_by_name': None,
             'created_at': r.get('updated_at'),
             'resource_id': r['id'],
-            'link': f"/resources?highlight={r['id']}",
+            'link': '/training' if training else f"/resources?highlight={r['id']}",
         })
     return out
 

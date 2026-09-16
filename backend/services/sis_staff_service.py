@@ -353,7 +353,7 @@ def staff_resources_for(user_id: str, org_id: str,
     rows = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
         .select('id, title, url, category, audience, visible_to_roles, visible_to_user_ids')
-        .eq('organization_id', org_id)
+        .eq('organization_id', org_id).eq('is_training', False)
         .in_('audience', ['staff', 'all'])
         .order('title').execute()
     ).data or [])
@@ -451,11 +451,14 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     onboarding = my_onboarding_summary(org_id, user_id)
 
     # Required staff resources not yet acknowledged (or re-required after update).
-    # Role-narrowed resources only nag the roles they target.
+    # Role-narrowed resources only nag the roles they target. Training links
+    # are left out: this card sends people to /resources, where a training
+    # row is hidden, so it would point at nothing. The Training page carries
+    # its own required-items banner.
     resources = sis_service.filter_role_visible(user_id, (
         _admin().table('org_resources')
         .select('id, title, url, version_date, updated_at, visible_to_roles, visible_to_user_ids')
-        .eq('organization_id', org_id).eq('requires_ack', True)
+        .eq('organization_id', org_id).eq('requires_ack', True).eq('is_training', False)
         .in_('audience', ['staff', 'all']).execute()
     ).data or [])
     acked = {}

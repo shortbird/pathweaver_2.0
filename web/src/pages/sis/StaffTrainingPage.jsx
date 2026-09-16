@@ -14,7 +14,14 @@ import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
 import QuestPreviewModal from '../../components/sis/QuestPreviewModal'
 import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
+import { TrainingLinkForm, TrainingLinkRow } from '../../components/sis/TrainingLinks'
+import {
+  useTrainingLinks, useTrainingLinksProgress, useDeleteTrainingLink,
+} from '../../hooks/api/useTrainingLinks'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import {
+  progressLabel, xpLabel, xpStyle, progressStyle, words, assignedMessage,
+} from './trainingCopy'
 
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
@@ -39,73 +46,6 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  */
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
-const progressLabel = (p) => {
-  if (!p?.started) return 'Not started'
-  if (p.completed) return 'Complete'
-  if (!p.total) return 'In progress'
-  return `${p.done} of ${p.total} tasks`
-}
-
-/** "150 of 300 XP" — only where a finish line has actually been set. */
-const xpLabel = (item) => {
-  const needed = item?.xp_threshold || 0
-  if (!needed) return null
-  return `${item.my_progress?.earned_xp || 0} of ${needed} XP`
-}
-
-const xpStyle = (item) => {
-  const needed = item?.xp_threshold || 0
-  const earned = item?.my_progress?.earned_xp || 0
-  return earned >= needed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-600'
-}
-
-const progressStyle = (p) => {
-  if (!p?.started) return 'bg-gray-100 text-neutral-500'
-  if (p.completed) return 'bg-green-100 text-green-700'
-  return 'bg-amber-100 text-amber-800'
-}
-
-/** What each tab calls the people on it, in the few places copy needs it. */
-const AUDIENCE_WORDS = {
-  // `joiners` is who arrives later, which is not always the plural of `one`:
-  // people join a school as staff, not as "people".
-  staff: { one: 'person', many: 'people', joiners: 'staff',
-    quests: 'training quests', add: 'Add training' },
-  family: { one: 'family', many: 'families', joiners: 'families',
-    quests: 'family quests', add: 'Add a family quest' },
-  student: { one: 'student', many: 'students', joiners: 'students',
-    quests: 'student quests', add: 'Add a student quest' },
-}
-const words = (audience) => AUDIENCE_WORDS[audience] || AUDIENCE_WORDS.staff
-
-const people = (n, audience) => {
-  const { one, many } = words(audience)
-  return `${n} ${n === 1 ? one : many}`
-}
-
-/**
- * "1 family's account", "2 families' accounts", "3 people's accounts".
- *
- * The possessive cannot be tacked onto the plural: "families" already ends in
- * s and takes a bare apostrophe, while "people" does not and takes 's. Gluing
- * "'s" on regardless produced "2 families's accounts".
- */
-const accountsOf = (n, audience) => {
-  const { one, many } = words(audience)
-  if (n === 1) return `${n} ${one}'s account`
-  return `${n} ${many}${many.endsWith('s') ? "'" : "'s"} accounts`
-}
-
-/** "Added to training. Now on 22 people's accounts." */
-const assignedMessage = (assigned, audience, base) => {
-  if (!assigned) return base
-  const { enrolled = 0, already = 0 } = assigned
-  const total = enrolled + already
-  if (!total) return `${base} Nobody to assign it to yet.`
-  if (!enrolled) return `${base} ${people(already, audience)} already had it.`
-  return `${base} Now on ${accountsOf(enrolled, audience)}${already ? `, ${already} already had it` : ''}.`
-}
 
 const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editItem = null }) => {
   const [options, setOptions] = useState([])
@@ -176,7 +116,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
   // existing quest is a dead end if you have not made one, and sending somebody
   // to the learning app to author one and come back is not a flow people
   // finish. Both doors, same panel.
-  const [tab, setTab] = useState('existing') // existing | new
+  const [tab, setTab] = useState('existing') // existing | new | link
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [tasks, setTasks] = useState([blankTask()])
@@ -316,8 +256,14 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
     }
   }
 
-  return (
-    <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
+  // Three doors for staff: attach a quest, build one, or link to a video or
+  // document (TrainingLinks.jsx). Families and students get the two quest
+  // doors; a link for them has no portal to be done on. Editing has one door
+  // — the quest already exists and is being rewritten.
+  const doors = [['existing', 'Use an existing quest'], ['new', 'Build a new one'],
+    ...(audience === 'staff' ? [['link', 'Link to a video or document']] : [])]
+  const header = (
+    <>
       <p className="text-sm text-neutral-600">
         {editItem
           ? 'Editing this quest. Changes apply to anyone who starts it from now on \u2014 tasks already on somebody\u2019s account are their work and are left alone.'
@@ -325,12 +271,10 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
             ? 'A family quest is an ordinary quest \u2014 parents complete it on their own account. Attach one you already have, or build it here.'
             : audience === 'student'
               ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, or build it here.'
-              : 'Training is a quest. Attach one you already have, or build it here.'}
+              : 'Training is a quest or a link. Attach a quest you already have, build one here, or link to a video or document.'}
       </p>
-      {/* Two doors: attach one that exists, or build one here. Editing has only
-          the one door \u2014 the quest already exists and is being rewritten. */}
-      <div className={`flex gap-1 border-b border-gray-200 ${editItem ? 'hidden' : ''}`}>
-        {[['existing', 'Use an existing quest'], ['new', 'Build a new one']].map(([k, label]) => (
+      <div className={`flex gap-1 flex-wrap border-b border-gray-200 ${editItem ? 'hidden' : ''}`}>
+        {doors.map(([k, label]) => (
           <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k}
             className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
               tab === k ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}>
@@ -338,6 +282,21 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
           </button>
         ))}
       </div>
+    </>
+  )
+
+  if (tab === 'link') {
+    return (
+      <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
+        {header}
+        <TrainingLinkForm orgId={orgId} onSaved={onAdded} onCancel={onCancel} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="border border-optio-purple/30 rounded-xl p-4 space-y-3 bg-optio-purple/5 mb-6">
+      {header}
 
       {tab === 'existing' ? (
         /* Grouped by where the quest came from and alphabetical inside each
@@ -608,6 +567,14 @@ const StaffTrainingPage = () => {
     }
   }, [orgId, admin, audience])
 
+  // Training links (TrainingLinks.jsx), through hooks/api. Staff only: the
+  // family and student tabs are quests, so those tabs read nothing here.
+  const { data: fetchedLinks = [] } = useTrainingLinks(orgId, { enabled: !!orgId && audience === 'staff' })
+  const { data: linkReport = null } = useTrainingLinksProgress(orgId,
+    { enabled: !!orgId && admin && audience === 'staff' })
+  const links = audience === 'staff' ? fetchedLinks : []
+  const deleteLink = useDeleteTrainingLink(orgId)
+
   useEffect(() => { load() }, [load])
 
   // Idempotent on the backend, so it is safe to press again next week to catch
@@ -615,6 +582,7 @@ const StaffTrainingPage = () => {
   const [assigning, setAssigning] = useState(null)
   const [picking, setPicking] = useState(null)
   const [editing, setEditing] = useState(null)
+  const [editingLink, setEditingLink] = useState(null)
   const assign = async (t) => {
     setAssigning(t.id)
     try {
@@ -668,19 +636,41 @@ const StaffTrainingPage = () => {
     }
   }
 
-  const grouped = useMemo(() => training.reduce((acc, t) => {
+  const removeLink = async (l) => {
+    if (!(await confirm(`Remove "${l.title}" from training?`))) return
+    try {
+      await deleteLink.mutateAsync(l.id)
+      toast.success('Removed from training')
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not remove it')
+    }
+  }
+
+  // Quests and links share the category headings: a category is how the
+  // office files training, whatever shape each item takes.
+  const grouped = useMemo(() => [
+    ...training.map((t) => ({ ...t, kind: 'quest' })),
+    ...links.map((l) => ({ ...l, kind: 'link' })),
+  ].reduce((acc, t) => {
     const key = t.category || 'General'
     ;(acc[key] = acc[key] || []).push(t)
     return acc
-  }, {}), [training])
+  }, {}), [training, links])
 
   const mine = useMemo(() => {
     const req = training.filter((t) => t.is_required)
+    const reqLinks = links.filter((l) => l.is_required)
     return {
-      requiredTotal: req.length,
-      requiredDone: req.filter((t) => t.my_progress?.completed).length,
+      requiredTotal: req.length + reqLinks.length,
+      requiredDone: req.filter((t) => t.my_progress?.completed).length
+        + reqLinks.filter((l) => l.my_done).length,
     }
-  }, [training])
+  }, [training, links])
+
+  // The report is two halves, one per table, joined here by person.
+  const linkCells = useMemo(() => Object.fromEntries(
+    (linkReport?.staff || []).map((s) => [s.user_id, s])), [linkReport])
+  const reportLinks = linkReport?.links || []
 
   return (
     <div>
@@ -718,7 +708,7 @@ const StaffTrainingPage = () => {
             mine.requiredDone === mine.requiredTotal ? 'text-green-800' : 'text-amber-900'}`}>
             {mine.requiredDone === mine.requiredTotal
               ? 'All required training complete.'
-              : `${mine.requiredDone} of ${mine.requiredTotal} required quests complete.`}
+              : `${mine.requiredDone} of ${mine.requiredTotal} required items complete.`}
           </p>
         </div>
       )}
@@ -751,15 +741,24 @@ const StaffTrainingPage = () => {
         orgLogo={orgLogo} editItem={editing}
         onAdded={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />}
 
+      {editingLink && (
+        <div className="border border-optio-purple/30 rounded-xl p-4 bg-optio-purple/5 mb-6">
+          <TrainingLinkForm key={editingLink.id} orgId={orgId} link={editingLink}
+            onSaved={() => setEditingLink(null)} onCancel={() => setEditingLink(null)} />
+        </div>
+      )}
+
       {loading && <p className="text-neutral-500">Loading…</p>}
 
-      {!loading && !training.length && (
+      {!loading && !training.length && !links.length && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
           <AcademicCapIcon className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
           <p className="text-sm text-neutral-600 font-medium">
             No {words(audience).quests} yet.
           </p>
-          {admin && <p className="text-sm text-neutral-500 mt-1">Build a quest, then add it here.</p>}
+          {admin && <p className="text-sm text-neutral-500 mt-1">
+            {audience === 'staff' ? 'Add a quest, or link to a video or document.' : 'Build a quest, then add it here.'}
+          </p>}
         </div>
       )}
 
@@ -767,7 +766,11 @@ const StaffTrainingPage = () => {
         <div key={category} className="mb-6">
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {items.map((t) => (
+            {items.map((t) => t.kind === 'link' ? (
+              <TrainingLinkRow key={`link-${t.id}`} link={t} orgId={orgId} admin={admin}
+                onEdit={() => { setAdding(false); setEditing(null); setEditingLink(t) }}
+                onRemove={() => removeLink(t)} />
+            ) : (
               <div key={t.id} className="p-4 flex items-start gap-3">
                 {t.my_progress?.completed
                   ? <CheckCircleIcon className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
@@ -866,8 +869,8 @@ const StaffTrainingPage = () => {
         <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
                     {audience === 'family' ? 'Family' : audience === 'student' ? 'Student' : 'Staff'}
                   </th>
-                  {(report.training || []).map((t) => (
-                    <th key={t.quest_id} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
+                  {[...(report.training || []), ...reportLinks].map((t) => (
+                    <th key={t.quest_id || `link-${t.id}`} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
                       <span className="block truncate max-w-[10rem] mx-auto" title={t.title}>{t.title}</span>
                       {t.is_required && <span className="block text-[11px] font-normal text-optio-purple">required</span>}
                     </th>
@@ -886,8 +889,22 @@ const StaffTrainingPage = () => {
                         </span>
                       </td>
                     ))}
+                    {/* A dash where the link was never aimed at this person,
+                        so nobody reads "not done" on a training they were not
+                        given. */}
+                    {(linkCells[s.user_id]?.cells || reportLinks.map((l) => ({ link_id: l.id, applies: true }))).map((c) => (
+                      <td key={`link-${c.link_id}`} className="px-3 py-2.5 text-center">
+                        {!c.applies ? <span className="text-neutral-300">{'\u2014'}</span> : (
+                          <span className={`inline-block px-2 py-1 rounded-md text-xs ${
+                            c.done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-500'}`}>
+                            {c.done ? 'Done' : 'Not done'}
+                          </span>
+                        )}
+                      </td>
+                    ))}
                     <td className="px-3 py-2.5 text-center text-neutral-600">
-                      {s.required_completed}<span className="text-neutral-400">/{report.required_total}</span>
+                      {s.required_completed + (linkCells[s.user_id]?.required_completed || 0)}
+                      <span className="text-neutral-400">/{report.required_total + (linkReport?.required_total || 0)}</span>
                     </td>
                   </tr>
                 ))}

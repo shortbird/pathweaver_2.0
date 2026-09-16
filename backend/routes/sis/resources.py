@@ -134,8 +134,10 @@ def list_resources(user_id):
         return err
     # admin client justified: org-wide org_resources + sis_resource_acks read gated by @require_role(STAFF_ROLES); audience/role visibility filtered in code below
     supabase = get_supabase_admin_client()
+    # Training links live on the Training page (routes/sis/training_links.py)
+    # and are hidden here so each row has one home.
     rows = (supabase.table('org_resources').select('*')
-            .eq('organization_id', org_id)
+            .eq('organization_id', org_id).eq('is_training', False)
             .order('sort_order').order('title').execute()).data or []
     is_admin = sis_service.caller_is_admin(user_id)
     if not is_admin:

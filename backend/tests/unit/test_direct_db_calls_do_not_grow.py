@@ -394,7 +394,13 @@ BASELINES = {
     # .get_parent_dependents (the SQL function behind my-dependents) and
     # ParentDigestRepository.managing_parents / approved_links went; the new
     # FamilyRepository (two reads, one family at a time) came.
-    'repositories': 568,
+    # 2026-09-15 (training links): 568 -> 578. TrainingLinkRepository, the
+    # Training page's view of org_resources rows flagged is_training: the
+    # org's list, one owned row, the members a link can be aimed at by name,
+    # the caller's acks and the report's acks, create/update/delete, and the
+    # done mark and its undo on sis_resource_acks. routes/ and services/ did
+    # not move: routes/sis/training_links.py reads and writes through this.
+    'repositories': 578,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

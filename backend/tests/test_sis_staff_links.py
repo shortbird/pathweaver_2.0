@@ -70,7 +70,11 @@ def _resource(title, roles=None, pinned=False, audience='staff'):
     return {'id': f'r-{title}', 'title': title, 'url': f'https://x/{title}',
             'organization_id': 'org-1', 'pinned': pinned,
             'description': None, 'category': 'TEACHER', 'audience': audience,
-            'visible_to_roles': roles, 'sort_order': 0}
+            'visible_to_roles': roles, 'sort_order': 0,
+            # NOT NULL DEFAULT false on the real table; the dashboard reads
+            # filter on it since training links joined org_resources
+            # (20260918120000), and the fake's eq() needs the column to exist.
+            'is_training': False}
 
 
 # Modelled on iCreate's actual library: six staff rows and six org-wide ones,

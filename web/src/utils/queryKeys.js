@@ -131,6 +131,11 @@ export const queryKeys = {
     communityRecognition: (orgId) => [...queryKeys.sis.community(orgId), 'recognition'],
     communityMembers: (orgId) => [...queryKeys.sis.community(orgId), 'members'],
     communityEvents: (orgId) => [...queryKeys.sis.community(orgId), 'events'],
+    // Training links (the Training page's links beside its quests). The list
+    // and the who-has-done-what report share the prefix, so one invalidate
+    // after a save, a delete or a done mark refreshes both.
+    trainingLinks: (orgId) => [...queryKeys.sis.all, 'trainingLinks', orgId],
+    trainingLinksProgress: (orgId) => [...queryKeys.sis.trainingLinks(orgId), 'progress'],
   },
 
   // Evidence. scopeId as on quests: a child's document, not the parent's.

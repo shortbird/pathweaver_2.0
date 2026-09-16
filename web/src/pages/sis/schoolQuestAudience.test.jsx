@@ -11,9 +11,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 
-const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
+// The page reads its training links through hooks/api, so it needs a
+// QueryClient. A fresh client per render keeps one test's cache out of the
+// next one's, and retry:false makes a failed query fail rather than hang.
+const render = (ui) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 let authState = { user: { id: 'u1', role: 'org_admin' } }
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))

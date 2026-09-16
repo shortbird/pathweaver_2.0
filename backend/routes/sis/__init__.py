@@ -1140,6 +1140,7 @@ def register_sis_routes(app):
     from routes.sis.curriculum_materials import bp as sis_curriculum_materials_bp
     from routes.sis.quest_drafts import bp as quest_drafts_bp
     from routes.sis.staff_training import bp as staff_training_bp
+    from routes.sis.training_links import bp as training_links_bp
     from routes.sis.secure_documents import bp as secure_documents_bp
     from routes.sis.parent_forms import bp as parent_forms_bp
     from routes.sis.tasks import bp as sis_tasks_bp
@@ -1178,6 +1179,7 @@ def register_sis_routes(app):
         (sis_curriculum_materials_bp, 'curriculum'),
         (quest_drafts_bp, 'curriculum'),
         (staff_training_bp, 'training'),
+        (training_links_bp, 'training'),
         (secure_documents_bp, 'secure_documents'),
         (sis_tasks_bp, 'tasks'),
         # prior_learning and community keep their bespoke enforced checks
@@ -1229,6 +1231,7 @@ def register_sis_routes(app):
     app.register_blueprint(sis_curriculum_materials_bp)
     app.register_blueprint(quest_drafts_bp)
     app.register_blueprint(staff_training_bp)
+    app.register_blueprint(training_links_bp)
     app.register_blueprint(secure_documents_bp)
     app.register_blueprint(parent_forms_bp)
     app.register_blueprint(sis_tasks_bp)
