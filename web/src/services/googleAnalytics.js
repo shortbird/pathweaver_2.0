@@ -19,7 +19,14 @@
  * separate property can be pointed at per environment later.
  */
 
-const PROD_HOSTS = ['www.optioeducation.com', 'optioeducation.com']
+// The SPA moved from www to app.optioeducation.com at the 2026-09-01 cutover
+// and this list did not move with it, so GA fired on nothing for two weeks:
+// every sign_up (the Google Ads key event) and generate_lead from the app was
+// dropped, while the Astro marketing site kept reporting on www and the
+// property looked alive. www and the apex stay listed for any old build still
+// served there. sis. is left out on purpose: the SIS console is staff, and
+// this initializer measures acquisition only (see the header).
+const PROD_HOSTS = ['app.optioeducation.com', 'www.optioeducation.com', 'optioeducation.com']
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-KPKTXS36W3'
 
 let initialized = false
