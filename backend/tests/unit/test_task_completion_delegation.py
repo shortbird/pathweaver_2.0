@@ -98,11 +98,13 @@ def test_a_parent_of_a_linked_student_completes_and_is_recorded(app):
     assert payload['completed_by_user_id'] == PARENT
 
 
-def test_the_old_field_name_still_works_for_one_release(app):
-    """An app that predates the rename sends acting_as_dependent_id."""
-    captured, _ = _drive(app, PARENT, {'acting_as_dependent_id': KID}, granted=True)
-    assert captured['payload']['user_id'] == KID
-    assert captured['payload']['completed_by_user_id'] == PARENT
+def test_the_retired_field_name_is_ignored(app):
+    """acting_as_dependent_id was read as an alias until 2026-09-15. A request
+    that sends only that name is now the caller completing their own task:
+    the alias is not silently honoured, and it is not a 403 either."""
+    captured, _ = _drive(app, PARENT, {'acting_as_dependent_id': KID}, granted=False)
+    assert captured['payload']['user_id'] == PARENT
+    assert captured['payload']['completed_by_user_id'] is None
 
 
 def test_a_student_completing_their_own_task_is_not_attributed_to_anyone(app):

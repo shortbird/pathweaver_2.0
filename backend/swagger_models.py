@@ -154,7 +154,7 @@ TASK_COMPLETION_REQUEST = {
     "properties": {
         "evidence_text": {"type": "string", "example": "I completed this task by..."},
         "evidence_file": {"type": "string", "format": "binary", "description": "Evidence file upload (multipart/form-data)"},
-        "acting_as_dependent_id": {"type": "string", "format": "uuid", "nullable": True, "description": "Optional: Complete task on behalf of dependent"}
+        "student_id": {"type": "string", "format": "uuid", "nullable": True, "description": "Optional: a child of the caller's, to complete the task for them"}
     }
 }
 

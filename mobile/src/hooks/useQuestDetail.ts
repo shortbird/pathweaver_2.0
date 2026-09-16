@@ -149,10 +149,10 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       ...b,
       type: b.type || b.block_type,
     }));
-    // Parent completing for a managed dependent: the evidence-document endpoint
-    // only ever writes the caller's own document, so the on-behalf-of path goes
-    // through the task completion endpoint, which takes acting_as_dependent_id
-    // and awards the XP to the child.
+    // Parent completing for a child: the evidence-document endpoint only ever
+    // writes the caller's own document, so the on-behalf-of path goes through
+    // the task completion endpoint, which takes student_id and awards the XP
+    // to the child.
     //
     // The evidence goes on FIRST, through the helper endpoints, which stamp each
     // block with who attached it. This used to throw the parent's blocks away and
@@ -202,15 +202,12 @@ export function useQuestDetail(questId: string | null, options?: UseQuestDetailO
       // No evidence_type: the blocks above ARE the evidence, and the completion
       // endpoint now looks for them rather than insisting the form carry a copy.
       //
-      // Both names for the child, for one release: `student_id` is what the
-      // backend's @student_scope reads (2026-09-15; it admits every verified
-      // guardian, so a parent can finish a task for a child who has their own
-      // login). `acting_as_dependent_id` is what the backend before it read,
-      // managed dependents only. A preview OTA can run ahead of the backend it
-      // talks to; the older name keeps dependents working until it catches up.
+      // `student_id` is what the backend's @student_scope reads (2026-09-15;
+      // it admits every verified guardian, so a parent can finish a task for a
+      // child who has their own login). The older `acting_as_dependent_id`
+      // name is no longer read, so it is no longer sent.
       const form = new FormData();
       form.append('student_id', studentId);
-      form.append('acting_as_dependent_id', studentId);
       form.append('is_confidential', 'false');
       try {
         ({ data } = await api.post(`/api/tasks/${taskId}/complete`, form));

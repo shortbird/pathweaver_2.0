@@ -440,12 +440,11 @@ describe('useQuestDetail in parent mode', () => {
 
     const [url, body] = (api.post as jest.Mock).mock.calls.at(-1);
     expect(url).toBe('/api/tasks/task-1/complete');
-    // Both names for one release: student_id is what the scoped backend reads
-    // (any verified guardian); acting_as_dependent_id is what the backend
-    // before it read (managed dependents only), for a preview OTA that runs
-    // ahead of its backend.
+    // student_id is what the scoped backend reads (any verified guardian).
+    // acting_as_dependent_id, the name before it, was read as an alias until
+    // 2026-09-15 and is neither sent nor honoured now.
     expect(body.get('student_id')).toBe('kid-1');
-    expect(body.get('acting_as_dependent_id')).toBe('kid-1');
+    expect(body.get('acting_as_dependent_id')).toBeNull();
   });
 
   // Sentry OPTIO-MOBILE-V. The completion endpoint answers 400

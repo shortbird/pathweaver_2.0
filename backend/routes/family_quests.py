@@ -14,9 +14,8 @@ theory that a student with their own login owns their work. The owner's
 decision: a parent may do everything the child can do, whatever the child's
 age or login. The three single-child routes declare their gate the way every
 other student-shaped route does, @student_scope(): the request names the
-child as `student_id` (query string, JSON body or form; `child_id` is read as
-an alias for one release of installed apps), `user_id` in the body of the
-route IS the child, and the parent is g.student_scope.caller_id. Enrolling
+child as `student_id` (query string, JSON body or form), `user_id` in the
+body of the route IS the child, and the parent is g.student_scope.caller_id. Enrolling
 several children intersects `child_ids` with utils.class_membership
 .children_of_parent, the same definition. Every row a parent writes records
 them (created_by_user_id / enrolled_by_user_id; migration 20260915120000).

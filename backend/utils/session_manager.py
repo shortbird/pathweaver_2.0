@@ -639,32 +639,6 @@ class SessionManager:
         logger.info(f"[SessionManager] Masquerade cookie set | TTL: {int(self.masquerade_token_expiry.total_seconds())}s")
         return response
 
-    def clear_acting_as_cookie(self, response):
-        """Clear only the acting_as_token cookie (leaves the parent's own auth
-        intact). Nothing sets that cookie since 2026-09-15 (the parent
-        acting-as session is gone, REGISTER GAP-3), and nothing reads it, so a
-        stale one is inert; this stays one release so a browser that still
-        carries one gets it cleared on logout paths that call here. Cleared
-        with AND without the domain attribute for the same reason
-        clear_auth_cookies does it: a cookie set one way is not cleared by the
-        other."""
-        partitioned = self.is_cross_origin
-        cookie_kwargs = {
-            'expires': 0,
-            'httponly': True,
-            'secure': self.cookie_secure,
-            'samesite': self.cookie_samesite,
-            'path': '/',
-            'partitioned': partitioned,
-        }
-        if self.cookie_domain:
-            domain_kwargs = cookie_kwargs.copy()
-            domain_kwargs['domain'] = self.cookie_domain
-            response.set_cookie('acting_as_token', '', **domain_kwargs)
-        response.set_cookie('acting_as_token', '', **cookie_kwargs)
-        logger.info("[SessionManager] Acting-as cookie cleared")
-        return response
-
     def clear_masquerade_cookie(self, response):
         """Clear only the masquerade_token cookie (leaves admin auth intact)."""
         partitioned = self.is_cross_origin

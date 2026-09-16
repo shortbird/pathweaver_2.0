@@ -82,9 +82,8 @@ def test_without_a_student_the_request_is_untouched(app):
     dict(path=f'/x?student_id={KID}', method='GET'),
     dict(path='/x', method='POST', json={'student_id': KID}),
     dict(path='/x', method='POST', data={'student_id': KID}),
-    dict(path='/x', method='POST', data={'acting_as_dependent_id': KID}),
-], ids=['query', 'json', 'form', 'deprecated-alias'])
-def test_the_student_may_arrive_any_of_four_ways(app, ctx):
+], ids=['query', 'json', 'form'])
+def test_the_student_may_arrive_any_of_three_ways(app, ctx):
     view, seen = _view()
     with app.test_request_context(**ctx), _granted(PARENT, KID):
         view(PARENT)

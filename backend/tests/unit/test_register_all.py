@@ -75,7 +75,7 @@ def test_register_all_runs_and_produces_routes(app_with_stubs):
     '/api/admin/users',
     '/api/parent',
     '/api/observers/feed',
-    '/api/dependents/my-dependents',
+    '/api/dependents/create',
     '/api/messages/conversations',
     '/api/notifications',
     '/csrf-token',

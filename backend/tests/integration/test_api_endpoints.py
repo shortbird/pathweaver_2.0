@@ -78,7 +78,7 @@ def test_an_active_quest_appears_in_the_list(client, student, make_quest, auth_h
 @pytest.mark.security
 @pytest.mark.parametrize('method, path', [
     ('get', '/api/auth/me'),
-    ('get', '/api/dependents/my-dependents'),
+    ('get', '/api/family/children'),
     ('get', '/api/observers/my-students'),
     ('get', '/api/admin/users'),
 ])

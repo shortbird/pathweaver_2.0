@@ -35,8 +35,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
     - load_previous_tasks: boolean - If true, copies tasks from previous enrollment
     - force_new: boolean - If true, creates new enrollment even if previously completed
     - student_id: a child of the caller's, when a parent starts the quest for
-      them. @student_scope resolves it (and the older acting_as_dependent_id
-      name) so `user_id` here is the student; the parent is recorded on the
+      them. @student_scope resolves it so `user_id` here is the student;
+      the parent is recorded on the
       enrollment as enrolled_by_user_id. Observers are refused by the gate --
       the working surfaces are guardians only (utils/guardian_scope).
     """

@@ -112,8 +112,9 @@ class TestParentBlueprintUrlPrefixes:
 class TestDependentRoutesExist:
     """Test that required dependent routes are defined."""
 
-    def test_my_dependents_route_exists(self):
-        """Test /my-dependents route is defined.
+    def test_my_dependents_route_is_gone(self):
+        """/my-dependents was deleted 2026-09-15: the child list is
+        /api/family/children, and the web and mobile clients read that.
 
         Uses a throwaway Flask app to register the blueprint and then
         inspects the resulting URL map — Blueprint.deferred_functions
@@ -125,7 +126,8 @@ class TestDependentRoutesExist:
         app = Flask(__name__)
         app.register_blueprint(dependents.bp)
         rules = {rule.rule for rule in app.url_map.iter_rules()}
-        assert '/api/dependents/my-dependents' in rules
+        assert '/api/dependents/my-dependents' not in rules
+        assert '/api/dependents/create' in rules
 
     def test_create_dependent_route_exists(self):
         """Test /create route is defined."""

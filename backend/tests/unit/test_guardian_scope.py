@@ -340,11 +340,16 @@ def test_request_scope_reads_a_form_field(app, admin_client):
         assert guardian_scope.resolve_student_scope_from_request(PARENT).student_id == KID
 
 
-def test_request_scope_accepts_the_deprecated_alias(app, admin_client):
-    """An app that predates the rename still sends acting_as_dependent_id."""
-    admin_client.return_value = _client(managed_by=PARENT)
-    with app.test_request_context('/x', method='POST', data={'acting_as_dependent_id': KID}):
-        assert guardian_scope.resolve_student_scope_from_request(PARENT).student_id == KID
+@pytest.mark.parametrize('alias', ['acting_as_dependent_id', 'child_id'])
+def test_request_scope_ignores_the_retired_aliases(app, admin_client, alias):
+    """Both names were read as aliases for student_id until 2026-09-15. A
+    request that sends one of them alone is the caller about themselves; the
+    guardian gate is not consulted."""
+    with app.test_request_context('/x', method='POST', data={alias: KID}):
+        scope = guardian_scope.resolve_student_scope_from_request(PARENT)
+    assert scope.student_id == PARENT
+    assert scope.via == 'self'
+    admin_client.assert_not_called()
 
 
 def test_request_scope_without_a_student_is_the_caller_about_themselves(app, admin_client):

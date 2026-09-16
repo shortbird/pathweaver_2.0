@@ -455,14 +455,14 @@ failure mode the header warns about. None is urgent; all are decisions.
 
 **Status: CLOSED 2026-09-15.** Steps 1, 3 and 4 shipped with the parent
 experience refactor (phase 1 on the web, phase 2 on the backend and mobile);
-the entry is in CLOSED_FINDINGS. Two pieces remain on purpose, each one
-release behind the client that still sends it:
-
-- `STUDENT_ID_ALIAS` (`acting_as_dependent_id`) in `utils/guardian_scope.py`,
-  until mobile `useQuestDetail.completeTask` drops its second form field.
-- `session_manager.clear_acting_as_cookie` and the `acting_as_token` clear in
-  `clear_auth_cookies`, so a browser that still carries the cookie has it
-  cleared on logout. Nothing sets or reads it.
+the entry is in CLOSED_FINDINGS. The two compatibility tails were deleted the
+same day, before either shipped: `STUDENT_ID_ALIASES` in
+`utils/guardian_scope.py` together with the `acting_as_dependent_id` form
+field in mobile `useQuestDetail.completeTask`, and
+`session_manager.clear_acting_as_cookie`, which nothing called. The
+`acting_as_token` clear inside `clear_auth_cookies` stays, so a browser that
+still carries the cookie has it cleared on logout. `/api/dependents/my-dependents`
+went in the same sweep; the child list is `/api/family/children`.
 
 Step 5 (the parent-shaped fallbacks in mobile `useGlobalEngagement` and
 `useJournal`) is untouched and stays here as its own small item.

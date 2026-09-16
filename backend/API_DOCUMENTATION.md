@@ -160,7 +160,7 @@ Content-Type: multipart/form-data
 Fields:
 - evidence_text (string) - Text description
 - evidence_file (file) - File upload (max 10MB)
-- acting_as_dependent_id (uuid) - Optional: complete for dependent
+- student_id (uuid) - Optional: a child of the caller's, to complete for them
 ```
 
 ---
@@ -227,7 +227,6 @@ Key endpoints:
 **Tag**: `Parent Dashboard`
 
 Key endpoints:
-- `GET /api/dependents/my-dependents` - List dependents
 - `POST /api/dependents/create` - Create dependent (COPPA-compliant)
 - `GET /api/dependents/{id}` - Get dependent details
 - `PUT /api/dependents/{id}` - Update dependent

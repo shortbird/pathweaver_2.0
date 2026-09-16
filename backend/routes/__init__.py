@@ -273,8 +273,8 @@ def register_all(app):
     from routes.family_quests import bp as family_quests_bp
     app.register_blueprint(family_quests_bp)
 
-    # The one child list (/api/family/children); the older my-children and
-    # my-dependents routes are adapters over the same service.
+    # The one child list (/api/family/children); the older my-children route
+    # is an adapter over the same service.
     from routes.family_children import bp as family_children_bp
     app.register_blueprint(family_children_bp)
 

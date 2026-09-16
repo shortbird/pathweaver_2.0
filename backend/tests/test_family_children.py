@@ -135,10 +135,10 @@ class TestAdapters:
         assert rows[0]['student_level'] == 5
         assert rows[0]['ai_task_generation_enabled'] is True
 
-    def test_my_dependents_shape_is_the_whole_family(self, family):
-        rows = svc.as_dependent_rows(svc.children_of('mum', today=TODAY))
+    def test_the_family_list_carries_the_keys_the_clients_read(self, family):
+        rows = svc.children_of('mum', today=TODAY)
         assert [r['id'] for r in rows] == ['kid-managed', 'kid-linked', 'kid-household']
-        # The keys the installed mobile build reads (types/family.ts Child).
+        # types/family.ts Child on mobile, useFamilyChildren on the web.
         for key in ('id', 'display_name', 'first_name', 'last_name', 'avatar_url',
                     'total_xp', 'is_dependent', 'date_of_birth', 'role'):
             assert key in rows[0], key

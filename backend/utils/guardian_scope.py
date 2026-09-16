@@ -52,17 +52,12 @@ from utils.validation.sanitizers import PostgrestFilterError, pgrst_uuid
 logger = get_logger(__name__)
 
 #: The request parameter that names the student. Query string on GET/DELETE,
-#: JSON body or form field on POST/PUT.
+#: JSON body or form field on POST/PUT. The only name: the older
+#: acting_as_dependent_id (task completion, personalization) and child_id (the
+#: single-child family quest routes) were read as aliases until 2026-09-15 and
+#: are ignored now, so a request that sends one of them alone is the caller
+#: about themselves.
 STUDENT_ID_PARAM = 'student_id'
-
-#: The names routes used before scope was one thing, each accepted for one
-#: release so an app that predates the change keeps working:
-#:   acting_as_dependent_id  task completion and personalization, until
-#:                           mobile useQuestDetail.completeTask stops sending it
-#:   child_id                the three single-child /api/family/quests routes,
-#:                           which took @student_scope on 2026-09-15; mobile
-#:                           useQuestDetail sends student_id from the same OTA
-STUDENT_ID_ALIASES = ('acting_as_dependent_id', 'child_id')
 
 
 class GuardianAccessError(OpError):
@@ -213,9 +208,7 @@ def requested_student_id() -> Optional[str]:
 
     Query string first, so a DELETE (which has no body) and a GET agree with a
     POST; then the JSON body; then form fields, which is how the completion
-    route receives its multipart upload. The deprecated alias is read last and
-    logged, so the app that still sends it shows up in the logs before the
-    alias is removed.
+    route receives its multipart upload.
     """
     value = request.args.get(STUDENT_ID_PARAM)
     if value:
@@ -227,19 +220,7 @@ def requested_student_id() -> Optional[str]:
         if value:
             return value
 
-    value = request.form.get(STUDENT_ID_PARAM)
-    if value:
-        return value
-
-    for alias in STUDENT_ID_ALIASES:
-        for source in (request.args, body if isinstance(body, dict) else {}, request.form):
-            value = source.get(alias)
-            if value:
-                logger.info(f"{alias} is deprecated; send {STUDENT_ID_PARAM} "
-                            f"({request.method} {request.path})")
-                return value
-
-    return None
+    return request.form.get(STUDENT_ID_PARAM) or None
 
 
 def resolve_student_scope_from_request(caller_id: str,

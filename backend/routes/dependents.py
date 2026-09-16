@@ -36,21 +36,20 @@ logger = get_logger(__name__)
 bp = Blueprint('dependents', __name__, url_prefix='/api/dependents')
 
 
-def verify_parent_role(user_id: str, check_relationships: bool = False):
+def verify_parent_role(user_id: str):
     """
     Helper function to verify user has parent capabilities.
-
-    Args:
-        user_id: The user to check
-        check_relationships: If True, also allow users with existing parent relationships
-                            (dependents or linked students) regardless of role
 
     Access is granted if:
     1. User holds the parent role anywhere — `role`, `org_role`, or `org_roles`
     2. User is superadmin
-    3. (If check_relationships=True) User has dependents or linked students
+
+    A relationship-based fallback (managed dependents, approved links, a
+    household guardian row) served only /my-dependents and went with it on
+    2026-09-15; the child list is /api/family/children, whose service derives
+    the family from the links themselves.
     """
-    # admin client justified: role/relationship lookup is itself the auth check; reads users + parent_student_links to determine if caller can manage dependents
+    # admin client justified: role lookup is itself the auth check; reads users to determine if caller can manage dependents
     supabase = get_supabase_admin_client()
 
     user_response = (supabase.table('users').select('role, org_role, org_roles')
@@ -76,74 +75,7 @@ def verify_parent_role(user_id: str, check_relationships: bool = False):
     if UserRole.PARENT.value in roles or 'parent' in roles:
         return True
 
-    # Optionally check for existing parent relationships
-    if check_relationships:
-        # Check for dependents
-        dependents = supabase.table('users').select('id', count='exact').eq('managed_by_parent_id', user_id).execute()
-        if dependents.count and dependents.count > 0:
-            return True
-
-        # Check for linked students
-        links = supabase.table('parent_student_links').select('id', count='exact').eq('parent_user_id', user_id).eq('status', 'approved').execute()
-        if links.count and links.count > 0:
-            return True
-
-        # The third link: a guardian row in a household. The SIS registration
-        # funnel writes org_role='parent' as well, so most such guardians pass
-        # the role check above and never reach here — but a guardian created any
-        # other way holds a real family relationship, and this branch exists to
-        # recognise family relationships whatever the role column says.
-        # GUARDIAN_RELATIONSHIPS is imported, never retyped: the values are
-        # ('guardian', 'other'), and 'other' is the grandparent or aunt the
-        # funnel writes (tests/unit/test_one_definition_of_guardian.py).
-        from config.constants import GUARDIAN_RELATIONSHIPS
-        guardian_rows = (supabase.table('household_members').select('id', count='exact')
-                         .eq('user_id', user_id)
-                         .in_('relationship', list(GUARDIAN_RELATIONSHIPS)).execute())
-        if guardian_rows.count and guardian_rows.count > 0:
-            return True
-
     raise AuthorizationError("Only parent accounts can manage dependent profiles")
-
-
-@bp.route('/my-dependents', methods=['GET'])
-@require_auth
-def get_my_dependents(user_id):
-    """
-    Every child of the logged-in guardian.
-
-    An adapter over services.family_children_service since 2026-09-15 -- the
-    same list GET /api/family/children returns, in the shape this route always
-    had (a superset of it). Until then this called the SQL function
-    get_parent_dependents, which knew two of the three parent links and so
-    left a funnel-registered family's child off the mobile Family tab.
-    Installed mobile builds still call here; new clients call
-    /api/family/children. Delete this one release after they do.
-
-    Returns:
-        200: List of children with metadata
-        403: User is not a parent or doesn't have parent relationships
-    """
-    try:
-        # Allow users with parent relationships to view their dependents
-        verify_parent_role(user_id, check_relationships=True)
-
-        from services import family_children_service
-        dependents = family_children_service.as_dependent_rows(
-            family_children_service.children_of(user_id))
-
-        return jsonify({
-            'success': True,
-            'dependents': dependents,
-            'count': len(dependents)
-        }), 200
-
-    except AuthorizationError as e:
-        logger.warning(f"Authorization error for user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 403
-    except Exception as e:
-        logger.error(f"Error fetching dependents for user {user_id}: {str(e)}")
-        return jsonify({'success': False, 'error': 'Failed to fetch dependents'}), 500
 
 
 @bp.route('/create', methods=['POST'])

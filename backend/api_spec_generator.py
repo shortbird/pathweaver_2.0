@@ -289,7 +289,6 @@ def generate_summary(path, method, endpoint):
         '/api/portfolio/diploma/<uuid:user_id>': 'Get diploma data',
 
         # Parent
-        '/api/dependents/my-dependents': 'List all dependents for parent',
         '/api/dependents/create': 'Create new dependent profile',
         '/api/dependents/<uuid:dependent_id>': 'Get, update, or delete dependent',
         '/api/dependents/<uuid:dependent_id>/promote': 'Promote dependent to independent account',

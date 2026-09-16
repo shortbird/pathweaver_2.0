@@ -338,7 +338,7 @@ paths:
           schema:
             type: object
             properties:
-              acting_as_dependent_id:
+              student_id:
                 type: string
                 format: uuid
       responses:
@@ -369,7 +369,7 @@ paths:
                 type: array
                 items:
                   type: string
-              acting_as_dependent_id:
+              student_id:
                 type: string
                 format: uuid
       responses:
@@ -514,7 +514,7 @@ paths:
         - name: evidence_file
           in: formData
           type: file
-        - name: acting_as_dependent_id
+        - name: student_id
           in: formData
           type: string
       responses:
@@ -789,22 +789,8 @@ paths:
                 type: object
 
   # =====================
-  # DEPENDENTS (6 endpoints)
+  # DEPENDENTS (5 endpoints)
   # =====================
-
-  /api/dependents/my-dependents:
-    get:
-      tags: [Parent Dashboard]
-      summary: List all dependents for parent
-      security:
-        - cookieAuth: []
-      responses:
-        200:
-          description: Dependent list
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/Dependent'
 
   /api/dependents/create:
     post:

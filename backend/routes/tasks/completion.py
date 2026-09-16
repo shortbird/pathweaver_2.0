@@ -61,8 +61,8 @@ def complete_task(user_id: str, task_id: str):
 
     Optional form parameter:
         student_id: a child of the caller's, when a parent marks the task done
-            for them. @student_scope has already resolved it (and the older
-            `acting_as_dependent_id` name), so `user_id` here IS the student;
+            for them. @student_scope has already resolved it, so `user_id`
+            here IS the student;
             the parent is on g.student_scope and is recorded on the completion
             as completed_by_user_id. Until 2026-09-15 this admitted managed
             (under-13, no login) profiles only, through

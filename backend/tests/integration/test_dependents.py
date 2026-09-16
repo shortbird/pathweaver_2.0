@@ -135,14 +135,16 @@ def test_creating_a_dependent_rejects_a_malformed_birthdate(client, parent, auth
 
 @pytest.mark.integration
 @pytest.mark.critical
-def test_my_dependents_returns_only_this_parents_children(
+def test_family_children_returns_only_this_parents_children(
     client, parent, make_user, make_dependent, auth_headers_for
 ):
+    """/api/family/children replaced /api/dependents/my-dependents on
+    2026-09-15; the leak this guards against is the same."""
     mine = make_dependent(parent['id'], display_name='Mine')
     other_parent = make_user(role='parent')
     theirs = make_dependent(other_parent['id'], display_name='Theirs')
 
-    response = client.get('/api/dependents/my-dependents', headers=auth_headers_for(parent['id']))
+    response = client.get('/api/family/children', headers=auth_headers_for(parent['id']))
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
@@ -336,7 +338,7 @@ def test_a_student_cannot_act_as_a_dependent(
 @pytest.mark.integration
 @pytest.mark.security
 @pytest.mark.parametrize('method, path', [
-    ('get', '/api/dependents/my-dependents'),
+    ('get', '/api/family/children'),
     ('post', '/api/dependents/create'),
 ])
 def test_dependent_endpoints_reject_anonymous_callers(client, method, path):

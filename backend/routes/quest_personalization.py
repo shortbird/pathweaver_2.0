@@ -322,9 +322,8 @@ def start_personalization(user_id: str, quest_id: str):
 
     Optional body parameter:
         student_id: a child of the caller's, when a parent drives the wizard
-            on that child's quest. @student_scope resolves it (and the older
-            `acting_as_dependent_id` name) so `user_id` here is already the
-            learner whose session this is. Everything personal to the learner
+            on that child's quest. @student_scope resolves it so `user_id`
+            here is already the learner whose session this is. Everything personal to the learner
             -- the AI consent toggle, the vision statement, the challenge
             level, the age band -- is then read off the CHILD. Reading them
             off the caller tailored a 16-year-old's tasks to his mother's

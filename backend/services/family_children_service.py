@@ -11,9 +11,9 @@ missing from the app.
 
 This service composes utils.class_membership.links_of_parent (all three links,
 per child) with repositories.family_repository (the user rows, one quest tally,
-avatar signing) into the shape /api/family/children returns. The two older
-endpoints are adapters over it, so installed mobile builds that still call
-my-dependents get the household fix without a release.
+avatar signing) into the shape /api/family/children returns.
+/api/parents/my-children is an adapter over it; /api/dependents/my-dependents
+was one too, until it was deleted on 2026-09-15 once no client called it.
 """
 
 from datetime import date, datetime
@@ -117,12 +117,6 @@ def children_of(parent_id: str, today: Optional[date] = None) -> List[Dict[str, 
     children.sort(key=lambda c: (c['first_name'].lower(), c['last_name'].lower(), c['id']))
     # Child photos live in a private bucket; one batch for the family.
     sign_in_place(children, ['avatar_url'])
-    return children
-
-
-def as_dependent_rows(children: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The shape /api/dependents/my-dependents always returned (a superset of
-    it: the new fields ride along). Installed mobile builds read this."""
     return children
 
 
