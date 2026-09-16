@@ -176,10 +176,14 @@ def test_a_kid_with_friends_off_asks_every_guardian():
     assert out == {'asked': 2}
     assert {c.args[0] for c in notify.call_args_list} == {'mum', 'dad'}
     assert notify.call_args_list[0].args[1] == 'parent_approval_required'
+    # The link names the child. Bare /family was the page the parent was
+    # already on, so "View details" did nothing (2026-09-16).
+    assert all(c.kwargs['link'] == '/family?friends=kid' for c in notify.call_args_list)
     # Only the guardian with an address gets the email.
     email.send_friends_ask_parent_email.assert_called_once()
     assert email.send_friends_ask_parent_email.call_args.kwargs['parent_email'] == 'mum@example.com'
     assert email.send_friends_ask_parent_email.call_args.kwargs['child_name'] == 'Jane'
+    assert email.send_friends_ask_parent_email.call_args.kwargs['child_id'] == 'kid'
 
 
 @pytest.mark.parametrize('state', [

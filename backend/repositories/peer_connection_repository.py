@@ -12,7 +12,7 @@ by @require_relationship_to on the route, and "Friends: off" is gated by
 peer_policy_service.set_policy. Nothing here decides who may ask.
 """
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 from repositories.base_repository import BaseRepository
 from utils.logger import get_logger
@@ -125,6 +125,63 @@ class PeerConnectionRepository(BaseRepository):
                 .eq('status', 'active').eq(column, sid).execute().data or []
             count += len(rows)
         return count
+
+    def active_between(self, a: str, b: str) -> Optional[Dict[str, Any]]:
+        """The live connection joining these two students, or None. The
+        friend's page reads `activated_at` from it ("Friends since")."""
+        rows = self.client.table(self.table_name) \
+            .select('id, requester_id, addressee_id, status, source, created_at, activated_at') \
+            .eq('status', 'active') \
+            .or_(f'and(requester_id.eq.{pgrst_uuid(a, "a")},addressee_id.eq.{pgrst_uuid(b, "b")}),'
+                 f'and(requester_id.eq.{pgrst_uuid(b, "b")},addressee_id.eq.{pgrst_uuid(a, "a")})') \
+            .limit(1).execute().data or []
+        return rows[0] if rows else None
+
+    def quests_in_progress(self, user_ids: Iterable[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """{user_id: [quest, ...]} of the quests each student is on and has
+        not finished (is_active, no completed_at). The friend's page shows a
+        friend's public ones and the ones the viewer shares with them; the
+        quest page asks which friends are on it. Each quest carries the
+        fields both need and nothing about the student's progress."""
+        ids = sorted(u for u in set(user_ids or []) if u)
+        if not ids:
+            return {}
+        rows = self.client.table('user_quests') \
+            .select('user_id, quest_id, started_at, '
+                    'quests(id, title, image_url, header_image_url, is_public, quest_type)') \
+            .in_('user_id', ids).eq('is_active', True).is_('completed_at', 'null') \
+            .order('started_at', desc=True).execute().data or []
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        for r in rows:
+            q = r.get('quests') or {}
+            if not q.get('id'):
+                continue
+            out.setdefault(r['user_id'], []).append({
+                'id': q['id'],
+                'title': q.get('title') or 'Quest',
+                'image_url': q.get('header_image_url') or q.get('image_url'),
+                'is_public': bool(q.get('is_public')),
+                'quest_type': q.get('quest_type'),
+                'started_at': r.get('started_at'),
+            })
+        return out
+
+    def is_on_quest(self, user_id: str, quest_id: str) -> bool:
+        """Is this student on the quest right now? A collaborate invite
+        comes from someone doing the quest, not from a bystander."""
+        rows = self.client.table('user_quests').select('id') \
+            .eq('user_id', user_id).eq('quest_id', quest_id).eq('is_active', True) \
+            .limit(1).execute().data or []
+        return bool(rows)
+
+    def quest_title(self, quest_id: str) -> Optional[str]:
+        """The quest's title for a collaborate invite, or None if there is no
+        such quest."""
+        rows = self.client.table('quests').select('id, title') \
+            .eq('id', quest_id).limit(1).execute().data or []
+        if not rows:
+            return None
+        return rows[0].get('title') or 'a quest'
 
     def active_count_for(self, student_id: str) -> int:
         """How many friends this student has right now -- the number the

@@ -206,6 +206,15 @@ describe('ConnectionsPage', () => {
       expect(api.post).toHaveBeenCalledWith('/api/connections/c1/revoke', {})
     })
   })
+
+  it("a friend's row opens their page", async () => {
+    mockLoad({ state: 'eligible', reason: null }, {
+      ...EMPTY,
+      active: [{ id: 'c1', status: 'active', peer: { id: 'p1', display_name: 'Ada' }, created_at: '' }],
+    })
+    render(<ConnectionsPage />)
+    expect(await screen.findByRole('link', { name: /ada/i })).toHaveAttribute('href', '/connections/p1')
+  })
 })
 
 describe('ConnectionApprovalsPage', () => {

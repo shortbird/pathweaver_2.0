@@ -259,7 +259,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   // one entry point that can resolve it.
   if (role === 'student') {
     learningItems.push({
-      name: 'Connections',
+      name: 'Friends',
       path: '/connections',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

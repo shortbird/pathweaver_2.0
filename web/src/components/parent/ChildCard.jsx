@@ -144,12 +144,12 @@ export default function ChildCard({ child, onOpen, onOpenQuest, onOpenProfile, o
       />
 
       {onOpenSettings && (
-        <PendingRequestsLine childId={child.id} onOpenSettings={() => onOpenSettings(child)} />
+        <PendingRequestsLine childId={child.id} onOpenSettings={() => onOpenSettings(child, 'friends')} />
       )}
       <FriendsOffNudge
         childId={child.id}
         childFirstName={child.firstName || child.name}
-        onOpenSettings={onOpenSettings ? () => onOpenSettings(child) : undefined}
+        onOpenSettings={onOpenSettings ? () => onOpenSettings(child, 'friends') : undefined}
       />
     </div>
   )

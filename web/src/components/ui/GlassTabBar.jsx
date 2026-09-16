@@ -10,6 +10,9 @@ import { motion } from 'framer-motion'
  *
  * tabs: [{ id, label, badge? }] — hidden entirely below 2 tabs.
  * sticky: pins the rail just below the fixed navbar while the panel scrolls.
+ * size: 'sm' | 'md' | 'lg' — the tab padding and type size.
+ * stretch: the rail fills its container and the tabs share the width
+ *   evenly, for a rail that heads a panel rather than sits in a page.
  */
 export default function GlassTabBar({
   tabs,
@@ -17,21 +20,24 @@ export default function GlassTabBar({
   onSelect,
   sticky = false,
   size = 'sm',
+  stretch = false,
   className = '',
   'aria-label': ariaLabel = 'Sections',
 }) {
   const layoutId = useId()
   if (!tabs || tabs.length < 2) return null
 
-  const tabSize = size === 'md'
-    ? 'px-4 py-2 text-sm'
-    : 'px-3.5 py-1.5 text-xs'
+  const tabSize = size === 'lg'
+    ? 'px-5 py-2.5 text-base'
+    : size === 'md'
+      ? 'px-4 py-2 text-sm'
+      : 'px-3.5 py-1.5 text-xs'
 
   return (
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={`z-10 mx-auto flex w-fit max-w-full gap-1 overflow-x-auto rounded-full border border-white/60 bg-white/65 p-1.5 shadow-lg shadow-gray-900/10 backdrop-blur-xl ${sticky ? 'sticky' : ''} ${className}`}
+      className={`z-10 flex max-w-full gap-1 overflow-x-auto rounded-full border border-white/60 bg-white/65 p-1.5 shadow-lg shadow-gray-900/10 backdrop-blur-xl ${stretch ? 'w-full' : 'mx-auto w-fit'} ${sticky ? 'sticky' : ''} ${className}`}
       style={sticky ? { top: 'calc(var(--navbar-height, 64px) + 8px)' } : undefined}
     >
       {tabs.map(({ id, label, badge }) => (
@@ -41,7 +47,7 @@ export default function GlassTabBar({
           role="tab"
           aria-selected={active === id}
           onClick={() => onSelect(id)}
-          className={`relative whitespace-nowrap rounded-full font-medium transition-colors ${tabSize} ${
+          className={`relative whitespace-nowrap rounded-full font-medium transition-colors ${tabSize} ${stretch ? 'flex-1 text-center' : ''} ${
             active === id ? 'text-optio-purple' : 'text-gray-600 hover:text-gray-900'
           }`}
         >

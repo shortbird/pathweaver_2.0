@@ -41,7 +41,8 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  *
  * `family` is the list hooks/api/useFamilyChildren returns (one shape for
  * both kinds of child); `initialTab` may be 'you', 'observers', 'parents'
- * or a child's id.
+ * or a child's id, and `initialSection` names the row of a child's tab to
+ * open on arrival ('friends' for every Friends notification).
  */
 const FamilySettingsModal = ({
   isOpen,
@@ -49,7 +50,8 @@ const FamilySettingsModal = ({
   family = [],
   onAddChild,
   onRefresh,
-  initialTab = 'you'
+  initialTab = 'you',
+  initialSection = null,
 }) => {
   const confirm = useConfirm()
   const { user, refreshUser } = useAuth();
@@ -291,10 +293,13 @@ const FamilySettingsModal = ({
       onClose={handleClose}
       title="Family Settings"
       size="lg"
+      maxWidthClassName="max-w-3xl"
     >
-      <div className="min-h-[200px] sm:min-h-[400px]">
-        <div className="mb-4 sm:mb-6 space-y-3">
-          <GlassTabBar tabs={tabs} active={activeTab} onSelect={setActiveTab} aria-label="Family settings" />
+      <div className="min-h-[200px] sm:min-h-[320px]">
+        <div className="mb-5 space-y-2">
+          {/* The rail spans the panel: it is the modal's navigation, not a
+              filter on a page. */}
+          <GlassTabBar tabs={tabs} active={activeTab} onSelect={setActiveTab} aria-label="Family settings" size="lg" stretch />
           {/* One add-child door for both ages: the shared AddChildModal asks
               the birth date and decides dependent vs. own account. Absent
               (onAddChild null) for a family in an SIS school, whose office
@@ -312,26 +317,26 @@ const FamilySettingsModal = ({
         {/* Your own account. Name only — email and password changes go through
             their own flows, and a guardian's role is not theirs to edit. */}
         {activeTab === 'you' && (
-          <div className="space-y-4 max-w-md">
-            <div className="flex items-center gap-3">
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
               {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+                <img src={user.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover" />
               ) : (
-                <div className="w-12 h-12 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white font-medium">
+                <div className="w-14 h-14 bg-gradient-to-br from-optio-purple to-optio-pink rounded-full flex items-center justify-center text-white text-lg font-medium">
                   {(myFirstName || user?.email || 'Y').charAt(0).toUpperCase()}
                 </div>
               )}
               <div className="min-w-0">
-                <p className="font-medium text-gray-900 truncate">
+                <p className="text-lg font-semibold text-gray-900 truncate">
                   {`${myFirstName} ${myLastName}`.trim() || 'Your account'}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <p className="text-base text-gray-500 truncate">{user?.email}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="my-first-name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="my-first-name" className="block text-base font-medium text-gray-700 mb-1">
                   First name
                 </label>
                 <input
@@ -339,12 +344,12 @@ const FamilySettingsModal = ({
                   type="text"
                   value={myFirstName}
                   onChange={(e) => setMyFirstName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                   placeholder="First name"
                 />
               </div>
               <div>
-                <label htmlFor="my-last-name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="my-last-name" className="block text-base font-medium text-gray-700 mb-1">
                   Last name
                 </label>
                 <input
@@ -352,26 +357,28 @@ const FamilySettingsModal = ({
                   type="text"
                   value={myLastName}
                   onChange={(e) => setMyLastName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                   placeholder="Last name"
                 />
               </div>
             </div>
-            <p className="text-xs text-gray-500">
-              This is how your school and your children&apos;s teachers see you. If your
-              names were entered the wrong way round, swap them here.
-            </p>
 
-            <button
-              onClick={handleSaveMyName}
-              disabled={savingMyName || !myFirstName.trim() || !myLastName.trim()}
-              className="btn-primary w-full"
-            >
-              {savingMyName ? 'Saving...' : 'Save name'}
-            </button>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <p className="text-base text-gray-500">
+                This is how your school and your children&apos;s teachers see you. If your
+                names were entered the wrong way round, swap them here.
+              </p>
+              <button
+                onClick={handleSaveMyName}
+                disabled={savingMyName || !myFirstName.trim() || !myLastName.trim()}
+                className="btn-primary flex-shrink-0"
+              >
+                {savingMyName ? 'Saving...' : 'Save name'}
+              </button>
+            </div>
 
             {family.length > 0 && (
-              <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+              <p className="text-base text-gray-500 bg-gray-50 p-3 rounded-lg">
                 To correct a child&apos;s name, open their tab above.
               </p>
             )}
@@ -384,6 +391,7 @@ const FamilySettingsModal = ({
             child={activeChild.raw}
             isDependent={activeChild.isDependent}
             onUpdate={onRefresh}
+            initialSection={activeChild.id === initialTab ? initialSection : null}
           />
         )}
 
@@ -402,7 +410,7 @@ const FamilySettingsModal = ({
                 {allChildren.length > 0 && (
                   <>
                     <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-base font-medium text-gray-700">
                         Select children to share:
                       </label>
                       <button
@@ -458,7 +466,7 @@ const FamilySettingsModal = ({
               </div>
             ) : (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
-                <p className="text-sm font-medium text-green-800">
+                <p className="text-base font-medium text-green-800">
                   Send this link to one person:
                 </p>
                 {generatedLink.studentNames?.length > 0 && (
@@ -500,7 +508,7 @@ const FamilySettingsModal = ({
               </div>
             ) : observers.length > 0 ? (
               <div className="space-y-3 border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-700">Current Observers</h4>
+                <h4 className="text-base font-medium text-gray-900">Current Observers</h4>
                 {observers.map(obs => (
                   <div key={obs.observer_id} className="p-3 bg-gray-50 rounded-lg space-y-2">
                     <div className="flex items-center justify-between">
@@ -513,8 +521,8 @@ const FamilySettingsModal = ({
                           </div>
                         )}
                         <div>
-                          <p className="font-medium text-gray-900 text-sm">{obs.observer_name || 'Observer'}</p>
-                          <p className="text-xs text-gray-500 capitalize">{obs.relationship?.replace('_', ' ') || 'Family'}</p>
+                          <p className="font-medium text-gray-900">{obs.observer_name || 'Observer'}</p>
+                          <p className="text-sm text-gray-500 capitalize">{obs.relationship?.replace('_', ' ') || 'Family'}</p>
                         </div>
                       </div>
                       <button
@@ -551,7 +559,7 @@ const FamilySettingsModal = ({
             ) : (
               <div className="text-center py-6 text-gray-500 border-t">
                 <UserGroupIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No observers yet</p>
+                <p className="text-base">No observers yet</p>
               </div>
             )}
           </div>
@@ -562,7 +570,7 @@ const FamilySettingsModal = ({
           <div className="space-y-4">
             {/* Current Parents */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Current Parents</h4>
+              <h4 className="text-base font-medium text-gray-900 mb-2">Current Parents</h4>
               {loadingParents ? (
                 <div className="text-center py-4">
                   <Spinner size="sm" className="mx-auto" />
@@ -583,7 +591,7 @@ const FamilySettingsModal = ({
                         <p className="font-medium text-gray-900">
                           {user?.display_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'You'}
                         </p>
-                        <p className="text-xs text-gray-500">Account owner</p>
+                        <p className="text-sm text-gray-500">Account owner</p>
                       </div>
                     </div>
                   </div>
@@ -601,7 +609,7 @@ const FamilySettingsModal = ({
                         )}
                         <div>
                           <p className="font-medium text-gray-900">{parent.name || parent.email}</p>
-                          <p className="text-xs text-gray-500">Co-parent</p>
+                          <p className="text-sm text-gray-500">Co-parent</p>
                         </div>
                       </div>
                     </div>
@@ -616,7 +624,7 @@ const FamilySettingsModal = ({
               const promotableObservers = observers.filter(obs => !parentIds.has(obs.observer_id));
               return (
               <div className="border-t pt-4 space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">Add Parent</h4>
+                <h4 className="text-base font-medium text-gray-900">Add Parent</h4>
 
                 {promotableObservers.length > 0 ? (
                   <div className="space-y-2">
@@ -630,7 +638,7 @@ const FamilySettingsModal = ({
                               {(obs.observer_name || 'O').charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <p className="font-medium text-gray-900 text-sm">{obs.observer_name || 'Observer'}</p>
+                          <p className="font-medium text-gray-900">{obs.observer_name || 'Observer'}</p>
                         </div>
                         <button
                           onClick={() => handlePromoteObserver(obs.observer_id, obs.observer_name || 'this observer')}
@@ -646,11 +654,11 @@ const FamilySettingsModal = ({
                 ) : (
                   <div className="text-center py-4 text-gray-500">
                     <UserGroupIcon className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No observers to add as parent</p>
+                    <p className="text-base">No observers to add as parent</p>
                   </div>
                 )}
 
-                <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                <p className="text-base text-gray-500 bg-gray-50 p-3 rounded-lg">
                   To add another parent, first invite them as an observer in the Observers tab. You will then be able to add them as a parent here.
                 </p>
               </div>
@@ -669,7 +677,8 @@ FamilySettingsModal.propTypes = {
   family: PropTypes.array,
   onAddChild: PropTypes.func,
   onRefresh: PropTypes.func,
-  initialTab: PropTypes.string
+  initialTab: PropTypes.string,
+  initialSection: PropTypes.string,
 };
 
 export default FamilySettingsModal;

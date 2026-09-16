@@ -24,7 +24,6 @@ import { useMediaUploadStore } from '@/src/stores/mediaUploadStore';
 import { displayImageUrl, isHeicUrl } from '@/src/services/imageUrl';
 import { CommentSheet } from './CommentSheet';
 import { FeedItemMenu } from './FeedItemMenu';
-import { ReactionRow } from './ReactionRow';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { formatTimeAgo } from '@/src/utils/timeAgo';
 import { getImageRatio, setImageRatio, clampRatio, DEFAULT_RATIO } from './imageRatioCache';
@@ -850,21 +849,10 @@ function FeedCardImpl({ item, showStudent = true, onPress, viewerCanModerate = f
             </HStack>
           )}
 
-          {/* Friends' reactions: tappable for a peer, read-only for the owner
-              and their adults. Keyed so a recycled cell never carries the
-              previous item's counts. */}
-          {(isPeerItem || (item.reactions && Object.keys(item.reactions.by_key || {}).length > 0)) && (
-            <ReactionRow
-              key={`reactions-${item.id}`}
-              target={{
-                studentId: item.student?.id || '',
-                completionId: isTask ? (item.completion_id || null) : null,
-                learningEventId: isTask ? null : (item.learning_event_id || item.id.replace(/^le_/, '')),
-              }}
-              summary={item.reactions}
-              canReact={isPeerItem && !!(item.completion_id || item.learning_event_id || !isTask)}
-            />
-          )}
+          {/* No reaction chips. Phase 2 put a row of canned phrases ("Proud
+              of you", "Keep going") under a friend's work; they read as
+              suggested responses, not as something a kid would say, and the
+              owner asked for them gone (2026-09-16). A friend comments. */}
 
           {/* Social actions — bigger icons + tap targets so comment/views/share
               are easy to hit (bug: "buttons need to be bigger"). */}

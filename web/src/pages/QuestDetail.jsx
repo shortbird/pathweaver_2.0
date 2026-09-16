@@ -10,6 +10,7 @@ import QuestDetailHeader from '../components/quest/QuestDetailHeader';
 import QuestEnrollment from '../components/quest/QuestEnrollment';
 import QuestApproachExamples from '../components/quest/QuestApproachExamples';
 import QuestMetadataCard from '../components/quest/QuestMetadataCard';
+import QuestFriendsCard from '../components/quest/QuestFriendsCard';
 import PrintTaskListButton from '../components/quest/PrintTaskListButton'
 import GiveStudentsMyTasksCard from '../components/quest/GiveStudentsMyTasksCard'
 import QuestResourceList from '../components/quest/QuestResourceList';
@@ -64,7 +65,7 @@ const QuestDetail = () => {
   const confirm = useConfirm()
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveRole } = useAuth();
   // Read the context directly rather than through useOrganization(), which
   // throws without a provider. This page is rendered in plenty of places that
   // do not mount one, and the org here only decides whether to SKIP an
@@ -645,7 +646,17 @@ const QuestDetail = () => {
           </Suspense>
         )}
 
-        {/* Collaborators Section removed (March 2026 - Feature pruning) */}
+        {/* Friends on this quest, and Collaborate (2026-09-16). The 2026-03
+            collaborators feature was pruned here; this is its small
+            successor: no shared evidence, just who else is on it and an
+            invite. Students only -- a parent on a child's copy sees none. */}
+        {effectiveRole === 'student' && (
+          <QuestFriendsCard
+            quest={quest}
+            isEnrolled={!!quest.user_enrollment}
+            hidden={inFamilyScope}
+          />
+        )}
 
         {/* Enrollment and Sample/Preset Tasks. Programs with a simplified task
             view (Treehouse littles) never see the "Start Personalizing" wizard

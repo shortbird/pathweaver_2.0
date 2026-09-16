@@ -234,6 +234,32 @@ describe('FamilyHome', () => {
       expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'you')
     })
 
+    // ?friends=<childId> is every Friends notification's link: that child's
+    // settings, open on the Friends row. Bare /family was the page the
+    // parent was already on, so "View details" did nothing.
+    it("opens the child's settings on the Friends row for ?friends=", async () => {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/family?friends=child-1']}>
+            <FamilyHome />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+      expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'child-1')
+      const props = settingsModal.mock.calls.at(-1)[0]
+      expect(props.initialSection).toBe('friends')
+    })
+
+    it("a waiting friend request on the card opens that child's Friends row", async () => {
+      approvals = { pending: [{ id: 'req-1', student_id: 'child-1', requester: { display_name: 'Ada' } }], approved: [] }
+      renderFamilyHome()
+      const line = await screen.findByRole('button', { name: /friend request waiting for you/i })
+      line.click()
+      expect(await screen.findByTestId('family-settings')).toHaveAttribute('data-tab', 'child-1')
+      expect(settingsModal.mock.calls.at(-1)[0].initialSection).toBe('friends')
+      approvals = { pending: [], approved: [] }
+    })
+
     it('renders the family photo above everything and the family quests section', async () => {
       renderFamilyHome()
       const cover = await screen.findByTestId('family-cover')

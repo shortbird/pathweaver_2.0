@@ -120,7 +120,8 @@ def test_an_ask_first_side_still_waits():
     assert mailer.call_args.args[0]['user_id'] == 'parent_of_b'
     needs = [c for c in notify.call_args_list if c.args[1] == 'peer_connection_needs_approval']
     assert len(needs) == 1 and needs[0].args[0] == 'parent_of_b'
-    assert needs[0].kwargs['link'] == '/family'
+    # Named child, not bare /family: the parent is usually already there.
+    assert needs[0].kwargs['link'] == '/family?friends=b'
 
 
 def test_a_side_that_cannot_consent_declines_the_whole_request():
@@ -335,7 +336,7 @@ def test_a_request_to_a_dependent_goes_to_their_parents():
 
     told = {c.args[0] for c in notify.call_args_list}
     assert told == {'mum', 'dad'}
-    assert all(c.kwargs['link'] == '/family' for c in notify.call_args_list)
+    assert all(c.kwargs['link'] == f'/family?friends={PEER}' for c in notify.call_args_list)
 
 
 def test_a_link_delivered_code_records_link():
@@ -389,9 +390,13 @@ def test_parents_who_did_not_answer_are_told_and_those_who_did_are_not():
     told = {c.args[0] for c in notify.call_args_list}
     assert told == {'a_mum', 'a_dad', 'b_dad'}, 'b_mum answered explicitly and already knows'
     assert all(c.args[1] == 'peer_friend_added' for c in notify.call_args_list)
-    assert all(c.kwargs['link'] == '/family' for c in notify.call_args_list)
+    # Each parent's link names THEIR child, so the Family tab opens on them.
+    by_parent = {c.args[0]: c.kwargs['link'] for c in notify.call_args_list}
+    assert by_parent == {'a_mum': '/family?friends=a', 'a_dad': '/family?friends=a',
+                         'b_dad': '/family?friends=b'}
     emailed = [c.args[0] for c in mail.call_args_list]
     assert emailed == [['a_mum', 'a_dad'], ['b_dad']]
+    assert [c.kwargs['child_id'] for c in mail.call_args_list] == ['a', 'b']
 
 
 def test_the_after_the_fact_email_skips_org_parents():

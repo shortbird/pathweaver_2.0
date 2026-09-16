@@ -42,6 +42,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 import secrets
 
+from utils.family_links import family_friends_link
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_uuid
 from utils import portfolio_access as pa
@@ -533,7 +534,7 @@ def request(requester_id: str, *, code: Optional[str] = None,
             _notify(guardian_id, 'peer_connection_request',
                     f"A friend request for {_display_name(addressee_id)}",
                     f"{who} sent {_display_name(addressee_id)} a friend request.",
-                    link='/family')
+                    link=family_friends_link(addressee_id))
     else:
         _notify(addressee_id, 'peer_connection_request',
                 'A student wants to be friends',
@@ -632,7 +633,8 @@ def respond_to_request(addressee_id: str, connection_id: str,
             f"{_display_name(student_id)} wants to be friends with "
             f"{_display_name(other)}. They would be able to see and comment on "
             f"each other's work.",
-            link='/family' if approver['kind'] == 'parent' else '/connections/approvals',
+            link=(family_friends_link(student_id) if approver['kind'] == 'parent'
+                  else '/connections/approvals'),
         )
 
         # And out of band. The in-app notification only reaches an approver who
@@ -781,8 +783,8 @@ def _tell_parents_after_the_fact(conn: Dict[str, Any],
                         f"{child_name} added a friend",
                         f"{child_name} and {peer_name} are now friends on Optio. "
                         f"They can see and comment on each other's work.",
-                        link='/family')
-            _email_friend_added(guardians, child_name, peer_name)
+                        link=family_friends_link(student_id))
+            _email_friend_added(guardians, child_name, peer_name, child_id=student_id)
         except Exception as e:  # noqa: BLE001
             logger.warning("[peer-connections] after-the-fact notice for %s failed: %s",
                            str(student_id)[:8], e)
@@ -814,7 +816,7 @@ def ask_parent(user_id: str) -> Dict[str, Any]:
                 f"{child_name} would like to use Friends",
                 f"{child_name} asked to add friends on Optio. Friends is off until "
                 f"you turn it on from the Family tab.",
-                link='/family')
+                link=family_friends_link(user_id))
         adult = people.get(guardian_id) or {}
         if not adult.get('email'):
             continue
@@ -824,6 +826,7 @@ def ask_parent(user_id: str) -> Dict[str, Any]:
                 parent_email=adult['email'],
                 parent_name=adult.get('first_name') or adult.get('display_name') or 'there',
                 child_name=child_name,
+                child_id=user_id,
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("[peer-connections] ask-parent email to %s failed: %s",
@@ -834,7 +837,7 @@ def ask_parent(user_id: str) -> Dict[str, Any]:
 
 
 def _email_friend_added(guardian_ids: List[str], child_name: str,
-                        peer_name: str) -> None:
+                        peer_name: str, child_id: Optional[str] = None) -> None:
     """Email the guardians who will not get it any other way.
 
     Org parents get a line in the school's weekly digest; platform parents
@@ -855,6 +858,7 @@ def _email_friend_added(guardian_ids: List[str], child_name: str,
                 parent_name=adult.get('first_name') or adult.get('display_name') or 'there',
                 child_name=child_name,
                 peer_name=peer_name,
+                child_id=child_id,
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("[peer-connections] friend-added email to %s failed: %s",
@@ -986,6 +990,103 @@ def friends_can_message(a_id: str, b_id: str) -> bool:
                for uid in (a_id, b_id))
 
 
+def friend_page(user_id: str, peer_id: str) -> Dict[str, Any]:
+    """A friend's page: who they are (the peer shape), when the friendship
+    started, the classes the two share, and what the friend is working on.
+
+    What is shown of the friend's quests is deliberately narrow (2026-09-16):
+    their PUBLIC quests in progress, plus any quest the viewer is on too,
+    public or not -- a class project both are on is theirs to talk about; a
+    private quest a parent set up for the friend is not. No progress on any
+    of them: the process is the goal, and the page should say what a friend
+    is into, not how far along they are. `shared` marks the quests the two
+    are both on; the page highlights those and Collaborate starts from them.
+    """
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    from utils import class_membership as cm
+    if not pa.is_peer_of(user_id, peer_id):
+        raise PeerConnectionError('You are not friends with this student.')
+    repo = PeerConnectionRepository()
+    conn = repo.active_between(user_id, peer_id) or {}
+
+    shared_class_ids = cm.student_class_ids(user_id) & cm.student_class_ids(peer_id)
+    class_names = _class_names(list(shared_class_ids)) if shared_class_ids else {}
+
+    by_user = repo.quests_in_progress([user_id, peer_id])
+    mine = {q['id'] for q in by_user.get(user_id, [])}
+    quests = []
+    for q in by_user.get(peer_id, []):
+        shared = q['id'] in mine
+        if not (q['is_public'] or shared):
+            continue
+        quests.append({'id': q['id'], 'title': q['title'], 'image_url': q['image_url'],
+                       'quest_type': q['quest_type'], 'shared': shared})
+    # Shared first, then the rest, each newest first (the repository's order).
+    quests.sort(key=lambda q: not q['shared'])
+
+    return {
+        'peer': _peer_profile(peer_id),
+        'connection_id': conn.get('id'),
+        'friends_since': conn.get('activated_at') or conn.get('created_at'),
+        'can_message': friends_can_message(user_id, peer_id),
+        'shared_classes': sorted(class_names.values()),
+        'quests': quests,
+        # The viewer's own quests in progress: what Collaborate can invite
+        # the friend to. `shared` says the friend is already on it.
+        'my_quests': [{'id': q['id'], 'title': q['title'], 'shared': q['id'] in {x['id'] for x in quests}}
+                      for q in by_user.get(user_id, [])],
+    }
+
+
+def friends_on_quest(user_id: str, quest_id: str) -> List[Dict[str, Any]]:
+    """Which of this student's friends are on the quest right now. The
+    quest page shows them ("Sam is on this quest too") and offers Message."""
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    peers = active_peer_ids(user_id)
+    if not peers:
+        return []
+    by_user = PeerConnectionRepository().quests_in_progress(peers)
+    out = []
+    for pid in peers:
+        if any(q['id'] == quest_id for q in by_user.get(pid, [])):
+            out.append({**_peer_profile(pid), 'can_message': friends_can_message(user_id, pid)})
+    return out
+
+
+def collaborate(user_id: str, peer_id: str, quest_id: str) -> Dict[str, Any]:
+    """Invite a friend to do a quest alongside you.
+
+    The smallest thing that is real (owner, 2026-09-16): a notification with
+    the quest one tap away. Each student does their own tasks and earns
+    their own XP; what "together" means is that the friend's page and the
+    quest page show you are both on it, and Message is beside that. The
+    invite comes from someone ON the quest -- not a bystander pointing at a
+    catalogue -- and goes only to a friend. It rides the existing
+    quest_invitation type, which already pushes to phones.
+    """
+    from repositories.peer_connection_repository import PeerConnectionRepository
+    if not pa.is_peer_of(user_id, peer_id):
+        raise PeerConnectionError('You can only collaborate with a friend.')
+    repo = PeerConnectionRepository()
+    if not repo.is_on_quest(user_id, quest_id):
+        raise PeerConnectionError('Start the quest first, then invite a friend to collaborate.')
+    title = repo.quest_title(quest_id)
+    if title is None:
+        raise PeerConnectionError('Quest not found')
+    already = repo.is_on_quest(peer_id, quest_id)
+    name = _display_name(user_id)
+    _notify(peer_id, 'quest_invitation',
+            f"{name} wants to collaborate on {title}",
+            (f"{name} is on {title} too. Open it and you can work on it side by side."
+             if already else
+             f"{name} invited you to do {title} together. Open the quest to start it."),
+            link=f'/quests/{quest_id}',
+            metadata={'kind': 'collaborate', 'quest_id': quest_id, 'from_user_id': user_id})
+    logger.info('[friends] %s invited %s to collaborate on %s',
+                str(user_id)[:8], str(peer_id)[:8], str(quest_id)[:8])
+    return {'invited': True, 'already_on_quest': already}
+
+
 def messageable_friend_ids(user_id: str) -> List[str]:
     """The friends this student may DM: the two-sided rule above, applied to
     the whole friends list. Feeds the Messages contact list."""
@@ -1014,11 +1115,13 @@ def active_peer_ids(user_id: str) -> List[str]:
 
 
 def feed(user_id: str, limit: int = 20,
-         cursor: Optional[str] = None) -> Dict[str, Any]:
+         cursor: Optional[str] = None, scope: str = 'all') -> Dict[str, Any]:
     """The student's own work and their connected peers' work, interleaved.
 
     This is why the page is called "Feed" and not "My Feed": once a student has
-    connections it stops being only theirs.
+    connections it stops being only theirs. ``scope`` narrows it the way the
+    observer feed's does: 'self' is only my work, 'friends' only theirs,
+    'all' (the default) both -- the filter tabs on the Feed page.
 
     The confidentiality scope is the load-bearing argument. ``is_confidential``
     is the flag a student sets to hide an item from their observers, and on
@@ -1034,9 +1137,17 @@ def feed(user_id: str, limit: int = 20,
     from services.activity_feed_service import build_activity_feed
 
     peers = active_peer_ids(user_id)
+    if scope == 'self':
+        authors = [user_id]
+    elif scope == 'friends':
+        authors = list(peers)
+        if not authors:
+            return {'items': [], 'has_more': False, 'next_cursor': None, 'peer_count': 0}
+    else:
+        authors = [user_id] + peers
     page = build_activity_feed(
         _admin(),
-        [user_id] + peers,
+        authors,
         limit=limit,
         cursor=cursor,
         confidential_ok_for={user_id},
@@ -1151,6 +1262,9 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
     # a hold: it never reached the other child, so it is not part of that
     # child's record.
     holds = PeerTextScreenRepository().holds_by_author(student_id, since)
+    # A held message's pictures, signed for the parent like any thread's.
+    from services.messaging_extras_service import sign_attachments
+    sign_attachments(holds)
 
     other_ids = set()
     for c in connections:
@@ -1158,8 +1272,11 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
     for c in comments + reactions:
         other_ids.add(c['author_id'] if c['author_id'] != student_id else c['student_id'])
     for h in holds:
-        other_ids.add(h['recipient_id'])
+        if h.get('recipient_id'):
+            other_ids.add(h['recipient_id'])
     other_ids.discard(student_id)
+    # A class chat hold names the room, not a friend.
+    groups = PeerTextScreenRepository().group_names([h.get('group_id') for h in holds])
 
     people = PeerPolicyRepository().users_by_ids(
         list(other_ids) + [student_id], 'id, display_name, first_name, avatar_url')
@@ -1211,7 +1328,10 @@ def peer_activity(student_id: str, days: int = 30) -> Dict[str, Any]:
                 'id': h['id'],
                 'surface': h.get('surface'),
                 'stage': h.get('stage'),
-                'peer': _profile(h['recipient_id']),
+                'peer': _profile(h['recipient_id']) if h.get('recipient_id') else None,
+                'group': ({'id': h['group_id'], 'name': groups.get(h['group_id']) or 'a class chat'}
+                          if h.get('group_id') else None),
+                'attachments': h.get('attachments') or [],
                 'text': h.get('text'),
                 'reasons': h.get('reasons') or [],
                 'created_at': h.get('created_at'),
@@ -1568,12 +1688,69 @@ def hide_comment(caller_id: str, comment_id: str) -> Dict[str, Any]:
     return {'id': comment_id, 'hidden': True}
 
 
+def hold_for_guardian(caller_id: str, hold_id: str) -> Dict[str, Any]:
+    """One held text, for the notification's detail view.
+
+    The author's parent may read it (the hold is their child's), as may the
+    adults who could set the child's Friends policy. Anyone else learns
+    nothing, not even that the id exists. The pictures are signed on read
+    like any thread's.
+    """
+    from repositories.peer_text_screen_repository import PeerTextScreenRepository
+    from repositories.peer_policy_repository import PeerPolicyRepository
+    from services.messaging_extras_service import sign_attachments
+    from utils.storage_urls import sign_in_place
+
+    repo = PeerTextScreenRepository()
+    hold = repo.hold(hold_id)
+    if not hold:
+        raise PeerConnectionError('Not found')
+    author_id = hold['author_id']
+    if not pa.is_parent_of(caller_id, author_id):
+        try:
+            kind = policy_svc.setter_kind(caller_id, author_id)
+        except policy_svc.PeerPolicyError:
+            kind = None
+        if kind not in ('org_admin', 'superadmin'):
+            raise PeerConnectionError('Not found')
+
+    sign_attachments([hold])
+    ids = [author_id] + ([hold['recipient_id']] if hold.get('recipient_id') else [])
+    people = PeerPolicyRepository().users_by_ids(ids, 'id, display_name, first_name, avatar_url')
+
+    def _profile(uid):
+        u = people.get(uid) or {}
+        return {'id': uid,
+                'display_name': u.get('display_name') or u.get('first_name') or 'A student',
+                'avatar_url': u.get('avatar_url')}
+
+    profiles = [_profile(uid) for uid in ids]
+    sign_in_place(profiles, ['avatar_url'])
+    group = None
+    if hold.get('group_id'):
+        names = repo.group_names([hold['group_id']])
+        group = {'id': hold['group_id'], 'name': names.get(hold['group_id']) or 'a class chat'}
+    return {
+        'id': hold['id'],
+        'surface': hold.get('surface'),
+        'stage': hold.get('stage'),
+        'text': hold.get('text'),
+        'reasons': hold.get('reasons') or [],
+        'attachments': hold.get('attachments') or [],
+        'created_at': hold.get('created_at'),
+        'author': profiles[0],
+        'peer': profiles[1] if len(profiles) > 1 else None,
+        'group': group,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 
 def _notify(user_id: str, ntype: str, title: str, message: str,
-            link: Optional[str] = None) -> None:
+            link: Optional[str] = None,
+            metadata: Optional[Dict[str, Any]] = None) -> None:
     """Best-effort notification. A delivery failure must not fail the action.
 
     Losing a notification is a bad experience; failing the parent's approval
@@ -1583,7 +1760,7 @@ def _notify(user_id: str, ntype: str, title: str, message: str,
         from services.notification_service import NotificationService
         NotificationService().create_notification(
             user_id=user_id, notification_type=ntype,
-            title=title, message=message, link=link,
+            title=title, message=message, link=link, metadata=metadata,
         )
     except Exception as e:
         logger.warning("[peer-connections] notification %s to %s failed: %s",

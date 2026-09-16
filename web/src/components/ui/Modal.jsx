@@ -15,6 +15,7 @@ import FocusTrap from 'focus-trap-react';
  * @param {React.ReactNode} children - Modal body content
  * @param {React.ReactNode} footer - Footer content (usually buttons)
  * @param {string} size - Modal size: 'sm' | 'md' | 'lg' | 'xl' | 'full' (default: 'md')
+ * @param {string} maxWidthClassName - A max-w-* class that replaces the size's, for a width between two sizes
  * @param {boolean} showCloseButton - Show X button in header (default: true)
  * @param {boolean} closeOnOverlayClick - Close when clicking overlay (default: true)
  * @param {string} headerClassName - Additional classes for header
@@ -29,6 +30,7 @@ export const Modal = ({
   children,
   footer,
   size = 'md',
+  maxWidthClassName = '',
   showCloseButton = true,
   closeOnOverlayClick = true,
   headerClassName = '',
@@ -108,7 +110,7 @@ export const Modal = ({
         }}
       >
         <div
-          className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl ${sizeClasses[size]} w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col`}
+          className={`bg-white rounded-xl sm:rounded-2xl shadow-2xl ${maxWidthClassName || sizeClasses[size]} w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col`}
           role="dialog"
           aria-modal="true"
         >

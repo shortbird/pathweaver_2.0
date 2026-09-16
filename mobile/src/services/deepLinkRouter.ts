@@ -240,6 +240,17 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
     };
   }
 
+  // The family dashboard itself is the Family tab; only its sub-paths (the
+  // portal, the paperwork) are web-only. "/family?friends=<child>" is every
+  // Friends notification's link (backend/utils/family_links.py) and lands on
+  // that child's Friends screen: the switch, the requests, the holds. Until
+  // 2026-09-16 bare /family fell through to view-on-web.
+  if (/^\/family\/?$/.test(path)) {
+    const friendsChild = getQueryParam(query, 'friends');
+    if (friendsChild) return { target: `/(app)/parent/friends/${friendsChild}` };
+    return { target: '/(app)/(tabs)/family' };
+  }
+
   // Exact remaps first (matched on path, query ignored)
   for (const [pattern, target] of REMAP) {
     if (pattern.test(path)) return { target };

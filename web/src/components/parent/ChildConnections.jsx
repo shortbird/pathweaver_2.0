@@ -43,9 +43,9 @@ export default function ChildConnections({ childId }) {
   })
 
   return (
-    <section aria-label="Connections" className="mt-4 space-y-2">
-      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-        <UsersIcon className="w-3.5 h-3.5" />
+    <section aria-label="Connections" className="mt-5 pt-4 border-t border-gray-100 space-y-2">
+      <h4 className="text-base font-medium text-gray-900 flex items-center gap-1.5">
+        <UsersIcon className="w-4 h-4 text-gray-400" />
         {pending.length > 0 ? 'Requests and friends' : 'Friends'}
         {pending.length > 0 && (
           <span className="rounded-full bg-optio-pink px-1.5 text-[10px] font-bold leading-4 text-white">

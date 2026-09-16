@@ -78,14 +78,25 @@ function Section({ title, description, children }) {
   )
 }
 
-function PeerRow({ item, children }) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3">
+/** One person. With `to`, the picture and name are a link (a friend's row
+ *  opens their page); the buttons on the right stay their own controls. */
+function PeerRow({ item, to, children }) {
+  const identity = (
+    <>
       <Avatar peer={item.peer} />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-neutral-900 truncate">{item.peer.display_name}</p>
         {item.statusLabel && <p className="text-sm text-neutral-500">{item.statusLabel}</p>}
       </div>
+    </>
+  )
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3">
+      {to ? (
+        <Link to={to} className="flex flex-1 min-w-0 items-center gap-3 rounded-md -m-1 p-1 hover:bg-neutral-50">
+          {identity}
+        </Link>
+      ) : identity}
       <div className="flex gap-2 shrink-0">{children}</div>
     </div>
   )
@@ -415,7 +426,7 @@ export default function ConnectionsPage() {
               description={list.active.length ? null : 'No friends yet. Add a classmate, or share your code.'}
             >
               {list.active.map((item) => (
-                <PeerRow key={item.id} item={item}>
+                <PeerRow key={item.id} item={item} to={`/connections/${item.peer.id}`}>
                   {item.can_message && (
                     <Link to={friends.messagesLinkFor(item.peer.id)} className={secondaryBtn}>Message</Link>
                   )}

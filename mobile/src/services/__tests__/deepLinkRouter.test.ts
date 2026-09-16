@@ -18,6 +18,14 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/parent-dashboard')?.target).toBe('/(app)/(tabs)/family');
   });
 
+  // Every Friends notification links "/family?friends=<child>". Bare /family
+  // is the Family tab, not view-on-web; the child's link is their Friends screen.
+  it('lands /family on the Family tab and /family?friends=<child> on that child\'s Friends screen', () => {
+    expect(resolveDeepLink('/family')?.target).toBe('/(app)/(tabs)/family');
+    expect(resolveDeepLink('/family?friends=kid-1')?.target).toBe('/(app)/parent/friends/kid-1');
+    expect(resolveDeepLink('/family?settings=you')?.target).toBe('/(app)/(tabs)/family');
+  });
+
   it('maps observer legacy routes to feed tab', () => {
     expect(resolveDeepLink('/feedback')?.target).toBe('/(app)/(tabs)/feed');
     expect(resolveDeepLink('/observer/feed')?.target).toBe('/(app)/(tabs)/feed');

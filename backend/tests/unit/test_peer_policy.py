@@ -10,7 +10,7 @@ covers. What must stay true:
     changing a mode or a source writes none
   * a minor never sets their own; the school never speaks over a parent
   * turning Friends off revokes the child's live connections
-  * 'message' is refused until phase 3 ships its safety work
+  * 'message' is one of the default grants, alongside 'see' and 'comment'
 """
 
 from unittest.mock import Mock, patch
@@ -175,6 +175,21 @@ def test_no_row_still_carries_the_default_permissions():
     with a, b:
         policy = ps.effective_policy('grown')
     assert 'comment' in policy.friends_can
+    assert 'message' in policy.friends_can, 'messaging is a default grant (2026-09-16)'
+
+
+def test_turning_friends_on_grants_messaging_by_default():
+    """A parent who flips the switch and touches nothing else has allowed
+    seeing, commenting and messaging. Taking messaging away is a second,
+    deliberate write."""
+    repo = FakeRepo(users={'kid': KID, 'mum': MUM})
+    a, b, c, d = _writing(repo)
+    with a, b, c, d:
+        ps.set_policy('kid', 'mum', {'enabled': True})
+    assert repo.policies['kid']['friends_can'] == ['see', 'comment', 'message']
+    with a, b, c, d:
+        ps.set_policy('kid', 'mum', {'friends_can': ['see', 'comment']})
+    assert repo.policies['kid']['friends_can'] == ['see', 'comment']
 
 
 def test_a_parent_asking_is_always_an_allowed_source():

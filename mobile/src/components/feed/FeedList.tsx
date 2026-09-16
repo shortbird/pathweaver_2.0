@@ -267,6 +267,9 @@ function SegmentButton({ active, onPress, label, icon }: { active: boolean; onPr
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      testID={`feed-segment-${label.toLowerCase()}`}
       className={`flex-1 py-2.5 rounded-lg items-center flex-row gap-1.5 justify-center ${active ? 'bg-white dark:bg-dark-surface-100' : ''}`}
     >
       {icon}

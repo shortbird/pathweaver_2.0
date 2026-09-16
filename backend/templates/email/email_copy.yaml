@@ -824,7 +824,7 @@ emails:
         - "Everything students write to each other passes a safety check first"
         - "You see every friend and everything said, and you can remove a friend, block one, or turn Friends off at any time"
     cta:
-      text: "Open {{ child_name }}'s Friends settings"
+      text: "Turn on Friends for {{ child_name }}"
       url: "{{ family_url }}"
     closing_paragraphs:
       - "If you'd rather not, you don't need to do anything. {{ child_name }} can ask again another day."
@@ -843,6 +843,20 @@ emails:
       url: "{{ queue_url }}"
     closing_paragraphs:
       - "Held texts are in the Holds tab. A hold that should not have happened is worth a look at the screen's prompt."
+    signature: "support"
+
+  csam_incident:
+    subject: "CSAM hash match on Optio: action required"
+    title: "Action required"
+    salutation: "Hi {{ admin_name }},"
+    paragraphs:
+      - "An image upload matched the known-CSAM hash lists ({{ provider }}) and was refused. The file is quarantined where nobody on the platform can open it. Incident <strong>{{ incident_id }}</strong>, upload path: {{ purpose }}."
+      - "This is a reportable event under 18 U.S.C. 2258A. Follow docs/CHILD_SAFETY_REPORTING.md in the repository now: confirm the incident, file the CyberTipline report, record the report reference on the incident, and do not delete anything."
+    cta:
+      text: "Open the moderation queue"
+      url: "{{ runbook_url }}"
+    closing_paragraphs:
+      - "Do not forward this email or the file to anyone outside the reporting procedure."
     signature: "support"
 
   course_enrollment:

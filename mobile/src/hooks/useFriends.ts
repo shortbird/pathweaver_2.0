@@ -288,7 +288,7 @@ export async function hidePeerComment(commentId: string): Promise<void> {
   await api.post(`/api/connections/comments/${commentId}/hide`, {});
 }
 
-export type ReportTarget = 'peer_comment' | 'message' | 'learning_event' | 'task_completion' | 'user';
+export type ReportTarget = 'peer_comment' | 'message' | 'group_message' | 'learning_event' | 'task_completion' | 'user';
 export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'self_harm' | 'other';
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
@@ -310,6 +310,53 @@ export async function reportContent(targetType: ReportTarget, targetId: string, 
 export async function askParent(): Promise<{ asked: number }> {
   const res = await api.post('/api/connections/ask-parent', {});
   return unwrap(res);
+}
+
+// -- a friend's page, and Collaborate (2026-09-16) ---------------------------
+
+export interface FriendQuest {
+  id: string;
+  title: string;
+  image_url: string | null;
+  quest_type?: string | null;
+  /** Both students are on it. Shared quests come first. */
+  shared: boolean;
+}
+
+export interface FriendPage {
+  peer: PeerProfile;
+  connection_id: string | null;
+  friends_since: string | null;
+  can_message: boolean;
+  shared_classes: string[];
+  /** The friend's public quests in progress, plus any the viewer shares. */
+  quests: FriendQuest[];
+  /** The viewer's own quests in progress, for the Collaborate picker. */
+  my_quests: { id: string; title: string; shared: boolean }[];
+}
+
+/** A friend's page. Refused (rejects) for anyone who is not an active friend. */
+export async function getFriendPage(peerId: string, studentId?: string | null): Promise<FriendPage> {
+  const res = await api.get(`/api/connections/friends/${peerId}`, { params: scoped(studentId) });
+  return unwrap(res);
+}
+
+/** Invite a friend to do a quest alongside you: one notification with the
+ *  quest one tap away. The sender has to be on the quest. */
+export async function collaborate(peerId: string, questId: string, studentId?: string | null)
+  : Promise<{ invited: boolean; already_on_quest: boolean }> {
+  const res = await api.post(`/api/connections/friends/${peerId}/collaborate`, { quest_id: questId, ...scoped(studentId) });
+  return unwrap(res);
+}
+
+export interface FriendOnQuest extends PeerProfile {
+  can_message: boolean;
+}
+
+/** Which of the student's friends are on this quest right now. */
+export async function friendsOnQuest(questId: string, studentId?: string | null): Promise<FriendOnQuest[]> {
+  const res = await api.get(`/api/connections/quests/${questId}/friends`, { params: scoped(studentId) });
+  return unwrap<{ friends?: FriendOnQuest[] }>(res).friends || [];
 }
 
 /** Where a friend chat lives: the Messages tab, opened on that person. */

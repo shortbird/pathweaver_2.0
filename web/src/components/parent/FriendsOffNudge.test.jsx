@@ -1,8 +1,9 @@
 /**
  * FriendsOffNudge -- the one line that brings the Friends switch to the
- * family dashboard. Shows only when a parent can turn it on; one tap does.
+ * family dashboard. Shows only when a parent can turn it on; the button
+ * opens the explainer, and the switch is at the bottom of that.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -27,13 +28,30 @@ const mount = (policy, canSet = true) => {
 describe('FriendsOffNudge', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('turns Friends on with one tap', async () => {
+  it('explains Friends before the switch, and the switch turns it on', async () => {
     mount({ enabled: false, origin: 'none', who_can_enable: 'parent' })
     await userEvent.click(await screen.findByRole('button', { name: /turn on friends/i }))
+
+    // Nothing is written by the first click: the explainer opens instead.
+    expect(api.put).not.toHaveBeenCalled()
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(/how friends works/i)
+    expect(dialog).toHaveTextContent(/never an email address/i)
+    expect(dialog).toHaveTextContent(/turning friends off removes every friend robin has/i)
+    expect(dialog).toHaveTextContent(/your consent/i)
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /^turn on friends$/i }))
     await waitFor(() => {
       expect(api.put).toHaveBeenCalledWith('/api/connections/children/s1/policy', { enabled: true })
     })
-    expect(toast.success).toHaveBeenCalledWith('Friends is on for Robin.')
+    expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/friends is on for robin/i))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('has no separate rules link: the explainer is the rules', async () => {
+    mount({ enabled: false, origin: 'none', who_can_enable: 'parent' })
+    await screen.findByRole('button', { name: /turn on friends/i })
+    expect(screen.queryByRole('button', { name: /rules/i })).toBeNull()
   })
 
   it('renders nothing once Friends is on', async () => {

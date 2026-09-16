@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, LockClosedIcon, UserIcon, UserGroupIcon } from '@heroicons/react/24/outline'
+import React, { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { KeyIcon, SparklesIcon, EyeIcon, EyeSlashIcon, ChatBubbleLeftRightIcon, LightBulbIcon, ClipboardDocumentListIcon, LockClosedIcon, UserIcon, UserGroupIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { addDependentLogin, toggleDependentAIAccess, updateDependentAIFeatures, updateChildName } from '../../services/dependentAPI'
 import toast from 'react-hot-toast'
+import * as friends from '../../services/friendsAPI'
+import { forChild, useConnectionApprovals } from '../../hooks/api/useConnectionApprovals'
 import ChildAvatarUpload from './ChildAvatarUpload'
 import ChildPrivacyCard from './ChildPrivacyCard'
 import ChildFriendsCard from './ChildFriendsCard'
@@ -35,25 +38,70 @@ import ChildConnections from './ChildConnections'
  * with a per-child access switch, which is the same control at the family
  * grain.
  *
+ * Each section is a collapsible row (2026-09-16): a heading, a one-line
+ * summary of the current state, and a chevron. Until then the five sections
+ * were laid out in full, one under the other, and a parent sent here by a
+ * Friends notification scrolled past a centred portrait, a login form and
+ * three AI cards to reach the switch. `initialSection` names the row to
+ * open on arrival; the rest open on a click. The bodies stay mounted while
+ * collapsed (hidden, not unrendered), so a half-typed name survives a
+ * collapse and the summaries can read what their bodies load.
+ *
  * Props:
  *   - child: the row as its endpoint returned it (dependent or linked)
  *   - isDependent: true for a managed under-13 profile
  *   - orgLimits: optional org-level AI feature limits (what the org allows)
  *   - onUpdate: called after any save, so the family list refetches
+ *   - initialSection: 'profile' | 'login' | 'ai' | 'privacy' | 'friends'
  */
 // Module-level on purpose: a component defined inside the panel body gets a
 // new identity every render, which remounts its subtree -- and an input that
 // remounts on every keystroke loses focus after one character.
-function Section({ icon: Icon, title, children }) {
+function Section({ id, icon: Icon, title, summary, badge, open, onToggle, children }) {
+  const Chevron = open ? ChevronDownIcon : ChevronRightIcon
   return (
-    <section className="pt-6 first:pt-0">
-      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-3">
-        <Icon className="w-4 h-4 text-optio-purple" />
-        {title}
+    <section data-testid={`child-section-${id}`}>
+      {/* The disclosure pattern: the heading holds the button, so the row
+          is a heading to a screen reader and a button to a click. */}
+      <h3 className="m-0">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={`child-section-${id}-body`}
+          className="w-full flex items-center gap-3 py-3.5 text-left hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
+        >
+          <Icon className="w-6 h-6 text-optio-purple flex-shrink-0" />
+          <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
+            <span className="text-base font-semibold text-gray-900 flex-shrink-0">{title}</span>
+            {summary && <span className="text-base font-normal text-gray-500 truncate min-w-0">{summary}</span>}
+          </span>
+          {badge > 0 && (
+            <span className="rounded-full bg-optio-pink px-1.5 text-[10px] font-bold leading-4 text-white flex-shrink-0">
+              {badge}
+            </span>
+          )}
+          <Chevron className="w-5 h-5 text-gray-400 flex-shrink-0" />
+        </button>
       </h3>
-      {children}
+      <div id={`child-section-${id}-body`} className={open ? 'pb-6 pl-9' : 'hidden'} hidden={!open}>
+        {children}
+      </div>
     </section>
   )
+}
+
+/** The Friends row's one-line summary: on/off, then friends and requests. */
+function friendsSummary(policyData, pending, approved) {
+  const policy = policyData?.policy
+  if (!policy) return null
+  if (policy.origin === 'module_off') return 'Not available at this school'
+  if (!policy.enabled) return 'Off'
+  const parts = ['On']
+  if (approved > 0) parts.push(`${approved} friend${approved === 1 ? '' : 's'}`)
+  if (pending > 0) parts.push(`${pending} request${pending === 1 ? '' : 's'} waiting`)
+  if (policy.approval_mode === 'ask_first') parts.push('ask me first')
+  return parts.join(' \u00b7 ')
 }
 
 function FeatureToggle({ label, description, icon: Icon, enabled, orgAllowed, onToggle, disabled }) {
@@ -84,7 +132,7 @@ function FeatureToggle({ label, description, icon: Icon, enabled, orgAllowed, on
               />
             </button>
           </div>
-          <p className={`text-xs ${isDisabledByOrg ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`text-sm ${isDisabledByOrg ? 'text-gray-400' : 'text-gray-500'}`}>
             {isDisabledByOrg ? 'Disabled by organization' : description}
           </p>
         </div>
@@ -93,12 +141,29 @@ function FeatureToggle({ label, description, icon: Icon, enabled, orgAllowed, on
   )
 }
 
-const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = null }) => {
+const SECTION_IDS = ['profile', 'login', 'ai', 'privacy', 'friends']
+
+const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = null, initialSection = null }) => {
   const childData = child
   const showLogin = isDependent
 
   const [loading, setLoading] = useState(false)
   const [featureLoading, setFeatureLoading] = useState(false)
+
+  // Which rows are open. The one the caller asked for starts open; a click
+  // toggles any row, and more than one may be open at once.
+  const [openSections, setOpenSections] = useState(() =>
+    new Set(SECTION_IDS.includes(initialSection) ? [initialSection] : []))
+  const isOpen = (id) => openSections.has(id)
+  const toggle = (id) => setOpenSections((prev) => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+
+  // The Privacy row's summary, reported by its card once it has loaded.
+  const [privacy, setPrivacy] = useState(null)
+  const onPrivacyStatus = useCallback((status, shares) => setPrivacy({ status, shares: shares || [] }), [])
 
   // Profile form state. First and last separately, because the whole point of
   // this form is that they can be the wrong way round.
@@ -154,6 +219,18 @@ const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = n
   const childFirstName = childName.split(' ')[0]
 
   const hasLogin = childData.email && !childData.email.endsWith('@optio-internal-placeholder.local')
+
+  // Friends: the same react-query rows the card and the dashboard read.
+  const { data: friendsPolicy } = useQuery({
+    queryKey: ['connections', 'policy', childId],
+    queryFn: () => friends.getChildPolicy(childId),
+    enabled: !!childId,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
+  })
+  const { data: approvals } = useConnectionApprovals()
+  const { pending, approved } = forChild(approvals, childId)
 
   const validatePassword = (pwd) => {
     const errors = []
@@ -263,256 +340,274 @@ const ChildSettingsPanel = ({ child, isDependent = true, onUpdate, orgLimits = n
     }
   }
 
+  const aiFeatureNames = [
+    chatbotEnabled && effectiveOrgLimits.chatbot && 'AI Tutor',
+    lessonHelperEnabled && effectiveOrgLimits.lesson_helper && 'Lesson Helper',
+    taskGenerationEnabled && effectiveOrgLimits.task_generation && 'Task Suggestions',
+  ].filter(Boolean)
+  const aiSummary = aiEnabled
+    ? (aiFeatureNames.length ? `On · ${aiFeatureNames.join(', ')}` : 'On')
+    : 'Off'
+
+  const privacyStatus = privacy?.status
+  const activeShares = (privacy?.shares || []).filter((sh) => sh.is_active).length
+  const privacySummary = !privacy ? null
+    : !privacyStatus || privacyStatus.unknown ? 'Could not load the current setting'
+    : [
+      privacyStatus.is_public ? 'Portfolio public' : 'Portfolio private',
+      activeShares > 0 && `${activeShares} transcript link${activeShares === 1 ? '' : 's'}`,
+      privacyStatus.pending_parent_approval && 'request waiting',
+    ].filter(Boolean).join(' · ')
+
+  const inputClass = 'w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent'
+
   return (
     <div className="divide-y divide-gray-100">
-          <Section icon={UserIcon} title="Profile">
-            <div className="space-y-6">
-              {/* The same picture control as the child's card on /family. Linked
-                  students arrive from /my-children, which names the field
-                  student_avatar_url; dependents carry avatar_url. */}
-              <div className="flex justify-center">
-                <ChildAvatarUpload
-                  childId={childId}
-                  name={childName}
-                  avatarUrl={childData?.avatar_url || childData?.student_avatar_url || null}
-                  size="lg"
-                  onUploaded={() => onUpdate?.()}
+      <Section id="profile" icon={UserIcon} title="Profile" summary={childName} open={isOpen('profile')} onToggle={() => toggle('profile')}>
+        {/* The same picture control as the child's card on /family, beside
+            the name rather than above it. Linked students arrive from
+            /my-children, which names the field student_avatar_url;
+            dependents carry avatar_url. */}
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <ChildAvatarUpload
+            childId={childId}
+            name={childName}
+            avatarUrl={childData?.avatar_url || childData?.student_avatar_url || null}
+            size="md"
+            onUploaded={() => onUpdate?.()}
+          />
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Name. Editable for every child a guardian is responsible for. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="child-first-name" className="block text-base font-medium text-gray-700 mb-1">
+                  First name
+                </label>
+                <input
+                  id="child-first-name"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className={inputClass}
+                  placeholder="First name"
                 />
               </div>
-              <p className="text-center text-sm text-gray-500">Click to upload a profile picture</p>
-
-              {/* Name. Editable for every child a guardian is responsible for. */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="child-first-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    First name
-                  </label>
-                  <input
-                    id="child-first-name"
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                    placeholder="First name"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="child-last-name" className="block text-sm font-medium text-gray-700 mb-1">
-                    Last name
-                  </label>
-                  <input
-                    id="child-last-name"
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                    placeholder="Last name"
-                  />
-                </div>
+              <div>
+                <label htmlFor="child-last-name" className="block text-base font-medium text-gray-700 mb-1">
+                  Last name
+                </label>
+                <input
+                  id="child-last-name"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className={inputClass}
+                  placeholder="Last name"
+                />
               </div>
-              <p className="text-xs text-gray-500 -mt-4">
-                This is how {firstName || 'your child'} appears everywhere in Optio. If a school
-                roster put the names the wrong way round, swap them here.
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-base text-gray-500">
+                This is how {firstName || 'your child'} appears everywhere in Optio. Click the picture to change it.
+                If a school roster put the names the wrong way round, swap them here.
               </p>
-
               <button
                 onClick={handleSaveProfile}
                 disabled={loading || !firstName.trim() || !lastName.trim()}
-                className="btn-primary w-full"
+                className="btn-primary flex-shrink-0"
               >
                 {loading ? 'Saving...' : 'Save name'}
               </button>
-
             </div>
-          </Section>
+          </div>
+        </div>
+      </Section>
 
-          {showLogin && (
-          <Section icon={KeyIcon} title="Login">
-            <div>
-              {hasLogin ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <KeyIcon className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-2">Login Already Set Up</h3>
-                  <p className="text-sm text-gray-600">
-                    {childName} can log in with: <br />
-                    <span className="font-medium">{childData.email}</span>
-                  </p>
+      {showLogin && (
+        <Section
+          id="login"
+          icon={KeyIcon}
+          title="Login"
+          summary={hasLogin ? childData.email : 'No login yet'}
+          open={isOpen('login')}
+          onToggle={() => toggle('login')}
+        >
+          {hasLogin ? (
+            <p className="text-base text-gray-600">
+              {childName} can log in with <span className="font-medium text-gray-900">{childData.email}</span>.
+            </p>
+          ) : (
+            <form onSubmit={handleAddLogin} className="space-y-3">
+              <p className="text-base text-gray-600">
+                Give {childName} their own login so they can access Optio independently.
+                You will still have full oversight of their account.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={inputClass}
+                    placeholder="child@example.com"
+                    required
+                  />
                 </div>
-              ) : (
-                <form onSubmit={handleAddLogin} className="space-y-4">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Give {childName} their own login so they can access Optio independently.
-                    You will still have full oversight of their account.
-                  </p>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                      placeholder="child@example.com"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent pr-10"
-                        placeholder="Create a strong password"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      >
-                        {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                      </button>
-                    </div>
-                    {password && passwordErrors.length > 0 && (
-                      <ul className="mt-2 text-xs text-red-600 space-y-1">
-                        {passwordErrors.map((error, i) => (
-                          <li key={i}>- {error}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirm Password
-                    </label>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">
+                    Password
+                  </label>
+                  <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-                      placeholder="Confirm password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`${inputClass} pr-10`}
+                      placeholder="Create a strong password"
                       required
                     />
-                    {confirmPassword && password !== confirmPassword && (
-                      <p className="mt-1 text-xs text-red-600">Passwords do not match</p>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading || !isPasswordValid || password !== confirmPassword}
-                    className="btn-primary w-full"
-                  >
-                    {loading ? 'Creating Login...' : 'Create Login'}
-                  </button>
-                </form>
-              )}
-            </div>
-          </Section>
-          )}
-
-          <Section icon={SparklesIcon} title="AI features">
-            <div className="space-y-4">
-              {/* Master Toggle */}
-              <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex-shrink-0">
-                  <SparklesIcon className="w-8 h-8 text-optio-purple" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 mb-1">AI Features</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Enable AI-powered learning assistance for {childName}.
-                  </p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">
-                      AI Features {aiEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
                     <button
-                      onClick={handleToggleAI}
-                      disabled={loading}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        aiEnabled ? 'bg-optio-purple' : 'bg-gray-300'
-                      } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          aiEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
+                      {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Granular Controls - only shown when master toggle is ON */}
-              {aiEnabled && (
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-500 font-medium">Individual Features</p>
-
-                  <FeatureToggle
-                    label="AI Tutor"
-                    description="Educational conversations with an AI tutor that adapts to their learning style."
-                    icon={ChatBubbleLeftRightIcon}
-                    enabled={chatbotEnabled}
-                    orgAllowed={effectiveOrgLimits.chatbot}
-                    onToggle={() => handleToggleFeature('chatbot', chatbotEnabled, setChatbotEnabled)}
-                    disabled={featureLoading}
-                  />
-
-                  <FeatureToggle
-                    label="Lesson Helper"
-                    description="AI assistance within lessons to explain concepts and provide different perspectives."
-                    icon={LightBulbIcon}
-                    enabled={lessonHelperEnabled}
-                    orgAllowed={effectiveOrgLimits.lesson_helper}
-                    onToggle={() => handleToggleFeature('lesson_helper', lessonHelperEnabled, setLessonHelperEnabled)}
-                    disabled={featureLoading}
-                  />
-
-                  <FeatureToggle
-                    label="Task Suggestions"
-                    description="AI recommends tasks and provides feedback on quest ideas."
-                    icon={ClipboardDocumentListIcon}
-                    enabled={taskGenerationEnabled}
-                    orgAllowed={effectiveOrgLimits.task_generation}
-                    onToggle={() => handleToggleFeature('task_generation', taskGenerationEnabled, setTaskGenerationEnabled)}
-                    disabled={featureLoading}
+                <div>
+                  <label className="block text-base font-medium text-gray-700 mb-1">
+                    Confirm Password
+                  </label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={inputClass}
+                    placeholder="Confirm password"
+                    required
                   />
                 </div>
+              </div>
+              {password && passwordErrors.length > 0 && (
+                <p className="text-xs text-red-600">Password needs: {passwordErrors.join(', ').toLowerCase()}.</p>
+              )}
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-600">Passwords do not match</p>
               )}
 
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  <strong>Privacy Note:</strong> When AI features are enabled, your child's learning
-                  activity (questions, quest ideas) may be sent to Google for AI processing.
-                  You can disable this at any time.
-                </p>
-              </div>
+              <button
+                type="submit"
+                disabled={loading || !isPasswordValid || password !== confirmPassword}
+                className="btn-primary"
+              >
+                {loading ? 'Creating Login...' : 'Create Login'}
+              </button>
+            </form>
+          )}
+        </Section>
+      )}
+
+      <Section id="ai" icon={SparklesIcon} title="AI features" summary={aiSummary} open={isOpen('ai')} onToggle={() => toggle('ai')}>
+        <div className="space-y-4">
+          {/* Master switch */}
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-base text-gray-600">
+              AI-powered learning assistance for {childName}: a tutor to talk to, help inside lessons, and task ideas.
+            </p>
+            <button
+              onClick={handleToggleAI}
+              disabled={loading}
+              role="switch"
+              aria-checked={aiEnabled}
+              aria-label={`AI features ${aiEnabled ? 'enabled' : 'disabled'}`}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                aiEnabled ? 'bg-optio-purple' : 'bg-gray-300'
+              } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  aiEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* The three features, only while the master switch is on */}
+          {aiEnabled && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <FeatureToggle
+                label="AI Tutor"
+                description="Educational conversations with an AI tutor that adapts to their learning style."
+                icon={ChatBubbleLeftRightIcon}
+                enabled={chatbotEnabled}
+                orgAllowed={effectiveOrgLimits.chatbot}
+                onToggle={() => handleToggleFeature('chatbot', chatbotEnabled, setChatbotEnabled)}
+                disabled={featureLoading}
+              />
+
+              <FeatureToggle
+                label="Lesson Helper"
+                description="AI assistance within lessons to explain concepts and provide different perspectives."
+                icon={LightBulbIcon}
+                enabled={lessonHelperEnabled}
+                orgAllowed={effectiveOrgLimits.lesson_helper}
+                onToggle={() => handleToggleFeature('lesson_helper', lessonHelperEnabled, setLessonHelperEnabled)}
+                disabled={featureLoading}
+              />
+
+              <FeatureToggle
+                label="Task Suggestions"
+                description="AI recommends tasks and provides feedback on quest ideas."
+                icon={ClipboardDocumentListIcon}
+                enabled={taskGenerationEnabled}
+                orgAllowed={effectiveOrgLimits.task_generation}
+                onToggle={() => handleToggleFeature('task_generation', taskGenerationEnabled, setTaskGenerationEnabled)}
+                disabled={featureLoading}
+              />
             </div>
-          </Section>
+          )}
 
-          <Section icon={LockClosedIcon} title="Privacy">
-            <ChildPrivacyCard studentId={childId} studentName={childFirstName} />
-          </Section>
+          <p className="text-sm text-gray-500">
+            When AI features are on, {childFirstName}&rsquo;s questions and quest ideas may be sent to Google for
+            AI processing. You can turn this off at any time.
+          </p>
+        </div>
+      </Section>
 
-          {/* The policy first (whether requests come at all, and on what
-              terms), then the requests waiting on the parent and the friends
-              already approved. One section, because they are one decision. */}
-          <Section icon={UserGroupIcon} title="Friends">
-            <ChildFriendsCard studentId={childId} studentName={childFirstName} />
-            <ChildConnections childId={childId} />
-          </Section>
+      <Section
+        id="privacy"
+        icon={LockClosedIcon}
+        title="Privacy"
+        summary={privacySummary}
+        badge={privacyStatus?.pending_parent_approval ? 1 : 0}
+        open={isOpen('privacy')}
+        onToggle={() => toggle('privacy')}
+      >
+        <ChildPrivacyCard studentId={childId} studentName={childFirstName} defaultExpanded onStatus={onPrivacyStatus} />
+      </Section>
+
+      {/* The policy first (whether requests come at all, and on what
+          terms), then the requests waiting on the parent and the friends
+          already approved. One section, because they are one decision. */}
+      <Section
+        id="friends"
+        icon={UserGroupIcon}
+        title="Friends"
+        summary={friendsSummary(friendsPolicy, pending.length, approved.length)}
+        badge={pending.length}
+        open={isOpen('friends')}
+        onToggle={() => toggle('friends')}
+      >
+        <ChildFriendsCard studentId={childId} studentName={childFirstName} />
+        <ChildConnections childId={childId} />
+      </Section>
     </div>
   )
 }

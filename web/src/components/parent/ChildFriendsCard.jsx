@@ -1,10 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import Button from '../ui/Button';
-import { UserGroupIcon } from '@heroicons/react/24/outline';
 import { QRCodeSVG } from 'qrcode.react';
 import * as friends from '../../services/friendsAPI';
+import { AttachmentList } from '../communication/MessageParts';
+import FriendsHowItWorks from './FriendsHowItWorks';
+
+// A held text names the other child (a comment, a direct message) or the
+// room (a class chat message, since 2026-09-15).
+const holdWhat = (h) => (h.surface === 'peer_comment' ? 'a comment' : 'a message')
+const holdWhere = (h) => (h.group ? `in ${h.group.name}` : `to ${h.peer?.display_name || 'a friend'}`)
+
 
 /**
  * ChildFriendsCard - a parent's Friends settings for one child.
@@ -21,7 +29,16 @@ import * as friends from '../../services/friendsAPI';
  * gone, not hidden behind a switch that could flip back.
  *
  * Backed by GET/PUT /api/connections/children/<id>/policy. The rules
- * themselves live in backend/services/peer_policy_service.py.
+ * themselves live in backend/services/peer_policy_service.py. The policy
+ * is the react-query row ['connections', 'policy', <id>] that the family
+ * dashboard's nudge, the explainer modal and the settings section header
+ * all read, so a save here is seen everywhere at once.
+ *
+ * This is the body of the Friends section of the child's settings
+ * (ChildSettingsPanel), which owns the heading and the on/off summary; the
+ * card carries no chrome of its own. While Friends is off it shows the
+ * whole explanation (FriendsHowItWorks) above the switch, so "all the
+ * details" are here and not only in the modal a parent may never open.
  */
 
 const SOURCES = [
@@ -54,10 +71,20 @@ function codeFromUrl() {
 }
 
 const ChildFriendsCard = ({ studentId, studentName }) => {
-  const [policy, setPolicy] = useState(null);
-  const [canSet, setCanSet] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const policyKey = ['connections', 'policy', studentId];
+  const { data: policyData, isLoading: loading } = useQuery({
+    queryKey: policyKey,
+    queryFn: () => friends.getChildPolicy(studentId),
+    enabled: !!studentId,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
+  });
+  const policy = policyData?.policy || null;
+  const canSet = !!policyData?.can_set;
   const [saving, setSaving] = useState(false);
+  const [showHow, setShowHow] = useState(false);
   const [confirmingOff, setConfirmingOff] = useState(null); // number of friends, when asking
   const [code, setCode] = useState(codeFromUrl);
   const [childCode, setChildCode] = useState(null);
@@ -130,22 +157,6 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
     toast.success('Link copied. It works for a week.');
   };
 
-  const load = useCallback(async () => {
-    if (!studentId) return;
-    setLoading(true);
-    try {
-      const res = await api.get(`/api/connections/children/${studentId}/policy`);
-      const data = res.data?.data || res.data || {};
-      setPolicy(data.policy || null);
-      setCanSet(!!data.can_set);
-    } catch {
-      setPolicy(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [studentId]);
-
-  useEffect(() => { load(); }, [load]);
   const policyOn = !!policy?.enabled;
   useEffect(() => { if (policyOn) loadActivity(); }, [policyOn, loadActivity]);
 
@@ -154,7 +165,7 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
     try {
       const res = await api.put(`/api/connections/children/${studentId}/policy`, patch);
       const data = res.data?.data || res.data || {};
-      setPolicy(data.policy || null);
+      queryClient.setQueryData(policyKey, (prev) => ({ ...(prev || {}), policy: data.policy || null, can_set: canSet }));
       if (successMessage) toast.success(successMessage);
       if (data.revoked_count > 0) {
         toast.success(`${data.revoked_count} friend${data.revoked_count === 1 ? '' : 's'} removed`);
@@ -178,8 +189,7 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-        <div className="h-4 w-40 bg-gray-200 rounded mb-3" />
+      <div className="animate-pulse py-1">
         <div className="h-3 w-64 bg-gray-100 rounded" />
       </div>
     );
@@ -194,49 +204,53 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
 
   if (moduleOff) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-600">
-        <span className="font-medium text-gray-900">Friends</span> is not turned on at {studentName}&rsquo;s school.
-      </div>
+      <p className="text-base text-gray-600">
+        Friends is not turned on at {studentName}&rsquo;s school.
+      </p>
     );
   }
 
   if (!canSet) {
     return (
-      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-600">
-        <span className="font-medium text-gray-900">Friends: {enabled ? 'On' : 'Off'}</span>
-        {' '}&middot; {policy.reason || 'Another adult on this account decides this setting.'}
+      <p className="text-base text-gray-600">
+        <span className="font-medium text-gray-900">Friends is {enabled ? 'on' : 'off'} for {studentName}.</span>
+        {' '}{policy.reason || 'Another adult on this account decides this setting.'}
+      </p>
+    );
+  }
+
+  if (!enabled) {
+    // Off: the explanation is the section, and the switch is under it.
+    return (
+      <div>
+        <FriendsHowItWorks name={studentName} />
+        <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-base text-gray-600">
+            Turning Friends on is your consent to share {studentName}&rsquo;s work with the friends they make.
+          </p>
+          <Button variant="primary" size="sm" onClick={() => save({ enabled: true }, `Friends is on for ${studentName}`)} disabled={saving} loading={saving} className="flex-shrink-0">
+            Turn on Friends
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <UserGroupIcon className={`h-6 w-6 flex-shrink-0 mt-0.5 ${enabled ? 'text-optio-purple' : 'text-gray-400'}`} />
-          <div>
-            <h3 className="font-semibold text-gray-900">
-              Friends: {enabled ? 'On' : 'Off'}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {enabled
-                ? `${studentName} can be friends with other students. Friends see each other's work and can leave encouragement on it. You are told each time a friend is added.`
-                : `${studentName} cannot send or receive friend requests. Turning Friends on is your consent to share ${studentName}'s work with the friends they make.`}
-            </p>
-          </div>
-        </div>
-        <div className="flex-shrink-0">
-          {enabled ? (
-            <Button variant="secondary" onClick={askToTurnOff} disabled={saving}>
-              Turn off
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={() => save({ enabled: true }, `Friends is on for ${studentName}`)} disabled={saving} loading={saving}>
-              Turn on
-            </Button>
-          )}
-        </div>
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-base text-gray-600">
+          {studentName} can be friends with other students. You are told each time a friend is added.
+          {' '}
+          <button type="button" onClick={() => setShowHow((v) => !v)} className="font-medium text-optio-purple hover:underline">
+            {showHow ? 'Hide how it works' : 'How it works'}
+          </button>
+        </p>
+        <Button variant="secondary" size="sm" onClick={askToTurnOff} disabled={saving} className="flex-shrink-0">
+          Turn off
+        </Button>
       </div>
+      {showHow && <FriendsHowItWorks name={studentName} className="mt-3 rounded-lg bg-gray-50 p-4" />}
 
       {confirmingOff !== null && (
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -256,181 +270,181 @@ const ChildFriendsCard = ({ studentId, studentName }) => {
         </div>
       )}
 
-      {enabled && (
-        <div className="mt-5 border-t border-gray-200 pt-4 space-y-5">
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-900">New friends</legend>
-            <div className="mt-2 space-y-2">
-              {[
-                { key: 'auto', label: 'Add right away and tell me', help: 'The friend is added when both students say yes.' },
-                { key: 'ask_first', label: 'Ask me first', help: 'Nothing is shared until you approve each friend.' },
-              ].map((opt) => (
-                <label key={opt.key} className="flex items-start gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name={`approval-${studentId}`}
-                    checked={policy.approval_mode === opt.key}
-                    onChange={() => save({ approval_mode: opt.key })}
-                    disabled={saving}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="text-gray-900">{opt.label}</span>
-                    <span className="block text-gray-500">{opt.help}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-900">Who can ask {studentName} to be friends</legend>
-            <div className="mt-2 space-y-2">
-              {SOURCES.map((src) => (
-                <label key={src.key} className="flex items-start gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sources.includes(src.key)}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...sources, src.key]
-                        : sources.filter((s) => s !== src.key);
-                      save({ request_sources: next });
-                    }}
-                    disabled={saving}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="text-gray-900">{src.label}</span>
-                    <span className="block text-gray-500">{src.help}</span>
-                  </span>
-                </label>
-              ))}
-              <p className="text-xs text-gray-500">You can always connect {studentName} with a friend yourself.</p>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-900">Connect {studentName} with a friend</legend>
-            <p className="text-xs text-gray-500 mt-1">Ask the other family for their child&rsquo;s code, or send them {studentName}&rsquo;s.</p>
-            <form onSubmit={sendCode} className="mt-2 flex gap-2">
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                maxLength={8}
-                placeholder="Their code, e.g. ABCD2345"
-                aria-label="Enter their code"
-                className="flex-1 min-w-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono tracking-widest"
-              />
-              <Button type="submit" size="sm" disabled={sending || code.trim().length !== 8}>Send request</Button>
-            </form>
-            <div className="mt-3">
-              {childCode ? (
-                <div className="flex items-center gap-4">
-                  <QRCodeSVG value={friends.inviteLinkFor(childCode.code)} size={88} />
-                  <div>
-                    <p className="font-mono text-lg tracking-widest text-optio-purple" aria-label={`${studentName}'s code is ${childCode.code}`}>{childCode.code}</p>
-                    <div className="flex gap-2 mt-1">
-                      <button type="button" onClick={copyChildLink} className="text-sm font-medium text-optio-purple hover:underline">Copy link</button>
-                      <button type="button" onClick={getChildCode} disabled={sending} className="text-sm text-gray-500 hover:underline">New code</button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" onClick={getChildCode} disabled={sending} className="text-sm font-medium text-optio-purple hover:underline">
-                  Get {studentName}&rsquo;s code
-                </button>
-              )}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-900">Friends can</legend>
-            <div className="mt-2 space-y-2">
-              <label className="flex items-start gap-2 text-sm text-gray-500">
-                <input type="checkbox" checked readOnly disabled className="mt-1" />
-                <span>See {studentName}&rsquo;s work</span>
-              </label>
-              <label className="flex items-start gap-2 text-sm cursor-pointer">
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+        <fieldset>
+          <legend className="text-base font-medium text-gray-900">New friends</legend>
+          <div className="mt-2 space-y-2">
+            {[
+              { key: 'auto', label: 'Add right away and tell me', help: 'The friend is added when both students say yes.' },
+              { key: 'ask_first', label: 'Ask me first', help: 'Nothing is shared until you approve each friend.' },
+            ].map((opt) => (
+              <label key={opt.key} className="flex items-start gap-2 text-base cursor-pointer">
                 <input
-                  type="checkbox"
-                  checked={friendsCan.includes('comment')}
-                  onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'comment', e.target.checked) })}
-                  disabled={saving}
-                  className="mt-1"
-                />
-                <span className="text-gray-900">Comment on {studentName}&rsquo;s work</span>
-              </label>
-              <label className="flex items-start gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={friendsCan.includes('message')}
-                  onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'message', e.target.checked) })}
+                  type="radio"
+                  name={`approval-${studentId}`}
+                  checked={policy.approval_mode === opt.key}
+                  onChange={() => save({ approval_mode: opt.key })}
                   disabled={saving}
                   className="mt-1"
                 />
                 <span>
-                  <span className="text-gray-900">Message {studentName}</span>
-                  <span className="block text-xs text-gray-500">
-                    Only with friends whose family also allows it. Every message is checked by our safety screen, and you can read {studentName}&rsquo;s messages from the Messages page.
-                  </span>
+                  <span className="text-gray-900">{opt.label}</span>
+                  <span className="block text-sm text-gray-500">{opt.help}</span>
                 </span>
               </label>
-            </div>
-          </fieldset>
+            ))}
+          </div>
+        </fieldset>
 
-          <section aria-label="Last 30 days">
-            <h4 className="text-sm font-medium text-gray-900">Last 30 days</h4>
-            {!activity ? (
-              <p className="mt-2 text-sm text-gray-500">Loading&hellip;</p>
-            ) : activity.comments.length + activity.reactions.length + activity.holds.length === 0 ? (
-              <p className="mt-2 text-sm text-gray-500">No comments or reactions yet.</p>
+        <fieldset>
+          <legend className="text-base font-medium text-gray-900">Who can ask {studentName} to be friends</legend>
+          <div className="mt-2 space-y-2">
+            {SOURCES.map((src) => (
+              <label key={src.key} className="flex items-start gap-2 text-base cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sources.includes(src.key)}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...sources, src.key]
+                      : sources.filter((s) => s !== src.key);
+                    save({ request_sources: next });
+                  }}
+                  disabled={saving}
+                  className="mt-1"
+                />
+                <span>
+                  <span className="text-gray-900">{src.label}</span>
+                  <span className="block text-sm text-gray-500">{src.help}</span>
+                </span>
+              </label>
+            ))}
+            <p className="text-xs text-gray-500">You can always connect {studentName} with a friend yourself.</p>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="text-base font-medium text-gray-900">Friends can</legend>
+          <div className="mt-2 space-y-2">
+            <label className="flex items-start gap-2 text-base text-gray-500">
+              <input type="checkbox" checked readOnly disabled className="mt-1" />
+              <span>See {studentName}&rsquo;s work</span>
+            </label>
+            <label className="flex items-start gap-2 text-base cursor-pointer">
+              <input
+                type="checkbox"
+                checked={friendsCan.includes('comment')}
+                onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'comment', e.target.checked) })}
+                disabled={saving}
+                className="mt-1"
+              />
+              <span className="text-gray-900">Comment on {studentName}&rsquo;s work</span>
+            </label>
+            <label className="flex items-start gap-2 text-base cursor-pointer">
+              <input
+                type="checkbox"
+                checked={friendsCan.includes('message')}
+                onChange={(e) => save({ friends_can: toggleGrant(friendsCan, 'message', e.target.checked) })}
+                disabled={saving}
+                className="mt-1"
+              />
+              <span>
+                <span className="text-gray-900">Message {studentName}</span>
+                <span className="block text-xs text-gray-500">
+                  Only with friends whose family also allows it. Every message is checked by our safety screen, and you can read {studentName}&rsquo;s messages from the Messages page.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="text-base font-medium text-gray-900">Connect {studentName} with a friend</legend>
+          <p className="text-xs text-gray-500 mt-1">Ask the other family for their child&rsquo;s code, or send them {studentName}&rsquo;s.</p>
+          <form onSubmit={sendCode} className="mt-2 flex gap-2">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              maxLength={8}
+              placeholder="Their code, e.g. ABCD2345"
+              aria-label="Enter their code"
+              className="flex-1 min-w-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono tracking-widest"
+            />
+            <Button type="submit" size="sm" disabled={sending || code.trim().length !== 8}>Send request</Button>
+          </form>
+          <div className="mt-3">
+            {childCode ? (
+              <div className="flex items-center gap-4">
+                <QRCodeSVG value={friends.inviteLinkFor(childCode.code)} size={88} />
+                <div>
+                  <p className="font-mono text-lg tracking-widest text-optio-purple" aria-label={`${studentName}'s code is ${childCode.code}`}>{childCode.code}</p>
+                  <div className="flex gap-2 mt-1">
+                    <button type="button" onClick={copyChildLink} className="text-sm font-medium text-optio-purple hover:underline">Copy link</button>
+                    <button type="button" onClick={getChildCode} disabled={sending} className="text-sm text-gray-500 hover:underline">New code</button>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <ul className="mt-2 divide-y divide-gray-100">
-                {activity.holds.map((h) => (
-                  <li key={`h-${h.id}`} className="py-2" data-testid={`hold-${h.id}`}>
-                    <p className="text-xs text-gray-500">
-                      {h.stage === 'refused'
-                        ? `${studentName} wrote ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that our safety check held. It was not sent.`
-                        : `${studentName} sent ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that our safety check hid afterwards.`}
-                    </p>
-                    <p className="text-sm text-gray-900">{h.text}</p>
-                    {h.reasons?.length > 0 && <p className="text-xs text-gray-500">{h.reasons.join('; ')}</p>}
-                  </li>
-                ))}
-                {activity.comments.map((e) => (
-                  <li key={`c-${e.id}`} className="py-2">
-                    <div className="flex items-start gap-2">
-                      <p className="flex-1 text-xs text-gray-500">
-                        {e.direction === 'received'
-                          ? `${e.peer.display_name} commented on ${studentName}'s work`
-                          : `${studentName} commented on ${e.peer.display_name}'s work`}
-                      </p>
-                      {e.direction === 'received' && !e.hidden_at && (
-                        <button
-                          type="button"
-                          onClick={() => hideComment(e)}
-                          disabled={hidingId === e.id}
-                          className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
-                        >
-                          Hide
-                        </button>
-                      )}
-                    </div>
-                    <p className={`text-sm ${e.hidden_at ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{e.text}</p>
-                    {e.hidden_at && <p className="text-xs text-gray-500">{HIDDEN_BY[e.hidden_reason] || 'Hidden'}</p>}
-                  </li>
-                ))}
-                {activity.reactions.map((r) => (
-                  <li key={`r-${r.id}`} className="py-1.5 text-xs text-gray-500">
-                    {r.direction === 'received' ? `${r.peer.display_name} to ${studentName}` : `${studentName} to ${r.peer.display_name}`}: {r.label}
-                  </li>
-                ))}
-              </ul>
+              <button type="button" onClick={getChildCode} disabled={sending} className="text-sm font-medium text-optio-purple hover:underline">
+                Get {studentName}&rsquo;s code
+              </button>
             )}
-          </section>
-        </div>
-      )}
+          </div>
+        </fieldset>
+
+        <section aria-label="Last 30 days" className="sm:col-span-2 border-t border-gray-100 pt-4">
+          <h4 className="text-base font-medium text-gray-900">Last 30 days</h4>
+          {!activity ? (
+            <p className="mt-2 text-sm text-gray-500">Loading&hellip;</p>
+          ) : activity.comments.length + activity.reactions.length + activity.holds.length === 0 ? (
+            <p className="mt-2 text-sm text-gray-500">No comments or reactions yet.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-gray-100">
+              {activity.holds.map((h) => (
+                <li key={`h-${h.id}`} className="py-2" data-testid={`hold-${h.id}`}>
+                  <p className="text-xs text-gray-500">
+                    {h.stage === 'refused'
+                      ? `${studentName} wrote ${holdWhat(h)} ${holdWhere(h)} that our safety check held. It was not sent.`
+                      : `${studentName} sent ${holdWhat(h)} ${holdWhere(h)} that our safety check hid afterwards.`}
+                  </p>
+                  <p className="text-sm text-gray-900">{h.text}</p>
+                  {/* The pictures the message carried, signed by the server. */}
+                  <AttachmentList attachments={h.attachments} />
+                  {h.reasons?.length > 0 && <p className="text-xs text-gray-500">{h.reasons.join('; ')}</p>}
+                </li>
+              ))}
+              {activity.comments.map((e) => (
+                <li key={`c-${e.id}`} className="py-2">
+                  <div className="flex items-start gap-2">
+                    <p className="flex-1 text-xs text-gray-500">
+                      {e.direction === 'received'
+                        ? `${e.peer.display_name} commented on ${studentName}'s work`
+                        : `${studentName} commented on ${e.peer.display_name}'s work`}
+                    </p>
+                    {e.direction === 'received' && !e.hidden_at && (
+                      <button
+                        type="button"
+                        onClick={() => hideComment(e)}
+                        disabled={hidingId === e.id}
+                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        Hide
+                      </button>
+                    )}
+                  </div>
+                  <p className={`text-sm ${e.hidden_at ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{e.text}</p>
+                  {e.hidden_at && <p className="text-xs text-gray-500">{HIDDEN_BY[e.hidden_reason] || 'Hidden'}</p>}
+                </li>
+              ))}
+              {activity.reactions.map((r) => (
+                <li key={`r-${r.id}`} className="py-1.5 text-xs text-gray-500">
+                  {r.direction === 'received' ? `${r.peer.display_name} to ${studentName}` : `${studentName} to ${r.peer.display_name}`}: {r.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 };

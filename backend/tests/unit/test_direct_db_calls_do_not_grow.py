@@ -400,15 +400,35 @@ BASELINES = {
     # the caller's acks and the report's acks, create/update/delete, and the
     # done mark and its undo on sis_resource_acks. routes/ and services/ did
     # not move: routes/sis/training_links.py reads and writes through this.
+    # 2026-09-15 (class chat screened): 578 -> 582. PeerTextScreenRepository
+    # learns group_messages -- the pending backlog, the settle and the hide
+    # the sweep needs -- and the group names a hold can carry. routes/ and
+    # services/ did not move: group_message_service screens through the
+    # service, and the superadmin tracker reads one SQL function.
+    # 2026-09-15 (safety depth): 582 -> 601. ConversationReviewRepository
+    # (the nightly review's threads, roles, names, transcript, record, the
+    # report it files, and the tracker's counts), CsamIncidentRepository
+    # (record, recent, mark_reported), one hold by id and the group message
+    # a takedown hides on PeerTextScreenRepository, and the class chat text a
+    # report previews on ContentReportRepository. routes/ and services/ did
+    # not move: the upload gate, the review and the takedown all read and
+    # write through these.
+    # 2026-09-16: 601 -> 605. A friend's page and Collaborate on
+    # PeerConnectionRepository: the live connection between two students
+    # (active_between), the quests each is on (quests_in_progress), whether
+    # a student is on a quest (is_on_quest) and a quest's title for the
+    # invite (quest_title). services/ did not move.
     # 2026-09-15 (dead code sweep): routes/ 2292 -> 2285, services/ 1840 -> 1836,
-    # middleware/ 3 -> 2, repositories/ 578 -> 522. Whole modules nothing
-    # imported: course_repository, course_quest_repository,
-    # curriculum_repository, curriculum_lesson_repository,
-    # quest_completion_service, cost_tracker, audit_logger, database_policy,
-    # datetime_helpers, name_utils, response_helpers -- plus
-    # RegistrationRepository, a class with no caller, and 60-odd helper
-    # functions across utils/ and services/ that nothing referenced.
-    'repositories': 522,
+    # middleware/ 3 -> 2, repositories/ -52. Whole modules nothing imported:
+    # course_repository, course_quest_repository, curriculum_repository,
+    # curriculum_lesson_repository, quest_completion_service, cost_tracker,
+    # audit_logger, database_policy, datetime_helpers, name_utils,
+    # response_helpers -- plus RegistrationRepository, a class with no caller,
+    # and 60-odd helper functions across utils/ and services/ that nothing
+    # referenced. On HEAD plus this sweep alone repositories/ counts 522; the
+    # working tree also carried the class-chat and safety repositories above
+    # when this landed, so the figure here is that session's number minus 52.
+    'repositories': 553,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -54,28 +54,42 @@ describe('FamilySettingsModal', () => {
     expect(names).toEqual(['You', 'Emma', 'Timmy', 'Observers', 'Parents'])
   })
 
-  it("a child's tab holds their profile, AI features and privacy in place", async () => {
+  it("a child's tab holds their profile, AI features, privacy and friends as collapsed rows", async () => {
     renderModal()
     await userEvent.click(screen.getByRole('tab', { name: 'Emma' }))
-    expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument()
+    for (const name of ['Profile', 'AI features', 'Privacy', 'Friends']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveAttribute('aria-expanded', 'false')
+    }
+    // A linked student already has a login; only a managed profile gets the row.
+    expect(screen.queryByRole('button', { name: /^Login/ })).not.toBeInTheDocument()
+
+    // The bodies are there, closed: a row opens on a click.
+    expect(screen.getByLabelText('First name')).not.toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: /^Profile/ }))
+    expect(screen.getByLabelText('First name')).toBeVisible()
     expect(screen.getByLabelText('First name')).toHaveValue('Emma')
-    expect(screen.getByRole('heading', { name: 'AI features' })).toBeInTheDocument()
     expect(screen.getByText('Privacy for Emma')).toBeInTheDocument()
-    // A linked student already has a login; only a managed profile gets the form.
-    expect(screen.queryByRole('heading', { name: 'Login' })).not.toBeInTheDocument()
   })
 
   it('offers the login form only on a managed under-13 profile', async () => {
     renderModal()
     await userEvent.click(screen.getByRole('tab', { name: 'Timmy' }))
-    expect(screen.getByRole('heading', { name: 'Login' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create Login' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^Login/ }))
+    expect(screen.getByRole('button', { name: 'Create Login' })).toBeVisible()
   })
 
   it("opens straight on a child's tab when asked to", () => {
     renderModal({ initialTab: 'timmy' })
     expect(screen.getByRole('tab', { name: 'Timmy' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('First name')).toHaveValue('Timmy')
+  })
+
+  // Every Friends notification lands here with initialSection='friends'.
+  it("opens a child's tab on the row a notification names", () => {
+    renderModal({ initialTab: 'emma', initialSection: 'friends' })
+    expect(screen.getByRole('button', { name: /^Friends/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Friends for Emma')).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Profile/ })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('keeps the add-child door beside the tabs', async () => {

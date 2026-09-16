@@ -41,6 +41,7 @@ import { QuestEngagement } from '@/src/components/engagement/QuestEngagement';
 import { RhythmBadge } from '@/src/components/engagement/RhythmBadge';
 import { TaskCreationWizard } from '@/src/components/tasks/TaskCreationWizard';
 import { useAuthStore } from '@/src/stores/authStore';
+import { QuestFriendsLine } from '@/src/components/friends/QuestFriendsLine';
 import { useCaptureContextStore } from '@/src/stores/captureContextStore';
 import { TaskEvidenceSheet } from '@/src/components/capture/TaskEvidenceSheet';
 import { AudioClipPreview } from '@/src/components/capture/VoiceRecorder';
@@ -1065,6 +1066,12 @@ export function QuestDetailView({ questId: id, studentId = null, autoOpenTaskWiz
                 {quest.big_idea || quest.description}
               </UIText>
             ) : null}
+
+            {/* Friends on this quest, and Collaborate (2026-09-16). A student
+                on their own quest only; a parent on a child's copy sees none. */}
+            {!studentId && (
+              <QuestFriendsLine quest={{ id: quest.id, title: quest.title }} isEnrolled={isEnrolled} />
+            )}
 
             {/* Enrollment CTA (not enrolled) */}
             {!isEnrolled && (

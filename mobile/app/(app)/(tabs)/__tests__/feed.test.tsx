@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { render, waitFor, act } from '@testing-library/react-native';
+import { render, waitFor, act, fireEvent } from '@testing-library/react-native';
 import FeedScreen from '../feed';
 import { useFeed } from '@/src/hooks/useFeed';
 import { setAuthAsStudent, setAuthAsParent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
@@ -70,6 +70,47 @@ describe('FeedScreen', () => {
     const { getByText } = render(<FeedScreen />);
 
     expect(getByText('No activity yet')).toBeTruthy();
+  });
+
+  // The All / Mine / Friends bar appears once there is a friend to filter by,
+  // and Friends asks the server for scope=friends rather than filtering a
+  // page of everyone's. The badge on the Friends button counts requests
+  // waiting on the student.
+  describe('whose work', () => {
+    const empty = {
+      items: [], loading: false, loadingMore: false, hasMore: false, error: null,
+      loadMore: jest.fn(), refetch: jest.fn(),
+    };
+    const api = require('@/src/services/api').default as { get: jest.Mock };
+    const friendsListing = (active: unknown[], incoming: unknown[] = []) => {
+      api.get.mockImplementation((url: string) => {
+        if (url.includes('eligibility')) return Promise.resolve({ data: { data: { state: 'eligible' } } });
+        if (url === '/api/connections') return Promise.resolve({ data: { data: { active, incoming, outgoing: [], awaiting_approval: [] } } });
+        return Promise.resolve({ data: {} });
+      });
+    };
+
+    it('offers no filter to a student with no friends', async () => {
+      (useFeed as jest.Mock).mockReturnValue(empty);
+      friendsListing([]);
+      const { queryByText } = render(<FeedScreen />);
+      await act(async () => {});
+      expect(queryByText('Mine')).toBeNull();
+    });
+
+    it('filters to friends through the server scope, and counts waiting requests', async () => {
+      (useFeed as jest.Mock).mockReturnValue(empty);
+      friendsListing(
+        [{ id: 'c1', status: 'active', peer: { id: 'p1', display_name: 'Ada' } }],
+        [{ id: 'c2', status: 'pending_addressee', peer: { id: 'p2', display_name: 'Bo' } }],
+      );
+      const { findByTestId, getByTestId } = render(<FeedScreen />);
+      const friendsTab = await findByTestId('feed-segment-friends');
+      expect(getByTestId('feed-friends-badge')).toHaveTextContent('1');
+      await act(async () => { fireEvent.press(friendsTab); });
+      const calls = (useFeed as jest.Mock).mock.calls.map((c) => c[0]);
+      expect(calls.at(-1)).toEqual(expect.objectContaining({ scope: 'friends' }));
+    });
   });
 
   // The family store picks a child on its own. A parent's feed starts on that

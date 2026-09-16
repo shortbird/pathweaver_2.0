@@ -9,6 +9,7 @@
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import api from '../../services/api'
 import ChildFriendsCard from './ChildFriendsCard'
@@ -45,7 +46,13 @@ const mountWith = (policy, { canSet = true, friends = 0, activity = EMPTY_ACTIVI
   api.put.mockImplementation((url, body) => Promise.resolve({
     data: { data: { policy: { ...policy, ...body }, revoked_count: body.enabled === false ? friends : 0 } },
   }))
-  return render(<ChildFriendsCard studentId="s1" studentName="Robin" />)
+  // The policy is a react-query row shared with the dashboard's nudge.
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <ChildFriendsCard studentId="s1" studentName="Robin" />
+    </QueryClientProvider>,
+  )
 }
 
 describe('ChildFriendsCard', () => {
@@ -117,7 +124,7 @@ describe('ChildFriendsCard', () => {
 
   it('shows the state without controls to an adult who may not set it', async () => {
     mountWith({ ...ON }, { canSet: false })
-    expect(await screen.findByText(/friends: on/i)).toBeInTheDocument()
+    expect(await screen.findByText(/friends is on for robin/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /turn off/i })).toBeNull()
   })
 
@@ -194,5 +201,22 @@ describe('ChildFriendsCard', () => {
       expect(api.post).toHaveBeenCalledWith('/api/connections/comments/c1/hide', {})
     })
     expect(await screen.findByText(/hidden by you/i)).toBeInTheDocument()
+  })
+
+  it('names the class chat on a held message and shows the picture it carried', async () => {
+    const activity = {
+      comments: [],
+      reactions: [],
+      holds: [
+        { id: 'h2', surface: 'group_message', stage: 'refused', peer: null,
+          group: { id: 'g1', name: 'Period 3 Biology' }, text: 'look at this',
+          attachments: [{ url: 'https://signed.example/a.jpg?token=1', type: 'image', name: 'a.jpg', size: 10 }],
+          reasons: ['held by the safety check'], created_at: '2026-09-17T08:00:00Z' },
+      ],
+    }
+    mountWith(ON, { activity })
+
+    expect(await screen.findByText(/wrote a message in period 3 biology that our safety check held/i)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'a.jpg' })).toHaveAttribute('src', 'https://signed.example/a.jpg?token=1')
   })
 })

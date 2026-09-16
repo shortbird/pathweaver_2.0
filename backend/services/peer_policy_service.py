@@ -51,7 +51,11 @@ REQUEST_SOURCES = ('classmates', 'code', 'link', 'school')
 FRIENDS_CAN = ('see', 'comment', 'message')
 
 DEFAULT_REQUEST_SOURCES = ['classmates', 'code', 'link']
-DEFAULT_FRIENDS_CAN = ['see', 'comment']
+#: Messaging is part of what a friend gets by default (owner, 2026-09-16):
+#: the safety screen, the send limit and the parent's read-only view of the
+#: thread are what made it safe to hand out with the rest. The parent's
+#: switch to take it away is on the child's Friends settings.
+DEFAULT_FRIENDS_CAN = ['see', 'comment', 'message']
 
 CONSENT_SCOPE = 'peer_friends'
 CONSENT_STATEMENT_VERSION = 'peer_friends_v1'

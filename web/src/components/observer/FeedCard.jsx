@@ -21,7 +21,6 @@ import MediaCarousel from './MediaCarousel';
 import LinkPreviewCard from '../evidence/preview/LinkPreviewCard';
 import VideoLinkPreview from '../evidence/preview/VideoLinkPreview';
 import LearningEventModal from '../learning-events/LearningEventModal';
-import ReactionRow from './ReactionRow';
 import FeedItemMenu from './FeedItemMenu';
 import ReportButton from '../moderation/ReportButton';
 import { getPeerComments, postPeerComment, deletePeerComment } from '../../services/friendsAPI';
@@ -598,17 +597,10 @@ const FeedCard = ({ item, showStudentName = true, isStudentView = false, onUpdat
         </div>
       )}
 
-      {/* Friends' reactions: tappable for a peer, read-only for the owner and
-          their adults. Keyed on the item so a reused card never carries the
-          previous item's counts. */}
-      {(isPeerItem || Object.keys(localItem.reactions?.by_key || {}).length > 0) && (
-        <ReactionRow
-          key={`reactions-${localItem.id}`}
-          target={peerTarget}
-          summary={localItem.reactions}
-          canReact={isPeerItem && !!hasSocialTarget}
-        />
-      )}
+      {/* No reaction chips. Phase 2 put a row of canned phrases ("Proud of
+          you", "Keep going") under a friend's work; they read as suggested
+          responses, not as something a kid would say, and the owner asked
+          for them gone (2026-09-16). A friend reacts by commenting. */}
 
       {/* 6. Views/comment/edit buttons */}
       <div className="px-4 sm:px-5 py-2 border-t border-gray-100 flex items-center gap-4">

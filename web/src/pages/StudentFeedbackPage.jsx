@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/ui/EmptyState';
 import { PageLoader } from '../components/ui/Spinner';
+import GlassTabBar from '../components/ui/GlassTabBar';
 import {
   SparklesIcon,
   ArrowRightIcon,
@@ -28,6 +29,11 @@ export default function StudentFeedbackPage() {
   const [peerCount, setPeerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // all | self | friends -- the filter over whose work shows (2026-09-16).
+  // Sent to the server as `scope`, so a page of "Friends" is a page of
+  // friends' items, not twenty of everyone's with most filtered away.
+  const [scope, setScope] = useState('all');
+  const [firstLoad, setFirstLoad] = useState(true);
 
   // Observer management state
   const [viewers, setViewers] = useState([]);
@@ -40,7 +46,12 @@ export default function StudentFeedbackPage() {
 
   useEffect(() => {
     if (user?.id) {
-      fetchActivityFeed();
+      fetchActivityFeed(scope);
+    }
+  }, [user?.id, scope]);
+
+  useEffect(() => {
+    if (user?.id) {
       fetchObserverData();
     }
   }, [user?.id]);
@@ -54,11 +65,11 @@ export default function StudentFeedbackPage() {
   // nothing here has to remember to filter them. Your own hidden items still
   // arrive (FeedCard greys them and offers unhide), which is the behaviour this
   // page has always had.
-  const fetchActivityFeed = async () => {
+  const fetchActivityFeed = async (which = 'all') => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get('/api/connections/feed');
+      const response = await api.get('/api/connections/feed', { params: which === 'all' ? {} : { scope: which } });
       const data = response.data?.data || response.data;
       setFeedItems(data.items || []);
       setPeerCount(data.peer_count || 0);
@@ -67,6 +78,7 @@ export default function StudentFeedbackPage() {
       setError('Failed to load your activity. Please try again.');
     } finally {
       setLoading(false);
+      setFirstLoad(false);
     }
   };
 
@@ -279,7 +291,9 @@ export default function StudentFeedbackPage() {
     </div>
   );
 
-  if (loading) {
+  // The whole-page loader is for the first load only; a filter change keeps
+  // the page and swaps the list.
+  if (loading && firstLoad) {
     return (
       <PageLoader className="min-h-[400px]" />
     );
@@ -306,6 +320,19 @@ export default function StudentFeedbackPage() {
         )}
       </div>
 
+      {/* Whose work: everyone, only mine, only my friends'. Shown once there
+          is a friend to filter by. */}
+      {peerCount > 0 && (
+        <GlassTabBar
+          tabs={[{ id: 'all', label: 'All' }, { id: 'self', label: 'Mine' }, { id: 'friends', label: 'Friends' }]}
+          active={scope}
+          onSelect={setScope}
+          size="md"
+          className="!mx-0 mb-6"
+          aria-label="Whose work"
+        />
+      )}
+
       {/* Mobile: Observer panel on top */}
       <div className="lg:hidden mb-6">
         <ObserverPanel />
@@ -321,7 +348,17 @@ export default function StudentFeedbackPage() {
             </div>
           )}
 
-          {feedItems.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple" />
+            </div>
+          ) : feedItems.length === 0 && scope === 'friends' ? (
+            <EmptyState
+              icon={SparklesIcon}
+              title="Nothing from friends yet"
+              hint="When a friend finishes a task or captures a learning moment, it shows here."
+            />
+          ) : feedItems.length === 0 ? (
             <EmptyState
               icon={SparklesIcon}
               title="No Activity Yet"

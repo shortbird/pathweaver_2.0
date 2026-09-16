@@ -168,10 +168,15 @@ def get_connections(user_id):
 @require_auth
 @student_scope('activity')
 def get_feed(user_id):
-    """The student's own work plus their connected peers', interleaved."""
+    """The student's own work plus their connected peers', interleaved.
+    `scope` (self | friends | all) is the Feed page's filter."""
     limit = min(int(request.args.get('limit', 20)), 50)
+    scope = (request.args.get('scope') or 'all').strip().lower()
+    if scope not in ('self', 'friends', 'all'):
+        scope = 'all'
     return success_response(data=svc.feed(user_id, limit=limit,
-                                          cursor=request.args.get('cursor')))
+                                          cursor=request.args.get('cursor'),
+                                          scope=scope))
 
 
 @bp.route('/suggestions', methods=['GET'])
@@ -432,6 +437,50 @@ def delete_comment(user_id, comment_id):
         return _fail(e)
 
 
+@bp.route('/friends/<peer_id>', methods=['GET'])
+@require_auth
+@student_scope()
+@validate_uuid_param('peer_id')
+def get_friend_page(user_id, peer_id):
+    """One friend: the peer shape, since when, shared classes, and the
+    quests they are on that this student may see. The service refuses
+    anyone who is not an active friend."""
+    try:
+        return success_response(data=svc.friend_page(user_id, peer_id))
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
+@bp.route('/friends/<peer_id>/collaborate', methods=['POST'])
+@require_auth
+@student_scope()
+@validate_uuid_param('peer_id')
+@rate_limit(calls=20, period=86400, per_user=True)
+def post_collaborate(user_id, peer_id):
+    """Invite a friend to do a quest alongside you: one notification, the
+    quest one tap away. Twenty a day is plenty for a person and a wall for
+    a script."""
+    data = request.get_json() or {}
+    quest_id = data.get('quest_id')
+    if not quest_id:
+        return error_response('quest_id is required', status_code=400)
+    try:
+        return success_response(data=svc.collaborate(user_id, peer_id, str(quest_id)))
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
+@bp.route('/quests/<quest_id>/friends', methods=['GET'])
+@require_auth
+@student_scope()
+@validate_uuid_param('quest_id')
+def get_friends_on_quest(user_id, quest_id):
+    """Which of the student's friends are on this quest right now, for the
+    quest page's "Sam is on this too" line. An empty list is the usual
+    answer and is not an error."""
+    return success_response(data={'friends': svc.friends_on_quest(user_id, quest_id)})
+
+
 @bp.route('/ask-parent', methods=['POST'])
 @require_auth
 @rate_limit(calls=3, period=86400, per_user=True)
@@ -440,6 +489,20 @@ def ask_parent(user_id):
     reminder is fine, a drumbeat is not."""
     try:
         return success_response(data=svc.ask_parent(user_id))
+    except PeerConnectionError as e:
+        return _fail(e)
+
+
+@bp.route('/holds/<hold_id>', methods=['GET'])
+@require_auth
+@validate_uuid_param('hold_id')
+def get_hold(user_id, hold_id):
+    """One text the safety screen held, for the parent's notification detail:
+    the words, the pictures, where it was going and why it was held. The
+    service checks the relationship (the hold names the child; the route
+    cannot)."""
+    try:
+        return success_response(data=svc.hold_for_guardian(user_id, hold_id))
     except PeerConnectionError as e:
         return _fail(e)
 

@@ -13,12 +13,21 @@ from markupsafe import Markup, escape
 from services.email_copy_loader import email_copy_loader
 from app_config import Config
 
+from utils.family_links import family_friends_link
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 SENDGRID_SEND_URL = 'https://api.sendgrid.com/v3/mail/send'
 SENDGRID_TIMEOUT = 15
+
+
+def _family_url(child_id: Optional[str]) -> str:
+    """The family dashboard, on the named child's Friends when a child is
+    given. Bare /family is the page the parent is already on when they
+    open the email from the app, and the CTA then looked like it did nothing."""
+    path = family_friends_link(child_id) if child_id else '/family'
+    return f"{Config.FRONTEND_URL}{path}"
 
 # Orgs whose transactional emails should NOT be copied to SUPPORT_COPY_EMAIL.
 # iCreate's system emails are high-volume and stable, so the owner asked to stop
@@ -851,7 +860,11 @@ class EmailService(BaseService):
         `report` keys used (all optional except message):
             report_id, report_type, title, message, steps, current_route,
             reporter_email, reporter_role, org_name, platform,
-            app_version, build_number
+            app_version, build_number, source
+
+        A `source` of 'sentry' (routes/sentry_webhook.py) has no reporter: the
+        mail says "From Sentry" and the row's user_email, when the event
+        carried one, is shown as the affected user, not as who filed it.
         """
         rtype = (report.get('report_type') or 'bug').lower()
         type_label = {
@@ -866,11 +879,18 @@ class EmailService(BaseService):
 
         reporter = report.get('reporter_email') or 'unknown'
         org_name = report.get('org_name')
-        who = f"{reporter}"
-        if report.get('reporter_role'):
-            who += f" ({report['reporter_role']})"
-        if org_name:
-            who += f" — {org_name}"
+        if (report.get('source') or '').lower() == 'sentry':
+            who = 'Sentry'
+            if report.get('reporter_email'):
+                who += f" (affected user: {report['reporter_email']})"
+            sender = 'Sentry'
+        else:
+            who = f"{reporter}"
+            if report.get('reporter_role'):
+                who += f" ({report['reporter_role']})"
+            if org_name:
+                who += f" — {org_name}"
+            sender = org_name or reporter
 
         message = (report.get('message') or '').strip()
         steps = (report.get('steps') or '').strip()
@@ -884,7 +904,7 @@ class EmailService(BaseService):
         report_id = report.get('report_id')
         ticket_url = f"{Config.FRONTEND_URL}/admin/tickets/{report_id}" if report_id else None
 
-        subject = f"[Ticket] {type_label} from {org_name or reporter}: {title[:80]}"
+        subject = f"[Ticket] {type_label} from {sender}: {title[:80]}"
 
         def _esc(v: str) -> str:
             return (
@@ -1712,6 +1732,7 @@ class EmailService(BaseService):
         parent_name: str,
         child_name: str,
         peer_name: str,
+        child_id: Optional[str] = None,
     ) -> bool:
         """Tell a parent, after the fact, that their child added a friend.
 
@@ -1729,7 +1750,7 @@ class EmailService(BaseService):
                 'parent_name': parent_name,
                 'child_name': child_name,
                 'peer_name': peer_name,
-                'family_url': f"{Config.FRONTEND_URL}/family",
+                'family_url': _family_url(child_id),
             }
         )
 
@@ -1738,6 +1759,7 @@ class EmailService(BaseService):
         parent_email: str,
         parent_name: str,
         child_name: str,
+        child_id: Optional[str] = None,
     ) -> bool:
         """The child asked for Friends; the parent is the one who can say yes.
 
@@ -1752,7 +1774,7 @@ class EmailService(BaseService):
             context={
                 'parent_name': parent_name,
                 'child_name': child_name,
-                'family_url': f"{Config.FRONTEND_URL}/family",
+                'family_url': _family_url(child_id),
             }
         )
 

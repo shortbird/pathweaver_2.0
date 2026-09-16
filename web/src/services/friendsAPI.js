@@ -118,6 +118,22 @@ export const reportContent = (targetType, targetId, reason) =>
 /** Where a friend chat lives: the Messages page, opened on that person. */
 export const messagesLinkFor = (userId) => `/messages?user=${encodeURIComponent(userId)}`
 
+/** A friend's page: the peer shape, since when, shared classes, the quests
+ *  they are on that this student may see, and this student's own quests
+ *  (for Collaborate). Refused for anyone who is not an active friend. */
+export const getFriendPage = (peerId, studentId) =>
+  api.get(`/api/connections/friends/${peerId}`, { params: scoped(studentId) }).then(unwrap)
+
+/** Invite a friend to do a quest alongside you. One notification with the
+ *  quest one tap away; the sender has to be on the quest. */
+export const collaborate = (peerId, questId, studentId) =>
+  api.post(`/api/connections/friends/${peerId}/collaborate`, { quest_id: questId, ...scoped(studentId) }).then(unwrap)
+
+/** Which of the student's friends are on this quest right now. */
+export const friendsOnQuest = (questId, studentId) =>
+  api.get(`/api/connections/quests/${questId}/friends`, { params: scoped(studentId) })
+    .then((r) => unwrap(r).friends || [])
+
 /** A student whose family has Friends off asks the parent to turn it on.
  *  Every guardian gets a notification and an email. Three a day. */
 export const askParent = () =>
@@ -136,3 +152,9 @@ export const getChildFriendsCount = (childId) =>
 
 export const getChildActivity = (childId, days = 30) =>
   api.get(`/api/connections/children/${childId}/activity`, { params: { days } }).then(unwrap)
+
+/** One text the safety screen held, for the parent's notification detail:
+ *  the words, the pictures (signed), where it was going and why. The server
+ *  answers only the author's guardians and the policy setters. */
+export const getHold = (holdId) =>
+  api.get(`/api/connections/holds/${holdId}`).then(unwrap)

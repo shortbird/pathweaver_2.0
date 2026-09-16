@@ -116,9 +116,12 @@ export default function FamilyHome() {
   const schoolName = school?.name || 'your school'
   const [showFamilySettings, setShowFamilySettings] = useState(false)
   const [familySettingsTab, setFamilySettingsTab] = useState('you')
+  // The row of a child's tab to open on arrival ('friends', ...), or null.
+  const [familySettingsSection, setFamilySettingsSection] = useState(null)
 
-  const openSettings = (tab) => {
+  const openSettings = (tab, section = null) => {
     setFamilySettingsTab(tab)
+    setFamilySettingsSection(section)
     setShowFamilySettings(true)
   }
 
@@ -134,6 +137,23 @@ export default function FamilyHome() {
     setShowFamilySettings(true)
     const next = new URLSearchParams(searchParams)
     next.delete('settings')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  // ?friends=<childId> is every Friends notification's link
+  // (backend/utils/family_links.py): that child's tab of Family Settings,
+  // open on the Friends row -- the switch, the request, the new friend or
+  // the held message are all there. Bare /family was the page the parent
+  // was already on, so "View details" did nothing. Cleared once consumed,
+  // like ?settings=.
+  useEffect(() => {
+    const childId = searchParams.get('friends')
+    if (!childId) return
+    setFamilySettingsTab(childId)
+    setFamilySettingsSection('friends')
+    setShowFamilySettings(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('friends')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -230,7 +250,7 @@ export default function FamilyHome() {
                 onOpen={openChild}
                 onOpenQuest={openChildQuest}
                 onOpenProfile={openChildProfile}
-                onOpenSettings={(c) => openSettings(c.id)}
+                onOpenSettings={(c, section) => openSettings(c.id, section)}
               />
             ))}
           </div>
@@ -258,6 +278,7 @@ export default function FamilyHome() {
         onClose={() => setShowFamilySettings(false)}
         family={children}
         initialTab={familySettingsTab}
+        initialSection={familySettingsSection}
         onAddChild={canAddChild ? () => { setShowFamilySettings(false); setShowAddChild(true) } : null}
         onRefresh={invalidateFamily}
       />

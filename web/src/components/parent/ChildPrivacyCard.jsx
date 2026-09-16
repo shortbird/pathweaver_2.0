@@ -21,13 +21,18 @@ import { GlobeAltIcon, LockClosedIcon, LinkIcon } from '@heroicons/react/24/outl
  * dominate the dashboard. The full card appears only when something is
  * actionable -- the portfolio is public, the state couldn't be read, the
  * child is waiting on approval -- or when the parent expands it.
+ *
+ * Inside the child's settings (ChildSettingsPanel) the section it sits in
+ * is itself collapsible and carries the one-line status in its header, so
+ * the panel passes `defaultExpanded` (no strip inside a strip) and reads
+ * the status back through `onStatus` for that header.
  */
-const ChildPrivacyCard = ({ studentId, studentName }) => {
+const ChildPrivacyCard = ({ studentId, studentName, defaultExpanded = false, onStatus }) => {
   const [status, setStatus] = useState(null);
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const load = useCallback(async () => {
     if (!studentId) return;
@@ -37,14 +42,18 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
         api.get(`/api/portfolio/user/${studentId}/visibility-status`),
         api.get(`/api/portfolio/user/${studentId}/transcript-shares`).catch(() => null),
       ]);
-      setStatus(statusRes.data?.data || statusRes.data || null);
-      setShares(sharesRes?.data?.data?.shares || []);
+      const next = statusRes.data?.data || statusRes.data || null;
+      const nextShares = sharesRes?.data?.data?.shares || [];
+      setStatus(next);
+      setShares(nextShares);
+      onStatus?.(next, nextShares);
     } catch (e) {
       setStatus(null);
+      onStatus?.(null, []);
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, onStatus]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -134,12 +143,12 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
               Who can see {studentName}&rsquo;s work
             </h3>
             {unknown ? (
-              <p className="text-sm text-amber-700 mt-1">
+              <p className="text-base text-amber-700 mt-1">
                 We couldn&rsquo;t load the current setting. Please refresh &mdash;
                 don&rsquo;t assume this portfolio is private.
               </p>
             ) : (
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-base text-gray-600 mt-1">
                 {isPublic
                   ? 'Anyone with the link can view this portfolio, and search engines may index it.'
                   : 'Only you and the people you’ve connected — advisors and observers — can see this work.'}
@@ -206,7 +215,7 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
 
       {status.pending_parent_approval && (
         <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-sm text-amber-800">
+          <p className="text-base text-amber-800">
             {studentName} has asked to share this portfolio publicly and is waiting
             on your decision.
           </p>
@@ -215,7 +224,7 @@ const ChildPrivacyCard = ({ studentId, studentName }) => {
 
       {shares.length > 0 && (
         <div className="mt-5 border-t border-gray-200 pt-4">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">
+          <h4 className="text-base font-medium text-gray-900 mb-2">
             Transcript links
           </h4>
           <ul className="space-y-2">

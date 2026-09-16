@@ -186,8 +186,14 @@ def main() -> None:
 
     if mobile:
         files = note_cap('mobile', mobile)
+        # --runTestsByPath: jest reads bare positional arguments as regex
+        # patterns, and Expo Router's route groups put parentheses in the
+        # path ("app/(app)/friends/__tests__/friend.test.tsx"), which regex
+        # reads as a group -- so the pattern matched zero files and the hook
+        # reported "No tests found" as a failure (2026-09-16).
         code, out = run(
-            ['npx', '--no-install', 'jest', '--silent', *[str(PROJECT_DIR / f) for f in files]],
+            ['npx', '--no-install', 'jest', '--silent', '--runTestsByPath',
+             *[str(PROJECT_DIR / f) for f in files]],
             cwd=PROJECT_DIR / 'mobile',
             timeout=MOBILE_TIMEOUT,
         )
