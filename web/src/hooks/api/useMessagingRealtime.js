@@ -20,6 +20,8 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../services/supabaseClient'
 import { useAuth } from '../../contexts/AuthContext'
+import { messagesQueryKey } from './useDirectMessages'
+import { appendRealtimeMessage } from './threadCache'
 
 // Broadcast reaction payloads are shared across users, so they can't carry a
 // per-user `reacted` flag reliably. Preserve the local user's own `reacted`
@@ -42,9 +44,11 @@ const mergeReactions = (existing = [], incoming = []) =>
  *   off the conversations endpoint (a student's pinned advisor). Passing the
  *   user id here subscribed to a topic nothing publishes to, so DM realtime was
  *   dead on the web and every thread fell back to its 60s poll.
+ * @param {object} [params.source] - Which list the thread was read from (see
+ *   useDirectMessages): the school inbox keys its message cache with it.
  * @param {boolean} [params.enabled=true]
  */
-export const useMessagingRealtime = ({ kind, id, topicId, enabled = true }) => {
+export const useMessagingRealtime = ({ kind, id, topicId, source, enabled = true }) => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   // Superadmins keep deleted content (with a "Deleted" indicator) for moderation.
@@ -54,7 +58,7 @@ export const useMessagingRealtime = ({ kind, id, topicId, enabled = true }) => {
     if (!enabled || !kind || !id) return undefined
 
     const topic = `${kind}:${topicId || id}`
-    const messagesKey = kind === 'group' ? ['group-messages', id] : ['conversation-messages', id]
+    const messagesKey = kind === 'group' ? ['group-messages', id] : messagesQueryKey(id, source)
 
     const updateMessages = (updater) => {
       queryClient.setQueryData(messagesKey, (old) => {
@@ -76,9 +80,9 @@ export const useMessagingRealtime = ({ kind, id, topicId, enabled = true }) => {
       .channel(topic)
       .on('broadcast', { event: 'message' }, ({ payload }) => {
         if (!payload?.id) return
-        updateMessages((messages) =>
-          messages.some((m) => m.id === payload.id) ? messages : [...messages, payload]
-        )
+        // Replaces the sender's own optimistic bubble when the broadcast
+        // beats the send response -- otherwise the message showed twice.
+        updateMessages((messages) => appendRealtimeMessage(messages, payload))
       })
       .on('broadcast', { event: 'reactions' }, ({ payload }) => {
         if (!payload?.message_id) return
@@ -147,7 +151,7 @@ export const useMessagingRealtime = ({ kind, id, topicId, enabled = true }) => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [kind, id, topicId, enabled, queryClient, revealDeleted])
+  }, [kind, id, topicId, source?.school, source?.orgId, enabled, queryClient, revealDeleted])
 }
 
 export default useMessagingRealtime

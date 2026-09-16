@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { mergeThreadPage, settleOptimistic, patchThread } from './threadCache'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
@@ -35,11 +36,16 @@ export const useGroup = (groupId, options = {}) => {
 
 // Get messages for a group
 export const useGroupMessages = (groupId, userId, options = {}) => {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ['group-messages', groupId],
     queryFn: async () => {
       const response = await api.get(`/api/groups/${groupId}/messages`)
-      return response.data.data || response.data
+      const page = response.data.data || response.data
+      // A poll that was in flight when a send started must not land on top
+      // of the optimistic bubble and erase it -- see threadCache.
+      const local = queryClient.getQueryData(['group-messages', groupId])?.messages
+      return { ...page, messages: mergeThreadPage(local, page?.messages) }
     },
     enabled: !!groupId && !!userId,
     refetchInterval: 15000, // Refetch every 15 seconds
@@ -177,8 +183,9 @@ export const useSendGroupMessage = () => {
 
       const previousMessages = queryClient.getQueryData(['group-messages', groupId])
 
+      const optimisticId = `temp-${Date.now()}`
       const optimisticMessage = {
-        id: `temp-${Date.now()}`,
+        id: optimisticId,
         group_id: groupId,
         sender_id: currentUserId,
         message_content: content,
@@ -203,11 +210,13 @@ export const useSendGroupMessage = () => {
         }
       })
 
-      return { previousMessages, groupId }
+      return { previousMessages, groupId, optimisticId }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data, variables, context) => {
+      // The saved row replaces the bubble in place -- see useSendMessage.
+      queryClient.setQueryData(['group-messages', variables.groupId], (old) =>
+        patchThread(old, (messages) => settleOptimistic(messages, context.optimisticId, data?.message)))
       queryClient.invalidateQueries({ queryKey: ['groups'] })
-      queryClient.invalidateQueries({ queryKey: ['group-messages', variables.groupId] })
     },
     onError: (error, variables, context) => {
       const message = error.response?.data?.error || 'Failed to send message'

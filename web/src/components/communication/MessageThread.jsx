@@ -1,29 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
-import {
-  ReplyQuote,
-  SentFromTag,
-  AttachmentList,
-  ReactionsRow,
-  MessageActionBar,
-  MessageEditForm
-} from './MessageParts'
+import { ReactionsRow, MessageActionBar, MessageRow } from './MessageParts'
+import MessageBubble from './MessageBubble'
+import useThreadScroll from './useThreadScroll'
 import { toast } from 'react-hot-toast'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
-import MessageText from './MessageText'
-
-const scrollThreadToBottom = (endEl, smooth = true) => {
-  const container = endEl?.closest('.overflow-y-auto')
-  if (!container) return
-  // Element.scrollTo is missing in some environments (jsdom) — fall back.
-  if (typeof container.scrollTo === 'function') {
-    container.scrollTo({ top: container.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
-  } else {
-    container.scrollTop = container.scrollHeight
-  }
-}
 
 const MessageThread = ({
   messages,
@@ -33,6 +16,8 @@ const MessageThread = ({
   onReply,
   onEditMessage,
   onDeleteMessage,
+  // Which thread this is; a change lands the view at the bottom of the new one.
+  threadKey,
   // Direct messages only (Friends phase 3): a report the moderation queue
   // can act on. Group chats do not pass it.
   canReport = false,
@@ -45,35 +30,12 @@ const MessageThread = ({
 }) => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const messagesEndRef = useRef(null)
+  const scrollerRef = useRef(null)
   const [editingId, setEditingId] = useState(null)
   const [reportingId, setReportingId] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
 
-  const scrollToBottom = () => {
-    scrollThreadToBottom(messagesEndRef.current)
-  }
-
-  useEffect(() => {
-    // Only scroll to bottom if there are messages
-    // This prevents unwanted scroll on initial empty load
-    if (messages && messages.length > 0) {
-      scrollToBottom()
-    }
-  }, [messages])
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return ''
-    const date = new Date(timestamp)
-    const now = new Date()
-    const isToday = date.toDateString() === now.toDateString()
-
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    }
-  }
+  useThreadScroll(scrollerRef, messages, threadKey ?? otherUser?.id, user?.id)
 
   const handleSaveEdit = async (message, content) => {
     if (!onEditMessage) return
@@ -125,21 +87,27 @@ const MessageThread = ({
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50 p-4 space-y-3 w-full">
-      {messages.map((message) => {
+    <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-50 p-4 w-full">
+      {/* Pinned to the bottom, so a short thread sits by the composer and,
+          when a row makes room for its action bar, the room opens upward
+          into the empty space above rather than pushing the hovered bubble
+          down. min-h-full on a wrapper, not justify-end on the scroller:
+          that way a tall thread never has unreachable overflow at the top. */}
+      <div className="min-h-full flex flex-col justify-end space-y-3">
+      {messages.map((message, i) => {
         const isSender = message.sender_id === user?.id
         const isDeleted = !!message.is_deleted
         const isEditing = editingId === message.id
 
         return (
-          <div
-            key={message.id}
-            className={`group relative flex ${isSender ? 'justify-end' : 'justify-start'}`}
-          >
+          <MessageRow key={message.id} isOwn={isSender}>
+            {(open, hold) => (
             <div className="relative max-w-[75%] md:max-w-md">
               {/* Hover actions */}
               {!isDeleted && !isEditing && !message.isOptimistic && (
                 <MessageActionBar
+                  open={open}
+                  onHold={hold}
                   isOwn={isSender}
                   canEdit={isSender}
                   canDelete={isSender}
@@ -174,53 +142,15 @@ const MessageThread = ({
                 </div>
               )}
 
-              <div
-                className={`${
-                  isSender
-                    ? 'bg-gradient-primary text-white rounded-l-2xl rounded-tr-2xl'
-                    : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl shadow-sm'
-                } px-3.5 py-2.5 text-sm ${message.isOptimistic ? 'opacity-70' : ''}`}
-              >
-                {isDeleted && !message.deleted_visible_to_admin ? (
-                  <p className={`italic text-sm ${isSender ? 'text-white/70' : 'text-gray-400'}`}>
-                    Message deleted
-                  </p>
-                ) : isEditing ? (
-                  <MessageEditForm
-                    initialContent={message.message_content}
-                    onSave={(content) => handleSaveEdit(message, content)}
-                    onCancel={() => setEditingId(null)}
-                    saving={savingEdit}
-                  />
-                ) : (
-                  <>
-                    {isDeleted && message.deleted_visible_to_admin && (
-                      <span className={`inline-block text-[10px] font-semibold uppercase tracking-wide mb-1 px-1.5 py-0.5 rounded ${isSender ? 'bg-white/20 text-white/90' : 'bg-red-100 text-red-600'}`}>
-                        Deleted
-                      </span>
-                    )}
-                    <ReplyQuote replyTo={message.reply_to} light={isSender} />
-                    <MessageText text={message.message_content} />
-                    <AttachmentList attachments={message.attachments} light={isSender} />
-                  </>
-                )}
-                <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-opacity-20 border-current gap-2 flex-wrap">
-                  <span className={`inline-flex items-center gap-1.5 text-xs ${isSender ? 'text-white/80' : 'text-gray-500'}`}>
-                    <SentFromTag sentFrom={message.sent_from} light={isSender} />
-                    <span>
-                      {formatTime(message.created_at)}
-                      {message.edited_at && !isDeleted && (
-                        <span className={isSender ? 'text-white/60' : 'text-gray-400'}> (edited)</span>
-                      )}
-                    </span>
-                  </span>
-                  {isSender && !isDeleted && (
-                    <span className="text-xs text-white/80">
-                      {message.read_at ? 'Read' : 'Sent'}
-                    </span>
-                  )}
-                </div>
-              </div>
+              <MessageBubble
+                message={message}
+                isOwn={isSender}
+                isEditing={isEditing}
+                onSaveEdit={(content) => handleSaveEdit(message, content)}
+                onCancelEdit={() => setEditingId(null)}
+                savingEdit={savingEdit}
+                seen={isSender && i === messages.length - 1 && Boolean(message.read_at)}
+              />
 
               {/* Reactions */}
               {!isDeleted && (
@@ -231,10 +161,11 @@ const MessageThread = ({
                 />
               )}
             </div>
-          </div>
+            )}
+          </MessageRow>
         )
       })}
-      <div ref={messagesEndRef} />
+      </div>
     </div>
   )
 }

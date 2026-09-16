@@ -6,6 +6,13 @@ import { formatFileSize } from './MessageParts'
 
 const ACCEPTED_FILES = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt'
 const MAX_FILE_SIZE = 25 * 1024 * 1024 // 25MB (backend limit)
+// The box grows with what is being written, up to this; past it, it scrolls.
+// It was a 120px cap with the drag handle turned off, so a long reply -- most
+// of what the office writes back to a parent -- was composed through a
+// three-line window (iCreate, 2026-09-04: "it would be nice to be able to make
+// the 'reply as' field expandable!"). Capped so a very long reply never pushes
+// the thread it answers off the screen.
+const MAX_GROW_PX = 200
 
 /**
  * Composer shared by DMs and group chats.
@@ -55,7 +62,7 @@ const MessageInput = ({
     // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, MAX_GROW_PX)}px`
     }
   }
 
@@ -185,10 +192,13 @@ const MessageInput = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 min-w-0 px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6d469b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+          // resize-y, not resize-none: the auto-grow handles the common case,
+          // and the drag handle is there for whoever wants a bigger window
+          // regardless.
+          className="flex-1 min-w-0 px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed resize-y overflow-y-auto"
           rows="1"
           maxLength={2000}
-          style={{ minHeight: '40px', maxHeight: '120px' }}
+          style={{ minHeight: '40px', maxHeight: `${MAX_GROW_PX}px` }}
         />
         <button
           type="submit"

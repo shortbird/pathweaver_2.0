@@ -40,6 +40,7 @@ import {
   patchMessageReactions,
   patchMessageEdited,
   patchMessageDeleted,
+  settleOptimistic,
 } from '@/src/hooks/useMessagingRealtime';
 import {
   ReactionPills,
@@ -427,18 +428,9 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
         ...(attachments.length ? { attachments } : {}),
       });
       // Swap the optimistic bubble for the saved message in place (no refetch
-      // flicker); the realtime broadcast may have delivered it first.
+      // flicker) -- see ChatWindow.
       const saved: Message | undefined = (sent as any)?.message || ((sent as any)?.id ? sent : undefined);
-      setMessages((prev) => {
-        if (saved?.id && prev.some((m) => m.id === saved.id)) {
-          return prev.filter((m) => m.id !== optimisticMsg.id);
-        }
-        return prev.map((m) =>
-          m.id === optimisticMsg.id
-            ? { ...optimisticMsg, ...(saved || {}), id: saved?.id || optimisticMsg.id, isOptimistic: false }
-            : m,
-        );
-      });
+      setMessages((prev) => settleOptimistic(prev, optimisticMsg.id, saved));
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setInput(content);

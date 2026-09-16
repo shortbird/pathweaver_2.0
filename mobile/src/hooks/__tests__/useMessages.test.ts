@@ -24,6 +24,8 @@ import {
   deleteGroupMessage,
   pinGroupMessage,
   setGroupAnnouncementOnly,
+  mergeThreadPage,
+  type Message,
 } from '../useMessages';
 import { messageAPI, groupAPI } from '@/src/services/api';
 import { setAuthAsStudent, clearAuthState } from '@/src/__tests__/utils/authStoreHelper';
@@ -340,5 +342,30 @@ describe('messaging overhaul actions', () => {
     await setGroupAnnouncementOnly('group-1', true);
 
     expect(groupAPI.updateSettings).toHaveBeenCalledWith('group-1', { announcement_only: true });
+  });
+});
+
+/**
+ * The poll rule. A poll that was in flight when a send started used to land
+ * after the optimistic bubble and replace the list without it: the message
+ * vanished, and the sender sent it again.
+ */
+describe('mergeThreadPage', () => {
+  const row = (id: string, extra: Partial<Message> = {}): Message => ({
+    id, sender_id: 'me', message_content: id, created_at: new Date().toISOString(), read_at: null, ...extra,
+  });
+
+  it('keeps the optimistic bubble a stale poll does not know about', () => {
+    const local = [row('a'), row('temp-1', { isOptimistic: true })];
+    expect(mergeThreadPage(local, [row('a')]).map((m) => m.id)).toEqual(['a', 'temp-1']);
+  });
+
+  it('keeps a just-saved row the page missed, but not an old one', () => {
+    const old = row('gone', { created_at: '2020-01-01T00:00:00Z' });
+    expect(mergeThreadPage([row('a'), row('b'), old], [row('a')]).map((m) => m.id)).toEqual(['a', 'b']);
+  });
+
+  it('lets the page win for rows it carries', () => {
+    expect(mergeThreadPage([row('a')], [row('a', { read_at: 'now' })])[0].read_at).toBe('now');
   });
 });

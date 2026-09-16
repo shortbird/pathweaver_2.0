@@ -3,7 +3,8 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   useConversations, useConversationMessages, useUnreadCount, useCanMessage,
-  useMessagingContacts, useSendMessage, useMarkAsRead
+  useMessagingContacts, useSendMessage, useMarkAsRead,
+  sourcePath, conversationsQueryKey, messagesQueryKey
 } from './useDirectMessages'
 
 const get = vi.fn()
@@ -68,5 +69,44 @@ describe('useDirectMessages', () => {
       try { await send.result.current.mutateAsync({ targetUserId: 't1', content: 'hi', currentUserId: 'u1' }) } catch { /* expected */ }
     })
     expect(toastError).toHaveBeenCalledWith('nope')
+  })
+})
+
+/**
+ * The school inbox reads through these same hooks with a `source`. The path
+ * and the cache key both have to change together: the same path with a
+ * different key would double-fetch, and the same key with a different path
+ * would show the office's queue on a teacher's Mine tab.
+ */
+describe('useDirectMessages with a school source', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('routes to /api/school-inbox, naming the org only when given one', () => {
+    expect(sourcePath(undefined, '/conversations')).toBe('/api/messages/conversations')
+    expect(sourcePath({ school: true }, '/conversations/c1')).toBe('/api/school-inbox/conversations/c1')
+    expect(sourcePath({ school: true, orgId: 'org-1' }, '/conversations'))
+      .toBe('/api/school-inbox/conversations?organization_id=org-1')
+  })
+
+  it('keeps the school list and the personal list in separate cache entries', () => {
+    expect(conversationsQueryKey('u1')).toEqual(['conversations', 'u1'])
+    expect(conversationsQueryKey('u1', { school: true })).toEqual(['conversations', 'u1', 'school', null])
+    expect(messagesQueryKey('c1')).toEqual(['conversation-messages', 'c1'])
+    expect(messagesQueryKey('c1', { school: true, orgId: 'o' })).toEqual(['conversation-messages', 'c1', 'school', 'o'])
+  })
+
+  it('sends as the school and strips attachments to their durable pointer', async () => {
+    post.mockResolvedValue({ data: { data: { conversation_id: 'c9' } } })
+    const { result } = renderHook(() => useSendMessage(), { wrapper: wrapper() })
+    await act(async () => {
+      await result.current.mutateAsync({
+        targetUserId: 'u2', content: 'hi', source: { school: true },
+        attachments: [{ url: 'stored', display_url: 'signed', type: 'file', name: 'a.pdf', size: 1 }],
+      })
+    })
+    expect(post).toHaveBeenCalledWith('/api/school-inbox/conversations/u2/send', {
+      content: 'hi',
+      attachments: [{ url: 'stored', type: 'file', name: 'a.pdf', size: 1 }],
+    })
   })
 })

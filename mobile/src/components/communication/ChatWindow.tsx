@@ -39,6 +39,7 @@ import {
   patchMessageReactions,
   patchMessageEdited,
   patchMessageDeleted,
+  settleOptimistic,
 } from '@/src/hooks/useMessagingRealtime';
 import {
   ReactionPills,
@@ -314,20 +315,11 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       // refetch the whole list here, which briefly dropped the just-sent message
       // (the server hadn't indexed it yet) so it flickered: appear -> disappear
       // -> reappear on the next poll. Keeping it in place avoids the flicker; the
-      // 15s poll reconciles read receipts.
+      // 15s poll reconciles read receipts. settleOptimistic also covers the
+      // broadcast having delivered the row first, and a stale poll having
+      // erased the bubble.
       const saved: Message | undefined = (sent as any)?.message || ((sent as any)?.id ? sent : undefined);
-      setMessages((prev) => {
-        // The realtime broadcast may have delivered the saved message already —
-        // in that case just drop the optimistic bubble instead of duplicating.
-        if (saved?.id && prev.some((m) => m.id === saved.id)) {
-          return prev.filter((m) => m.id !== optimisticMsg.id);
-        }
-        return prev.map((m) =>
-          m.id === optimisticMsg.id
-            ? { ...optimisticMsg, ...(saved || {}), id: saved?.id || optimisticMsg.id, isOptimistic: false }
-            : m,
-        );
-      });
+      setMessages((prev) => settleOptimistic(prev, optimisticMsg.id, saved));
     } catch {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));

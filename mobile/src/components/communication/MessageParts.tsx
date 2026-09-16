@@ -214,12 +214,19 @@ export function MessageAttachments({
 
   if (!attachments || attachments.length === 0) return null;
 
+  // A row read from the server carries a signed `url`. The sender's own
+  // optimistic bubble carries what the upload returned: `url` is the
+  // private-bucket pointer (what gets stored) and `display_url` the signed
+  // twin. Rendering the pointer showed a blank image box until the saved row
+  // arrived -- "it appears blank for a bit right before it posts".
+  const uriOf = (a: MessageAttachment) => a.display_url || a.url;
+
   const open = (a: MessageAttachment) => {
     if (a.type === 'image' || a.type === 'video') {
-      setPreview({ type: a.type, uri: a.url, name: a.name });
+      setPreview({ type: a.type, uri: uriOf(a), name: a.name });
       return;
     }
-    Linking.openURL(a.url).catch(() => toast.error('Could not open the attachment'));
+    Linking.openURL(uriOf(a)).catch(() => toast.error('Could not open the attachment'));
   };
 
   return (
@@ -242,7 +249,7 @@ export function MessageAttachments({
             accessibilityLabel={a.name || 'Image attachment'}
           >
             <Image
-              source={{ uri: a.url }}
+              source={{ uri: uriOf(a) }}
               style={{ width: 200, height: 150, borderRadius: 12, backgroundColor: c.surfaceMuted }}
               resizeMode="cover"
             />

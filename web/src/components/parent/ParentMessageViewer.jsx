@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import api from '../../services/api';
+import MessageBubble from '../communication/MessageBubble';
 
 /**
  * ParentMessageViewer - Read-only view of conversation messages.
@@ -68,17 +69,6 @@ const ParentMessageViewer = ({ studentId, conversation, onBack }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatTime = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
   };
 
   const getMessageSender = (message) => {
@@ -153,7 +143,7 @@ const ParentMessageViewer = ({ studentId, conversation, onBack }) => {
         </button>
         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
           conversation.type === 'tutor'
-            ? 'bg-gradient-to-br from-optio-purple to-optio-pink text-white'
+            ? 'bg-gradient-primary text-white'
             : 'bg-gray-100 text-gray-600'
         }`}>
           {conversation.avatar_url ? (
@@ -202,33 +192,23 @@ const ParentMessageViewer = ({ studentId, conversation, onBack }) => {
               </div>
             )}
 
-            {/* Messages list */}
+            {/* Messages list. The same bubble as the messenger; "own" here is
+                the child, whose side of the conversation the parent is reading.
+                The parent endpoints send the body as `content`. */}
             {messages.map((message, index) => (
               <div
                 key={message.id || index}
                 className={`flex ${isStudentMessage(message) ? 'justify-end' : 'justify-start'}`}
               >
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                    isStudentMessage(message)
-                      ? 'bg-gradient-primary text-white rounded-br-sm'
-                      : conversation.type === 'tutor' && message.role === 'assistant'
-                        ? 'bg-gray-200 text-gray-800 rounded-bl-sm'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
-                  }`}
-                >
+                <div className="max-w-[75%]">
                   {/* Show sender name for group chats */}
                   {conversation.type === 'group' && !isStudentMessage(message) && (
-                    <p className="text-xs font-medium mb-1 opacity-80">
-                      {getMessageSender(message)}
-                    </p>
+                    <p className="text-xs text-gray-500 mb-1 ml-1">{getMessageSender(message)}</p>
                   )}
-                  <p className="whitespace-pre-wrap break-words text-sm">{message.content}</p>
-                  <p className={`text-xs mt-1 ${
-                    isStudentMessage(message) ? 'text-white/70' : 'text-gray-400'
-                  }`}>
-                    {formatTime(message.created_at)}
-                  </p>
+                  <MessageBubble
+                    message={{ ...message, message_content: message.content }}
+                    isOwn={isStudentMessage(message)}
+                  />
                 </div>
               </div>
             ))}

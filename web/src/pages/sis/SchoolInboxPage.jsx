@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import {
   AcademicCapIcon,
@@ -7,12 +8,21 @@ import {
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
   InboxIcon,
-  PaperAirplaneIcon,
-  PaperClipIcon,
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
-import { AttachmentList } from '../../components/communication/MessageParts'
-import { splitUrls, hostLabel } from '../../components/announcements/AnnouncementBody'
+import MessageBubble from '../../components/communication/MessageBubble'
+import MessageInput from '../../components/communication/MessageInput'
+import ThreadRow from '../../components/communication/ThreadRow'
+import useThreadScroll from '../../components/communication/useThreadScroll'
+import {
+  useConversations,
+  useConversationMessages,
+  useSendMessage,
+  useMarkConversationAsRead,
+  useSetConversationResolved,
+  conversationsQueryKey,
+} from '../../hooks/api/useDirectMessages'
+import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import SearchSelect from '../../components/ui/SearchSelect'
 import StaffComposeModal from '../../components/sis/StaffComposeModal'
@@ -40,6 +50,12 @@ import SisOrgPicker from './SisOrgPicker'
  *   class/teacher/age narrowing, optional email. A teacher's send stays scoped
  *   to their own classes by the backend.
  *
+ * Both thread sources go through the same React Query hooks, composer, row
+ * and bubble as /messages (useDirectMessages with a `source`, MessageInput,
+ * ThreadRow, MessageBubble). This page used to carry its own copy of each,
+ * polled on its own timers and had no Realtime; a fix to the messenger
+ * shipped to the messenger.
+ *
  * Under a teacher preview the two halves differ, because only one of them CAN
  * be faithful:
  *   - Threads stay the admin's own. Both thread sources answer for the CALLER
@@ -52,28 +68,6 @@ import SisOrgPicker from './SisOrgPicker'
  *     teachers, read as a teacher who was not one of them (iCreate,
  *     2026-08-31, 0a10f2ae). Where the preview can be honest it is.
  */
-const POLL_LIST_MS = 30000
-const POLL_THREAD_MS = 15000
-
-const formatTime = (timestamp) => {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  const now = new Date()
-  if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
-const listTime = (timestamp) => {
-  if (!timestamp) return ''
-  const diffHours = Math.floor((Date.now() - new Date(timestamp)) / (1000 * 60 * 60))
-  if (diffHours < 1) return 'Just now'
-  if (diffHours < 24) return `${diffHours}h ago`
-  const diffDays = Math.floor(diffHours / 24)
-  if (diffDays < 7) return `${diffDays}d ago`
-  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
 
 // The picker says who somebody is: two Bennetts in a school are a parent and
 // a teacher, and only the label tells them apart.
@@ -82,28 +76,18 @@ const ROLE_LABELS = {
   org_admin: 'admin', campus_coordinator: 'coordinator', observer: 'observer',
 }
 
+// A stable empty list, so an effect keyed on `messages` does not re-run on
+// every render of a thread that has none.
+const NO_MESSAGES = []
+
 const memberName = (convo) =>
   `${convo.other_user?.first_name || ''} ${convo.other_user?.last_name || ''}`.trim() ||
   convo.other_user?.display_name || 'Member'
 
-/** Message text with its URLs as short, clickable links (labeled by host).
- * `light` = on the gradient (own-message) bubble. */
-const LinkifiedText = ({ text, light }) => (
-  <p className="text-sm whitespace-pre-wrap break-words">
-    {splitUrls(text).map((s, i) => (s.url ? (
-      <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url}
-        className={`underline font-medium ${light ? 'text-white' : 'text-optio-purple'}`}>
-        {hostLabel(s.url)}
-      </a>
-    ) : (
-      <React.Fragment key={i}>{s.text}</React.Fragment>
-    )))}
-  </p>
-)
-
 const SchoolInboxPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   // Whether this caller has a school inbox to read at all. The backend is the
   // real gate either way: /api/school-inbox/* is ADMIN_ROLES, /api/messages/*
   // answers only for the caller.
@@ -132,17 +116,7 @@ const SchoolInboxPage = () => {
   // The school inbox is only ever read on the School tab.
   const viewingSchool = admin && tab === 'school'
   const setTab = (t) => setSearchParams({ tab: t }, { replace: true })
-  const [conversations, setConversations] = useState([])
-  const [inboxUserId, setInboxUserId] = useState(null)
-  const [orgName, setOrgName] = useState('')
-  const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
-  const [messages, setMessages] = useState([])
-  const [messagesLoading, setMessagesLoading] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [sending, setSending] = useState(false)
-  const [attachments, setAttachments] = useState([])
-  const [uploadingAtt, setUploadingAtt] = useState(false)
   // Starting a thread, rather than answering one. The inbox could only ever
   // reply, so reaching ONE family meant an announcement to everybody or a
   // phone call (iCreate, 2026-09-02: "allow us to message an individual person
@@ -153,53 +127,49 @@ const SchoolInboxPage = () => {
   // Writing to several staff at once. Separate from `composing`, which starts a
   // thread with ONE family or student as the school.
   const [staffCompose, setStaffCompose] = useState(false)
-  const fileRef = useRef(null)
-  const endRef = useRef(null)
-  const draftRef = useRef(null)
+  const scrollerRef = useRef(null)
 
-  // The reply box grows with what is being written. It was a single fixed line
-  // with resize turned off, so a long reply — which is most of what the office
-  // writes back to a parent — was composed through a one-line window (iCreate,
-  // 2026-09-04: "it would be nice to be able to make the 'reply as' field
-  // expandable!"). Capped, so a very long reply never pushes the conversation
-  // it is answering off the screen; past the cap the box scrolls.
-  useEffect(() => {
-    const el = draftRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
-  }, [draft])
+  // Which list the hooks read (see useDirectMessages). A superadmin names the
+  // org; everyone else is locked to their own by the backend.
+  const schoolSource = useMemo(
+    () => ({ school: true, orgId: isSuperadmin ? orgId : null }),
+    [isSuperadmin, orgId])
+  const source = viewingSchool ? schoolSource : undefined
+
+  const listEnabled = isMessages && !!user?.id && !(viewingSchool && isSuperadmin && !orgId)
+  const { data: listData, isLoading: loading } = useConversations(user?.id, {
+    source,
+    enabled: listEnabled,
+    // The office works the school inbox as a queue, and only the OPEN thread is
+    // live over Realtime; a family's new thread has to be noticed by this poll.
+    // The messenger's default is deliberately slow (see the hook); this list
+    // is one org's, so it can afford to look more often.
+    refetchInterval: viewingSchool ? 30000 : 120000,
+  })
+  const conversations = listData?.conversations || []
+  const inboxUserId = viewingSchool ? (listData?.inbox_user_id || null) : null
+  // The school's name labels its tab from either tab, so once the school list
+  // has loaded, read it back out of the cache rather than only off the list
+  // that is on screen.
+  const orgName = listData?.organization?.name
+    || queryClient.getQueryData(conversationsQueryKey(user?.id, schoolSource))?.organization?.name
+    || ''
 
   // "Me" in a thread: the school on the School tab, myself on Mine.
   const selfId = viewingSchool ? inboxUserId : user?.id
 
-  const loadConversations = useCallback((quiet = false) => {
-    if (!quiet) setLoading(true)
-    const req = viewingSchool
-      ? api.get(withOrg('/api/school-inbox/conversations', isSuperadmin ? orgId : null))
-      : api.get('/api/messages/conversations')
-    req
-      .then((r) => {
-        const data = r.data?.data || {}
-        setConversations(data.conversations || [])
-        if (viewingSchool) {
-          setInboxUserId(data.inbox_user_id || null)
-          setOrgName(data.organization?.name || '')
-        }
-      })
-      .catch((e) => {
-        if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the inbox')
-      })
-      .finally(() => { if (!quiet) setLoading(false) })
-  }, [orgId, isSuperadmin, viewingSchool])
+  const threadId = selected?.id || null
+  const { data: threadData, isLoading: messagesLoading } = useConversationMessages(
+    threadId, user?.id, { source, enabled: !!threadId && isMessages })
+  const messages = threadData?.messages || NO_MESSAGES
 
-  useEffect(() => {
-    if (!isMessages) return
-    if (viewingSchool && isSuperadmin && !orgId) return
-    loadConversations()
-    const timer = setInterval(() => loadConversations(true), POLL_LIST_MS)
-    return () => clearInterval(timer)
-  }, [loadConversations, isSuperadmin, orgId, viewingSchool, tab, isMessages])
+  // Live updates for the open thread; the query's own poll is the fallback.
+  // The rows here are conversation rows, so `id` is also the broadcast topic.
+  useMessagingRealtime({ kind: 'dm', id: threadId, source, enabled: !!threadId && isMessages })
+
+  const sendMutation = useSendMessage()
+  const markRead = useMarkConversationAsRead()
+  const resolveMutation = useSetConversationResolved()
 
   useEffect(() => {
     if (!composing || !viewingSchool || people.length) return
@@ -222,45 +192,39 @@ const SchoolInboxPage = () => {
         avatar_url: person.avatar_url,
       },
     })
-    setMessages([])
     setComposing(false)
     setPickedPerson('')
   }
 
-  const loadMessages = useCallback((conversationId, quiet = false) => {
-    if (!conversationId) return
-    if (!quiet) setMessagesLoading(true)
-    const url = viewingSchool
-      ? withOrg(`/api/school-inbox/conversations/${conversationId}`, isSuperadmin ? orgId : null)
-      : `/api/messages/conversations/${conversationId}`
-    api.get(url)
-      .then((r) => {
-        setMessages(r.data?.data?.messages || [])
-        // The school inbox marks the thread read on GET; a teacher's own
-        // thread needs the explicit mark (same as the learning app).
-        if (!viewingSchool) {
-          api.post(`/api/messages/conversations/${conversationId}/read`, {}).catch(() => {})
-        }
-        setConversations((prev) => prev.map((c) =>
-          c.id === conversationId ? { ...c, unread_count: 0 } : c))
-      })
-      .catch((e) => {
-        if (!quiet) toast.error(e?.response?.data?.error || 'Could not load the conversation')
-      })
-      .finally(() => { if (!quiet) setMessagesLoading(false) })
-  }, [orgId, isSuperadmin, viewingSchool])
-
+  // The school inbox marks a thread read on GET (shared read state: one
+  // colleague reading it reads it for all). A teacher's own thread needs the
+  // explicit mark, once per open and again whenever unread messages arrive
+  // while it is open -- the same rule as the messenger's ChatWindow.
+  const unreadForMe = messages.filter((m) => m.recipient_id === user?.id && !m.read_at).length
+  const markToken = `${threadId}:${unreadForMe}`
+  const markedRef = useRef(null)
   useEffect(() => {
-    if (!selected?.id || !isMessages) return
-    loadMessages(selected.id)
-    const timer = setInterval(() => loadMessages(selected.id, true), POLL_THREAD_MS)
-    return () => clearInterval(timer)
-  }, [selected?.id, loadMessages, tab])
+    if (viewingSchool || !threadId || !threadData) return
+    if (markedRef.current === markToken) return
+    markedRef.current = markToken
+    markRead.mutate(threadId)
+  }, [viewingSchool, threadId, threadData, markToken])
 
+  // The badge on the row clears the moment the thread is on screen, without
+  // waiting for the list's next poll to say so.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'auto' })
-  }, [messages])
+    if (!threadId || !threadData) return
+    queryClient.setQueryData(conversationsQueryKey(user?.id, source), (old) => {
+      if (!old?.conversations) return old
+      return {
+        ...old,
+        conversations: old.conversations.map((c) =>
+          c.id === threadId && c.unread_count ? { ...c, unread_count: 0 } : c),
+      }
+    })
+  }, [threadId, threadData, viewingSchool, orgId])
 
+  useThreadScroll(scrollerRef, messages, threadId, selfId)
 
   // Switching orgs (superadmin) or tabs resets the open thread -- School and
   // Mine are different thread lists, and a conversation id from one is
@@ -274,14 +238,13 @@ const SchoolInboxPage = () => {
   // who switched tabs with a thread open collected a 403 and a "Could not
   // load the conversation" toast (OPTIO-WEB-3 / OPTIO-BACKEND-8T: 45 users in
   // two weeks). Setting state in render makes React re-render before any
-  // effect runs, so the thread effect only ever sees the reset selection.
+  // effect runs -- and React Query only starts a fetch from an effect -- so
+  // the thread query only ever sees the reset selection.
   const listKey = `${orgId}:${tab}`
   const [renderedListKey, setRenderedListKey] = useState(listKey)
   if (renderedListKey !== listKey) {
     setRenderedListKey(listKey)
     setSelected(null)
-    setMessages([])
-    setConversations([])
   }
 
   // ?to=<user id> opens a thread with that person straight away, so "Message"
@@ -334,55 +297,23 @@ const SchoolInboxPage = () => {
     next.delete('conversation')
     setSearchParams(next, { replace: true })
   }, [wantedConversation, isMessages, conversations])
-  // A pending attachment belongs to the thread it was picked for.
-  useEffect(() => { setAttachments([]) }, [selected?.id])
 
-  const handleFiles = async (e) => {
-    const files = Array.from(e.target.files || [])
-    e.target.value = '' // allow re-selecting the same file
-    for (const file of files) {
-      if (file.size > 25 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 25MB)`)
-        continue
-      }
-      setUploadingAtt(true)
-      try {
-        const formData = new FormData()
-        formData.append('file', file)
-        const r = await api.post('/api/messages/attachments', formData)
-        const att = (r.data?.data || r.data)?.attachment
-        if (att) setAttachments((prev) => [...prev, att])
-      } catch (err) {
-        toast.error(err.response?.data?.error || `Failed to upload ${file.name}`)
-      } finally {
-        setUploadingAtt(false)
-      }
-    }
-  }
-
-  const handleSend = (e) => {
-    e?.preventDefault()
-    const content = draft.trim()
-    if ((!content && !attachments.length) || !selected?.other_user?.id || sending) return
-    setSending(true)
-    const url = viewingSchool
-      ? withOrg(`/api/school-inbox/conversations/${selected.other_user.id}/send`, isSuperadmin ? orgId : null)
-      : `/api/messages/conversations/${selected.other_user.id}/send`
-    api.post(url, {
-      content,
-      // Durable pointers only — never the signed display twins.
-      attachments: attachments.map(({ url: u, type, name, size }) => ({ url: u, type, name, size })),
-    })
-      .then((r) => {
-        setDraft('')
-        setAttachments([])
-        const convoId = selected.id || r?.data?.data?.conversation_id
-        if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
-        if (convoId) loadMessages(convoId, true)
-        loadConversations(true)
+  const handleSend = async (content, { attachments = [] } = {}) => {
+    if (!selected?.other_user?.id) return
+    try {
+      const sent = await sendMutation.mutateAsync({
+        targetUserId: selected.other_user.id,
+        content,
+        attachments,
+        currentUserId: selfId,
+        cacheId: selected.id || undefined,
+        source,
       })
-      .catch((e2) => toast.error(e2?.response?.data?.error || 'Could not send the reply'))
-      .finally(() => setSending(false))
+      const convoId = selected.id || sent?.conversation_id
+      if (convoId && convoId !== selected.id) setSelected((c) => ({ ...c, id: convoId }))
+    } catch (error) {
+      // The mutation already toasted.
+    }
   }
 
   const totalUnread = conversations.reduce((n, c) => n + (c.unread_count || 0), 0)
@@ -424,25 +355,15 @@ const SchoolInboxPage = () => {
     ['all', 'All'],
   ]
 
+  // The open thread's row as the list has it now -- `selected` is a snapshot
+  // from the click, and the resolved mark lands on the list.
+  const selectedRow = (selected?.id && conversations.find((c) => c.id === selected.id)) || selected
+
   // "This one is done" without sending anything. The thread comes off Needs a
   // reply for this side only; the member sees nothing.
-  const [resolving, setResolving] = useState(false)
   const setResolved = (convo, resolved) => {
-    if (!convo?.id || resolving) return
-    setResolving(true)
-    const url = viewingSchool
-      ? withOrg(`/api/school-inbox/conversations/${convo.id}/resolve`, isSuperadmin ? orgId : null)
-      : `/api/messages/conversations/${convo.id}/resolve`
-    api.post(url, { resolved })
-      .then((r) => {
-        const at = r?.data?.data?.resolved_at ?? (resolved ? new Date().toISOString() : null)
-        const patch = (c) => (c.id === convo.id ? { ...c, resolved_at: at } : c)
-        setConversations((prev) => prev.map(patch))
-        setSelected((c) => (c ? patch(c) : c))
-        toast.success(resolved ? 'Marked as handled' : 'Back in Needs a reply')
-      })
-      .catch((e) => toast.error(e?.response?.data?.error || 'Could not update the thread'))
-      .finally(() => setResolving(false))
+    if (!convo?.id || resolveMutation.isPending) return
+    resolveMutation.mutate({ conversationId: convo.id, resolved, source, userId: user?.id })
   }
 
   const tabClass = (t) => `px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
@@ -488,7 +409,7 @@ const SchoolInboxPage = () => {
         isOpen={staffCompose}
         orgId={isSuperadmin ? orgId : null}
         onClose={() => setStaffCompose(false)}
-        onSent={() => loadConversations(true)}
+        onSent={() => queryClient.invalidateQueries({ queryKey: ['conversations'] })}
       />
 
       {tab === 'announcements' ? (
@@ -583,45 +504,14 @@ const SchoolInboxPage = () => {
                 </p>
               </div>
             ) : (
-              shownConversations.map((convo) => {
-                const isSelected = selected?.id === convo.id
-                const unread = convo.unread_count || 0
-                const name = memberName(convo)
-                return (
-                  <button
-                    key={convo.id}
-                    onClick={() => setSelected(convo)}
-                    className={`w-full px-4 py-3 flex items-center gap-3 border-l-2 transition-colors text-left ${
-                      isSelected ? 'bg-optio-purple/5 border-optio-purple' : 'border-transparent hover:bg-gray-50'}`}
-                  >
-                    <div className="relative flex-shrink-0">
-                      {convo.other_user?.avatar_url ? (
-                        <img src={convo.other_user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-optio-purple/10 flex items-center justify-center text-optio-purple font-bold">
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      {unread > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-                          {unread > 9 ? '9+' : unread}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`truncate text-sm ${unread ? 'font-bold text-neutral-900' : 'font-semibold text-neutral-800'}`}>
-                          {name}
-                        </span>
-                        <span className="text-xs text-gray-400 flex-shrink-0">{listTime(convo.last_message_at)}</span>
-                      </div>
-                      <p className={`text-sm truncate ${unread ? 'text-neutral-800 font-medium' : 'text-neutral-500'}`}>
-                        {convo.last_message_preview || 'No messages yet'}
-                      </p>
-                    </div>
-                  </button>
-                )
-              })
+              shownConversations.map((convo) => (
+                <ThreadRow
+                  key={convo.id}
+                  conversation={convo}
+                  isSelected={selected?.id === convo.id}
+                  onSelect={setSelected}
+                />
+              ))
             )}
           </div>
         </div>
@@ -647,7 +537,7 @@ const SchoolInboxPage = () => {
                   <ArrowLeftIcon className="w-5 h-5" />
                 </button>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selected)}</h2>
+                  <h2 className="text-base font-semibold text-neutral-900 truncate">{memberName(selectedRow)}</h2>
                   {viewingSchool && (
                     <p className="text-xs text-neutral-500 flex items-center gap-1">
                       <AcademicCapIcon className="w-3.5 h-3.5" />
@@ -658,14 +548,14 @@ const SchoolInboxPage = () => {
                 {/* A thread answered somewhere else -- in person, from the
                     other inbox -- has no reply to send and would otherwise sit
                     under Needs a reply forever (iCreate, 5c858931). */}
-                {selected.id && hasTraffic(selected) && (
-                  isResolved(selected) ? (
-                    <button type="button" onClick={() => setResolved(selected, false)} disabled={resolving}
+                {selectedRow.id && hasTraffic(selectedRow) && (
+                  isResolved(selectedRow) ? (
+                    <button type="button" onClick={() => setResolved(selectedRow, false)} disabled={resolveMutation.isPending}
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:bg-gray-50 disabled:opacity-50">
                       <CheckCircleIcon className="w-4 h-4 text-green-600" /> Handled · Reopen
                     </button>
                   ) : (
-                    <button type="button" onClick={() => setResolved(selected, true)} disabled={resolving}
+                    <button type="button" onClick={() => setResolved(selectedRow, true)} disabled={resolveMutation.isPending}
                       title="Take it off Needs a reply without sending anything"
                       className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-600 hover:border-optio-purple hover:text-optio-purple disabled:opacity-50">
                       <CheckCircleIcon className="w-4 h-4" /> Mark handled
@@ -674,7 +564,7 @@ const SchoolInboxPage = () => {
                 )}
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-gray-50 px-4 py-3 space-y-2">
+              <div ref={scrollerRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 px-4 py-3">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-32">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
@@ -686,97 +576,41 @@ const SchoolInboxPage = () => {
                       : `Write the first message to ${memberName(selected)}.`}
                   </p>
                 ) : (
-                  messages.map((message, i) => {
+                  // Pinned to the bottom -- see MessageThread for why.
+                  <div className="min-h-full flex flex-col justify-end space-y-2">
+                  {messages.map((message, i) => {
                     const fromMe = message.sender_id === selfId
-                    // Whether the other person has opened our last message.
-                    // "Don't even know if he saw it" (iCreate, 4ae1c6d1) is
-                    // answerable: read_at is stamped when they open the thread.
-                    const showSeen = fromMe && i === messages.length - 1 && Boolean(message.read_at)
+                    // A member-side message with an author = forwarded in from
+                    // Optio Support.
+                    const meta = [
+                      viewingSchool && fromMe && message.sent_by_name && `Sent by ${message.sent_by_name}`,
+                      viewingSchool && !fromMe && message.sent_by_name && `Forwarded by ${message.sent_by_name}`,
+                    ].filter(Boolean).map((t) => ` · ${t}`).join('')
                     return (
                       <div key={message.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 ${
-                          fromMe
-                            ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
-                            : 'bg-white border border-gray-200 text-neutral-900'}`}>
-                          {message.message_content && (
-                            <LinkifiedText text={message.message_content} light={fromMe} />
-                          )}
-                          {message.attachments?.length > 0 && (
-                            <AttachmentList attachments={message.attachments} light={fromMe} />
-                          )}
-                          <p className={`text-[11px] mt-1 ${fromMe ? 'text-white/70' : 'text-gray-400'}`}>
-                            {formatTime(message.created_at)}
-                            {viewingSchool && fromMe && message.sent_by_name && ` · Sent by ${message.sent_by_name}`}
-                            {/* A member-side message with an author = forwarded in from Optio Support. */}
-                            {viewingSchool && !fromMe && message.sent_by_name && ` · Forwarded by ${message.sent_by_name}`}
-                            {showSeen && ' · Seen'}
-                          </p>
+                        <div className="max-w-[75%]">
+                          <MessageBubble
+                            message={message}
+                            isOwn={fromMe}
+                            meta={meta || null}
+                            seen={fromMe && i === messages.length - 1 && Boolean(message.read_at)}
+                          />
                         </div>
                       </div>
                     )
-                  })
-                )}
-                <div ref={endRef} />
-              </div>
-
-              <div className="border-t border-gray-200 bg-white">
-                {(attachments.length > 0 || uploadingAtt) && (
-                  <div className="px-3 pt-2 flex flex-wrap items-center gap-1.5">
-                    {attachments.map((att, i) => (
-                      <span key={att.url || i}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-neutral-700">
-                        <span className="truncate max-w-[160px]">{att.name}</span>
-                        <button type="button"
-                          onClick={() => setAttachments((prev) => prev.filter((_, x) => x !== i))}
-                          aria-label={`Remove ${att.name}`}
-                          className="text-neutral-400 hover:text-red-600">
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    {uploadingAtt && <span className="text-xs text-neutral-400">Uploading…</span>}
+                  })}
                   </div>
                 )}
-                <form onSubmit={handleSend} className="p-3 flex items-end gap-2">
-                  <input ref={fileRef} type="file" multiple hidden
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
-                    onChange={handleFiles} aria-label="Attach files" />
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploadingAtt}
-                    className="p-2.5 rounded-lg text-neutral-500 hover:text-optio-purple hover:bg-optio-purple/5 disabled:opacity-40"
-                    aria-label="Attach a file"
-                  >
-                    <PaperClipIcon className="w-5 h-5" />
-                  </button>
-                  <textarea
-                    ref={draftRef}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSend()
-                      }
-                    }}
-                    rows={1}
-                    placeholder={viewingSchool ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
-                    // resize-y, not resize-none: the auto-grow handles the
-                    // common case, and the drag handle is there for the reply
-                    // somebody wants a bigger window on regardless.
-                    className="flex-1 resize-y overflow-y-auto rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sending || (!draft.trim() && !attachments.length)}
-                    className="p-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white disabled:opacity-40"
-                    aria-label="Send reply"
-                  >
-                    <PaperAirplaneIcon className="w-5 h-5" />
-                  </button>
-                </form>
               </div>
+
+              {/* Keyed on the thread: a pending attachment belongs to the
+                  thread it was picked for. */}
+              <MessageInput
+                key={selected.id || `new:${selected.other_user?.id}`}
+                onSendMessage={handleSend}
+                disabled={sendMutation.isPending}
+                placeholder={viewingSchool ? `Reply as ${orgName || 'the school'}...` : 'Write a reply...'}
+              />
             </>
           )}
         </div>

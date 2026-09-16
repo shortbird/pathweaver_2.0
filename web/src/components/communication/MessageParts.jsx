@@ -1,9 +1,14 @@
 /**
- * Shared building blocks for message bubbles (DMs and group chats):
- * reply quotes, attachments, reaction pills, the hover action bar and
- * inline edit form.
+ * Shared building blocks for message bubbles (DMs, group chats, the SIS
+ * inbox): reply quotes, attachments, reaction pills, the hover action bar,
+ * the inline edit form, and the one timestamp rule.
+ *
+ * The bubble itself is MessageBubble.jsx and the scroll rules are
+ * useThreadScroll.js. Nothing here knows which surface it
+ * is on: the same message reads the same on /messages and in the school
+ * console, which is the whole point of the file.
  */
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, forwardRef, useImperativeHandle } from 'react'
 import {
   FaceSmileIcon,
   ArrowUturnLeftIcon,
@@ -26,6 +31,24 @@ export const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/**
+ * "9:30 AM" today, "Tue 9:30 AM" inside the week, "Aug 30, 9:30 AM" beyond.
+ * One rule for every bubble; three surfaces used to each have their own.
+ */
+export const formatMessageTime = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const now = new Date()
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  }
+  const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
+  if (diffDays >= 0 && diffDays < 7) {
+    return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  }
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 // Footer label for a message's origin. The backend only puts `sent_from` on a
 // row for a superadmin viewer (messaging_extras_service.enrich_messages), so
 // for everyone else there is nothing to label.
@@ -36,49 +59,46 @@ const SENT_FROM_LABELS = { mobile: 'Mobile', web: 'Web', sis: 'SIS', email: 'Ema
  * Renders nothing when the row carries no `sent_from` -- every non-superadmin
  * viewer, and every message from before 2026-09-16.
  */
-export const SentFromTag = ({ sentFrom, light = false }) => {
+export const SentFromTag = ({ sentFrom }) => {
   const label = sentFrom ? SENT_FROM_LABELS[sentFrom] : null
   if (!label) return null
   return (
     <span
       aria-label={`Sent from ${label}`}
-      className={`inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
-        light ? 'bg-white/20 text-white/90' : 'bg-gray-100 text-gray-500'
-      }`}
+      className="inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-500"
     >
       {label}
     </span>
   )
 }
 
-/**
- * Small quoted block above a message's content showing what it replies to.
- * `light` renders it for use on the gradient (own-message) bubble.
- */
-export const ReplyQuote = ({ replyTo, light = false }) => {
+/** Small quoted block above a message's content showing what it replies to. */
+export const ReplyQuote = ({ replyTo }) => {
   if (!replyTo) return null
   return (
-    <div
-      className={`mb-1.5 px-2.5 py-1.5 rounded-lg border-l-2 text-xs ${
-        light
-          ? 'bg-white/15 border-white/60 text-white/90'
-          : 'bg-gray-100 border-optio-purple text-gray-600'
-      }`}
-    >
-      <p className={`font-semibold ${light ? 'text-white' : 'text-optio-purple'}`}>
-        {replyTo.sender_name || 'Unknown'}
-      </p>
+    <div className="mb-1.5 px-2.5 py-1.5 rounded-lg border-l-2 text-xs bg-gray-900/5 border-optio-purple text-gray-600">
+      <p className="font-semibold text-optio-purple">{replyTo.sender_name || 'Unknown'}</p>
       <p className="truncate">{replyTo.content}</p>
     </div>
   )
 }
 
-/** Renders a message's attachments (images, video, audio, generic files). */
-export const AttachmentList = ({ attachments, light = false }) => {
+/**
+ * Renders a message's attachments (images, video, audio, generic files).
+ *
+ * A row read from the server carries a signed `url`. A row that is still the
+ * sender's optimistic bubble carries what the upload returned: `url` is the
+ * durable pointer into a private bucket (what gets stored) and `display_url`
+ * the signed twin. Rendering `url` on the bubble showed a blank image box
+ * until the saved row arrived -- "it appears blank for a bit right before it
+ * posts" -- so the twin is preferred whenever it is there.
+ */
+export const AttachmentList = ({ attachments }) => {
   if (!attachments?.length) return null
   return (
     <div className="mt-1.5 space-y-2">
-      {attachments.map((att, i) => {
+      {attachments.map((raw, i) => {
+        const att = { ...raw, url: raw.display_url || raw.url }
         const key = att.url || i
         if (att.type === 'image') {
           return (
@@ -106,18 +126,12 @@ export const AttachmentList = ({ attachments, light = false }) => {
             download={att.name}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs max-w-[240px] ${
-              light
-                ? 'bg-white/15 text-white hover:bg-white/25'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            } transition-colors`}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs max-w-[240px] bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
           >
             <DocumentIcon className="w-4 h-4 flex-shrink-0" />
             <span className="truncate font-medium">{att.name || 'File'}</span>
             {att.size ? (
-              <span className={`flex-shrink-0 ${light ? 'text-white/70' : 'text-gray-400'}`}>
-                {formatFileSize(att.size)}
-              </span>
+              <span className="flex-shrink-0 text-gray-400">{formatFileSize(att.size)}</span>
             ) : null}
           </a>
         )
@@ -177,12 +191,91 @@ export const ReactionsRow = ({ reactions, onToggle, align = 'start' }) => {
   )
 }
 
+// The action bar's slot, in px: a 34px bar plus 4px of air above the bubble.
+// The slot opens to exactly this and the scroller moves by exactly this, so
+// the hovered bubble does not move.
+export const ACTION_BAR_PX = 38
+
 /**
- * Floating action bar shown on message hover (desktop): react (emoji picker
- * popover), reply, and edit/delete/pin when permitted. Rendered inside a
- * `group relative` message row.
+ * One message's row: alignment, and the hover/focus state that opens its
+ * action bar. Renders `children(open, hold)`; the child puts the
+ * MessageActionBar where it belongs in its own layout and hands it both.
+ *
+ * The bar is IN the flow, above the bubble, so the thread makes room for it
+ * rather than the bar covering anything. Making room means the row grows by
+ * ACTION_BAR_PX at its top, which would push the hovered bubble down under
+ * the cursor. So the scroller is moved by the same amount in the same commit,
+ * before paint: the bubble under the cursor and everything below it stay
+ * put, and the messages above slide up to make the room. Leaving the row
+ * puts them back. The scroll position is read in the event handler, before
+ * React touches the DOM -- reading it after the slot has already collapsed
+ * would see a value the browser had clamped to the shorter content, and a
+ * reader at the bottom of the thread would land a bar's height above it.
+ *
+ * `hold` is how the bar keeps the row open while its emoji picker is up and
+ * the mouse has wandered off.
+ */
+export const MessageRow = forwardRef(({ isOwn = false, className = '', children }, ref) => {
+  const rowRef = useRef(null)
+  useImperativeHandle(ref, () => rowRef.current)
+  const [hovered, setHovered] = useState(false)
+  const [held, setHeld] = useState(false)
+  const open = hovered || held
+  const pending = useRef(null)
+
+  const capture = () => {
+    const scroller = rowRef.current?.closest('.overflow-y-auto')
+    pending.current = scroller ? { scroller, top: scroller.scrollTop } : null
+  }
+  const setOpenState = (setter) => (next) => {
+    capture()
+    setter(next)
+  }
+  const hover = setOpenState(setHovered)
+  const hold = setOpenState(setHeld)
+
+  const wasOpen = useRef(false)
+  useLayoutEffect(() => {
+    if (open === wasOpen.current) return
+    wasOpen.current = open
+    const p = pending.current
+    pending.current = null
+    if (!p) return
+    p.scroller.scrollTop = p.top + (open ? ACTION_BAR_PX : -ACTION_BAR_PX)
+  }, [open])
+
+  return (
+    <div
+      ref={rowRef}
+      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} ${className}`}
+      onMouseEnter={() => hover(true)}
+      onMouseLeave={() => hover(false)}
+      onFocus={() => hover(true)}
+      onBlur={(e) => {
+        if (!rowRef.current?.contains(e.relatedTarget)) hover(false)
+      }}
+    >
+      {children(open, hold)}
+    </div>
+  )
+})
+MessageRow.displayName = 'MessageRow'
+
+/**
+ * The action bar above a message: react (emoji picker popover), reply, and
+ * forward/email/report/pin/edit/delete when permitted. Rendered inside a
+ * MessageRow, which passes `open` (hover or keyboard focus on the row) and
+ * `onHold` (see there). Its buttons are always in the DOM so the keyboard can
+ * reach them; the slot is just 0px tall until it is wanted.
+ *
+ * The slot has the bar's HEIGHT and no width: it is in the flow vertically,
+ * so the thread makes room, and out of it horizontally, so a two-word
+ * bubble is not stretched to the width of seven buttons. The bar hangs off
+ * the bubble's outer edge -- right for own messages, left for others.
  */
 export const MessageActionBar = ({
+  open = false,
+  onHold,
   isOwn = false,
   canEdit = false,
   canDelete = false,
@@ -202,6 +295,12 @@ export const MessageActionBar = ({
   const [showPicker, setShowPicker] = useState(false)
   const [pickerBelow, setPickerBelow] = useState(false)
   const rootRef = useRef(null)
+  const shown = open || showPicker
+
+  const setPicker = (next) => {
+    onHold?.(next)
+    setShowPicker(next)
+  }
 
   // The picker prefers opening upward, but the first message(s) in a thread
   // have no room above inside the scroll container — flip it below the bar.
@@ -212,14 +311,14 @@ export const MessageActionBar = ({
       const topEdge = scroller ? scroller.getBoundingClientRect().top : 0
       setPickerBelow(rect.top - topEdge < 56)
     }
-    setShowPicker((v) => !v)
+    setPicker(!showPicker)
   }
 
   // Close the emoji picker on outside click
   useEffect(() => {
     if (!showPicker) return undefined
     const handle = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setShowPicker(false)
+      if (rootRef.current && !rootRef.current.contains(e.target)) setPicker(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -230,14 +329,17 @@ export const MessageActionBar = ({
 
   return (
     <div
-      ref={rootRef}
-      className={`absolute -top-3.5 ${isOwn ? 'right-1' : 'left-1'} z-10 transition-opacity ${
-        showPicker
-          ? 'opacity-100'
-          : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto'
-      }`}
+      data-testid="message-action-bar"
+      data-open={shown ? 'true' : 'false'}
+      className={`relative w-0 ${isOwn ? 'ml-auto' : ''} ${shown ? 'overflow-visible z-10' : 'overflow-hidden'}`}
+      style={{ height: shown ? ACTION_BAR_PX : 0 }}
     >
-      <div className="relative flex items-center gap-0.5 bg-white border border-gray-200 rounded-full px-1 py-0.5 shadow-md">
+      <div
+        ref={rootRef}
+        className={`absolute top-0 ${isOwn ? 'right-0' : 'left-0'} flex items-center gap-0.5 whitespace-nowrap bg-white border border-gray-200 rounded-full px-1 py-0.5 shadow-md ${
+          shown ? 'motion-safe:animate-bar-bounce' : ''
+        }`}
+      >
         <button
           type="button"
           title="React"
@@ -308,7 +410,7 @@ export const MessageActionBar = ({
                 aria-label={`React with ${emoji}`}
                 onClick={() => {
                   onReact?.(emoji)
-                  setShowPicker(false)
+                  setPicker(false)
                 }}
                 className="text-lg leading-none hover:scale-125 transition-transform"
               >

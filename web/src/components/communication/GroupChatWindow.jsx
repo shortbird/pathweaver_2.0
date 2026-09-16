@@ -20,28 +20,11 @@ import {
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import GroupSettingsModal from './GroupSettingsModal'
 import MessageInput from './MessageInput'
-import MessageText from './MessageText'
-import {
-  ReplyQuote,
-  SentFromTag,
-  AttachmentList,
-  ReactionsRow,
-  MessageActionBar,
-  MessageEditForm
-} from './MessageParts'
+import MessageBubble from './MessageBubble'
+import { ReactionsRow, MessageActionBar, MessageRow } from './MessageParts'
+import useThreadScroll from './useThreadScroll'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { classMeetingLabel, studentName } from '../../utils/groupsByChild'
-
-const scrollThreadToBottom = (endEl, smooth = true) => {
-  const container = endEl?.closest('.overflow-y-auto')
-  if (!container) return
-  // Element.scrollTo is missing in some environments (jsdom) — fall back.
-  if (typeof container.scrollTo === 'function') {
-    container.scrollTo({ top: container.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
-  } else {
-    container.scrollTop = container.scrollHeight
-  }
-}
 
 const GroupChatWindow = ({ group, onBack }) => {
   const confirm = useConfirm()
@@ -50,7 +33,7 @@ const GroupChatWindow = ({ group, onBack }) => {
   const [replyTo, setReplyTo] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
-  const messagesEndRef = useRef(null)
+  const scrollerRef = useRef(null)
   const messageRefs = useRef({})
 
   const { data: messagesData, isLoading } = useGroupMessages(group?.id, user?.id, {
@@ -90,12 +73,7 @@ const GroupChatWindow = ({ group, onBack }) => {
     return [kids, classMeetingLabel(src?.class_meeting)].filter(Boolean).join(' · ')
   }, [group, groupDetails])
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      scrollThreadToBottom(messagesEndRef.current)
-    }
-  }, [messages])
+  useThreadScroll(scrollerRef, messages, group?.id, user?.id)
 
   // Mark as read when viewing
   useEffect(() => {
@@ -181,24 +159,6 @@ const GroupChatWindow = ({ group, onBack }) => {
     }
   }
 
-  const formatTime = (timestamp) => {
-    if (!timestamp) return ''
-    const date = new Date(timestamp)
-    const now = new Date()
-    const isToday = date.toDateString() === now.toDateString()
-
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    }
-
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
-    if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })
-    }
-
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-  }
-
   if (!group) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -282,7 +242,7 @@ const GroupChatWindow = ({ group, onBack }) => {
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-gray-50">
+      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 bg-gray-50">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
@@ -293,7 +253,9 @@ const GroupChatWindow = ({ group, onBack }) => {
             <p className="text-gray-500">No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map((msg, index) => {
+          // Pinned to the bottom -- see MessageThread for why.
+          <div className="min-h-full flex flex-col justify-end space-y-3">
+          {messages.map((msg, index) => {
             const isOwn = msg.sender_id === user?.id
             const isDeleted = !!msg.is_deleted
             const isEditing = editingId === msg.id
@@ -301,11 +263,12 @@ const GroupChatWindow = ({ group, onBack }) => {
             const senderName = senderNameOf(msg)
 
             return (
-              <div
+              <MessageRow
                 key={msg.id}
                 ref={(el) => { messageRefs.current[msg.id] = el }}
-                className={`group relative flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                isOwn={isOwn}
               >
+                {(open, hold) => (
                 <div className={`max-w-[75%] md:max-w-md ${isOwn ? 'order-2' : ''}`}>
                   {/* Sender name (for others' messages) */}
                   {!isOwn && showAvatar && (
@@ -335,6 +298,8 @@ const GroupChatWindow = ({ group, onBack }) => {
                     <div className="relative">
                       {!isDeleted && !isEditing && !msg.isOptimistic && (
                         <MessageActionBar
+                          open={open}
+                          onHold={hold}
                           isOwn={isOwn}
                           canEdit={isOwn}
                           canDelete={isOwn || isAdmin}
@@ -347,45 +312,14 @@ const GroupChatWindow = ({ group, onBack }) => {
                         />
                       )}
 
-                      <div
-                        className={`px-3.5 py-2 rounded-2xl text-sm ${
-                          isOwn
-                            ? 'bg-gradient-primary text-white rounded-br-md'
-                            : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'
-                        } ${msg.isOptimistic ? 'opacity-70' : ''}`}
-                      >
-                        {isDeleted && !msg.deleted_visible_to_admin ? (
-                          <p className={`italic text-sm ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-                            Message deleted
-                          </p>
-                        ) : isEditing ? (
-                          <MessageEditForm
-                            initialContent={msg.message_content}
-                            onSave={(content) => handleSaveEdit(msg, content)}
-                            onCancel={() => setEditingId(null)}
-                            saving={savingEdit}
-                          />
-                        ) : (
-                          <>
-                            {isDeleted && msg.deleted_visible_to_admin && (
-                              <span className={`inline-block text-[10px] font-semibold uppercase tracking-wide mb-1 px-1.5 py-0.5 rounded ${isOwn ? 'bg-white/20 text-white/90' : 'bg-red-100 text-red-600'}`}>
-                                Deleted
-                              </span>
-                            )}
-                            <ReplyQuote replyTo={msg.reply_to} light={isOwn} />
-                            <MessageText text={msg.message_content} />
-                            <AttachmentList attachments={msg.attachments} light={isOwn} />
-                          </>
-                        )}
-                        <p className={`flex items-center gap-1.5 text-xs mt-1 ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-                          <SentFromTag sentFrom={msg.sent_from} light={isOwn} />
-                          <span>
-                            {formatTime(msg.created_at)}
-                            {msg.edited_at && !isDeleted && ' (edited)'}
-                            {msg.isOptimistic && ' (Sending...)'}
-                          </span>
-                        </p>
-                      </div>
+                      <MessageBubble
+                        message={msg}
+                        isOwn={isOwn}
+                        isEditing={isEditing}
+                        onSaveEdit={(content) => handleSaveEdit(msg, content)}
+                        onCancelEdit={() => setEditingId(null)}
+                        savingEdit={savingEdit}
+                      />
 
                       {/* Reactions */}
                       {!isDeleted && (
@@ -398,11 +332,12 @@ const GroupChatWindow = ({ group, onBack }) => {
                     </div>
                   </div>
                 </div>
-              </div>
+                )}
+              </MessageRow>
             )
-          })
+          })}
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input (or the announcement-only notice) */}

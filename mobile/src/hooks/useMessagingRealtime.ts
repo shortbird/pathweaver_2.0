@@ -72,6 +72,15 @@ export function useMessagingRealtime(
 }
 
 // ── State-patching helpers shared by ChatWindow + GroupChatWindow ──
+//
+// The three send-in-flight rules (the web app carries the same three in
+// hooks/api/threadCache.js). A send puts an optimistic bubble in the list at
+// once and the saved row arrives by two roads -- the send response and the
+// broadcast -- in either order, while the 15s poll keeps landing. Without
+// these: the broadcast appended the saved row beside the bubble (shown
+// twice), and a poll in flight when the send started landed after the bubble
+// and replaced the list without it (vanished, so the sender sent it again).
+// The third rule, mergeThreadPage, lives with the polls in useMessages.ts.
 
 /**
  * Append a broadcast message to local state, deduping against messages we
@@ -85,7 +94,7 @@ export function appendRealtimeMessage(prev: Message[], incoming: Message): Messa
   const optimisticIdx = prev.findIndex(
     (m) => m.isOptimistic
       && m.sender_id === incoming.sender_id
-      && m.message_content === incoming.message_content,
+      && (m.message_content || '') === (incoming.message_content || ''),
   );
   if (optimisticIdx >= 0) {
     const next = [...prev];
@@ -93,6 +102,29 @@ export function appendRealtimeMessage(prev: Message[], incoming: Message): Messa
     return next;
   }
   return [...prev, incoming];
+}
+
+/**
+ * Apply a send response. The optimistic bubble becomes the saved row in
+ * place; if the broadcast already delivered the row, the bubble is dropped;
+ * if a stale poll already dropped the bubble, the row is appended so the
+ * sender's message is on screen either way.
+ */
+export function settleOptimistic(
+  prev: Message[],
+  optimisticId: string,
+  saved: Message | undefined,
+): Message[] {
+  if (saved?.id && prev.some((m) => m.id === saved.id)) {
+    return prev.filter((m) => m.id !== optimisticId);
+  }
+  const idx = prev.findIndex((m) => m.id === optimisticId);
+  if (idx >= 0) {
+    const next = [...prev];
+    next[idx] = { ...next[idx], ...(saved || {}), isOptimistic: false };
+    return next;
+  }
+  return saved?.id ? [...prev, saved] : prev;
 }
 
 export function patchMessageReactions(

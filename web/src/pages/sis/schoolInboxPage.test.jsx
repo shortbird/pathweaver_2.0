@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * The combined /inbox (messaging + inbox merged, 2026-08-31).
@@ -10,8 +11,16 @@ import { MemoryRouter } from 'react-router-dom'
  * The Announcements tab holds the group composer that used to be /messaging.
  */
 
-const render = (ui, { route = '/inbox' } = {}) =>
-  rtlRender(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>)
+// The page reads through the messenger's React Query hooks; a fresh client
+// per render keeps one test's cache out of the next.
+const render = (ui, { route = '/inbox' } = {}) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
 
 vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -30,10 +39,11 @@ vi.mock('./useSisOrg', async (importOriginal) => ({
 vi.mock('../../components/sis/BoardAnnouncementsTab', () => ({
   default: () => <div>composer-stub</div>,
 }))
-vi.mock('../../components/communication/MessageParts', () => ({
-  AttachmentList: () => null,
+// Realtime needs a Supabase socket; the hook is covered by its own tests.
+vi.mock('../../hooks/api/useMessagingRealtime', () => ({
+  default: vi.fn(),
+  useMessagingRealtime: vi.fn(),
 }))
-
 const { api, state } = vi.hoisted(() => {
   const state = {
     schoolConvos: [], schoolMessages: [], myConvos: [], myMessages: [], roster: [],
@@ -130,10 +140,10 @@ describe('SchoolInboxPage — combined inbox', () => {
     fireEvent.click(await screen.findByText('Pat Family'))
     fireEvent.change(await screen.findByPlaceholderText('Write a reply...'),
       { target: { value: 'On it' } })
-    fireEvent.click(screen.getByLabelText('Send reply'))
+    fireEvent.click(screen.getByLabelText('Send message'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/messages/conversations/u2/send',
-        { content: 'On it', attachments: [] }))
+        { content: 'On it' }))
   })
 
   it('uploads an attachment and sends it with the reply', async () => {
@@ -142,11 +152,12 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />)
     fireEvent.click(await screen.findByText('Pat Family'))
     const file = new File(['x'], 'permission.pdf', { type: 'application/pdf' })
-    fireEvent.change(await screen.findByLabelText('Attach files'), { target: { files: [file] } })
+    await screen.findByPlaceholderText('Write a reply...')
+    fireEvent.change(screen.getByTestId('message-file-input'), { target: { files: [file] } })
     expect(await screen.findByText('permission.pdf')).toBeInTheDocument()
 
     // No text needed — an attachment alone is a sendable message.
-    fireEvent.click(screen.getByLabelText('Send reply'))
+    fireEvent.click(screen.getByLabelText('Send message'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/messages/conversations/u2/send', {
         content: '',
@@ -155,7 +166,7 @@ describe('SchoolInboxPage — combined inbox', () => {
       }))
   })
 
-  it('renders a URL in a message as a short clickable link', async () => {
+  it('renders a URL in a message as a clickable link', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     state.myConvos = [convo(2, 'Pat')]
     state.myMessages = [{
@@ -164,7 +175,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     }]
     render(<SchoolInboxPage />)
     fireEvent.click(await screen.findByText('Pat Family'))
-    const link = await screen.findByRole('link', { name: 'docs.acme.com' })
+    const link = await screen.findByRole('link', { name: 'https://docs.acme.com/form' })
     expect(link).toHaveAttribute('href', 'https://docs.acme.com/form')
     expect(link).toHaveAttribute('target', '_blank')
   })
@@ -187,10 +198,10 @@ describe('SchoolInboxPage — combined inbox', () => {
     expect(await screen.findByText(/Write the first message to Ada Bennett/)).toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('Reply as Hearthwood...'),
       { target: { value: 'Your spot is ready' } })
-    fireEvent.click(screen.getByLabelText('Send reply'))
+    fireEvent.click(screen.getByLabelText('Send message'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/school-inbox/conversations/u9/send',
-        { content: 'Your spot is ready', attachments: [] }))
+        { content: 'Your spot is ready' }))
   })
 
   it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {

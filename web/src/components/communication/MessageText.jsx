@@ -29,9 +29,9 @@ export default function MessageText({ text, className = '' }) {
           href={s.url}
           target="_blank"
           rel="noopener noreferrer"
-          // Inherit the bubble's color: a sent message is already on a dark
-          // ground, and a fixed link color is unreadable on one of the two.
-          className="underline decoration-1 underline-offset-2 hover:opacity-80 break-all"
+          // Both bubbles are dark text on a light ground (MessageBubble), so
+          // one link color reads on either.
+          className="text-optio-purple underline decoration-1 underline-offset-2 hover:text-optio-purple-dark break-all"
         >
           {s.url}
         </a>

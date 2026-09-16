@@ -15,6 +15,7 @@ import {
 import useMessagingRealtime from '../../hooks/api/useMessagingRealtime'
 import MessageThread from './MessageThread'
 import MessageInput from './MessageInput'
+import { OPTIO_LOGO_URL } from './ThreadRow'
 
 const ChatWindow = ({ conversation, onBack }) => {
   const { user } = useAuth()
@@ -216,7 +217,6 @@ const ChatWindow = ({ conversation, onBack }) => {
   // belongs to. Optio Support answers members from every org in one inbox, so
   // the header has to say whose member this is.
   const memberOrgName = otherUser?.organization_name
-  const OPTIO_LOGO_URL = 'https://auth.optioeducation.com/storage/v1/object/public/site-assets/logos/gradient_fav.svg'
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -292,6 +292,7 @@ const ChatWindow = ({ conversation, onBack }) => {
           onReply={(message) => setReplyTo(buildReplyPreview(message))}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          threadKey={conversation.id}
           canReport
           onForward={canForwardToSchool ? handleForwardToSchool : undefined}
           onEmailToSelf={user?.role === 'superadmin' ? handleEmailToSelf : undefined}

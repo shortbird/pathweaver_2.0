@@ -2,13 +2,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
+import { mergeThreadPage, settleOptimistic, patchThread } from './threadCache'
+
+/**
+ * Which threads the hooks read.
+ *
+ * Left out, they read the caller's own threads at /api/messages. `{ school:
+ * true, orgId }` reads the org's shared "{School Name}" inbox at
+ * /api/school-inbox instead: the same conversations table, read and answered
+ * AS the school's inbox account, through routes gated on ADMIN_ROLES rather
+ * than on being a participant. A superadmin names the org; everyone else is
+ * locked to their own. The query keys carry the source, so the two lists
+ * never share a cache entry, while a prefix invalidation (['conversations'])
+ * still reaches both.
+ *
+ * Before this the school console had its own copy of every call here, polled
+ * on its own timers, and had no Realtime at all.
+ */
+export const sourcePath = (source, path) => {
+  if (!source?.school) return `/api/messages${path}`
+  const url = `/api/school-inbox${path}`
+  if (!source.orgId) return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}organization_id=${encodeURIComponent(source.orgId)}`
+}
+const sourceKey = (source) => (source?.school ? ['school', source.orgId || null] : [])
+export const conversationsQueryKey = (userId, source) => ['conversations', userId, ...sourceKey(source)]
+export const messagesQueryKey = (id, source) => ['conversation-messages', id, ...sourceKey(source)]
 
 // Get all conversations for a user
-export const useConversations = (userId, options = {}) => {
+export const useConversations = (userId, { source, ...options } = {}) => {
   return useQuery({
-    queryKey: ['conversations', userId],
+    queryKey: conversationsQueryKey(userId, source),
     queryFn: async () => {
-      const response = await api.get('/api/messages/conversations')
+      const response = await api.get(sourcePath(source, '/conversations'))
       return response.data.data || response.data
     },
     enabled: !!userId,
@@ -25,12 +52,18 @@ export const useConversations = (userId, options = {}) => {
 }
 
 // Get messages for a specific conversation
-export const useConversationMessages = (conversationId, userId, options = {}) => {
+export const useConversationMessages = (conversationId, userId, { source, ...options } = {}) => {
+  const queryClient = useQueryClient()
+  const key = messagesQueryKey(conversationId, source)
   return useQuery({
-    queryKey: ['conversation-messages', conversationId],
+    queryKey: key,
     queryFn: async () => {
-      const response = await api.get(`/api/messages/conversations/${conversationId}`)
-      return response.data.data || response.data
+      const response = await api.get(sourcePath(source, `/conversations/${conversationId}`))
+      const page = response.data.data || response.data
+      // A poll that was in flight when a send started must not land on top
+      // of the optimistic bubble and erase it -- see threadCache.
+      const local = queryClient.getQueryData(key)?.messages
+      return { ...page, messages: mergeThreadPage(local, page?.messages) }
     },
     enabled: !!conversationId && !!userId,
     // Realtime delivers messages for the open thread the moment they are sent;
@@ -42,29 +75,41 @@ export const useConversationMessages = (conversationId, userId, options = {}) =>
   })
 }
 
-// Send a message (supports replies and attachments)
+// Send a message (supports replies and attachments).
+//
+// `cacheId` is the id the open thread's message query is keyed on. On
+// /messages that is the other user's id (contactToConversation), which is
+// also the send target, so it can be left out. The school inbox keys its
+// threads on the conversation row id and passes it explicitly.
 export const useSendMessage = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ targetUserId, content, replyToMessageId, attachments }) => {
+    mutationFn: async ({ targetUserId, content, replyToMessageId, attachments, source }) => {
       const body = { content }
       if (replyToMessageId) body.reply_to_message_id = replyToMessageId
-      if (attachments?.length) body.attachments = attachments
-      const response = await api.post(`/api/messages/conversations/${targetUserId}/send`, body)
+      // Durable pointers only -- never the signed display twin the upload
+      // response also carries. The backend whitelists too; this keeps the
+      // request honest.
+      if (attachments?.length) {
+        body.attachments = attachments.map(({ url, type, name, size }) => ({ url, type, name, size }))
+      }
+      const response = await api.post(sourcePath(source, `/conversations/${targetUserId}/send`), body)
       return response.data.data || response.data
     },
     // Optimistic update - show message immediately
-    onMutate: async ({ targetUserId, content, currentUserId, attachments, replyToPreview }) => {
+    onMutate: async ({ targetUserId, content, currentUserId, attachments, replyToPreview, source, cacheId }) => {
+      const key = messagesQueryKey(cacheId || targetUserId, source)
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['conversation-messages', targetUserId] })
+      await queryClient.cancelQueries({ queryKey: key })
 
       // Snapshot previous value
-      const previousMessages = queryClient.getQueryData(['conversation-messages', targetUserId])
+      const previousMessages = queryClient.getQueryData(key)
 
       // Optimistically update with new message
+      const optimisticId = `temp-${Date.now()}`
       const optimisticMessage = {
-        id: `temp-${Date.now()}`, // Temporary ID
+        id: optimisticId,
         sender_id: currentUserId,
         recipient_id: targetUserId,
         message_content: content,
@@ -78,7 +123,7 @@ export const useSendMessage = () => {
         isOptimistic: true // Flag to identify optimistic messages
       }
 
-      queryClient.setQueryData(['conversation-messages', targetUserId], (old) => {
+      queryClient.setQueryData(key, (old) => {
         const messages = old?.messages || old || []
         return {
           ...old,
@@ -87,16 +132,17 @@ export const useSendMessage = () => {
       })
 
       // Return context for rollback
-      return { previousMessages, targetUserId }
+      return { previousMessages, key, optimisticId }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data, variables, context) => {
+      // The saved row replaces the bubble in place. No refetch of the
+      // thread: the response IS the row, and the refetch was the window in
+      // which the message showed twice (broadcast + bubble) or not at all.
+      queryClient.setQueryData(context.key, (old) =>
+        patchThread(old, (messages) => settleOptimistic(messages, context.optimisticId, data?.message)))
+
       // Invalidate conversations list to update last message preview
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
-
-      // Refetch messages to get server-side data (replaces optimistic message)
-      queryClient.invalidateQueries({
-        queryKey: ['conversation-messages', variables.targetUserId]
-      })
 
       // Invalidate unread count
       queryClient.invalidateQueries({ queryKey: ['unread-count'] })
@@ -107,11 +153,38 @@ export const useSendMessage = () => {
 
       // Rollback optimistic update on error
       if (context?.previousMessages) {
-        queryClient.setQueryData(
-          ['conversation-messages', context.targetUserId],
-          context.previousMessages
-        )
+        queryClient.setQueryData(context.key, context.previousMessages)
       }
+    }
+  })
+}
+
+// "This one is done" without sending anything: the thread comes off Needs a
+// reply for THIS side only, and the other person sees nothing. Compared to
+// last_message_at on read, so a newer message reopens it by itself.
+export const useSetConversationResolved = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ conversationId, resolved, source }) => {
+      const response = await api.post(
+        sourcePath(source, `/conversations/${conversationId}/resolve`), { resolved })
+      return response.data.data || response.data
+    },
+    onSuccess: (data, { conversationId, resolved, source, userId }) => {
+      const at = data?.resolved_at ?? (resolved ? new Date().toISOString() : null)
+      queryClient.setQueryData(conversationsQueryKey(userId, source), (old) => {
+        if (!old?.conversations) return old
+        return {
+          ...old,
+          conversations: old.conversations.map((c) =>
+            c.id === conversationId ? { ...c, resolved_at: at } : c)
+        }
+      })
+      toast.success(resolved ? 'Marked as handled' : 'Back in Needs a reply')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Could not update the thread')
     }
   })
 }

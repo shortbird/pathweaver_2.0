@@ -10,6 +10,7 @@ import {
   patchMessageReactions,
   patchMessageEdited,
   patchMessageDeleted,
+  settleOptimistic,
 } from '../useMessagingRealtime';
 import type { Message } from '../useMessages';
 import * as supabaseClientModule from '@/src/services/supabaseClient';
@@ -181,5 +182,31 @@ describe('patch helpers', () => {
     expect(next[0].attachments).toEqual([
       { url: 'https://x/a.jpg', type: 'image', name: 'a', size: 1 },
     ]);
+  });
+});
+
+/**
+ * The other two send-in-flight rules (the third, mergeThreadPage, is tested
+ * with the polls in useMessages.test.ts). Each is a reported symptom: a
+ * message shown twice, a message that vanished after send.
+ */
+describe('settleOptimistic', () => {
+  const bubble = (): Message => makeMessage({ id: 'temp-1', message_content: 'hi', isOptimistic: true });
+  const saved = (): Message => makeMessage({ id: 'saved-1', message_content: 'hi' });
+
+  it('turns the bubble into the saved row in place', () => {
+    const next = settleOptimistic([makeMessage({ id: 'a' }), bubble()], 'temp-1', saved());
+    expect(next.map((m) => m.id)).toEqual(['a', 'saved-1']);
+    expect(next[1].isOptimistic).toBe(false);
+  });
+
+  it('drops the bubble when the broadcast already delivered the row', () => {
+    const next = settleOptimistic([makeMessage({ id: 'a' }), saved(), bubble()], 'temp-1', saved());
+    expect(next.map((m) => m.id)).toEqual(['a', 'saved-1']);
+  });
+
+  it('appends the saved row when a stale poll already erased the bubble', () => {
+    const next = settleOptimistic([makeMessage({ id: 'a' })], 'temp-1', saved());
+    expect(next.map((m) => m.id)).toEqual(['a', 'saved-1']);
   });
 });

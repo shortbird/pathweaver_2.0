@@ -154,6 +154,32 @@ export interface Group {
 
 // ── Hooks ──
 
+// A local row this young that the server's page does not have yet is one the
+// page missed, not one that was removed. Older than this and absent, it is
+// gone for a reason.
+const RECENT_MS = 60000;
+
+/**
+ * Merge a freshly polled page over the list on screen. The page wins for
+ * every row it carries; local rows it lacks survive only while they are
+ * optimistic or younger than RECENT_MS.
+ *
+ * One of the three send-in-flight rules (the other two are next to
+ * appendRealtimeMessage in useMessagingRealtime.ts). A poll that was in
+ * flight when a send started used to land after the optimistic bubble and
+ * replace the list without it: the message vanished until the next poll,
+ * and the sender sent it again.
+ */
+export function mergeThreadPage(local: Message[], fresh: Message[]): Message[] {
+  const page = fresh || [];
+  if (!local.length) return page;
+  const seen = new Set(page.map((m) => m.id));
+  const now = Date.now();
+  const kept = local.filter((m) => !seen.has(m.id)
+    && (m.isOptimistic || now - new Date(m.created_at || 0).getTime() < RECENT_MS));
+  return kept.length ? [...page, ...kept] : page;
+}
+
 /** Fetch all DM conversations for the current user */
 export function useConversations() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -199,7 +225,9 @@ export function useConversationMessages(conversationId: string | null) {
       if (!silent) setLoading(true);
       const { data } = await messageAPI.messages(conversationId);
       const d = data.data || data;
-      setMessages(d.messages || []);
+      // Merged, not replaced: a poll in flight when a send started must not
+      // land on top of the optimistic bubble and erase it.
+      setMessages((prev) => mergeThreadPage(prev, d.messages || []));
       return true;
     } catch {
       // Still swallowed -- a failed background poll must not surface as an
@@ -417,7 +445,8 @@ export function useGroupMessages(groupId: string | null) {
       if (!silent) setLoading(true);
       const { data } = await groupAPI.messages(groupId);
       const d = data.data || data;
-      setMessages(d.messages || []);
+      // Merged, not replaced -- see useConversationMessages.
+      setMessages((prev) => mergeThreadPage(prev, d.messages || []));
       return true;
     } catch {
       // Still swallowed -- a failed background poll must not surface as an

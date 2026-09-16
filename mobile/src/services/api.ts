@@ -758,7 +758,13 @@ export const familyCoverAPI = {
 /** Attachment metadata returned by POST /api/messages/attachments and stored
  *  on messages. `type` drives rendering (image thumbnail vs tappable chip). */
 export interface MessageAttachment {
+  /** The durable pointer (what a send stores). On a row read from the server
+   *  it is already signed; on a fresh upload it is a private-bucket path. */
   url: string;
+  /** The signed, expiring twin the upload response returns beside `url`, so
+   *  the composer preview and the optimistic bubble can render it. Never sent
+   *  back; absent on rows read from the server. */
+  display_url?: string;
   type: 'image' | 'video' | 'audio' | 'file';
   name: string;
   size: number;
