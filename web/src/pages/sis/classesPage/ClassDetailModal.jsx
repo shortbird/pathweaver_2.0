@@ -6,7 +6,8 @@
 import CreateClassModal from '../../../components/sis/CreateClassModal'
 import { ModalOverlay } from '../../../components/ui'
 import ParentClassPreview from '../../../components/schedule/ClassDetailsModal'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 import ClassRoster from './ClassRoster'
 import ClassWaitlist from './ClassWaitlist'
 import CLASS_TABS from './CLASS_TABS'
@@ -34,6 +35,14 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
         <div className="flex items-center justify-between px-4 pt-4 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{cls.name}</h2>
           <div className="flex items-center gap-3">
+            {/* Same door ClassesTable's expanded row has: the teacher's page
+                for this class (attendance, quests, progress, This Week). The
+                card view opens this modal instead of the row, so it needs
+                the link too. */}
+            <Link to={`/my-classes/${cls.id}`}
+              className="text-sm font-medium text-optio-purple hover:underline">
+              Class page
+            </Link>
             <button onClick={() => setPreviewing(true)}
               className="text-sm font-medium text-optio-purple hover:underline">
               Preview

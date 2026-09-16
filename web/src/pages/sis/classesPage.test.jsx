@@ -284,6 +284,24 @@ describe('ClassesPage', () => {
     expect(screen.queryByDisplayValue('Clay')).not.toBeInTheDocument()
   })
 
+  // An org admin holds every capability a teacher holds, but My Classes lists
+  // only the classes a person instructs. An admin who teaches none (Arete's
+  // Jackie, Horizon's director) had no way from this page to the class page
+  // where attendance, quests, progress and This Week live.
+  it('the expanded row and the card modal both open the class page', async () => {
+    render(<ClassesPage />)
+    await screen.findByText('Pottery')
+    fireEvent.click(screen.getByTitle('Table view'))
+    fireEvent.click(await screen.findByText('Pottery'))
+    await screen.findByDisplayValue('Pottery')
+    expect(screen.getByRole('link', { name: 'Class page' })).toHaveAttribute('href', '/my-classes/c1')
+
+    fireEvent.click(screen.getByTitle('Card view'))
+    fireEvent.click(await screen.findByText('Pottery')) // card opens the editor modal
+    await screen.findByRole('switch')
+    expect(screen.getByRole('link', { name: 'Class page' })).toHaveAttribute('href', '/my-classes/c1')
+  })
+
   // The room picker's data comes from /api/sis/schedule-settings, NOT from the
   // org_admin-gated /api/admin/organizations/:id it used to read. A campus
   // coordinator is deliberately not an org_admin, so that call 403'd for them

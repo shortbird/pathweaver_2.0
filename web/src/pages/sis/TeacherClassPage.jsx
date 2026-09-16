@@ -10,6 +10,7 @@ import ClassCurriculum from '../../components/discussion/ClassCurriculum'
 import ClassMessagesTab from '../../components/sis/ClassMessagesTab'
 import ClassCurriculumLibrary from '../../components/sis/ClassCurriculumLibrary'
 import ClassQuestsManager from '../../components/sis/ClassQuestsManager'
+import ClassActivityTab from '../../components/classes/ClassActivityTab'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 import SubstituteSheet from '../../components/sis/SubstituteSheet'
@@ -41,7 +42,16 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 // 'gradebook' stays accepted so old links and bookmarks land on the tab that
 // replaced it rather than silently falling back to the roster.
-const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'messages']
+//
+// 'activity' is the learning app's This Week tab (components/classes/
+// ClassActivityTab), mounted here as well. Arete's admin used it for Friday
+// check-ins from the learning app's class page; when the school's staff were
+// front-doored into this console (sis_enabled, 2026-09-10) the page she knew
+// dropped out of her navigation and the tab went with it (2026-09-15: "now I
+// don't see where I can locate the xp they earned that week"). Student Progress
+// is not a substitute: it reads the quests assigned to the class, and a class
+// used as a roster has none.
+const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'activity', 'messages']
 
 // "Next" is only useful with a room and a time on it — the point is a teacher
 // pointing a student down the right hallway (iCreate, 2026-08-25).
@@ -189,8 +199,8 @@ const TeacherClassPage = () => {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
         {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
-            then the two only some classes use. */}
-        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress']].map(([key, label]) => (
+            then the ones only some classes use. */}
+        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === key
@@ -221,6 +231,12 @@ const TeacherClassPage = () => {
 
       {tab === 'progress' && (
         <StudentProgressTab classId={classId} className={cls?.name} />
+      )}
+
+      {tab === 'activity' && (
+        // Everything the roster finished in a Saturday-to-Friday week, from
+        // any quest. Same component and endpoint as the learning app's tab.
+        <ClassActivityTab orgId={orgId} classId={classId} className={cls?.name} />
       )}
 
       {tab === 'messages' && (

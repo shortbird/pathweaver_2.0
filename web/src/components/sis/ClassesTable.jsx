@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronDownIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline'
 import ClassFieldsEditor from './ClassFieldsEditor'
 import { toDraft, draftToPayload, meetingsToForm, hhmm, fmt12ap, DAY_LETTER } from './classFields'
@@ -354,6 +355,17 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                             className="text-sm text-optio-purple hover:underline">
                             Roster &amp; waitlist
                           </button>
+                          {/* The teacher's page for this class: attendance,
+                              quests, student progress, This Week. An admin
+                              holds every capability a teacher holds, but My
+                              Classes lists only the classes a person
+                              instructs, so an admin who teaches none had no
+                              way in from here (Horizon 2026-09-11, Arete
+                              2026-09-15). */}
+                          <Link to={`/my-classes/${c.id}`}
+                            className="text-sm text-optio-purple hover:underline">
+                            Class page
+                          </Link>
                           {onDuplicate && (
                             <button onClick={() => onDuplicate(c)} className="text-sm text-neutral-500 hover:text-optio-purple hover:underline">
                               Duplicate

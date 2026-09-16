@@ -25,6 +25,13 @@ import api from '../../services/api'
  *    (the server picks a pillar and applies the school's XP policy), and the
  *    task is approved on the spot, like every student-made task.
  *
+ * The camera is not the only way in (2026-09-15, Arete: "can you add an upload
+ * picture so we can upload things we got pics of throughout the day?"). A
+ * teacher photographs the work as it happens and turns it in later, so the
+ * capture screen offers the photo library beside the camera. Two inputs, not
+ * one: `capture="environment"` is what opens the camera straight away on an
+ * iPad, and the same attribute is what keeps the library out of reach.
+ *
  * Defensive by design: every network step surfaces a friendly retryable error
  * instead of throwing, because this runs unattended on a shared iPad.
  */
@@ -90,7 +97,8 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const libraryInputRef = useRef(null)
   const doneTimer = useRef(null)
 
   // The student's quests (started + assigned) via the standard dashboard API.
@@ -414,13 +422,22 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
               <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4 mb-4">{error}</div>
             )}
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               multiple
               className="hidden"
               aria-label="Take a photo"
+              onChange={(e) => { addPhotos(e.target.files); e.target.value = '' }}
+            />
+            <input
+              ref={libraryInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              aria-label="Choose from photos"
               onChange={(e) => { addPhotos(e.target.files); e.target.value = '' }}
             />
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -439,17 +456,29 @@ export default function KioskStudentSession({ studentName, accentColor, onFinish
                 </div>
               ))}
               {step === 'capture' && (
-                <button
-                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
-                >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-sm font-semibold mt-1">{photos.length ? 'Add another' : 'Take photo'}</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => cameraInputRef.current && cameraInputRef.current.click()}
+                    className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+                  >
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-sm font-semibold mt-1">{photos.length ? 'Add another' : 'Take photo'}</span>
+                  </button>
+                  <button
+                    onClick={() => libraryInputRef.current && libraryInputRef.current.click()}
+                    className="aspect-square rounded-xl border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 hover:border-optio-purple hover:text-optio-purple touch-manipulation"
+                  >
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-sm font-semibold mt-1">Choose from photos</span>
+                  </button>
+                </>
               )}
             </div>
             <div className="mt-8">

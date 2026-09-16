@@ -6,6 +6,9 @@
  * never log in, so the kiosk lists class assignments and starts one on a tap.
  * And the quest may list nothing matching what the child actually did, so
  * "I did something else" adds a task from one answer and goes to the camera.
+ *
+ * The capture screen takes photos from the camera roll as well as the camera
+ * (Arete, 2026-09-15: "upload things we got pics of throughout the day").
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -104,6 +107,56 @@ describe('KioskStudentSession', () => {
     fireEvent.click(screen.getByText('Next: take a photo'))
     expect(await screen.findByText('This quest does not allow custom tasks')).toBeInTheDocument()
     expect(screen.getByLabelText('What did you do?')).toHaveValue('Made a map')
+  })
+
+  describe('the capture screen', () => {
+    const openCapture = async () => {
+      const tasks = [{ id: 't1', title: 'Draw your habitat', xp_value: 50, is_completed: false }]
+      api.get.mockResolvedValueOnce(dashboard({ active: [enrollment('q1', 'Marine Biology', tasks)] }))
+      render(<KioskStudentSession studentName="Ada" onFinished={vi.fn()} />)
+      fireEvent.click(await screen.findByText('Marine Biology'))
+      fireEvent.click(await screen.findByText('Draw your habitat'))
+      await screen.findByText('Take a photo of your work')
+    }
+
+    beforeEach(() => {
+      // jsdom has no object URLs; the thumbnails only need a string.
+      globalThis.URL.createObjectURL = vi.fn((file) => `blob:${file.name}`)
+      globalThis.URL.revokeObjectURL = vi.fn()
+    })
+
+    it('offers the photo library beside the camera, and only the camera input opens the camera', async () => {
+      await openCapture()
+      const camera = screen.getByLabelText('Take a photo')
+      const library = screen.getByLabelText('Choose from photos')
+      expect(camera).toHaveAttribute('capture', 'environment')
+      expect(library).not.toHaveAttribute('capture')
+      expect(library).toHaveAttribute('accept', 'image/*')
+      expect(library).toHaveAttribute('multiple')
+      expect(screen.getByRole('button', { name: /Take photo/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Choose from photos/ })).toBeInTheDocument()
+    })
+
+    it('a picture picked from the library counts the same as one just taken', async () => {
+      await openCapture()
+      expect(screen.getByRole('button', { name: /Turn in/ })).toBeDisabled()
+
+      const picked = new File(['jpg'], 'field-trip.jpg', { type: 'image/jpeg' })
+      fireEvent.change(screen.getByLabelText('Choose from photos'), { target: { files: [picked] } })
+
+      expect(await screen.findByAltText('Photo 1')).toHaveAttribute('src', 'blob:field-trip.jpg')
+      expect(screen.getByRole('button', { name: 'Turn in 1 photo' })).toBeEnabled()
+      // Not swallowed by the library input: the camera button now reads as an add.
+      expect(screen.getByRole('button', { name: /Add another/ })).toBeInTheDocument()
+    })
+
+    it('the library input ignores a file that is not an image', async () => {
+      await openCapture()
+      const doc = new File(['pdf'], 'notes.pdf', { type: 'application/pdf' })
+      fireEvent.change(screen.getByLabelText('Choose from photos'), { target: { files: [doc] } })
+      expect(screen.queryByAltText('Photo 1')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Turn in/ })).toBeDisabled()
+    })
   })
 
   it('with nothing started and nothing assigned, points at the teacher', async () => {
