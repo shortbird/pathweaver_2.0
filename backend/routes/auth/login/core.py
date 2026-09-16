@@ -5,7 +5,7 @@ Login, logout, and session validation endpoints.
 """
 
 from flask import request, jsonify, make_response
-from database import get_supabase_client, get_supabase_admin_client
+from database import get_supabase_client, get_supabase_admin_client, get_throwaway_auth_client
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from utils.log_scrubber import mask_user_id, mask_email
@@ -325,7 +325,11 @@ def register_routes(bp):
         constant_time_delay()
 
         data = request.json
-        supabase = get_supabase_client()
+        # A throwaway, never the shared anonymous client: sign_in_with_password
+        # rebinds the client it runs on to the user's JWT, and on the shared
+        # one that put every later public read in this worker under the last
+        # login's identity (see database.get_throwaway_auth_client).
+        supabase = get_throwaway_auth_client()
 
         # Validate input
         if not data or not data.get('email') or not data.get('password'):
@@ -761,7 +765,8 @@ def register_routes(bp):
 
         # Attempt to sign in with Supabase using the placeholder email
         try:
-            supabase = get_supabase_client()
+            # Throwaway for the same reason as login above.
+            supabase = get_throwaway_auth_client()
             auth_response = supabase.auth.sign_in_with_password({
                 'email': placeholder_email,
                 'password': password

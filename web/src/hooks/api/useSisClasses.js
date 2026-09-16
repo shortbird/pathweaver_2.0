@@ -56,8 +56,11 @@ export const useSisClassCatalog = (orgId, { showArchived = false, isAdmin = fals
     const [cls, crs, stf, ct, sched] = await Promise.all([
       api.get(withOrg(`/api/sis/classes${showArchived ? '?include_archived=true' : ''}`, orgId)),
       api.get('/api/courses?filter=all').catch(() => EMPTY),
-      isAdmin ? api.get(withOrg('/api/sis/staff', orgId)).catch(() => EMPTY) : Promise.resolve(EMPTY),
-      isAdmin ? api.get(withOrg('/api/sis/course-settings', orgId)).catch(() => EMPTY) : Promise.resolve(EMPTY),
+      // expect403: both are admin probes the page treats as empty when refused.
+      // Refused they were, every minute, while an admin's tab still wore admin
+      // chrome over a teacher's masquerade cookie (Sentry OPTIO-WEB-25).
+      isAdmin ? api.get(withOrg('/api/sis/staff', orgId), { expect403: true }).catch(() => EMPTY) : Promise.resolve(EMPTY),
+      isAdmin ? api.get(withOrg('/api/sis/course-settings', orgId), { expect403: true }).catch(() => EMPTY) : Promise.resolve(EMPTY),
       // Deliberately NOT /api/admin/organizations/:id: that endpoint is
       // org_admin-gated, so a campus coordinator got a 403 here and the editor
       // silently degraded to a free-text classroom box and raw time inputs -- a

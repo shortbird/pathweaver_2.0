@@ -95,6 +95,13 @@ def is_retryable_error(error: Exception) -> bool:
         # Always transient; retrying once or twice clears it.
         'non-blocking socket',
         'winerror 10035',
+        # h2's state machine refusing to open a stream ("Invalid input
+        # StreamInputs.SEND_HEADERS in state 5"): the shared HTTP/2 connection
+        # was raced by another thread, nothing was sent, and the next attempt
+        # gets a fresh stream. It arrives as httpx.LocalProtocolError, which is
+        # deliberately not in the type list above, so it is matched here by
+        # wording (Sentry OPTIO-BACKEND-97: a lost FERPA access-log row).
+        'streaminputs',
     ]
     
     return any(pattern in error_message for pattern in retryable_patterns)

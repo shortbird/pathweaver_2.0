@@ -1,9 +1,9 @@
-import React, { useEffect, useState, lazy, Suspense, startTransition } from 'react'
+import React, { useEffect, useRef, useState, lazy, Suspense, startTransition } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider, Helmet } from 'react-helmet-async'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AIAccessProvider } from './contexts/AIAccessContext'
 import { DemoProvider } from './contexts/DemoContext'
 import { OrganizationProvider } from './contexts/OrganizationContext'
@@ -232,6 +232,11 @@ function AppContent() {
   // Track consecutive status check failures for resilient banner
   const statusCheckFailures = React.useRef(0);
   const MAX_STATUS_CHECK_FAILURES = 3;
+  // Who this tab loaded as, for the poll below to compare against.
+  const { user: authUser } = useAuth();
+  const loadedUserId = useRef(null);
+  useEffect(() => { loadedUserId.current = authUser?.id || null; }, [authUser?.id]);
+  const identitySwapReload = useRef(false);
 
   // Check masquerade state on mount and periodically
   useEffect(() => {
@@ -254,6 +259,19 @@ function AppContent() {
           };
           localStorage.setItem('masquerade_state', JSON.stringify(next));
           setMasqueradeState(next);
+          // The masquerade cookie is shared by every tab on the domain, so a
+          // masquerade started in one tab swaps the identity under all the
+          // others while they keep rendering the admin's chrome -- and their
+          // admin-only polls come back 403 every minute (Sentry OPTIO-WEB-24
+          // and -25, 2026-09-16). When the server says this tab is now someone
+          // other than the person it loaded as, load again as that person.
+          const targetId = backendStatus.target_user?.id;
+          if (targetId && loadedUserId.current && targetId !== loadedUserId.current
+              && !identitySwapReload.current) {
+            identitySwapReload.current = true;
+            window.location.reload();
+            return;
+          }
           // Flag every subsequent PostHog event so admin masquerade activity
           // can be filtered out of real-user analytics.
           setMasqueradeSuperProperties({
@@ -262,8 +280,18 @@ function AppContent() {
           });
         } else {
           // Not masquerading server-side — purge any stale local cache.
-          if (getMasqueradeState()) {
+          const stale = getMasqueradeState();
+          if (stale) {
             localStorage.removeItem('masquerade_state');
+          }
+          // The reverse swap: this tab loaded as the masquerade target and the
+          // admin has since exited elsewhere, so the cookie is the admin's
+          // again while this tab still shows the target's screens.
+          if (stale?.target_user?.id && stale.target_user.id === loadedUserId.current
+              && !identitySwapReload.current) {
+            identitySwapReload.current = true;
+            window.location.reload();
+            return;
           }
           setMasqueradeState(null);
           clearMasqueradeSuperProperties();

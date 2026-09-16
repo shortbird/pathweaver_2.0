@@ -48,7 +48,7 @@ def _post(client, auth_headers, body, *, anon=None, actual_user_id='user-1'):
     anon = anon or Mock()
 
     with patch('routes.auth.password.get_supabase_admin_client', return_value=admin), \
-         patch('routes.auth.password.get_supabase_client', return_value=anon), \
+         patch('routes.auth.password.get_throwaway_auth_client', return_value=anon), \
          patch('utils.session_manager.session_manager.get_effective_user_id',
                return_value='user-1'), \
          patch('utils.session_manager.session_manager.get_actual_admin_id',

@@ -5,6 +5,7 @@ import { useCreateBounty, useBountyDetail } from '../hooks/api/useBounties'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../utils/queryKeys'
 import api from '../services/api'
+import { isStaffUser } from '../utils/userRoles'
 import { fetchFamilyChildren } from '../hooks/api/useFamilyChildren'
 import toast from 'react-hot-toast'
 import { PageLoader } from '../components/ui/Spinner'
@@ -146,13 +147,15 @@ const BountyCreatePage = () => {
   }, [])
 
   // Fetch the org's cohorts (classes) so a bounty can optionally be limited to one.
-  // Only org_admin/advisor can list these; silently no-op for everyone else.
+  // Only staff can list these, so only staff ask: a parent posting a bounty
+  // (the board sends them here) got a 403 on every visit, swallowed here and
+  // paged to Sentry anyway (OPTIO-WEB-26, 2026-09-16).
   useEffect(() => {
-    if (!user?.organization_id) return
-    api.get(`/api/organizations/${user.organization_id}/classes`)
+    if (!user?.organization_id || !isStaffUser(user)) return
+    api.get(`/api/organizations/${user.organization_id}/classes`, { expect403: true })
       .then(res => setCohorts(res.data?.classes || []))
       .catch(() => setCohorts([]))
-  }, [user?.organization_id])
+  }, [user])
 
   // Populate form when editing
   useEffect(() => {

@@ -80,6 +80,12 @@ def _log_with(client):
 @pytest.mark.parametrize('dropped', [
     httpx.RemoteProtocolError('Server disconnected'),
     httpx.RemoteProtocolError('Server disconnected without sending a response.'),
+    # h2's state machine refusing a stream on the shared HTTP/2 connection
+    # (another thread raced it); nothing was sent, so the next attempt lands.
+    # Sentry OPTIO-BACKEND-97, 2026-09-16: a lost FERPA row on the credit
+    # dashboard. httpx raises this as LocalProtocolError, which the retry
+    # handler matches by wording, not type.
+    httpx.LocalProtocolError('Invalid input StreamInputs.SEND_HEADERS in state 5'),
 ])
 def test_a_dropped_connection_is_retried_and_the_row_lands(dropped):
     client = _Client([dropped, object()])

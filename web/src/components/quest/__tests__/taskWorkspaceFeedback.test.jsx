@@ -109,7 +109,7 @@ describe('TaskWorkspace — teacher feedback on submitted work', () => {
     renderWorkspace(COMPLETED_TASK)
 
     await waitFor(() => {
-      expect(api.get).toHaveBeenCalledWith(`/api/credit/${COMPLETION_ID}/messages`)
+      expect(api.get).toHaveBeenCalledWith(`/api/credit/${COMPLETION_ID}/messages`, { expect403: true })
     })
   })
 

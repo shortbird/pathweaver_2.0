@@ -321,6 +321,19 @@ def list_quests():
             )
 
     except Exception as e:
+        # PostgREST refusing an expired JWT (PGRST303) is a session problem,
+        # not a server fault: as a 401 the web client refreshes and retries;
+        # as a 500 it just showed an error (Sentry OPTIO-WEB-27 / BACKEND-98,
+        # 2026-09-16). How an expired token reached PostgREST at all was the
+        # shared anonymous client being signed in by login -- see
+        # database.get_throwaway_auth_client.
+        if getattr(e, 'code', None) == 'PGRST303' or 'PGRST303' in str(e):
+            logger.warning(f"Quest listing refused for an expired JWT: {str(e)}")
+            return error_response(
+                code='TOKEN_EXPIRED',
+                message='Your session has expired. Please sign in again.',
+                status=401
+            )
         logger.error(f"Error listing quests: {str(e)}")
         return error_response(
             code='QUEST_LISTING_ERROR',

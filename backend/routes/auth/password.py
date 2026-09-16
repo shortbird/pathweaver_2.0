@@ -10,7 +10,7 @@ Handles:
 
 from flask import Blueprint, request, jsonify
 from app_config import Config
-from database import get_supabase_client, get_supabase_admin_client
+from database import get_supabase_admin_client, get_throwaway_auth_client
 from utils.validation import (
     sanitize_input,
     validate_password,
@@ -739,7 +739,9 @@ def change_password(user_id):
 
         # Verify the current password by actually signing in with it.
         try:
-            get_supabase_client().auth.sign_in_with_password({
+            # Throwaway client: signing in on the shared one rebinds it to this
+            # user's JWT for the rest of the worker's life (database.get_throwaway_auth_client).
+            get_throwaway_auth_client().auth.sign_in_with_password({
                 'email': auth_email,
                 'password': current_password
             })

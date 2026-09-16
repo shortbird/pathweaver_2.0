@@ -137,6 +137,26 @@ def get_supabase_client() -> Client:
 
     return _supabase_client
 
+def get_throwaway_auth_client() -> Client:
+    """A fresh anonymous client for one sign_in_with_password call.
+
+    sign_in_with_password mutates the client it is called on: supabase-py
+    listens for SIGNED_IN and rebinds that client's PostgREST auth to the
+    signed-in USER's JWT. Called on the shared anonymous singleton, that left
+    every later anonymous read in the worker -- the public quest catalog,
+    for one -- running under whichever user last logged in there, and
+    failing outright with PGRST303 once that token expired an hour later
+    (Sentry OPTIO-BACKEND-98, 2026-09-16). Login, org login and the
+    change-password check each take one of these instead and drop it.
+
+    Not signed out on purpose: sign_out revokes the session that login is
+    about to hand to the browser.
+    """
+    if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
+        raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
+    return create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+
+
 def get_supabase_admin_singleton() -> Client:
     """
     Get thread-safe singleton admin client for background tasks.

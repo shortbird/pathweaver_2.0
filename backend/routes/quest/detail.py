@@ -575,6 +575,14 @@ def rename_quest(user_id: str, quest_id: str):
                 'error': f'Title must be {MAX_QUEST_TITLE_LEN} characters or fewer'
             }), 400
 
+        # A parent inside a child's account renames the child's quest. The
+        # pencil is drawn from the child's can_rename (get_quest_detail
+        # resolves the scope before computing it), so this write judges the
+        # same person -- or the parent who clicked it was told "only the
+        # creator can rename" (Sentry OPTIO-WEB-28, 2026-09-16). Guardians only.
+        user_id = resolve_student_scope(
+            user_id, request.args.get('student_id') or data.get('student_id'), discloses='quests')
+
         quest = supabase.table('quests') \
             .select('id, title, created_by, is_public') \
             .eq('id', quest_id) \
@@ -598,6 +606,8 @@ def rename_quest(user_id: str, quest_id: str):
         logger.info(f"User {user_id[:8]} renamed quest {quest_id[:8]}")
         return jsonify({'success': True, 'quest': {'id': quest_id, 'title': title}})
 
+    except GuardianAccessError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error renaming quest {quest_id}: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Failed to rename quest'}), 500

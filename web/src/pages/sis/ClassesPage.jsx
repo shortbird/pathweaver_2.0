@@ -5,6 +5,7 @@ import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from
 import Button from '../../components/ui/Button'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
+import { getPreviewTeacher } from './teacherPreview'
 import {
   useSisClassCatalog, useCatalogPatch, sisClassApi,
 } from '../../hooks/api/useSisClasses'
@@ -172,7 +173,9 @@ export const ConflictBanner = ({
 const ClassesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const isAdmin = isSisAdmin(user)
+  // Not while previewing a teacher: the catalog's admin-only reads (staff,
+  // course settings) are refused for the previewed role.
+  const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'

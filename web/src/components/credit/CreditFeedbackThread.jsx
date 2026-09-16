@@ -20,7 +20,8 @@ export default function CreditFeedbackThread({ completionId }) {
   const load = async () => {
     try {
       setLoading(true)
-      const { data } = await api.get(`/api/credit/${completionId}/messages`)
+      // expect403: silent below, so not a page to Sentry either.
+      const { data } = await api.get(`/api/credit/${completionId}/messages`, { expect403: true })
       if (data.success) setMessages(data.messages || [])
     } catch (e) {
       // Silent: thread is supplementary.

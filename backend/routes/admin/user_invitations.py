@@ -5,7 +5,7 @@ Handles email invitations for org admins to invite users to join their organizat
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_admin_client
+from database import get_supabase_admin_client, get_throwaway_auth_client
 from utils.auth.decorators import require_org_admin, require_org_front_office
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
@@ -1173,7 +1173,9 @@ def accept_invitation(invitation_code):
             else:
                 # User is not authenticated - verify password through Supabase Auth
                 try:
-                    auth_response = supabase.auth.sign_in_with_password({
+                    # A throwaway client: signing in rebinds the client it runs
+                    # on to this user's JWT (database.get_throwaway_auth_client).
+                    auth_response = get_throwaway_auth_client().auth.sign_in_with_password({
                         'email': email,
                         'password': password
                     })

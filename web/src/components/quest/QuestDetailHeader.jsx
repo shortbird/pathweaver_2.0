@@ -42,7 +42,7 @@ const stripHtml = (html) => {
  */
 const QuestTitle = ({ quest, className }) => {
   const queryClient = useQueryClient();
-  const { scopeId } = useStudentScope();
+  const { scopeId, params: scopeParams } = useStudentScope();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,7 +60,9 @@ const QuestTitle = ({ quest, className }) => {
     }
     try {
       setSaving(true);
-      const { data } = await api.patch(`/api/quests/${quest.id}`, { title });
+      // In family scope the rename is judged as the child, whose quest it is
+      // and whose can_rename drew the pencil.
+      const { data } = await api.patch(`/api/quests/${quest.id}`, { title }, { params: scopeParams });
       if (!data?.success) throw new Error(data?.error || 'Failed to rename quest');
       // Show the new name immediately, then let the lists catch up.
       queryClient.setQueryData(queryKeys.quests.detail(quest.id, scopeId), (old) =>

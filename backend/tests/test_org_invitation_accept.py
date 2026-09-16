@@ -48,6 +48,8 @@ def _admin(invite, user_rows_by_call=None):
 def _post(client, code, body, admin):
     with patch('routes.admin.user_invitations.get_supabase_admin_client',
                return_value=admin), \
+         patch('routes.admin.user_invitations.get_throwaway_auth_client',
+               return_value=admin), \
          patch('utils.session_manager.session_manager.get_effective_user_id',
                return_value=None):
         return client.post(f'/api/admin/organizations/invitations/accept/{code}',
