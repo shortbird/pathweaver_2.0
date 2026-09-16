@@ -127,6 +127,17 @@ def world(monkeypatch):
                         lambda uq, repo=None, admin=None: {'can_start': True, 'complete': True, 'submitted_task_count': 3, 'credited_task_count': 3, 'task_count': 3})
     monkeypatch.setattr(generate, 'kick_background', lambda ids, admin=None: state['kicked'].extend(ids) or True)
     monkeypatch.setattr(Config, 'STORIES_ENABLED', True)
+    # The eligibility payload carries the student's promotional consent
+    # (routes.stories.admin._consent_view). Stub it: the repository behind it
+    # binds the real admin client at import, so the fixture's fake client
+    # never reaches it, and on CI (no network) the read raised and the route
+    # answered 500 (release 35061261962, 2026-09-16). Locally it had been
+    # reading prod and passing by accident.
+    from services.stories import consent_service
+    monkeypatch.setattr(consent_service, 'status_for', lambda student_id, repo=None: {
+        'student_user_id': student_id, 'active': None,
+        'scope': consent_service.scope_of(None), 'tier': consent_service.tier_for(None), 'history': [],
+    })
 
     monkeypatch.setattr('utils.auth.decorators.authorizing_user_id', lambda: state['identity'])
 
