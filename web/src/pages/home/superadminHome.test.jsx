@@ -49,6 +49,16 @@ const aiCostsPayload = {
   trends: [{ date: today, cost_usd: 0.0042, requests: 9, tokens: 4500 }],
 }
 
+const screenStatsPayload = {
+  days: 7,
+  surfaces: {
+    group_message: { screened: 187, clear: 186, flagged: 0, pending: 0, refused: 3, hidden_later: 0 },
+    message: { screened: 0, clear: 0, flagged: 0, pending: 0, refused: 0, hidden_later: 0 },
+    peer_comment: { screened: 0, clear: 0, flagged: 0, pending: 0, refused: 0, hidden_later: 0 },
+  },
+  model: { calls: 190, failed_calls: 0, input_tokens: 60000, output_tokens: 3000, cost_usd: 0.05 },
+}
+
 function mockHappyApi() {
   api.get.mockImplementation((url) => {
     if (url === '/api/admin/users') return Promise.resolve({ data: usersPayload })
@@ -56,6 +66,7 @@ function mockHappyApi() {
     if (url === '/api/credit-dashboard/stats') return Promise.resolve({ data: creditStatsPayload })
     if (url === '/api/admin/flagged-tasks') return Promise.resolve({ data: flaggedPayload })
     if (url === '/api/admin/ai/costs/trends') return Promise.resolve({ data: aiCostsPayload })
+    if (url === '/api/admin/moderation/screen-stats') return Promise.resolve({ data: screenStatsPayload })
     return Promise.reject(new Error(`Unexpected GET ${url}`))
   })
 }
@@ -169,6 +180,19 @@ describe('SuperadminHome', () => {
     expect(screen.getByText(/9 logged calls over 30 days/i)).toBeInTheDocument()
     // The coverage caveat must ship with the number, not be optional chrome.
     expect(screen.getByText(/undercount/i)).toBeInTheDocument()
+  })
+
+  it('shows the safety screen tracker above the cost chart', async () => {
+    mockHappyApi()
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-screen-table')).toBeInTheDocument()
+    })
+    // 187 rows screened + 3 refused before they became rows.
+    expect(screen.getByRole('row', { name: /class chat/i })).toHaveTextContent('190')
+    expect(screen.getByText('3 held')).toBeInTheDocument()
+    expect(screen.getByText('Review holds').closest('a')).toHaveAttribute('href', '/admin/moderation?tab=holds')
   })
 
   it('hides the cost chart rather than erroring when the endpoint fails', async () => {

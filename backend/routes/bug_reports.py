@@ -107,6 +107,14 @@ def _upload_screenshot(file, user_id: str):
         logger.warning(f"[BugReport] screenshot rejected by security scan: {scan.error_message}")
         return None
 
+    # The known-CSAM hash match. Only superadmins ever see a screenshot, so
+    # the classifier does not run; the match is not about who sees it.
+    from services import upload_safety_service as gate
+    if not gate.check_image(file_bytes, content_type, user_id=user_id, purpose='bug_report',
+                            filename=file.filename, classify=False).allowed:
+        logger.warning('[BugReport] screenshot refused by the safety gate')
+        return None
+
     ext = 'jpg'
     if content_type == 'image/png':
         ext = 'png'

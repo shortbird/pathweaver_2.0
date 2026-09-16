@@ -274,10 +274,15 @@ class Config:
         'gemini-2.5-flash-lite': (0.075, 0.30),
         'gemini-2.5-flash': (0.30, 2.50),
         'gemini-2.5-pro': (1.25, 10.00),
+        # Introductory rate through 2026-12-31; the standard rate from
+        # 2027-01-01 is (1.50, 7.50). Until this entry existed (2026-09-15)
+        # every 3.7-flash call billed at the placeholder below, ten times too
+        # low, and the admin cost chart said so with a straight face.
+        'gemini-3.7-flash': (0.75, 3.75),
     }
-    # UNVERIFIED for the 3.x family -- confirm against
-    # https://ai.google.dev/gemini-api/docs/pricing and add explicit entries
-    # above. Until then 3.x models bill at these placeholder rates.
+    # UNVERIFIED for any 3.x model not listed above -- confirm against
+    # https://ai.google.dev/gemini-api/docs/pricing and add an explicit entry.
+    # Until then those models bill at these placeholder rates.
     GEMINI_PRICING_DEFAULT = (0.075, 0.30)
     GOOGLE_API_KEY = GEMINI_API_KEY  # Backward-compat alias
 
@@ -526,6 +531,22 @@ class Config:
     # deploy; contact-detail holds (phone, email, link, address) are regex and
     # do not honour it.
     PEER_TEXT_SCREEN_ENABLED = os.getenv('PEER_TEXT_SCREEN_ENABLED', 'true').lower() == 'true'
+    # Known-CSAM hash matching on image uploads (services/csam_match_service).
+    # 'off' until a provider key exists; 'photodna' needs PHOTODNA_API_KEY from
+    # Microsoft's PhotoDNA Cloud Service application. The classifier screen is
+    # not a substitute: it judges what a picture looks like, this matches
+    # what it IS against the NCMEC hash lists.
+    CSAM_MATCH_PROVIDER = os.getenv('CSAM_MATCH_PROVIDER', 'off').lower()
+    PHOTODNA_API_KEY = os.getenv('PHOTODNA_API_KEY')
+    PHOTODNA_ENDPOINT = os.getenv('PHOTODNA_ENDPOINT', 'https://api.microsoftmoderator.com/photodna/v1.0/Match')
+    # Where a matched upload is preserved for the CyberTipline report. Private,
+    # service_role only, never signed for a browser.
+    CSAM_QUARANTINE_BUCKET = os.getenv('CSAM_QUARANTINE_BUCKET', 'csam-quarantine')
+    # The image classifier on student uploads (services/upload_safety_service).
+    UPLOAD_IMAGE_SCREEN_ENABLED = os.getenv('UPLOAD_IMAGE_SCREEN_ENABLED', 'true').lower() == 'true'
+    # The nightly conversation review (services/conversation_review_service).
+    CONVERSATION_REVIEW_ENABLED = os.getenv('CONVERSATION_REVIEW_ENABLED', 'true').lower() == 'true'
+    CONVERSATION_REVIEW_THREADS_PER_RUN = int(os.getenv('CONVERSATION_REVIEW_THREADS_PER_RUN', '200'))
     # Pending rows one cron tick re-screens per surface (comments, messages).
     PEER_TEXT_SCREEN_SWEEP_LIMIT = int(os.getenv('PEER_TEXT_SCREEN_SWEEP_LIMIT', '50'))
     # Total inline attachment bytes per request. Gemini's inline limit is ~20MB

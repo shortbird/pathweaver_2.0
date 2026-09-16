@@ -66,8 +66,11 @@ export const formatClock = (iso) => {
 }
 
 // Who filed it: the account's name when the row has one, else the email a
-// Perch import or a hand-filed ticket carries, else "unknown".
+// Perch import or a hand-filed ticket carries, else "unknown". A Sentry
+// ticket has no reporter; its user_email is whoever hit the error, and the
+// detail view shows that under the name, not as the name.
 export const reporterName = (ticket) => {
+  if (ticket.source === 'sentry') return 'Sentry'
   const u = ticket.users
   const full = u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() : ''
   return full || u?.display_name || ticket.user_email || 'unknown'

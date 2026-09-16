@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTiles'
 import AICostChart from '../../components/home/AICostChart'
+import SafetyScreenCard from '../../components/home/SafetyScreenCard'
 import PlatformMetricsSection from '../../components/home/PlatformMetricsSection'
 
 /**
@@ -157,6 +158,8 @@ export default function SuperadminHome() {
         className="grid-cols-2 md:grid-cols-5"
         stats={stats}
       />
+
+      <SafetyScreenCard />
 
       <AICostChart />
 

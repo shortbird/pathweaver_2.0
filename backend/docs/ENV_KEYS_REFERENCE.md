@@ -59,6 +59,13 @@ All API keys and secrets are accessed via the `Config` class in `app_config.py`.
 | `CREDIT_AI_REVIEW_TIMEOUT` | Per-attempt model timeout, seconds. Larger than `AI_ATTEMPT_TIMEOUT` on purpose: these run on a background thread where no request is waiting | `Config.CREDIT_AI_REVIEW_TIMEOUT` | Default `90` |
 | `PEER_TEXT_SCREEN_ENABLED` | Gemini screen on every peer comment and student-to-student message. Off means nothing is refused or swept; text posts as `pending` and waits. Contact-detail holds are regex and ignore this switch | `Config.PEER_TEXT_SCREEN_ENABLED` | Default `true` |
 | `PEER_TEXT_SCREEN_SWEEP_LIMIT` | Pending rows the 10-minute cron re-screens per tick, per surface | `Config.PEER_TEXT_SCREEN_SWEEP_LIMIT` | Default `50` |
+| `CSAM_MATCH_PROVIDER` | Known-CSAM hash matching on image uploads: `off` or `photodna`. Off means no match runs and the tracker says so | `Config.CSAM_MATCH_PROVIDER` | Default `off` |
+| `PHOTODNA_API_KEY` | Microsoft PhotoDNA Cloud Service key (apply at microsoft.com/photodna) | `Config.PHOTODNA_API_KEY` | Unset |
+| `PHOTODNA_ENDPOINT` | PhotoDNA Match endpoint | `Config.PHOTODNA_ENDPOINT` | Microsoft's v1.0 Match URL |
+| `CSAM_QUARANTINE_BUCKET` | Private bucket where a matched upload is preserved for the CyberTipline report | `Config.CSAM_QUARANTINE_BUCKET` | Default `csam-quarantine` |
+| `UPLOAD_IMAGE_SCREEN_ENABLED` | Gemini classifier on every student image upload (evidence, avatar, feed). Off means uploads pass with no classifier; the hash match still runs | `Config.UPLOAD_IMAGE_SCREEN_ENABLED` | Default `true` |
+| `CONVERSATION_REVIEW_ENABLED` | Nightly Gemini review of every thread with a student in it for grooming patterns | `Config.CONVERSATION_REVIEW_ENABLED` | Default `true` |
+| `CONVERSATION_REVIEW_THREADS_PER_RUN` | Threads one nightly run reviews | `Config.CONVERSATION_REVIEW_THREADS_PER_RUN` | Default `200` |
 | `CREDIT_AI_REVIEW_STALE_MINUTES` | How long a review may claim to be running before the sweep assumes its worker died and requeues it | `Config.CREDIT_AI_REVIEW_STALE_MINUTES` | Default `15`; must exceed the worst-case single review |
 | `CREDIT_AI_REVIEW_MAX_INPROC` | Concurrent reviews per web process. Each holds its evidence bytes in memory against a 512MB container | `Config.CREDIT_AI_REVIEW_MAX_INPROC` | Default `2` |
 | `CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Total attached bytes per model request. Gemini's inline limit is about 20MB including the prompt, and exceeding it fails the whole call | `Config.CREDIT_AI_REVIEW_INLINE_BUDGET_MB` | Default `18` |

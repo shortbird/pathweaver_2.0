@@ -61,7 +61,7 @@ IMAGE_UPLOAD_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'ima
 
 
 def store_image_upload(supabase, file, path_prefix: str, *, max_bytes: int = 5 * 1024 * 1024,
-                       bucket: str = 'user-uploads') -> str:
+                       bucket: str = 'user-uploads', gate=None) -> str:
     """Validate an uploaded image, convert HEIC, put it in the private bucket.
 
     Returns the canonical pointer to store (utils.storage_urls.public_object_url);
@@ -69,6 +69,11 @@ def store_image_upload(supabase, file, path_prefix: str, *, max_bytes: int = 5 *
     uploads -- a child's avatar (routes/parent/child_overview) and the family
     photo (routes/parent/family_cover) -- where each route used to carry its
     own copy of the type list, the size check and the storage call.
+
+    `gate(content, content_type, filename)` runs after HEIC conversion and
+    before the storage write; it returns the sentence to refuse with, or
+    None. The routes hand in upload_safety_service (utils/ cannot import
+    services/), so every family photo passes the known-CSAM hash match.
 
     Raises middleware.error_handler.ValidationError with the message the
     parent should read.
@@ -89,6 +94,10 @@ def store_image_upload(supabase, file, path_prefix: str, *, max_bytes: int = 5 *
         raise ValidationError(f'File too large. Maximum size is {max_bytes // (1024 * 1024)}MB')
 
     content, filename, content_type = convert_heif_if_needed(file.read(), file.filename, file.content_type)
+    if gate is not None:
+        refusal = gate(content, content_type, filename)
+        if refusal:
+            raise ValidationError(refusal)
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
     path = f"{path_prefix.strip('/')}/{uuid_module.uuid4()}.{ext}"
     try:

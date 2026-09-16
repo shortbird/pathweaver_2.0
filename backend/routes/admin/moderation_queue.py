@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timezone
 
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_admin, require_superadmin
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -107,6 +107,47 @@ def list_holds(user_id):
     except Exception as e:
         logger.error(f"Error listing holds: {e}")
         return jsonify({'error': 'Failed to list holds'}), 500
+
+
+@bp.route('/internal/conversation-review', methods=['POST'])
+def conversation_review():
+    """Cron entrypoint, nightly: read every thread with a student in it that
+    had traffic since the last run and flag the patterns no single message
+    shows (services/conversation_review_service). Same dual gate as the
+    other sweeps."""
+    from app_config import Config
+
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    from services.conversation_review_service import review_recent
+    limit = request.args.get('limit', type=int) or Config.CONVERSATION_REVIEW_THREADS_PER_RUN
+    hours = request.args.get('hours', type=int) or 26
+    return jsonify({'success': True, **review_recent(hours=hours, limit=limit)}), 200
+
+
+@bp.route('/screen-stats', methods=['GET'])
+@require_superadmin
+def screen_stats(user_id):
+    """The safety screen's tracker for the superadmin home: what it screened,
+    held and still owes per surface, and what the model cost, over the last
+    `days` (default 7, max 90). Aggregated in Postgres
+    (admin_peer_text_screen_stats), so the count never truncates."""
+    try:
+        days = min(max(int(request.args.get('days', 7)), 1), 90)
+    except ValueError:
+        return jsonify({'error': 'days must be an integer'}), 400
+    from repositories.peer_text_screen_repository import PeerTextScreenRepository
+    from services import csam_match_service
+    try:
+        stats = PeerTextScreenRepository().screen_stats(days)
+        # The tracker says out loud when no hash match is configured: a
+        # zero under "matches" means nothing while the provider is off.
+        stats['csam_provider'] = csam_match_service.provider()
+        return jsonify(stats), 200
+    except Exception as e:
+        logger.error(f"Error reading screen stats: {e}")
+        return jsonify({'error': 'Failed to read screen stats'}), 500
 
 
 def _cron_or_superadmin() -> bool:

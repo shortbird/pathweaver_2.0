@@ -36,6 +36,8 @@ import { confirmAlert, showAlert } from '@/src/utils/alerts';
 import { extractApiError } from '@/src/services/apiError';
 import { nameFor } from '@/src/components/family/ChildSwitcher';
 import { formatRelativeTime } from '@/src/utils/timeAgo';
+import { MessageAttachments } from '@/src/components/communication/MessageParts';
+import type { MessageAttachment } from '@/src/services/api';
 
 const DESKTOP_BREAKPOINT = 768;
 
@@ -55,13 +57,29 @@ interface ActivityEntry {
  *  author's parent sees a hold; it never reached the other child. */
 interface HoldEntry {
   id: string;
-  surface: 'peer_comment' | 'message';
+  surface: 'peer_comment' | 'message' | 'group_message' | 'upload';
   stage: 'refused' | 'hidden_later';
-  peer: { id: string; display_name: string; avatar_url: string | null };
+  /** The other child, for a comment or a direct message; null for a class chat. */
+  peer: { id: string; display_name: string; avatar_url: string | null } | null;
+  /** The room, for a class chat message (since 2026-09-15); null otherwise. */
+  group: { id: string; name: string } | null;
   text: string;
+  /** The pictures the message carried, signed by the server. */
+  attachments?: MessageAttachment[];
   reasons: string[];
   created_at: string;
 }
+
+const holdWhat = (h: HoldEntry) => (h.surface === 'peer_comment' ? 'a comment' : 'a message');
+const holdWhere = (h: HoldEntry) =>
+  h.group ? `in ${h.group.name}` : `to ${h.peer?.display_name || 'a friend'}`;
+const holdSentence = (first: string, h: HoldEntry) => {
+  // A picture uploaded on its own (evidence, avatar, feed) has no recipient.
+  if (h.surface === 'upload') return `${first} uploaded a picture that was held. It was not saved.`;
+  return h.stage === 'refused'
+    ? `${first} wrote ${holdWhat(h)} ${holdWhere(h)} that was held. It was not sent.`
+    : `${first} sent ${holdWhat(h)} ${holdWhere(h)} that was hidden afterwards.`;
+};
 
 const HIDDEN_BY: Record<string, string> = {
   parent: 'Hidden by you',
@@ -448,12 +466,11 @@ export default function ParentChildFriendsScreen() {
                               <HStack className="items-center gap-1.5">
                                 <Ionicons name="hand-left-outline" size={13} color={c.textMuted} />
                                 <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400 flex-1">
-                                  {h.stage === 'refused'
-                                    ? `${first} wrote ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that was held. It was not sent.`
-                                    : `${first} sent ${h.surface === 'message' ? 'a message' : 'a comment'} to ${h.peer.display_name} that was hidden afterwards.`} · {formatRelativeTime(h.created_at)}
+                                  {holdSentence(first, h)} · {formatRelativeTime(h.created_at)}
                                 </UIText>
                               </HStack>
                               <UIText size="sm">{h.text}</UIText>
+                              <MessageAttachments attachments={h.attachments} isMine={false} />
                               {h.reasons.length > 0 && (
                                 <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">{h.reasons.join('; ')}</UIText>
                               )}

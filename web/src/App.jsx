@@ -145,6 +145,7 @@ const ScheduleBuilderPage = lazy(() => import('./pages/ScheduleBuilderPage'))
 const ScheduleEmbedPage = lazy(() => import('./pages/ScheduleEmbedPage'))
 const AbsenceReportingPage = lazy(() => import('./pages/AbsenceReportingPage'))
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
+const FriendPage = lazy(() => import('./pages/FriendPage'))
 const ConnectionApprovalsPage = lazy(() => import('./pages/ConnectionApprovalsPage'))
 const FamilyFormsPage = lazy(() => import('./pages/FamilyFormsPage'))
 const FamilyPortalPage = lazy(() => import('./pages/FamilyPortalPage'))
@@ -205,7 +206,17 @@ const queryClient = new QueryClient({
       retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     },
     mutations: {
-      retry: 2, // Retry mutations twice on failure
+      // Retry twice, but never a 4xx: a validation refusal, a permission
+      // denial or a not-found answers the same way every time. The case that
+      // made this concrete (2026-09-15): a class chat message the safety
+      // screen held (400) was re-sent three times, each one a fresh model
+      // call, and the child watched "Sending" for fifteen seconds before the
+      // held notice appeared.
+      retry: (failureCount, error) => {
+        const status = error?.response?.status
+        if (status >= 400 && status < 500) return false
+        return failureCount < 2
+      },
     },
   },
 })
@@ -588,6 +599,9 @@ function App() {
                       students whose age we don't know yet — the page itself
                       handles the age screen and the under-13 dead end. */}
                   <Route path="connections" element={<ConnectionsPage />} />
+                  {/* One friend: their work through the peer grant, and the
+                      Message and Remove controls for that friendship. */}
+                  <Route path="connections/:peerId" element={<FriendPage />} />
                 </Route>
                 {/* The grown-up's side of a peer connection, for a SCHOOL ADMIN
                     approver (same-org, no guardian linked) and as the landing for

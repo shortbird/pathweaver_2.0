@@ -152,10 +152,10 @@ def main():
     _run("stories-rebuild-sweep", f"{base}/api/admin/stories/internal/rebuild-sweep",
          cron_secret, failures, base=base)
 
-    # Every run: peer text screen sweep. Re-screens comments and friend
-    # messages that posted while Gemini was unavailable (the screen fails
-    # open) and hides what it finds. Bounded per tick; no-ops cheaply when
-    # nothing is pending.
+    # Every run: peer text screen sweep. Re-screens comments, friend messages
+    # and class chat messages that posted while Gemini was unavailable (the
+    # screen fails open) and hides what it finds. Bounded per tick; no-ops
+    # cheaply when nothing is pending.
     _run("peer-text-screen-sweep", f"{base}/api/admin/moderation/internal/text-screen-sweep",
          cron_secret, failures, base=base)
 
@@ -170,6 +170,14 @@ def main():
     # Once/day (14:00 UTC, morning in Utah): the moderation digest. Reports
     # nobody has looked at and what the safety screen held in the last day,
     # emailed to the superadmins. Sends nothing when both are zero.
+    # Nightly at 10:00 UTC (4am Denver): the conversation review reads every
+    # thread with a student in it that had traffic in the last day and files a
+    # report for the patterns no single message shows. Before the digest at
+    # 14:00 so what it finds is in the morning email.
+    if now.hour == 10 and now.minute < 10:
+        _run("conversation-review", f"{base}/api/admin/moderation/internal/conversation-review",
+             cron_secret, failures, base=base)
+
     if now.hour == 14 and now.minute < 10:
         _run("moderation-daily-digest", f"{base}/api/admin/moderation/internal/daily-digest",
              cron_secret, failures, base=base)

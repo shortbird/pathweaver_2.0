@@ -82,9 +82,9 @@ describe('useDirectMessages with a school source', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('routes to /api/school-inbox, naming the org only when given one', () => {
-    expect(sourcePath(undefined, '/conversations')).toBe('/api/messages/conversations')
-    expect(sourcePath({ school: true }, '/conversations/c1')).toBe('/api/school-inbox/conversations/c1')
-    expect(sourcePath({ school: true, orgId: 'org-1' }, '/conversations'))
+    expect(sourcePath(undefined)).toBe('/api/messages/conversations')
+    expect(sourcePath({ school: true }, '/c1')).toBe('/api/school-inbox/conversations/c1')
+    expect(sourcePath({ school: true, orgId: 'org-1' }))
       .toBe('/api/school-inbox/conversations?organization_id=org-1')
   })
 

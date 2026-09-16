@@ -459,6 +459,13 @@ def update_dependent(user_id, dependent_id):
         if not sanitized_updates:
             raise ValidationError(f"At least one valid field must be provided. Allowed fields: {', '.join(ALLOWED_FIELDS)}")
 
+        # A child's name or bio may not carry a way to reach them off the
+        # platform (utils/validation/profile_text).
+        from utils.validation.profile_text import contact_detail_violation
+        contact_error = contact_detail_violation(sanitized_updates)
+        if contact_error:
+            raise ValidationError(contact_error)
+
         # The client only ever holds the SIGNED twin of an avatar and posts it
         # straight back on save. Reduce it to the canonical pointer, or an
         # expiring URL lands in the column and dies an hour later.
@@ -559,8 +566,15 @@ def upload_dependent_avatar(user_id, dependent_id):
         ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
         filename = f"avatars/{dependent_id}/{uuid_module.uuid4()}.{ext}"
 
-        # Upload to Supabase Storage
+        # Upload to Supabase Storage, after the image safety gate. The
+        # uploader is the parent, so the hash match runs and the classifier
+        # does not.
         file_bytes = file.read()
+        from services import upload_safety_service as gate
+        verdict = gate.check_image(file_bytes, file.content_type, user_id=user_id,
+                                   purpose='avatar', filename=file.filename)
+        if not verdict.allowed:
+            raise ValidationError(verdict.message)
         supabase.storage.from_('user-uploads').upload(
             path=filename,
             file=file_bytes,

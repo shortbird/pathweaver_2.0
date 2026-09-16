@@ -69,6 +69,11 @@ def _repo_patch():
     return patch('routes.sentry_webhook.BugReportRepository')
 
 
+def _email_patch():
+    """Patch the admin mail the route sends for a new ticket."""
+    return patch('services.email_service.email_service.send_bug_report_admin_email')
+
+
 # ── 1. closed unless signed ────────────────────────────────────────────────
 
 def test_unconfigured_endpoint_refuses_everything(client):
@@ -79,14 +84,14 @@ def test_unconfigured_endpoint_refuses_everything(client):
 
 
 def test_wrong_signature_is_refused(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, secret='not-the-secret')
     assert resp.status_code == 403
     repo.assert_not_called()
 
 
 def test_missing_signature_is_refused(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, signature='')
     assert resp.status_code == 403
     repo.assert_not_called()
@@ -95,7 +100,7 @@ def test_missing_signature_is_refused(client):
 # ── 2. what gets filed ─────────────────────────────────────────────────────
 
 def test_alert_opens_a_ticket(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = None
         instance.create.return_value = {'id': 'ticket-1'}
@@ -129,7 +134,7 @@ def test_fatal_is_urgent_and_warning_is_normal(client):
     for level, priority in (('fatal', 'urgent'), ('warning', 'normal'), ('info', 'low'), ('', 'high')):
         payload = json.loads(json.dumps(ALERT))
         payload['data']['event']['level'] = level
-        with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+        with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
             instance = repo.return_value
             instance.find_latest_by_sentry_issue.return_value = None
             instance.create.return_value = {'id': 't'}
@@ -141,7 +146,7 @@ def test_fatal_is_urgent_and_warning_is_normal(client):
 def test_title_is_trimmed_to_the_column_limit(client):
     payload = json.loads(json.dumps(ALERT))
     payload['data']['event']['title'] = 'x' * 400
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = None
         instance.create.return_value = {'id': 't'}
@@ -153,7 +158,7 @@ def test_project_slug_falls_back_when_url_is_missing(client):
     payload = json.loads(json.dumps(ALERT))
     del payload['data']['event']['url']
     payload['data']['event']['project'] = 4509000000000000
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = None
         instance.create.return_value = {'id': 't'}
@@ -165,7 +170,7 @@ def test_project_slug_falls_back_when_url_is_missing(client):
 # ── 2b. one ticket per open issue ──────────────────────────────────────────
 
 def test_repeat_alert_notes_the_open_ticket_instead_of_a_new_one(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = {
             'id': 'ticket-1', 'status': 'triaged', 'resolved_at': None, 'triage_notes': 'looked at it',
@@ -183,7 +188,7 @@ def test_repeat_alert_notes_the_open_ticket_instead_of_a_new_one(client):
 
 
 def test_alert_after_the_ticket_was_closed_opens_a_regression_ticket(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = {
             'id': 'ticket-old', 'status': 'resolved', 'resolved_at': '2026-09-01T10:00:00+00:00',
@@ -204,7 +209,7 @@ def test_alert_after_the_ticket_was_closed_opens_a_regression_ticket(client):
 
 def test_installation_handshake_is_acknowledged(client):
     payload = {'action': 'created', 'data': {'installation': {'uuid': 'inst-1', 'status': 'installed'}}}
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, payload=payload, resource='installation')
     assert resp.status_code == 200
     assert resp.get_json()['status'] == 'ignored'
@@ -212,7 +217,7 @@ def test_installation_handshake_is_acknowledged(client):
 
 
 def test_issue_resource_is_acknowledged_not_filed(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, payload={'action': 'created', 'data': {'issue': {'id': '1'}}}, resource='issue')
     assert resp.status_code == 200
     repo.assert_not_called()
@@ -221,7 +226,7 @@ def test_issue_resource_is_acknowledged_not_filed(client):
 def test_development_events_do_not_file_tickets(client):
     payload = json.loads(json.dumps(ALERT))
     payload['data']['event']['environment'] = 'development'
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, payload=payload)
     assert resp.status_code == 200
     assert resp.get_json() == {'status': 'ignored', 'environment': 'development'}
@@ -232,7 +237,7 @@ def test_event_without_environment_still_files(client):
     # The mobile SDK only sets an environment in a dev build.
     payload = json.loads(json.dumps(ALERT))
     del payload['data']['event']['environment']
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         instance = repo.return_value
         instance.find_latest_by_sentry_issue.return_value = None
         instance.create.return_value = {'id': 't'}
@@ -242,15 +247,59 @@ def test_event_without_environment_still_files(client):
 
 def test_payload_without_an_issue_is_a_400(client):
     payload = {'action': 'triggered', 'data': {'event': {'title': 'no issue id'}}}
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         resp = _post(client, payload=payload)
     assert resp.status_code == 400
     repo.assert_not_called()
 
 
 def test_database_failure_is_a_500_not_a_crash(client):
-    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo:
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, _email_patch():
         repo.return_value.find_latest_by_sentry_issue.side_effect = RuntimeError('db down')
         resp = _post(client)
     assert resp.status_code == 500
     assert resp.get_json() == {'error': 'ticket not filed'}
+
+
+# ── 4. the regular new-ticket mail ─────────────────────────────────────────
+
+def test_new_ticket_sends_the_admin_mail_from_sentry(client):
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, \
+         _email_patch() as send:
+        instance = repo.return_value
+        instance.find_latest_by_sentry_issue.return_value = None
+        instance.create.return_value = {'id': 'ticket-1'}
+        resp = _post(client)
+
+    assert resp.status_code == 201
+    report = send.call_args[0][0]
+    assert report['source'] == 'sentry'
+    assert report['report_id'] == 'ticket-1'
+    assert report['title'] == "[backend] KeyError: 'organization_id'"
+    assert report['reporter_email'] == 'kellee@horizon.example'
+    assert report['platform'] == 'backend'
+
+
+def test_repeat_alert_sends_no_mail(client):
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, \
+         _email_patch() as send:
+        repo.return_value.find_latest_by_sentry_issue.return_value = {
+            'id': 'ticket-1', 'status': 'new', 'resolved_at': None,
+        }
+        resp = _post(client)
+
+    assert resp.status_code == 200
+    send.assert_not_called()
+
+
+def test_mail_failure_does_not_unfile_the_ticket(client):
+    with patch('app_config.Config.SENTRY_WEBHOOK_SECRET', SECRET), _repo_patch() as repo, \
+         _email_patch() as send:
+        instance = repo.return_value
+        instance.find_latest_by_sentry_issue.return_value = None
+        instance.create.return_value = {'id': 'ticket-1'}
+        send.side_effect = RuntimeError('sendgrid down')
+        resp = _post(client)
+
+    assert resp.status_code == 201
+    assert resp.get_json() == {'status': 'created', 'report_id': 'ticket-1'}

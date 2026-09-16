@@ -14,8 +14,10 @@ import { View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast,
+  UIText, Heading, Avatar, AvatarFallbackText, AvatarImage, toast, ActionSheet,
 } from '@/src/components/ui';
+import { reportContent, REPORT_REASONS } from '@/src/hooks/useFriends';
+import { extractApiError } from '@/src/services/apiError';
 import { useAuthStore } from '@/src/stores/authStore';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useKeyboardPadding } from '@/src/hooks/useKeyboardPadding';
@@ -367,6 +369,16 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
     }
   };
 
+  const [reportingMsg, setReportingMsg] = useState<Message | null>(null);
+  const sendReport = async (msg: Message, reason: (typeof REPORT_REASONS)[number]['value']) => {
+    try {
+      await reportContent('group_message', msg.id, reason);
+      toast.success('Thanks. We will review it.');
+    } catch (e: unknown) {
+      toast.error(extractApiError(e, 'Could not send that report').message);
+    }
+  };
+
   const handleSend = async () => {
     const content = input.trim();
 
@@ -439,6 +451,10 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
       if (e?.response?.status === 403) {
         setAnnouncementOnly(true);
         toast.error(e?.response?.data?.error || 'Only teachers can post in this group');
+      } else {
+        // 400 is the safety screen's hold ("That was held by our safety
+        // check..."): the child must read it, or the message just vanishes.
+        toast.error(e?.response?.data?.error || 'Could not send the message');
       }
     } finally {
       setSending(false);
@@ -837,6 +853,24 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
       onEdit={() => actionsFor && startEdit(actionsFor)}
       onDelete={() => actionsFor && handleDeleteMessage(actionsFor)}
       onPin={() => actionsFor && handleTogglePin(actionsFor)}
+      onReport={() => actionsFor && setReportingMsg(actionsFor)}
+    />
+  );
+
+  // Report (2026-09-15): a class chat message can be reported like a direct
+  // message; the queue's "Action taken" hides it for the whole room. Same
+  // deferred-sheet dance as ChatWindow so the two Modals never overlap.
+  const reportSheet = (
+    <ActionSheet
+      visible={!!reportingMsg}
+      onClose={() => setReportingMsg(null)}
+      title="Why are you reporting this?"
+      actions={REPORT_REASONS.map((r) => ({
+        key: r.value,
+        label: r.label,
+        icon: 'flag-outline' as const,
+        onPress: () => { if (reportingMsg) sendReport(reportingMsg, r.value); },
+      }))}
     />
   );
 
@@ -903,6 +937,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
           {inputBar}
           {memberModal}
           {actionsSheet}
+          {reportSheet}
         </Animated.View>
       );
     }
@@ -918,6 +953,7 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
         {inputBar}
         {memberModal}
         {actionsSheet}
+        {reportSheet}
       </KeyboardAvoidingView>
     );
   }
@@ -972,6 +1008,8 @@ export function GroupChatWindow({ group, onBack, onDeleted, onRead }: Props) {
       )}
 
       {actionsSheet}
+
+      {reportSheet}
     </View>
   );
 }

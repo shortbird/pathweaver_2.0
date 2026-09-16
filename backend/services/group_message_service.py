@@ -864,6 +864,7 @@ class GroupMessageService(BaseService):
         Returns:
             Created message record (enriched with sender + reply preview)
         """
+        from middleware.error_handler import ValidationError
         from services import messaging_extras_service as extras
         from utils.client_platform import request_client_platform
         if sent_from is None:
@@ -874,12 +875,35 @@ class GroupMessageService(BaseService):
 
             supabase = self._get_client()
 
-            grp = supabase.table('group_conversations').select('announcement_only').eq(
+            grp = supabase.table('group_conversations').select('announcement_only, audience').eq(
                 'id', group_id).single().execute()
             if grp.data and grp.data.get('announcement_only') and not self.is_group_admin(user_id, group_id):
                 raise ValueError("Only teachers can post in this group")
 
             clean_atts = extras.clean_attachments(attachments)
+
+            # A student's message is screened, text and images, the same way
+            # a friend message is (peer_text_screen_service): held and never
+            # stored when flagged, posted as 'pending' for the sweep when the
+            # model could not run. The teacher in the group is not the
+            # reason to skip it -- the other children read the chat before
+            # the teacher does. An adult's message in a student room goes
+            # through the adult rules (2026-09-15); adults' rooms are not
+            # screened.
+            verdict = None
+            kind = self._screen_kind(user_id, (grp.data or {}).get('audience'))
+            if kind:
+                author_kind, author_role = kind
+                from services import peer_text_screen_service as screen_svc
+                verdict = screen_svc.screen(content or '', surface=screen_svc.SURFACE_GROUP,
+                                            attachments=clean_atts, author_kind=author_kind)
+                if verdict.flagged:
+                    screen_svc.record_hold(
+                        author_id=user_id, group_id=group_id,
+                        surface=screen_svc.SURFACE_GROUP, text=content or '',
+                        result=verdict, attachments=clean_atts,
+                        author_kind=author_kind, author_role=author_role)
+                    raise ValidationError(screen_svc.HELD_MESSAGE)
             if reply_to_message_id:
                 target = supabase.table('group_messages').select('id, group_id').eq(
                     'id', reply_to_message_id).limit(1).execute()
@@ -897,6 +921,9 @@ class GroupMessageService(BaseService):
                 'created_at': datetime.utcnow().isoformat(),
                 'is_deleted': False
             }
+            if verdict is not None:
+                message['screen_status'] = verdict.status
+                message['screened_at'] = None if verdict.failed else message['created_at']
 
             result = supabase.table('group_messages').insert(message).execute()
 
@@ -920,9 +947,35 @@ class GroupMessageService(BaseService):
                                    extras.broadcast_payload(enriched))
             return enriched
 
+        except ValidationError:
+            # A held message: expected, already recorded, the route answers 400.
+            raise
         except Exception as e:
             logger.error(f"Error sending group message: {str(e)}")
             raise
+
+    def _screen_kind(self, user_id: str, audience):
+        """Whose rules screen this message, or None.
+
+        ('student', role) for a student's words anywhere; ('adult', role) for
+        an adult's words in a student room (audience 'student'), except the
+        superadmin's; None for an adult in a family or staff room.
+        """
+        try:
+            from repositories.peer_policy_repository import PeerPolicyRepository
+            from utils.roles import get_effective_role
+            row = PeerPolicyRepository().user_row(user_id, 'id, role, org_role')
+            role = get_effective_role(row) if row else None
+            if role == 'student' or role is None:
+                return ('student', role)
+            if audience == 'student' and role != 'superadmin':
+                return ('adult', role)
+            return None
+        except Exception as e:  # noqa: BLE001
+            # Unknown is treated as a student: screening an adult by mistake
+            # costs a model call; skipping a child costs the promise.
+            logger.warning(f"[send_message] screen-kind check failed (screening): {e}")
+            return ('student', None)
 
     def get_messages(
         self,

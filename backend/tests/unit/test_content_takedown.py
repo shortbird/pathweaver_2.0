@@ -160,3 +160,48 @@ def test_the_cron_runs_the_digest_once_a_day():
     block = src.split('moderation-daily-digest')[0].rsplit('if now.hour', 1)[1]
     assert 'now.minute < 10' in block
     assert '/api/admin/moderation/internal/daily-digest' in src
+
+
+def test_a_class_chat_hold_names_the_room_not_a_child():
+    repo = Mock()
+    repo.recent_holds.return_value = [
+        {'id': 'h1', 'author_id': 'kid', 'recipient_id': None, 'group_id': 'grp',
+         'surface': 'group_message', 'stage': 'refused', 'text': 'x', 'reasons': ['r'],
+         'model': 'm', 'created_at': 't'},
+    ]
+    repo.group_names.return_value = {'grp': 'Period 3 Biology'}
+    people = Mock()
+    people.users_by_ids.return_value = {'kid': {'id': 'kid', 'display_name': 'Jane'}}
+    with patch.object(td, 'PeerTextScreenRepository', return_value=repo), \
+         patch('repositories.peer_policy_repository.PeerPolicyRepository', return_value=people), \
+         patch('services.messaging_extras_service.sign_attachments') as sign:
+        out = td.recent_holds(50)
+    assert out[0]['recipient'] is None
+    assert out[0]['group'] == {'id': 'grp', 'name': 'Period 3 Biology'}
+    # The pictures on a hold are signed for the moderator like any thread's.
+    sign.assert_called_once_with(repo.recent_holds.return_value)
+
+
+def test_actioning_a_class_chat_report_hides_the_message_and_tells_the_room():
+    repo = Mock()
+    repo.group_message.return_value = {'id': 'g1', 'sender_id': 'kid', 'group_id': 'grp',
+                                       'message_content': 'x', 'is_deleted': False}
+    with patch.object(td, 'PeerTextScreenRepository', return_value=repo), \
+         patch('services.messaging_extras_service._recompute_conversation_preview') as preview, \
+         patch('services.messaging_extras_service.broadcast_group') as bcast:
+        out = td.take_down({'id': 'r1', 'target_type': 'group_message', 'target_id': 'g1'}, 'admin')
+    assert out == {'taken_down': True}
+    repo.hide_group_message.assert_called_once_with('g1')
+    preview.assert_called_once()
+    assert preview.call_args.args[0] == 'group'
+    bcast.assert_called_once_with('grp', 'deleted', {'message_id': 'g1'})
+
+
+def test_a_class_chat_report_carries_a_preview():
+    reports = Mock()
+    reports.peer_comment_texts.return_value = {}
+    reports.message_texts.return_value = {}
+    reports.group_message_texts.return_value = {'g1': {'text': 'you stink', 'author_id': 'kid', 'hidden_at': None}}
+    with patch.object(td, 'ContentReportRepository', return_value=reports):
+        out = td.with_previews([{'id': 'r1', 'target_type': 'group_message', 'target_id': 'g1'}])
+    assert out[0]['preview'] == {'text': 'you stink', 'author_id': 'kid', 'hidden': False}

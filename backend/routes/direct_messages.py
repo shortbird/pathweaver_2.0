@@ -1271,6 +1271,16 @@ def upload_attachment(user_id: str):
         return error_response(f'File must be under {MAX_ATTACHMENT_MB}MB', status_code=400,
                               error_code="validation_error")
     file.seek(0)
+    data = file.read()
+    # The known-CSAM hash match, at upload. The classifier judges the picture
+    # with its words when the message is sent (peer_text_screen_service), so
+    # only the match runs here.
+    from services import upload_safety_service as gate
+    verdict = gate.check_image(data, file.content_type, user_id=user_id,
+                               purpose='message_attachment', filename=file.filename,
+                               classify=False)
+    if not verdict.allowed:
+        return error_response(verdict.message, status_code=400, error_code="validation_error")
 
     # admin client justified: server-side storage upload to user-uploads bucket; path is server-generated under the caller's own user_id from @require_auth
     supabase = get_supabase_admin_client()
@@ -1278,7 +1288,7 @@ def upload_attachment(user_id: str):
     path = f"messages/{user_id}/{_uuid.uuid4().hex}.{ext}"
     try:
         supabase.storage.from_(bucket).upload(
-            path=path, file=file.read(),
+            path=path, file=data,
             file_options={'content-type': file.content_type or 'application/octet-stream'},
         )
         # `user-uploads` is private. `url` is the durable pointer the send call

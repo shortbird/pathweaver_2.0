@@ -43,7 +43,14 @@ def upload_family_cover(user_id):
     # admin client justified: writes the caller's own users row (family_cover_url) and the private bucket under @require_auth; storage writes need the service role
     supabase = get_supabase_admin_client()
     # A landscape banner is bigger than an avatar; 10MB is a phone photo.
-    pointer = store_image_upload(supabase, request.files['cover'], f'family-covers/{user_id}', max_bytes=10 * 1024 * 1024)
+    # The image safety gate (the known-CSAM hash match; the uploader is a
+    # parent, so the classifier does not run).
+    from services import upload_safety_service as safety
+    def _gate(content, content_type, filename):
+        verdict = safety.check_image(content, content_type, user_id=None,
+                                     purpose='family_photo', filename=filename)
+        return None if verdict.allowed else verdict.message
+    pointer = store_image_upload(supabase, request.files['cover'], f'family-covers/{user_id}', max_bytes=10 * 1024 * 1024, gate=_gate)
     supabase.table('users').update({'family_cover_url': pointer}).eq('id', user_id).execute()
     logger.info(f"Parent {user_id[:8]} set a family photo")
     return jsonify({'success': True, 'family_cover_url': sign_stored_url(pointer, BUCKET)})

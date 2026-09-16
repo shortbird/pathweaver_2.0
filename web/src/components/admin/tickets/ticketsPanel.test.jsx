@@ -72,6 +72,38 @@ describe('TicketsPanel', () => {
     expect(listCall[1].params.status).toBe('open')
   })
 
+  it('shows a Sentry ticket as from Sentry, not from the user who hit the error', async () => {
+    const sentryTicket = {
+      ...TICKET,
+      id: 'sentry-1',
+      title: "[backend] KeyError: 'organization_id'",
+      source: 'sentry',
+      platform: 'backend',
+      user_email: 'kellee@horizon.example',
+      user_role: null,
+      users: null,
+      organizations: null,
+    }
+    api.get.mockImplementation((url) => {
+      if (url === '/api/bug-reports/summary') {
+        return Promise.resolve({ data: { counts: { new: 1, triaged: 0, fixing: 0, resolved: 0, wont_fix: 0, open: 1 } } })
+      }
+      if (url === `/api/bug-reports/${sentryTicket.id}`) {
+        return Promise.resolve({ data: { report: sentryTicket } })
+      }
+      return Promise.resolve({ data: { reports: [sentryTicket], count: 1, total: 1 } })
+    })
+    renderAt('/admin/tickets')
+    expect(await screen.findByText("[backend] KeyError: 'organization_id'")).toBeInTheDocument()
+    expect(screen.getByText('Sentry')).toBeInTheDocument()
+    expect(screen.queryByText('kellee@horizon.example')).toBeNull()
+
+    fireEvent.click(screen.getByText("[backend] KeyError: 'organization_id'"))
+    // The detail keeps the affected user's email under the reporter line.
+    expect(await screen.findByText('kellee@horizon.example')).toBeInTheDocument()
+    expect(screen.getByText('Sentry alert · backend')).toBeInTheDocument()
+  })
+
   it('asks for the status a tab names', async () => {
     renderAt('/admin/tickets')
     await screen.findByText('Roster export drops the phone column')

@@ -22,7 +22,7 @@ bp = Blueprint('moderation', __name__, url_prefix='/api/moderation')
 # first two places a child's words reach another child, and the two the
 # moderation queue can take down (services/content_takedown_service.py).
 VALID_TARGET_TYPES = {'learning_event', 'task_completion', 'comment', 'user',
-                      'peer_comment', 'message'}
+                      'peer_comment', 'message', 'group_message'}
 VALID_REASONS = {'spam', 'harassment', 'inappropriate', 'self_harm', 'other'}
 
 

@@ -451,9 +451,13 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
           <EllipsisVerticalIcon className="w-5 h-5" />
         </button>
         {menuOpen && (
+          // z-30, not z-10: the menu drops out of the modal header over the
+          // body, whose tab bar is sticky at z-10 and later in the DOM, so at
+          // equal z-index the tab bar painted over the top of the menu and
+          // "Masquerade as user" could not be clicked (2026-09-15).
           <div
             role="menu"
-            className="absolute right-0 mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-10"
+            className="absolute right-0 mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-30"
           >
             <button
               type="button"

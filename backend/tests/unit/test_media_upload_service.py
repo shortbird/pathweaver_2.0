@@ -1053,14 +1053,19 @@ def test_finalize_upload_keeps_heic_when_conversion_unavailable():
     bucket.remove.assert_not_called()
 
 
-def test_finalize_upload_non_heic_image_is_not_downloaded_or_converted():
-    """A normal JPEG/PNG must not trigger a download+convert round trip."""
+def test_finalize_upload_non_heic_image_is_read_once_for_the_gate_and_not_converted():
+    """A normal JPEG/PNG is read back exactly once, for the image safety gate
+    (2026-09-15: every student picture passes the hash match and the
+    classifier), and never converted."""
     from services.media_upload_service import MediaUploadService
 
     svc, client, bucket = _make_service_with_stub_client()
     bucket.list.return_value = [_make_list_entry("uuid.png", 2048, "image/png")]
+    bucket.download.return_value = b"png-bytes"
 
-    with patch.object(MediaUploadService, "_convert_heif_to_jpeg") as mock_convert:
+    with patch.object(MediaUploadService, "_convert_heif_to_jpeg") as mock_convert, \
+         patch("services.upload_safety_service.check_image") as gate:
+        gate.return_value.allowed = True
         result = svc.finalize_upload(
             user_id="user-1",
             storage_path="learning_moments/child-user-id/uuid.png",
@@ -1073,7 +1078,36 @@ def test_finalize_upload_non_heic_image_is_not_downloaded_or_converted():
     assert result.success is True
     assert result.filename == "uuid.png"
     mock_convert.assert_not_called()
-    bucket.download.assert_not_called()
+    bucket.download.assert_called_once_with("learning_moments/child-user-id/uuid.png")
+    assert gate.call_args.args[0] == b"png-bytes"
+    assert gate.call_args.kwargs["purpose"] == "learning_event"
+
+
+def test_finalize_upload_removes_a_picture_the_gate_refuses():
+    from services.media_upload_service import MediaUploadService
+
+    svc, client, bucket = _make_service_with_stub_client()
+    bucket.list.return_value = [_make_list_entry("uuid.png", 2048, "image/png")]
+    bucket.download.return_value = b"png-bytes"
+
+    with patch.object(MediaUploadService, "_convert_heif_to_jpeg"), \
+         patch("services.upload_safety_service.check_image") as gate:
+        gate.return_value.allowed = False
+        gate.return_value.kind = "held"
+        gate.return_value.message = "That image was held by our safety check."
+        result = svc.finalize_upload(
+            user_id="user-1",
+            storage_path="learning_moments/child-user-id/uuid.png",
+            bucket="user-uploads",
+            context_type="moment",
+            context_id="child-user-id",
+            block_type="image",
+        )
+
+    assert result.success is False
+    assert result.error_code == "SAFETY_HELD"
+    assert result.error_message == "That image was held by our safety check."
+    bucket.remove.assert_called_once_with(["learning_moments/child-user-id/uuid.png"])
 
 
 def test_upload_session_to_dict_omits_none_values():

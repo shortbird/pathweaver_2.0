@@ -74,6 +74,13 @@ def update_profile(user_id):
     allowed_fields = ['first_name', 'last_name', 'bio', 'avatar_url', 'display_name', 'portfolio_slug', 'date_of_birth']
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
 
+    # A name or a bio is read by other children; it may not carry a phone
+    # number, an email, a link or an address (utils/validation/profile_text).
+    from utils.validation.profile_text import contact_detail_violation
+    contact_error = contact_detail_violation(update_data)
+    if contact_error:
+        raise ValidationError(contact_error)
+
     if 'date_of_birth' in update_data:
         dob_raw = (update_data['date_of_birth'] or '').strip() if isinstance(update_data['date_of_birth'], str) else update_data['date_of_birth']
 
@@ -211,8 +218,14 @@ def upload_avatar(user_id):
         ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'jpg'
         filename = f"avatars/{user_id}/{uuid.uuid4()}.{ext}"
 
-        # Upload to Supabase Storage
+        # Upload to Supabase Storage, after the image safety gate (the
+        # known-CSAM hash match, and the classifier for a student's picture).
         file_bytes = file.read()
+        from services import upload_safety_service as gate
+        verdict = gate.check_image(file_bytes, file.content_type, user_id=user_id,
+                                   purpose='avatar', filename=file.filename)
+        if not verdict.allowed:
+            raise ValidationError(verdict.message)
         supabase.storage.from_('user-uploads').upload(
             filename,
             file_bytes,

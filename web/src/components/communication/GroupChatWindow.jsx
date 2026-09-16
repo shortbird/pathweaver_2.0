@@ -25,6 +25,8 @@ import { ReactionsRow, MessageActionBar, MessageRow } from './MessageParts'
 import useThreadScroll from './useThreadScroll'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { classMeetingLabel, studentName } from '../../utils/groupsByChild'
+import { toast } from 'react-hot-toast'
+import { REPORT_REASONS, reportContent } from '../../services/friendsAPI'
 
 const GroupChatWindow = ({ group, onBack }) => {
   const confirm = useConfirm()
@@ -33,6 +35,19 @@ const GroupChatWindow = ({ group, onBack }) => {
   const [replyTo, setReplyTo] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  // Report (2026-09-15): a class chat message can be reported like a direct
+  // message; the queue's "Action taken" hides it for the whole room.
+  const [reportingId, setReportingId] = useState(null)
+
+  const sendReport = async (msg, reason) => {
+    setReportingId(null)
+    try {
+      await reportContent('group_message', msg.id, reason)
+      toast.success('Thanks. We received your report and will review it.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not send that report.')
+    }
+  }
   const scrollerRef = useRef(null)
   const messageRefs = useRef({})
 
@@ -304,12 +319,36 @@ const GroupChatWindow = ({ group, onBack }) => {
                           canEdit={isOwn}
                           canDelete={isOwn || isAdmin}
                           canPin={isAdmin}
+                          canReport={!isOwn}
                           onReact={(emoji) => handleToggleReaction(msg, emoji)}
                           onReply={() => setReplyTo(buildReplyPreview(msg))}
                           onEdit={() => setEditingId(msg.id)}
                           onDelete={() => handleDelete(msg)}
                           onPin={() => handlePin(msg)}
+                          onReport={() => setReportingId(msg.id)}
                         />
+                      )}
+                      {reportingId === msg.id && (
+                        <div className="mb-1 rounded-lg border border-gray-200 bg-white shadow-md py-1 text-sm">
+                          <p className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Why are you reporting this?</p>
+                          {REPORT_REASONS.map((r) => (
+                            <button
+                              key={r.value}
+                              type="button"
+                              onClick={() => sendReport(msg, r.value)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                            >
+                              {r.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setReportingId(null)}
+                            className="w-full text-left px-3 py-2 text-gray-500 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       )}
 
                       <MessageBubble

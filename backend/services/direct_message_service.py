@@ -229,22 +229,40 @@ class DirectMessageService(BaseService):
             logger.error(f"[can_message_user] org adult check failed (denying): {e}")
             return False
 
-    def _is_student_pair(self, a_id: str, b_id: str) -> bool:
-        """Both parties are students by effective role. The only way two
-        students reach send_message is the friends rule, so this is the
-        'is this friend chat' test without a second permission read."""
+    def _screen_kind(self, sender_id: str, recipient_id: str):
+        """Whose rules screen this message, or None for a thread with no
+        student in it.
+
+        Returns ('student', role) when the sender is a student (friend chat:
+        the only way two students reach send_message is the friends rule),
+        ('adult', role) when an adult writes to a student, None otherwise.
+        Two adults are not screened. Neither is a parent writing to their own
+        child, nor the superadmin: the grooming rule set would hold "keep it
+        between us" from a mother, and the operator is the person the holds
+        go to.
+        """
         try:
             from repositories.peer_policy_repository import PeerPolicyRepository
+            from utils import portfolio_access as pa
             from utils.roles import get_effective_role
-            rows = PeerPolicyRepository().users_by_ids([a_id, b_id], 'id, role, org_role')
-            return (len(rows) == 2 and all(
-                get_effective_role(rows[uid]) == 'student' for uid in (a_id, b_id)))
+            rows = PeerPolicyRepository().users_by_ids([sender_id, recipient_id], 'id, role, org_role')
+            if len(rows) != 2:
+                return ('student', None)
+            sender_role = get_effective_role(rows[sender_id])
+            recipient_role = get_effective_role(rows[recipient_id])
+            if sender_role == 'student':
+                return ('student', sender_role)
+            if recipient_role != 'student' or sender_role == 'superadmin':
+                return None
+            if pa.is_parent_of(sender_id, recipient_id):
+                return None
+            return ('adult', sender_role)
         except Exception as e:  # noqa: BLE001
-            # Unknown is treated as friend chat: screening an adult thread by
-            # mistake costs a model call; skipping a child's thread costs the
-            # promise the screen exists to keep.
-            logger.warning(f"[send_message] student-pair check failed (screening): {e}")
-            return True
+            # Unknown is treated as a student's thread: screening an adult
+            # thread by mistake costs a model call; skipping a child's thread
+            # costs the promise the screen exists to keep.
+            logger.warning(f"[send_message] screen-kind check failed (screening): {e}")
+            return ('student', None)
 
     # ==================== Conversation Management ====================
 
@@ -494,29 +512,34 @@ class DirectMessageService(BaseService):
             if not self.can_message_user(sender_id, recipient_id):
                 raise ValueError("You don't have permission to message this user")
 
-            # Student to student is friend chat, and friend chat is screened
-            # (Friends phase 3). A held message is never stored; it goes to
-            # peer_text_holds where the sender's parent can read it. A screen
-            # that could not run lets the message through as 'pending' for the
+            # Any thread with a student in it is screened, text and images:
+            # a student's words under the peer rules (Friends phase 3), an
+            # adult's words to a student under the grooming rules
+            # (2026-09-15). A held message is never stored; it goes to
+            # peer_text_holds, and the right adults are told. A screen that
+            # could not run lets the message through as 'pending' for the
             # cron sweep -- see the fail-open argument in
-            # peer_text_screen_service. Adult threads are not screened.
+            # peer_text_screen_service. Adult-to-adult threads are not screened.
+            clean_atts = extras.clean_attachments(attachments)
             verdict = None
-            if self._is_student_pair(sender_id, recipient_id):
+            kind = self._screen_kind(sender_id, recipient_id)
+            if kind:
+                author_kind, author_role = kind
                 from services import peer_text_screen_service as screen_svc
-                verdict = screen_svc.screen(content or '', surface=screen_svc.SURFACE_MESSAGE)
+                verdict = screen_svc.screen(content or '', surface=screen_svc.SURFACE_MESSAGE,
+                                            attachments=clean_atts, author_kind=author_kind)
                 if verdict.flagged:
                     screen_svc.record_hold(
                         author_id=sender_id, recipient_id=recipient_id,
                         surface=screen_svc.SURFACE_MESSAGE, text=content or '',
-                        result=verdict)
+                        result=verdict, attachments=clean_atts,
+                        author_kind=author_kind, author_role=author_role)
                     raise ValidationError(screen_svc.HELD_MESSAGE)
 
             # Get or create conversation
             conversation = self.get_or_create_conversation(sender_id, recipient_id)
 
             supabase = self._get_client()
-
-            clean_atts = extras.clean_attachments(attachments)
             if reply_to_message_id:
                 target = supabase.table('direct_messages').select('id, conversation_id').eq(
                     'id', reply_to_message_id).limit(1).execute()

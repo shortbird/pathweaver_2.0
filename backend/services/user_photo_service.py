@@ -49,12 +49,27 @@ def upload_staged_photo(admin, reg_id, file, ext):
     under the registration so the family submit can attach it; returns the
     canonical pointer to persist. No user row is touched."""
     _ensure_bucket(admin)
+    data = _gated(file, ext, user_id=None, purpose='avatar')
     path = f'staged/{reg_id}/{uuid.uuid4().hex}.{ext}'
     admin.storage.from_(BUCKET).upload(
-        path=path, file=file.read(),
+        path=path, file=data,
         file_options={'content-type': file.content_type or f'image/{ext}'},
     )
     return public_object_url(BUCKET, path)
+
+
+def _gated(file, ext, *, user_id, purpose):
+    """The image safety gate (upload_safety_service) on a photo the office or
+    the kiosk takes: the known-CSAM hash match, and the classifier when the
+    subject is a student. Raises ValidationError with the gate's sentence."""
+    from middleware.error_handler import ValidationError
+    from services import upload_safety_service as gate
+    data = file.read()
+    verdict = gate.check_image(data, file.content_type or f'image/{ext}', user_id=user_id,
+                               purpose=purpose, filename=getattr(file, 'filename', None))
+    if not verdict.allowed:
+        raise ValidationError(verdict.message)
+    return data
 
 
 def upload_user_photo(admin, user_id, file, ext):
@@ -71,9 +86,10 @@ def upload_user_photo(admin, user_id, file, ext):
         except Exception as e:  # noqa: BLE001
             logger.warning(f'user photo: could not remove old photo for {user_id[:8]}: {e}')
 
+    data = _gated(file, ext, user_id=user_id, purpose='avatar')
     path = f'{user_id}/{uuid.uuid4().hex}.{ext}'
     admin.storage.from_(BUCKET).upload(
-        path=path, file=file.read(),
+        path=path, file=data,
         file_options={'content-type': file.content_type or f'image/{ext}'},
     )
     avatar_url = public_object_url(BUCKET, path)

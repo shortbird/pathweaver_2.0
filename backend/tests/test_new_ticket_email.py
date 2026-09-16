@@ -60,3 +60,30 @@ def test_new_ticket_email_falls_back_to_the_message_when_untitled():
 
     subject = send.call_args.kwargs['subject']
     assert subject.startswith('[Ticket] Bug report from kid@example.com: Complete button froze')
+
+
+@pytest.mark.unit
+def test_sentry_ticket_email_says_from_sentry_not_from_the_affected_user():
+    """A Sentry alert has no reporter. The event's user is whoever hit the
+    error; naming them as the sender would read as if they had filed it."""
+    svc = EmailService()
+    with patch.object(svc, 'send_email', return_value=True) as send, \
+         patch('services.email_service.Config') as cfg:
+        cfg.ADMIN_EMAIL = 'owner@example.com'
+        cfg.FRONTEND_URL = 'https://app.example.com'
+        svc.send_bug_report_admin_email({
+            'report_id': 's1',
+            'report_type': 'bug',
+            'title': "[backend] KeyError: 'organization_id'",
+            'message': 'Sentry issue alert on optio-backend',
+            'current_route': '/api/sis/enrollments',
+            'reporter_email': 'kellee@horizon.example',
+            'platform': 'backend',
+            'source': 'sentry',
+        })
+
+    kwargs = send.call_args.kwargs
+    assert kwargs['subject'] == "[Ticket] Bug report from Sentry: [backend] KeyError: 'organization_id'"
+    assert 'Bug report from Sentry (affected user: kellee@horizon.example)' in kwargs['text_body']
+    assert 'from kellee@horizon.example' not in kwargs['subject']
+    assert 'https://app.example.com/admin/tickets/s1' in kwargs['html_body']

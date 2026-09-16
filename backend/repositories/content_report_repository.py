@@ -44,6 +44,16 @@ class ContentReportRepository(BaseRepository):
         return {r['id']: {'text': r.get('comment_text'), 'author_id': r.get('author_id'),
                           'hidden_at': r.get('hidden_at')} for r in rows}
 
+    def group_message_texts(self, ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """{message_id: {text, author_id, hidden_at}} for a class chat message."""
+        if not ids:
+            return {}
+        rows = self.client.table('group_messages') \
+            .select('id, message_content, sender_id, is_deleted') \
+            .in_('id', ids).execute().data or []
+        return {r['id']: {'text': r.get('message_content'), 'author_id': r.get('sender_id'),
+                          'hidden_at': True if r.get('is_deleted') else None} for r in rows}
+
     def message_texts(self, ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """{message_id: {text, author_id, hidden_at}} for the queue's preview.
         A soft-deleted message reads as hidden."""

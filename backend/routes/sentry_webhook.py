@@ -34,10 +34,17 @@ environment are dropped as well: the dev Render services report to the same
 Sentry projects and the alert rules have no environment filter, so without
 this every dev-only stack trace would open a ticket.
 
+A new ticket sends the same admin mail as a user-filed one
+(email_service.send_bug_report_admin_email), with "From Sentry" in place of a
+reporter. Best-effort, after the row is committed: a mail failure never
+un-files the ticket.
+
 Failures inside this handler are logged at WARNING, deliberately below the
 level that opens a Sentry issue (app.py: logger.error() becomes an issue).
 An error here that reported itself to Sentry would trigger the alert rule
-that posts back here.
+that posts back here. The one exception is send_email's own logger.error on
+a delivery failure: that message is constant, so it collapses into a single
+Sentry issue, whose ticket this route then files once and only notes on.
 """
 
 import hashlib
@@ -255,4 +262,24 @@ def sentry_webhook():
         return jsonify({'error': 'ticket not filed'}), 500
 
     logger.info(f"[SentryWebhook] {sentry_key} opened ticket {created.get('id')}")
+    _notify_admin_email(record, created)
     return jsonify({'status': 'created', 'report_id': created.get('id')}), 201
+
+
+def _notify_admin_email(record, created):
+    """The regular new-ticket mail to ADMIN_EMAIL, from Sentry. Never raises."""
+    try:
+        from services.email_service import email_service
+        email_service.send_bug_report_admin_email({
+            'report_id': created.get('id'),
+            'report_type': record.get('type') or 'bug',
+            'title': record.get('title'),
+            'message': record.get('message'),
+            'current_route': record.get('current_route'),
+            'reporter_email': record.get('user_email'),
+            'platform': record.get('platform'),
+            'app_version': record.get('app_version'),
+            'source': 'sentry',
+        })
+    except Exception as e:  # noqa: BLE001  # warning on purpose: see module docstring
+        logger.warning(f"[SentryWebhook] admin email notification skipped: {e}")

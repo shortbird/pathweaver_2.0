@@ -5,6 +5,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import { formatDistanceToNow } from 'date-fns'
 import { safeHref } from '../../utils/safeHref'
 import ModalOverlay from '../ui/ModalOverlay'
+import HeldMessageDetail from './HeldMessageDetail'
 
 const CTA_CLASS = 'inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium rounded-lg hover:opacity-90 transition-opacity'
 
@@ -58,6 +59,8 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
         return '📝'
       case 'parent_approval_required':
         return '👨‍👩‍👧'
+      case 'peer_text_held':
+        return '🛡️'
       default:
         return '🔔'
     }
@@ -79,14 +82,22 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
         return 'Revision Requested'
       case 'parent_approval_required':
         return 'Approval Required'
+      case 'peer_text_held':
+        return 'Safety Check'
       default:
         return 'Notification'
     }
   }
 
+  // A held-message notification shows the message itself below; the link to
+  // /family would be a second click to a page that says the same thing.
+  const heldMessageId = notification.type === 'peer_text_held'
+    ? notification.metadata?.hold_id || null
+    : null
+
   // The notifications page is where this modal is usually opened from, so a
   // link back to it is a no-op button. Drop it rather than offer a dead end.
-  const href = notification.link && notification.link !== '/notifications'
+  const href = notification.link && notification.link !== '/notifications' && !heldMessageId
     ? safeHref(notification.link)
     : null
   const isInternal = !!href && href.startsWith('/')
@@ -130,7 +141,12 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
 
         {/* Content */}
         <div className="px-6 py-4 overflow-y-auto max-h-[60vh]">
-          {notification.type === 'announcement' && notification.metadata?.full_content ? (
+          {heldMessageId ? (
+            // The hold itself replaces the notification text, which only
+            // summarised it; the text comes back as the fallback if the
+            // hold cannot be loaded.
+            <HeldMessageDetail holdId={heldMessageId} fallback={fullContent} />
+          ) : notification.type === 'announcement' && notification.metadata?.full_content ? (
             <div className="prose prose-sm max-w-none text-gray-700">
               <ReactMarkdown>{fullContent}</ReactMarkdown>
             </div>

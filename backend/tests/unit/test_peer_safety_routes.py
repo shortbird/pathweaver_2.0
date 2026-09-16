@@ -14,7 +14,7 @@ def _headers():
     return {'Authorization': 'Bearer t', 'Content-Type': 'application/json'}
 
 
-@pytest.mark.parametrize('target_type', ['peer_comment', 'message'])
+@pytest.mark.parametrize('target_type', ['peer_comment', 'message', 'group_message'])
 def test_a_peer_comment_or_a_message_can_be_reported(client, mock_verify_token, target_type):
     supabase = MagicMock()
     table = supabase.table.return_value
@@ -124,3 +124,51 @@ def test_the_hide_route_reads_the_services_no_as_not_found(client, mock_verify_t
          patch('modules.gate.check_module', return_value=None):
         resp = client.post(f'/api/connections/comments/{COMMENT_ID}/hide', headers=_headers())
     assert resp.status_code in (400, 403, 404)
+
+
+def test_the_screen_tracker_is_superadmin_only_and_clamps_its_window():
+    """The superadmin home's card reads one SQL function; the route only
+    bounds the window and refuses non-integers."""
+    from routes.admin.moderation_queue import bp, screen_stats
+    app = Flask(__name__)
+    app.register_blueprint(bp)
+    view = screen_stats.__wrapped__
+    repo = MagicMock()
+    repo.screen_stats.return_value = {'days': 7, 'surfaces': {}, 'model': {}}
+    with app.test_request_context('/api/admin/moderation/screen-stats?days=400'), \
+         patch('repositories.peer_text_screen_repository.PeerTextScreenRepository', return_value=repo):
+        resp, status = view('admin-1')
+    assert status == 200
+    repo.screen_stats.assert_called_once_with(90)
+    assert resp.get_json()['days'] == 7
+    with app.test_request_context('/api/admin/moderation/screen-stats?days=soon'), \
+         patch('repositories.peer_text_screen_repository.PeerTextScreenRepository', return_value=repo):
+        _, status = view('admin-1')
+    assert status == 400
+
+
+def test_the_screen_tracker_route_is_gated_by_superadmin():
+    import inspect
+    from routes.admin import moderation_queue as mq
+    src = inspect.getsource(mq)
+    at = src.index("@bp.route('/screen-stats'")
+    assert '@require_superadmin' in src[at:at + 200]
+
+
+def test_a_parent_opens_a_hold_through_the_route(client, mock_verify_token):
+    with patch('services.peer_connection_service.hold_for_guardian',
+               return_value={'id': 'h1', 'text': 'x'}) as svc:
+        resp = client.get('/api/connections/holds/1b5cf0c4-ef50-4a1b-8b2a-0b5a2a6f1a11',
+                          headers=_headers())
+    assert resp.status_code == 200
+    assert resp.get_json()['data'] == {'id': 'h1', 'text': 'x'}
+    assert svc.call_args.args[1] == '1b5cf0c4-ef50-4a1b-8b2a-0b5a2a6f1a11'
+
+
+def test_the_hold_route_reads_the_services_no_as_a_client_error(client, mock_verify_token):
+    from services.peer_connection_service import PeerConnectionError
+    with patch('services.peer_connection_service.hold_for_guardian',
+               side_effect=PeerConnectionError('Not found')):
+        resp = client.get('/api/connections/holds/1b5cf0c4-ef50-4a1b-8b2a-0b5a2a6f1a11',
+                          headers=_headers())
+    assert resp.status_code == 400

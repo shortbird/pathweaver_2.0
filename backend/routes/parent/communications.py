@@ -10,6 +10,7 @@ from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.logger import get_logger
 from utils.storage_urls import sign_in_place
+from services.messaging_extras_service import sign_attachments
 
 logger = get_logger(__name__)
 
@@ -197,14 +198,18 @@ def get_student_dm_messages(user_id, student_id, conversation_id):
         offset = int(request.args.get('offset', 0))
 
         # Get messages
+        # attachments ride along and are signed like any thread's: without
+        # them the parent read "Sam sent a photo" as an empty bubble
+        # (2026-09-15).
         messages = supabase.table('direct_messages').select('''
-            id, sender_id, content:message_content, created_at, read_at,
+            id, sender_id, content:message_content, attachments, created_at, read_at,
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('conversation_id', conversation_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
         rows = messages.data or []
         sign_in_place([m['sender'] for m in rows if isinstance(m.get('sender'), dict)],
                       ['avatar_url'])
+        sign_attachments(rows)
         return jsonify({
             'success': True,
             'messages': rows,
@@ -286,13 +291,14 @@ def get_student_group_messages(user_id, student_id, group_id):
         # `message.content` the viewer renders. Selecting `content` directly is a
         # 42703 (the column does not exist) — which is what this was doing.
         messages = supabase.table('group_messages').select('''
-            id, sender_id, content:message_content, created_at,
+            id, sender_id, content:message_content, attachments, created_at,
             sender:sender_id(id, display_name, first_name, last_name, avatar_url, role)
         ''').eq('group_id', group_id).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
         rows = messages.data or []
         sign_in_place([m['sender'] for m in rows if isinstance(m.get('sender'), dict)],
                       ['avatar_url'])
+        sign_attachments(rows)
         return jsonify({
             'success': True,
             'messages': rows,

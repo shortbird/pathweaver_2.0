@@ -320,11 +320,15 @@ export function ChatWindow({ contact, conversationId, onBack, onRead }: Props) {
       // erased the bubble.
       const saved: Message | undefined = (sent as any)?.message || ((sent as any)?.id ? sent : undefined);
       setMessages((prev) => settleOptimistic(prev, optimisticMsg.id, saved));
-    } catch {
+    } catch (e: any) {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setInput(content);
       setReplyTo(replying);
+      // A 400 is the safety screen's hold on a friend message ("That was
+      // held by our safety check..."): the child must read it, or the
+      // message just vanishes. Web has always shown this; mobile did not.
+      toast.error(e?.response?.data?.error || 'Could not send the message');
     } finally {
       setSending(false);
     }

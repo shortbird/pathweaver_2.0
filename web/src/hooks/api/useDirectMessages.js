@@ -19,9 +19,20 @@ import { mergeThreadPage, settleOptimistic, patchThread } from './threadCache'
  * Before this the school console had its own copy of every call here, polled
  * on its own timers, and had no Realtime at all.
  */
-export const sourcePath = (source, path) => {
-  if (!source?.school) return `/api/messages${path}`
-  const url = `/api/school-inbox${path}`
+// The two roots are written out in full so backend/tests/
+// test_client_api_paths_exist.py can see them as the routes they are: a
+// bare prefix with the path interpolated straight after it scanned as a
+// path nobody serves.
+const CONVERSATIONS = {
+  lms: '/api/messages/conversations',
+  school: '/api/school-inbox/conversations',
+}
+
+/** The conversations endpoint for a source, plus `tail` ('' for the list,
+ *  `/<id>`, `/<id>/send`, `/<id>/resolve`). */
+export const sourcePath = (source, tail = '') => {
+  if (!source?.school) return `${CONVERSATIONS.lms}${tail}`
+  const url = `${CONVERSATIONS.school}${tail}`
   if (!source.orgId) return url
   const sep = url.includes('?') ? '&' : '?'
   return `${url}${sep}organization_id=${encodeURIComponent(source.orgId)}`
@@ -35,7 +46,7 @@ export const useConversations = (userId, { source, ...options } = {}) => {
   return useQuery({
     queryKey: conversationsQueryKey(userId, source),
     queryFn: async () => {
-      const response = await api.get(sourcePath(source, '/conversations'))
+      const response = await api.get(sourcePath(source))
       return response.data.data || response.data
     },
     enabled: !!userId,
@@ -58,7 +69,7 @@ export const useConversationMessages = (conversationId, userId, { source, ...opt
   return useQuery({
     queryKey: key,
     queryFn: async () => {
-      const response = await api.get(sourcePath(source, `/conversations/${conversationId}`))
+      const response = await api.get(sourcePath(source, `/${conversationId}`))
       const page = response.data.data || response.data
       // A poll that was in flight when a send started must not land on top
       // of the optimistic bubble and erase it -- see threadCache.
@@ -94,7 +105,7 @@ export const useSendMessage = () => {
       if (attachments?.length) {
         body.attachments = attachments.map(({ url, type, name, size }) => ({ url, type, name, size }))
       }
-      const response = await api.post(sourcePath(source, `/conversations/${targetUserId}/send`), body)
+      const response = await api.post(sourcePath(source, `/${targetUserId}/send`), body)
       return response.data.data || response.data
     },
     // Optimistic update - show message immediately
@@ -168,7 +179,7 @@ export const useSetConversationResolved = () => {
   return useMutation({
     mutationFn: async ({ conversationId, resolved, source }) => {
       const response = await api.post(
-        sourcePath(source, `/conversations/${conversationId}/resolve`), { resolved })
+        sourcePath(source, `/${conversationId}/resolve`), { resolved })
       return response.data.data || response.data
     },
     onSuccess: (data, { conversationId, resolved, source, userId }) => {

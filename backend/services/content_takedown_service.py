@@ -25,7 +25,10 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 #: Report targets a takedown knows how to act on.
-TAKEDOWN_TARGETS = ('peer_comment', 'message')
+TAKEDOWN_TARGETS = ('peer_comment', 'message', 'group_message')
+#: What the nightly conversation review reports: a whole thread. Nothing to
+#: take down by itself; a person reads the thread and acts on the people.
+THREAD_TARGETS = ('conversation', 'group_conversation')
 
 
 def take_down(report: Dict[str, Any], admin_id: str) -> Dict[str, Any]:
@@ -46,6 +49,17 @@ def take_down(report: Dict[str, Any], admin_id: str) -> Dict[str, Any]:
                     str(admin_id)[:8], str(target_id)[:8], str(report.get('id'))[:8])
         return {'taken_down': True}
 
+    if target_type == 'group_message':
+        message = repo.group_message(target_id)
+        if not message:
+            return {'taken_down': False, 'reason': 'not found'}
+        if not message.get('is_deleted'):
+            repo.hide_group_message(target_id)
+            _tell_open_room(message)
+        logger.info('[takedown] %s hid group message %s on report %s',
+                    str(admin_id)[:8], str(target_id)[:8], str(report.get('id'))[:8])
+        return {'taken_down': True}
+
     message = repo.message(target_id)
     if not message:
         return {'taken_down': False, 'reason': 'not found'}
@@ -55,6 +69,17 @@ def take_down(report: Dict[str, Any], admin_id: str) -> Dict[str, Any]:
     logger.info('[takedown] %s hid message %s on report %s',
                 str(admin_id)[:8], str(target_id)[:8], str(report.get('id'))[:8])
     return {'taken_down': True}
+
+
+def _tell_open_room(message: Dict[str, Any]) -> None:
+    """The class chat's twin of _tell_open_threads. Best-effort."""
+    try:
+        from services import messaging_extras_service as extras
+        extras._recompute_conversation_preview('group', message)
+        extras.broadcast_group(message['group_id'], 'deleted', {'message_id': message['id']})
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[takedown] could not refresh room for %s: %s',
+                       str(message.get('id'))[:8], e)
 
 
 def _tell_open_threads(message: Dict[str, Any]) -> None:
@@ -77,16 +102,21 @@ def with_previews(reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     repo = ContentReportRepository()
     comment_ids = [r['target_id'] for r in reports if r.get('target_type') == 'peer_comment']
     message_ids = [r['target_id'] for r in reports if r.get('target_type') == 'message']
+    group_ids = [r['target_id'] for r in reports if r.get('target_type') == 'group_message']
     texts = {}
     try:
         texts.update(repo.peer_comment_texts(comment_ids))
         texts.update(repo.message_texts(message_ids))
+        texts.update(repo.group_message_texts(group_ids))
     except Exception as e:  # noqa: BLE001
         logger.warning('[takedown] previews failed: %s', e)
     out = []
+    threads = _thread_previews([r for r in reports if r.get('target_type') in THREAD_TARGETS])
     for r in reports:
         found = texts.get(str(r.get('target_id'))) if r.get('target_type') in TAKEDOWN_TARGETS else None
         item = dict(r)
+        if r.get('target_type') in THREAD_TARGETS:
+            item['thread'] = threads.get(str(r.get('target_id')))
         if found is not None:
             item['preview'] = {'text': found.get('text'), 'author_id': found.get('author_id'),
                                'hidden': bool(found.get('hidden_at'))}
@@ -96,22 +126,67 @@ def with_previews(reports: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+def _thread_previews(reports: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """{thread_id: {kind, name, last_messages: [{who, text, at}]}} for the
+    review's reports: the moderator reads the tail of the thread in the
+    queue before opening anything."""
+    if not reports:
+        return {}
+    try:
+        from repositories.conversation_review_repository import ConversationReviewRepository
+        repo = ConversationReviewRepository()
+        out = {}
+        for r in reports:
+            kind = 'group' if r.get('target_type') == 'group_conversation' else 'dm'
+            msgs = repo.messages(kind, r['target_id'], 8)
+            names = repo.names_for([m['sender_id'] for m in msgs])
+            roles = repo.roles_for([m['sender_id'] for m in msgs])
+            out[str(r['target_id'])] = {
+                'kind': kind,
+                'last_messages': [{
+                    'who': f"{names.get(m['sender_id'], 'someone')} ({roles.get(m['sender_id'], 'user')})",
+                    'text': (m.get('message_content') or '')[:300],
+                    'photos': len([a for a in (m.get('attachments') or []) if isinstance(a, dict)]),
+                    'at': m.get('created_at'),
+                } for m in msgs],
+            }
+        return out
+    except Exception as e:  # noqa: BLE001
+        logger.warning('[takedown] thread previews failed: %s', e)
+        return {}
+
+
 # --- what the moderator sees ----------------------------------------------------
 
 def recent_holds(limit: int = 100) -> List[Dict[str, Any]]:
     """The Holds tab: what the screen held, with the two students named the
     way the parent view names them (display name and avatar, no surname)."""
     from repositories.peer_policy_repository import PeerPolicyRepository
-    rows = PeerTextScreenRepository().recent_holds(limit)
-    ids = {r['author_id'] for r in rows} | {r['recipient_id'] for r in rows}
+    from services.messaging_extras_service import sign_attachments
+    repo = PeerTextScreenRepository()
+    rows = repo.recent_holds(limit)
+    # The pictures live in the private uploads bucket; a moderator reads them
+    # through a signed URL like any thread, never through the stored pointer.
+    sign_attachments(rows)
+    ids = {r['author_id'] for r in rows} | {r['recipient_id'] for r in rows if r.get('recipient_id')}
     people = PeerPolicyRepository().users_by_ids(list(ids), 'id, display_name, first_name, organization_id')
+    # A class chat hold names the room, not a child.
+    groups = repo.group_names([r['group_id'] for r in rows if r.get('group_id')])
 
     def _who(uid):
+        if not uid:
+            return None
         u = people.get(uid) or {}
         return {'id': uid, 'display_name': u.get('display_name') or u.get('first_name') or 'A student',
                 'organization_id': u.get('organization_id')}
 
-    return [{**r, 'author': _who(r['author_id']), 'recipient': _who(r['recipient_id'])} for r in rows]
+    def _group(gid):
+        if not gid:
+            return None
+        return {'id': gid, 'name': groups.get(gid) or 'a class chat'}
+
+    return [{**r, 'author': _who(r['author_id']), 'recipient': _who(r.get('recipient_id')),
+             'group': _group(r.get('group_id'))} for r in rows]
 
 
 def daily_digest(now=None) -> Dict[str, Any]:

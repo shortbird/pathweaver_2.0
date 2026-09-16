@@ -24,6 +24,7 @@ import {
 import { useMyChildren, type Child } from '@/src/hooks/useParent';
 import { useSelectedChild } from '@/src/stores/familyStore';
 import { ChildSwitcher } from '@/src/components/family/ChildSwitcher';
+import { MessageAttachments } from '@/src/components/communication/MessageParts';
 
 interface Props {
   onBack: () => void;
@@ -258,9 +259,14 @@ function ChildConversation({
                           }),
                     }}
                   >
-                    <UIText size="sm" style={{ color: isChild ? '#fff' : c.text, lineHeight: 20 }}>
-                      {msg.message_content}
-                    </UIText>
+                    {!!msg.message_content && (
+                      <UIText size="sm" style={{ color: isChild ? '#fff' : c.text, lineHeight: 20 }}>
+                        {msg.message_content}
+                      </UIText>
+                    )}
+                    {/* The pictures the child sent or received, signed by the
+                        server; a photo-only message was an empty bubble here. */}
+                    <MessageAttachments attachments={msg.attachments} isMine={isChild} />
                     <UIText
                       size="xs"
                       style={{ color: isChild ? 'rgba(255,255,255,0.6)' : c.textFaint, fontSize: 12, marginTop: 4, textAlign: 'right' }}

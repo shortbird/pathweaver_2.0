@@ -204,6 +204,7 @@ not set `EXPO_PUBLIC_API_URL` in a local `.env` — `Platform.select` in
 ## Extended documentation
 
 - **Every ratchet, hook and ceiling**: [RATCHETS.md](docs/remediation-2026-09/RATCHETS.md)
+- **Child safety runbook** — what the code does on a CSAM hash match or a flagged conversation, and what a person must do next: [CHILD_SAFETY_REPORTING.md](docs/CHILD_SAFETY_REPORTING.md)
 - **What is still open, and why**: [REGISTER.md](docs/remediation-2026-09/REGISTER.md)
 - **What is closed — read before changing auth, logging or CI guards**: [CLOSED_FINDINGS.md](docs/remediation-2026-09/CLOSED_FINDINGS.md)
 - **Local development**: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) · **Testing**: [web/TESTING.md](web/TESTING.md) · **MCP**: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)

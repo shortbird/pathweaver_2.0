@@ -807,7 +807,14 @@ def upload_child_avatar(user_id, child_id):
         # Type, size, HEIC conversion and the storage write: one recipe,
         # shared with the family photo (utils.image_utils). The pointer is
         # the canonical private-bucket path; the browser gets a signed twin.
-        avatar_url = store_image_upload(supabase, request.files['avatar'], f'avatars/{child_id}')
+        # The image safety gate (the known-CSAM hash match; the uploader is a
+        # parent, so the classifier does not run).
+        from services import upload_safety_service as safety
+        def _gate(content, content_type, filename):
+            verdict = safety.check_image(content, content_type, user_id=None,
+                                         purpose='avatar', filename=filename)
+            return None if verdict.allowed else verdict.message
+        avatar_url = store_image_upload(supabase, request.files['avatar'], f'avatars/{child_id}', gate=_gate)
 
         # Update child's avatar_url using a fresh client to avoid storage client URL corruption
         try:

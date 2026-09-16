@@ -106,6 +106,17 @@ THUMBNAIL_PATH_TEMPLATES = {
     'moment_block': 'learning_moments/{context_id}/{sub_id}/thumbnails/{file_uuid}_{thumb_name}',
 }
 
+#: What the safety gate calls each context (upload_safety_service purposes).
+_SAFETY_PURPOSES = {
+    'task': 'evidence', 'block': 'evidence', 'task_evidence': 'evidence',
+    'event': 'learning_event', 'moment': 'learning_event', 'moment_block': 'learning_event',
+}
+
+
+def _safety_purpose(context_type: str) -> str:
+    return _SAFETY_PURPOSES.get(context_type, 'evidence')
+
+
 # Default bucket per context type
 DEFAULT_BUCKETS = {
     'task': 'quest-evidence',
@@ -327,6 +338,23 @@ class MediaUploadService:
                 with open(tmp_path, 'wb') as f:
                     f.write(file_content)
                 del file_content  # Free memory immediately
+
+            # The image safety gate (upload_safety_service): the known-CSAM
+            # hash match, then the classifier for a student's picture. A
+            # refusal is a plain result, not an exception, and says only what
+            # the gate wants the uploader to read.
+            if block_type == 'image' or (content_type or '').startswith('image/'):
+                from services import upload_safety_service as gate
+                with open(tmp_path, 'rb') as f:
+                    verdict = gate.check_image(
+                        f.read(), content_type, user_id=user_id,
+                        purpose=_safety_purpose(context_type), filename=filename)
+                if not verdict.allowed:
+                    return MediaUploadResult(
+                        success=False,
+                        error_message=verdict.message,
+                        error_code='SAFETY_HELD' if verdict.kind == gate.KIND_HELD else 'REJECTED',
+                    )
 
             # Single probe: codec/size check so we can skip the background
             # transcode entirely when the uploaded video is already H.264 under
@@ -682,9 +710,35 @@ class MediaUploadService:
         # Photos are small enough to process inline safely (unlike videos). If
         # conversion is unavailable (pillow-heif missing) or fails, keep the
         # HEIC rather than failing the whole upload.
+        # The same gate upload_evidence_file runs, after the fact: a signed
+        # upload lands before the server sees a byte, so the object is read
+        # back ONCE (the HEIC conversion below reuses the bytes), judged, and
+        # removed on a refusal. Videos and documents skip it.
+        landed: Optional[bytes] = None
+        if block_type == 'image':
+            from services import upload_safety_service as gate
+            try:
+                landed = supabase.storage.from_(bucket).download(storage_path)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f'[MediaUpload] could not read back {storage_path} for the safety gate: {e}')
+                landed = None
+            mime = 'image/jpeg' if ext in ('jpg', 'jpeg', '') else f'image/{ext}'
+            verdict = gate.check_image(landed or b'', mime, user_id=user_id,
+                                       purpose=_safety_purpose(context_type), filename=filename)
+            if not verdict.allowed:
+                try:
+                    supabase.storage.from_(bucket).remove([storage_path])
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f'[MediaUpload] could not remove a refused upload {storage_path}: {e}')
+                return MediaUploadResult(
+                    success=False,
+                    error_message=verdict.message,
+                    error_code='SAFETY_HELD' if verdict.kind == gate.KIND_HELD else 'REJECTED',
+                )
+
         if block_type == 'image' and ext in ('heic', 'heif'):
             try:
-                heic_bytes = supabase.storage.from_(bucket).download(storage_path)
+                heic_bytes = landed if landed is not None else supabase.storage.from_(bucket).download(storage_path)
                 converted = self._convert_heif_to_jpeg(heic_bytes, filename)
                 if converted:
                     new_content, new_filename, new_ext, new_content_type = converted

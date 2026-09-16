@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import * as moderation from '../../services/moderationAPI'
+import { AttachmentList } from '../communication/MessageParts'
 
 const STATUS_TABS = [
   { value: 'pending', label: 'Pending' },
@@ -19,6 +21,7 @@ const REASON_LABELS = {
   inappropriate: 'Inappropriate',
   self_harm: 'Self-harm',
   other: 'Other',
+  safety_review: 'Nightly review',
 }
 
 const TARGET_LABELS = {
@@ -28,11 +31,14 @@ const TARGET_LABELS = {
   user: 'User',
   peer_comment: "Friend's comment",
   message: 'Direct message',
+  group_message: 'Class chat message',
+  conversation: 'Direct message thread',
+  group_conversation: 'Class chat',
 }
 
 // 'Action taken' takes these down (the comment is hidden, the message
 // soft-deleted); for every other target it only records that a human acted.
-const TAKEDOWN_TARGETS = new Set(['peer_comment', 'message'])
+const TAKEDOWN_TARGETS = new Set(['peer_comment', 'message', 'group_message'])
 
 function formatDate(iso) {
   if (!iso) return ''
@@ -41,7 +47,11 @@ function formatDate(iso) {
 }
 
 export default function ModerationQueue() {
-  const [status, setStatus] = useState('pending')
+  // ?tab=holds lands on the Holds tab: the superadmin home's tracker links here.
+  const [searchParams] = useSearchParams()
+  const [status, setStatus] = useState(
+    STATUS_TABS.some((t) => t.value === searchParams.get('tab')) ? searchParams.get('tab') : 'pending'
+  )
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -152,20 +162,43 @@ export default function ModerationQueue() {
   )
 }
 
+const HOLD_SURFACE_LABELS = {
+  message: 'Direct message',
+  peer_comment: "Friend's comment",
+  group_message: 'Class chat',
+  upload: 'Upload',
+}
+
 function HoldRow({ hold }) {
-  const what = hold.surface === 'message' ? 'Direct message' : "Friend's comment"
-  const when = hold.stage === 'refused' ? 'held before it was sent' : 'hidden after it posted'
+  const what = HOLD_SURFACE_LABELS[hold.surface] || hold.surface
+  const when = hold.surface === 'upload'
+    ? 'held before it was saved'
+    : hold.stage === 'refused' ? 'held before it was sent' : 'hidden after it posted'
+  // A class chat hold names the room; a message or a comment names the
+  // other child; an upload names nobody.
+  const target = hold.group ? `in ${hold.group.name}`
+    : hold.recipient ? `to ${hold.recipient.display_name}` : ''
+  // An adult's hold says so: it went to the org admins, not a parent.
+  const adult = hold.author_role && hold.author_role !== 'student'
   return (
     <div className="border border-gray-200 rounded-lg p-4 bg-white">
       <div className="flex items-center gap-2 mb-1 flex-wrap">
         <span className="inline-block text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{what}</span>
         <span className="inline-block text-xs font-semibold bg-amber-50 text-amber-700 px-2 py-0.5 rounded">{when}</span>
+        {adult && (
+          <span className="inline-block text-xs font-semibold bg-red-50 text-red-700 px-2 py-0.5 rounded">
+            by an adult ({hold.author_role})
+          </span>
+        )}
         {hold.model && <span className="text-xs text-gray-400">{hold.model}</span>}
       </div>
       <div className="text-xs text-gray-500 mb-1">
-        {formatDate(hold.created_at)} · {hold.author?.display_name} to {hold.recipient?.display_name}
+        {formatDate(hold.created_at)} · {hold.author?.display_name} {target}
       </div>
-      <div className="text-sm text-gray-800 border border-gray-200 p-2 rounded">{hold.text}</div>
+      <div className="text-sm text-gray-800 border border-gray-200 p-2 rounded">
+        {hold.text}
+        <AttachmentList attachments={hold.attachments} />
+      </div>
       {hold.reasons?.length > 0 && (
         <div className="text-xs text-gray-500 mt-1">{hold.reasons.join('; ')}</div>
       )}
@@ -190,11 +223,23 @@ function ReportRow({ report, updating, onUpdate }) {
             </span>
           </div>
           <div className="text-xs text-gray-500 mb-1">
-            {formatDate(report.created_at)} · reporter {report.reporter_id?.slice(0, 8)} · target {report.target_id?.slice(0, 8)}
+            {formatDate(report.created_at)} · reporter {report.reporter_id ? report.reporter_id.slice(0, 8) : 'the nightly safety review'} · target {report.target_id?.slice(0, 8)}
           </div>
           {report.notes && (
             <div className="text-sm text-gray-700 italic mt-2 bg-gray-50 p-2 rounded">
               "{report.notes}"
+            </div>
+          )}
+          {report.thread?.last_messages?.length > 0 && (
+            <div className="text-sm text-gray-800 mt-2 border border-gray-200 p-2 rounded space-y-1" data-testid="thread-preview">
+              <span className="text-xs text-gray-500 block">The last {report.thread.last_messages.length} messages</span>
+              {report.thread.last_messages.map((m, i) => (
+                <div key={`${m.at}-${i}`} className="text-sm">
+                  <span className="text-gray-500">{m.who}: </span>
+                  {m.text}
+                  {m.photos > 0 && <span className="text-gray-400"> [{m.photos} photo{m.photos === 1 ? '' : 's'}]</span>}
+                </div>
+              ))}
             </div>
           )}
           {report.preview && (
