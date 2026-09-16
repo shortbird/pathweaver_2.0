@@ -18,6 +18,9 @@ module.exports = {
   setupFiles: [
     '<rootDir>/src/__tests__/setup.tsx',
   ],
+  // Pins TZ to America/Denver so the wall-clock tests can fail on a UTC
+  // runner. See the file for the three reports that motivated it.
+  globalSetup: '<rootDir>/src/__tests__/globalSetup.js',
   // React-Native component renders (SafeAreaView + gluestack UI + Ionicons) have
   // a heavy cold-start on the FIRST test of a suite. Under CI's parallel-worker
   // contention that first render can exceed Jest's 5s default and flake out a

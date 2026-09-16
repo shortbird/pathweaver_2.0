@@ -63,3 +63,46 @@ export const fmtWhen = (e: Pick<SchoolEvent, 'start_at' | 'all_day'>): string =>
     return `${day} · ${time}`;
   } catch { return ''; }
 };
+
+/** The time cell of a calendar row: "6:30 PM – 8:00 PM", "6:30 PM", or
+ * "All day".
+ *
+ * Read in UTC, like fmtWhen above and for the same reason. The calendar screen
+ * used to carry its own copy of this without the timeZone, and iCreate's
+ * "Moms' Group Night" — on the row as 18:30:00+00, the 6:30 the office typed —
+ * reached every parent in Denver as 12:30 (Marika, 2026-09-15: "this would
+ * likely explain our low turnout at all events thus far"). Third time this
+ * family of bug has shipped; each time a new reader of the stamps was added
+ * without the rule. schoolEventWallClock.test.ts now refuses a reader that
+ * formats these stamps anywhere but here.
+ */
+export const fmtTimeRange = (
+  e: Pick<SchoolEvent, 'start_at' | 'end_at' | 'all_day'>,
+): string => {
+  if (e.all_day || !e.start_at) return 'All day';
+  const t = (v: string | null): string => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    try {
+      return d.toLocaleTimeString(undefined, {
+        hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+      });
+    } catch { return ''; }
+  };
+  const start = t(e.start_at);
+  const end = t(e.end_at);
+  return end && end !== start ? `${start} – ${end}` : start;
+};
+
+/** "Tue 9" — a calendar day's own heading, from a 'YYYY-MM-DD' key. Built from
+ * parts, never parsed as a Date: `new Date('2026-09-09')` is midnight UTC and
+ * lands on the 8th anywhere west of Greenwich. */
+export const fmtDayHeading = (iso: string): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  try {
+    return new Date(y, m - 1, d)
+      .toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+  } catch { return ''; }
+};

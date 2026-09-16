@@ -20,6 +20,10 @@ import { Card, HStack, Heading, UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useSchoolHub } from '@/src/hooks/useSchool';
 import { useSchoolCalendar, shiftMonth } from '@/src/hooks/useSchoolCalendar';
+// Every label that comes from an event's stamps is built in format.ts, which
+// reads them as the wall clock the office typed. This screen once had its own
+// copy of the time label without that rule and showed a 6:30 event at 12:30.
+import { fmtDayHeading, fmtTimeRange } from '@/src/components/school/format';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -27,24 +31,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
 const monthLabel = (month: string) => {
   const [y, m] = month.split('-').map(Number);
   return `${MONTHS[m - 1]} ${y}`;
-};
-
-/** "Tue 9" — the day's own heading. Parsed as parts, never as a Date, so a
- *  date-only string is not shifted by the device's timezone. */
-const dayLabel = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
-};
-
-const timeLabel = (e: { all_day: boolean; start_at: string | null; end_at: string | null }) => {
-  if (e.all_day || !e.start_at) return 'All day';
-  const t = (v: string | null) => (v
-    ? new Date(v).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-    : '');
-  const start = t(e.start_at);
-  const end = t(e.end_at);
-  return end && end !== start ? `${start} – ${end}` : start;
 };
 
 export default function SchoolCalendarScreen() {
@@ -107,7 +93,7 @@ export default function SchoolCalendarScreen() {
           <Card key={day.date} className="mb-3 bg-white dark:bg-dark-surface-100">
             <UIText size="xs"
               className="font-poppins-medium text-optio-purple mb-2 uppercase tracking-wide">
-              {dayLabel(day.date)}
+              {fmtDayHeading(day.date)}
             </UIText>
             <VStack>
               {day.events.map((e, i) => (
@@ -119,7 +105,7 @@ export default function SchoolCalendarScreen() {
                   <HStack className="items-start justify-between gap-3">
                     <UIText size="sm" className="font-poppins-medium flex-1">{e.title}</UIText>
                     <UIText size="xs" className="text-typo-400 dark:text-dark-typo-400">
-                      {timeLabel(e)}
+                      {fmtTimeRange(e)}
                     </UIText>
                   </HStack>
                   {e.location ? (

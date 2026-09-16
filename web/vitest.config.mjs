@@ -11,6 +11,10 @@ export default defineConfig({
     // Setup file to run before each test file
     setupFiles: ['./src/tests/setup.js'],
 
+    // Pins TZ to America/Denver so the wall-clock tests can fail on a UTC
+    // runner. See the file for the three reports that motivated it.
+    globalSetup: ['./src/tests/globalSetup.js'],
+
     // Global test utilities (available without importing)
     globals: true,
 
