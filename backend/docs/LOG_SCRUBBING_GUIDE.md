@@ -75,20 +75,6 @@ else:
     logger.debug(f"Token present: {bool(token)}")  # In production
 ```
 
-### Convenience Functions
-
-```python
-from utils.log_scrubber import log_user_action, log_auth_event
-
-# Log user action with auto-masking
-log_user_action(logger, 'info', 'quest_completed', user_id, quest_id='abc123')
-# Output: "[USER_ACTION] quest_completed" with context: {user_id: '550e8400-***', quest_id: 'abc123'}
-
-# Log auth event with auto-masking
-log_auth_event(logger, 'info', 'login_attempt', email, success=True)
-# Output: "[AUTH] login_attempt" with context: {email: 'use***@example.com', success: True}
-```
-
 ## Migration Patterns
 
 ### Before (Insecure)

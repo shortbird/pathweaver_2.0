@@ -143,18 +143,9 @@ def is_valid_pillar(pillar_key):
     """Check if a pillar key is valid."""
     return pillar_key in PILLARS
 
-def is_valid_subcategory(pillar_key, subcategory):
-    """Check if a subcategory is valid for a pillar."""
-    subcategories = get_pillar_subcategories(pillar_key)
-    return subcategory in subcategories
-
 def get_all_pillars():
     """Get all pillar keys and names."""
     return [(key, info['name']) for key, info in PILLARS.items()]
-
-def get_xp_distribution_template():
-    """Get a template for XP distribution across pillars."""
-    return {key: 0 for key in PILLARS.keys()}
 
 def calculate_mastery_level(total_xp):
     """Calculate mastery level from total XP."""
@@ -185,41 +176,6 @@ def calculate_mastery_level(total_xp):
     else:
         # Level 13+ - scales by 40,000 XP per level
         return 13 + ((total_xp - 160000) // 40000)
-
-def get_xp_for_next_level(current_xp):
-    """Get XP required for next level."""
-    level = calculate_mastery_level(current_xp)
-
-    # XP thresholds for each level
-    thresholds = [
-        500, 1500, 3500, 7000, 12500, 20000,
-        30000, 45000, 65000, 90000, 120000, 160000
-    ]
-
-    if level <= 12:
-        next_threshold = thresholds[level - 1] if level <= len(thresholds) else None
-        if next_threshold:
-            return next_threshold - current_xp
-
-    # For levels 13+
-    next_level = level + 1
-    next_threshold = 160000 + ((next_level - 13) * 40000)
-    return next_threshold - current_xp
-
-def format_pillar_for_frontend(pillar_key):
-    """Format pillar data for frontend consumption."""
-    info = get_pillar_info(pillar_key)
-    if not info:
-        return None
-
-    return {
-        'key': pillar_key,
-        'name': info['name'],
-        'description': info['description'],
-        'color': info['color'],
-        'icon': info['icon'],
-        'subcategories': info['subcategories']
-    }
 
 
 # Pillar name normalization functions (from pillar_mapping.py)

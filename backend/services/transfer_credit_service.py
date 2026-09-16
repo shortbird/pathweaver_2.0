@@ -156,12 +156,6 @@ def sync_xp(user_id: str, subject_xp: Dict[str, int],
         return {'success': False, 'error': str(e)}
 
 
-def rows_for_student(user_id: str) -> List[Dict[str, Any]]:
-    return (_admin().table('transfer_credits').select('*')
-            .eq('user_id', user_id).order('created_at', desc=False)
-            .execute().data or [])
-
-
 def row_for_school(user_id: str, school_name: str) -> Optional[Dict[str, Any]]:
     rows = (_admin().table('transfer_credits').select('*')
             .eq('user_id', user_id).eq('school_name', school_name)

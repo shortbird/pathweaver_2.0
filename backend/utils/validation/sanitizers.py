@@ -4,7 +4,6 @@ Input sanitization utilities for preventing SQL injection and XSS attacks.
 
 import re
 from typing import Optional, Any
-import html
 
 from utils.logger import get_logger
 
@@ -58,26 +57,6 @@ def sanitize_search_input(search_term: Optional[str], max_length: int = 100) -> 
         search_term = pattern.sub('', search_term)
     
     return search_term.strip()
-
-def sanitize_html_input(text: Optional[str], max_length: int = 5000) -> str:
-    """
-    Sanitize HTML input to prevent XSS attacks.
-    
-    Args:
-        text: The text to sanitize
-        max_length: Maximum allowed length
-        
-    Returns:
-        HTML-escaped text safe for display
-    """
-    if not text:
-        return ""
-    
-    # Convert to string and limit length
-    text = str(text)[:max_length]
-    
-    # HTML escape to prevent XSS
-    return html.escape(text)
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -139,72 +118,6 @@ def sanitize_integer(value: Any, default: int = 0, min_val: Optional[int] = None
         return result
     except (ValueError, TypeError):
         return default
-
-def sanitize_email(email: Optional[str]) -> str:
-    """
-    Sanitize email address input.
-    
-    Args:
-        email: The email to sanitize
-        
-    Returns:
-        Sanitized email address
-    """
-    if not email:
-        return ""
-    
-    # Basic email sanitization
-    email = str(email).strip().lower()
-    
-    # Remove any HTML/script tags
-    email = re.sub(r'<[^>]*>', '', email)
-    
-    # Basic email pattern validation
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
-        return ""
-    
-    return email[:255]  # Limit length
-
-def sanitize_url(url: Optional[str]) -> str:
-    """
-    Sanitize URL input to prevent injection attacks.
-    
-    Args:
-        url: The URL to sanitize
-        
-    Returns:
-        Sanitized URL
-    """
-    if not url:
-        return ""
-    
-    url = str(url).strip()
-    
-    # Remove javascript: and data: protocols
-    if url.lower().startswith(('javascript:', 'data:', 'vbscript:')):
-        return ""
-    
-    # Remove any HTML/script tags
-    url = re.sub(r'<[^>]*>', '', url)
-    
-    # Limit length
-    return url[:2000]
-
-def sanitize_json_key(key: str) -> str:
-    """
-    Sanitize JSON object keys to prevent injection.
-    
-    Args:
-        key: The key to sanitize
-        
-    Returns:
-        Safe key for JSON objects
-    """
-    if not key:
-        return ""
-    
-    # Allow only alphanumeric and underscore
-    return re.sub(r'[^\w]', '_', str(key))[:100]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PostgREST filter-string safety

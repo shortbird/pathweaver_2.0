@@ -13,7 +13,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 try:
-    from flask_wtf.csrf import CSRFProtect, generate_csrf, validate_csrf, CSRFError
+    from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
     csrf = CSRFProtect()
 except ImportError as e:
     # ✅ SECURITY FIX: CSRF protection is now REQUIRED
@@ -319,21 +319,3 @@ def get_csrf_token():
         return token
     except Exception as e:
         raise RuntimeError(f"Failed to generate CSRF token: {e}") from e
-
-def validate_csrf_token(token):
-    """
-    Validate a CSRF token.
-
-    ✅ SECURITY FIX: CSRF is now mandatory - validation always enforced.
-
-    Args:
-        token: The token to validate
-
-    Returns:
-        bool: True if valid, False otherwise
-    """
-    try:
-        validate_csrf(token)
-        return True
-    except Exception:
-        return False

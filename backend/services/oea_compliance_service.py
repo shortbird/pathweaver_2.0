@@ -116,22 +116,3 @@ def quarters_compliant(
     """
     results = [evaluate_course_quarter(client, credit, settings, school_year, q) for q in term_indexes]
     return {'is_compliant': all(r['is_compliant'] for r in results), 'quarters': results}
-
-
-def evaluate_student(
-    client, student_id: str, settings: Dict[str, Any], school_year: str,
-    credits: Optional[List[Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
-    """Per-course-per-quarter compliance for a student's direct, in-progress courses."""
-    if credits is None:
-        credits = client.table('oea_credits').select('*').eq('student_id', student_id).execute().data or []
-    out = []
-    for c in credits:
-        # Only direct, still-in-progress courses are subject to upload minimums.
-        if (c.get('credit_source') or 'direct') != 'direct':
-            continue
-        quarters = [evaluate_course_quarter(client, c, settings, school_year, q)
-                    for q in oea_rules.all_quarter_indexes()]
-        out.append({'credit_id': c['id'], 'course_name': c.get('course_name'),
-                    'status': c.get('status'), 'quarters': quarters})
-    return out

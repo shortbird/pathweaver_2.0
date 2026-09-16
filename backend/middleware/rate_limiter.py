@@ -527,11 +527,6 @@ def rate_limit(config_key: str = None, max_requests: int = None, window_seconds:
         return decorated_function
     return decorator
 
-def apply_rate_limiting_to_blueprint(blueprint, max_requests=60, window_seconds=60):
-    """Apply rate limiting to all routes in a blueprint"""
-    for endpoint, func in blueprint.view_functions.items():
-        blueprint.view_functions[endpoint] = rate_limit(max_requests, window_seconds)(func)
-
 
 def add_rate_limit_headers(response):
     """

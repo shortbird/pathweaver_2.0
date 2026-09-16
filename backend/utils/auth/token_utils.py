@@ -82,24 +82,6 @@ def generate_token(user_id: str, expires_in: int = 3600) -> str:
     token = jwt.encode(payload, secret_key, algorithm='HS256')
     return token
 
-def decode_token(token: str) -> dict:
-    """
-    Decode a JWT token without verification (for debugging)
-    
-    Args:
-        token: JWT token string
-    
-    Returns:
-        Decoded token payload or None if invalid
-    """
-    try:
-        # Decode without verification for debugging purposes
-        payload = jwt.decode(token, options={"verify_signature": False})
-        return payload
-    except Exception:
-        # Token decode error - return None
-        return None
-
 def refresh_token(old_token: str) -> str:
     """
     Refresh an existing token

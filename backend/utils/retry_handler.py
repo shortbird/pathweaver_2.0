@@ -242,10 +242,6 @@ def retry_api_call(func):
     """Retry decorator specifically for external API calls"""
     return retry_on_exception('external_api')(func)
 
-def retry_network_operation(func):
-    """Retry decorator specifically for network operations"""
-    return retry_on_exception('network')(func)
-
 
 def with_connection_retry(operation: Callable, max_retries: int = 3, base_delay: float = 0.5, operation_name: str = None):
     """

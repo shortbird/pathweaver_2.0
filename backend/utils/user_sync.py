@@ -96,24 +96,3 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
     except Exception as e:
         logger.error(f"[USER_SYNC] Error in ensure_user_exists: {str(e)}")
         return None
-
-
-def get_user_name(user_id: str) -> tuple[str, str]:
-    """
-    Get user's first and last name, ensuring the user exists first.
-    
-    Args:
-        user_id: The user ID
-        
-    Returns:
-        Tuple of (first_name, last_name)
-    """
-    user_data = ensure_user_exists(user_id)
-    
-    if user_data:
-        return (
-            user_data.get('first_name', 'User'),
-            user_data.get('last_name', 'Account')
-        )
-    
-    return ('User', 'Account')

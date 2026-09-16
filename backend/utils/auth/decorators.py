@@ -41,18 +41,6 @@ def has_admin_privileges(role: str) -> bool:
     """Check if a role has admin privileges (superadmin only)."""
     return role == 'superadmin'
 
-def has_org_admin_privileges(effective_role: str) -> bool:
-    """Check if an effective role has org admin privileges (org_admin or superadmin)."""
-    return effective_role in ['org_admin', 'superadmin']
-
-def has_role_or_admin(effective_role: str, *allowed_roles) -> bool:
-    """Check if user has one of the allowed roles (using effective role), or is superadmin."""
-    if effective_role in allowed_roles:
-        return True
-    if has_admin_privileges(effective_role):
-        return True
-    return False
-
 def authorizing_user_id():
     """The identity this request is AUTHORIZED as.
 

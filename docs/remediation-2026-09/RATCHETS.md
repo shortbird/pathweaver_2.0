@@ -1,6 +1,6 @@
 # Ratchets, guards and gates — the enforcement inventory
 
-**As of 2026-09-10.** Every mechanical control in this repository, in one place,
+**As of 2026-09-15.** Every mechanical control in this repository, in one place,
 with what it protects and what its current ceiling is.
 
 This file exists because the controls were spread across 115 test files,
@@ -39,24 +39,24 @@ Four rules, learned the hard way:
 
 | Ceiling | Where | Protects |
 |---|---|---|
-| Direct `.table()` calls per layer: routes 2,342, services 1,847, repositories 465, utils 144, jobs 7, middleware 3, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
-| 449 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
-| 12 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
-| 23 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
-| 5 `get_user_client` + 12 `supabase` client constructions in new route files | `backend/tests/unit/test_new_routes_use_repositories.py` | The repository pattern, for new code only |
-| 113 direct `os.getenv`/`os.environ` reads outside the app layers | `backend/tests/unit/test_config_access_ratchet.py` | Rule 9's other half. The app layers themselves are at zero (see §2) |
+| Direct `.table()` calls per layer: routes 2,285, services 1,836, repositories 522, utils 145, jobs 7, middleware 2, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
+| 415 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
+| 10 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
+| 22 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
+| 4 `get_user_client` + 12 `supabase` client constructions in new route files | `backend/tests/unit/test_new_routes_use_repositories.py` | The repository pattern, for new code only |
+| 109 direct `os.getenv`/`os.environ` reads outside the app layers | `backend/tests/unit/test_config_access_ratchet.py` | Rule 9's other half. The app layers themselves are at zero (see §2) |
 | 18 app-layer + 9 script queries against dropped tables | `backend/tests/unit/test_dropped_tables_are_not_queried.py` | 500s from tables production does not have. Invisible to every other check here |
 | 6 writes to `users.is_org_admin` | `backend/tests/unit/test_role_rules_are_enforced.py` | The flag is derived by a trigger; a hand-written value is silently reverted |
-| 293 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
-| 981 hand-rolled fetch call sites | `web/src/__tests__/dataFetchingParadigm.test.js` | QF-03. Counts **call sites**, not files, so a pure component split does not move it |
-| 292 eslint errors / 2,183 warnings | `web/src/__tests__/eslintRatchet.test.js` | CI-03. 273k lines written without a linter; the point is that the number stops growing |
+| 174 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
+| 786 hand-rolled fetch call sites | `web/src/__tests__/dataFetchingParadigm.test.js` | QF-03. Counts **call sites**, not files, so a pure component split does not move it |
+| 180 eslint errors / 1,848 warnings | `web/src/__tests__/eslintRatchet.test.js` | CI-03. 273k lines written without a linter; the point is that the number stops growing |
 | 5 `console.*` calls | `web/src/__tests__/lintRules.test.js` | CI-03. `console.warn`/`error` stay legitimate; `.log` became `logger.debug` |
-| 142 clickable non-interactive elements | `web/src/components/ui/__tests__/a11y.test.jsx` | QF-08. The file says out loud that axe catches maybe a third of real problems |
+| 105 clickable non-interactive elements | `web/src/components/ui/__tests__/a11y.test.jsx` | QF-08. The file says out loud that axe catches maybe a third of real problems |
 | 580 explicit `any` | `mobile/src/__tests__/typeWidening.test.ts` | QF-09 |
 | 1,400 lines per route file | `backend/tests/unit/test_route_file_sizes.py` | QB-04. **`EXEMPTIONS` is empty** |
 | 1,000 lines per web component | `web/src/__tests__/componentSize.test.js` | QF-02. **`EXEMPT` is empty**, and a fourth test fails when a file drops under the cap and its exemption lingers |
-| 55 known-dead client API paths | `backend/tests/test_client_api_paths_exist.py` | Every `/api/...` the web and mobile clients call is a real route. The dead list may only shrink |
-| 72 modals with a raw fixed-inset backdrop | `web/src/tests/modalPortalGuard.test.js` | Modal overlays render through a portal. A separate test fails on a stale entry |
+| 20 known-dead client API paths | `backend/tests/test_client_api_paths_exist.py` | Every `/api/...` the web and mobile clients call is a real route. The dead list may only shrink |
+| 50 modals with a raw fixed-inset backdrop | `web/src/tests/modalPortalGuard.test.js` | Modal overlays render through a portal. A separate test fails on a stale entry |
 | Per-file class-scope call floors (attendance 2, catalog 2, submissions 1, engagement 2, staff portal 2, gradebook 6, student records 1) | `backend/tests/unit/test_class_scope_coverage.py` | Teacher-reachable SIS reads apply `class_scope`. Allowlist of 10, each with a reason |
 | 1 definition of the admin client | `backend/tests/unit/test_one_admin_accessor.py` | One place that builds a client which bypasses RLS |
 
@@ -245,7 +245,7 @@ gate nobody can get past is a gate somebody deletes.
 | Gate | Where | What it stops |
 |---|---|---|
 | ruff (F/E9/B/S110/S112) | `tests-backend.yml` | CI-01 |
-| mypy (292 modules carry `ignore_errors` in `backend/mypy.ini`, out of 302 named sections; the list only shrinks) | `tests-backend.yml` | CI-01 |
+| mypy (288 modules carry `ignore_errors` in `backend/mypy.ini`, out of 299 named sections; the list only shrinks) | `tests-backend.yml` | CI-01 |
 | pyflakes, filtered to undefined names | `tests-backend.yml` | Missing imports, which Python only finds when a request reaches the line. Four were live on 2026-09-02 |
 | pip-audit, **no suppressions** | `tests-backend.yml` | HYG-03. A future ignore needs a dated reason and a re-check date |
 | `npm audit` via `scripts/audit-gate.mjs` | `tests-web.yml`, `tests-mobile.yml` | Advisories, one at a time, each allowlisted with a reason and an expiry |

@@ -157,33 +157,3 @@ def sanitize_filename(filename: str) -> str:
             filename = filename[:max_length]
     
     return filename
-
-def sanitize_sql_identifier(identifier: str) -> str:
-    """
-    Sanitize SQL identifiers (table names, column names)
-    
-    Args:
-        identifier: SQL identifier
-    
-    Returns:
-        Safe identifier
-    """
-    if not identifier:
-        raise ValueError("Identifier cannot be empty")
-    
-    # Allow only alphanumeric characters and underscores
-    sanitized = re.sub(r'[^a-zA-Z0-9_]', '', identifier)
-    
-    # Ensure it starts with a letter or underscore
-    if sanitized and not re.match(r'^[a-zA-Z_]', sanitized):
-        sanitized = '_' + sanitized
-    
-    # Limit length
-    max_length = 63  # PostgreSQL identifier limit
-    if len(sanitized) > max_length:
-        sanitized = sanitized[:max_length]
-    
-    if not sanitized:
-        raise ValueError("Invalid identifier after sanitization")
-    
-    return sanitized.lower()

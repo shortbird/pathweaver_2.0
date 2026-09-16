@@ -147,10 +147,6 @@ def is_under_13(user_row: Optional[Dict[str, Any]]) -> bool:
         return True
 
 
-def is_under_13_by_id(user_id: str) -> bool:
-    return is_under_13(_fetch_user(user_id, 'id, date_of_birth'))
-
-
 def minor_reason(user_row: Optional[Dict[str, Any]]) -> Optional[str]:
     """Why is this user treated as a minor? None if they are not.
 

@@ -7,7 +7,6 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-
 class OpError(Exception):
     """Base exception for Optio Platform"""
     pass
@@ -45,9 +44,4 @@ class ServiceError(OpError):
 
 class RateLimitError(OpError):
     """Raised when rate limit is exceeded"""
-    pass
-
-
-class ConfigurationError(OpError):
-    """Raised when configuration is invalid or missing"""
     pass

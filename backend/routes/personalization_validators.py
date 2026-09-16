@@ -201,18 +201,3 @@ def validate_manual_tasks_batch(tasks: List[Dict[str, Any]]) -> tuple[bool, Opti
         return False, 'No tasks provided'
 
     return True, None
-
-
-def clamp_xp_value(xp_value: int, min_xp: int = 50, max_xp: int = 200) -> int:
-    """
-    Clamp XP value to valid range.
-
-    Args:
-        xp_value: Raw XP value
-        min_xp: Minimum XP (default 50)
-        max_xp: Maximum XP (default 200)
-
-    Returns:
-        Clamped XP value
-    """
-    return min(max(xp_value, min_xp), max_xp)

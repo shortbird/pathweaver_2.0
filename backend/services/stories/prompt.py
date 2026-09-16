@@ -23,7 +23,7 @@ may point at them but writes no quotation of its own.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 
 from utils.evidence_labels import truncate
 
@@ -394,17 +394,3 @@ def build_parts(prompt: str, safe_images: List[ImageCandidate]) -> List[Any]:
         parts.append(f'[I{img.index}]:')
         parts.append({'mime_type': img.mime_type or 'image/jpeg', 'data': img.data})
     return parts
-
-
-def describe_for_log(source: StorySource) -> Dict[str, Optional[Any]]:
-    """What the log line about a draft may say. No student, no ids."""
-    return {
-        'source_type': source.source_type,
-        'tasks': len(source.tasks),
-        'images': len([c for c in source.image_candidates if c.is_image]),
-        'videos': len(source.video_candidates),
-        'documents': len(source.document_candidates),
-        'quotes': len(source.quote_candidates),
-        'links': len(source.link_candidates),
-        'xp': source.xp_total,
-    }

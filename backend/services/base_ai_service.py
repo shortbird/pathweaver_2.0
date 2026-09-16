@@ -1979,18 +1979,3 @@ def get_gemini_model():
     """
     BaseAIService._ensure_model_initialized()
     return BaseAIService._model
-
-
-def extract_json_from_response(text: str) -> Optional[Union[Dict, List]]:
-    """
-    Extract JSON from AI response text.
-    Standalone function for backwards compatibility.
-
-    Args:
-        text: Raw text response from AI
-
-    Returns:
-        Parsed JSON or None
-    """
-    service = BaseAIService()
-    return service.extract_json(text)

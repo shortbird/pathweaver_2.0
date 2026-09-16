@@ -77,25 +77,6 @@ def is_academy_student(user_id, client=None):
     return get_active_enrollment(user_id, client=client) is not None
 
 
-def active_enrolled_ids(user_ids, client=None):
-    """The subset of `user_ids` with an active enrollment, as a set.
-
-    One query for a whole roster: the per-student call would be N round trips on
-    a transcript batch or a partner roster page.
-    """
-    ids = [u for u in (user_ids or []) if u]
-    if not ids:
-        return set()
-    try:
-        supabase = client or _admin()
-        rows = supabase.table('academy_enrollments').select('user_id') \
-            .in_('user_id', ids).eq('status', 'active').execute().data or []
-        return {r['user_id'] for r in rows}
-    except Exception as e:  # noqa: BLE001
-        logger.error(f'academy enrollment batch lookup failed ({len(ids)} ids): {e}')
-        return set()
-
-
 def enroll(user_id, pathway, partner_org_id=None, registration_id=None,
            grade_level=None, created_by=None, client=None):
     """Enroll a student in Optio Academy. Idempotent per student.

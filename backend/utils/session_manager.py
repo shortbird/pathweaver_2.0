@@ -5,8 +5,7 @@ import jwt
 import hashlib
 import re
 from datetime import datetime, timedelta, timezone
-from flask import make_response, request
-from functools import wraps
+from flask import request
 from typing import Optional, Dict, Any
 
 from app_config import Config
@@ -1050,16 +1049,3 @@ class SessionManager:
 
 # Global session manager instance
 session_manager = SessionManager()
-
-def require_auth_cookie(f):
-    """Decorator to require authentication via secure cookies"""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_id = session_manager.get_current_user_id()
-        
-        if not user_id:
-            return make_response({'error': 'Authentication required'}), 401
-        
-        return f(user_id, *args, **kwargs)
-    
-    return decorated_function

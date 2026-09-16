@@ -188,14 +188,3 @@ def get_special_service_title(url: str, parsed) -> str:
         return None  # Fetch to get specific content title
 
     return None
-
-
-def get_domain_from_url(url: str) -> str:
-    """
-    Extract clean domain name from URL.
-    """
-    try:
-        parsed = urlparse(url)
-        return parsed.netloc.replace('www.', '')
-    except:
-        return 'Link'

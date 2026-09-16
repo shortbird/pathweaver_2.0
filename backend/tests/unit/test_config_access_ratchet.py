@@ -56,7 +56,7 @@ BOOTSTRAP = {
 
 #: Measured 2026-09-10 across backend/, excluding tests, the app layers and the
 #: bootstrap files above. Ratchet down, never up.
-DIRECT_ENV_READS = 113
+DIRECT_ENV_READS = 109
 
 
 def _is_env_read(node: ast.AST) -> bool:

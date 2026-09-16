@@ -205,7 +205,7 @@ BASELINES = {
     # sis/goals.py and the my-children / my-dependents routes now ask
     # utils.class_membership and services.family_children_service instead
     # of reading the link tables themselves.
-    'routes': 2292,
+    'routes': 2285,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -258,7 +258,7 @@ BASELINES = {
     # copies of "who is this child's parent" (utils.class_membership answers
     # now); family_children_service is new but reads through
     # repositories/family_repository.
-    'services': 1840,
+    'services': 1836,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -400,7 +400,15 @@ BASELINES = {
     # the caller's acks and the report's acks, create/update/delete, and the
     # done mark and its undo on sis_resource_acks. routes/ and services/ did
     # not move: routes/sis/training_links.py reads and writes through this.
-    'repositories': 578,
+    # 2026-09-15 (dead code sweep): routes/ 2292 -> 2285, services/ 1840 -> 1836,
+    # middleware/ 3 -> 2, repositories/ 578 -> 522. Whole modules nothing
+    # imported: course_repository, course_quest_repository,
+    # curriculum_repository, curriculum_lesson_repository,
+    # quest_completion_service, cost_tracker, audit_logger, database_policy,
+    # datetime_helpers, name_utils, response_helpers -- plus
+    # RegistrationRepository, a class with no caller, and 60-odd helper
+    # functions across utils/ and services/ that nothing referenced.
+    'repositories': 522,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -436,7 +444,7 @@ BASELINES = {
     # session (REGISTER GAP-3).
     'utils': 145,
     'jobs': 7,
-    'middleware': 3,
+    'middleware': 2,
     'modules': 1,
 }
 
@@ -480,7 +488,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2292 + 1840
+UPPER_TOTAL_BASELINE = 2285 + 1836
 
 
 def test_the_upper_layers_do_not_grow_in_total():

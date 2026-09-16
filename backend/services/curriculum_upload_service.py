@@ -57,11 +57,6 @@ STAGE_NAMES = {
 }
 
 
-class CurriculumUploadError(Exception):
-    """Base exception for curriculum upload errors."""
-    pass
-
-
 class CurriculumUploadService:
     """
     Orchestrates the multi-stage AI curriculum upload pipeline.

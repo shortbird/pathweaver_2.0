@@ -106,8 +106,7 @@ OptioException (base)
 │   ├── InvalidFileTypeError
 │   ├── FileTooLargeError
 │   └── VirusScanFailedError
-├── RateLimitExceededError
-└── ConfigurationError
+└── RateLimitExceededError
 ```
 
 See [backend/exceptions.py](../exceptions.py) for full documentation.

@@ -154,29 +154,6 @@ def get_description(subject_key):
     """Get description for a school subject."""
     return SCHOOL_SUBJECT_DESCRIPTIONS.get(subject_key, "")
 
-def get_suggested_subjects_for_pillar(pillar):
-    """
-    Get suggested school subjects based on the selected pillar.
-    Never returns electives - uses CTE as catch-all for unrecognized pillars.
-    """
-    subjects = PILLAR_TO_SUBJECTS.get(pillar, [])
-    # Use CTE as catch-all for hands-on/practical work, not electives
-    return subjects if subjects else ['cte']
-
-def format_subjects_for_display(subjects):
-    """Format school subjects list for display."""
-    if not subjects:
-        return "No subjects specified"
-    
-    display_names = [get_display_name(subject) for subject in subjects]
-    
-    if len(display_names) == 1:
-        return display_names[0]
-    elif len(display_names) == 2:
-        return f"{display_names[0]} & {display_names[1]}"
-    else:
-        return f"{', '.join(display_names[:-1])} & {display_names[-1]}"
-
 def get_all_subjects_with_info():
     """Get all school subjects with their display info."""
     return [
@@ -238,7 +215,3 @@ def normalize_subject_key(subject_input):
     
     # Return None if no match found
     return None
-
-def is_valid_subject(subject_key):
-    """Check if a school subject key is valid."""
-    return subject_key in SCHOOL_SUBJECTS

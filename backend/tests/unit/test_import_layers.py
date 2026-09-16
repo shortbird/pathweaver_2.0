@@ -72,7 +72,7 @@ def _layer_of(module: str) -> str | None:
 # permanently-failing ratchet protects nothing; this number is a record of
 # accepted debt, NOT a fix, and exists so the NEXT violation is caught.
 # Ratchet down as sites are migrated. Never raise it again without saying so.
-BASELINE_VIOLATIONS = 12
+BASELINE_VIOLATIONS = 10
 
 
 def test_forbidden_cross_layer_imports_do_not_grow():

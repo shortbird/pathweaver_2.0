@@ -218,37 +218,6 @@ def log_safe_auth_attempt(email: str, success: bool, **kwargs) -> dict:
 
 
 # Convenience functions for common logging patterns
-def log_user_action(logger, level: str, action: str, user_id: Optional[str], **kwargs):
-    """
-    Log user action with masked user ID
-
-    Args:
-        logger: Logger instance
-        level: Log level ('debug', 'info', 'warning', 'error')
-        action: Action description
-        user_id: User ID to mask
-        **kwargs: Additional context
-    """
-    log_func = getattr(logger, level)
-    context = log_safe_user_context(user_id, **kwargs)
-    log_func(f"[USER_ACTION] {action}", extra=context)
-
-
-def log_auth_event(logger, level: str, event: str, email: str, success: bool, **kwargs):
-    """
-    Log authentication event with masked email
-
-    Args:
-        logger: Logger instance
-        level: Log level ('debug', 'info', 'warning', 'error')
-        event: Event description
-        email: Email to mask
-        success: Whether event was successful
-        **kwargs: Additional context
-    """
-    log_func = getattr(logger, level)
-    context = log_safe_auth_attempt(email, success, **kwargs)
-    log_func(f"[AUTH] {event}", extra=context)
 
 
 # Testing

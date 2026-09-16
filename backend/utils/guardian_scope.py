@@ -130,13 +130,6 @@ def guardian_relationship(caller_id: str, student_id: str):
     }
 
 
-def is_guardian_of(caller_id: str, student_id: str) -> bool:
-    """True when `caller_id` may act for `student_id` as a guardian or staff."""
-    if caller_id and caller_id == student_id:
-        return True
-    return guardian_relationship(caller_id, student_id) is not None
-
-
 def guardian_capabilities(caller_id: str, student_id: str) -> dict:
     """What a guardian may DO on this student's screens.
 

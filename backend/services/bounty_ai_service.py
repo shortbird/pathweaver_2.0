@@ -212,7 +212,3 @@ Return a single JSON object: {{"ideas": [{{"title": str, "description": str,
                 'rewards': rewards,
             })
         return ideas
-
-
-def get_bounty_ai_service() -> BountyAIService:
-    return BountyAIService()

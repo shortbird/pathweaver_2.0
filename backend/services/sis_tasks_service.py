@@ -251,8 +251,3 @@ def list_my_tasks(org_id: str, user_id: str, audience: str = 'staff',
 
     return {'tasks': tasks, 'counts': counts,
             'signature_statement': onboarding.SIGNATURE_STATEMENT}
-
-
-def open_task_count(org_id: str, user_id: str, audience: str = 'staff') -> int:
-    """Badge fuel: how many things are outstanding for this person."""
-    return list_my_tasks(org_id, user_id, audience=audience)['counts']['open']

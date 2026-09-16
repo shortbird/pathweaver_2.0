@@ -3,9 +3,8 @@ Security middleware for input validation and request sanitization
 """
 import re
 import secrets
-from flask import request, jsonify, abort, g
-from functools import wraps
-from typing import Dict, Any
+from flask import request, abort, g
+from typing import Any
 
 from app_config import Config
 from utils.logger import get_logger
@@ -217,74 +216,6 @@ class SecurityMiddleware:
             # Return other types as-is (numbers, booleans, null)
             return data
 
-def validate_json_schema(schema: Dict):
-    """Decorator to validate JSON request against a schema"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not request.is_json:
-                return jsonify({'error': 'Content-Type must be application/json'}), 400
-            
-            data = request.json
-            errors = []
-            
-            # Check required fields
-            for field in schema.get('required', []):
-                if field not in data:
-                    errors.append(f"Missing required field: {field}")
-            
-            # Validate field types and constraints
-            for field, constraints in schema.get('properties', {}).items():
-                if field in data:
-                    value = data[field]
-                    
-                    # Type validation
-                    expected_type = constraints.get('type')
-                    if expected_type:
-                        if expected_type == 'string' and not isinstance(value, str):
-                            errors.append(f"{field} must be a string")
-                        elif expected_type == 'number' and not isinstance(value, (int, float)):
-                            errors.append(f"{field} must be a number")
-                        elif expected_type == 'boolean' and not isinstance(value, bool):
-                            errors.append(f"{field} must be a boolean")
-                        elif expected_type == 'array' and not isinstance(value, list):
-                            errors.append(f"{field} must be an array")
-                        elif expected_type == 'object' and not isinstance(value, dict):
-                            errors.append(f"{field} must be an object")
-                    
-                    # String constraints
-                    if isinstance(value, str):
-                        if 'minLength' in constraints and len(value) < constraints['minLength']:
-                            errors.append(f"{field} must be at least {constraints['minLength']} characters")
-                        if 'maxLength' in constraints and len(value) > constraints['maxLength']:
-                            errors.append(f"{field} must be at most {constraints['maxLength']} characters")
-                        if 'pattern' in constraints:
-                            pattern = re.compile(constraints['pattern'])
-                            if not pattern.match(value):
-                                errors.append(f"{field} format is invalid")
-                    
-                    # Number constraints
-                    if isinstance(value, (int, float)):
-                        if 'minimum' in constraints and value < constraints['minimum']:
-                            errors.append(f"{field} must be at least {constraints['minimum']}")
-                        if 'maximum' in constraints and value > constraints['maximum']:
-                            errors.append(f"{field} must be at most {constraints['maximum']}")
-                    
-                    # Array constraints
-                    if isinstance(value, list):
-                        if 'minItems' in constraints and len(value) < constraints['minItems']:
-                            errors.append(f"{field} must have at least {constraints['minItems']} items")
-                        if 'maxItems' in constraints and len(value) > constraints['maxItems']:
-                            errors.append(f"{field} must have at most {constraints['maxItems']} items")
-            
-            if errors:
-                return jsonify({'error': 'Validation failed', 'details': errors}), 400
-            
-            return f(*args, **kwargs)
-        
-        return decorated_function
-    return decorator
-
 def sanitize_html(text: str) -> str:
     """Sanitize HTML content to prevent XSS"""
     # Allow only safe HTML tags
@@ -313,18 +244,6 @@ def validate_uuid(uuid_string: str) -> bool:
         re.IGNORECASE
     )
     return bool(uuid_pattern.match(uuid_string))
-
-def validate_url(url: str) -> bool:
-    """Validate URL format"""
-    url_pattern = re.compile(
-        r'^https?://'  # http:// or https://
-        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
-        r'localhost|'  # localhost...
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
-        r'(?::\d+)?'  # optional port
-        r'(?:/?|[/?]\S+)$', re.IGNORECASE
-    )
-    return bool(url_pattern.match(url))
 
 # Export middleware instance
 security_middleware = SecurityMiddleware()

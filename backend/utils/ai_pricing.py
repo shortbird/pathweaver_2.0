@@ -3,7 +3,7 @@ Gemini token pricing lookup.
 
 One place that answers "what does a token cost on model X". Both the per-request
 cost logging in services/base_ai_service.py and the aggregate reporting in
-services/cost_tracker.py go through here, so a model swap only needs a new entry
+every caller goes through here, so a model swap only needs a new entry
 in Config.GEMINI_PRICING.
 
 Before this existed, both call sites hardcoded gemini-2.5-flash-lite rates, so

@@ -13,7 +13,7 @@ ROUTES = REPO_ROOT / "routes"
 
 # Patterns that indicate direct DB access from a route file (vs going through
 # a repository or service). Bump these down as repositories absorb more code.
-BASELINE_USER_CLIENT = 5
+BASELINE_USER_CLIENT = 4
 BASELINE_SUPABASE_CLIENT = 12  # get_user_client() + get_supabase_client() combined
 
 

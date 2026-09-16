@@ -70,11 +70,6 @@ def get_kid() -> str:
     return kid
 
 
-def get_private_key_pem() -> str:
-    """Return the private key as PEM (for libraries that want the string form)."""
-    return Config.CANVAS_LTI_PRIVATE_KEY_PEM or ""
-
-
 def get_public_jwks() -> dict:
     """Return our JWKS document. Empty `keys` array if unconfigured — Canvas
     polls JWKS periodically, so we don't want to 500 just because keys aren't

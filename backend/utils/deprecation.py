@@ -107,28 +107,6 @@ def log_deprecated_access(endpoint, user_id=None, client_info=None):
     )
 
 
-def get_deprecation_stats():
-    """
-    Get statistics on deprecated endpoint usage.
-
-    This would typically query a logging/analytics database to return
-    usage statistics for deprecated endpoints.
-
-    Returns:
-        dict: Statistics about deprecated endpoint usage
-
-    Note:
-        This is a placeholder for future implementation.
-        Requires integration with logging aggregation system.
-    """
-    # TODO: Implement when logging aggregation is set up
-    # For now, return a placeholder
-    return {
-        "message": "Deprecation statistics not yet implemented",
-        "note": "Check application logs for deprecated_api_access events"
-    }
-
-
 def should_block_deprecated_access():
     """
     Determine if deprecated endpoints should be blocked (after sunset date).

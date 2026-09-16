@@ -27,7 +27,7 @@ ROUTES = Path(__file__).resolve().parents[2] / "routes"
 # permanently-failing ratchet protects nothing; this number is a record of
 # accepted debt, NOT a fix, and exists so the NEXT violation is caught.
 # Ratchet down as sites are migrated. Never raise it again without saying so.
-BASELINE = 23
+BASELINE = 22
 
 
 def _direct_storage_upload_sites() -> list[str]:

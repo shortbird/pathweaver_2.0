@@ -151,12 +151,3 @@ def get_rate_limit(limit_key: str, environment: str = 'production') -> dict:
 
     # Return environment-specific config, fallback to production if missing
     return limit_config.get(environment, limit_config.get('production'))
-
-def get_lockout_config() -> dict:
-    """
-    Get account lockout configuration.
-
-    Returns:
-        dict: Lockout config with max_attempts, lockout_duration, window
-    """
-    return ACCOUNT_LOCKOUT
