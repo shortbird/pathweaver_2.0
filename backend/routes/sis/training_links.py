@@ -237,7 +237,7 @@ def create_training_link(user_id):
     fields, field_err = _fields_from(data, org_id, repo)
     if field_err:
         return jsonify({'success': False, 'error': field_err}), 400
-    row = repo.create({**fields, 'organization_id': org_id, 'created_by': user_id})
+    row = repo.create_link({**fields, 'organization_id': org_id, 'created_by': user_id})
     if not row:
         raise RuntimeError('Training link insert returned no row')
     logger.info(f"Training link {row['id']} added by {user_id} for org {org_id}")
@@ -256,7 +256,7 @@ def update_training_link(user_id, link_id):
         return jsonify({'success': False, 'error': field_err}), 400
     if not fields:
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
-    row = repo.update(link['id'], fields) or {**link, **fields}
+    row = repo.update_link(link['id'], fields) or {**link, **fields}
     return jsonify({'success': True, 'link': _shape(row)})
 
 
@@ -268,7 +268,7 @@ def delete_training_link(user_id, link_id):
     _org_id, link, repo, err = _owned_link(user_id, link_id)
     if err:
         return err
-    repo.delete(link['id'])
+    repo.delete_link(link['id'])
     return jsonify({'success': True})
 
 

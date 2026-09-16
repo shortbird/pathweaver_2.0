@@ -64,15 +64,15 @@ class _FakeRepo:
                  'acknowledged_at': 'now'}
                 for (rid, uid, v) in self.acks if rid in link_ids]
 
-    def create(self, fields):
+    def create_link(self, fields):
         self.created.append(fields)
         return {'id': 'new-link', 'version_date': 'v1', **fields}
 
-    def update(self, link_id, fields):
+    def update_link(self, link_id, fields):
         self.updated.append((link_id, fields))
         return {**self.get_owned(ORG, link_id), **fields}
 
-    def delete(self, link_id):
+    def delete_link(self, link_id):
         self.deleted.append(link_id)
 
     def mark_done(self, link_id, user_id, version_date):
@@ -166,7 +166,7 @@ class TestTheRepositoryFilesItAsStaffTraining:
         table.execute.return_value = Mock(data=[{'id': 'x'}])
         client = Mock()
         client.table.return_value = table
-        TrainingLinkRepository(client=client).create({'title': 'T', 'url': 'https://x'})
+        TrainingLinkRepository(client=client).create_link({'title': 'T', 'url': 'https://x'})
         assert inserted[0]['is_training'] is True
         assert inserted[0]['audience'] == 'staff'
         assert inserted[0]['version_date']

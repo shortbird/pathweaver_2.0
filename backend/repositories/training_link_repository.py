@@ -86,8 +86,11 @@ class TrainingLinkRepository(BaseRepository):
         ))
 
     # ── writes ───────────────────────────────────────────────────────────────
+    # Named *_link rather than create/update/delete: BaseRepository's three
+    # return a row (or raise) and take an owner predicate, and an override
+    # with a different contract fails the release's mypy gate (2026-09-15).
 
-    def create(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def create_link(self, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         now = datetime.now(timezone.utc).isoformat()
         rows = (self.client.table(self.table_name).insert({
             **fields,
@@ -99,14 +102,14 @@ class TrainingLinkRepository(BaseRepository):
         }).execute()).data
         return rows[0] if rows else None
 
-    def update(self, link_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def update_link(self, link_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         rows = (self.client.table(self.table_name).update({
             **fields,
             'updated_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', link_id).eq('is_training', True).execute()).data
         return rows[0] if rows else None
 
-    def delete(self, link_id: str) -> None:
+    def delete_link(self, link_id: str) -> None:
         self.client.table(self.table_name).delete() \
             .eq('id', link_id).eq('is_training', True).execute()
 
