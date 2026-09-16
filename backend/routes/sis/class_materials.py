@@ -32,7 +32,7 @@ import uuid as _uuid
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
-from utils.auth.relationships import require_relationship_to
+from utils.auth.relationships import relationship_between, require_relationship_to
 from modules.gate import require_module
 from utils.logger import get_logger
 from utils.validation import validate_uuid
@@ -449,6 +449,30 @@ def delete_material(user_id, class_id, material_id):
 @bp.route('/classes/by-quest/<quest_id>/materials', methods=['GET'])
 @require_auth
 def list_materials_by_quest(user_id, quest_id):
+    # Family scope: a parent on a child's quest page asks with ?student_id=.
+    # _access answers "are you IN this class?" and a guardian never is, so the
+    # curriculum panel 403'd for every parent who opened a class quest for
+    # their child (Sentry OPTIO-WEB-1X). The gate here is the guardian
+    # relationship -- the one /parent/students/<id>/materials declares -- and
+    # the answer is the STUDENT's read: visible rows only, never can_manage, so
+    # a parent who is staff elsewhere gets no more here than the child would.
+    student_id = (request.args.get('student_id') or '').strip()
+    if student_id and student_id != user_id:
+        if _bad_uuid(student_id):
+            return jsonify({'success': False, 'error': 'Invalid student id'}), 400
+        if relationship_between(user_id, student_id, allow=('parent',)) != 'parent':
+            return jsonify({'success': False, 'error': _FORBIDDEN}), 403
+        class_row, _, err = _resolve_class_for_quest(student_id, quest_id)
+        if err:
+            return err
+        # admin client justified: RLS-deny-all class_materials read; the guardian relationship above is the gate and the student's own participant gate ran in _resolve_class_for_quest
+        admin = get_supabase_admin_client()
+        rows = _list_materials(admin, class_row['id'], visible_only=True)
+        inherited = curriculum_materials_for_class(admin, class_row['id'], visible_only=True)
+        return jsonify({'success': True,
+                        'can_manage': False,
+                        'materials': _serialize_many(rows, False, False, user_id, inherited)})
+
     class_row, is_moderator, err = _resolve_class_for_quest(user_id, quest_id)
     if err:
         return err

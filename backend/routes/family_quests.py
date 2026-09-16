@@ -33,6 +33,7 @@ from database import get_supabase_admin_client
 from routes.dependents import verify_parent_role
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import student_scope
+from utils.db_fetch import fetch_all_rows
 from utils.pillar_utils import is_valid_pillar, normalize_pillar_name
 from utils.storage_urls import sign_stored_url
 from services.image_service import search_quest_image
@@ -131,19 +132,21 @@ def list_family_quests(user_id):
     enrollment_ids = [e['id'] for e in enrollments]
     tasks_by_enrollment = {}
     if enrollment_ids:
-        tasks = supabase.table('user_quest_tasks') \
-            .select('id, user_quest_id') \
-            .in_('user_quest_id', enrollment_ids).eq('approval_status', 'approved') \
-            .execute().data or []
+        # Paged: a family on many quests crosses the 1,000-row cap here, and a
+        # truncated read silently under-counts every member's tasks (Sentry
+        # OPTIO-BACKEND-90, a family dashboard on 2026-09-14).
+        tasks = fetch_all_rows(lambda: supabase.table('user_quest_tasks')
+                               .select('id, user_quest_id')
+                               .in_('user_quest_id', enrollment_ids)
+                               .eq('approval_status', 'approved'))
         for t in tasks:
             tasks_by_enrollment.setdefault(t['user_quest_id'], set()).add(t['id'])
 
     done_by_user_quest = {}
     if enrollments:
-        completions = supabase.table('quest_task_completions') \
-            .select('user_id, quest_id, user_quest_task_id') \
-            .in_('user_id', family_ids).in_('quest_id', quest_ids) \
-            .execute().data or []
+        completions = fetch_all_rows(lambda: supabase.table('quest_task_completions')
+                                     .select('id, user_id, quest_id, user_quest_task_id')
+                                     .in_('user_id', family_ids).in_('quest_id', quest_ids))
         for c in completions:
             if c.get('user_quest_task_id'):
                 done_by_user_quest.setdefault((c['user_id'], c['quest_id']), set()).add(c['user_quest_task_id'])

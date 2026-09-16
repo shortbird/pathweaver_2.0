@@ -177,3 +177,51 @@ class TestDenied:
         teaches(False)
         user = {'id': 'teacher', 'organization_id': None}
         assert _can_access(COMPLETION, user, ['advisor'], _Admin(student_org=None)) is False
+
+
+@pytest.fixture(autouse=True)
+def no_guardian(monkeypatch):
+    """_can_access now asks the relationship gate whether the caller is the
+    student's parent. Default it to "no" so every test above keeps meaning what
+    it meant; the guardian tests below flip it."""
+    monkeypatch.setattr('routes.credit_messages.relationship_between',
+                        lambda *_a, **_k: None)
+
+
+class TestGuardian:
+    """A parent working in family scope opens the child's completed task and
+    its feedback thread. The page rendered and the thread answered 403
+    (Hearthwood parent, 2026-09-15: Sentry OPTIO-WEB-1Y on read, OPTIO-WEB-23
+    on post)."""
+
+    def test_the_students_parent_gets_in(self, monkeypatch, teaches):
+        teaches(False)
+        asked = []
+
+        def gate(caller_id, target_id, allow):
+            asked.append((caller_id, target_id, tuple(allow)))
+            return 'parent'
+
+        monkeypatch.setattr('routes.credit_messages.relationship_between', gate)
+        user = {'id': 'paige', 'organization_id': ORG}
+        assert _can_access(COMPLETION, user, ['parent'], _Admin()) is True
+        # Asked about THIS student, with the parent predicate only -- not a
+        # staff fallback that would let any platform user through.
+        assert asked == [('paige', 'student-1', ('parent',))]
+
+    def test_a_parent_of_someone_else_is_still_denied(self, monkeypatch, teaches):
+        teaches(False)
+        monkeypatch.setattr('routes.credit_messages.relationship_between',
+                            lambda *_a, **_k: None)
+        user = {'id': 'other-parent', 'organization_id': ORG}
+        assert _can_access(COMPLETION, user, ['parent'], _Admin()) is False
+
+    def test_platform_staff_answer_from_the_gate_is_not_a_parent(self, monkeypatch, teaches):
+        """relationship_between falls back to STAFF for Optio platform users.
+        That is not the guardian claim this branch is for; staff reach the
+        thread through the reviewer branch, on its own terms."""
+        teaches(False)
+        monkeypatch.setattr('routes.credit_messages.relationship_between',
+                            lambda *_a, **_k: 'staff')
+        user = {'id': 'someone', 'organization_id': ORG}
+        assert _can_access(COMPLETION, user, ['parent'], _Admin()) is False
