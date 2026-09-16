@@ -21,6 +21,8 @@ from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Any, Optional
 
 from app_config import Config
+from repositories.sis_billing_repository import (SisInvoiceLineItemRepository,
+                                                 SisPaymentRecordRepository)
 from services import sis_pricing as pricing
 from utils.db_fetch import fetch_all_rows
 from utils.validation import validate_uuid
@@ -2302,17 +2304,49 @@ def _create_autopay_plan(org_id: str, inv: Dict[str, Any], saved_pm: Dict[str, A
     first_charge = None
     if installments:
         first_charge = _charge_installment(org_id, plan, installments[0], saved_pm, secret,
-                                           recorded_by=saved_pm.get('guardian_user_id'))
+                                           recorded_by=saved_pm.get('guardian_user_id'),
+                                           invoice=inv)
     return {'plan': plan, 'first_charge': first_charge}
+
+
+# Stripe's list view shows amount, customer and description. Metadata only
+# shows once a charge is opened. Two autopay charges on one family therefore
+# looked identical: on 2026-09-15 iCreate read the September installment on
+# Kayla Rose's two invoices ($73.00 each, four seconds apart) as a double
+# payment. The description names the invoice, the due date and the classes
+# so the two rows tell themselves apart.
+STRIPE_DESCRIPTION_MAX = 500
+
+
+def _stripe_description(invoice: Optional[Dict[str, Any]], what: str) -> Optional[str]:
+    """'INV-2026-D73AD6 autopay 2026-09-15: Spanish Adventures; Maker: Remade'.
+
+    `what` says which charge on the invoice this is (an installment's due
+    date, or 'monthly tuition'). Processing-fee lines are left out: they are
+    not what the family bought. None when there is no invoice to name, so the
+    intent is created without a description rather than with an empty one."""
+    if not invoice:
+        return None
+    label = invoice.get('invoice_number') or f"Invoice {str(invoice.get('id') or '')[:8]}"
+    head = f"{label} {what}".rstrip()
+    lines = SisInvoiceLineItemRepository(client=_admin()).for_invoice(invoice['id'])
+    names = [(li.get('description') or '').strip() for li in lines if li.get('kind') != 'fee']
+    names = [n for n in names if n]
+    desc = f"{head}: {'; '.join(names)}" if names else head
+    return desc[:STRIPE_DESCRIPTION_MAX]
 
 
 def _charge_installment(org_id: str, plan: Dict[str, Any], installment: Dict[str, Any],
                         saved_pm: Dict[str, Any], secret: str,
-                        recorded_by: Optional[str] = None) -> Dict[str, Any]:
+                        recorded_by: Optional[str] = None,
+                        invoice: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Charge one installment off-session against the saved card. On success
     records the payment (marks the installment paid + recomputes the invoice); on
     failure marks it late, logs the error, and emails the family once (no
-    auto-retry — staff follow up). Returns {'status': 'charged'|'failed', ...}."""
+    auto-retry — staff follow up). Returns {'status': 'charged'|'failed', ...}.
+
+    `invoice` is the row the caller already holds; it only feeds the Stripe
+    description, so a caller without one still charges."""
     invoice_id = plan.get('invoice_id')
     amount = installment.get('amount_cents') or 0
     now = _now()
@@ -2328,17 +2362,31 @@ def _charge_installment(org_id: str, plan: Dict[str, Any], installment: Dict[str
 
     try:
         import stripe
+        # The idempotency key makes a second create for the same attempt
+        # replay the first PaymentIntent instead of charging the card again.
+        # Nothing else stops that: two sweeps overlapping (a cron retry, a
+        # manual /charge-due beside the schedule) both read the installment
+        # as scheduled, and Stripe would honour both creates. The attempt
+        # number is in the key so a future retry of a declined installment
+        # is a new request, not a 24-hour replay of the decline.
         intent = stripe.PaymentIntent.create(
             api_key=secret, amount=amount, currency='usd',
             customer=saved_pm['stripe_customer_id'],
             payment_method=saved_pm['stripe_payment_method_id'],
             off_session=True, confirm=True,
-            metadata={'kind': 'autopay', 'installment_id': installment['id'], 'invoice_id': invoice_id})
+            description=_stripe_description(invoice, f"autopay {installment.get('due_date') or ''}"),
+            metadata={'kind': 'autopay', 'installment_id': installment['id'], 'invoice_id': invoice_id},
+            idempotency_key=f"autopay-{installment['id']}-{attempts}")
     except Exception as e:  # noqa: BLE001 — card declines raise here (CardError etc.)
         logger.warning(f'[SIS billing] autopay charge failed for installment {installment["id"]}: {e}')
         return _mark_failed(str(e))
     if intent.get('status') != 'succeeded':
         return _mark_failed(f"status={intent.get('status')}")
+    # A replayed intent (same key, see above) comes back with the id the
+    # first sweep already recorded. Recording it twice would double the
+    # ledger even though the card was charged once.
+    if SisPaymentRecordRepository(client=_admin()).by_external_ref(invoice_id, intent.get('id')):
+        return {'status': 'charged', 'payment_intent': intent.get('id'), 'replayed': True}
     record_payment(org_id, invoice_id, amount_cents=amount, method='card',
                    external_ref=intent.get('id'), installment_id=installment['id'],
                    recorded_by=recorded_by, note='Auto-charge (Stripe)')
@@ -2403,7 +2451,8 @@ def charge_due_installments(org_id: Optional[str] = None,
                .lte('due_date', today).order('due_date').execute()).data or []
         for inst in due:
             result = _charge_installment(oid, plan, inst, saved, secret,
-                                         recorded_by=saved.get('guardian_user_id'))
+                                         recorded_by=saved.get('guardian_user_id'),
+                                         invoice=inv)
             if result.get('status') == 'charged':
                 charged += 1
             else:
@@ -2896,13 +2945,18 @@ def charge_invoice_off_session(org_id: str, invoice: Dict[str, Any],
         return {'status': 'failed', 'error': 'Nothing due on this invoice'}
     try:
         import stripe
+        # Same description and idempotency rules as _charge_installment. The
+        # sweep creates this invoice fresh each month, so the invoice id alone
+        # is the key: one charge per invoice through this path.
         intent = stripe.PaymentIntent.create(
             api_key=secret, amount=amount, currency='usd',
             customer=saved_pm['stripe_customer_id'],
             payment_method=saved_pm['stripe_payment_method_id'],
             off_session=True, confirm=True,
+            description=_stripe_description(invoice, 'monthly tuition'),
             metadata={'kind': 'recurring_tuition', 'invoice_id': invoice['id'],
-                      'organization_id': org_id})
+                      'organization_id': org_id},
+            idempotency_key=f"recurring-{invoice['id']}")
     except Exception as e:  # noqa: BLE001 — card declines raise here
         logger.warning(f"[SIS billing] recurring charge failed for invoice {invoice['id'][:8]}: {e}")
         return {'status': 'failed', 'error': str(e)[:400]}
