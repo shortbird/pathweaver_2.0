@@ -63,8 +63,8 @@ const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  * referring to icons by names nothing imported.
  * Warnings: 2183, unchanged — the fixes are all in the error class.
  */
-const ERROR_BASELINE = 239
-const WARNING_BASELINE = 2183
+const ERROR_BASELINE = 180
+const WARNING_BASELINE = 1848
 
 /**
  * Slack, so ordinary churn does not force an edit to this file on every commit,

@@ -13,7 +13,6 @@ import Input from '../Input'
 import RolePill from '../RolePill'
 import Skeleton from '../Skeleton'
 import Spinner from '../Spinner'
-import StatusBadge from '../StatusBadge'
 
 /**
  * Accessibility smoke tests (QF-08).
@@ -44,7 +43,6 @@ const cases = [
   ['RolePill', <RolePill role="student" />],
   ['Skeleton', <Skeleton />],
   ['Spinner', <Spinner />],
-  ['StatusBadge', <StatusBadge status="active" />],
 ]
 
 describe('shared UI primitives have no obvious a11y violations', () => {
@@ -65,7 +63,7 @@ describe('clickable divs', () => {
   // drift: a single-line grep only sees `<div onClick=` when both sit on one
   // line, and most JSX spreads its attributes over several. `[^>]*` in a JS
   // regex crosses newlines, so this counts the multi-line ones too.
-  const BASELINE = 142
+  const BASELINE = 105
 
   it('do not multiply', () => {
     const SRC = path.resolve(__dirname, '../../..')

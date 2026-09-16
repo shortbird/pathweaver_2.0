@@ -180,7 +180,7 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // 927 -> 921 on 2026-09-15 (parent refactor, phase 2): the notifications
 // page moved onto hooks/api/useNotifications with the bell, and the OEA page
 // reads the family through fetchFamilyChildren.
-const CALL_SITE_BASELINE = 921
+const CALL_SITE_BASELINE = 786
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

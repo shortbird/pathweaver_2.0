@@ -54,10 +54,6 @@ vi.mock('../components/communication/CreateGroupModal', () => ({
   default: ({ isOpen }) => isOpen ? <div data-testid="create-group-modal">Create Group Modal</div> : null
 }))
 
-vi.mock('../components/notifications/PushNotificationBanner', () => ({
-  default: () => <div data-testid="push-banner">Push Banner</div>
-}))
-
 const mockConversations = [
   { id: 'c1', other_user: { id: 'u2', display_name: 'Alice' }, last_message_at: '2025-01-01' },
   { id: 'c2', other_user: { id: 'u3', display_name: 'Bob' }, last_message_at: '2025-01-02' }

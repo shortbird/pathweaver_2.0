@@ -28,7 +28,7 @@ const ROOT = path.resolve(__dirname, '..')
 const CONFIG = path.resolve(__dirname, '../../tailwind.config.js')
 
 /** Measured 2026-09-03. Ratchet DOWN as colours move to tokens. */
-const OFF_PALETTE_BASELINE = 293
+const OFF_PALETTE_BASELINE = 174
 const SLACK = 40
 
 const HEX = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g

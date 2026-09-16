@@ -54,11 +54,6 @@ vi.mock('../../components/onboarding/CourseOnboardingSteps', () => ({
   default: () => null
 }))
 
-// Mock QuestJourneyMap
-vi.mock('../../components/courses/QuestJourneyMap', () => ({
-  default: () => <div data-testid="quest-journey-map" />
-}))
-
 // Mock CurriculumView
 vi.mock('../../components/curriculum/CurriculumView', () => ({
   default: ({ questId, initialLessonId, previewMode }) => (
