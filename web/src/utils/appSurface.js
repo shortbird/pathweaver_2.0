@@ -1,7 +1,9 @@
+import { PROD_APP_URL } from './canonicalUrl'
+
 /**
  * App Surface — one codebase, two products.
  *
- * The same built SPA serves both the Learning app (on www.optioeducation.com) and
+ * The same built SPA serves both the Learning app (on app.optioeducation.com) and
  * the SIS console (on sis.optioeducation.com). This module decides which surface to
  * render, and provides helpers to hop between them.
  *
@@ -12,7 +14,14 @@
  */
 
 const SIS_PROD_URL = 'https://sis.optioeducation.com'
-const LEARNING_PROD_URL = 'https://www.optioeducation.com'
+// The learning app moved from www to app at the 2026-09-01 cutover, and this
+// constant did not move with it. www kept a fixed allowlist of 301s to app, so
+// most hops still landed - /dashboard, /quests/x, /login all redirect - and
+// nobody noticed until an org admin viewing as a parent pressed "Switch to
+// Learning app": the parent hop goes to /family, which is not on the list, and
+// www served its real 404 page (iCreate, 2026-09-15). Every cross-host hop and
+// every family-facing link built here must name the host that serves the SPA.
+const LEARNING_PROD_URL = PROD_APP_URL
 const SURFACE_KEY = 'optio_surface'
 const SIS_FLAG_KEY = 'optio_sis_flag'
 
@@ -56,7 +65,7 @@ export function getAppSurface() {
 /**
  * Absolute origin of the Learning app — where every family-facing link (e.g.
  * the iCreate registration link) must point. On real Optio hosts this is always
- * the www origin, even when the current page is the SIS console: links copied
+ * the app origin, even when the current page is the SIS console: links copied
  * from sis.optioeducation.com must never send families to the SIS host.
  */
 export function getLearningOrigin() {
@@ -147,7 +156,7 @@ export function goToLearningSurface(path = '/') {
 // Listed explicitly rather than inferred, so a genuine typo still lands on a
 // dashboard instead of bouncing between hosts forever.
 
-/** Learning-app paths the SIS console hands back to www. */
+/** Learning-app paths the SIS console hands back to app. */
 export const LEARNING_SURFACE_PATHS = [
   '/school',
   '/announcements',

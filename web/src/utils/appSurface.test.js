@@ -5,6 +5,8 @@ import {
   isSisHost,
   goToSisSurface,
   goToLearningSurface,
+  switchSurfaceInApp,
+  getLearningOrigin,
   isSisSurfacePath,
   LEARNING_SURFACE_PATHS,
   SIS_SURFACE_PATHS,
@@ -80,6 +82,41 @@ describe('appSurface', () => {
     goToLearningSurface('/dashboard')
     expect(localStorage.getItem('optio_surface')).toBeNull()
     expect(assign).toHaveBeenCalledWith('/dashboard')
+  })
+})
+
+// The learning app lives on app.optioeducation.com since the 2026-09-01
+// cutover. www is the marketing site with a fixed allowlist of 301s, so a hop
+// that names www only works for the paths on that list. /family was not, and
+// an org admin viewing as a parent got www's 404 page from "Switch to Learning
+// app" (iCreate, 2026-09-15).
+describe('prod host hops', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setLocation({ hostname: 'sis.optioeducation.com' })
+  })
+
+  it('switchSurfaceInApp sends the SIS console to the app host, not www', () => {
+    switchSurfaceInApp('learning', '/family')
+    expect(window.location.href).toBe('https://app.optioeducation.com/family')
+  })
+
+  it('goToLearningSurface sends the SIS console to the app host, not www', () => {
+    goToLearningSurface('/login')
+    expect(window.location.href).toBe('https://app.optioeducation.com/login')
+  })
+
+  it('getLearningOrigin names the app host from the SIS console', () => {
+    expect(getLearningOrigin()).toBe('https://app.optioeducation.com')
+  })
+
+  it('getLearningOrigin keeps the local origin off the real hosts', () => {
+    Object.defineProperty(window, 'location', {
+      value: { hostname: 'localhost', search: '', origin: 'http://localhost:3000', href: '' },
+      writable: true,
+      configurable: true,
+    })
+    expect(getLearningOrigin()).toBe('http://localhost:3000')
   })
 })
 

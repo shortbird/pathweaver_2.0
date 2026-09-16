@@ -18,7 +18,7 @@ const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), patch: v
 vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => vi.fn(async () => true) }))
-vi.mock('../../utils/appSurface', () => ({ getLearningOrigin: () => 'https://www.optioeducation.com' }))
+vi.mock('../../utils/appSurface', () => ({ getLearningOrigin: () => 'https://app.optioeducation.com' }))
 
 import KioskDevicesCard from './KioskDevicesCard'
 
@@ -58,7 +58,7 @@ describe('KioskDevicesCard', () => {
 
   it('points the admin at the kiosk URL on the learning host', async () => {
     render(<KioskDevicesCard orgId="org-1" />)
-    expect(await screen.findByText('https://www.optioeducation.com/kiosk')).toBeInTheDocument()
+    expect(await screen.findByText('https://app.optioeducation.com/kiosk')).toBeInTheDocument()
   })
 
   it('adding a device reloads the list, where the new code appears', async () => {
