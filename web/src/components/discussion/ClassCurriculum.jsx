@@ -16,9 +16,13 @@ import api from '../../services/api'
  * is not a participant (or the quest has no class) the backend returns 403/404
  * and this component renders nothing.
  */
-export default function ClassCurriculum({ classId, questId, className = '', refreshSignal = 0, onMaterialsLoaded }) {
+export default function ClassCurriculum({ classId, questId, studentId, className = '', refreshSignal = 0, onMaterialsLoaded }) {
+  // `studentId` is the child a parent is working for (family scope). The
+  // backend gates the by-quest read on class membership, which a guardian
+  // never has; naming the student turns it into the child's own read, gated
+  // on the family relationship instead (visible rows only, never manage).
   const base = questId
-    ? `/api/sis/classes/by-quest/${questId}/materials`
+    ? `/api/sis/classes/by-quest/${questId}/materials${studentId ? `?student_id=${encodeURIComponent(studentId)}` : ''}`
     : `/api/sis/classes/${classId}/materials`
   // Writes always target the class-id path (students never have a classId here).
   const writeBase = classId ? `/api/sis/classes/${classId}/materials` : null

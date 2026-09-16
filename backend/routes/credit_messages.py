@@ -5,14 +5,17 @@ Two-way conversation on a task's credit submission: the reviewer's "Grow This"
 feedback lives in diploma_review_rounds, but this thread lets the student reply and
 ask questions (and the reviewer answer) without resubmitting evidence.
 
-Accessible to the student who owns the completion and to reviewers (superadmin, or
-an org_admin/advisor in the student's organization). Student-facing copy is branded
-"Optio" rather than naming the org admin.
+Accessible to the student who owns the completion, to the student's parent (a
+guardian working in family scope opens the child's completed task and reads the
+thread with them), and to reviewers (superadmin, or an org_admin/advisor in the
+student's organization). Student-facing copy is branded "Optio" rather than
+naming the org admin.
 """
 
 from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_auth
+from utils.auth.relationships import relationship_between
 from utils.roles import get_effective_role, get_effective_roles
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -67,6 +70,13 @@ def _load_context(user_id, completion_id, admin):
     return comp.data, u.data, roles
 
 
+def _is_guardian(caller_id, student_id):
+    """Whether `caller_id` is the student's parent, by any of the three links
+    `utils.portfolio_access.is_parent_of` knows -- the same answer the
+    student-scoped quest routes give when the parent opened this task."""
+    return relationship_between(caller_id, student_id, allow=('parent',)) == 'parent'
+
+
 def _can_access(completion, user, roles, admin):
     """Whether `user` may read/post in this completion's thread.
 
@@ -79,6 +89,14 @@ def _can_access(completion, user, roles, admin):
     if completion['user_id'] == user['id']:
         return True  # the student who owns the work
     if 'superadmin' in roles:
+        return True
+    # The student's parent. Family scope (2026-09-15) renders the child's own
+    # quest page for the parent, and a completed task there carries this
+    # thread; the page loaded and the thread answered 403 (Hearthwood parent,
+    # Sentry OPTIO-WEB-1Y on read, OPTIO-WEB-23 on post). A parent may do
+    # everything the child can do, so they read and reply on the family's side
+    # of the conversation.
+    if _is_guardian(user['id'], completion['user_id']):
         return True
     # A reviewer specifically designated on THIS completion always has access,
     # even if not otherwise assigned to the student.
@@ -168,7 +186,10 @@ def post_credit_message(user_id, completion_id):
         if len(body) > 4000:
             return jsonify({'success': False, 'error': 'Message is too long'}), 400
 
-        is_student = completion['user_id'] == user_id
+        # The family's side of the thread: the student, or a parent replying
+        # for them. Either way the reviewer is the one to notify.
+        is_student = (completion['user_id'] == user_id
+                      or _is_guardian(user_id, completion['user_id']))
         # Store the author's effective role so the thread can brand superadmin as
         # "Optio" while showing org teachers (org_admin/advisor) by name.
         author_role = get_effective_role(user) or ('student' if is_student else 'reviewer')

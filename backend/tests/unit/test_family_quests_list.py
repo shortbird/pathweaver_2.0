@@ -173,3 +173,23 @@ def test_each_member_carries_their_rhythm_on_the_quest(app):
         body = _call(app, _answers(), [ROMNEY, SIBLING])
     trip = next(q for q in body['quests'] if q['id'] == TRIP)
     assert trip['members'][0]['rhythm']['state'] == 'in_flow'
+
+
+def test_the_task_and_completion_reads_are_paged(app):
+    # A family on many quests crosses the 1,000-row PostgREST cap on
+    # user_quest_tasks, and a truncated read silently under-counts every
+    # member's tasks (Sentry OPTIO-BACKEND-90, 2026-09-14). Both unbounded
+    # reads go through fetch_all_rows, which pages.
+    paged = []
+
+    def fake_fetch_all_rows(build_query, **kwargs):
+        query = build_query()
+        paged.append(query._table)
+        return query.execute().data
+
+    with patch.object(family_quests, 'fetch_all_rows', side_effect=fake_fetch_all_rows):
+        body = _call(app, _answers(), [ROMNEY, SIBLING])
+
+    assert paged == ['user_quest_tasks', 'quest_task_completions']
+    trip = next(q for q in body['quests'] if q['id'] == TRIP)
+    assert trip['members'][0]['progress'] == {'completed_tasks': 1, 'total_tasks': 2, 'percentage': 50}

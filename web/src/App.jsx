@@ -104,8 +104,6 @@ const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
 // Program pages (Hearthwood Academy, Treehouse, Gryffin, POE) are lazy-loaded and
 // routed via the program registry — see src/programs/registry.jsx.
 // Credit & Transcript Pages
-const CreditTrackerPage = lazy(() => import('./pages/CreditTrackerPage'))
-const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
 // Other Pages
 const DiplomaPage = lazy(() => import('./pages/DiplomaPage'))
 const StudentOverviewPage = lazy(() => import('./pages/StudentOverviewPage'))
@@ -657,14 +655,15 @@ function App() {
                     asking the office for. */}
                 <Route path="family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
                 <Route path="family/billing" element={<FamilyBillingPage />} />
-                {/* Credit & Transcript Routes: the signed-in student's own
-                    rows, or the scoped child's. An unscoped parent goes to
-                    /family rather than to an empty transcript of their own --
-                    the same rule as /overview below, applied late (2026-09-15). */}
-                <Route element={<PrivateRoute blockRoles={['observer']} requireFamilyScope />}>
-                  <Route path="credits" element={<CreditTrackerPage />} />
-                  <Route path="transcript" element={<TranscriptPage />} />
-                </Route>
+                {/* /credits and /transcript were pages of their own until
+                    2026-09-16. Neither was in the nav, and both called
+                    endpoints that do not exist (/api/credits/<id> and
+                    /api/users/<id>/transcript), so every visit was a red
+                    "Failed to load" -- for a parent, under the wrong id. The
+                    diploma, the credits by subject and the transcript all
+                    live on /overview, which already applies family scope. */}
+                <Route path="credits" element={<Navigate to="/overview" replace />} />
+                <Route path="transcript" element={<Navigate to="/overview" replace />} />
                 {/* Student Overview - Unified page combining profile, diploma, and constellation.
                     Renders the viewer's OWN student portfolio -- or, for a parent in family
                     scope, the child's. An unscoped parent is sent to /family, because their

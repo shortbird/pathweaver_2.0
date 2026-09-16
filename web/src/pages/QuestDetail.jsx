@@ -800,7 +800,7 @@ const QuestDetail = () => {
 
         {user?.organization_id && quest.user_enrollment && !orgLoading
           && !moduleKnownOff(organization, 'classes') && (
-          <ClassCurriculum questId={quest.id} className="mt-6" />
+          <ClassCurriculum questId={quest.id} studentId={inFamilyScope ? scopeId : undefined} className="mt-6" />
         )}
       </div>
 

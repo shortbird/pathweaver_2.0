@@ -80,7 +80,6 @@ KNOWN_DEAD = {
     '/api/admin/roster-import/__param__',
     '/api/advisor/student-overview',
     '/api/bounties/__param__/claims/__param__/evidence/__param__/__param__',
-    '/api/credits/__param__',
     '/api/evidence__param__',
     '/api/lms/grade-sync/status',
     '/api/lms/integration/status',
@@ -96,7 +95,6 @@ KNOWN_DEAD = {
     '/api/users/__param__/completed-quests',
     '/api/users/__param__/profile',
     '/api/users/__param__/settings',
-    '/api/users/__param__/transcript',
 }
 
 

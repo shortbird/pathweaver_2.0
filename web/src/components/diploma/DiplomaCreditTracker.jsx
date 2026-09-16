@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { useStudentScope } from '../../hooks/useStudentScope';
 import CreditIterationHistory from './CreditIterationHistory';
 import {
   ClockIcon,
@@ -42,6 +43,10 @@ const FILTER_TABS = [
 ];
 
 export default function DiplomaCreditTracker() {
+  // Family scope: on a child's dashboard this is the CHILD's credit requests.
+  // Every other read on that page carries the scope; this one showed the
+  // parent's own (empty) list under the child's name.
+  const { params: scopeParams, scopeId } = useStudentScope();
   const [creditRequests, setCreditRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,12 +64,13 @@ export default function DiplomaCreditTracker() {
     mountedRef.current = true;
     fetchCreditRequests();
     return () => { mountedRef.current = false; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeId]);
 
   const fetchCreditRequests = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/tasks/my-credit-requests');
+      const response = await api.get('/api/tasks/my-credit-requests', { params: scopeParams });
       if (!mountedRef.current) return;
       const requests = response.data.data?.credit_requests || [];
       setCreditRequests(requests);

@@ -100,9 +100,10 @@ const schema = [
             Your kid is already doing the work. We make it count.
           </h1>
           <p class="text-lg sm:text-xl text-neutral-300 font-medium leading-relaxed mb-8">
-            Optio Academy is a WASC-accredited online private school where credit comes from
-            evidence of learning, not hours in a chair. The projects, sports, and passions your
-            kid already has, reviewed by licensed teachers, on an official transcript.
+            Optio Academy is a WASC-accredited online private school built around your kid.
+            You lead the learning at home. The projects, sports, and passions they already
+            have are reviewed by licensed teachers and land on an official transcript. Credit
+            comes from evidence of learning, not hours in a chair.
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
             <a href="#free-class" data-track="hero_free_class" class="btn-inverse btn-lg">Try a free class</a>
@@ -141,6 +142,36 @@ const schema = [
             />
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== WHAT IT IS, IN PLAIN WORDS ========== -->
+  <section class="bg-white">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-14 sm:py-16 text-center">
+      <p class="text-sm font-semibold uppercase tracking-wider text-optio-purple mb-3">What Optio Academy is</p>
+      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 leading-tight mb-5">
+        An accredited school, personalized to your kid.
+      </h2>
+      <p class="text-lg text-neutral-500 font-medium leading-relaxed">
+        The diploma requirements are the same ones every high school uses: 24 credits across
+        math, science, language arts, social studies, and the rest. How your kid meets them,
+        from kindergarten through senior year, is up to your family. You teach, guide, and decide what the year looks like. Optio gives the
+        work structure, reviews the evidence, keeps the official record, and issues the transcript
+        and diploma. That is the whole arrangement: your kid's real life becomes their education,
+        and it counts.
+      </p>
+      <div class="grid sm:grid-cols-3 gap-5 mt-10 text-left">
+        {[
+          { title: 'You lead', body: 'Parents are the teachers. Set the direction, pick the projects, work alongside your kid from your own login.' },
+          { title: 'Optio makes it official', body: 'Licensed teacher review, an accredited transcript, and a diploma that transfers anywhere.' },
+          { title: 'Nothing is wasted', body: 'Bring the work from before Optio. Transfer credit goes on the transcript too.' },
+        ].map((c) => (
+          <div class="rounded-2xl border border-neutral-100 bg-neutral-50 p-5">
+            <h3 class="text-base font-bold text-neutral-900 mb-1">{c.title}</h3>
+            <p class="text-sm text-neutral-500 font-medium leading-relaxed">{c.body}</p>
+          </div>
+        ))}
       </div>
     </div>
   </section>
@@ -336,7 +367,7 @@ const schema = [
           },
           {
             title: 'The homeschooler',
-            desc: 'Keep the freedom, add licensed teacher review and an accredited diploma.',
+            desc: 'Keep the freedom, bring the work you have already done, and add licensed teacher review and an accredited diploma.',
           },
         ].map((p) => (
           <div class="border-l-2 border-optio-purple/30 pl-5">

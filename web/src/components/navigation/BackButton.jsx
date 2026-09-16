@@ -15,8 +15,6 @@ const TAB_ROOTS = new Set([
   '/overview',
   '/observer/feed',
   '/learning-journal',
-  '/credits',
-  '/transcript',
   '/my-classes',
   '/classes',
   '/org-classes',
