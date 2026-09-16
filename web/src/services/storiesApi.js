@@ -40,6 +40,14 @@ export const storiesApi = {
   dismissCandidate: (candidateId) =>
     api.post(`/api/admin/stories/candidates/${candidateId}/dismiss`, {}).then(unwrap),
 
+  /** The bookmark the app's feed sets, from the grader (routes/stories/candidates.py).
+   *  `on` omitted toggles. Resolves { candidate, is_story_candidate }. */
+  toggleCandidate: ({ targetType = 'task_completed', targetId, on }) =>
+    api.post('/api/admin/stories/candidates/toggle', {
+      target_type: targetType, target_id: targetId,
+      ...(on === undefined ? {} : { on }),
+    }).then(unwrap),
+
   /** What the grader panel needs before it offers a Publish button. */
   eligibility: (completionId) =>
     api.get(`/api/admin/stories/eligibility/${completionId}`)

@@ -82,10 +82,7 @@ const GraderDecision = ({
           )}
 
           <XpField
-            // Remount on every settled value: the draft below is only ever the
-            // reviewer's in-progress typing, and a value that arrived from
-            // elsewhere (the AI, a revert) should replace it outright.
-            key={`${item.completion_id}:${effectiveXp}`}
+            key={item.completion_id}
             claimedXp={claimedXp}
             xp={xp}
             aiXp={aiXp}
@@ -407,13 +404,31 @@ const AiRecommendationCard = ({
  *
  * Free for a superadmin, who is the final stamp; a number for anyone else,
  * because the final XP is Optio's call and letting a partner trim it on the way
- * through would make the second reviewer's figure a surprise. Commits on blur
- * rather than on every keystroke: rescaling the subject split around a
- * half-typed "1" would show a split nobody meant.
+ * through would make the second reviewer's figure a surprise.
+ *
+ * Every keystroke that reads as a figure at or above the floor goes straight
+ * out, so the subject split and the Approve button follow the box as it is
+ * typed. It used to wait for blur, and a reviewer lowering the total saw the
+ * split sit still until they clicked away, which read as the split not
+ * following at all. Blur still clamps whatever is left to the floor.
  */
 const XpField = ({ claimedXp, xp, aiXp, aiRationale, editable, onChange }) => {
   const shown = xp ?? claimedXp
   const [draft, setDraft] = useState(String(shown ?? ''))
+
+  // A value that arrived from elsewhere (the AI, a revert) replaces the draft.
+  const [seen, setSeen] = useState(shown)
+  if (seen !== shown) {
+    setSeen(shown)
+    setDraft(String(shown ?? ''))
+  }
+
+  const type = (value) => {
+    setDraft(value)
+    const n = parseInt(value, 10)
+    if (Number.isNaN(n) || n < MIN_XP) return
+    onChange(n === claimedXp ? null : n)
+  }
 
   const commit = () => {
     const n = parseInt(draft, 10)
@@ -459,7 +474,7 @@ const XpField = ({ claimedXp, xp, aiXp, aiRationale, editable, onChange }) => {
             step="5"
             inputMode="numeric"
             value={draft}
-            onChange={e => setDraft(e.target.value)}
+            onChange={e => type(e.target.value)}
             onBlur={commit}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}
             className="w-28 text-base md:text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-optio-purple/20 focus:border-optio-purple px-3 py-2"

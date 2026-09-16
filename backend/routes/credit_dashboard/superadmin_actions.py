@@ -180,27 +180,11 @@ def approve_credit(user_id: str, completion_id: str):
                 'feedback_at': now
             }).eq('id', completion_data['user_quest_task_id']).execute()
 
-        # Notify student
-        try:
-            from services.notification_service import NotificationService
-            notification_service = NotificationService()
-            quest_id = completion_data.get('quest_id', '')
-            task_id_for_link = completion_data.get('user_quest_task_id', '')
-            notification_link = f'/quests/{quest_id}?task={task_id_for_link}' if quest_id else '/dashboard'
-            notification_service.create_notification(
-                user_id=student_id,
-                notification_type='diploma_credit_approved',
-                title='Diploma Credit Approved',
-                message=f'Your diploma credit for "{task_data.get("title", "a task")}" has been approved! {total_xp_finalized} subject XP earned.',
-                link=notification_link,
-                metadata={
-                    'task_id': completion_data.get('user_quest_task_id'),
-                    'completion_id': completion_id,
-                    'xp_finalized': total_xp_finalized
-                }
-            )
-        except Exception as notify_err:
-            logger.warning(f"Failed to notify student of credit approval: {notify_err}")
+        # Deliberately no student notification here. Credit review happens
+        # in batches, so one grading session used to fire a dozen
+        # "Diploma Credit Approved" pings (and mobile pushes) at one student
+        # in a row. The approval is visible on the task itself via
+        # latest_feedback above; only grow-this (which needs action) notifies.
 
         record_ai_outcome(admin_supabase, completion_id, data, xp_result)
 

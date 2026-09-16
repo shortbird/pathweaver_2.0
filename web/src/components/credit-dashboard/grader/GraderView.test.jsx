@@ -43,6 +43,7 @@ const itemStub = {
 
 function renderGrader({
   role, status, evidence_blocks = [], review_rounds = [], task = {}, props = {},
+  suggested_subjects = { math: 100 },
 }) {
   const detail = {
     completion: {
@@ -63,7 +64,7 @@ function renderGrader({
     student: { display_name: 'Clare B' },
     evidence_blocks,
     review_rounds,
-    suggested_subjects: { math: 100 },
+    suggested_subjects,
     is_org_student: true,
   }
   return render(withConfirm(
@@ -116,6 +117,39 @@ describe('GraderView — superadmin can review at any stage', () => {
     renderGrader({ role: 'superadmin', status: 'pending_org_approval' })
     expect(screen.getByText(/subject xp distribution/i)).toBeInTheDocument()
     expect(screen.getByLabelText('XP for math')).toBeInTheDocument()
+  })
+
+  it('the subject split and the Approve button follow the XP box as it is typed', () => {
+    renderGrader({
+      role: 'superadmin', status: 'pending_review',
+      task: { xp_value: 200, diploma_subjects: ['math', 'science'], subject_xp_distribution: { math: 150, science: 50 } },
+      suggested_subjects: { math: 150, science: 50 },
+      props: { item: { ...itemStub, xp_value: 200, diploma_status: 'pending_review' } },
+    })
+    const box = screen.getByLabelText('XP to award')
+    const split = () => [screen.getByLabelText('XP for math').value, screen.getByLabelText('XP for science').value]
+
+    // Below the floor nothing moves: a half-typed "1" is not a figure yet.
+    fireEvent.change(box, { target: { value: '1' } })
+    expect(split()).toEqual(['150', '50'])
+
+    // At a figure the split and the button follow without a blur.
+    fireEvent.change(box, { target: { value: '100' } })
+    expect(split()).toEqual(['75', '25'])
+    expect(screen.getByRole('button', { name: /^approve at 100 xp/i })).toBeInTheDocument()
+
+    // Typing 250 passes through 25 on the way. The split is rescaled from the
+    // task's own 150/50 each time, so the 25 leaves no rounding behind.
+    fireEvent.change(box, { target: { value: '25' } })
+    expect(split()).toEqual(['20', '5'])
+    fireEvent.change(box, { target: { value: '250' } })
+    expect(split()).toEqual(['185', '65'])
+
+    // Blur clamps a figure under the floor to the floor.
+    fireEvent.change(box, { target: { value: '7' } })
+    fireEvent.blur(box)
+    expect(box.value).toBe('25')
+    expect(split()).toEqual(['20', '5'])
   })
 
   it('plain org_admin still sees the original "Approve for Optio Review" label', () => {

@@ -208,6 +208,7 @@ def publish_story(user_id: str):
 @require_superadmin
 def eligibility(user_id: str, completion_id: str):
     """What the grader panel needs before it shows a button."""
+    from repositories.story_candidate_repository import StoryCandidateRepository
     from services.stories import source_quest
     from utils.ai_access import check_ai_access
 
@@ -231,12 +232,17 @@ def eligibility(user_id: str, completion_id: str):
     user_quest_id = task.get('user_quest_id')
     quest_status = source_quest.status(user_quest_id, repo=source_repo) if user_quest_id else None
     quest_story = story_repo.get_by_source('quest', user_quest_id) if user_quest_id else None
+    # The grader's only story action since 2026-09-15 is the bookmark that the
+    # app's feed also sets (routes/stories/candidates.py); the panel shows
+    # which state it is in.
+    candidate = StoryCandidateRepository().get_by_target('task_completed', completion_id)
 
     return success_response(data={'eligibility': {
         'completion_id': completion_id,
         'student_user_id': student_id,
         'eligible': not reasons,
         'reasons': reasons,
+        'is_story_candidate': bool(candidate and candidate.get('status') == 'open'),
         # Not a gate: the story says whether the credit is earned or pending.
         'credited': source_quest.credited(completion, quest),
         # The same shape the detail view sends, so the grader chip and the

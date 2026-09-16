@@ -36,6 +36,13 @@ export default function useCreditDecision({
   const [xp, setXpState] = useState(null)
   const [xpReason, setXpReason] = useState(null)
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false)
+  // The split every XP figure is rescaled FROM: the task's suggestion, or the
+  // reviewer's last hand edit of the subject rows. Not the split on screen.
+  // The XP box rescales on every keystroke, and rescaling 150/50 through a
+  // half-typed "25" on the way to "250" rounds it to 20/5 and then back up to
+  // 200/50, when the answer is 185/65. A fixed basis makes each figure an
+  // independent question with one answer.
+  const splitBasisRef = useRef({})
 
   const completionId = item?.completion_id
   const claimedXp = item?.xp_value
@@ -45,6 +52,7 @@ export default function useCreditDecision({
   // discard subject edits the reviewer made while they waited.
   useEffect(() => {
     setEditedSubjects(detail?.suggested_subjects || {})
+    splitBasisRef.current = detail?.suggested_subjects || {}
     setXpState(null)
     setXpReason(null)
   }, [detail?.completion?.id])
@@ -93,8 +101,10 @@ export default function useCreditDecision({
       setXpReason(null)
       return
     }
-    setEditedSubjects(prev => rescaleSubjects(
-      sumSubjects(prev) > 0 ? prev : (detail?.suggested_subjects || {}), value))
+    const basis = sumSubjects(splitBasisRef.current) > 0
+      ? splitBasisRef.current
+      : (detail?.suggested_subjects || {})
+    setEditedSubjects(rescaleSubjects(basis, value))
     setXpState(value)
     setXpReason(reason || XP_REASON_DEFAULT)
   }, [claimedXp, detail?.suggested_subjects])
@@ -109,6 +119,7 @@ export default function useCreditDecision({
    */
   const updateSubjects = useCallback((next) => {
     setEditedSubjects(next)
+    splitBasisRef.current = next
     const total = sumSubjects(next)
     if (!Object.keys(next).length || total === claimedXp) {
       setXpState(null)
@@ -301,7 +312,7 @@ export default function useCreditDecision({
 
       const acceptedXp = changingXp ? aiXpInfo.recommended : null
       const subjects = acceptedXp != null
-        ? rescaleSubjects(editedSubjects, acceptedXp)
+        ? rescaleSubjects(sumSubjects(splitBasisRef.current) > 0 ? splitBasisRef.current : editedSubjects, acceptedXp)
         : undefined
 
       // Reflect the decision on screen as well as in the request, so a failed

@@ -288,3 +288,28 @@ class TestStartingAStoryFromTheQueue:
         assert client.post(f'/api/admin/stories/candidates/{cid}/dismiss').status_code == 200
         assert repo.rows[cid]['status'] == 'dismissed'
         assert client.delete(f'/api/admin/stories/candidates/{cid}').status_code == 200
+
+
+class TestGraderEligibilityReadsTheBookmark:
+    """The grader's story panel (web) is one bookmark button since 2026-09-15.
+    It reads the bookmark's state off the eligibility payload it already
+    fetches, so the panel opens showing "in the queue" for an item the
+    superadmin flagged from the app's feed."""
+
+    def test_not_a_candidate_until_flagged(self, client, world, monkeypatch):
+        monkeypatch.setattr('utils.ai_access.check_ai_access', lambda uid, strict=True: (True, None, None))
+        body = client.get(f'/api/admin/stories/eligibility/{COMPLETION}').get_json()['data']['eligibility']
+        assert body['is_story_candidate'] is False
+
+        client.post('/api/admin/stories/candidates/toggle', json={
+            'target_type': 'task_completed', 'target_id': COMPLETION, 'on': True})
+        body = client.get(f'/api/admin/stories/eligibility/{COMPLETION}').get_json()['data']['eligibility']
+        assert body['is_story_candidate'] is True
+
+    def test_a_dismissed_bookmark_reads_as_not_a_candidate(self, client, world, monkeypatch):
+        monkeypatch.setattr('utils.ai_access.check_ai_access', lambda uid, strict=True: (True, None, None))
+        repo = world['candidates']
+        row = repo.flag('task_completed', COMPLETION, student_user_id=STUDENT, flagged_by=ADMIN)
+        repo.resolve(row['id'], 'dismissed')
+        body = client.get(f'/api/admin/stories/eligibility/{COMPLETION}').get_json()['data']['eligibility']
+        assert body['is_story_candidate'] is False

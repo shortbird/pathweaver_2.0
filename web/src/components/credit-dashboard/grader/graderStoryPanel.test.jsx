@@ -1,14 +1,13 @@
 /**
- * The story panel under a finalized item.
+ * The story panel under a credit item.
  *
- * Who sees it (a superadmin, once credit is final), what one click sends, and
- * the three places the poll can land: published with the www link, review
- * with the blockers, failed with a retry. The consent chip and its record
- * form are here too, because the chip is the only warning about which tier
- * the story publishes in.
+ * Who sees it (a superadmin, at any stage), and the one thing it does since
+ * 2026-09-15: bookmark the item for the Stories page. It used to draft and
+ * publish from here; those tests went with the buttons. A story that already
+ * exists shows its status and a link instead.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import api from '../../../services/api'
 import GraderStoryPanel from './GraderStoryPanel'
 import GraderView from './GraderView'
@@ -30,57 +29,37 @@ const ELIGIBLE = {
   success: true,
   consent: null,
   existing_story: null,
+  is_story_candidate: false,
   credited: true,
   quest: { user_quest_id: 'uq1', title: 'Bridge', can_start: true, complete: true, task_count: 5, submitted_task_count: 5, credited_task_count: 5 },
   student_user_id: 'stu1',
   is_org_student: false,
 }
 
-const storyAt = (status, extra = {}) => ({
-  success: true,
-  story: { id: 'st1', status, title: 'A fall of soccer', slug: 'a-fall-of-soccer', ...extra.story },
-  assets: [],
-  consent: null,
-  blockers: extra.blockers || [],
-  concerns: extra.concerns || [],
-  marketing_url: extra.marketing_url || null,
-})
-
 let eligibility
-let storyResponses
 
 const mockApi = () => {
   api.get.mockImplementation(async (url) => {
     if (url.startsWith('/api/admin/stories/eligibility/')) return { data: eligibility }
-    if (url.startsWith('/api/admin/stories/')) {
-      const next = storyResponses.length > 1 ? storyResponses.shift() : storyResponses[0]
-      return { data: next }
-    }
     return { data: { data: {} } }
   })
-  api.post.mockImplementation(async (url) => {
-    if (url === '/api/admin/stories/publish') return { status: 202, data: storyAt('generating') }
-    if (url.endsWith('/regenerate')) return { status: 202, data: storyAt('generating') }
-    if (url === '/api/admin/stories/consents') {
-      return { data: { success: true, consent: {
-        id: 'c1', active: true, scope: { work: true, first_name: true, image_voice: false, age: false },
-        source: 'written', granted_at: '2026-09-11T00:00:00Z',
-      } } }
+  api.post.mockImplementation(async (url, body) => {
+    if (url === '/api/admin/stories/candidates/toggle') {
+      return { data: { success: true, candidate: body.on ? { id: 'cand-1' } : null, is_story_candidate: !!body.on } }
     }
     return { data: { data: {} } }
   })
 }
 
 const renderPanel = (props = {}) => render(withConfirm(
-  <GraderStoryPanel completionId="comp-1" pollIntervalMs={5} {...props} />,
+  <GraderStoryPanel completionId="comp-1" {...props} />,
 ))
 
-const publishCalls = () => api.post.mock.calls.filter(([url]) => url === '/api/admin/stories/publish')
+const toggleCalls = () => api.post.mock.calls.filter(([url]) => url === '/api/admin/stories/candidates/toggle')
 
 beforeEach(() => {
   vi.clearAllMocks()
   eligibility = { ...ELIGIBLE }
-  storyResponses = [storyAt('generating')]
   mockApi()
 })
 
@@ -112,7 +91,7 @@ describe('where the panel appears', () => {
   it('shows for a superadmin on a finalized item', async () => {
     renderGrader({ role: 'superadmin', status: 'finalized' })
     expect(screen.getByRole('region', { name: 'Story for www' })).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Publish story' })
+    await screen.findByRole('button', { name: 'Add to story review' })
   })
 
   it('is hidden for an org admin', () => {
@@ -123,167 +102,93 @@ describe('where the panel appears', () => {
   it('shows before credit is final too, since 2026-09-15', async () => {
     renderGrader({ role: 'superadmin', status: 'pending_review' })
     expect(screen.getByRole('region', { name: 'Story for www' })).toBeInTheDocument()
-    await screen.findByRole('button', { name: 'Publish story' })
+    await screen.findByRole('button', { name: 'Add to story review' })
   })
 })
 
-describe('the buttons', () => {
-  it('publishes the submission in auto mode', async () => {
+describe('the bookmark', () => {
+  it('is the only action: no publish, no whole quest, no draft', async () => {
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
-    await waitFor(() => expect(publishCalls()).toHaveLength(1))
-    expect(publishCalls()[0][1]).toEqual({
-      source_type: 'credit_submission', source_id: 'comp-1', mode: 'auto',
-    })
+    await screen.findByRole('button', { name: 'Add to story review' })
+    expect(screen.queryByRole('button', { name: /publish/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /draft/i })).toBeNull()
+    expect(screen.queryByText(/consent/i)).toBeNull()
   })
 
-  it('publishes the whole quest with its task count', async () => {
+  it('flags the completion and then says it is in the queue', async () => {
     renderPanel()
-    const button = await screen.findByRole('button', { name: /Publish whole quest/ })
-    expect(button).toHaveTextContent('(5 tasks)')
-    expect(button).toBeEnabled()
-    fireEvent.click(button)
-    await waitFor(() => expect(publishCalls()).toHaveLength(1))
-    expect(publishCalls()[0][1]).toEqual({ source_type: 'quest', source_id: 'uq1', mode: 'auto' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add to story review' }))
+    await waitFor(() => expect(toggleCalls()).toHaveLength(1))
+    expect(toggleCalls()[0][1]).toEqual({ target_type: 'task_completed', target_id: 'comp-1', on: true })
+    await screen.findByTestId('story-flagged')
+    expect(screen.getByRole('link', { name: 'Open Stories' })).toHaveAttribute('href', '/admin/stories')
+    expect(screen.queryByRole('button', { name: 'Add to story review' })).toBeNull()
   })
 
-  it('cannot publish a quest with nothing submitted', async () => {
-    eligibility = { ...ELIGIBLE, quest: { ...ELIGIBLE.quest, can_start: false, complete: false, submitted_task_count: 0, credited_task_count: 0 } }
+  it('opens already in the queue when the feed bookmarked it first', async () => {
+    eligibility = { ...ELIGIBLE, is_story_candidate: true }
     renderPanel()
-    const button = await screen.findByRole('button', { name: /Publish whole quest/ })
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', 'Nothing has been submitted in this quest yet')
+    await screen.findByTestId('story-flagged')
+    expect(screen.queryByRole('button', { name: 'Add to story review' })).toBeNull()
   })
 
-  it('publishes a partly credited quest and says how far the credit has got', async () => {
-    eligibility = { ...ELIGIBLE, credited: false, quest: { ...ELIGIBLE.quest, complete: false, submitted_task_count: 4, credited_task_count: 1 } }
+  it('takes it back out on Remove', async () => {
+    eligibility = { ...ELIGIBLE, is_story_candidate: true }
     renderPanel()
-    const button = await screen.findByRole('button', { name: /Publish whole quest/ })
-    expect(button).toBeEnabled()
-    expect(button).toHaveAttribute('title', '1 of 4 submitted tasks credited so far')
-    expect(screen.getByTestId('story-credit-pending')).toHaveTextContent('Credit is not in yet')
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(toggleCalls()).toHaveLength(1))
+    expect(toggleCalls()[0][1]).toEqual({ target_type: 'task_completed', target_id: 'comp-1', on: false })
+    await screen.findByRole('button', { name: 'Add to story review' })
   })
 
-  it('drafts for review on the small link', async () => {
+  it('stays unflagged and says so when the server refuses', async () => {
+    const { toast } = await import('react-hot-toast')
+    api.post.mockRejectedValueOnce({ response: { status: 404, data: { error: 'That feed item no longer exists.' } } })
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Draft for review instead' }))
-    await waitFor(() => expect(publishCalls()).toHaveLength(1))
-    expect(publishCalls()[0][1].mode).toBe('review')
+    fireEvent.click(await screen.findByRole('button', { name: 'Add to story review' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('That feed item no longer exists.'))
+    expect(screen.getByRole('button', { name: 'Add to story review' })).toBeEnabled()
   })
 
   it('treats an org student like any other', async () => {
     eligibility = { ...ELIGIBLE, is_org_student: true }
     renderPanel()
-    expect(await screen.findByRole('button', { name: 'Publish story' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Draft for review instead' })).toBeEnabled()
-  })
-
-  it('offers the existing story instead of a second one', async () => {
-    eligibility = { ...ELIGIBLE, existing_story: { id: 'st1', status: 'published', slug: 'a-fall-of-soccer' } }
-    storyResponses = [storyAt('published', { marketing_url: 'https://www.optioeducation.com/stories/a-fall-of-soccer/' })]
-    renderPanel()
-    const link = await screen.findByRole('link', { name: 'Open story' })
-    expect(link).toHaveAttribute('href', '/admin/stories/st1')
-    expect(screen.queryByRole('button', { name: 'Publish story' })).toBeNull()
+    expect(await screen.findByRole('button', { name: 'Add to story review' })).toBeEnabled()
   })
 })
 
-describe('after the click', () => {
-  it('polls until the story is published, then shows the link and the concerns', async () => {
-    storyResponses = [
-      storyAt('generating'),
-      storyAt('published', {
-        marketing_url: 'https://www.optioeducation.com/stories/a-fall-of-soccer/',
-        concerns: ['The second photo shows a team jersey.'],
-      }),
-    ]
+describe('an existing story', () => {
+  it('shows its status and a link instead of the bookmark', async () => {
+    eligibility = { ...ELIGIBLE, existing_story: { id: 'st1', status: 'published', title: 'A fall of soccer', slug: 'a-fall-of-soccer' } }
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
     await screen.findByText('Published')
-    expect(screen.getByRole('link', { name: 'View on www' }))
-      .toHaveAttribute('href', 'https://www.optioeducation.com/stories/a-fall-of-soccer/')
-    expect(screen.getByText('The second photo shows a team jersey.')).toBeInTheDocument()
+    expect(screen.getByText('A fall of soccer')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open story' })).toHaveAttribute('href', '/admin/stories/st1')
+    expect(screen.queryByRole('button', { name: 'Add to story review' })).toBeNull()
   })
 
-  it('lands in review with the blockers and an editor link', async () => {
-    storyResponses = [
-      storyAt('review', { blockers: [{ code: 'text_leak', field: 'dek', message: 'The dek names a town.' }] }),
-    ]
+  it('labels one still in review as an editor link', async () => {
+    eligibility = { ...ELIGIBLE, existing_story: { id: 'st1', status: 'review', title: 'A fall of soccer' } }
     renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
     await screen.findByText('Needs review')
-    expect(screen.getByText('The dek names a town.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open in editor' })).toHaveAttribute('href', '/admin/stories/st1')
   })
 
-  it('uses the page handler for the editor link when one is given', async () => {
-    storyResponses = [storyAt('review', { blockers: [] })]
+  it('uses the page handler for the link when one is given', async () => {
+    eligibility = { ...ELIGIBLE, existing_story: { id: 'st1', status: 'review', title: 'A fall of soccer' } }
     const onOpenStory = vi.fn()
     renderPanel({ onOpenStory })
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Open in editor' }))
     expect(onOpenStory).toHaveBeenCalledWith('st1')
     expect(screen.queryByRole('link', { name: 'Open in editor' })).toBeNull()
   })
-
-  it('shows the failure and retries through regenerate', async () => {
-    storyResponses = [storyAt('failed', { story: { error: 'Gemini timed out.' } })]
-    renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
-    await screen.findByText('Gemini timed out.')
-    storyResponses = [storyAt('published', { marketing_url: 'https://www.optioeducation.com/stories/x/' })]
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/admin/stories/st1/regenerate', {}))
-    await screen.findByText('Published')
-  })
-
-  it('opens the existing story on a 409', async () => {
-    api.post.mockRejectedValueOnce({
-      response: { status: 409, data: { error: 'exists', error_detail: { code: 'STORY_EXISTS', message: 'exists', details: { existing_story_id: 'st1' } } } },
-    })
-    storyResponses = [storyAt('review')]
-    renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Publish story' }))
-    await screen.findByText('Needs review')
-  })
 })
 
-describe('consent', () => {
-  it('lists the granted scopes when consent is on file', async () => {
-    eligibility = {
-      ...ELIGIBLE,
-      consent: {
-        id: 'c1', active: true, source: 'academy_agreement', granted_at: '2026-09-01T00:00:00Z',
-        scope: { work: true, first_name: true, image_voice: false, age: false },
-      },
-    }
+describe('when the check fails', () => {
+  it('shows the error and no button', async () => {
+    api.get.mockRejectedValueOnce({ response: { status: 404, data: { error: 'Submission not found.' } } })
     renderPanel()
-    await screen.findByText('Consent on file: student work, first name')
-    expect(screen.queryByRole('button', { name: 'Record consent' })).toBeNull()
-  })
-
-  it('says the story publishes anonymized when there is none, and records one inline', async () => {
-    renderPanel()
-    await screen.findByText('No consent recorded. The story publishes anonymized.')
-    fireEvent.click(screen.getByRole('button', { name: 'Record consent' }))
-    const form = screen.getByRole('form', { name: 'Record consent' })
-    fireEvent.click(within(form).getByLabelText('First name'))
-    fireEvent.change(within(form).getByLabelText('Source reference'), { target: { value: 'Email 2026-09-10' } })
-    fireEvent.click(within(form).getByRole('button', { name: 'Save consent' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/admin/stories/consents', expect.objectContaining({
-      student_user_id: 'stu1',
-      scope: { work: true, first_name: true, image_voice: false, age: false },
-      source: 'written',
-      source_ref: 'Email 2026-09-10',
-    })))
-    await screen.findByText('Consent on file: student work, first name')
-  })
-
-  it('will not record consent without a source reference', async () => {
-    renderPanel()
-    fireEvent.click(await screen.findByRole('button', { name: 'Record consent' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save consent' }))
-    expect(api.post).not.toHaveBeenCalled()
+    await screen.findByText('Submission not found.')
+    expect(screen.queryByRole('button', { name: 'Add to story review' })).toBeNull()
   })
 })

@@ -225,29 +225,10 @@ def org_approve_credit(user_id: str, completion_id: str):
 
             record_ai_outcome(admin_supabase, completion_id, data, xp_result)
 
-            # Notify the student — this IS the final step.
-            try:
-                from services.notification_service import NotificationService
-                notification_service = NotificationService()
-                quest_id = completion.data.get('quest_id', '')
-                task_id_for_link = completion.data.get('user_quest_task_id', '')
-                notification_link = (
-                    f'/quests/{quest_id}?task={task_id_for_link}' if quest_id else '/dashboard'
-                )
-                notification_service.create_notification(
-                    user_id=completion.data['user_id'],
-                    notification_type='diploma_credit_approved',
-                    title='Diploma Credit Approved',
-                    message=f'Your diploma credit for "{task_data.get("title", "a task")}" has been approved! {total_xp_finalized} subject XP earned.',
-                    link=notification_link,
-                    metadata={
-                        'task_id': completion.data.get('user_quest_task_id'),
-                        'completion_id': completion_id,
-                        'xp_finalized': total_xp_finalized,
-                    },
-                )
-            except Exception as notify_err:
-                logger.warning(f"Failed to notify student of collapsed approval: {notify_err}")
+            # Deliberately no student notification here, same as the
+            # superadmin approve route: batch grading used to fire one
+            # "Diploma Credit Approved" ping per task at the same student.
+            # The task's latest_feedback carries the approval instead.
 
             logger.info(
                 f"Superadmin {user_id[:8]} finalized credit {completion_id[:8]} "
