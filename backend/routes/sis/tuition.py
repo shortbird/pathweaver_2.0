@@ -24,23 +24,11 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_tuition', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/tuition/queue', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def tuition_queue(user_id):
     """CLP-finished students who still need a tuition invoice."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **tuition.tuition_queue(org_id)})
@@ -52,7 +40,7 @@ def tuition_queue(user_id):
 def tuition_preview(user_id, student_id):
     """One student's tuition previewed for verification (schedule + line items +
     funding). The invoice this would send, before any manual adjustment."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = tuition.tuition_preview(org_id, student_id)
@@ -68,7 +56,7 @@ def send_tuition_invoice(user_id, student_id):
     """Send one tuition invoice for the student from the approver-verified line
     items. Body: {line_items:[{description, amount_cents, class_id?}],
     discount_cents?, note?, due_date?}. Emails the family a link to pay online."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -105,7 +93,7 @@ def preview_tuition_invoice(user_id, student_id):
     reserving it is what makes this the document rather than a likeness of it.
     The only remaining difference is the issue date, which is stamped on send.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -160,7 +148,7 @@ def preview_tuition_invoice(user_id, student_id):
 @require_role(*FINANCE_ROLES)
 def list_recurring_tuition(user_id):
     """Every live monthly schedule in the org, with names and card status."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **recurring.list_for_org(org_id)})
@@ -171,7 +159,7 @@ def list_recurring_tuition(user_id):
 def create_recurring_tuition(user_id):
     """Start a monthly schedule. Body: {student_id, monthly_cents, description?,
     day_of_month?}. Billing begins once the family has saved a card."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -195,7 +183,7 @@ def create_recurring_tuition(user_id):
 @require_role(*FINANCE_ROLES)
 def update_recurring_tuition(user_id, schedule_id):
     """Change the amount, label, or billing day. Takes effect next charge."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -213,7 +201,7 @@ def update_recurring_tuition(user_id, schedule_id):
 @require_role(*FINANCE_ROLES)
 def set_recurring_tuition_status(user_id, schedule_id):
     """Pause, resume, or end a schedule. Body: {status}."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     status = (request.get_json() or {}).get('status')
@@ -228,7 +216,7 @@ def set_recurring_tuition_status(user_id, schedule_id):
 @require_role(*FINANCE_ROLES)
 def send_recurring_setup_link(user_id, household_id):
     """Email the family the no-login link that saves a card and starts billing."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = recurring.send_setup_link(org_id, household_id)

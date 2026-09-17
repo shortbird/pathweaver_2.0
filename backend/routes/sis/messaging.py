@@ -23,17 +23,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_messaging', __name__, url_prefix='/api/sis/messaging')
 
 
-def _org(user_id):
-    """(org_id, error_response). Superadmins must name the org."""
-    org_id = sis_service.resolve_org_id(user_id, request.args.get('organization_id'))
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/recipients', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def recipients(user_id):
@@ -43,7 +32,7 @@ def recipients(user_id):
     and let one person be removed before sending -- "all teachers except Sam" is
     the common case.
     """
-    org_id, err = _org(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({
@@ -61,7 +50,7 @@ def compose(user_id):
     Body: {recipient_ids: [], group_keys: [], mode: 'group'|'separate',
            subject?, body, name?, attachments?}
     """
-    org_id, err = _org(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}

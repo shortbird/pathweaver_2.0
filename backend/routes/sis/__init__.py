@@ -45,33 +45,6 @@ bp = Blueprint('sis', __name__, url_prefix='/api/sis')
 # live in routes/sis/staff_portal.py.
 
 
-def _org_or_error(user_id):
-    """Resolve the org for this request or return (None, error_response).
-
-    Accepts organization_id from the query string, a JSON body (get_json(silent)
-    so a DELETE/GET with no JSON body never raises UnsupportedMediaType), OR a
-    multipart form field.
-
-    The form field is not optional polish: a file upload is multipart, so
-    get_json returns nothing and the org the SIS org picker sent arrives only in
-    request.form. Every org-scoped caller was insulated from that because
-    resolve_org_id falls back to their own organization_id — but a superadmin has
-    none, so every upload endpoint answered "No organization in context" no
-    matter which school they were viewing.
-    """
-    body = request.get_json(silent=True) or {}
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/dashboard', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def dashboard(user_id):
@@ -81,7 +54,7 @@ def dashboard(user_id):
     what goes in the payload — finance is omitted for them rather than hidden by
     the frontend. See services/sis_dashboard_service.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_dashboard_service
@@ -92,7 +65,7 @@ def dashboard(user_id):
 @bp.route('/roster', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def roster(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'roster': sis_service.get_roster(org_id)})
@@ -108,7 +81,7 @@ def roster_export_details(user_id):
     it once. Merged onto the visible rows by the client, so the export still
     honours whatever filters and sort are on screen.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -122,7 +95,7 @@ def person_removal_preview(user_id, target_id):
     """What removing this person would affect — and whether their records rule
     out deleting the account outright. Works for students and guardians as well
     as staff (staff delegate to the staff path)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_person_service
@@ -141,7 +114,7 @@ def remove_person(user_id, target_id):
     Deleting a family never deleted the accounts inside it, so duplicate
     registrations left orphaned people in the People list with no way out. This
     is that way out."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     mode = (request.args.get('mode') or 'archive').strip().lower()
@@ -158,7 +131,7 @@ def remove_person(user_id, target_id):
 @require_role(*ADMIN_ROLES)
 def org_members(user_id):
     """Everyone in the org (for household assignment pickers)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'members': sis_service.list_org_members(org_id)})
@@ -168,7 +141,7 @@ def org_members(user_id):
 @require_role(*ADMIN_ROLES)
 def org_staff(user_id):
     """Org staff (org_admin / advisor) for the SIS Staff page."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     staff = sis_service.list_org_staff(org_id)
@@ -182,7 +155,7 @@ def org_staff(user_id):
 def create_teacher(user_id):
     """Add a teacher (advisor) to the org: creates the account + sends the
     set-password email. Accepts first_name, last_name, email, bio."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = sis_service.create_org_teacher(org_id, request.get_json() or {}, actor_id=user_id)
@@ -204,7 +177,7 @@ def create_teacher(user_id):
 def grant_staff_role(user_id):
     """Add the teacher role to an existing account (the parent-who-teaches case).
     Body: {user_id, bio?, onboarding_template_id?}."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -229,7 +202,7 @@ def set_staff_roles(user_id, staff_id):
     hand themselves the finance access the tier withholds — is refused inside
     the service against `actor_id`, not at the door.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     roles = (request.get_json() or {}).get('roles')
@@ -247,7 +220,7 @@ def link_staff(user_id, staff_id):
     """Connect a placeholder staff row to the teacher's real email. Claims the
     account in place (new email + set-password invite) or, when the email
     already has an Optio account, merges the placeholder into it."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = sis_service.link_staff_account(
@@ -263,7 +236,7 @@ def link_staff(user_id, staff_id):
 def resend_staff_invite(user_id, staff_id):
     """Re-send the account-setup email to a teacher who hasn't finished
     setting up their login. Refuses for already-active accounts."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = sis_service.resend_staff_invite(org_id, staff_id)
@@ -277,7 +250,7 @@ def resend_staff_invite(user_id, staff_id):
 @require_relationship_to('staff_id', allow=('org_staff',))
 def update_staff(user_id, staff_id):
     """Edit a staff member's profile (name, email, bio)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     updated = sis_service.update_staff_member(org_id, staff_id, request.get_json() or {})
@@ -292,7 +265,7 @@ def update_staff(user_id, staff_id):
 def staff_removal_preview(user_id, staff_id):
     """What removing this person would affect — which classes lose their teacher,
     and whether they carry history that rules out deleting them outright."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = sis_staff_service.staff_removal_preview(org_id, staff_id)
@@ -311,7 +284,7 @@ def remove_staff(user_id, staff_id):
     service when the person has attendance, timesheets, forms, or onboarding
     attached — it exists for the placeholder rows schools create while hiring.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if staff_id == user_id:
@@ -333,7 +306,7 @@ def remove_staff(user_id, staff_id):
 @require_relationship_to('staff_id', allow=('org_staff',))
 def restore_staff(user_id, staff_id):
     """Bring an archived staff member back. Their classes stay unassigned."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = sis_staff_service.restore_staff(org_id, staff_id)
@@ -348,7 +321,7 @@ def restore_staff(user_id, staff_id):
 def upload_staff_photo(user_id, staff_id):
     """Upload (or replace) a staff member's photo. Stores avatar_url on the user."""
     import uuid as _uuid
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: writes another user's avatar_url + storage bucket ops; gated by @require_role(ADMIN_ROLES) + staff-belongs-to-org check below
@@ -413,7 +386,7 @@ def upload_staff_photo(user_id, staff_id):
 @bp.route('/households', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_households(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     households = sis_service.households_with_members(org_id)
@@ -433,7 +406,7 @@ def unassigned_students(user_id):
     """Org students not in any family (excludes graduated/withdrawn), each flagged
     with any family member they look like — so staff merge duplicates instead of
     adding a second copy, and graduated students drop off the list."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'students': sis_service.unassigned_students(org_id)})
@@ -442,7 +415,7 @@ def unassigned_students(user_id):
 @bp.route('/households', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_household(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -463,7 +436,7 @@ def create_household(user_id):
 @bp.route('/households/<household_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_household(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -526,7 +499,7 @@ def delete_household(user_id, household_id):
     already said the accounts survive; it said so before the deletion, which is
     not when it is needed. Naming them afterwards is.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: deletes a household + all member links (rows owned by other users); gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
@@ -570,7 +543,7 @@ def withdraw_household(user_id, household_id):
     Remove from school > Archive does one at a time; guardians, the family
     record and every piece of history stay. Delete family is the other act,
     and the wrong one for this (iCreate, 2026-09-08, e40080a8)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_person_service
@@ -585,7 +558,7 @@ def withdraw_household(user_id, household_id):
 def upload_household_image(user_id, household_id):
     """Upload (or replace) a family photo. Stores image_url on the household."""
     import uuid as _uuid
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: storage bucket create/upload + households image_url write; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
@@ -648,7 +621,7 @@ def upload_household_image(user_id, household_id):
 @bp.route('/households/<household_id>/members', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_household_member(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -723,7 +696,7 @@ def add_household_member(user_id, household_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('member_user_id', allow=('org_staff',))
 def remove_household_member(user_id, household_id, member_user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: removes another user's household_members link; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
@@ -743,7 +716,7 @@ def remove_household_member(user_id, household_id, member_user_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def update_enrollment(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -759,7 +732,7 @@ def update_enrollment(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def update_student(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -773,7 +746,7 @@ def update_student(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('target_id', allow=('org_staff',), discloses='profile')
 def get_org_user(user_id, target_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     u = sis_service.get_org_user(org_id, target_id)
@@ -786,7 +759,7 @@ def get_org_user(user_id, target_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('target_id', allow=('org_staff',))
 def update_user_role(user_id, target_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     body = request.get_json() or {}
@@ -803,7 +776,7 @@ def update_user_role(user_id, target_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='profile')
 def get_student(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     student = sis_service.get_student(org_id, student_id)
@@ -816,7 +789,7 @@ def get_student(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='schedule')
 def student_classes(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.student_in_org(student_id, org_id):
@@ -828,7 +801,7 @@ def student_classes(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def message_student(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.student_in_org(student_id, org_id):
@@ -852,7 +825,7 @@ def message_student(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='emergency_contacts')
 def list_emergency_contacts(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.student_in_org(student_id, org_id):
@@ -864,7 +837,7 @@ def list_emergency_contacts(user_id, student_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def add_emergency_contact(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.student_in_org(student_id, org_id):
@@ -879,7 +852,7 @@ def add_emergency_contact(user_id, student_id):
 @bp.route('/emergency-contacts/<contact_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_emergency_contact(user_id, contact_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.delete_emergency_contact(contact_id, org_id):
@@ -891,7 +864,7 @@ def delete_emergency_contact(user_id, contact_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def copy_family_contacts(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not sis_service.student_in_org(student_id, org_id):
@@ -902,7 +875,7 @@ def copy_family_contacts(user_id, student_id):
 @bp.route('/households/<household_id>/message', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def message_household(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: household ownership check before messaging its guardians; gated by @require_role(ADMIN_ROLES) + household-belongs-to-org check below
@@ -924,7 +897,7 @@ def message_household(user_id, household_id):
 @bp.route('/households/<household_id>/emergency-contacts', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_household_contacts(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
@@ -935,7 +908,7 @@ def list_household_contacts(user_id, household_id):
 def get_household_registration(user_id, household_id):
     """Latest iCreate registration submitted by this household's guardians
     (answers, signatures, kids, fee). registration is null when none exists."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'registration': sis_service.household_registration(org_id, household_id)})
@@ -946,7 +919,7 @@ def get_household_registration(user_id, household_id):
 def waive_household_fee(user_id, household_id):
     """Waive this family's registration fee: mark them prepaid, finish an open
     registration at $0, and lift the fee hold. Finance-gated — it forgives money."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # Blocks P4: the shared completion step lives in
@@ -969,7 +942,7 @@ def waive_household_fee(user_id, household_id):
 @bp.route('/households/<household_id>/emergency-contacts', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_household_contact(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -983,7 +956,7 @@ def add_household_contact(user_id, household_id):
 @bp.route('/households/<household_id>/emergency-contacts/delete', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def remove_household_contact(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     ids = (request.json or {}).get('ids') or []
@@ -997,7 +970,7 @@ def remove_household_contact(user_id, household_id):
 @bp.route('/family-directives', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_family_directives(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: sis_family_directives is a staff-managed staging table keyed by parent email (no owning user); gated by @require_role(ADMIN_ROLES), filtered to resolved org
@@ -1012,7 +985,7 @@ def upsert_family_directives(user_id):
     """Bulk upsert directives by email: {directives: [{email, registration_tier,
     registration_hold, hold_reason, fee_prepaid, notes}]}."""
     from datetime import datetime
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     rows = (request.json or {}).get('directives') or []
@@ -1052,7 +1025,7 @@ def upsert_family_directives(user_id):
 @bp.route('/family-directives/<directive_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_family_directive(user_id, directive_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: delete of staff-managed sis_family_directives row; gated by @require_role(ADMIN_ROLES) + directive-belongs-to-org check below
@@ -1069,7 +1042,7 @@ def delete_family_directive(user_id, directive_id):
 @bp.route('/reports/roster.csv', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def roster_csv(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     roster = sis_service.get_roster(org_id)
@@ -1159,6 +1132,7 @@ def register_sis_routes(app):
     from routes.sis.community import bp as community_bp
     from routes.sis.messaging import bp as messaging_bp
     from routes.sis.quest_resources import bp as quest_resources_bp
+    from routes.sis.internal import bp as internal_bp
 
     for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
@@ -1250,3 +1224,6 @@ def register_sis_routes(app):
     app.register_blueprint(community_bp)
     app.register_blueprint(messaging_bp)
     app.register_blueprint(quest_resources_bp)
+    # The seven cron sweeps, declared in one place and not module-gated: a
+    # sweep is about every org at once (routes/sis/internal.py says why).
+    app.register_blueprint(internal_bp)

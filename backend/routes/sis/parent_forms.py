@@ -15,15 +15,11 @@ from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services import sis_parent_service as parent
 from services import sis_forms_service as forms
+from services import sis_service
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_parent_forms', __name__, url_prefix='/api/sis/parent')
-
-
-def _org(req):
-    body = req.get_json(silent=True) or {}
-    return req.args.get('organization_id') or body.get('organization_id')
 
 
 def _available_form_types(org_id):
@@ -45,7 +41,7 @@ def _available_form_types(org_id):
 def list_forms(user_id):
     """The caller's own family form submissions for an org, plus the form-type
     options the family picker offers."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     if not any(s['org_id'] == org_id for s in parent.registerable_students(user_id)):
@@ -61,7 +57,7 @@ def create_form(user_id):
     """File a family request. Validates the form type against PARENT_FORM_TYPES
     and (when given) that student_user_id is a child the caller may act for."""
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
 

@@ -357,7 +357,7 @@ def _assign_route(row, body=None):
     app = Flask(__name__)
     client, _ = _client({'sis_staff_training': [row] if row else []})
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(training, '_assign_item',
                       return_value={'enrolled': 3, 'already': 1, 'failed': 0}) as assigner, \
          app.test_request_context(json=body or {}):

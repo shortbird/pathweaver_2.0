@@ -14,7 +14,8 @@ from utils.logger import get_logger
 from utils.validation import sanitize_text
 from utils.validation.sanitizers import pgrst_timestamp, PostgrestFilterError
 from database import get_supabase_admin_client
-from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
+from routes.sis import STAFF_ROLES, ADMIN_ROLES
+from services import sis_service
 
 logger = get_logger(__name__)
 
@@ -83,7 +84,7 @@ def _clean(data):
 @require_role(*STAFF_ROLES)
 def list_event_rsvps(user_id, event_id):
     """Who has said they are coming — the office's headcount (9cf78e9a)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_event_rsvp_service as rsvps
@@ -116,7 +117,7 @@ def list_events(user_id):
     any event that OVERLAPS it (a multi-day event that starts before the window
     still shows), and the response carries the org's category list so the
     calendar UI needs a single request."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: sis_events is deny-all RLS (service role only); gated by @require_role(STAFF_ROLES), filtered to resolved org + audience gate below
@@ -160,7 +161,7 @@ def list_events(user_id):
 @bp.route('/events', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_event(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     fields = _clean(request.json or {})
@@ -189,7 +190,7 @@ def _owned_event(event_id, org_id):
 @require_role(*ADMIN_ROLES)
 def update_event(user_id, event_id):
     from datetime import datetime
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _owned_event(event_id, org_id):
@@ -213,7 +214,7 @@ def update_event(user_id, event_id):
 @bp.route('/events/<event_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_event(user_id, event_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _owned_event(event_id, org_id):
@@ -284,7 +285,7 @@ def build_ics(org_name, events):
 def feed_info(user_id):
     """Subscribe URLs for the org's calendar feed (token generated on first use)."""
     import secrets
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from utils.org_secrets import get_org_secret, set_org_secret, CALENDAR_FEED_TOKEN

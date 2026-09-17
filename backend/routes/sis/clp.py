@@ -26,23 +26,11 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_clp', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/clp/directory', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def clp_directory(user_id):
     """Active students grouped by family (+ a flat list) for the CLP student picker."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **clp.clp_directory(org_id)})
@@ -54,7 +42,7 @@ def clp_directory(user_id):
 def clp_student(user_id, student_id):
     """One student's CLP payload: profile, family/siblings, schedule, and the full
     catalog annotated with this student's enrollment/waitlist state + seat counts."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = clp.get_clp_student(org_id, student_id)
@@ -69,7 +57,7 @@ def clp_student(user_id, student_id):
 def update_clp_record(user_id, student_id):
     """Partial update of the student's CLP meeting record: mark the CLP
     finished/unfinished and/or save staff meeting notes."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}

@@ -97,7 +97,7 @@ def _link(**over):
 def _call(view, user_id, repo, *, json=None, is_admin=True, roles=(), **kwargs):
     app = Flask(__name__)
     with patch.object(links, '_repo', return_value=repo), \
-         patch.object(links, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(sis_service, 'caller_is_admin', return_value=is_admin), \
          patch.object(sis_service, 'caller_org_roles', return_value=list(roles)), \
          app.test_request_context(json=json):

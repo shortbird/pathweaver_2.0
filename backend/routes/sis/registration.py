@@ -22,22 +22,10 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_registration', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/registrations', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_registrations(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     status = request.args.get('status')
@@ -49,7 +37,7 @@ def list_registrations(user_id):
 @bp.route('/registrations', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_registration(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -67,7 +55,7 @@ def create_registration(user_id):
 @bp.route('/registrations/<reg_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def get_registration(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     reg = regs.get_registration(org_id, reg_id)
@@ -79,7 +67,7 @@ def get_registration(user_id, reg_id):
 @bp.route('/registrations/<reg_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_registration(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -93,7 +81,7 @@ def update_registration(user_id, reg_id):
 @bp.route('/registrations/<reg_id>/items', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_item(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -109,7 +97,7 @@ def add_item(user_id, reg_id):
 @bp.route('/registrations/<reg_id>/items/<item_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def remove_item(user_id, reg_id, item_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not regs.get_registration(org_id, reg_id):
@@ -121,7 +109,7 @@ def remove_item(user_id, reg_id, item_id):
 @bp.route('/registrations/<reg_id>/submit', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def submit_registration(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     reg = regs.get_registration(org_id, reg_id)
@@ -135,7 +123,7 @@ def submit_registration(user_id, reg_id):
 @bp.route('/registrations/<reg_id>/complete', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def complete_registration(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = regs.complete(org_id, reg_id, completed_by=user_id)
@@ -148,7 +136,7 @@ def complete_registration(user_id, reg_id):
 @bp.route('/age-exception-requests', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_age_exception_requests(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     status = request.args.get('status')
@@ -162,7 +150,7 @@ def list_age_exception_requests(user_id):
 def resolve_age_exception_request(user_id, request_id):
     """Approve (enrolls the student right away — approving IS the age override)
     or decline a pending request."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -185,7 +173,7 @@ def resolve_age_exception_request(user_id, request_id):
 @bp.route('/enrollment-waitlist', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_enrollment_waitlist(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'entries': enrollment_waitlist.list_entries(org_id)})
@@ -196,7 +184,7 @@ def list_enrollment_waitlist(user_id):
 def release_enrollment_waitlist_entry(user_id, entry_id):
     """Release ONE student ("room for 9 of the 12"): unlocks class selection,
     reopens a deferred registration fee, and emails the guardian."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = enrollment_waitlist.release(org_id, entry_id, released_by=user_id)
@@ -210,7 +198,7 @@ def release_enrollment_waitlist_entry(user_id, entry_id):
 def reject_enrollment_waitlist_entry(user_id, entry_id):
     """Not accepted: mark ONE waiting student rejected and refund their
     proportional share of the family's paid registration fee."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = enrollment_waitlist.reject(org_id, entry_id, rejected_by=user_id)
@@ -226,7 +214,7 @@ def add_enrollment_waitlist_entry(user_id):
     than the registration funnel (the old Google form, a phone call). Pass
     queued_at to record when they actually got in line so they sort into their
     real place instead of the back."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -249,7 +237,7 @@ def add_enrollment_waitlist_entry(user_id):
 def reorder_enrollment_waitlist(user_id):
     """Set an explicit order for one age band. `entry_ids` is the band's whole
     waiting list, in the order staff want it."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -268,7 +256,7 @@ def reorder_enrollment_waitlist(user_id):
 @require_role(*ADMIN_ROLES)
 def release_enrollment_waitlist_band(user_id):
     """Release every waiting student in an age band (count-confirmed client-side)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -280,7 +268,7 @@ def release_enrollment_waitlist_band(user_id):
 @bp.route('/classes/<class_id>/eligibility', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def class_eligibility(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     student_user_id = request.args.get('student')

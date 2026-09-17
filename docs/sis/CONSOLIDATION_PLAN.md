@@ -33,7 +33,7 @@ and patterns instead.
 | M10 One status pill, one door | 0 | not started | | |
 | M11 One schedule toolkit | 0 | not started | | |
 | M12 One today, one events feed, one event clock | 0 | not started | | |
-| M15 Backend route hygiene | 0 | not started | | |
+| M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | not started | | |
 | M14a/b Layout header, tab bars | 0 | not started | | |
 | M5 One quote | 1 | not started | | |
@@ -458,13 +458,20 @@ parent feed. Manifest `events_read` → 0, `today_schedule` → 0, `event_wall_c
 
 **Audit**: K1, K6. **Size S.**
 
-Canonical: new `backend/utils/org_resolve.py` with `org_or_error(user_id, *,
-allow_form=True)` built on `sis_service.resolve_org_id`, carrying the `request.form`
-fix from `routes/sis/__init__.py`; the 27 modules import it (skip `community.py`,
-owned by M1 that week). New `backend/routes/sis/internal.py` with
-`cron_route(bp, name, fn)` declaring the seven `/api/sis/internal/*` endpoints with
-one shape (`CRON_SECRET` check, JSON summary, logging); `jobs/cron_dispatch.py`
-unchanged.
+Canonical (as shipped): `sis_service.org_or_error(user_id)` and
+`sis_service.requested_org_id()`, beside `resolve_org_id` in `services/sis_service.py`
+rather than the `utils/org_resolve.py` the plan first named — utils may not import
+services (`test_import_layers`), and twenty-six tests patch
+`services.sis_service.resolve_org_id`, which keeps working only if the helper looks
+the resolver up in that module. All 27 copies went, `community.py` included (M15
+ran before M1 in the same session, so the overlap did not arise);
+`routes/admin/roster_import.py`'s same-named org-row lookup was renamed
+`_org_row_or_error`. New `backend/routes/sis/internal.py`: a `CRON_SWEEPS` table and
+`cron_route(name, fn)` declaring the seven `/api/sis/internal/*` endpoints on one
+ungated blueprint (exempted in `test_module_coverage.py` and described in
+`ROLE_CAPABILITIES.md`); the superadmin fallback reads through
+`sis_service.get_user_org_context`, so seven `users` reads left `routes/` and the
+`.table()` baseline fell 2285 → 2278. `jobs/cron_dispatch.py` unchanged.
 
 Verify: as superadmin viewing iCreate, upload a class material, a curriculum file, a
 staff document and a resource — all four succeed (today two of them say "No

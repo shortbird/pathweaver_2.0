@@ -29,18 +29,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_submissions', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _display_name(u):
     if not u:
         return 'User'
@@ -133,7 +121,7 @@ def list_submissions(user_id):
     'new' is ordered oldest-first (teachers work the backlog in order);
     'reviewed' newest-first. Both totals are always returned for the badge.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     scope = request.args.get('scope', 'new')
@@ -304,7 +292,7 @@ def list_submissions(user_id):
 def review_submission(user_id, completion_id):
     """Mark a submission reviewed ({action}, default 'accepted'). Idempotent:
     re-reviewing updates the existing row (completion_id is UNIQUE)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     completion, err = _completion_in_scope(user_id, org_id, completion_id)
@@ -389,7 +377,7 @@ def _notify_reviewed(admin, completion, action, org_id):
 @require_role(*STAFF_ROLES)
 def unreview_submission(user_id, completion_id):
     """Un-review (move back to 'new') — for accidental accepts."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _, err = _completion_in_scope(user_id, org_id, completion_id)

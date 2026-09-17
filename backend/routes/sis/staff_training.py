@@ -48,18 +48,6 @@ bp = Blueprint('sis_staff_training', __name__, url_prefix='/api/sis')
 from utils.admin_client import admin_client as _admin
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _bad_uuid(*values):
     for v in values:
         ok, _ = validate_uuid(v)
@@ -461,7 +449,7 @@ def _owned_item(user_id, training_id):
     read or written — otherwise one school could assign quests to another's
     families, or publish their drafts.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return None, err
     if _bad_uuid(training_id):
@@ -552,7 +540,7 @@ def list_training(user_id):
     Defaults to 'staff' so a teacher opening their training page sees exactly
     what they saw before the family audience existed.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     audience = _audience(request.args.get('audience'))
@@ -582,7 +570,7 @@ def assignable_training_quests(user_id):
     """Quests that could become training: the school's own, plus the public
     Optio library. Mirrors the class-quest picker, minus anything already on
     the catalog."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     admin = _admin()
@@ -624,7 +612,7 @@ def assignable_training_quests(user_id):
 @require_role(*ADMIN_ROLES)
 def add_training(user_id):
     """Mark one of the org's quests as staff training."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -701,7 +689,7 @@ def upload_training_header_image(user_id):
     — quest artwork is referenced raw from emails and cached pages, where a
     signed URL would expire before it was looked at.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -742,7 +730,7 @@ def create_training_quest(user_id):
 
     Body: {title, description?, tasks?[], audience?, category?, is_required?}
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -863,7 +851,7 @@ def create_training_quest(user_id):
 @bp.route('/training/<training_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_training(user_id, training_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(training_id):
@@ -1206,7 +1194,7 @@ def publish_training(user_id, training_id):
 def remove_training(user_id, training_id):
     """Take a quest off the training catalog. The quest itself is untouched, and
     so is any progress teachers already made on it."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(training_id):
@@ -1228,7 +1216,7 @@ def training_progress(user_id):
     completion record an accreditor or UFA would ask for, and for families the
     answer to "who still hasn't done back to school night".
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     audience = _audience(request.args.get('audience'))

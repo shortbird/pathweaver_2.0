@@ -67,18 +67,6 @@ _MAX_URL = 2000
 from utils.admin_client import admin_client as _admin
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _bad_uuid(*values):
     for v in values:
         ok, _ = validate_uuid(v)
@@ -166,7 +154,7 @@ def _set_counts(table, curriculum_ids):
 @require_role(*STAFF_ROLES)
 def list_curriculum(user_id):
     """The org's curriculum library, each entry with the classes it is attached to."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     q = (_admin().table('sis_curriculum').select('*')
@@ -191,7 +179,7 @@ def list_curriculum(user_id):
 @bp.route('/curriculum', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_curriculum(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -215,7 +203,7 @@ def create_curriculum(user_id):
 @bp.route('/curriculum/<curriculum_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_curriculum(user_id, curriculum_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -249,7 +237,7 @@ def update_curriculum(user_id, curriculum_id):
 @bp.route('/curriculum/<curriculum_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_curriculum(user_id, curriculum_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -271,7 +259,7 @@ def set_curriculum_classes(user_id, curriculum_id):
     is the source of truth and two admins editing at once can't interleave into
     a half-applied state.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -345,7 +333,7 @@ def curriculum_resources(user_id, curriculum_id):
     Staff-tier, not admin-tier: a teacher reads this to see what their class is
     meant to be taught from. Writing is admin-only (the routes below).
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -385,7 +373,7 @@ def curriculum_assignable_quests(user_id, curriculum_id):
     (/classes/<id>/assignable-quests) so the two screens don't disagree about
     what is available; this one just isn't scoped to a section.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -423,7 +411,7 @@ def curriculum_assignable_quests(user_id, curriculum_id):
 @require_role(*ADMIN_ROLES)
 def curriculum_assignable_courses(user_id, curriculum_id):
     """Courses that could be added: the school's own, plus public Optio ones."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -487,7 +475,7 @@ def set_curriculum_quests(user_id, curriculum_id):
     editing it never changes what a section already has in front of enrolled
     students — it changes what the next section starts from.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -538,7 +526,7 @@ def create_curriculum_quest(user_id, curriculum_id):
     Appended, not inserted: the quest set is ordered, and a new quest joining at
     the end is the only position that can't reorder what teachers already see.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):
@@ -696,7 +684,7 @@ def remove_quest_from_other_curriculum(user_id, curriculum_id, quest_id, other_c
 def _curriculum_quest(user_id, curriculum_id, quest_id):
     """(org_id, quest, err). The caller's org must own the curriculum and the
     quest must be linked to it."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return None, None, err
     if _bad_uuid(curriculum_id, quest_id) or not _owned(org_id, curriculum_id):
@@ -1026,7 +1014,7 @@ def set_curriculum_courses(user_id, curriculum_id):
     A live link: every class attached to the curriculum shows these, so removing
     a wrong one here removes it everywhere rather than leaving copies behind.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if _bad_uuid(curriculum_id) or not _owned(org_id, curriculum_id):

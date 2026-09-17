@@ -16,6 +16,8 @@ import pytest
 EXEMPT_BLUEPRINTS = {
     'sis_pay': 'unauthenticated by design; the signed token is the authorization',
     'sis_school': 'the discovery endpoint that reports the module set',
+    'sis_internal': 'the cron sweeps: X-Cron-Secret or superadmin, every org at once; '
+                    'the service filters per org (routes/sis/internal.py)',
 }
 
 # Individual rules deliberately left ungated on an otherwise-tagged blueprint

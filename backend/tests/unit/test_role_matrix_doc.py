@@ -96,7 +96,7 @@ def test_the_staff_files_admit_teachers(matrix):
 #: without the document saying so means an ungated route nobody described.
 DOCUMENTED_UNGATED = {
     'class_materials.py', 'class_quests.py', 'class_quest_students.py',
-    'curriculum_materials.py',
+    'curriculum_materials.py', 'internal.py',
     'parent.py', 'parent_forms.py', 'parent_prior_learning.py', 'pay.py',
     'quest_resources.py', 'school.py', 'signature_request_views.py',
 }

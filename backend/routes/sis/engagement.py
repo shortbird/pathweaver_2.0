@@ -20,18 +20,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_engagement', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _student_in_scope(admin, student_id: str, class_ids) -> bool:
     """Is the student actively enrolled in one of the advisor's classes?"""
     if not class_ids:
@@ -64,7 +52,7 @@ def adjust_completion_xp(user_id, completion_id):
         nothing to rescale, and get_subject_xp_distribution re-derives the split
         against the current xp_value whenever credit is requested anyway.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -170,7 +158,7 @@ def list_engagement_alerts(user_id):
     2026-08-26: "Not all teachers should see things in the Needs attention
     section").
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from routes.sis.staff_portal import _read_target
@@ -182,7 +170,7 @@ def list_engagement_alerts(user_id):
 @bp.route('/engagement-alerts/<alert_id>/resolve', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def resolve_engagement_alert(user_id, alert_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # Same target resolution as the list above: reading through ?teacher_id= and
@@ -193,29 +181,3 @@ def resolve_engagement_alert(user_id, alert_id):
     if not engagement.resolve_alert(org_id, alert_id, class_ids=scope):
         return jsonify({'success': False, 'error': 'Alert not found'}), 404
     return jsonify({'success': True})
-
-
-@bp.route('/internal/engagement-sweep', methods=['POST'])
-def engagement_sweep():
-    """Cron entrypoint: raise quest-inactivity alerts for teachers.
-    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering —
-    mirrors /api/sis/internal/attendance-sweep exactly."""
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    is_cron = is_valid_cron_secret(secret)
-    if not is_cron:
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: resolves the CALLER's own role to make the access
-            #   decision; under RLS the row the check depends on may be invisible, so the
-            #   check could not run
-            row = (
-                get_supabase_admin_client().table('users').select('role')
-                .eq('id', uid).limit(1).execute()
-            ).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    return jsonify({'success': True, **engagement.run_sweep()})

@@ -89,7 +89,7 @@ def _put(route, body, tables, owned=True):
     log = []
     app_ctx = curriculum.bp
     with patch.object(curriculum, '_admin', return_value=_client(tables, log)), \
-         patch.object(curriculum, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(curriculum, '_owned',
                       return_value={'id': CURR, 'organization_id': ORG} if owned else None), \
          patch.object(curriculum, 'request', Mock(get_json=lambda silent=True: body,

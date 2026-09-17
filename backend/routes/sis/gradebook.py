@@ -50,19 +50,6 @@ from utils.admin_client import admin_client as _admin
 from utils.timestamps import now_iso as _now  # noqa: E402
 
 
-def _org_or_error(user_id):
-    """Resolve the org for this request or return (None, error_response)."""
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _class_in_org(org_id, class_id):
     cls = SisClassRepository(client=_admin()).find_by_id(class_id)
     return bool(cls and cls.get('organization_id') == org_id)
@@ -151,7 +138,7 @@ def _student_name(u):
 @bp.route('/templates', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_templates(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     class_id = request.args.get('class_id')
@@ -174,7 +161,7 @@ def list_templates(user_id):
 @bp.route('/templates', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def create_template(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -217,7 +204,7 @@ def _template_or_error(user_id, org_id, template_id):
 @bp.route('/templates/<template_id>', methods=['PUT'])
 @require_role(*STAFF_ROLES)
 def update_template(user_id, template_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     tpl, err = _template_or_error(user_id, org_id, template_id)
@@ -250,7 +237,7 @@ def update_template(user_id, template_id):
 @bp.route('/templates/<template_id>', methods=['DELETE'])
 @require_role(*STAFF_ROLES)
 def delete_template(user_id, template_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _tpl, err = _template_or_error(user_id, org_id, template_id)
@@ -266,7 +253,7 @@ def apply_template(user_id, template_id):
     """Stamp the template's items as sis_student_assignments rows for each
     student in student_ids. Rows where the same (student, class, name) already
     exists are skipped so re-applying is idempotent."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     tpl, err = _template_or_error(user_id, org_id, template_id)
@@ -314,7 +301,7 @@ def apply_template(user_id, template_id):
 @bp.route('/classes/<class_id>', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def class_gradebook(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _class_allowed(user_id, org_id, class_id):
@@ -363,7 +350,7 @@ def class_gradebook(user_id, class_id):
 @bp.route('/assignments', methods=['POST'])
 @require_role(*STAFF_ROLES)
 def create_assignment(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -409,7 +396,7 @@ def _assignment_or_error(user_id, org_id, assignment_id):
 @bp.route('/assignments/<assignment_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def update_assignment(user_id, assignment_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _row, err = _assignment_or_error(user_id, org_id, assignment_id)
@@ -442,7 +429,7 @@ def update_assignment(user_id, assignment_id):
 @bp.route('/assignments/<assignment_id>', methods=['DELETE'])
 @require_role(*STAFF_ROLES)
 def delete_assignment(user_id, assignment_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _row, err = _assignment_or_error(user_id, org_id, assignment_id)

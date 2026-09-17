@@ -79,6 +79,46 @@ def resolve_org_id(user_id: str, requested_org_id: Optional[str]) -> Optional[st
     return own
 
 
+def requested_org_id() -> Optional[str]:
+    """The organisation the client named on this request, or None.
+
+    Read from the query string, a JSON body (get_json(silent=True), so a
+    DELETE or GET with no JSON body never raises UnsupportedMediaType), or a
+    multipart form field. The form field is not optional polish: a file
+    upload is multipart, so get_json returns nothing and the org the SIS org
+    picker sent arrives only in request.form. Every org-scoped caller was
+    insulated from that because resolve_org_id falls back to their own
+    organization_id -- but a superadmin has none, so every upload endpoint
+    whose private copy of this helper skipped the form field answered "No
+    organization in context" no matter which school they were viewing. Only
+    three of the twenty-seven copies carried the fix; this is the one reader.
+    """
+    from flask import request
+    body = request.get_json(silent=True) or {}
+    return (request.args.get('organization_id')
+            or body.get('organization_id')
+            or request.form.get('organization_id'))
+
+
+def org_or_error(user_id: str):
+    """Resolve the org this SIS request operates on: (org_id, None) or
+    (None, error_response).
+
+    The one helper behind every staff-facing SIS route. It used to be copied
+    into each route module -- twenty-seven times, in three variants -- which
+    is how the request.form fix above reached three of them and not the other
+    twenty-four (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, K1).
+    """
+    from flask import jsonify
+    org_id = resolve_org_id(user_id, requested_org_id())
+    if not org_id:
+        return None, (jsonify({
+            'success': False,
+            'error': 'No organization in context. Superadmins must pass ?organization_id.'
+        }), 400)
+    return org_id, None
+
+
 def member_org_id(user_id: str) -> Optional[str]:
     """The org whose family-facing content this user may read.
 

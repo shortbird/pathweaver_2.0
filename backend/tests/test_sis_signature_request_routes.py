@@ -206,58 +206,51 @@ class TestASuperadminSendingFromTheOrgPicker:
     resolve_org_id falls back to the caller's own org — which is why an
     org-scoped admin never saw it and a superadmin could never get past it.
 
-    The defect: _org_or_error read the query string and the JSON body only. A
-    file upload is multipart, so get_json() yields nothing and the org the SIS
-    org picker sent arrives in request.form. This covers every multipart SIS
-    endpoint, not only this one.
+    The defect: the route's private org helper read the query string and the
+    JSON body only. A file upload is multipart, so get_json() yields nothing
+    and the org the SIS org picker sent arrives in request.form. Until M15
+    (docs/sis/CONSOLIDATION_PLAN.md) that helper was copied into every SIS
+    route module and only three copies carried the fix; now there is one,
+    sis_service.org_or_error, and this covers every multipart SIS endpoint
+    because they all call it.
     """
 
-    def _resolve(self, app, module, path, method='POST', data=None, query=''):
+    def _resolve(self, app, path, method='POST', data=None, query=''):
+        from services import sis_service
         with app.test_request_context(f'{path}{query}', method=method, data=data,
                                       content_type='multipart/form-data'):
-            with patch.object(module.sis_service, 'resolve_org_id',
+            with patch.object(sis_service, 'resolve_org_id',
                               side_effect=lambda _uid, requested: requested) as resolve:
-                org_id, err = module._org_or_error('superadmin-1')
+                org_id, err = sis_service.org_or_error('superadmin-1')
         return org_id, err, resolve
 
     def test_the_org_is_read_off_a_multipart_upload(self, app):
-        from routes.sis import secure_documents
         org_id, err, _ = self._resolve(
-            app, secure_documents, '/api/sis/secure-documents/upload',
+            app, '/api/sis/secure-documents/upload',
             data={'organization_id': ORG, 'file': (BytesIO(MINIMAL_PDF), 'x.pdf')})
         assert err is None
         assert org_id == ORG
 
-    def test_the_front_office_send_door_reads_it_too(self, app):
-        from routes.sis import staff_admin
-        org_id, err, _ = self._resolve(
-            app, staff_admin, '/api/sis/staff-admin/signature-requests',
-            data={'organization_id': ORG, 'file': (BytesIO(MINIMAL_PDF), 'x.pdf')})
-        assert err is None
-        assert org_id == ORG
-
-    def test_the_shared_helper_reads_it(self, app):
+    def test_every_sis_route_module_calls_the_one_helper(self):
+        """The fix reaches an endpoint only if its module has no private copy
+        left. shared/sisConcepts.json holds the same line (org_resolution)."""
         import routes.sis as sis_routes
-        org_id, err, _ = self._resolve(
-            app, sis_routes, '/api/sis/anything',
-            data={'organization_id': ORG, 'file': (BytesIO(MINIMAL_PDF), 'x.pdf')})
-        assert err is None
-        assert org_id == ORG
+        from routes.sis import catalog, resources, secure_documents, staff_admin, staff_portal
+        for module in (sis_routes, catalog, resources, secure_documents, staff_admin, staff_portal):
+            assert not hasattr(module, '_org_or_error'), module.__name__
 
     def test_the_query_string_still_wins(self, app):
         """Belt and braces: the client sends both, and the query string is the
         one every SIS endpoint has always read."""
-        from routes.sis import staff_admin
         _, _, resolve = self._resolve(
-            app, staff_admin, '/api/sis/staff-admin/signature-requests',
+            app, '/api/sis/staff-admin/signature-requests',
             query=f'?organization_id={ORG}',
             data={'organization_id': 'other-org', 'file': (BytesIO(MINIMAL_PDF), 'x.pdf')})
         assert resolve.call_args[0][1] == ORG
 
     def test_no_org_anywhere_is_still_a_clear_400(self, app):
-        from routes.sis import staff_admin
         org_id, err, _ = self._resolve(
-            app, staff_admin, '/api/sis/staff-admin/signature-requests',
+            app, '/api/sis/staff-admin/signature-requests',
             data={'file': (BytesIO(MINIMAL_PDF), 'x.pdf')})
         assert org_id is None
         assert err[1] == 400

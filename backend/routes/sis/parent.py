@@ -26,6 +26,7 @@ from services import sis_access_gate
 from services import sis_onboarding_service as onboarding
 from services import sis_secure_docs_service
 from services import sis_tasks_service
+from services import sis_service
 
 logger = get_logger(__name__)
 
@@ -36,11 +37,6 @@ bp = Blueprint('sis_parent', __name__, url_prefix='/api/sis/parent')
 _FAMILY_DOCS_BUCKET = 'family-documents'
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 10 * 1024 * 1024
-
-
-def _org(req):
-    body = req.get_json(silent=True) or {}
-    return req.args.get('organization_id') or body.get('organization_id')
 
 
 @bp.route('/context', methods=['GET'])
@@ -54,7 +50,7 @@ def get_context(user_id):
 @require_auth
 @require_module('classes')
 def open_classes(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     classes = parent.open_classes(user_id, org_id)
@@ -75,7 +71,7 @@ def list_registrations(user_id):
 @require_module('registration')
 def create_registration(user_id):
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     student_user_id = data.get('student_user_id')
     if not org_id or not student_user_id:
         return jsonify({'success': False, 'error': 'organization_id and student_user_id are required'}), 400
@@ -89,7 +85,7 @@ def create_registration(user_id):
 @require_auth
 @require_module('registration')
 def get_registration(user_id, reg_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     reg = parent.get_registration(user_id, org_id, reg_id)
@@ -103,7 +99,7 @@ def get_registration(user_id, reg_id):
 @require_module('registration')
 def add_item(user_id, reg_id):
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     class_id = data.get('class_id')
     if not org_id or not class_id:
         return jsonify({'success': False, 'error': 'organization_id and class_id are required'}), 400
@@ -118,7 +114,7 @@ def add_item(user_id, reg_id):
 @require_auth
 @require_module('registration')
 def remove_item(user_id, reg_id, item_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.remove_item(user_id, org_id, reg_id, item_id)
@@ -131,7 +127,7 @@ def remove_item(user_id, reg_id, item_id):
 @require_auth
 @require_module('registration')
 def quote(user_id, reg_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.quote(user_id, org_id, reg_id)
@@ -144,7 +140,7 @@ def quote(user_id, reg_id):
 @require_auth
 @require_module('registration')
 def submit(user_id, reg_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.submit(user_id, org_id, reg_id)
@@ -406,7 +402,7 @@ def upload_student_photo(user_id, student_id):
 @require_auth
 @require_module('attendance')
 def list_absences(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     student_user_id = request.args.get('student_user_id')
     if not org_id or not student_user_id:
         return jsonify({'success': False, 'error': 'organization_id and student_user_id are required'}), 400
@@ -428,7 +424,7 @@ def create_absence(user_id):
     what was created plus per-student errors, so one duplicate doesn't block a
     sibling."""
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     absence_date = data.get('absence_date')
     selections = data.get('selections')
     if isinstance(selections, list):
@@ -509,7 +505,7 @@ def cancel_absences(user_id):
 def student_schedule(user_id, student_id):
     """The student's current schedule (active classes + waitlist) plus whether
     self-service changes are still open (locks on the first day of school)."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.student_schedule(user_id, org_id, student_id)
@@ -529,7 +525,7 @@ def student_attendance(user_id, student_id):
     attendance route was staff-only, so a parent had no way to check that the
     absence they phoned in had been marked excused.
     """
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.student_attendance(user_id, org_id, student_id,
@@ -547,7 +543,7 @@ def add_student_class(user_id, student_id):
     """Add a class to the student's schedule: enrolls if there's a seat, joins
     the waitlist when full (and allowed)."""
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     class_id = data.get('class_id')
     if not org_id or not class_id:
         return jsonify({'success': False, 'error': 'organization_id and class_id are required'}), 400
@@ -564,7 +560,7 @@ def add_student_class(user_id, student_id):
 @require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def drop_student_class(user_id, student_id, class_id):
     """Drop a class from the student's schedule (and/or leave its waitlist)."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.drop_class(user_id, org_id, student_id, class_id)
@@ -581,7 +577,7 @@ def drop_student_class(user_id, student_id, class_id):
 def claim_student_spot(user_id, student_id, class_id):
     """Claim a per-class waitlist spot the school offered: enrolls the student if
     the offer is still live and the seat is still open."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.claim_offered_spot(user_id, org_id, student_id, class_id)
@@ -600,7 +596,7 @@ def set_learning_day(user_id, student_id):
     """Save (or clear with choice=null) the student's learning-day choice —
     the UFA private school third instructional day (not an enrollable class)."""
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.set_learning_day(user_id, org_id, student_id, data.get('choice'))
@@ -619,7 +615,7 @@ def my_school_quests(user_id):
     calendar, resources and directory got on 2026-08-06. The service returns None
     for somebody who isn't in this school at all.
     """
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     quests = parent.school_quests(user_id, org_id)
@@ -654,7 +650,7 @@ def my_required_documents(user_id):
 @require_auth
 @require_module('onboarding')
 def my_family_checklists(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     # audience='family': a guardian who is also on staff must not see their
@@ -675,7 +671,7 @@ def my_family_tasks(user_id):
     also works at the school gets their family items here and their staff items
     in the console — never both in either place (2026-08-05).
     """
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     include_done = str(request.args.get('include_done', '')).lower() in ('1', 'true', 'yes')
@@ -697,7 +693,7 @@ def family_office_document_url(user_id, doc_id):
     to the org in context — the same three conditions the staff endpoint checks.
     """
     from database import get_supabase_admin_client
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     # admin client justified: sis_secure_documents is service-role-only; ownership + sharing + org are all verified below before any URL is signed
@@ -719,7 +715,7 @@ def family_office_document_url(user_id, doc_id):
 @require_auth
 @require_module('onboarding')
 def update_family_checklist_item(user_id, assignment_id, item_key):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     # is_admin=False: a guardian can mark their own items done / attach a doc, but
@@ -739,7 +735,7 @@ def upload_family_checklist_doc(user_id):
     """Upload a document for a family checklist item to the PRIVATE family-documents
     bucket. Returns the storage path (read back via /onboarding/doc-url)."""
     from database import get_supabase_admin_client
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     f = request.files.get('file')
@@ -779,7 +775,7 @@ def upload_family_checklist_doc(user_id):
 def family_checklist_doc_url(user_id):
     """A short-lived signed URL for one of the guardian's own uploaded docs."""
     from database import get_supabase_admin_client
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     path = request.args.get('path') or ''
     if not org_id or not path:
         return jsonify({'success': False, 'error': 'organization_id and path are required'}), 400
@@ -808,7 +804,7 @@ def request_age_exception(user_id):
     """A guardian asks the school to allow a student into a class outside its
     posted age band. Timestamped; staff review on the SIS Registration page."""
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     student_user_id = data.get('student_user_id')
     class_id = data.get('class_id')
     if not org_id or not student_user_id or not class_id:
@@ -829,7 +825,7 @@ def request_age_exception(user_id):
 def home_learning_courses(user_id):
     """Optio courses a family can add for at-home learning (empty when the org
     has the Optio-courses toggle off)."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     courses = parent.home_learning_courses(user_id, org_id)
@@ -844,7 +840,7 @@ def home_learning_courses(user_id):
 @require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def add_student_course(user_id, student_id):
     data = request.json or {}
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     course_id = data.get('course_id')
     if not org_id or not course_id:
         return jsonify({'success': False, 'error': 'organization_id and course_id are required'}), 400
@@ -860,7 +856,7 @@ def add_student_course(user_id, student_id):
 @require_module('courses')
 @require_relationship_to('student_id', allow=('parent', 'household_guardian'))
 def drop_student_course(user_id, student_id, course_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.drop_course(user_id, org_id, student_id, course_id)
@@ -875,7 +871,7 @@ def drop_student_course(user_id, student_id, course_id):
 @require_auth
 @require_module('resources')
 def org_resources(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     resources = parent.org_resources(user_id, org_id)
@@ -890,7 +886,7 @@ def org_resources(user_id):
 @require_module('calendar')
 def org_events(user_id):
     """The school's event calendar for a guardian, windowed with ?from=&to=."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     events = parent.org_events(user_id, org_id,
@@ -906,7 +902,7 @@ def org_events(user_id):
 @require_module('calendar')
 def my_event_rsvp(user_id, event_id):
     """This family's own reply to an event, if they have made one."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     from services import sis_event_rsvp_service as rsvps
@@ -926,7 +922,7 @@ def respond_to_event(user_id, event_id):
     event carries one, is raised as an ordinary family charge — see
     sis_event_rsvp_service.
     """
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     data = request.get_json() or {}
@@ -949,7 +945,7 @@ def respond_to_event(user_id, event_id):
 def org_events_feed(user_id):
     """Subscribe URL for the school calendar — the .ics feed Google Calendar,
     Apple Calendar and Outlook can poll (family token: school events only)."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     url = parent.calendar_feed_url(user_id, org_id, request.host_url.rstrip('/'))
@@ -963,7 +959,7 @@ def org_events_feed(user_id):
 @require_auth
 @require_module('community')
 def family_directory(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     families = parent.family_directory(user_id, org_id)
@@ -976,7 +972,7 @@ def family_directory(user_id):
 @require_auth
 @require_module('community')
 def directory_opt_in_status(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     result = parent.directory_opt_in_status(user_id, org_id)
@@ -989,7 +985,7 @@ def directory_opt_in_status(user_id):
 @require_auth
 @require_module('community')
 def set_directory_opt_in(user_id):
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return jsonify({'success': False, 'error': 'organization_id is required'}), 400
     body = request.json or {}

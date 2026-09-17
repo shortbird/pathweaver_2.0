@@ -253,29 +253,27 @@
     },
     {
       "id": "org_resolution",
-      "means": "Resolving the caller's organisation in an SIS route. Twenty-seven private copies of _org_or_error in three variants; only three carry the request.form fix, so superadmin uploads fail on the other twenty-four.",
-      "owner": { "backend": ["utils/org_resolve.py"] },
-      "proposed": true,
+      "means": "Resolving the caller's organisation in an SIS route. Twenty-seven private copies of _org_or_error in three variants until M15; only three carried the request.form fix, so superadmin uploads failed on the other twenty-four.",
+      "owner": { "backend": ["services/sis_service.py"] },
       "forbid": {
         "backend": { "pattern": "^def (_org_or_error|_org)\\(", "dirs": ["routes"] }
       },
-      "baseline": { "backend": 27 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M15",
-      "use_instead": "from utils.org_resolve import org_or_error (M15). One function, with the request.form fix, imported by every SIS route module."
+      "use_instead": "sis_service.org_or_error(user_id) for a staff route (org_id, err); sis_service.requested_org_id() where the route only needs the org the client named (the parent portal). One reader of the request, one resolver; never a private copy. The plan proposed utils/org_resolve.py, but utils may not import services (test_import_layers) and twenty-six tests patch services.sis_service.resolve_org_id, so the helper lives beside the resolver."
     },
     {
       "id": "cron_route",
-      "means": "An /internal/* endpoint the Render cron calls. Seven identical shapes: secret check, admin client, call the service, log the count.",
+      "means": "An /api/sis/internal/* endpoint the Render cron calls. Seven identical shapes across five route modules until M15: secret check, a users read for the superadmin fallback, call the service, log the count.",
       "owner": { "backend": ["routes/sis/internal.py"] },
-      "proposed": true,
       "forbid": {
         "backend": { "pattern": "route\\(\\s*['\"]/internal/", "dirs": ["routes/sis"] }
       },
-      "baseline": { "backend": 7 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M15",
-      "use_instead": "cron_route(name, fn) in routes/sis/internal.py (M15) registers the endpoint, checks the secret and logs; the route module contributes the function only."
+      "use_instead": "Add a row to CRON_SWEEPS in routes/sis/internal.py: name -> a function returning the summary dict. The blueprint declares the route, checks the secret or the superadmin, and logs. jobs/cron_dispatch.py names the same paths."
     },
     {
       "id": "events_read",

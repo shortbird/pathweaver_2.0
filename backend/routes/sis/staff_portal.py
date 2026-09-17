@@ -34,23 +34,6 @@ _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 10 * 1024 * 1024
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form matters for multipart (uploads): get_json returns nothing
-    # there, so a superadmin -- who has no org to fall back to -- could not
-    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _preview_target(user_id, org_id):
     """The OTHER staff member an admin is previewing, or None when there is no
     preview in play (no ?teacher_id=, the caller's own id, a caller who is not
@@ -83,7 +66,7 @@ def _read_target(user_id, org_id):
 @bp.route('/dashboard', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def dashboard(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     target = _read_target(user_id, org_id)
@@ -94,7 +77,7 @@ def dashboard(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('classes')
 def my_classes(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     target = _read_target(user_id, org_id)
@@ -107,7 +90,7 @@ def my_classes(user_id):
 def class_roster(user_id, class_id):
     """Roster with guardian contacts + health/safety alerts. Access is limited
     to the class's own teachers (and admins) and every view is access-logged."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     scope = sis_service.class_scope(user_id, org_id)
@@ -151,7 +134,7 @@ def class_messaging(user_id, class_id):
     Deliberately NOT the roster endpoint: this returns no health or guardian
     data, so it does not belong in student_access_logs.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     scope = sis_service.class_scope(user_id, org_id)
@@ -270,7 +253,7 @@ def class_messaging(user_id, class_id):
 @require_role(*STAFF_ROLES)
 @require_module('classes')
 def schedule(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     target = _read_target(user_id, org_id)
@@ -280,7 +263,7 @@ def schedule(user_id):
 @bp.route('/directory', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def directory(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'staff': staff.staff_directory(org_id)})
@@ -289,7 +272,7 @@ def directory(user_id):
 @bp.route('/profile', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def my_profile(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     profile = staff.get_staff_profile_with_contact(org_id, _read_target(user_id, org_id))
@@ -307,7 +290,7 @@ def my_profile(user_id):
 @require_role(*STAFF_ROLES)
 def update_my_profile(user_id):
     """Teachers maintain their own emergency contact info."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = staff.upsert_staff_profile(org_id, user_id, request.get_json() or {},
@@ -323,7 +306,7 @@ def update_my_profile(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('forms')
 def my_forms(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_form_template_service as form_templates
@@ -340,7 +323,7 @@ def my_forms(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('forms')
 def submit_form(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = forms.submit(org_id, user_id, request.get_json() or {})
@@ -355,7 +338,7 @@ def submit_form(user_id):
 def my_tasks(user_id):
     """Open requests/tasks assigned to the caller — any staff member can be an
     assignee ("Family requests can be assigned to any staff member")."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -368,7 +351,7 @@ def my_tasks(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('onboarding')
 def my_onboarding(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # The mirror of the family portal's filter: staff checklists only, so a
@@ -383,7 +366,7 @@ def my_onboarding(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('onboarding')
 def update_onboarding_item(user_id, assignment_id, item_key):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     is_admin = sis_service.caller_is_admin(user_id)
@@ -403,7 +386,7 @@ def update_onboarding_item(user_id, assignment_id, item_key):
 def upload_onboarding_doc(user_id):
     """Upload an onboarding document to the PRIVATE staff-documents bucket.
     Returns a storage path; reads go through signed URLs (below)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if 'file' not in request.files:
@@ -447,7 +430,7 @@ def upload_onboarding_doc(user_id):
 def onboarding_doc_url(user_id):
     """Signed (1h) URL for a staff document. Teachers can only open their own
     files; admins can open any file in their org."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     path = request.args.get('path') or ''
@@ -473,7 +456,7 @@ def onboarding_doc_url(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('timesheets')
 def clock_in(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -488,7 +471,7 @@ def clock_in(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('timesheets')
 def clock_out(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -502,7 +485,7 @@ def clock_out(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('timesheets')
 def my_time_entries(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     start = request.args.get('start')
@@ -569,7 +552,7 @@ def my_documents(user_id):
     stays invisible here. The org filter plus the owner filter is the whole
     access rule; there is no id-based lookup that could be walked.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     owner, err = _documents_target(user_id, org_id)
@@ -598,7 +581,7 @@ def upload_my_document(user_id):
     the uploader and shared back to them so they can see what they sent. The
     school gets it immediately; there is no paper step.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if 'file' not in request.files:
@@ -672,7 +655,7 @@ def my_document_url(user_id, doc_id):
     """Signed URL for a document belonging to whoever this portal is showing —
     the caller, or the teacher an HR admin is previewing. Ownership and sharing
     are re-checked here, not trusted from the list call."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     owner, err = _documents_target(user_id, org_id)

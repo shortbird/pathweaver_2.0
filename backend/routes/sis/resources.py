@@ -50,23 +50,6 @@ _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 10 * 1024 * 1024
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form matters for multipart (uploads): get_json returns nothing
-    # there, so a superadmin -- who has no org to fall back to -- could not
-    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _owned_resource(supabase, org_id, resource_id):
     rows = (supabase.table('org_resources').select('*')
             .eq('id', resource_id).limit(1).execute()).data or []
@@ -129,7 +112,7 @@ def _clear_inline_paperwork_doc(supabase, org_id, paperwork_key):
 def list_resources(user_id):
     """Resource library. Admins see everything (and manage it); advisors see the
     staff knowledge base (audience staff/all) plus their own ack status."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: org-wide org_resources + sis_resource_acks read gated by @require_role(STAFF_ROLES); audience/role visibility filtered in code below
@@ -180,7 +163,7 @@ def reconcile_paperwork_resources(user_id):
     its document is edited/replaced/deleted in the Resources tab, not here — so a
     later save never clobbers a Resources-tab edit. Returns how many were created.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: reads organizations.feature_flags + creates org_resources rows for the org; gated by @require_role(ADMIN_ROLES)
@@ -213,7 +196,7 @@ def reconcile_paperwork_resources(user_id):
 @require_role(*STAFF_ROLES)
 def acknowledge_resource(user_id, resource_id):
     """Staff member confirms they have read/watched a required resource."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: self-scoped sis_resource_acks upsert (user_id from @require_role) after resource-belongs-to-org check below
@@ -234,7 +217,7 @@ def acknowledge_resource(user_id, resource_id):
 def resource_acks(user_id, resource_id):
     """Completion report: which staff members have acknowledged this resource
     (and whether their ack predates the current version)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: cross-user read of all staff acknowledgments for a completion report; gated by @require_role(ADMIN_ROLES) + resource org check below
@@ -262,7 +245,7 @@ def resource_acks(user_id, resource_id):
 @bp.route('/resources', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_resource(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -358,7 +341,7 @@ def _notify_staff_required_read(org_id, title, visible_to_roles=None):
 @bp.route('/resources/<resource_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_resource(user_id, resource_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: org_resources update + feature_flags paperwork bookkeeping; gated by @require_role(ADMIN_ROLES) + resource-belongs-to-org check below
@@ -425,7 +408,7 @@ def update_resource(user_id, resource_id):
 @bp.route('/resources/<resource_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_resource(user_id, resource_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: org_resources delete + feature_flags cleanup; gated by @require_role(ADMIN_ROLES) + resource-belongs-to-org check below
@@ -447,7 +430,7 @@ def upload_resource_file(user_id):
     """Upload a document to the PRIVATE org-documents bucket. Returns the
     canonical pointer to persist (`url`) and a short-lived signed twin for the
     preview (`display_url`). Mirrors the paperwork-doc upload in catalog.py."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if 'file' not in request.files:

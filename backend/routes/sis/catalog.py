@@ -43,23 +43,6 @@ def _age_from_dob(dob):
     return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form matters for multipart (uploads): get_json returns nothing
-    # there, so a superadmin -- who has no org to fall back to -- could not
-    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _truthy(v):
     return str(v).lower() in ('1', 'true', 'yes')
 
@@ -92,7 +75,7 @@ def _invalid_assistant(org_id, assistant_ids):
 @bp.route('/classes', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_classes(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     include_archived = _truthy(request.args.get('include_archived'))
@@ -145,7 +128,7 @@ def _validate_class_fields(data):
 @bp.route('/classes', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_class(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -170,7 +153,7 @@ def create_class(user_id):
 @bp.route('/classes/<class_id>', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def get_class(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     denied = _scope_denied(user_id, org_id, class_id)
@@ -185,7 +168,7 @@ def get_class(user_id, class_id):
 @bp.route('/classes/<class_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_class(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -245,7 +228,7 @@ def update_class(user_id, class_id):
 @bp.route('/classes/<class_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def archive_class(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: archive gated by @require_role(ADMIN_ROLES); withdraws other students' class_enrollments + closes registration org-wide
@@ -289,7 +272,7 @@ def archive_class(user_id, class_id):
 def restore_class(user_id, class_id):
     """Un-archive a class (status back to active). Registration stays closed and
     prior enrollments stay withdrawn — staff reopen/re-enroll deliberately."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: un-archive of org_classes gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
@@ -309,7 +292,7 @@ def schedule_conflicts(user_id):
     """Students double-booked into two overlapping classes. Re-validates rosters
     whenever a schedule changes (a late meeting edit can strand students who were
     conflict-free when they enrolled). Advisory only — never blocks."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_registration_service as regs
@@ -328,7 +311,7 @@ def teacher_conflicts(user_id):
     looked and decided it is fine — 8479edee), so the banner is only ever about
     arrangements nobody has ruled on.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_registration_service as regs
@@ -348,7 +331,7 @@ def room_schedule(user_id):
     save — 43625a45). Advisory only, and never blocks: a school may genuinely
     want two things in the gym.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_registration_service as regs
@@ -369,7 +352,7 @@ def acknowledge_conflict(user_id):
     removing. Deliberately reversible, and deliberately keyed to the day and
     hour, so rescheduling either class asks again.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -400,7 +383,7 @@ def _load_class(repo, org_id, class_id):
 @bp.route('/classes/<class_id>/meetings', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_meetings(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     denied = _scope_denied(user_id, org_id, class_id)
@@ -416,7 +399,7 @@ def list_meetings(user_id, class_id):
 @bp.route('/classes/<class_id>/meetings', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_meeting(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -439,7 +422,7 @@ def add_meeting(user_id, class_id):
 @bp.route('/classes/<class_id>/meetings/<meeting_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_meeting(user_id, class_id, meeting_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: class_meetings delete gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
@@ -454,7 +437,7 @@ def delete_meeting(user_id, class_id, meeting_id):
 @bp.route('/classes/<class_id>/prerequisites', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_prerequisites(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     denied = _scope_denied(user_id, org_id, class_id)
@@ -470,7 +453,7 @@ def list_prerequisites(user_id, class_id):
 @bp.route('/classes/<class_id>/prerequisites', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_prerequisite(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -487,7 +470,7 @@ def add_prerequisite(user_id, class_id):
 @bp.route('/classes/<class_id>/prerequisites/<prerequisite_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_prerequisite(user_id, class_id, prerequisite_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: class prerequisites delete gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
@@ -502,7 +485,7 @@ def delete_prerequisite(user_id, class_id, prerequisite_id):
 @require_role(*STAFF_ROLES)
 def class_roster(user_id, class_id):
     """The class's enrolled students (active), for the class Roster tab."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     denied = _scope_denied(user_id, org_id, class_id)
@@ -555,7 +538,7 @@ def class_roster(user_id, class_id):
 @bp.route('/classes/<class_id>/enrollments', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def enroll_student(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: staff enroll another student — writes that student's class_enrollments; gated by @require_role(ADMIN_ROLES) + student-in-org check below
@@ -646,7 +629,7 @@ def unenroll_student(user_id, class_id, student_id):
     """Staff drop a student from a class (marks the enrollment withdrawn and
     re-syncs the class group). Used by the CLP meeting view to make live changes.
     Idempotent: dropping a student who isn't enrolled succeeds as a no-op."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # admin client justified: staff drop another student — updates that student's class_enrollments; gated by @require_role(ADMIN_ROLES) + class-belongs-to-org check below
@@ -684,7 +667,7 @@ def unenroll_student(user_id, class_id, student_id):
 @bp.route('/schedule-settings', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def get_schedule_settings(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **catalog.schedule_settings(org_id)})
@@ -697,7 +680,7 @@ def get_schedule_settings(user_id):
 @bp.route('/course-settings', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_course_settings(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **catalog.list_course_settings(org_id)})
@@ -707,7 +690,7 @@ def list_course_settings(user_id):
 @require_role(*ADMIN_ROLES)
 def update_course_settings(user_id, course_id):
     """Set this org's teacher for an Optio course (teacher_id: null clears it)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -750,7 +733,7 @@ def _ensure_bucket(supabase, bucket_name):
 @require_role(*ADMIN_ROLES)
 def upload_class_image(user_id, class_id):
     """Upload (or replace) a class's catalog image. Stores image_url on org_classes."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -825,7 +808,7 @@ _ORG_DOCS_BUCKET = 'org-documents'
 def upload_paperwork_doc(user_id):
     """Upload a paperwork document. Returns the canonical pointer to store as
     doc_url, plus a short-lived signed twin for the preview."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 

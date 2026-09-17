@@ -33,17 +33,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_reports', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    requested = request.args.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _day_arg():
     """?day=0..6 (Sun..Sat), or None for every day. Junk means every day."""
     raw = request.args.get('day')
@@ -57,7 +46,7 @@ def _day_arg():
 @bp.route('/reports/enrollment', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def enrollment(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'report': reports.enrollment_report(org_id)})
@@ -75,7 +64,7 @@ def revenue(user_id):
     (utils/sis_roles.py), and this route handed them the school's totals.
     Enrollment and attendance stay on the admin tier — they are operational.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'report': reports.revenue_report(org_id)})
@@ -89,7 +78,7 @@ def payments(user_id):
     FINANCE_ROLES for the same reason as revenue: this is the money. iCreate,
     2026-08-20: "is there a way to do a report on method of payment?"
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     report = reports.payments_report(org_id)
@@ -106,7 +95,7 @@ def payments(user_id):
 @bp.route('/reports/attendance', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def attendance(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'report': reports.attendance_report(org_id)})
@@ -122,7 +111,7 @@ def classes_report(user_id):
     absent means the default set). ?include_archived=true adds archived classes,
     ?format=csv downloads the same selection as a spreadsheet.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     requested = [f.strip() for f in (request.args.get('fields') or '').split(',') if f.strip()]
@@ -164,7 +153,7 @@ def rosters_report(user_id):
     ?include_waitlist=true  adds waiting/offered students, labelled as such
     ?format=csv        downloads the same selection
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     class_ids = [c.strip() for c in (request.args.get('class_ids') or '').split(',') if c.strip()]
@@ -200,7 +189,7 @@ def student_schedule(user_id):
     list of all students showing which days/class blocks they come." Ages
     added at their request a day later.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     report = reports.student_schedule_report(org_id)
@@ -226,7 +215,7 @@ def day_rosters(user_id):
     directed to go to class." ?day=1 (0=Sun..6=Sat) narrows to one day;
     ?format=csv flattens to one row per student per class.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     report = reports.day_rosters_report(org_id, day=_day_arg())
@@ -248,7 +237,7 @@ def block_rosters(user_id):
     under a 'Blocks 1-3' of its own. ?day=1 (0=Sun..6=Sat) narrows to one day;
     ?format=csv writes the grid (classes across, students down).
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     day = _day_arg()
@@ -448,7 +437,7 @@ def _kid_name(kid, users):
 def registration_questions(user_id):
     """The org's configured registration questions, so the UI can offer a
     question picker for the generic answers report."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     questions = _configured_questions(_org_flags(org_id))
@@ -467,7 +456,7 @@ from utils.blank_values import has_value as _has_value  # noqa: E402
 @require_role(*ADMIN_ROLES)
 def registration_answers(user_id):
     """Generic report: every family's (or student's) answer to one question."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     question_key = (request.args.get('question_key') or '').strip()
@@ -533,7 +522,7 @@ def medications(user_id):
     """Canned report: every kid with medications — from the registration kids[]
     entry, the synced users.medications column, or any answer whose question key
     contains 'medication' (per-student or family-level)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     questions = _configured_questions(_org_flags(org_id))
@@ -623,7 +612,7 @@ def allergies(user_id):
     """Canned report: every kid with a recorded allergy — from the registration
     kids[] entry, the synced users.allergies column, or any answer whose question
     key contains 'allerg'. Only students who actually have an allergy are listed."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     questions = _configured_questions(_org_flags(org_id))
@@ -702,7 +691,7 @@ def daily_attendance(user_id):
     matches guardian-reported absences against what teachers marked so staff can
     see at a glance who is missing and whether it was excused. ?date=YYYY-MM-DD
     (defaults to today)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from datetime import date
@@ -729,7 +718,7 @@ def emergency_contacts(user_id):
     print out a couple hard copies to have available in case of emergency. And,
     it would help us to see if we are missing any contact info still."
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     report = reports.emergency_contacts_report(org_id)
@@ -750,7 +739,7 @@ def checklist_completion(user_id):
     just message them within the app to help them!" -- so the row carries the
     email, and ?all=1 turns the chase list back into a full roll-up.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services import sis_onboarding_service as onboarding
@@ -773,7 +762,7 @@ def media_release(user_id):
     Matching keys come from feature_flags.sis_settings.report_question_map
     {media_release: [keys]} when set, else any question key containing 'media'
     or 'photo'. Students with no answer show as 'Not answered'."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     flags = _org_flags(org_id)
