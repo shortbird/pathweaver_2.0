@@ -120,3 +120,15 @@ class TestDeletingAFamily:
         assert resp.status_code == 200
         assert resp.get_json()['orphaned_members'] == []
         assert log == ['household_members', 'households']
+
+
+@pytest.mark.unit
+class TestDeletingAFamilyIsAudited:
+    def test_the_row_names_the_family_and_everyone_it_held(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_person_service.audit_removal') as audit:
+            resp, _ = _delete(client, auth_headers)
+        assert resp.status_code == 200
+        args = audit.call_args.args
+        assert args[2:5] == ('sis_household_deleted', 'household', 'h1')
+        assert args[5]['household_name'] == 'Tester Family'
+        assert [m['name'] for m in args[5]['members']] == ['Ada Tester', 'Blaise Tester', 'Mo Tester']

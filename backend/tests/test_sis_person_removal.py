@@ -287,3 +287,71 @@ class TestDeleteBlockedByAnUnprobedForeignKey:
         with person_whose_users_delete_fails(STUDENT, RuntimeError('connection reset')):
             with pytest.raises(RuntimeError):
                 people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')
+
+
+@pytest.mark.unit
+class TestRemovalIsAudited:
+    """Every removal leaves an admin_audit_logs row.
+
+    Kayla Rose's two children (iCreate) were deleted some time after
+    2026-08-15, with the family's memberships, and the database held no record
+    of which screen did it or who was signed in. None of the removal paths
+    wrote anything. This is the row that would have answered it.
+    """
+
+    def _remove(self, user, mode, audit, history=None, seats=0):
+        with person(user, history) as (client, table):
+            with patch('services.sis_person_service._release_class_seats', return_value=seats), \
+                 patch('services.sis_person_service.audit_removal', audit):
+                return people.remove_person('org-1', user['id'], actor_id='admin-1', mode=mode)
+
+    def test_deleting_an_account_is_audited_with_the_name(self):
+        audit = Mock()
+        self._remove(STUDENT, 'delete', audit)
+        args = audit.call_args.args
+        assert args[:5] == ('org-1', 'admin-1', 'sis_person_deleted', 'user', 's1')
+        assert args[5]['name'] == 'Ryder Swenson'
+        assert args[5]['requested'] == 'delete'
+
+    def test_archiving_is_audited_as_an_archive(self):
+        audit = Mock()
+        self._remove(GUARDIAN, 'archive', audit, seats=2)
+        args = audit.call_args.args
+        assert args[2] == 'sis_person_archived'
+        assert args[4] == 'p1'
+        assert args[5]['seats_released'] == 2
+        assert args[5]['roles'] == ['parent']
+
+    def test_a_refused_delete_writes_nothing(self):
+        audit = Mock()
+        result = self._remove(STUDENT, 'delete', audit, history={**NO_HISTORY, 'attendance': 2})
+        assert 'error' in result
+        assert audit.called is False
+
+    def test_the_row_carries_the_actor_and_the_changes(self):
+        repo = Mock()
+        with patch('services.sis_person_service._admin', return_value=Mock()), \
+             patch('repositories.admin_audit_repository.AdminAuditRepository', return_value=repo):
+            people.audit_removal('org-1', 'admin-1', 'sis_person_deleted', 'user', 's1',
+                                 {'name': 'Ryder Swenson'})
+        entry = repo.create.call_args.args[0]
+        # user_id + changes: the columns the table has, not admin_id/metadata.
+        assert entry == {'user_id': 'admin-1', 'organization_id': 'org-1',
+                         'action_type': 'sis_person_deleted', 'resource_type': 'user',
+                         'resource_id': 's1', 'changes': {'name': 'Ryder Swenson'}}
+
+    def test_an_audit_failure_does_not_undo_the_removal(self):
+        repo = Mock()
+        repo.create.side_effect = RuntimeError('audit table unreachable')
+        with person(STUDENT), \
+             patch('services.sis_person_service._release_class_seats', return_value=0), \
+             patch('repositories.admin_audit_repository.AdminAuditRepository', return_value=repo):
+            result = people.remove_person('org-1', 's1', actor_id='admin-1', mode='delete')
+        assert result['deleted'] is True
+        assert repo.create.called is True
+
+    def test_no_actor_means_no_row_rather_than_a_null_user_id(self):
+        repo = Mock()
+        with patch('repositories.admin_audit_repository.AdminAuditRepository', return_value=repo):
+            people.audit_removal('org-1', None, 'sis_person_deleted', 'user', 's1', {})
+        assert repo.create.called is False

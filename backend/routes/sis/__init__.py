@@ -556,6 +556,9 @@ def delete_household(user_id, household_id):
 
     supabase.table('household_members').delete().eq('household_id', household_id).execute()
     supabase.table('households').delete().eq('id', household_id).execute()
+    from services.sis_person_service import audit_removal
+    audit_removal(org_id, user_id, 'sis_household_deleted', 'household', household_id, {
+        'household_name': existing.get('name'), 'members': orphaned})
     return jsonify({'success': True, 'orphaned_members': orphaned})
 
 
@@ -571,7 +574,7 @@ def withdraw_household(user_id, household_id):
     if err:
         return err
     from services import sis_person_service
-    result = sis_person_service.withdraw_household(org_id, household_id)
+    result = sis_person_service.withdraw_household(org_id, household_id, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
     return jsonify({'success': True, **result})
@@ -729,6 +732,9 @@ def remove_household_member(user_id, household_id, member_user_id):
     if not existing or existing.get('organization_id') != org_id:
         return jsonify({'success': False, 'error': 'Household not found'}), 404
     repo.remove_member(household_id, member_user_id)
+    from services.sis_person_service import audit_removal
+    audit_removal(org_id, user_id, 'sis_household_member_removed', 'household', household_id, {
+        'household_name': existing.get('name'), 'member_user_id': member_user_id})
     return jsonify({'success': True})
 
 

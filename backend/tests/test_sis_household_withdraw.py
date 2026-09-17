@@ -97,3 +97,30 @@ class TestWithdrawRoute:
         rule = app.url_map.bind('localhost').match(
             '/api/sis/households/h1/withdraw', method='POST')
         assert rule[0] == 'sis.withdraw_household'
+
+
+@pytest.mark.unit
+class TestWithdrawIsAudited:
+    def _run(self, repo, archive, audit, withdrawn=False):
+        with patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
+             patch('services.sis_person_service._admin', return_value=Mock()), \
+             patch('services.sis_person_service._user', side_effect=lambda org, uid: USERS.get(uid)), \
+             patch('services.sis_person_service._history',
+                   return_value={**NO_HISTORY, 'class_enrollments': 0 if withdrawn else 1}), \
+             patch('services.sis_person_service._is_withdrawn', return_value=withdrawn), \
+             patch('services.sis_person_service._archive', archive), \
+             patch('services.sis_person_service.audit_removal', audit):
+            return people.withdraw_household(ORG, 'h1', actor_id='admin-1')
+
+    def test_one_row_for_the_family_naming_every_student(self):
+        audit = Mock()
+        self._run(_repo(), Mock(return_value={'archived': True, 'seats_released': 1}), audit)
+        args = audit.call_args.args
+        assert args[:5] == (ORG, 'admin-1', 'sis_household_withdrawn', 'household', 'h1')
+        assert [s['name'] for s in args[5]['students']] == ['Ryder Swenson', 'Nora Swenson']
+        assert args[5]['household_name'] == 'Swenson'
+
+    def test_a_second_click_that_withdraws_nobody_writes_nothing(self):
+        audit = Mock()
+        self._run(_repo(), Mock(), audit, withdrawn=True)
+        assert audit.called is False

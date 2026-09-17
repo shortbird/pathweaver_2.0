@@ -156,3 +156,33 @@ class TestAddHouseholdMemberAttach:
         assert resp.status_code == 201
         link.assert_called_once_with('g2', ['k1', 'k2'])
         repo.add_member.assert_called_once()
+
+
+@pytest.mark.unit
+class TestRemoveHouseholdMemberIsAudited:
+    def test_the_row_names_the_member_and_the_family(self, client, auth_headers, mock_verify_token):
+        repo = _repo()
+        repo.find_by_id.return_value = {'id': 'h1', 'organization_id': 'org-1', 'name': 'Rose Family'}
+        # Every users read answers with the caller's role row: the gates that
+        # run before the route read users too, so an ordered fixture would
+        # hand the role row to whichever middleware asks first.
+        admin = Mock()
+        table = Mock()
+        admin.table.return_value = table
+        for chained in ('select', 'eq', 'limit', 'in_'):
+            getattr(table, chained).return_value = table
+        table.execute.return_value = Mock(
+            data=[{'role': 'org_managed', 'org_role': 'org_admin', 'org_roles': ['org_admin']}])
+        with patch('database.get_supabase_admin_client', return_value=admin), \
+             patch('routes.sis.get_supabase_admin_client', return_value=admin), \
+             patch('routes.sis.HouseholdRepository', return_value=repo), \
+             patch('services.sis_service.resolve_org_id', return_value='org-1'), \
+             patch.dict('utils.auth.relationships.RELATIONSHIPS', {'org_staff': lambda c, t: True}), \
+             patch('services.sis_person_service.audit_removal') as audit:
+            resp = client.delete('/api/sis/households/h1/members/k1?organization_id=org-1',
+                                 headers=auth_headers)
+        assert resp.status_code == 200
+        repo.remove_member.assert_called_once_with('h1', 'k1')
+        args = audit.call_args.args
+        assert args[2:5] == ('sis_household_member_removed', 'household', 'h1')
+        assert args[5] == {'household_name': 'Rose Family', 'member_user_id': 'k1'}

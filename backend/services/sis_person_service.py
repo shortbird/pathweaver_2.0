@@ -141,9 +141,49 @@ def removal_preview(org_id: str, target_id: str) -> Dict[str, Any]:
     }
 
 
+def audit_removal(org_id: str, actor_id: Optional[str], action_type: str,
+                  resource_type: str, resource_id: Optional[str],
+                  changes: Dict[str, Any]) -> None:
+    """One admin_audit_logs row for taking a person, a family, or a family
+    member off a school.
+
+    Until 2026-09-16 none of these paths wrote anything. Kayla Rose's two
+    children (iCreate) were deleted some time after 2026-08-15, along with
+    the family's memberships, and the database held no record of which
+    screen did it or who was signed in. The family kept being billed on
+    autopay for classes the children no longer sat in. This row is what
+    would have answered that question.
+
+    Best-effort: an audit failure must not undo a removal that already
+    happened, so the insert is caught and logged. The names are copied into
+    `changes` because `resource_id` is the deleted row's id and nothing can
+    be joined back to it afterwards. `admin_audit_logs` has `user_id` and
+    `changes`, not the admin_id/metadata pair AdminAuditRepository.log_action
+    writes (see organization_lifecycle.audit_entry), so this builds the row
+    itself and inserts through the repository's plain create."""
+    if not actor_id:
+        return
+    from repositories.admin_audit_repository import AdminAuditRepository
+    entry = {
+        'user_id': actor_id,
+        'organization_id': org_id,
+        'action_type': action_type,
+        'resource_type': resource_type,
+        'resource_id': resource_id,
+        'changes': changes,
+    }
+    try:
+        AdminAuditRepository(client=_admin()).create(entry)
+    except Exception as e:  # noqa: BLE001 -- see docstring
+        logger.warning(f'[People] audit insert failed for {action_type} {str(resource_id)[:8]}: {e}')
+
+
 def remove_person(org_id: str, target_id: str, actor_id: str,
                   mode: str = 'archive') -> Dict[str, Any]:
-    """Archive (default) or delete a non-staff person. Staff are delegated."""
+    """Archive (default) or delete a non-staff person. Staff are delegated.
+
+    Every outcome that changes the school's records is audited (see
+    audit_removal); a refusal is not."""
     u = _user(org_id, target_id)
     if not u:
         return {'error': 'Person not found in this organization'}
@@ -169,9 +209,17 @@ def remove_person(org_id: str, target_id: str, actor_id: str,
                               f'({", ".join(sorted(preview["blocking"]))}). '
                               'Archive them instead — it hides them without losing history.'),
                     'blocking': preview['blocking']}
-        return _delete(org_id, target_id, name)
-
-    return _archive(org_id, target_id, name, student=is_student(u))
+        result = _delete(org_id, target_id, name)
+    else:
+        result = _archive(org_id, target_id, name, student=is_student(u))
+    audit_removal(org_id, actor_id,
+                  'sis_person_deleted' if result.get('deleted') else 'sis_person_archived',
+                  'user', target_id, {
+                      'name': name, 'roles': _roles(u), 'requested': mode,
+                      'seats_released': result.get('seats_released', 0),
+                      'delete_blocked_by': result.get('delete_blocked_by'),
+                  })
+    return result
 
 
 def _release_class_seats(org_id: str, target_id: str) -> int:
@@ -262,7 +310,8 @@ def _delete(org_id: str, target_id: str, name: str) -> Dict[str, Any]:
     return {'deleted': True, 'name': name, 'seats_released': seats}
 
 
-def withdraw_household(org_id: str, household_id: str) -> Dict[str, Any]:
+def withdraw_household(org_id: str, household_id: str,
+                       actor_id: Optional[str] = None) -> Dict[str, Any]:
     """A whole family leaving the school, from the family record.
 
     The only way to withdraw a family was one person at a time from People >
@@ -306,6 +355,9 @@ def withdraw_household(org_id: str, household_id: str) -> Dict[str, Any]:
         result = _archive(org_id, student_id, name, student=True)
         withdrawn.append({'id': student_id, 'name': name,
                           'seats_released': result.get('seats_released', 0)})
+    if withdrawn:
+        audit_removal(org_id, actor_id, 'sis_household_withdrawn', 'household', household_id, {
+            'household_name': household.get('name'), 'students': withdrawn})
     return {'withdrawn': withdrawn, 'already': already,
             'household_name': household.get('name')}
 
