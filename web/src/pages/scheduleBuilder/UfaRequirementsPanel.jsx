@@ -3,10 +3,11 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
-import ClassDetailsModal, { meetingText, money } from '../../components/schedule/ClassDetailsModal'
+import ClassDetailsModal, { meetingText } from '../../components/schedule/ClassDetailsModal'
 import SLOT_DAYS from './SLOT_DAYS'
 import DAY_LONG from './DAY_LONG'
 import UfaRow from './UfaRow'
+import { formatCents } from '../../utils/money'
 
 /**
  * UFA private school requirements checklist (iCreate feedback 2026-07-21):
@@ -96,7 +97,7 @@ const UfaRequirementsPanel = ({ ufa, totalBlocks, ufaShortfall, campusDays, tota
             {' '}The class{extraCharge.classNames.length === 1 ? '' : 'es'} meeting only on{' '}
             {extraCharge.days.map((d) => DAY_LONG[d]).join(' and ')}
             {extraCharge.classNames.length ? ` (${extraCharge.classNames.join(', ')})` : ''} will be
-            billed to you personally{extraCharge.priceCents ? `: ${money(extraCharge.priceCents)}` : ''}.
+            billed to you personally{extraCharge.priceCents ? `: ${formatCents(extraCharge.priceCents)}` : ''}.
           </div>
         )}
       </div>

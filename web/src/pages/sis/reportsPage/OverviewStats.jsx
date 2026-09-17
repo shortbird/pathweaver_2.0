@@ -1,9 +1,7 @@
 import React from 'react'
+import { formatCents as money } from '../../../utils/money'
 
 // "$12,450.00", not "$12450.00": a school's term of tuition is five figures.
-const money = (cents) => `$${((cents || 0) / 100).toLocaleString('en-US', {
-  minimumFractionDigits: 2, maximumFractionDigits: 2,
-})}`
 const pct = (rate) => (rate == null ? '—' : `${Math.round(rate * 100)}%`)
 
 const Stat = ({ label, value, hint }) => (

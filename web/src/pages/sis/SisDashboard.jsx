@@ -11,6 +11,7 @@ import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
 import DashboardCard from '../../components/sis/DashboardCard'
 import { fmtEventWhen } from '../../utils/timeFormat'
+import { formatCents as money } from '../../utils/money'
 
 /**
  * The School Dashboard — what is waiting on the office, then what is happening
@@ -100,9 +101,6 @@ const AttentionTile = ({ tile, count }) => (
   </Link>
 )
 
-const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, {
-  minimumFractionDigits: 2, maximumFractionDigits: 2,
-})}`
 
 // The event's day and time, read as the wall clock the office typed. The
 // rule and its history are in utils/timeFormat.js (EVENT_STAMPS_ARE_WALL_CLOCK);

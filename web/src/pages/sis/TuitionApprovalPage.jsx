@@ -7,6 +7,7 @@ import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from '.
 import RecurringTuitionModal from './RecurringTuitionModal'
 import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
 import { isClpEnabled } from './sisModules'
+import { formatCents as money } from '../../utils/money'
 
 /**
  * Tuition Approver — the step after a CLP meeting.
@@ -21,7 +22,6 @@ import { isClpEnabled } from './sisModules'
  * charge.
  */
 
-const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
 // No width here on purpose. It used to carry w-full, which collides with the
 // w-32 on the amount inputs — Tailwind emits w-full after the numeric widths, so
 // w-full won, the amount box went full width, and the description box next to it

@@ -68,10 +68,12 @@ class TestTheInvoicePdf:
             assert expected in text, f'missing {expected!r}'
 
     def test_money_is_formatted_for_humans(self):
-        """$1,450.00 — not 145000, and not $1450.0."""
-        assert pdf._money(145000) == '$1,450.00'
-        assert pdf._money(0) == '$0.00'
-        assert pdf._money(None) == '$0.00'
+        """$1,450.00 -- not 145000, and not $1450.0. The PDF reads through the
+        one formatter (utils.money, M7); an amount that is not on file is a
+        dash there, not a silent $0.00."""
+        assert pdf.format_cents(145000) == '$1,450.00'
+        assert pdf.format_cents(0) == '$0.00'
+        assert pdf.format_cents(None) == '—'
 
     def test_a_discount_shows_as_a_deduction(self):
         text = _text(pdf.render_invoice_pdf({**DOC, 'discount_cents': 5000,

@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
-import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
+import ClassDetailsModal, { meetingText } from '../components/schedule/ClassDetailsModal'
 import { Spinner } from '../components/ui'
 import { useConfirm } from '../contexts/ConfirmContext'
 import { useFamilyScope } from '../contexts/FamilyScopeContext'
@@ -39,6 +39,7 @@ import fmtDate from './scheduleBuilder/fmtDate'
 import DAY_LONG from './scheduleBuilder/DAY_LONG'
 import { toMin, fitsAge, ageFromDob, conflictsWith } from '../utils/schedule'
 import slotEnd from './scheduleBuilder/slotEnd'
+import { formatCents, formatDollars } from '../utils/money'
 // The child's age for the year: as of the first day of school, the same
 // answer the funnel's waitlist notice, the CLP and the student modal give
 // (utils/age.js). Unknown age (no DOB on file) never hides classes.
@@ -294,7 +295,7 @@ const ScheduleBuilderPage = () => {
     for (const [d, amt] of Object.entries(byDay)) {
       out[d] = (
         <div className="text-[11px] text-gray-500 text-center border-t border-gray-100 pt-1.5">
-          Supplies: <span className="font-semibold text-gray-700">{money(Math.round(amt * 100))}</span>
+          Supplies: <span className="font-semibold text-gray-700">{formatDollars(amt)}</span>
         </div>
       )
     }
@@ -556,10 +557,10 @@ const ScheduleBuilderPage = () => {
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estimated total</span>
               <span className="text-lg font-bold text-gray-900">
-                {money(totalYearCents)}<span className="text-xs font-medium text-gray-400">/yr</span>
+                {formatCents(totalYearCents)}<span className="text-xs font-medium text-gray-400">/yr</span>
               </span>
               {perPaymentCents != null && (
-                <span className="text-sm text-gray-500">or {installments} payments of {money(perPaymentCents)}</span>
+                <span className="text-sm text-gray-500">or {installments} payments of {formatCents(perPaymentCents)}</span>
               )}
               <span className="text-xs text-gray-400">
                 {tuitionCount} {tuitionCount === 1 ? 'class' : 'classes'} · {totalBlocks} block{totalBlocks === 1 ? '' : 's'}/wk
@@ -570,14 +571,14 @@ const ScheduleBuilderPage = () => {
                 fees (+ any extra-day classes billed personally). */}
             {ufa ? (
               <p className="text-xs text-gray-400 mt-0.5">
-                {money(tuitionYearCents)} UFA tuition
-                {supplyCents > 0 ? ` + ${money(supplyCents)} supply fees` : ''}
-                {extraPriceCents > 0 ? ` + ${money(extraPriceCents)} extra-day classes (billed to you)` : ''}
+                {formatCents(tuitionYearCents)} UFA tuition
+                {supplyCents > 0 ? ` + ${formatCents(supplyCents)} supply fees` : ''}
+                {extraPriceCents > 0 ? ` + ${formatCents(extraPriceCents)} extra-day classes (billed to you)` : ''}
                 {perPaymentCents != null ? ` The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
             ) : (supplyCents > 0 || perPaymentCents != null) && (
               <p className="text-xs text-gray-400 mt-0.5">
-                {supplyCents > 0 ? `Includes ${money(supplyCents)} in supply fees.` : ''}
+                {supplyCents > 0 ? `Includes ${formatCents(supplyCents)} in supply fees.` : ''}
                 {perPaymentCents != null ? `${supplyCents > 0 ? ' ' : ''}The payment plan includes a ${feePct}% convenience fee.` : ''}
               </p>
             )}

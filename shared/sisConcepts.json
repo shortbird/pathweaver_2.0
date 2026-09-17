@@ -126,17 +126,16 @@
     },
     {
       "id": "money_format",
-      "means": "Cents rendered as dollars. Ten web copies and five backend copies disagree on null ('--' vs '$0.00' vs '$0'), negatives, and trailing zeros.",
+      "means": "Cents rendered as dollars. Ten web copies and five backend copies disagreed on null ('--' vs '$0.00' vs '$0' vs ''), negatives and thousands; utils/money.js formatCents / formatDollars and backend utils/money.py format_cents are the rule (M7, 2026-09-17): '$1,500.00', a real minus for a refund, a dash for nothing on file, compact whole dollars for a plan price.",
       "owner": { "web": ["utils/money.js"], "backend": ["utils/money.py"] },
-      "proposed": true,
       "forbid": {
         "web": { "pattern": "^\\s*(export )?(const money = |function money\\()", "dirs": ["pages", "components"] },
         "backend": { "pattern": "^\\s*def _money\\(", "dirs": ["routes", "services", "utils"] }
       },
-      "baseline": { "web": 10, "backend": 5 },
+      "baseline": { "web": 0, "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M7",
-      "use_instead": "web: formatCents(cents) from utils/money.js; backend: utils.money.format_cents(cents). One null rule, one negative rule, everywhere."
+      "use_instead": "web: formatCents(cents, { blank, compact }) or formatDollars(dollars, ...) from utils/money.js (import as `money` if the page reads better); backend: utils.money.format_cents(cents, blank=, compact=). One null rule, one negative rule, everywhere."
     },
     {
       "id": "family_hold_write",

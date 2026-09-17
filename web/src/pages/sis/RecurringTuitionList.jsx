@@ -3,6 +3,8 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { withOrg } from './useSisOrg'
+import { formatCents as money } from '../../utils/money'
+import { Link } from 'react-router-dom'
 
 /**
  * The school's monthly tuition — who is being billed a set amount every month,
@@ -23,7 +25,7 @@ import { withOrg } from './useSisOrg'
  * Reads and acts; adding a schedule stays in the dialog.
  */
 
-export const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
+export { money }
 
 const STATUS_STYLE = {
   active: 'bg-green-100 text-green-800',
@@ -136,7 +138,9 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
             <div className="flex items-center justify-between gap-3 p-3 bg-neutral-50 border-b border-gray-200">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-neutral-800">
-                  {fam.name}
+                  {fam.householdId
+                    ? <Link to={`/people?open=${fam.householdId}&tab=billing`} className="hover:text-optio-purple hover:underline">{fam.name}</Link>
+                    : fam.name}
                   <span className="ml-2 text-neutral-500 font-normal">
                     {money(fam.monthlyCents)}/month
                   </span>

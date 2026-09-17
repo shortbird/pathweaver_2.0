@@ -16,10 +16,12 @@ import { PaymentMethodPills } from './PaymentMethodPills'
 // Funding source options (school-of-record enrollment is tracked separately).
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  useHouseholdBilling, useHouseholdContacts, useHouseholdRegistration, sisFamilyApi,
+  useHouseholdContacts, useHouseholdRegistration, sisFamilyApi,
 } from '../../hooks/api/useSisFamilyDetail'
 import { queryKeys } from '../../utils/queryKeys'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import { formatCents as money } from '../../utils/money'
+import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
 
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
@@ -60,7 +62,6 @@ const Avatar = ({ name, src }) => (
 )
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-const money = (c) => (c == null ? '—' : `$${(c / 100).toFixed(2)}`)
 
 const TABS = [
   { key: 'family', label: 'Family' },
@@ -83,11 +84,12 @@ const TABS = [
 export const familyTabsFor = (user) =>
   TABS.filter((t) => t.key !== 'billing' || canSeeFinance(user))
 
-const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
+const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initialTab = null }) => {
   const confirm = useConfirm()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [tab, setTab] = useState('family')
+  const [tab, setTab] = useState(
+    initialTab && familyTabsFor(user).some((t) => t.key === initialTab) ? initialTab : 'family')
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState(household.name || '')
   const [saving, setSaving] = useState(false)
@@ -271,7 +273,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
             </div>
           )}
           {tab === 'details' && <DetailsPanel household={household} orgId={orgId} onSaved={onSaved} />}
-          {tab === 'billing' && <BillingPanel householdId={household.id} orgId={orgId} />}
+          {tab === 'billing' && <FamilyBillingPanel householdId={household.id} orgId={orgId} />}
           {tab === 'contacts' && <FamilyContactsPanel householdId={household.id} orgId={orgId} />}
           {tab === 'registration' && (
             <RegistrationPanel household={household} orgId={orgId} onSaved={onSaved} />
@@ -629,57 +631,6 @@ const DirectoryRow = ({ household, orgId, onSaved, defaultIn = false }) => {
       >
         <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${optIn ? 'translate-x-5' : 'translate-x-0.5'}`} />
       </button>
-    </div>
-  )
-}
-
-const BillingPanel = ({ householdId, orgId }) => {
-  const billing = useHouseholdBilling(householdId, orgId)
-  const data = billing.data
-  const loading = billing.isLoading
-
-  useEffect(() => {
-    if (billing.isError) toast.error('Could not load billing')
-  }, [billing.isError])
-
-  if (loading) return <p className="text-sm text-neutral-500">Loading…</p>
-  const invoices = data?.invoices || []
-  const outstanding = invoices
-    .filter((i) => i.status !== 'paid' && i.status !== 'void')
-    .reduce((sum, i) => sum + ((i.total_cents || 0) - (i.amount_paid_cents || 0)), 0)
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg bg-neutral-50 px-4 py-3 flex items-center justify-between">
-        <span className="text-sm text-neutral-500">Outstanding balance</span>
-        <span className={`text-lg font-bold ${outstanding > 0 ? 'text-red-600' : 'text-green-600'}`}>{money(outstanding)}</span>
-      </div>
-
-      {data?.sbs_pay_url && (
-        <a href={data.sbs_pay_url} target="_blank" rel="noreferrer" className="inline-block text-sm text-optio-purple font-medium hover:underline">Open pay portal →</a>
-      )}
-
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Invoices</h4>
-        {invoices.length === 0 ? <p className="text-sm text-neutral-400">No invoices yet.</p> : (
-          <div className="space-y-1.5">
-            {invoices.map((i) => (
-              <div key={i.id} className="flex items-center justify-between text-sm border border-gray-100 rounded-lg px-3 py-2">
-                <span className="text-neutral-600">
-                  {money(i.total_cents)}
-                  {i.amount_paid_cents ? <span className="text-neutral-400"> · paid {money(i.amount_paid_cents)}</span> : null}
-                  {i.due_date && <span className="text-neutral-400"> · due {String(i.due_date).slice(0, 10)}</span>}
-                </span>
-                <span className={`text-xs font-medium rounded-full px-2 py-0.5 ${i.status === 'paid' ? 'bg-green-100 text-green-700' : i.status === 'void' ? 'bg-neutral-100 text-neutral-500' : 'bg-amber-100 text-amber-700'}`}>{i.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {(data?.upcoming_installments || []).length > 0 && (
-        <p className="text-xs text-neutral-400">{data.upcoming_installments.length} upcoming installment{data.upcoming_installments.length === 1 ? '' : 's'} scheduled.</p>
-      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('react-hot-toast', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -26,8 +27,10 @@ const HANNA = [
     billing_contact: CONTACT, setup_link_sent_at: null },
 ]
 
+// The family name links into the family record's Billing tab (M7), so the
+// list renders inside a router.
 const show = (schedules) => render(
-  <RecurringTuitionList orgId="org-1" schedules={schedules} onChanged={vi.fn()} />
+  <MemoryRouter><RecurringTuitionList orgId="org-1" schedules={schedules} onChanged={vi.fn()} /></MemoryRouter>
 )
 
 beforeEach(() => {
@@ -45,7 +48,7 @@ describe('RecurringTuitionList', () => {
 
   it('adds the children up into what the family pays each month', async () => {
     show(HANNA)
-    expect(await screen.findByText(/\$2000\.00\/month/)).toBeInTheDocument()
+    expect(await screen.findByText(/\$2,000\.00\/month/)).toBeInTheDocument()
   })
 
   it('names the one parent the link goes to', async () => {

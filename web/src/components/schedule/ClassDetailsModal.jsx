@@ -4,13 +4,13 @@ import Modal from '../ui/Modal'
 import api from '../../services/api'
 import { fmtTime } from '../../utils/schedule'
 import { seatText, seatState } from '../sis/ClassSummaryLine'
+import { formatCents } from '../../utils/money'
 
 // Read-only detail view for a catalog entry in the family Schedule Builder:
 // a scheduled class (org_classes) or an Optio course (at-home learning).
 // The add/waitlist action lives in the footer so the catalog rows only need
 // a "Details" button.
 
-export const money = (cents) => (cents == null ? null : `$${(cents / 100).toFixed(2)}`)
 
 // Quest descriptions are stored as HTML; render them as plain text here.
 const stripHtml = (html) => {
@@ -62,7 +62,8 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
   const teacher = item.primary_instructor
   const assistants = (!isCourse && item.assistant_instructors) || []
   const ages = isCourse ? item.age_range : ageText(item.min_age, item.max_age)
-  const tuition = money(isCourse ? item.tuition_cents : item.price_cents)
+  // null when there is no price: the fact renders only when there is one.
+  const tuition = formatCents(isCourse ? item.tuition_cents : item.price_cents, { blank: null })
   const supplyFee = !isCourse && item.supply_fee != null ? `$${Number(item.supply_fee).toFixed(2)}` : null
 
   const availability = isCourse ? null : seatText(item)

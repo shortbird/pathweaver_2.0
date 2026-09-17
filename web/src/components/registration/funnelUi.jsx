@@ -30,13 +30,6 @@ export const POST_FEE_STEPS = new Set(['done'])
 
 export const field = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
-export const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`
-// "$50" for whole dollars, "$12.50" otherwise -- for prices read as a plan
-// ("$50 per student each month") rather than as a total on a receipt.
-export const moneyCompact = (cents) => {
-  const n = (cents || 0) / 100
-  return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`
-}
 
 // What the payment step is called in the stepper: the one-time fee, the
 // monthly plan, or both. A `monthly` block on the public config is already

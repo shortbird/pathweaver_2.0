@@ -10,13 +10,13 @@
  * (hooks/api/useRegistrationQuote).
  */
 import React from 'react'
-import { money, moneyCompact } from './funnelUi'
+import { formatCents } from '../../utils/money'
 
 // "$50 per student each month, capped at $150 per family."
 export const planSentence = (plan) => {
   if (!plan?.per_student_cents) return ''
-  const per = `${moneyCompact(plan.per_student_cents)} per student each month`
-  return plan.family_cap_cents ? `${per}, capped at ${moneyCompact(plan.family_cap_cents)} per family.` : `${per}.`
+  const per = `${formatCents(plan.per_student_cents, { compact: true })} per student each month`
+  return plan.family_cap_cents ? `${per}, capped at ${formatCents(plan.family_cap_cents, { compact: true })} per family.` : `${per}.`
 }
 
 // One card per student: what they cost each month, and the add-ons on offer.
@@ -35,7 +35,7 @@ export const MonthlyPlanPicker = ({ plan, students, onToggle, disabled = false }
               <span className="font-semibold text-neutral-900">{s.name}</span>
               {plan.per_student_cents > 0 && (
                 <span className="text-sm text-neutral-500">
-                  {covered ? 'Program fee included below' : `${moneyCompact(plan.per_student_cents)}/month`}
+                  {covered ? 'Program fee included below' : `${formatCents(plan.per_student_cents, { compact: true })}/month`}
                 </span>
               )}
             </div>
@@ -51,7 +51,7 @@ export const MonthlyPlanPicker = ({ plan, students, onToggle, disabled = false }
                   <span className="flex items-center justify-between gap-3">
                     <span className="font-medium text-neutral-900">Add {a.label}</span>
                     <span className="text-sm font-semibold text-neutral-800 whitespace-nowrap">
-                      {moneyCompact(a.amount_cents)}/month
+                      {formatCents(a.amount_cents, { compact: true })}/month
                     </span>
                   </span>
                   {a.description && (
@@ -59,7 +59,7 @@ export const MonthlyPlanPicker = ({ plan, students, onToggle, disabled = false }
                   )}
                   {a.includes_program_fee && plan.per_student_cents > 0 && (
                     <span className="block text-xs text-neutral-500 mt-1">
-                      Includes the {moneyCompact(plan.per_student_cents)} program fee for {s.name}.
+                      Includes the {formatCents(plan.per_student_cents, { compact: true })} program fee for {s.name}.
                     </span>
                   )}
                 </span>
@@ -83,7 +83,7 @@ const Line = ({ line }) => (
       {line.students?.length > 0 && <span className="text-neutral-400"> · {line.students.join(', ')}</span>}
       {line.capped && <span className="text-neutral-400"> (family cap)</span>}
     </span>
-    <span className="text-neutral-800 whitespace-nowrap">{money(line.amount_cents)}</span>
+    <span className="text-neutral-800 whitespace-nowrap">{formatCents(line.amount_cents)}</span>
   </div>
 )
 
@@ -102,7 +102,7 @@ export const QuoteLines = ({ quote, feeDeferred = false }) => {
           {monthly.map((l, i) => <Line key={`${l.key}-${i}`} line={l} />)}
           <div className="flex items-center justify-between gap-4 border-t border-gray-200 mt-2 pt-2 font-semibold text-neutral-900">
             <span>Total each month</span>
-            <span>{money(monthlyTotal)}</span>
+            <span>{formatCents(monthlyTotal)}</span>
           </div>
         </>
       )}
@@ -116,7 +116,7 @@ export const QuoteLines = ({ quote, feeDeferred = false }) => {
       )}
       <div className="flex items-center justify-between gap-4 border-t border-gray-200 mt-2 pt-2 font-semibold text-neutral-900">
         <span>Due today</span>
-        <span>{money(dueToday)}</span>
+        <span>{formatCents(dueToday)}</span>
       </div>
     </div>
   )

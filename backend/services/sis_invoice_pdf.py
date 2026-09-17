@@ -20,6 +20,7 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from utils.logger import get_logger
+from utils.money import format_cents
 
 logger = get_logger(__name__)
 
@@ -102,10 +103,6 @@ PURPLE = '#6d469b'
 INK = '#1f2937'
 MUTED = '#6b7280'
 RULE = '#e5e7eb'
-
-
-def _money(cents: Optional[int]) -> str:
-    return f"${(cents or 0) / 100:,.2f}"
 
 
 def _address_lines(address: Optional[Dict[str, Any]]) -> List[str]:
@@ -209,9 +206,9 @@ def render_invoice_pdf(document: Dict[str, Any], pay_url: Optional[str] = None) 
     rows: List[List[Any]] = [[Paragraph('DESCRIPTION', label), Paragraph('AMOUNT', right_small)]]
     for li in (document.get('line_items') or []):
         rows.append([Paragraph(str(li.get('description') or 'Charge'), base),
-                     Paragraph(_money(li.get('amount_cents')), right)])
+                     Paragraph(format_cents(li.get('amount_cents')), right)])
     if len(rows) == 1:
-        rows.append([Paragraph('No charges', small), Paragraph(_money(0), right)])
+        rows.append([Paragraph('No charges', small), Paragraph(format_cents(0), right)])
 
     items = Table(rows, colWidths=[doc.width * 0.72, doc.width * 0.28], repeatRows=1)
     items.setStyle(TableStyle([
@@ -228,20 +225,20 @@ def render_invoice_pdf(document: Dict[str, Any], pay_url: Optional[str] = None) 
 
     # ── Totals ───────────────────────────────────────────────────────────────
     total_rows: List[List[Any]] = [
-        [Paragraph('Subtotal', small), Paragraph(_money(document.get('subtotal_cents')), right)],
+        [Paragraph('Subtotal', small), Paragraph(format_cents(document.get('subtotal_cents')), right)],
     ]
     if document.get('discount_cents'):
         total_rows.append([Paragraph('Discount', small),
-                           Paragraph(f"-{_money(document['discount_cents'])}", right)])
+                           Paragraph(f"-{format_cents(document['discount_cents'])}", right)])
     # No fee row here: the card fee is one of the line items above, and inside
     # subtotal. Printing it again would bill the family twice on paper.
     total_rows.append([Paragraph('<b>Total</b>', base),
-                       Paragraph(f"<b>{_money(document.get('total_cents'))}</b>", right)])
+                       Paragraph(f"<b>{format_cents(document.get('total_cents'))}</b>", right)])
     if document.get('amount_paid_cents'):
         total_rows.append([Paragraph('Paid', small),
-                           Paragraph(f"-{_money(document['amount_paid_cents'])}", right)])
+                           Paragraph(f"-{format_cents(document['amount_paid_cents'])}", right)])
     total_rows.append([Paragraph('<b>Amount due</b>', base),
-                       Paragraph(f"<b>{_money(document.get('amount_due_cents'))}</b>", right)])
+                       Paragraph(f"<b>{format_cents(document.get('amount_due_cents'))}</b>", right)])
 
     totals = Table(total_rows, colWidths=[doc.width * 0.52, doc.width * 0.20],
                    hAlign='RIGHT')

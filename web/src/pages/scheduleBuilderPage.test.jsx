@@ -338,7 +338,7 @@ describe('ScheduleBuilderPage', () => {
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated total')).toBeInTheDocument()
-    expect(screen.getByText('$1500.00')).toBeInTheDocument()
+    expect(screen.getByText('$1,500.00')).toBeInTheDocument()
     expect(screen.getByText('or 10 payments of $159.00')).toBeInTheDocument()
     expect(screen.getByText(/5 blocks\/wk · 5-block plan/)).toBeInTheDocument()
     expect(screen.getByText(/6% convenience fee/)).toBeInTheDocument()
@@ -391,7 +391,7 @@ describe('ScheduleBuilderPage', () => {
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated total')).toBeInTheDocument()
-    expect(screen.getByText('$4750.00')).toBeInTheDocument()
+    expect(screen.getByText('$4,750.00')).toBeInTheDocument()
     expect(screen.getByText(/UFA Private School tuition/)).toBeInTheDocument()
     expect(screen.getByText('UFA Private School requirements')).toBeInTheDocument()
     // 1 of 5 blocks scheduled: the checklist says how many more to add.
@@ -469,7 +469,7 @@ describe('ScheduleBuilderPage', () => {
     expect(banner).toHaveTextContent('Chess Club')
     expect(banner).toHaveTextContent('$100.00')
     // Total = $4750 flat + $100 extra-day class.
-    expect(screen.getByText('$4850.00')).toBeInTheDocument()
+    expect(screen.getByText('$4,850.00')).toBeInTheDocument()
   })
 
   // ── Daily supply totals + empty-block gap warnings ──────────────────────────

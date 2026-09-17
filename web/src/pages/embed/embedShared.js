@@ -77,7 +77,3 @@ export const daysLabel = (days) =>
 export const agesLabel = (min, max) => ageBandText({ min_age: min, max_age: max }, { capital: true })
 
 // 365 -> "$365"; 35.5 -> "$35.50". null/undefined -> ''.
-export const money = (value) => {
-  if (value == null) return ''
-  return Number.isInteger(value) ? `$${value}` : `$${value.toFixed(2)}`
-}

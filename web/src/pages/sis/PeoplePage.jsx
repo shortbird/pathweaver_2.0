@@ -117,14 +117,27 @@ const PeoplePage = () => {
     if (fresh) setSelected(fresh)
   }, [roster])
 
-  // A link can open the new-family form (the dashboard's "Add a family").
+  // A link can open the new-family form (the dashboard's "Add a family") or
+  // one family's record on a tab (?open=<household id>&tab=billing): the
+  // Billing page and the recurring-tuition list send the office here rather
+  // than keeping their own family views (M7).
+  const [familyTab, setFamilyTab] = useState(null)
   useEffect(() => {
+    const next = new URLSearchParams(params)
+    let changed = false
     if (params.get('add') === 'family') {
       setAdding('family')
-      const next = new URLSearchParams(params)
       next.delete('add')
-      setParams(next, { replace: true })
+      changed = true
     }
+    if (params.get('open')) {
+      setFamilyId(params.get('open'))
+      setFamilyTab(params.get('tab') === 'billing' ? 'billing' : null)
+      next.delete('open')
+      if (params.get('tab') === 'billing') next.delete('tab')
+      changed = true
+    }
+    if (changed) setParams(next, { replace: true })
   }, [])
 
   const refresh = () => {
@@ -339,7 +352,7 @@ const PeoplePage = () => {
 
       {household && (
         <FamilyDetailModal household={household} orgId={orgId} members={memberOptions}
-          onClose={() => setFamilyId(null)} onSaved={refresh} />
+          initialTab={familyTab} onClose={() => { setFamilyId(null); setFamilyTab(null) }} onSaved={refresh} />
       )}
 
       {adding === 'person' && (

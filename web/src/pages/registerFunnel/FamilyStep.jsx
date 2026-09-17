@@ -2,8 +2,9 @@
 // allergies, medications). addressBoxRef is the container mergeAutofilledFields
 // reads when a password manager paints values in without firing React events.
 import React from 'react'
-import { field, money, ageFromDob, enrollmentGateFor, gateBandText, PhotoPicker, Section, PrimaryButton } from '../../components/registration/funnelUi'
+import { field, ageFromDob, enrollmentGateFor, gateBandText, PhotoPicker, Section, PrimaryButton } from '../../components/registration/funnelUi'
 import { emptyKid, formatMdy, mdyToIso } from './funnelFields'
+import { formatCents } from '../../utils/money'
 
 // `quote` is the server's running estimate for the kids entered so far (the
 // fee, and the base program fee for a monthly plan -- add-ons are chosen on
@@ -140,12 +141,12 @@ const FamilyStep = ({ addressBoxRef, config, quote, family, kids, org, parentPho
 
     {quote?.fee?.amount_cents > 0 && (
       <p className="text-center text-sm text-neutral-500">
-        Registration fee: <span className="font-semibold text-neutral-800">{money(quote.fee.amount_cents)}</span>
+        Registration fee: <span className="font-semibold text-neutral-800">{formatCents(quote.fee.amount_cents)}</span>
       </p>
     )}
     {quote?.monthly?.total_cents > 0 && (
       <p className="text-center text-sm text-neutral-500">
-        Monthly program fee: <span className="font-semibold text-neutral-800">{money(quote.monthly.total_cents)}/month</span>
+        Monthly program fee: <span className="font-semibold text-neutral-800">{formatCents(quote.monthly.total_cents)}/month</span>
       </p>
     )}
 

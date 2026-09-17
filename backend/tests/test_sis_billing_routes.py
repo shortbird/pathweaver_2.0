@@ -156,7 +156,7 @@ class TestPayments:
 
     def test_household_billing(self, client, auth_headers, mock_verify_token):
         out = {'invoices': [], 'upcoming_installments': [], 'sbs_pay_url': 'https://sbs/pay'}
-        with staff(), patch('routes.sis.billing.billing.household_billing', return_value=out):
+        with staff(), patch('routes.sis.billing.billing.household_billing_summary', return_value=out):
             resp = client.get('/api/sis/households/h1/billing?organization_id=org-1', headers=auth_headers)
         assert resp.status_code == 200
         assert json.loads(resp.data)['sbs_pay_url'] == 'https://sbs/pay'

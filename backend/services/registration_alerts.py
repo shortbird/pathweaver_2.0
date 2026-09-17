@@ -22,14 +22,11 @@ from typing import Any, Dict, List, Optional
 from app_config import Config
 from services.registration_pricing import monthly_line_items, monthly_plan
 from utils.logger import get_logger
+from utils.money import format_cents
 
 logger = get_logger(__name__)
 
 SIS_URL = 'https://sis.optioeducation.com'
-
-
-def _money(cents: Any) -> str:
-    return f'${int(cents or 0) / 100:,.2f}'
 
 
 def _esc(v: Any) -> str:
@@ -60,17 +57,17 @@ def _payment_lines(reg: Dict[str, Any], cfg: Dict[str, Any], extra: Dict[str, An
     fee = int(reg.get('fee_cents') or 0)
     if fee > 0:
         how = 'paid by card' if extra.get('fee_paid_at') or reg.get('fee_paid_at') else 'recorded, collected by the school'
-        lines.append(f'Registration fee {_money(fee)} ({how})')
+        lines.append(f'Registration fee {format_cents(fee)} ({how})')
     elif reg.get('fee_deferred'):
         lines.append('Registration fee deferred (waitlist)')
     monthly = int(reg.get('monthly_cents') or 0)
     if monthly > 0:
         items = monthly_line_items(monthly_plan(cfg), reg.get('kids') or [])
         detail = '; '.join(
-            f"{i['label']}{' (' + ', '.join(i['students']) + ')' if i['students'] else ''} {_money(i['amount_cents'])}"
+            f"{i['label']}{' (' + ', '.join(i['students']) + ')' if i['students'] else ''} {format_cents(i['amount_cents'])}"
             for i in items)
         sub = extra.get('stripe_subscription_id') or reg.get('stripe_subscription_id')
-        lines.append(f'Monthly {_money(monthly)}/month: {detail}')
+        lines.append(f'Monthly {format_cents(monthly)}/month: {detail}')
         lines.append(f'Stripe subscription {sub}' if sub
                      else 'No subscription on file: the school collects the monthly payment itself')
     return lines

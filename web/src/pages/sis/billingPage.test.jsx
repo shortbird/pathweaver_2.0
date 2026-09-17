@@ -526,7 +526,7 @@ describe('charge detail', () => {
       render(<BillingPage />)
       fireEvent.click(await screen.findByRole('button', { name: /Monthly tuition/ }))
       expect(await screen.findByText('Banks Hanna')).toBeInTheDocument()
-      expect(screen.getAllByText(/\$1000\.00\/month/).length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/\$1,000\.00\/month/).length).toBeGreaterThan(0)
       expect(screen.getByText(/setup link not sent yet/)).toBeInTheDocument()
       expect(screen.getByText(/a month across this school/)).toBeInTheDocument()
     })

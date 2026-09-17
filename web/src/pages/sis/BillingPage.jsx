@@ -23,6 +23,7 @@ import { statusLabel } from '../../components/sis/ui/statusMaps'
 import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { downloadBlob } from '../../utils/csv'
+import { Link } from 'react-router-dom'
 
 // Build the last 12 months (YYYY-MM) plus an "All open" option.
 const monthOptions = () => {
@@ -501,6 +502,12 @@ const BillingPage = () => {
                 <option key={h.id} value={h.id}>{h.display_name || h.name || 'Unnamed family'}</option>
               ))}
             </select>
+            {detailHousehold && (
+              <Link to={`/people?open=${detailHousehold}&tab=billing`}
+                className="text-sm font-medium text-optio-purple hover:underline">
+                Open the family record →
+              </Link>
+            )}
             <select
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               value={detailKind} onChange={(e) => setDetailKind(e.target.value)}

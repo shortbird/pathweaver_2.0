@@ -57,6 +57,7 @@ from utils.admin_client import admin_client as _admin
 
 from utils.timestamps import now_iso as _now  # noqa: E402
 from config.constants import GUARDIAN_RELATIONSHIPS
+from utils.money import format_cents
 
 
 # ── Processing fees ──────────────────────────────────────────────────────────
@@ -838,11 +839,11 @@ def email_invoice_to_family(org_id: str, invoice_id: str,
     subject = f"{org_name}: tuition invoice for {student_name}"
     monthly = int(round(total / int(autopay_installments))) if autopay_link else 0
     autopay_text = (
-        f"Set up monthly payments of about {_money(monthly)} "
+        f"Set up monthly payments of about {format_cents(monthly)} "
         f"({autopay_installments} payments): {autopay_link}\n\n" if autopay_link else '')
     autopay_html = (
         f'<p><a href="{autopay_link}"><strong>Set up monthly payments</strong></a> — about '
-        f'{_money(monthly)} a month for {autopay_installments} months, charged automatically '
+        f'{format_cents(monthly)} a month for {autopay_installments} months, charged automatically '
         f'to the card you save.</p>' if autopay_link else '')
     pay_text = (f"Pay the full balance by card here: {pay_link}\n\n" if pay_link else '')
     pay_html = (f'<p><a href="{pay_link}">Or pay the full balance by card</a></p>'
@@ -851,7 +852,7 @@ def email_invoice_to_family(org_id: str, invoice_id: str,
     text = (
         f"Hello,\n\n"
         f"{org_name} has issued a tuition invoice ({number}) for {student_name} "
-        f"totaling {_money(total)}. {attached}\n\n"
+        f"totaling {format_cents(total)}. {attached}\n\n"
         f"{autopay_text}"
         f"{pay_text}"
         f"You can also see your balance and pay — in full or on a payment plan — here: {link}\n\n"
@@ -860,7 +861,7 @@ def email_invoice_to_family(org_id: str, invoice_id: str,
     html = (
         f"<p>Hello,</p>"
         f"<p>{org_name} has issued a tuition invoice (<strong>{number}</strong>) for "
-        f"<strong>{student_name}</strong> totaling <strong>{_money(total)}</strong>."
+        f"<strong>{student_name}</strong> totaling <strong>{format_cents(total)}</strong>."
         f"{' ' + attached if attached else ''}</p>"
         f"{autopay_html}"
         f"{pay_html}"
@@ -1101,7 +1102,7 @@ def record_refund(org_id: str, invoice_id: str, amount_cents: int,
     ).data or []
     paid = sum(p['amount_cents'] for p in payments)
     if amount_cents > paid:
-        return {'error': f'Refund exceeds the {_money(paid)} recorded as paid on this invoice'}
+        return {'error': f'Refund exceeds the {format_cents(paid)} recorded as paid on this invoice'}
     record = (
         _admin().table('sis_payment_records').insert({
             'organization_id': org_id,
@@ -1273,6 +1274,63 @@ def household_billing(org_id: str, household_id: str) -> Dict[str, Any]:
     ).data
     pay_url = ((org[0].get('feature_flags') or {}).get('sbs_pay_url')) if org else None
     return {'invoices': invoices, 'upcoming_installments': upcoming, 'sbs_pay_url': pay_url}
+
+
+def household_billing_summary(org_id: str, household_id: str) -> Dict[str, Any]:
+    """How one family pays and whether they are current: the one read behind
+    the family record's Billing tab, which is the hub the Billing page and the
+    recurring-tuition list link into (M7).
+
+    Two "monthly" mechanisms can exist for a family and neither knew about the
+    other (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, A1): recurring
+    tuition is invoiced by the school every month (sis_recurring_tuition, a
+    saved card the sweep charges), while a monthly PLAN is a Stripe
+    subscription the school manages on Stripe's side (registrations
+    .stripe_subscription_id, from the funnel). This says which the family is
+    on -- possibly both -- beside the invoices, the installments still due and
+    the card on file. The summary is a read model; the data stays where it is.
+    """
+    base = household_billing(org_id, household_id)
+    invoices = base['invoices']
+    open_invoices = [i for i in invoices if i.get('status') not in ('paid', 'void', 'draft')]
+    outstanding = sum(amount_due_cents(i) for i in open_invoices)
+    overdue = [i for i in open_invoices
+               if i.get('due_date') and str(i['due_date'])[:10] < _now()[:10]]
+
+    from services import sis_recurring_tuition_service as recurring
+    schedules = [s for s in recurring.list_for_org(org_id)['schedules']
+                 if s.get('household_id') == household_id]
+    active_recurring = [s for s in schedules if s.get('status') == 'active']
+
+    from services import sis_service
+    reg = sis_service.household_registration(org_id, household_id) or {}
+    subscription = ({'stripe_subscription_id': reg.get('stripe_subscription_id'),
+                     'monthly_cents': int(reg.get('monthly_cents') or 0),
+                     'registration_id': reg.get('id')}
+                    if reg.get('stripe_subscription_id') else None)
+
+    saved = household_saved_card(org_id, household_id)
+    card = ({'brand': saved.get('card_brand'), 'last4': saved.get('card_last4'),
+             'exp_month': saved.get('card_exp_month'), 'exp_year': saved.get('card_exp_year')}
+            if saved else None)
+
+    return {
+        **base,
+        'outstanding_cents': outstanding,
+        'overdue_cents': sum(amount_due_cents(i) for i in overdue),
+        'open_invoice_count': len(open_invoices),
+        'overdue_invoice_count': len(overdue),
+        'current': outstanding <= 0 or not overdue,
+        # "Monthly tuition (invoiced by the school)"
+        'recurring_tuition': {
+            'schedules': schedules,
+            'active_monthly_cents': sum(int(s.get('monthly_cents') or 0) for s in active_recurring),
+        },
+        # "Monthly plan (Stripe subscription)"
+        'subscription': subscription,
+        'card': card,
+        'funding_source': _household_funding_source(household_id),
+    }
 
 
 # ── Guardian-facing billing (household balance + receipts) ───────────────────
@@ -2531,7 +2589,7 @@ def _notify_autopay_failure(org_id: str, invoice_id: str, installment: Dict[str,
         org = _org_branding([org_id]).get(org_id) or {}
         org_name = org.get('name') or 'Your school'
         link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
-        amount = _money(installment.get('amount_cents') or 0)
+        amount = format_cents(installment.get('amount_cents') or 0)
         subject = f"{org_name}: a tuition payment didn't go through"
         text = (f"Hello,\n\nWe tried to charge your saved card {amount} for your tuition payment "
                 f"plan, but it didn't go through. Please update your payment or contact {org_name}.\n\n"
@@ -2824,10 +2882,6 @@ def _guardian_emails_for_household(household_id: str,
     return out
 
 
-def _money(cents: int) -> str:
-    return f"${cents / 100:,.2f}"
-
-
 def _reminder_bodies(org_name: str, amount_due_cents: int,
                      due_date: Optional[str]) -> Dict[str, str]:
     link = f"{Config.FRONTEND_URL.rstrip('/')}/family/billing"
@@ -2835,7 +2889,7 @@ def _reminder_bodies(org_name: str, amount_due_cents: int,
     text = (
         f"Hello,\n\n"
         f"This is a friendly reminder from {org_name} that your family has a tuition "
-        f"balance of {_money(amount_due_cents)}.{due_line}\n\n"
+        f"balance of {format_cents(amount_due_cents)}.{due_line}\n\n"
         f"You can pay by Zelle or through your scholarship program; the school "
         f"records the payment in Optio.\n\n"
         f"View your balance, invoices, and printable receipts here: {link}\n\n"
@@ -2844,7 +2898,7 @@ def _reminder_bodies(org_name: str, amount_due_cents: int,
     html = (
         f"<p>Hello,</p>"
         f"<p>This is a friendly reminder from {org_name} that your family has a tuition "
-        f"balance of <strong>{_money(amount_due_cents)}</strong>.{due_line}</p>"
+        f"balance of <strong>{format_cents(amount_due_cents)}</strong>.{due_line}</p>"
         f"<p>You can pay by Zelle or through your scholarship program; the school "
         f"records the payment in Optio.</p>"
         f"<p><a href=\"{link}\">View your balance, invoices, and printable receipts</a></p>"

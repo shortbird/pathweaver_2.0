@@ -12,7 +12,8 @@
 // "Set up" is a subscription, with the one-time fee -- if the org also has
 // one -- on the first invoice.
 import React from 'react'
-import { money, enrollmentGateFor, Section, PrimaryButton } from '../../components/registration/funnelUi'
+import { enrollmentGateFor, Section, PrimaryButton } from '../../components/registration/funnelUi'
+import { formatCents } from '../../utils/money'
 import { MonthlyPlanPicker, QuoteLines, planSentence } from '../../components/registration/MonthlyPlan'
 import { EMPTY_QUOTE } from '../../hooks/api/useRegistrationQuote'
 
@@ -82,7 +83,7 @@ const FeeStep = ({
         {feeDeferred && feeCents > 0 && (
           <p className="text-sm text-neutral-500 mt-3">
             Nothing to pay today. Because your student{kids.length === 1 ? ' is' : 's are'} joining
-            the waitlist, your {money(feeCents)} registration fee is due when a spot opens — we&apos;ll email you.
+            the waitlist, your {formatCents(feeCents)} registration fee is due when a spot opens — we&apos;ll email you.
           </p>
         )}
         {/* Payment affordances only render when something is actually owed
@@ -98,7 +99,7 @@ const FeeStep = ({
           <div className="text-center mt-4">
             <a href={paymentUrl} target="_blank" rel="noreferrer"
               className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90">
-              Pay {money(dueToday)}
+              Pay {formatCents(dueToday)}
             </a>
             <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you&apos;ve paid.</p>
           </div>
@@ -117,8 +118,8 @@ const FeeStep = ({
         <>
           <PrimaryButton onClick={startCheckout} disabled={submitting || ackBlocks}>
             {submitting ? 'One moment…'
-              : oneTime > 0 ? `Pay ${money(dueToday)} securely`
-              : `Set up ${money(monthlyCents)}/month`}
+              : oneTime > 0 ? `Pay ${formatCents(dueToday)} securely`
+              : `Set up ${formatCents(monthlyCents)}/month`}
           </PrimaryButton>
           <button onClick={() => confirmPayment()} disabled={submitting}
             className="w-full text-sm text-optio-purple font-medium hover:underline disabled:opacity-50">

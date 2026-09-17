@@ -50,10 +50,7 @@ from utils.admin_client import admin_client as _admin
 
 
 from utils.timestamps import now_iso as _now_iso  # noqa: E402
-
-
-def _money(cents: int) -> str:
-    return f"${cents / 100:,.2f}"
+from utils.money import format_cents
 
 
 # ── Validation (pure) ────────────────────────────────────────────────────────
@@ -417,23 +414,23 @@ def setup_email_bodies(org_name: str, students: List[Dict[str, Any]],
     """
     total = sum(r['monthly_cents'] for r in students)
     breakdown = '\n'.join(
-        f"  {r['student_name']}: {_money(r['monthly_cents'])}" for r in students)
+        f"  {r['student_name']}: {format_cents(r['monthly_cents'])}" for r in students)
     breakdown_html = ''.join(
-        f"<li>{r['student_name']}: <strong>{_money(r['monthly_cents'])}</strong></li>"
+        f"<li>{r['student_name']}: <strong>{format_cents(r['monthly_cents'])}</strong></li>"
         for r in students)
     return {
         'subject': f'{org_name}: set up your monthly tuition payment',
         'text': (
             f"Hello,\n\n{org_name} has set up monthly tuition for your family:\n\n"
             f"{breakdown}\n\n"
-            f"Total: {_money(total)} per month.\n\n"
+            f"Total: {format_cents(total)} per month.\n\n"
             f"Save a card here and the first payment is taken right away; after that "
             f"it is charged automatically each month until the school stops it:\n{link}\n\n"
             f"Thank you,\n{org_name}"),
         'html': (
             f"<p>Hello,</p><p>{org_name} has set up monthly tuition for your family:</p>"
             f"<ul>{breakdown_html}</ul>"
-            f"<p>Total: <strong>{_money(total)} per month</strong>.</p>"
+            f"<p>Total: <strong>{format_cents(total)} per month</strong>.</p>"
             f'<p><a href="{link}"><strong>Set up your monthly payment</strong></a> — the first '
             f"payment is taken right away, then it is charged automatically each month until "
             f"the school stops it.</p>"

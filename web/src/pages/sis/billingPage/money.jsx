@@ -1,8 +1,6 @@
 /**
- * Extracted from sis/BillingPage.jsx on 2026-09-04 (QF-02).
- * Moved verbatim -- no behaviour changed, only the address.
+ * Extracted from sis/BillingPage.jsx on 2026-09-04 (QF-02); since M7
+ * (2026-09-17) the one rule in utils/money.js, kept at this address for the
+ * billing page's modals.
  */
-
-const money = (cents) => (cents == null ? '—' : `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toFixed(2)}`)
-
-export default money
+export { formatCents as default } from '../../../utils/money'

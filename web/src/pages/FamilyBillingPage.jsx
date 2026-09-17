@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import Button from '../components/ui/Button'
 import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { formatCents as money } from '../utils/money'
 
 /**
  * Billing — a family's account balance with their school: invoices (line items
@@ -10,8 +11,6 @@ import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/re
  * (for scholarship reimbursement) and a printable statement. Optio never
  * processes payments; the school records money collected by Zelle/scholarship.
  */
-const money = (cents) => (cents == null ? '—'
-  : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
 // Due dates and installment dates arrive as plain YYYY-MM-DD. `new Date` reads
 // those as UTC midnight, which in every US timezone is the evening before — a
 // September 1 due date printed as August 31. Build them from their parts.

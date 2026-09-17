@@ -4,7 +4,7 @@
  */
 
 import { ModalOverlay, GlassTabBar, Spinner } from '../../components/ui'
-import ClassDetailsModal, { meetingText, money } from '../../components/schedule/ClassDetailsModal'
+import ClassDetailsModal, { meetingText } from '../../components/schedule/ClassDetailsModal'
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import field from './field'
 import fmtDate from './fmtDate'

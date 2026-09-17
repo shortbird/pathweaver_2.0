@@ -41,10 +41,7 @@ SIS_URL = 'https://sis.optioeducation.com'
 #   from a Stripe webhook and a billing write path, neither of which has a
 #   caller whose RLS could see them
 from utils.admin_client import admin_client as _admin
-
-
-def _money(cents: Optional[int]) -> str:
-    return f"${(cents or 0) / 100:,.2f}"
+from utils.money import format_cents
 
 
 def _ordinal(day: Optional[int]) -> str:
@@ -209,7 +206,7 @@ def notify_recurring_card_saved(org_id: str, household_id: str,
         if schedules:
             students = ', '.join(s['student_name'] for s in schedules)
             facts.append(('Monthly tuition',
-                          f'{_money(monthly)} for {students}'
+                          f'{format_cents(monthly)} for {students}'
                           + (f', charged on the {day}' if day else '')))
         if activation.get('error'):
             # The card IS saved; there was just nothing set up to charge. Staff
@@ -217,7 +214,7 @@ def notify_recurring_card_saved(org_id: str, household_id: str,
             facts.append(('First charge',
                           'Not billed — no monthly tuition is set up for this family yet'))
         elif activation.get('charged'):
-            facts.append(('First charge', f"{_money(activation.get('amount_cents'))} paid"))
+            facts.append(('First charge', f"{format_cents(activation.get('amount_cents'))} paid"))
         elif activation.get('reason') == 'declined':
             facts.append(('First charge', 'Declined — the invoice is unpaid and needs following up'))
         else:
@@ -262,9 +259,9 @@ def notify_autopay_plan_created(org_id: str, invoice: Dict[str, Any],
             facts.append(('Invoice', number))
         if installments:
             facts.append(('Plan', f"{len(installments)} monthly payments of "
-                                  f"{_money(first.get('amount_cents'))}"))
+                                  f"{format_cents(first.get('amount_cents'))}"))
         if first_charge.get('status') == 'charged':
-            facts.append(('First payment', f"{_money(first.get('amount_cents'))} paid"))
+            facts.append(('First payment', f"{format_cents(first.get('amount_cents'))} paid"))
         elif first_charge.get('status') == 'failed':
             facts.append(('First payment', 'Declined — it is marked late and needs following up'))
 

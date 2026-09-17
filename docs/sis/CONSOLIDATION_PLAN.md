@@ -38,7 +38,7 @@ and patterns instead.
 | M14a/b Layout header, tab bars | 0 | shipped (`consolidate/M14a-layout-header`, `consolidate/M14b-glass-tab-bar`) | | `org_picker_header` 0, `tab_bar` 0 |
 | M5 One quote | 1 | shipped | see git log (`consolidate/M5-one-quote`) | `registration_fee_quote` 0/0; new `tuition_quote` 0 |
 | M6 One invoice writer, one checkout factory, one verifier | 1 | shipped (code + tests; no Stripe test-mode run) | see git log (`consolidate/M6-one-invoice-writer`) | `invoice_row` 1, `stripe_checkout` 1, `stripe_verify` 2, `pay_link_signing` 0 |
-| M7 One household billing view, `formatCents` | 1 | not started | | |
+| M7 One household billing view, formatCents | 1 | shipped | see git log (`consolidate/M7-household-billing`) | `money_format` 0/0 |
 | M2 One family hold | 1 | not started | | |
 | M4 Funnel lands in SIS stores | 1 | not started | | |
 | M18 One training system | 1 | not started | | |
@@ -773,6 +773,27 @@ Verify: for an Optio Academy family with recurring tuition and for an iCreate fa
 with an open invoice, the family modal's Billing tab says how they pay and whether
 they are current; `$0`, a refund and a blank render identically on Billing, the
 family page and the funnel. Manifest `money_format` → 0/0.
+
+**As shipped (2026-09-17).** `sis_billing_service.household_billing_summary(org,
+household)` is `household_billing` plus the read model: outstanding and overdue
+cents with counts and `current`, `recurring_tuition` (this household's schedules
+and the active monthly sum), `subscription` (the funnel registration's
+`stripe_subscription_id` and `monthly_cents`, or null), `card` (display fields only)
+and `funding_source`; `GET /api/sis/households/<id>/billing` serves it. The family
+record's Billing tab (`pages/sis/familyDetail/FamilyBillingPanel.jsx`, split out
+because the modal crossed the 1000-line cap) is the hub, labelling "Monthly tuition
+(invoiced by the school)" and "Monthly plan (Stripe subscription)" side by side; the
+Billing page's family filter and the recurring-tuition list link into it through
+`/people?open=<household>&tab=billing` (PeoplePage opens the modal on that tab).
+`web/src/utils/money.js` `formatCents(cents, { blank, compact })` and
+`formatDollars(dollars, ...)` replace the ten web copies -- the embed's dollar-valued
+`money`, `funnelUi.money`/`moneyCompact`, `ClassDetailsModal.money` and the
+seven page-local ones -- and `backend/utils/money.py` `format_cents` the five
+`_money`s; the rule is thousands separators, a real minus for a refund, a dash for
+nothing on file, compact whole dollars for a plan price, which changed "$1500.00"
+to "$1,500.00" on the builder and "$0.00" to a dash where a PDF had no amount on
+file. `org_finance_flags` was left as M8a shaped it (the legacy mirror goes with the
+`icreate_registration` keys in the dead-code list).
 
 ### M2 — One family hold
 

@@ -2,7 +2,8 @@
 // the two org-configurable pieces that hang off them -- the health questions
 // and the enrolment age gates that put a band on the waitlist.
 import React from 'react'
-import { Section, PrimaryButton, money, gateBandText } from '../../registration/funnelUi'
+import { Section, PrimaryButton, gateBandText } from '../../registration/funnelUi'
+import { formatCents } from '../../../utils/money'
 import FirstDayOfSchoolCard from '../FirstDayOfSchoolCard'
 import EnrollmentAgeGatesCard from '../EnrollmentAgeGatesCard'
 import { Editable, FixedNote, mockInput } from './setupChrome'
@@ -101,7 +102,7 @@ const FamilyStepPreview = ({
 
     {feeApplies && (
       <p className="text-center text-sm text-neutral-500">
-        Registration fee: <span className="font-semibold text-neutral-800">{money(sampleFee)}</span>
+        Registration fee: <span className="font-semibold text-neutral-800">{formatCents(sampleFee)}</span>
       </p>
     )}
     <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>

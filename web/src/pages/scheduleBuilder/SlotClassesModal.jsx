@@ -7,11 +7,12 @@ import { ModalOverlay } from '../../components/ui'
 // Dead since the QF-02 extraction: the modal renders neither the tab bar, a
 // spinner, nor a nested ClassDetailsModal -- it calls onDetails and the page
 // owns that modal. Only the two formatters were ever used.
-import { meetingText, money } from '../../components/schedule/ClassDetailsModal'
+import { meetingText } from '../../components/schedule/ClassDetailsModal'
 import AgeExceptionFooter from './AgeExceptionFooter'
 import { conflictsWith } from '../../utils/schedule'
 import slotLabel from './slotLabel'
 import ClassSummaryLine from '../../components/sis/ClassSummaryLine'
+import { formatCents } from '../../utils/money'
 
 const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onRequestException, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
   <ModalOverlay onClose={onClose}>
@@ -68,7 +69,7 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
             <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
               <div className="min-w-0">
                 <div className="font-medium text-gray-900 truncate">{c.name}</div>
-                <ClassSummaryLine cls={c} meetings={meetingText(c.meetings)} price={money(c.price_cents) || ''} hideOpen
+                <ClassSummaryLine cls={c} meetings={meetingText(c.meetings)} price={formatCents(c.price_cents, { blank: '' })} hideOpen
                   className="block text-xs text-gray-500" />
                 {conflict && (
                   <div className="flex gap-1.5 mt-0.5">

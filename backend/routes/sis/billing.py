@@ -413,7 +413,7 @@ def household_billing(user_id, household_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, **billing.household_billing(org_id, household_id)})
+    return jsonify({'success': True, **billing.household_billing_summary(org_id, household_id)})
 
 
 # ── Outstanding balances + payment reminders ─────────────────────────────────

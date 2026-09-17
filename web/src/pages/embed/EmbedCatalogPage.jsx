@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { range12h } from '../../utils/timeFormat'
-import { fetchEmbed, daysLabel, agesLabel, money, useEmbedAutoHeight } from './embedShared'
+import { fetchEmbed, daysLabel, agesLabel, useEmbedAutoHeight } from './embedShared'
+// The embed payload carries dollars (routes/embed.py _to_dollars); prices read
+// as a plan, so whole dollars drop the cents.
+import { formatDollars } from '../../utils/money'
 import { seatState, seatText } from '../../components/sis/ClassSummaryLine'
 
 /**
@@ -70,12 +73,12 @@ const ClassCard = ({ cls }) => {
 
       <div className="mt-auto flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-gray-100 pt-3">
         {cls.tuition != null ? (
-          <span className="text-base font-bold text-optio-purple">{money(cls.tuition)}</span>
+          <span className="text-base font-bold text-optio-purple">{formatDollars(cls.tuition, { compact: true })}</span>
         ) : (
           <span className="text-sm font-medium text-gray-400">Tuition varies</span>
         )}
         {cls.supply_fee != null && cls.supply_fee > 0 && (
-          <span className="text-xs text-gray-500">+ {money(cls.supply_fee)} supplies</span>
+          <span className="text-xs text-gray-500">+ {formatDollars(cls.supply_fee, { compact: true })} supplies</span>
         )}
       </div>
     </div>
