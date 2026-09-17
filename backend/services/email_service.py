@@ -855,7 +855,7 @@ class EmailService(BaseService):
         mail to ADMIN_EMAIL with the title and a link straight to the ticket
         in /admin/tickets. Until 2026-09-17 it was the tracker's only
         notification; the reporter is now told once too, when the fix is live
-        (send_ticket_resolved_email). Best-effort — the caller must never let
+        (send_tickets_resolved_email). Best-effort — the caller must never let
         a failure here fail the report submission itself.
 
         `report` keys used (all optional except message):
@@ -985,50 +985,29 @@ class EmailService(BaseService):
             reply_to=Config.ADMIN_EMAIL,
         )
 
-    def send_ticket_resolved_email(self, ticket: Dict[str, Any]) -> bool:
-        """Tell the person who filed a ticket that it is done, once it is live.
+    def send_tickets_resolved_email(self, to_email: str, tickets: List[Dict[str, Any]]) -> bool:
+        """Tell one person that the things they reported are done, in one mail.
 
         Sent by services/ticket_finalize_service.py on the transition into
         `resolved`, never before: for a code fix that is when the release
         pipeline has seen the commit on production, so what the mail says to
-        check is true when it is read. The rules for who is NOT mailed (a
-        Sentry ticket, no address, notify_reporter off) live in that service.
+        check is true when it is read. Everything the person is owed at that
+        moment comes in ONE message, a section per ticket, so a release that
+        closes eight of one office manager's reports sends her one email. The
+        rules for who is NOT mailed (a Sentry ticket, no address,
+        notify_reporter off) live in that service.
 
-        `ticket` keys used: id, title, type, resolution, verification,
-        user_email, source. Neither the commit nor any file name is in the
-        body: `resolution` and `verification` are written for the reporter.
+        Each ticket uses: id, title, type, source, resolution, verification.
+        Neither the commit nor any file name is in the body: `resolution` and
+        `verification` are written for the reporter.
 
         Reply-To is ADMIN_EMAIL: "reply if it is still wrong" has to reach a
         person, and the default sender does not.
         """
-        to_email = (ticket.get('user_email') or '').strip()
-        if not to_email:
+        to_email = (to_email or '').strip()
+        tickets = [t for t in (tickets or []) if (t.get('resolution') or '').strip()]
+        if not to_email or not tickets:
             return False
-
-        title = (ticket.get('title') or '').strip() or 'your report'
-        resolution = (ticket.get('resolution') or '').strip()
-        verification = (ticket.get('verification') or '').strip()
-        ttype = (ticket.get('type') or 'bug').lower()
-        noun = {'feature': 'request', 'question': 'question', 'tweak': 'request'}.get(ttype, 'report')
-
-        if ttype == 'question':
-            subject = f"An answer to your question: {title[:80]}"
-            lead = "You asked us a question and here is the answer."
-        elif ttype in ('feature', 'tweak'):
-            subject = f"Your request is live: {title[:80]}"
-            lead = "You asked for a change and it is now live."
-        else:
-            subject = f"Fixed: {title[:80]}"
-            lead = "You reported a problem and it is fixed."
-
-        # A mobile fix arrives with the next app update, which the phone
-        # fetches on launch. Say so, or "how to check" fails on the first try.
-        mobile_note = ''
-        if (ticket.get('source') or '') == 'mobile':
-            mobile_note = (
-                'The update reaches the app the next time you open it. If you '
-                'do not see the change, close the app fully and open it again.'
-            )
 
         def _esc(v: str) -> str:
             return (
@@ -1044,12 +1023,64 @@ class EmailService(BaseService):
                 f'{_esc(text)}</div>'
             )
 
-        verification_html = ''
-        if verification:
-            verification_html = (
-                '<p style="margin:20px 0 6px;color:#6b7280;font-size:13px;">How to check</p>'
-                + _para(verification)
+        def _noun(t: Dict[str, Any]) -> str:
+            ttype = (t.get('type') or 'bug').lower()
+            return {'feature': 'request', 'question': 'question', 'tweak': 'request'}.get(ttype, 'report')
+
+        def _verb(t: Dict[str, Any]) -> str:
+            ttype = (t.get('type') or 'bug').lower()
+            return {'question': 'Answered', 'feature': 'Now live', 'tweak': 'Now live'}.get(ttype, 'Fixed')
+
+        count = len(tickets)
+        first = tickets[0]
+        first_title = (first.get('title') or '').strip() or f"your {_noun(first)}"
+        if count == 1:
+            subject = f"{_verb(first)}: {first_title[:80]}"
+            lead = {
+                'Answered': 'You asked us a question and here is the answer.',
+                'Now live': 'You asked for a change and it is now live.',
+            }.get(_verb(first), 'You reported a problem and it is fixed.')
+        else:
+            subject = f"{count} things you told us about, done"
+            lead = f"You told us about {count} things. Here is what changed for each one."
+
+        # A mobile fix arrives with the next app update, which the phone
+        # fetches on launch. Say so once, or "how to check" fails on the
+        # first try.
+        mobile_note = ''
+        if any((t.get('source') or '') == 'mobile' for t in tickets):
+            mobile_note = (
+                'Updates reach the app the next time you open it. If you do not '
+                'see a change, close the app fully and open it again.'
             )
+
+        sections_html = []
+        text_sections = []
+        for t in tickets:
+            title = (t.get('title') or '').strip() or f"your {_noun(t)}"
+            resolution = (t.get('resolution') or '').strip()
+            verification = (t.get('verification') or '').strip()
+            verification_html = ''
+            if verification:
+                verification_html = (
+                    '<p style="margin:14px 0 6px;color:#6b7280;font-size:13px;">How to check</p>'
+                    + _para(verification)
+                )
+            sections_html.append(
+                f'<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;'
+                f'padding:16px;margin-top:16px;">'
+                f'<p style="margin:0 0 4px;color:#6b7280;font-size:13px;">{_esc(_verb(t))} · your {_esc(_noun(t))}</p>'
+                f'<h3 style="margin:0 0 12px;font-size:16px;color:#111827;">{_esc(title)}</h3>'
+                f'<p style="margin:0 0 6px;color:#6b7280;font-size:13px;">What changed</p>'
+                f'{_para(resolution)}'
+                f'{verification_html}'
+                f'</div>'
+            )
+            lines = [f"{_verb(t)}: {title}", '', 'What changed:', resolution]
+            if verification:
+                lines += ['', 'How to check:', verification]
+            text_sections.append('\n'.join(lines))
+
         mobile_html = (
             f'<p style="margin:16px 0 0;font-size:14px;color:#374151;">{_esc(mobile_note)}</p>'
             if mobile_note else ''
@@ -1058,29 +1089,22 @@ class EmailService(BaseService):
         html_body = f"""
         <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
                     max-width:600px;margin:0 auto;padding:24px;color:#111827;">
-          <p style="margin:0 0 16px;font-size:15px;">{_esc(lead)}</p>
-          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">Your {_esc(noun)}</p>
-          <h2 style="margin:0 0 20px;font-size:18px;">{_esc(title)}</h2>
-          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
-            <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">What changed</p>
-            {_para(resolution)}
-            {verification_html}
-          </div>
+          <p style="margin:0;font-size:15px;">{_esc(lead)}</p>
+          {''.join(sections_html)}
           {mobile_html}
           <p style="margin:20px 0 0;font-size:14px;color:#374151;">
-            If it is still not right, reply to this email and tell us what you see.
+            If anything is still not right, reply to this email and tell us what you see.
           </p>
           <p style="margin:24px 0 0;font-size:14px;color:#374151;">Thank you for telling us.</p>
           <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">Optio</p>
         </div>
         """.strip()
 
-        text_lines = [lead, '', f"Your {noun}: {title}", '', 'What changed:', resolution]
-        if verification:
-            text_lines += ['', 'How to check:', verification]
+        text_lines = [lead, '']
+        text_lines.append(('\n\n' + ('-' * 40) + '\n\n').join(text_sections))
         if mobile_note:
             text_lines += ['', mobile_note]
-        text_lines += ['', 'If it is still not right, reply to this email and tell us what you see.',
+        text_lines += ['', 'If anything is still not right, reply to this email and tell us what you see.',
                        '', 'Thank you for telling us.', 'Optio']
 
         return self.send_email(
@@ -1090,7 +1114,7 @@ class EmailService(BaseService):
             text_body='\n'.join(text_lines),
             reply_to=Config.ADMIN_EMAIL,
             categories=['transactional', 'ticket-resolved'],
-            custom_args={'ticket_id': str(ticket.get('id') or '')},
+            custom_args={'ticket_ids': ','.join(str(t.get('id') or '') for t in tickets)[:200]},
         )
 
     def send_tickets_fixed_not_live_email(

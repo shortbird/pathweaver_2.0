@@ -18,11 +18,14 @@ Three entry points, all reached through POST /api/bug-reports/internal/deploy-sw
 
   notify_resolved_reporters()
       Mails every resolved ticket that still owes its reporter a message, and
-      stamps reporter_notified_at. Runs after apply_deploy, and on its own
-      from the cron every ten minutes, so a ticket resolved by hand or over
-      the MCP (an answered question needs no deploy) is mailed too. The
-      suppression rules are here and nowhere else: no address, a Sentry
-      ticket, notify_reporter off, or nothing to say.
+      stamps reporter_notified_at. One email per person per sweep: everything
+      a reporter is owed at that moment goes in one message, ticket by
+      ticket, so a release that closes eight of Molly's tickets sends Molly
+      one email, not eight. Runs after apply_deploy, and on its own from the
+      cron every ten minutes, so a ticket resolved by hand or over the MCP
+      (an answered question needs no deploy) is mailed too. The suppression
+      rules are here and nowhere else: no address, a Sentry ticket,
+      notify_reporter off, or nothing to say.
 
   fixed_but_not_live_report()
       What has sat in `fixed` for longer than a deploy takes. The cron mails
@@ -174,17 +177,21 @@ def why_not_notify(ticket: Dict[str, Any]) -> Optional[str]:
 
 
 def notify_resolved_reporters() -> Dict[str, Any]:
-    """Send the resolution mail for every resolved ticket that still owes one.
+    """Send each reporter one mail covering every resolved ticket they are owed.
 
-    A ticket that must never be mailed (Sentry, no address) has its
+    Tickets are grouped by address (case-insensitive), oldest first inside
+    the group, and the whole group is stamped when the one send succeeds. A
+    ticket that must never be mailed (Sentry, no address) has its
     notify_reporter flag turned off so the sweep stops rereading it, and
     reporter_notified_at stays null, which is the truth. A ticket with no
-    resolution text is left pending: it is mailed once someone writes one.
+    resolution text is left pending: it is mailed once someone writes one,
+    and it does not hold up the rest of that person's mail.
     """
     from services.email_service import email_service
 
     repo = _repo()
     sent, skipped, pending, failed = [], [], [], []
+    by_address: Dict[str, List[Dict[str, Any]]] = {}
 
     for ticket in repo.list_awaiting_reporter_notice():
         reason = why_not_notify(ticket)
@@ -195,22 +202,31 @@ def notify_resolved_reporters() -> Dict[str, Any]:
             repo.update_fields(ticket['id'], {'notify_reporter': False})
             skipped.append({'id': ticket['id'], 'reason': reason})
             continue
+        by_address.setdefault(ticket['user_email'].strip().lower(), []).append(ticket)
+
+    emails = 0
+    for address, tickets in by_address.items():
+        tickets.sort(key=lambda t: t.get('created_at') or '')
+        ids = [t['id'] for t in tickets]
         ok = False
         try:
-            ok = email_service.send_ticket_resolved_email(ticket)
+            ok = email_service.send_tickets_resolved_email(address, tickets)
         except Exception as e:  # never let one address break the sweep
-            logger.error(f"[TicketFinalize] mail for {ticket['id']} raised: {e}")
+            logger.error(f"[TicketFinalize] mail to {address} for {ids} raised: {e}")
         if ok:
-            repo.update_fields(ticket['id'], {'reporter_notified_at': _now_iso()})
-            sent.append(ticket['id'])
+            stamp = _now_iso()
+            for tid in ids:
+                repo.update_fields(tid, {'reporter_notified_at': stamp})
+            sent.extend(ids)
+            emails += 1
         else:
-            failed.append(ticket['id'])
+            failed.extend(ids)
 
     if sent:
-        logger.info(f"[TicketFinalize] mailed reporters of {len(sent)} tickets: {sent}")
+        logger.info(f"[TicketFinalize] {emails} mail(s) covering {len(sent)} tickets: {sent}")
     if failed:
         logger.warning(f"[TicketFinalize] reporter mail failed for {failed}; will retry next sweep")
-    return {'sent': sent, 'skipped': skipped, 'pending': pending, 'failed': failed}
+    return {'sent': sent, 'emails': emails, 'skipped': skipped, 'pending': pending, 'failed': failed}
 
 
 # ---------------------------------------------------------------------------

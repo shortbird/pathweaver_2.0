@@ -10,7 +10,8 @@ What these hold down:
     under twelve characters;
   * the reporter mail goes to exactly the tickets it should -- never Sentry,
     never without an address, never when a superadmin turned it off, and not
-    until somebody has written a resolution -- and each ticket is mailed once;
+    until somebody has written a resolution -- and each ticket is mailed once,
+    in ONE mail per person per sweep however many tickets they are owed;
   * a failed send is retried next sweep, not stamped as sent;
   * the nag lists fixed tickets older than a day and nothing younger;
   * the cron dispatches the sweep every tick and asks for the nag once a day.
@@ -144,20 +145,43 @@ class TestNotifyResolvedReporters:
 
     def _email(self, ok=True):
         m = Mock()
-        m.send_ticket_resolved_email.return_value = ok
+        m.send_tickets_resolved_email.return_value = ok
         return m
 
-    def test_mails_and_stamps_each_ticket_once(self, repo):
-        repo.list_awaiting_reporter_notice.return_value = [_ticket(id='a', status='resolved'),
-                                                          _ticket(id='b', status='resolved')]
+    def test_one_person_owed_several_tickets_gets_one_mail(self, repo):
+        """Eight of Molly's tickets close in one release: Molly gets one email
+        listing eight things, not eight emails."""
+        repo.list_awaiting_reporter_notice.return_value = [
+            _ticket(id='b', status='resolved', created_at='2026-09-15T12:00:00+00:00'),
+            _ticket(id='a', status='resolved', created_at='2026-09-15T09:00:00+00:00'),
+            _ticket(id='c', status='resolved', user_email='Office@School.org',
+                    created_at='2026-09-16T09:00:00+00:00'),
+        ]
         email = self._email()
         with patch('services.email_service.email_service', email):
             out = svc.notify_resolved_reporters()
-        assert out['sent'] == ['a', 'b']
-        assert email.send_ticket_resolved_email.call_count == 2
-        stamped = [c[0] for c in repo.update_fields.call_args_list]
-        assert stamped == [('a', {'reporter_notified_at': stamped[0][1]['reporter_notified_at']}),
-                           ('b', {'reporter_notified_at': stamped[1][1]['reporter_notified_at']})]
+        assert out['emails'] == 1
+        assert sorted(out['sent']) == ['a', 'b', 'c']
+        email.send_tickets_resolved_email.assert_called_once()
+        address, tickets = email.send_tickets_resolved_email.call_args[0]
+        # One address, case-folded; oldest ticket first inside the mail.
+        assert address == 'office@school.org'
+        assert [t['id'] for t in tickets] == ['a', 'b', 'c']
+        stamped = {c[0][0]: c[0][1] for c in repo.update_fields.call_args_list}
+        assert set(stamped) == {'a', 'b', 'c'}
+        assert all('reporter_notified_at' in v for v in stamped.values())
+
+    def test_different_people_get_different_mails(self, repo):
+        repo.list_awaiting_reporter_notice.return_value = [
+            _ticket(id='m', status='resolved', user_email='molly@school.org'),
+            _ticket(id='k', status='resolved', user_email='katrine@school.org'),
+        ]
+        email = self._email()
+        with patch('services.email_service.email_service', email):
+            out = svc.notify_resolved_reporters()
+        assert out['emails'] == 2 and sorted(out['sent']) == ['k', 'm']
+        addresses = sorted(c[0][0] for c in email.send_tickets_resolved_email.call_args_list)
+        assert addresses == ['katrine@school.org', 'molly@school.org']
 
     def test_a_ticket_that_must_not_be_mailed_is_switched_off_not_stamped_sent(self, repo):
         repo.list_awaiting_reporter_notice.return_value = [_ticket(id='s', source='sentry', status='resolved')]
@@ -165,32 +189,38 @@ class TestNotifyResolvedReporters:
         with patch('services.email_service.email_service', email):
             out = svc.notify_resolved_reporters()
         assert out['sent'] == [] and out['skipped'] == [{'id': 's', 'reason': 'sentry'}]
-        email.send_ticket_resolved_email.assert_not_called()
+        email.send_tickets_resolved_email.assert_not_called()
         # The flag comes off so the sweep stops rereading it; the stamp stays
         # null because nothing was sent.
         assert repo.update_fields.call_args[0][1] == {'notify_reporter': False}
 
-    def test_a_ticket_with_no_resolution_waits_untouched(self, repo):
-        repo.list_awaiting_reporter_notice.return_value = [_ticket(id='p', status='resolved', resolution=None)]
+    def test_a_ticket_with_no_resolution_waits_and_does_not_hold_up_the_rest(self, repo):
+        repo.list_awaiting_reporter_notice.return_value = [
+            _ticket(id='p', status='resolved', resolution=None),
+            _ticket(id='ok', status='resolved'),
+        ]
         email = self._email()
         with patch('services.email_service.email_service', email):
             out = svc.notify_resolved_reporters()
-        assert out['pending'] == ['p']
-        email.send_ticket_resolved_email.assert_not_called()
-        repo.update_fields.assert_not_called()
+        assert out['pending'] == ['p'] and out['sent'] == ['ok']
+        _, tickets = email.send_tickets_resolved_email.call_args[0]
+        assert [t['id'] for t in tickets] == ['ok']
 
-    def test_a_failed_send_is_left_for_the_next_sweep(self, repo):
-        repo.list_awaiting_reporter_notice.return_value = [_ticket(id='f', status='resolved')]
+    def test_a_failed_send_leaves_the_whole_group_for_the_next_sweep(self, repo):
+        repo.list_awaiting_reporter_notice.return_value = [_ticket(id='f1', status='resolved'),
+                                                          _ticket(id='f2', status='resolved')]
         with patch('services.email_service.email_service', self._email(ok=False)):
             out = svc.notify_resolved_reporters()
-        assert out['failed'] == ['f'] and out['sent'] == []
+        assert sorted(out['failed']) == ['f1', 'f2'] and out['sent'] == []
         repo.update_fields.assert_not_called()
 
     def test_one_raising_send_does_not_stop_the_others(self, repo):
-        repo.list_awaiting_reporter_notice.return_value = [_ticket(id='boom', status='resolved'),
-                                                          _ticket(id='ok', status='resolved')]
+        repo.list_awaiting_reporter_notice.return_value = [
+            _ticket(id='boom', status='resolved', user_email='a@x.org'),
+            _ticket(id='ok', status='resolved', user_email='b@x.org'),
+        ]
         email = Mock()
-        email.send_ticket_resolved_email.side_effect = [RuntimeError('smtp'), True]
+        email.send_tickets_resolved_email.side_effect = [RuntimeError('smtp'), True]
         with patch('services.email_service.email_service', email):
             out = svc.notify_resolved_reporters()
         assert out['failed'] == ['boom'] and out['sent'] == ['ok']
@@ -271,15 +301,15 @@ class TestCronDispatch:
 class TestReporterMailCopy:
     """The mail is the reporter's; a SHA or a file name in it is a defect."""
 
-    def _send(self, ticket):
+    def _send(self, tickets, to='office@school.org'):
         from services.email_service import email_service
         with patch.object(email_service, 'send_email', return_value=True) as send:
-            assert email_service.send_ticket_resolved_email(ticket) is True
+            assert email_service.send_tickets_resolved_email(to, tickets) is True
         return send.call_args.kwargs
 
-    def test_carries_resolution_and_verification_and_replies_to_a_person(self):
+    def test_one_ticket_carries_resolution_and_verification_and_replies_to_a_person(self):
         from app_config import Config
-        kw = self._send(_ticket(status='resolved'))
+        kw = self._send([_ticket(status='resolved')])
         assert kw['to_email'] == 'office@school.org'
         assert kw['subject'] == 'Fixed: Roster export drops the phone column'
         assert 'The phone column is back.' in kw['html_body'] and 'Export a roster.' in kw['html_body']
@@ -287,21 +317,44 @@ class TestReporterMailCopy:
         assert kw['reply_to'] == Config.ADMIN_EMAIL
         assert 'a' * 40 not in kw['html_body'] and 'a' * 12 not in kw['text_body']
 
-    def test_a_mobile_ticket_says_to_reopen_the_app(self):
-        kw = self._send(_ticket(source='mobile'))
-        assert 'close the app fully' in kw['text_body']
+    def test_several_tickets_become_one_mail_with_a_section_each(self):
+        kw = self._send([
+            _ticket(id='1', title='Announcements stuck on loading', resolution='The tab loads now.',
+                    verification='Open the inbox.'),
+            _ticket(id='2', type='feature', title='Drag quests to reorder', resolution='Quests drag by a handle.',
+                    verification='Open Curriculum.'),
+            _ticket(id='3', type='question', title='Why does the waitlist say 14?',
+                    resolution='The number is the live place in line now.', verification=''),
+        ])
+        assert kw['subject'] == '3 things you told us about, done'
+        assert 'You told us about 3 things.' in kw['text_body']
+        for piece in ('Announcements stuck on loading', 'The tab loads now.', 'Open the inbox.',
+                      'Drag quests to reorder', 'Quests drag by a handle.',
+                      'Why does the waitlist say 14?', 'The number is the live place in line now.'):
+            assert piece in kw['html_body'] and piece in kw['text_body']
+        # Each section is labelled by what kind of thing it was.
+        assert 'Fixed · your report' in kw['html_body']
+        assert 'Now live · your request' in kw['html_body']
+        assert 'Answered · your question' in kw['html_body']
+        assert kw['custom_args']['ticket_ids'] == '1,2,3'
 
-    def test_a_question_reads_as_an_answer(self):
-        kw = self._send(_ticket(type='question', title='How do I add a second parent?'))
-        assert kw['subject'].startswith('An answer to your question:')
+    def test_a_mobile_ticket_says_to_reopen_the_app_once(self):
+        kw = self._send([_ticket(id='1', source='mobile'), _ticket(id='2', source='mobile')])
+        assert kw['text_body'].count('close the app fully') == 1
+
+    def test_a_question_alone_reads_as_an_answer(self):
+        kw = self._send([_ticket(type='question', title='How do I add a second parent?')])
+        assert kw['subject'] == 'Answered: How do I add a second parent?'
 
     def test_escapes_what_the_ticket_carries(self):
-        kw = self._send(_ticket(title='<img onerror=x>', resolution='a < b & c'))
+        kw = self._send([_ticket(title='<img onerror=x>', resolution='a < b & c')])
         assert '<img' not in kw['html_body'] and '&lt;img' in kw['html_body']
         assert 'a &lt; b &amp; c' in kw['html_body']
 
-    def test_no_address_sends_nothing(self):
+    def test_no_address_or_nothing_to_say_sends_nothing(self):
         from services.email_service import email_service
         with patch.object(email_service, 'send_email') as send:
-            assert email_service.send_ticket_resolved_email(_ticket(user_email='')) is False
+            assert email_service.send_tickets_resolved_email('', [_ticket()]) is False
+            assert email_service.send_tickets_resolved_email('x@y.org', []) is False
+            assert email_service.send_tickets_resolved_email('x@y.org', [_ticket(resolution='')]) is False
         send.assert_not_called()

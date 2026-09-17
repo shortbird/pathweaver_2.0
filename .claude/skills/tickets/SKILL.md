@@ -20,7 +20,9 @@ and only the service role reaches it, which the MCP is.
 **You never finish a ticket. The deploy does.** You write the fix, the commit
 SHA, and two sentences for the reporter, and set the status to `fixed`. When
 `release.yml` sees that commit live on production it moves the ticket to
-`resolved` and emails the reporter your two sentences. If the person who
+`resolved` and emails the reporter your two sentences: one email per person
+per sweep, listing every ticket of theirs that just resolved, so a release
+that closes seven of Molly's sends Molly one message. If the person who
 pushed walks away mid-deploy, nothing is lost: the pipeline does not need them,
 and the cron mails the admin inbox about anything that has sat in `fixed` for
 more than a day (a red release, a rebased SHA).
