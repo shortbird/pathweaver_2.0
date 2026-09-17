@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * People › Everyone — CSV export and removing a person.
+ * People — CSV export and removing a person.
  *
  * iCreate, 2026-07-30: "When exporting a CSV file from the People page, it
  * doesn't include grade level, just the column for it. I had it filtered for
@@ -16,7 +16,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  * members of that family are still showing and Idk how to remove them."
  */
 
-// RosterPage reads its roster through hooks/api/useSisRoster (QF-03), so it
+// PeoplePage reads its roster through hooks/api/useSisRoster (QF-03), so it
 // needs a QueryClient. A fresh client per render keeps one test's cache out of
 // the next one's, and retry:false makes a failed query fail the assertion
 // rather than hang for three backoff rounds.
@@ -39,6 +39,9 @@ vi.mock('./useSisOrg', () => ({
   withOrg: (url, orgId) => `${url}?organization_id=${orgId}`,
 }))
 vi.mock('./StudentDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./FamilyDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./teacherPreview', () => ({ setPreviewTeacher: vi.fn(), getPreviewTeacher: () => null }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => () => Promise.resolve(true) }))
 vi.mock('../../components/sis/SisNewUserModal', () => ({ default: () => <div /> }))
 vi.mock('../../services/masqueradeService', () => ({ startMasquerade: vi.fn() }))
 
@@ -65,7 +68,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import RosterPage from './RosterPage'
+import PeoplePage from './PeoplePage'
 
 let downloaded = ''
 let originalCreate
@@ -104,7 +107,7 @@ describe('People export', () => {
   }
 
   it('exports the rows on screen, with an Age column', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     await exportCsv()
     const [header, ...rows] = downloaded.trim().split('\r\n')
@@ -113,17 +116,17 @@ describe('People export', () => {
     expect(downloaded).toContain('Ryder Swenson,Ryder,Swenson,9,2017-03-02')
   })
 
-  it('respects the "Students only" filter instead of dumping the whole org', async () => {
-    render(<RosterPage />)
+  it('respects the Students filter instead of dumping the whole org', async () => {
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
-    fireEvent.click(screen.getByLabelText('Students only'))
+    fireEvent.click(screen.getByRole('button', { name: /^Students \(/ }))
     await exportCsv()
     expect(downloaded).toContain('Ryder Swenson')
     expect(downloaded).not.toContain('Erin Swenson')   // the parent is filtered out
   })
 
   it('respects the search box', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     fireEvent.change(screen.getByPlaceholderText(/Search by name/), { target: { value: 'candland' } })
     await exportCsv()
@@ -132,7 +135,7 @@ describe('People export', () => {
   })
 
   it('never hits the whole-org export endpoint', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     await exportCsv()
     expect(api.get).not.toHaveBeenCalledWith(expect.stringContaining('roster.csv'), expect.anything())
@@ -153,7 +156,7 @@ describe('People export', () => {
       }
       return Promise.resolve({ data: { roster: ROSTER } })
     })
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
     fireEvent.click(await screen.findByLabelText('Emergency Contacts'))
@@ -169,7 +172,7 @@ describe('People export', () => {
 
 describe('Removing a person', () => {
   const openRemoveDialog = async (rowName) => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText(rowName)
     const row = screen.getByText(rowName).closest('tr')
     fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
@@ -225,7 +228,7 @@ describe('Removing a person', () => {
  */
 describe('Recently joined', () => {
   it('filters to the people who joined this week, newest first', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
 
     fireEvent.click(screen.getByLabelText(/Joined in the last/))
@@ -235,7 +238,7 @@ describe('Recently joined', () => {
   })
 
   it('flags a new arrival in the list without filtering', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Ryder Swenson')
     expect(screen.getByText('new')).toBeInTheDocument()
   })

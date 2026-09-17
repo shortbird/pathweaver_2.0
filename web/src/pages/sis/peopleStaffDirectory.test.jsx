@@ -4,7 +4,9 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * The staff directory: list view, invite tracking, and the duplicate merge.
+ * Staff on the one People table: invite tracking and the duplicate merge.
+ * (The Staff tab and its card/list toggle went on 2026-09-16; the table is
+ * the list view.)
  *
  * iCreate, 2026-08-01: "It'd be nice to have a list view for staff. And I also
  * would like a list of teachers I've invited but haven't accepted yet. And I
@@ -35,32 +37,40 @@ let orgState = { organization: { id: 'org-1', name: 'Org' } }
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
 vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => orgState }))
+vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+vi.mock('./useSisOrg', () => ({
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, activeOrg: null }),
+  withOrg: (p) => p,
+}))
+vi.mock('./teacherPreview', () => ({ setPreviewTeacher: vi.fn(), getPreviewTeacher: () => null }))
+vi.mock('./StudentDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./FamilyDetailModal', () => ({ default: () => <div /> }))
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
 const PLACEHOLDER = {
-  id: 'ph1', name: 'Julia Connor', first_name: 'Julia', last_name: 'Connor',
-  email: 'julia@icreate-staff.placeholder.optioeducation.com',
-  roles: ['advisor'], is_placeholder: true, login_pending: false,
-  class_count: 12, last_active: null, created_at: '2026-06-01T00:00:00Z',
+  student_id: 'ph1', name: 'Julia Connor', first_name: 'Julia', last_name: 'Connor',
+  email: 'julia@icreate-staff.placeholder.optioeducation.com', is_student: false,
+  role: 'advisor', roles: ['advisor'], is_placeholder: true, login_pending: false,
+  class_count: 12, last_active: null, joined_at: '2026-06-01T00:00:00Z',
   duplicate_of: { id: 'inv1', name: 'Julia Connor', email: 'juliaconnor03@gmail.com',
                   is_placeholder: false, class_count: 0 },
 }
 const INVITED = {
-  id: 'inv1', name: 'Julia Connor', first_name: 'Julia', last_name: 'Connor',
-  email: 'juliaconnor03@gmail.com', roles: ['advisor'],
+  student_id: 'inv1', name: 'Julia Connor', first_name: 'Julia', last_name: 'Connor',
+  email: 'juliaconnor03@gmail.com', is_student: false, role: 'advisor', roles: ['advisor'],
   is_placeholder: false, login_pending: true, class_count: 0, last_active: null,
-  created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+  joined_at: new Date(Date.now() - 3 * 86400000).toISOString(),
   duplicate_of: { id: 'ph1', name: 'Julia Connor', email: PLACEHOLDER.email,
                   is_placeholder: true, class_count: 12 },
 }
 const ACTIVE = {
-  id: 's1', name: 'Nate Vance', first_name: 'Nate', last_name: 'Vance',
-  email: 'nate@icreate.org', roles: ['advisor'], is_placeholder: false,
+  student_id: 's1', name: 'Nate Vance', first_name: 'Nate', last_name: 'Vance',
+  email: 'nate@icreate.org', is_student: false, role: 'advisor', roles: ['advisor'], is_placeholder: false,
   login_pending: false, class_count: 3, last_active: '2026-07-31T12:00:00Z',
-  created_at: '2026-05-01T00:00:00Z',
+  joined_at: '2026-05-01T00:00:00Z',
 }
 
 let STAFF = [PLACEHOLDER, INVITED, ACTIVE]
@@ -74,7 +84,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import StaffPage from './StaffPage'
+import PeoplePage from './PeoplePage'
 import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
@@ -84,78 +94,73 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
   api.get.mockImplementation((url) => (
-    url.includes('/api/sis/staff')
-      ? Promise.resolve({ data: { staff: STAFF } })
+    url.includes('/api/sis/roster')
+      ? Promise.resolve({ data: { roster: STAFF } })
       : Promise.resolve({ data: {} })
   ))
 })
 
-const showList = async () => {
-  render(<StaffPage />)
+const show = async () => {
+  render(<PeoplePage />)
   await screen.findByText('Nate Vance')
-  fireEvent.click(screen.getByTitle('List view'))
 }
 
-describe('staff directory — list view', () => {
+describe('staff on the table', () => {
   it('lays the staff out as rows with their classes and status', async () => {
-    await showList()
+    await show()
     const row = screen.getByText('Nate Vance').closest('tr')
     expect(row).toHaveTextContent('nate@icreate.org')
-    expect(row).toHaveTextContent('3')          // classes taught
-    expect(row).toHaveTextContent('Signed in')
+    expect(row).toHaveTextContent('3 classes')
+    const invited = screen.getAllByText('Julia Connor').map((e) => e.closest('tr'))
+      .find((r) => r && r.textContent.includes('juliaconnor03'))
+    expect(invited).toHaveTextContent('Invite pending')
   })
 
   it('keeps the synthetic placeholder email out of the list', async () => {
-    await showList()
+    await show()
     expect(screen.queryByText(PLACEHOLDER.email)).not.toBeInTheDocument()
   })
 
-  it('remembers the chosen view', async () => {
-    await showList()
-    expect(localStorage.getItem('sis_staff_view')).toBe('list')
-  })
-
-  it('opens the same detail modal a card does', async () => {
-    await showList()
-    fireEvent.click(screen.getByText('Nate Vance'))
+  it('opens the staff record from the row menu', async () => {
+    await show()
+    const row = screen.getByText('Nate Vance').closest('tr')
+    fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
+    fireEvent.click(screen.getByText('Staff record'))
     expect(await screen.findByText('Edit profile')).toBeInTheDocument()
   })
 })
 
-describe('staff directory — who has not accepted', () => {
+describe('who has not accepted', () => {
   it('filters down to invited accounts that were never signed into', async () => {
-    render(<StaffPage />)
-    await screen.findByText('Nate Vance')
-    fireEvent.click(screen.getByRole('button', { name: /Invited, not accepted \(1\)/ }))
+    await show()
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'invite_pending' } })
     expect(screen.getByText('Invite pending')).toBeInTheDocument()
     expect(screen.queryByText('Nate Vance')).not.toBeInTheDocument()
   })
 
   it('says how long the invite has been sitting there', async () => {
-    render(<StaffPage />)
-    await screen.findByText('Nate Vance')
+    await show()
     expect(screen.getAllByText('invited 3 days ago').length).toBeGreaterThan(0)
   })
 
   it('counts placeholders separately — nobody was ever emailed', async () => {
-    render(<StaffPage />)
-    await screen.findByText('Nate Vance')
-    fireEvent.click(screen.getByRole('button', { name: /No login yet \(1\)/ }))
+    await show()
+    expect(screen.getByRole('option', { name: 'No login yet (1)' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'no_login' } })
     expect(screen.getByText('No login yet')).toBeInTheDocument()
     expect(screen.queryByText('Invite pending')).not.toBeInTheDocument()
   })
 
   it('searches by name', async () => {
-    render(<StaffPage />)
-    await screen.findByText('Nate Vance')
-    fireEvent.change(screen.getByLabelText('Search staff'), { target: { value: 'nate' } })
-    expect(screen.getByText('1 of 3 staff members')).toBeInTheDocument()
+    await show()
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'nate' } })
+    expect(screen.getByText(/Showing 1 of 3 people/)).toBeInTheDocument()
   })
 })
 
 describe('staff directory — the same person twice', () => {
   it('names the duplicate and what merging does', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     const banner = screen.getByText(/is on the list twice/)
     expect(banner).toHaveTextContent('holding 12 classes')
@@ -163,7 +168,7 @@ describe('staff directory — the same person twice', () => {
   })
 
   it('merges the placeholder into the invited account', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
     // The classes moving is the point, so the confirm says so before it happens.
@@ -175,7 +180,7 @@ describe('staff directory — the same person twice', () => {
   })
 
   it('does nothing when the merge is declined', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
     await answerConfirm(false)
@@ -185,7 +190,7 @@ describe('staff directory — the same person twice', () => {
   it('reports a refusal instead of pretending it merged', async () => {
     const { toast } = await import('react-hot-toast')
     api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     fireEvent.click(screen.getByRole('button', { name: 'Merge into invited account' }))
     await answerConfirm()
@@ -195,7 +200,7 @@ describe('staff directory — the same person twice', () => {
 
   it('stays quiet when nobody is duplicated', async () => {
     STAFF = [ACTIVE]
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
     expect(screen.queryByText(/is on the list twice/)).not.toBeInTheDocument()
   })
@@ -203,9 +208,10 @@ describe('staff directory — the same person twice', () => {
 
 describe('adding a teacher who is already on the list', () => {
   it('offers the existing cards and links instead of creating a second record', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
-    fireEvent.click(screen.getByText('Add teacher'))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'juliaconnor03@gmail.com' } })
     // The placeholder is offered by name, with the classes at stake.
     fireEvent.change(screen.getByLabelText(/already on the staff list/), { target: { value: 'ph1' } })
@@ -218,9 +224,10 @@ describe('adding a teacher who is already on the list', () => {
 
   it('still creates a new teacher when nobody is chosen', async () => {
     api.post.mockResolvedValueOnce({ data: { teacher: { id: 'new' } } })
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Nate Vance')
-    fireEvent.click(screen.getByText('Add teacher'))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'sam@icreate.org' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add Teacher' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/staff',

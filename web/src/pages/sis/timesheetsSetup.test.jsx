@@ -59,8 +59,9 @@ describe('Timesheets setup state', () => {
     expect(await screen.findByText(/Nobody is on the time clock yet/i)).toBeInTheDocument()
     expect(screen.getByText(/None of your 11 active staff members have it on/i)).toBeInTheDocument()
     expect(screen.getByText('Uses time clock')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /People . Staff/i }))
-      .toHaveAttribute('href', '/people?tab=staff')
+    // The staff are on the one People table now, filtered to staff.
+    expect(screen.getByRole('link', { name: 'People' }))
+      .toHaveAttribute('href', '/people?role=staff')
   })
 
   it('reads as an empty week, not a setup step, once staff are on the clock', async () => {

@@ -135,8 +135,9 @@ const SetupNotice = ({ setup }) => {
           {setup.staff_total === 1 ? 'member has' : 'members have'} it on.
         </p>
         <p className="text-sm text-amber-900">
-          Open <Link to="/people?tab=staff" className="font-semibold underline">People &rarr; Staff</Link>,
-          edit someone&apos;s employment details, and tick <strong>Uses time clock</strong>. Set their
+          Open <Link to="/people?role=staff" className="font-semibold underline">People</Link>, pick
+          <strong> Staff record</strong> from someone&apos;s row menu, edit their employment details,
+          and tick <strong>Uses time clock</strong>. Set their
           hourly rate at the same time so the payroll export can total their pay. They will then see
           a My Time page with Clock in and Clock out.
         </p>
@@ -160,8 +161,8 @@ const MissingRateNotice = ({ setup }) => {
     <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900">
       No hourly rate on file for{' '}
       <strong>{setup.missing_rate.map((s) => s.name).join(', ')}</strong>. Their hours are tracked,
-      but the payroll export leaves the rate and amount blank. Set it under{' '}
-      <Link to="/people?tab=staff" className="font-semibold underline">People &rarr; Staff</Link>.
+      but the payroll export leaves the rate and amount blank. Set it from their{' '}
+      <strong>Staff record</strong> on <Link to="/people?role=staff" className="font-semibold underline">People</Link>.
     </div>
   )
 }

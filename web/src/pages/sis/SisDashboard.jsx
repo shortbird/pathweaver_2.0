@@ -74,7 +74,7 @@ const ATTENTION_TILES = [
   { key: 'goals_pending', label: 'Goals to review', to: '/goals' },
   { key: 'prior_learning_pending', label: 'Prior learning to review', to: '/prior-learning',
     module: '/prior-learning' },
-  { key: 'students_no_family', label: 'Students not in a family', to: '/people?tab=families' },
+  { key: 'students_no_family', label: 'Students not in a family', to: '/people?role=student&family=none' },
 ]
 
 /** Quick actions — the handful of things an admin starts from a cold open,
@@ -87,7 +87,7 @@ const ATTENTION_TILES = [
 const QUICK_ACTIONS = [
   { label: 'Take attendance', to: '/attendance', module: '/attendance' },
   { label: 'Classes', to: '/classes', module: '/classes' },
-  { label: 'Add a family', to: '/people?tab=families' },
+  { label: 'Add a family', to: '/people?add=family' },
   { label: 'Message families', to: '/inbox?tab=announcements' },
   { label: 'Send for signature', to: '/tasks?tab=paperwork', module: '/tasks' },
   { label: 'Reports', to: '/reports', module: '/reports' },

@@ -63,7 +63,7 @@ export const NAV_SECTIONS = [
     label: null,
     items: [
       { name: 'Dashboard', path: '/', end: true, d: ICONS.home },
-      // People is the admin roster hub (Everyone / Staff / Families tabs);
+      // People is the admin roster: one table of everyone, with role filters;
       // Directory is the read-only staff phonebook teachers get in its place.
       // Both are top-level — no "People" section wrapping a "People" link.
       { name: 'People', path: '/people', adminOnly: true, d: ICONS.users },

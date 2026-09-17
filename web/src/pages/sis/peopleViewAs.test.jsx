@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * People › Everyone › "View as student" for an org admin.
+ * People › "View as student" for an org admin.
  *
  * iCreate, 2026-09-04 (455ffaf6): "Can you make it so we can view as students
  * as well so we can see what a given student is able to see? I am trying to
@@ -46,15 +46,18 @@ vi.mock('react-hot-toast', () => ({
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({ useSisOrg: () => sisOrg, withOrg: (p) => p }))
 vi.mock('./StudentDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./FamilyDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./teacherPreview', () => ({ setPreviewTeacher: vi.fn(), getPreviewTeacher: () => null }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => () => Promise.resolve(true) }))
 vi.mock('../../components/sis/SisNewUserModal', () => ({ default: () => <div /> }))
 vi.mock('../../services/masqueradeService', () => masquerade)
 vi.mock('../../utils/appSurface', () => surface)
 vi.mock('../../services/api', () => ({ default: api }))
 
-import RosterPage from './RosterPage'
+import PeoplePage from './PeoplePage'
 
 const openMenu = async (rowName) => {
-  render(<RosterPage />)
+  render(<PeoplePage />)
   await screen.findByText(rowName)
   const row = screen.getByText(rowName).closest('tr')
   fireEvent.click(row.querySelector('button[aria-label="Actions"]'))

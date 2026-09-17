@@ -319,7 +319,7 @@ const FamilySection = ({ student, orgId, onSaved }) => {
         ? <p className="text-sm text-neutral-600 mb-2">In <span className="font-medium">{student.household_name}</span>. Assigning another moves them.</p>
         : <p className="text-sm text-neutral-400 mb-2">Not in a family yet.</p>}
       {loading ? <p className="text-sm text-neutral-400">Loading…</p>
-        : households.length === 0 ? <p className="text-sm text-neutral-400">No families yet — create one on the Families page.</p>
+        : households.length === 0 ? <p className="text-sm text-neutral-400">No families yet — create one from the People page's Add menu.</p>
         : (
           <div className="flex gap-2">
             <SearchSelect

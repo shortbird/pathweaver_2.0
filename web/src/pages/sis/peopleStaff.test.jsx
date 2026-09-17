@@ -26,17 +26,33 @@ vi.mock('react-hot-toast', () => ({
   default: { success: vi.fn(), error: vi.fn() },
 }))
 
+/**
+ * Staff on the one People table. The Staff tab is gone (2026-09-16); a teacher
+ * is a row like anyone else, and the staff modals open from "Staff record" in
+ * the row menu.
+ */
+vi.mock('./SisOrgPicker', () => ({ default: () => null }))
+vi.mock('./useSisOrg', () => ({
+  useSisOrg: () => ({ orgId: 'org-1', setOrgId: vi.fn(), orgs: [], isSuperadmin: false, activeOrg: null }),
+  withOrg: (p) => p,
+}))
+vi.mock('./teacherPreview', () => ({ setPreviewTeacher: vi.fn(), getPreviewTeacher: () => null }))
+vi.mock('./StudentDetailModal', () => ({ default: () => <div /> }))
+vi.mock('./FamilyDetailModal', () => ({ default: () => <div /> }))
+vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => () => Promise.resolve(true) }))
+
 const { api } = vi.hoisted(() => {
   const apiData = (url) => {
-    if (url.includes('/api/sis/staff')) {
-      return { data: { staff: [
-        { id: 's1', name: 'Jane Doe', first_name: 'Jane', last_name: 'Doe', email: 'jane@icreate.org',
-          roles: ['advisor'], role_labels: ['Teacher'], bio: 'Ceramics teacher for 10 years',
-          avatar_url: 'https://cdn.example/staff-photos/s1/x.jpg', last_active: null },
-        { id: 'ph1', name: 'Liz', first_name: 'Liz', last_name: '',
+    if (url.includes('/api/sis/roster')) {
+      return { data: { roster: [
+        { student_id: 's1', name: 'Jane Doe', first_name: 'Jane', last_name: 'Doe', email: 'jane@icreate.org',
+          is_student: false, role: 'advisor', roles: ['advisor'], bio: 'Ceramics teacher for 10 years',
+          avatar_url: 'https://cdn.example/staff-photos/s1/x.jpg', last_active: '2026-09-01T00:00:00Z',
+          login_pending: false, is_placeholder: false, class_count: 2 },
+        { student_id: 'ph1', name: 'Liz', first_name: 'Liz', last_name: '',
           email: 'liz@icreate-staff.placeholder.optioeducation.com',
-          roles: ['advisor'], role_labels: ['Teacher'], bio: null,
-          avatar_url: null, last_active: null, is_placeholder: true },
+          is_student: false, role: 'advisor', roles: ['advisor'], bio: null,
+          avatar_url: null, last_active: null, is_placeholder: true, login_pending: false, class_count: 0 },
       ] } }
     }
     return { data: {} }
@@ -51,7 +67,7 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import StaffPage from './StaffPage'
+import PeoplePage from './PeoplePage'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -59,19 +75,33 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('StaffPage', () => {
-  it('shows staff with photo and bio', async () => {
-    render(<StaffPage />)
+const openStaffRecord = async (name) => {
+  await screen.findByText(name)
+  const row = screen.getByText(name).closest('tr')
+  fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
+  fireEvent.click(screen.getByText('Staff record'))
+}
+
+const addTeacher = () => {
+  fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Teacher' }))
+}
+
+describe('Staff on the People table', () => {
+  it('shows a teacher as a row with their photo, role and classes', async () => {
+    render(<PeoplePage />)
     expect(await screen.findByText('Jane Doe')).toBeInTheDocument()
-    expect(screen.getByText('Ceramics teacher for 10 years')).toBeInTheDocument()
+    const row = screen.getByText('Jane Doe').closest('tr')
+    expect(row).toHaveTextContent('Teacher')
+    expect(row).toHaveTextContent('2 classes')
     // Photo replaces the initials avatar when avatar_url is set.
     expect(screen.queryByText('JD')).not.toBeInTheDocument()
   })
 
   it('adds a teacher via the modal', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Jane Doe')
-    fireEvent.click(screen.getByText('Add teacher'))
+    addTeacher()
     // Email is the only thing an admin supplies; the teacher names themselves
     // when they set their password.
     expect(screen.queryByLabelText(/First Name/)).not.toBeInTheDocument()
@@ -85,10 +115,9 @@ describe('StaffPage', () => {
     )
   })
 
-  it('edits a teacher bio via the card detail modal', async () => {
-    render(<StaffPage />)
-    // Cards are clickable (unified detail-modal pattern); actions live inside.
-    fireEvent.click(await screen.findByText('Jane Doe'))
+  it('edits a teacher bio via the staff record', async () => {
+    render(<PeoplePage />)
+    await openStaffRecord('Jane Doe')
     fireEvent.click(await screen.findByText('Edit profile'))
     fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Updated bio' } })
     fireEvent.click(screen.getByText('Save changes'))
@@ -100,15 +129,15 @@ describe('StaffPage', () => {
   })
 
   it('flags placeholder staff and hides the synthetic email', async () => {
-    render(<StaffPage />)
+    render(<PeoplePage />)
     expect(await screen.findByText('Liz')).toBeInTheDocument()
     expect(screen.getByText('No login yet')).toBeInTheDocument()
     expect(screen.queryByText('liz@icreate-staff.placeholder.optioeducation.com')).not.toBeInTheDocument()
   })
 
-  it('opens the detail modal from a card with the staff actions', async () => {
-    render(<StaffPage />)
-    fireEvent.click(await screen.findByText('Liz'))
+  it('opens the staff record with the staff actions', async () => {
+    render(<PeoplePage />)
+    await openStaffRecord('Liz')
     expect(await screen.findByText('Link their account')).toBeInTheDocument()
     expect(screen.getByText('View portal')).toBeInTheDocument()
     expect(screen.getByText('Employment')).toBeInTheDocument()
@@ -117,8 +146,8 @@ describe('StaffPage', () => {
 
   it('links a placeholder account via the modal', async () => {
     api.post.mockResolvedValueOnce({ data: { linked: 'invited', email_sent: true } })
-    render(<StaffPage />)
-    fireEvent.click(await screen.findByText('Liz'))
+    render(<PeoplePage />)
+    await openStaffRecord('Liz')
     fireEvent.click(await screen.findByText('Link their account'))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'liz@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
@@ -131,8 +160,8 @@ describe('StaffPage', () => {
 
   it('surfaces a link refusal in the modal', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
-    render(<StaffPage />)
-    fireEvent.click(await screen.findByText('Liz'))
+    render(<PeoplePage />)
+    await openStaffRecord('Liz')
     fireEvent.click(await screen.findByText('Link their account'))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'kid@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
@@ -141,9 +170,9 @@ describe('StaffPage', () => {
 
   it('surfaces a backend error in the modal', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'A user with this email already exists' } } })
-    render(<StaffPage />)
+    render(<PeoplePage />)
     await screen.findByText('Jane Doe')
-    fireEvent.click(screen.getByText('Add teacher'))
+    addTeacher()
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'jane@icreate.org' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add Teacher' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('A user with this email already exists')

@@ -232,7 +232,7 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
     """Map user_id -> {household_id, household_name, relationship} for an org."""
     households = fetch_all_rows(lambda: (
         _admin().table('households')
-        .select('id, name')
+        .select('id, name, registration_hold, registration_hold_reason')
         .eq('organization_id', org_id)
     ))
     if not households:
@@ -253,6 +253,8 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
             'household_name': hh['name'],
             'relationship': m.get('relationship'),
             'is_primary_guardian': m.get('is_primary_guardian'),
+            'registration_hold': hh.get('registration_hold'),
+            'registration_hold_reason': hh.get('registration_hold_reason'),
         }
     return out
 
@@ -381,7 +383,17 @@ def find_household_duplicates(org_id: str, household_id: str,
 
 def get_roster(org_id: str) -> List[Dict[str, Any]]:
     """Every account in the org (students, parents, teachers, admins, observers)
-    with a role label; students also carry their enrollment fields."""
+    with a role label; students also carry their enrollment fields.
+
+    One list for one People page. It used to be three lists behind three tabs
+    (Everyone, Staff, Families), each with its own filters, and a person's
+    login state lived on one tab, their family's payment answer on another,
+    and their roles on the third. Staff rows carry what the Staff tab knew
+    (placeholder, invite pending, classes taught, a duplicate to merge) and
+    every row in a family carries what the Families tab knew (how the family
+    pays, a registration hold, whether the family is former), so the one
+    table can filter on all of it.
+    """
     users = _org_users(org_id)
     enrollments = _enrollments_by_student(org_id)
     households = _household_by_user(org_id)
@@ -428,13 +440,76 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             # a second time (sis_reports_service.emergency_contacts_report).
             'household_relationship': (hh or {}).get('relationship'),
             'is_primary_guardian': bool((hh or {}).get('is_primary_guardian')),
+            'registration_hold': bool((hh or {}).get('registration_hold')),
+            'registration_hold_reason': (hh or {}).get('registration_hold_reason'),
         })
     roster.sort(key=lambda r: r['name'].lower())
+    _annotate_roster_staff(org_id, roster)
+    _annotate_roster_households(org_id, roster)
     # Student and staff photos are private-bucket objects. One batch per bucket
     # for the entire roster — a per-row sign here would be one storage round
     # trip per family in the school.
     sign_in_place(roster, ['avatar_url'])
     return roster
+
+
+def _annotate_roster_staff(org_id: str, roster: List[Dict[str, Any]]) -> None:
+    """What the Staff tab knew about a staff row, on the roster row.
+
+    is_placeholder / login_pending / class_count / duplicate_of are the same
+    fields list_org_staff computes, computed the same way (the two helpers are
+    shared), so the one table and the staff endpoints never disagree about who
+    has not signed in yet. `archived` is the staff profile's archive flag; the
+    Staff tab dropped those rows, the one table keeps them behind a filter.
+    """
+    staff = [r for r in roster if any(x in STAFF_ORG_ROLES for x in r['roles'])]
+    if not staff:
+        return
+    # The shared helpers key on `id`; the roster keys on `student_id`.
+    for r in staff:
+        r['id'] = r['student_id']
+        r['is_placeholder'] = is_placeholder_staff_email(r.get('email'))
+        r['login_pending'] = (not r['is_placeholder'] and not r.get('last_active'))
+    _annotate_class_counts(org_id, staff)
+    _annotate_duplicates(staff)
+    archived = _archived_staff_ids(org_id)
+    for r in staff:
+        r['archived'] = r['id'] in archived
+        r.pop('id', None)
+
+
+def _annotate_roster_households(org_id: str, roster: List[Dict[str, Any]]) -> None:
+    """What the Families tab knew about a family, on each of its members.
+
+    How the family pays (sis_payment_profile: the family's own words at
+    registration, which is how the office decides who to invoice next) and
+    whether the family is former -- every student in it withdrawn or graduated
+    (isFormerFamily on the old Families page; the record stays for billing and
+    history, but the guardians of a family no longer at the school should hide
+    with their children).
+    """
+    by_household: Dict[str, List[Dict[str, Any]]] = {}
+    for r in roster:
+        if r.get('household_id'):
+            by_household.setdefault(r['household_id'], []).append(r)
+    if not by_household:
+        return
+    from services import sis_payment_profile
+    try:
+        profiles = sis_payment_profile.profiles_for_org(org_id)
+    except Exception as e:  # noqa: BLE001 -- a roster without payment answers is still a roster
+        logger.warning(f'get_roster: payment profiles unavailable: {e}')
+        profiles = {}
+    for hid, members in by_household.items():
+        students = [m for m in members if m['is_student']]
+        former = bool(students) and all(
+            m.get('enrollment_status') in ('withdrawn', 'graduated') for m in students)
+        p = profiles.get(hid) or {}
+        for m in members:
+            m['household_former'] = former
+            m['stated_payment_methods'] = p.get('methods') or []
+            m['stated_ufa_private'] = p.get('ufa_private')
+            m['payment_plan'] = p.get('plan')
 
 
 def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:

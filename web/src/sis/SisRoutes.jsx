@@ -157,8 +157,8 @@ const SisRoutes = () => (
       {/* Old People routes now open the matching lens of the unified People page. */}
       <Route path="users" element={<Navigate to="/people" replace />} />
       <Route path="roster" element={<Navigate to="/people" replace />} />
-      <Route path="staff" element={<Navigate to="/people?tab=staff" replace />} />
-      <Route path="households" element={<Navigate to="/people?tab=families" replace />} />
+      <Route path="staff" element={<Navigate to="/people?role=staff" replace />} />
+      <Route path="households" element={<Navigate to="/people?family=in" replace />} />
       <Route path="classes" element={<AdminRoute><ModuleGate path="/classes"><ClassesPage /></ModuleGate></AdminRoute>} />
       <Route path="clp" element={<AdminRoute><ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute></AdminRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />

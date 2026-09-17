@@ -57,13 +57,15 @@ const { api, apiData } = vi.hoisted(() => {
     if (url.includes('/api/sis/roster')) {
       return { data: { roster: [
         { student_id: 's1', name: 'Alice Student', email: 'a@x.com', total_xp: 10, is_student: true,
-          role: 'student', roles: ['student'], enrollment_status: 'enrolled', household_name: 'Fam' },
+          role: 'student', roles: ['student'], enrollment_status: 'enrolled', household_name: 'Fam', household_id: 'h1' },
         { student_id: 's2', name: 'Bob Builder', email: 'b@x.com', total_xp: 30, is_student: true,
           role: 'student', roles: ['student'], enrollment_status: 'applicant', household_name: null },
         { student_id: 's3', name: 'Carol Gone', email: 'c@x.com', total_xp: 5, is_student: true,
           role: 'student', roles: ['student'], enrollment_status: 'withdrawn', household_name: null },
         { student_id: 'p1', name: 'Paula Parent', email: 'p@x.com', is_student: false,
-          role: 'parent', roles: ['parent'], enrollment_status: null, household_name: 'Fam' },
+          role: 'parent', roles: ['parent'], enrollment_status: null, household_name: 'Fam', household_id: 'h1' },
+        { student_id: 's9', name: 'Zed Unassigned', email: 'zed@x.com', is_student: true,
+          role: 'student', roles: ['student'], enrollment_status: 'unassigned', household_name: null },
       ] } }
     }
     if (url.includes('/api/sis/members')) {
@@ -99,11 +101,10 @@ const { api, apiData } = vi.hoisted(() => {
 vi.mock('../../services/api', () => ({ default: api }))
 
 import SisDashboard from './SisDashboard'
-import RosterPage from './RosterPage'
-import HouseholdsPage from './HouseholdsPage'
+import PeoplePage from './PeoplePage'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
-import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
+import { withConfirm } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -128,9 +129,9 @@ describe('SisDashboard', () => {
   })
 })
 
-describe('RosterPage', () => {
+describe('PeoplePage', () => {
   it('lists every account with a role column, not just students', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     expect(await screen.findByText('Alice Student')).toBeInTheDocument()
     expect(screen.getByText('Bob Builder')).toBeInTheDocument()
     expect(screen.getAllByText('Fam').length).toBeGreaterThan(0) // family column
@@ -141,14 +142,14 @@ describe('RosterPage', () => {
   })
 
   it('opens the student detail modal from a row', async () => {
-    render(<RosterPage />)
-    // The roster is a directory now: click a row (no per-row "Details" button).
+    render(<PeoplePage />)
+    // The roster is a directory: click a row (no per-row "Details" button).
     fireEvent.click(await screen.findByText('Alice Student'))
     expect(await screen.findByText('Emergency contacts')).toBeInTheDocument()
   })
 
   it('hides withdrawn/graduated students by default and can show them', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     expect(await screen.findByText('Alice Student')).toBeInTheDocument()
     expect(screen.getByText('Bob Builder')).toBeInTheDocument()
     expect(screen.queryByText('Carol Gone')).not.toBeInTheDocument() // withdrawn, hidden
@@ -157,7 +158,7 @@ describe('RosterPage', () => {
   })
 
   it('filters the roster by search text', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Alice Student')
     fireEvent.change(screen.getByPlaceholderText(/Search by name/), { target: { value: 'bob' } })
     expect(screen.queryByText('Alice Student')).not.toBeInTheDocument()
@@ -165,25 +166,23 @@ describe('RosterPage', () => {
   })
 
   it('sorts by name when the Name header is clicked', async () => {
-    render(<RosterPage />)
+    render(<PeoplePage />)
     await screen.findByText('Alice Student')
     // Default sort is name-ascending; clicking the Name header toggles to descending.
     fireEvent.click(screen.getByRole('button', { name: /^Name/ }))
     const names = screen.getAllByRole('row').slice(1).map((r) => r.querySelector('td')?.textContent)
-    // descending: Paula, Bob, Alice (Carol is withdrawn and hidden)
-    expect(names[0]).toContain('Paula')
-    expect(names[1]).toContain('Bob')
-    expect(names[2]).toContain('Alice')
+    // descending: Zed, Paula, Bob, Alice (Carol is withdrawn and hidden)
+    expect(names[0]).toContain('Zed')
+    expect(names[1]).toContain('Paula')
+    expect(names[2]).toContain('Bob')
+    expect(names[3]).toContain('Alice')
   })
-})
 
-describe('HouseholdsPage', () => {
-  it('lists families and creates a new one', async () => {
-    render(<HouseholdsPage />)
-    expect(await screen.findByText('Fam')).toBeInTheDocument()
-
-    // Manual creation is behind a toggle now (search-first UI).
-    fireEvent.click(screen.getByText('+ Create a family manually'))
+  it('creates a family from the Add menu', async () => {
+    render(<PeoplePage />)
+    await screen.findByText('Alice Student')
+    fireEvent.click(screen.getByRole('button', { name: '+ Add' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Family' }))
     fireEvent.change(screen.getByPlaceholderText('New family / household name'), {
       target: { value: 'The Garcia Family' },
     })
@@ -193,111 +192,24 @@ describe('HouseholdsPage', () => {
     )
   })
 
-  it('surfaces household-less students and adds one to a family', async () => {
-    render(<HouseholdsPage />)
+  it('surfaces household-less students as a filter, and Manage puts one in a family', async () => {
+    render(<PeoplePage />)
     // Zed is a student in the org but in no household; Alice is in Fam.
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    expect(within(panel).getByText('Zed Unassigned')).toBeInTheDocument()
-    expect(within(panel).queryByText('Alice Student')).not.toBeInTheDocument()
+    await screen.findByText('Alice Student')
+    fireEvent.click(screen.getByRole('button', { name: 'Show them' }))
+    expect(screen.getByText('Zed Unassigned')).toBeInTheDocument()
+    expect(screen.queryByText('Alice Student')).not.toBeInTheDocument()
 
-    // Pick the family in Zed's row, then Add.
-    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
+    // The Manage modal's Family section does the assigning.
+    fireEvent.click(screen.getByText('Zed Unassigned'))
+    const section = (await screen.findByText('Not in a family yet.')).closest('section')
+    fireEvent.change(await within(section).findByPlaceholderText(/Search families/), { target: { value: 'Fam' } })
     fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
-    fireEvent.click(within(panel).getByText('Add'))
+    fireEvent.click(within(section).getByText('Assign'))
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
         expect.objectContaining({ user_id: 's9', relationship: 'student' })),
     )
-  })
-
-  it('connects a student by account email', async () => {
-    render(<HouseholdsPage />)
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    fireEvent.change(within(panel).getByPlaceholderText('student@example.com'), {
-      target: { value: 'kid@family.com' },
-    })
-    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[1], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
-    fireEvent.click(within(panel).getByText('Connect'))
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/api/sis/households/h1/members',
-        expect.objectContaining({ email: 'kid@family.com', relationship: 'student' })),
-    )
-  })
-
-  it('warns on a likely duplicate and re-submits with confirmation when accepted', async () => {
-    // First add is rejected with a duplicate warning; after the admin confirms,
-    // the same add re-runs with confirm_duplicate so the student is still added.
-    api.post
-      .mockRejectedValueOnce({
-        response: { status: 409, data: {
-          needs_confirmation: true,
-          error: 'This family already includes Zachary Barlow, which looks like the same student. Add anyway?',
-          duplicates: [{ user_id: 's1', name: 'Zachary Barlow' }],
-        } },
-      })
-      .mockResolvedValueOnce({ data: { member: { user_id: 's9' } } })
-
-    render(<HouseholdsPage />)
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
-    fireEvent.click(within(panel).getByText('Add'))
-
-    expect(await confirmText()).toMatch(/looks like the same student/)
-    await answerConfirm()
-    await waitFor(() =>
-      expect(api.post).toHaveBeenLastCalledWith('/api/sis/households/h1/members',
-        expect.objectContaining({ user_id: 's9', relationship: 'student', confirm_duplicate: true })),
-    )
-    expect(api.post).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not add the duplicate when the admin declines the warning', async () => {
-    api.post.mockRejectedValueOnce({
-      response: { status: 409, data: {
-        needs_confirmation: true,
-        error: 'This family already includes Zachary Barlow, which looks like the same student. Add anyway?',
-      } },
-    })
-    render(<HouseholdsPage />)
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    fireEvent.change(within(panel).getAllByPlaceholderText('Search families…')[0], { target: { value: 'Fam' } })
-    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Fam'))
-    fireEvent.click(within(panel).getByText('Add'))
-
-    await answerConfirm(false)
-    expect(api.post).toHaveBeenCalledTimes(1) // never retried
-  })
-
-  it('marks a student graduated to remove them from the list', async () => {
-    render(<HouseholdsPage />)
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    fireEvent.click(within(panel).getByText('Graduated'))
-    await answerConfirm()
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledWith('/api/sis/enrollments/s9',
-        expect.objectContaining({ status: 'graduated', organization_id: 'org-1' })),
-    )
-  })
-
-  it('badges an unassigned student who looks like someone already in a family', async () => {
-    api.get.mockImplementation((url) =>
-      url.includes('/api/sis/unassigned-students')
-        ? Promise.resolve({ data: { students: [
-            { id: 's9', name: 'Zed Unassigned', email: 'zed@x.com', enrollment_status: 'unassigned',
-              possible_duplicate_of: [{ household_id: 'h1', household_name: 'Fam', name: 'Zed Twin' }] },
-          ] } })
-        : Promise.resolve(apiData(url)))
-    render(<HouseholdsPage />)
-    const heading = await screen.findByText('Students without a family')
-    const panel = heading.closest('.bg-amber-50')
-    expect(within(panel).getByText(/Possible duplicate of Zed Twin/)).toBeInTheDocument()
   })
 })
 
