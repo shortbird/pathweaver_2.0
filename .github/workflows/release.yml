@@ -107,8 +107,15 @@ jobs:
     name: Post-deploy smoke check (prod)
     needs: [deploy]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
+      # Only the tracker report below needs the checkout (git rev-list). 2000
+      # commits is about a year of this repository's history, which is as
+      # far back as a ticket's fix_commit can reasonably reach.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2000
       - name: Wait for this commit to be live
         run: |
           set -euo pipefail
@@ -167,6 +174,59 @@ jobs:
           fi
           exit $fail
 
+      # Tell the ticket tracker what just went live, so the tickets fixed by
+      # commits in this history move from `fixed` to `resolved` and their
+      # reporters are mailed -- without anyone coming back after the push.
+      # The backend is known live (the wait above); the web deploy is polled
+      # here because a "how to check" that points at a page which is not yet
+      # serving the fix would be wrong on the reporter's first try.
+      #
+      # Never fails the release: this job is the alarm bell for the auth
+      # paths and a tracker hiccup is not that. If the report cannot be
+      # made, the tickets stay `fixed`, the next push's report includes this
+      # history too, and the cron's daily nag names anything still waiting.
+      - name: Report the deploy to the ticket tracker (web)
+        continue-on-error: true
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::CRON_SECRET secret is not set; tickets fixed by this release will wait for the daily nag."
+            exit 0
+          fi
+          # Wait for the WEB service to serve this commit (up to 15 min).
+          web_svc=srv-d9sjl2qjnfac739k091g
+          web_live=0
+          for i in $(seq 1 45); do
+            status=$(curl -sS --max-time 15 "https://api.render.com/v1/services/$web_svc/deploys?limit=10" \
+              -H "Authorization: Bearer $RENDER_API_KEY" \
+              | jq -r --arg sha "$GITHUB_SHA" '[.[] | (.deploy // .) | select(.commit.id == $sha)][0].status // empty' || true)
+            case "$status" in
+              live) web_live=1; echo "web deploy live after ~$((i*20))s"; break ;;
+              build_failed|update_failed|canceled|pre_deploy_failed)
+                echo "::warning::web deploy for $GITHUB_SHA ended as '$status'; not reporting web as live."; break ;;
+              *) echo "  attempt $i: web deploy status = ${status:-not yet listed}"; sleep 20 ;;
+            esac
+          done
+          if [ "$web_live" != "1" ]; then
+            echo "::warning::web deploy for $GITHUB_SHA not confirmed live; tickets stay fixed until the next release."
+            exit 0
+          fi
+          commits=$(git rev-list --max-count=2000 "$GITHUB_SHA" | jq -R . | jq -sc .)
+          body=$(jq -nc --arg sha "$GITHUB_SHA" --argjson commits "$commits" \
+            '{sha: $sha, commits: $commits, surfaces: ["web"]}')
+          resp=$(curl -sS --max-time 60 -w '\n%{http_code}' -X POST \
+            "https://api.optioeducation.com/api/bug-reports/internal/deploy-sweep" \
+            -H "Content-Type: application/json" -H "X-Cron-Secret: $CRON_SECRET" \
+            --data "$body")
+          code=$(echo "$resp" | tail -1); out=$(echo "$resp" | sed '$d')
+          echo "tracker HTTP $code: $(echo "$out" | head -c 600)"
+          if [ "$code" != "200" ]; then
+            echo "::warning::ticket tracker deploy-sweep returned HTTP $code"
+          fi
+
   # Production OTA — only after the API it calls is live.
   #
   # `deploy` rather than the three test jobs. Until 2026-09-11 this needed
@@ -190,6 +250,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # For the tracker report at the end (git rev-list); see smoke.
+          fetch-depth: 2000
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -267,3 +330,29 @@ jobs:
             : "${EXPO_PUBLIC_SENTRY_DSN:?OTA env guard - EXPO_PUBLIC_SENTRY_DSN is empty, mobile crash reporting would be dead in this OTA, aborting publish}"
             npm run ota:production -- -m "$MSG"
           '
+
+      # A mobile reporter's fix is live once the OTA is published (the phone
+      # picks it up on next launch). Same report as the smoke job, for the
+      # mobile surface; same rule that it never fails the publish.
+      - name: Report the OTA to the ticket tracker (mobile)
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::CRON_SECRET secret is not set; mobile tickets fixed by this release will wait for the daily nag."
+            exit 0
+          fi
+          commits=$(git rev-list --max-count=2000 "$GITHUB_SHA" | jq -R . | jq -sc .)
+          body=$(jq -nc --arg sha "$GITHUB_SHA" --argjson commits "$commits" \
+            '{sha: $sha, commits: $commits, surfaces: ["mobile"]}')
+          resp=$(curl -sS --max-time 60 -w '\n%{http_code}' -X POST \
+            "https://api.optioeducation.com/api/bug-reports/internal/deploy-sweep" \
+            -H "Content-Type: application/json" -H "X-Cron-Secret: $CRON_SECRET" \
+            --data "$body")
+          code=$(echo "$resp" | tail -1); out=$(echo "$resp" | sed '$d')
+          echo "tracker HTTP $code: $(echo "$out" | head -c 600)"
+          if [ "$code" != "200" ]; then
+            echo "::warning::ticket tracker deploy-sweep returned HTTP $code"
+          fi

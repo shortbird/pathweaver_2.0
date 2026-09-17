@@ -851,11 +851,12 @@ class EmailService(BaseService):
         """Notify the admin inbox that a new ticket landed in the tracker.
 
         Covers every surface that posts to /api/bug-reports (the mobile shake
-        sheet and the staff reporter on the web platform / SIS console). The
-        one notification the tracker sends, by decision (2026-09-14): a mail to
-        ADMIN_EMAIL with the title and a link straight to the ticket in
-        /admin/tickets. Best-effort — the caller must never let a failure here
-        fail the report submission itself.
+        sheet and the staff reporter on the web platform / SIS console). A
+        mail to ADMIN_EMAIL with the title and a link straight to the ticket
+        in /admin/tickets. Until 2026-09-17 it was the tracker's only
+        notification; the reporter is now told once too, when the fix is live
+        (send_ticket_resolved_email). Best-effort — the caller must never let
+        a failure here fail the report submission itself.
 
         `report` keys used (all optional except message):
             report_id, report_type, title, message, steps, current_route,
@@ -976,6 +977,196 @@ class EmailService(BaseService):
 
         # reply_to is forced to ADMIN_EMAIL so a reply doesn't get re-routed to a
         # school inbox by the org reply-to rule (recipient IS the admin here).
+        return self.send_email(
+            to_email=Config.ADMIN_EMAIL,
+            subject=subject,
+            html_body=html_body,
+            text_body='\n'.join(text_lines),
+            reply_to=Config.ADMIN_EMAIL,
+        )
+
+    def send_ticket_resolved_email(self, ticket: Dict[str, Any]) -> bool:
+        """Tell the person who filed a ticket that it is done, once it is live.
+
+        Sent by services/ticket_finalize_service.py on the transition into
+        `resolved`, never before: for a code fix that is when the release
+        pipeline has seen the commit on production, so what the mail says to
+        check is true when it is read. The rules for who is NOT mailed (a
+        Sentry ticket, no address, notify_reporter off) live in that service.
+
+        `ticket` keys used: id, title, type, resolution, verification,
+        user_email, source. Neither the commit nor any file name is in the
+        body: `resolution` and `verification` are written for the reporter.
+
+        Reply-To is ADMIN_EMAIL: "reply if it is still wrong" has to reach a
+        person, and the default sender does not.
+        """
+        to_email = (ticket.get('user_email') or '').strip()
+        if not to_email:
+            return False
+
+        title = (ticket.get('title') or '').strip() or 'your report'
+        resolution = (ticket.get('resolution') or '').strip()
+        verification = (ticket.get('verification') or '').strip()
+        ttype = (ticket.get('type') or 'bug').lower()
+        noun = {'feature': 'request', 'question': 'question', 'tweak': 'request'}.get(ttype, 'report')
+
+        if ttype == 'question':
+            subject = f"An answer to your question: {title[:80]}"
+            lead = "You asked us a question and here is the answer."
+        elif ttype in ('feature', 'tweak'):
+            subject = f"Your request is live: {title[:80]}"
+            lead = "You asked for a change and it is now live."
+        else:
+            subject = f"Fixed: {title[:80]}"
+            lead = "You reported a problem and it is fixed."
+
+        # A mobile fix arrives with the next app update, which the phone
+        # fetches on launch. Say so, or "how to check" fails on the first try.
+        mobile_note = ''
+        if (ticket.get('source') or '') == 'mobile':
+            mobile_note = (
+                'The update reaches the app the next time you open it. If you '
+                'do not see the change, close the app fully and open it again.'
+            )
+
+        def _esc(v: str) -> str:
+            return (
+                str(v)
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+            )
+
+        def _para(text: str) -> str:
+            return (
+                f'<div style="white-space:pre-wrap;font-size:15px;line-height:1.5;color:#111827;">'
+                f'{_esc(text)}</div>'
+            )
+
+        verification_html = ''
+        if verification:
+            verification_html = (
+                '<p style="margin:20px 0 6px;color:#6b7280;font-size:13px;">How to check</p>'
+                + _para(verification)
+            )
+        mobile_html = (
+            f'<p style="margin:16px 0 0;font-size:14px;color:#374151;">{_esc(mobile_note)}</p>'
+            if mobile_note else ''
+        )
+
+        html_body = f"""
+        <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+                    max-width:600px;margin:0 auto;padding:24px;color:#111827;">
+          <p style="margin:0 0 16px;font-size:15px;">{_esc(lead)}</p>
+          <p style="margin:0 0 4px;color:#6b7280;font-size:13px;">Your {_esc(noun)}</p>
+          <h2 style="margin:0 0 20px;font-size:18px;">{_esc(title)}</h2>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;">
+            <p style="margin:0 0 6px;color:#6b7280;font-size:13px;">What changed</p>
+            {_para(resolution)}
+            {verification_html}
+          </div>
+          {mobile_html}
+          <p style="margin:20px 0 0;font-size:14px;color:#374151;">
+            If it is still not right, reply to this email and tell us what you see.
+          </p>
+          <p style="margin:24px 0 0;font-size:14px;color:#374151;">Thank you for telling us.</p>
+          <p style="margin:16px 0 0;color:#9ca3af;font-size:12px;">Optio</p>
+        </div>
+        """.strip()
+
+        text_lines = [lead, '', f"Your {noun}: {title}", '', 'What changed:', resolution]
+        if verification:
+            text_lines += ['', 'How to check:', verification]
+        if mobile_note:
+            text_lines += ['', mobile_note]
+        text_lines += ['', 'If it is still not right, reply to this email and tell us what you see.',
+                       '', 'Thank you for telling us.', 'Optio']
+
+        return self.send_email(
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body='\n'.join(text_lines),
+            reply_to=Config.ADMIN_EMAIL,
+            categories=['transactional', 'ticket-resolved'],
+            custom_args={'ticket_id': str(ticket.get('id') or '')},
+        )
+
+    def send_tickets_fixed_not_live_email(
+        self,
+        stale: List[Dict[str, Any]],
+        live_commit: str = '',
+        console_url: str = '',
+    ) -> bool:
+        """The daily nudge to the admin inbox: fixed tickets that never went live.
+
+        Sent by the cron through ticket_finalize_service when anything has sat
+        in `fixed` for more than a day. That is the shape of a release that
+        went red after the push, or a commit that was rebased so its SHA no
+        longer matches. Nothing is sent when the list is empty.
+
+        `stale` entries: id, title, source, fix_commit (short), hours.
+        """
+        if not stale:
+            return False
+
+        def _esc(v: str) -> str:
+            return (
+                str(v)
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+            )
+
+        count = len(stale)
+        subject = f"[Tickets] {count} fixed but not live"
+        rows_html = ''.join(
+            f'<tr>'
+            f'<td style="padding:6px 12px 6px 0;font-size:13px;color:#111827;vertical-align:top;">'
+            f'{_esc(t["title"])[:90]}<br>'
+            f'<span style="color:#6b7280;font-size:12px;">{_esc(t["source"])} · {_esc(t["fix_commit"] or "no commit")}</span></td>'
+            f'<td style="padding:6px 0;font-size:13px;color:#6b7280;white-space:nowrap;vertical-align:top;">'
+            f'{t["hours"]}h</td>'
+            f'</tr>'
+            for t in stale
+        )
+        live_html = (
+            f'<p style="margin:16px 0 0;font-size:13px;color:#6b7280;">'
+            f'Production is serving {_esc(live_commit[:12])}.</p>'
+            if live_commit else ''
+        )
+        link_html = (
+            f'<p style="margin:16px 0 0;">'
+            f'<a href="{_esc(console_url)}" style="display:inline-block;background:#6D469B;color:#ffffff;'
+            f'text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:14px;">'
+            f'Open tickets</a></p>'
+        ) if console_url else ''
+
+        html_body = f"""
+        <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+                    max-width:600px;margin:0 auto;padding:24px;color:#111827;">
+          <h2 style="margin:0 0 8px;font-size:18px;">{count} ticket{'s' if count != 1 else ''} fixed but not live</h2>
+          <p style="margin:0 0 16px;font-size:14px;color:#374151;">
+            Each of these has a commit and has waited more than a day for a production
+            deploy that includes it. Usually that is a release that went red after the
+            push, or a commit whose SHA changed in a rebase. The reporters have not been
+            told anything yet.
+          </p>
+          <table style="border-collapse:collapse;">{rows_html}</table>
+          {live_html}
+          {link_html}
+        </div>
+        """.strip()
+
+        text_lines = [f"{count} ticket(s) fixed but not live", '']
+        text_lines += [f"- {t['title']} ({t['source']}, {t['fix_commit'] or 'no commit'}) waiting {t['hours']}h"
+                       for t in stale]
+        if live_commit:
+            text_lines += ['', f"Production is serving {live_commit[:12]}."]
+        if console_url:
+            text_lines += ['', console_url]
+
         return self.send_email(
             to_email=Config.ADMIN_EMAIL,
             subject=subject,

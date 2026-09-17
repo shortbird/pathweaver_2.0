@@ -12,6 +12,9 @@ cron service instead of one-per-job:
                                  before any model call, work happens on a thread).
   - Account deletion sweep    -> once/day (09:00 UTC).
   - Data retention sweep      -> once/day (10:00 UTC), no-op unless enabled.
+  - Ticket deploy sweep       -> EVERY run (reporter mail for newly resolved
+                                 tickets); the 14:00 UTC run adds the
+                                 fixed-but-not-live nag to the admin inbox.
 
 Core jobs are dispatched directly below; only PROGRAM-specific jobs come from
 programs/registry.py, which is the seam that keeps core from naming a program.
@@ -39,9 +42,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from programs.registry import daily_cron_jobs
 
 
-def _post(url, secret):
+def _post(url, secret, body=None):
     return requests.post(
-        url, json={},
+        url, json=body if body is not None else {},
         headers={"Content-Type": "application/json", "X-Cron-Secret": secret},
         timeout=120,
     )
@@ -65,7 +68,7 @@ def _deployed_commit(base):
     return None
 
 
-def _run(name, url, secret, failures, retries=1, base=None):
+def _run(name, url, secret, failures, retries=1, base=None, body=None):
     """POST the job; retry once (30 s later) on 5xx/connection errors so a run
     that lands mid-deploy (Render cutover) doesn't page anyone. 4xx means the
     request itself is wrong (bad secret, auth) — retrying can't help, fail now.
@@ -85,7 +88,7 @@ def _run(name, url, secret, failures, retries=1, base=None):
     """
     for attempt in range(retries + 1):
         try:
-            r = _post(url, secret)
+            r = _post(url, secret, body)
             print(f"[{name}] status={r.status_code} body={r.text[:300]}")
             if r.status_code == 200:
                 return
@@ -166,6 +169,17 @@ def main():
     # parent per week means the six ticks inside the send hour send once.
     _run("parent-weekly-digest", f"{base}/api/parent-digest/internal/sweep",
          cron_secret, failures, base=base)
+
+    # Every run: the ticket deploy sweep. Mails the reporter of any ticket that
+    # resolved since the last tick and still owes them a message (the release
+    # pipeline sends most of these itself the moment a deploy is live; this
+    # catches a question answered over the MCP, or a send that failed). Once
+    # a day at 14:00 UTC it also asks for the nag: fixed tickets whose commit
+    # has not reached production in a day, mailed to the admin inbox, which is
+    # the only signal there is when a release went red after the push.
+    nag = now.hour == 14 and now.minute < 10
+    _run("ticket-deploy-sweep", f"{base}/api/bug-reports/internal/deploy-sweep",
+         cron_secret, failures, base=base, body={"nag": True} if nag else None)
 
     # Once/day (14:00 UTC, morning in Utah): the moderation digest. Reports
     # nobody has looked at and what the safety screen held in the last day,

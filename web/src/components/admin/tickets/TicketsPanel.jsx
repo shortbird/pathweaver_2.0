@@ -18,15 +18,18 @@ import {
  * brought over when Perch was retired on 2026-09-14. Superadmin only; the
  * backend gates every read and write, this is the chrome.
  *
- * Tracking, not an inbox: there is no assignment, no notification, no reply to
- * the reporter. A ticket has a status, a type and a priority, and when it is
- * done somebody writes what was done in `resolution`. Claude Code reads and
- * closes the same rows over the Supabase MCP (.claude/skills/tickets).
+ * A ticket has a status, a type and a priority, and when it is done somebody
+ * writes what was done in `resolution` and how to see it in `verification`,
+ * both for the reporter. Claude Code works the same rows over the Supabase MCP
+ * (.claude/skills/tickets). A code fix goes to "Fixed, not live" with its
+ * commit; the release pipeline resolves it once production serves that
+ * commit, and the reporter gets one email then. Nothing here sends mail.
  */
 const TABS = [
   { id: 'open', label: 'Open' },
   { id: 'new', label: 'New' },
   { id: 'fixing', label: 'In progress' },
+  { id: 'fixed', label: 'Fixed, not live' },
   { id: 'resolved', label: 'Resolved' },
   { id: 'wont_fix', label: 'Declined' },
   { id: 'all', label: 'All' },

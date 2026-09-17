@@ -44,13 +44,16 @@ class TestListFiltered:
         select_kwargs = mock.table.return_value.select.call_args.kwargs
         assert select_kwargs.get('count') == 'exact'
 
-    def test_open_means_the_three_working_statuses(self):
+    def test_open_means_everything_not_yet_finished(self):
+        """`fixed` (committed, waiting for production) is open: the console
+        keeps showing it and a repeat Sentry alert lands on it rather than
+        opening a twin. Only the deploy sweep moves it on."""
         repo, mock = _make_repo()
         q = _chain(mock, data=[], count=0)
 
         repo.list_filtered(status='open')
 
-        q.in_.assert_called_once_with('status', ['new', 'triaged', 'fixing'])
+        q.in_.assert_called_once_with('status', ['new', 'triaged', 'fixing', 'fixed'])
         q.eq.assert_not_called()
 
     def test_search_goes_through_pgrst_pattern(self):
@@ -93,7 +96,9 @@ class TestUpdateFields:
 
         assert q.update.call_args[0][0]['resolved_at']
 
-    def test_reopening_clears_resolved_at(self):
+    def test_reopening_clears_resolved_at_and_the_deploy_stamps(self):
+        """A ticket that comes back after its mail went out is mailed again
+        when it is fixed again, so the stamps that say 'done' come off."""
         repo, mock = _make_repo()
         q = _chain(mock, data=[{'id': 'r1'}])
 
@@ -101,6 +106,30 @@ class TestUpdateFields:
 
         sent = q.update.call_args[0][0]
         assert 'resolved_at' in sent and sent['resolved_at'] is None
+        assert sent['deployed_at'] is None and sent['reporter_notified_at'] is None
+
+    def test_marking_fixed_clears_resolved_at_but_keeps_the_deploy_stamps_alone(self):
+        """fixed is open, so resolved_at goes; but it is the step before the
+        sweep writes deployed_at, not a reopen, so those are not touched."""
+        repo, mock = _make_repo()
+        q = _chain(mock, data=[{'id': 'r1'}])
+
+        repo.update_fields('r1', {'status': 'fixed', 'fix_commit': 'a' * 40})
+
+        sent = q.update.call_args[0][0]
+        assert sent['resolved_at'] is None
+        assert 'deployed_at' not in sent and 'reporter_notified_at' not in sent
+
+    def test_the_sweep_may_supply_its_own_resolved_at(self):
+        """apply_deploy stamps resolved_at and deployed_at with one clock
+        reading; update_fields must not overwrite the one it is handed."""
+        repo, mock = _make_repo()
+        q = _chain(mock, data=[{'id': 'r1'}])
+
+        repo.update_fields('r1', {'status': 'resolved', 'resolved_at': 'T', 'deployed_at': 'T'})
+
+        sent = q.update.call_args[0][0]
+        assert sent['resolved_at'] == 'T' and sent['deployed_at'] == 'T'
 
     def test_a_notes_only_edit_leaves_resolved_at_alone(self):
         repo, mock = _make_repo()

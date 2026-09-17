@@ -2,9 +2,10 @@
 Unit tests for the ticket tracker's API routes (/api/bug-reports).
 
 Covers: authenticated create (happy path + validation + the title/type/org
-stamping the tracker relies on), unauthenticated reject, and superadmin-only
+stamping the tracker relies on), unauthenticated reject, superadmin-only
 gating on the triage (GET/PATCH) endpoints with the field allow-list a PATCH
-honours.
+honours, and the deploy sweep the release pipeline and the cron call to
+finish tickets and mail their reporters.
 """
 
 import json
@@ -188,18 +189,20 @@ class TestTriageEndpoints:
             resp = client.get('/api/bug-reports?type=rant', headers=auth_headers)
         assert resp.status_code == 400
 
-    def test_summary_counts_open_as_the_three_working_statuses(
+    def test_summary_counts_open_as_everything_not_yet_finished(
         self, client, auth_headers, mock_verify_token
     ):
+        """`fixed` (committed, not live) is still open: the console keeps
+        showing it, and the pipeline is what finishes it."""
         mock_repo = Mock()
         mock_repo.counts_by_status.return_value = {
-            'new': 1, 'triaged': 4, 'fixing': 2, 'resolved': 300, 'wont_fix': 3,
+            'new': 1, 'triaged': 4, 'fixing': 2, 'fixed': 5, 'resolved': 300, 'wont_fix': 3,
         }
         with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('superadmin')), \
              patch('routes.bug_reports.BugReportRepository', return_value=mock_repo):
             resp = client.get('/api/bug-reports/summary', headers=auth_headers)
         assert resp.status_code == 200
-        assert json.loads(resp.data)['counts']['open'] == 7
+        assert json.loads(resp.data)['counts']['open'] == 12
 
     def test_summary_forbidden_for_non_superadmin(self, client, auth_headers, mock_verify_token):
         with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('student')):
@@ -263,6 +266,168 @@ class TestTriageEndpoints:
                                 json={'title': '   '}).status_code == 400
             assert client.patch('/api/bug-reports/r1', headers=auth_headers,
                                 json={'user_email': 'x'}).status_code == 400
+
+    def test_patch_marks_a_ticket_fixed_with_its_commit_and_the_reporters_note(
+        self, client, auth_headers, mock_verify_token
+    ):
+        """The write the sweep later acts on: status fixed, a SHA, two
+        sentences for the reporter. The SHA is normalised to lower case; the
+        reporter mail does NOT run here, because nothing is live yet."""
+        mock_repo = Mock()
+        mock_repo.update_fields.return_value = {'id': 'r1', 'status': 'fixed'}
+        with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('superadmin')), \
+             patch('routes.bug_reports.BugReportRepository', return_value=mock_repo), \
+             patch('services.ticket_finalize_service.notify_resolved_reporters') as notify:
+            resp = client.patch('/api/bug-reports/r1', headers=auth_headers, json={
+                'status': 'fixed',
+                'fix_commit': 'ABCDEF0123456789abcdef0123456789ABCDEF01',
+                'resolution': 'The phone column is back in the roster export.',
+                'verification': 'Open Reports, export any roster, check the last column.',
+                'notify_reporter': True,
+            })
+        assert resp.status_code == 200
+        assert mock_repo.update_fields.call_args[0][1] == {
+            'status': 'fixed',
+            'fix_commit': 'abcdef0123456789abcdef0123456789abcdef01',
+            'resolution': 'The phone column is back in the roster export.',
+            'verification': 'Open Reports, export any roster, check the last column.',
+            'notify_reporter': True,
+        }
+        notify.assert_not_called()
+
+    def test_patch_rejects_a_commit_that_is_not_a_sha_and_a_flag_that_is_not_a_bool(
+        self, client, auth_headers, mock_verify_token
+    ):
+        with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('superadmin')):
+            assert client.patch('/api/bug-reports/r1', headers=auth_headers,
+                                json={'fix_commit': 'main'}).status_code == 400
+            assert client.patch('/api/bug-reports/r1', headers=auth_headers,
+                                json={'fix_commit': 'g' * 40}).status_code == 400
+            # Seven characters is the default abbreviation and the sweep will
+            # not match it; refusing it here is what keeps a ticket from sitting
+            # in fixed forever with a commit nothing can recognise.
+            assert client.patch('/api/bug-reports/r1', headers=auth_headers,
+                                json={'fix_commit': 'abcdef0'}).status_code == 400
+            assert client.patch('/api/bug-reports/r1', headers=auth_headers,
+                                json={'notify_reporter': 'yes'}).status_code == 400
+
+    def test_patch_resolving_from_the_console_mails_the_reporter_now(
+        self, client, auth_headers, mock_verify_token
+    ):
+        """A superadmin who resolves a question should not leave the reporter
+        waiting on the next cron tick."""
+        mock_repo = Mock()
+        mock_repo.update_fields.return_value = {'id': 'r1', 'status': 'resolved'}
+        mock_repo.find_detail.return_value = {'id': 'r1', 'status': 'resolved',
+                                              'reporter_notified_at': '2026-09-17T20:00:00+00:00'}
+        with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('superadmin')), \
+             patch('routes.bug_reports.BugReportRepository', return_value=mock_repo), \
+             patch('services.ticket_finalize_service.notify_resolved_reporters',
+                   return_value={'sent': ['r1']}) as notify:
+            resp = client.patch('/api/bug-reports/r1', headers=auth_headers,
+                                json={'status': 'resolved', 'resolution': 'Add them under Family.'})
+        assert resp.status_code == 200
+        notify.assert_called_once()
+        assert json.loads(resp.data)['report']['reporter_notified_at'] == '2026-09-17T20:00:00+00:00'
+
+    def test_patch_still_succeeds_when_the_reporter_mail_raises(
+        self, client, auth_headers, mock_verify_token
+    ):
+        mock_repo = Mock()
+        mock_repo.update_fields.return_value = {'id': 'r1', 'status': 'resolved'}
+        with patch('database.get_supabase_admin_client', return_value=_admin_client_for_role('superadmin')), \
+             patch('routes.bug_reports.BugReportRepository', return_value=mock_repo), \
+             patch('services.ticket_finalize_service.notify_resolved_reporters',
+                   side_effect=RuntimeError('smtp down')):
+            resp = client.patch('/api/bug-reports/r1', headers=auth_headers, json={'status': 'resolved'})
+        assert resp.status_code == 200
+
+
+@pytest.mark.unit
+class TestDeploySweep:
+    """POST /api/bug-reports/internal/deploy-sweep: the release pipeline's and
+    the cron's entry point. X-Cron-Secret or a superadmin session; a body
+    with `commits` finishes tickets, any body mails reporters, `nag` adds
+    the fixed-but-not-live mail."""
+
+    URL = '/api/bug-reports/internal/deploy-sweep'
+
+    def test_refused_without_the_secret_or_a_session(self, client):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'):
+            assert client.post(self.URL, json={}).status_code == 401
+            assert client.post(self.URL, json={}, headers={'X-Cron-Secret': 'wrong'}).status_code == 401
+
+    def test_refused_for_a_signed_in_non_superadmin(self, client, auth_headers, mock_verify_token):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('utils.session_manager.session_manager.get_effective_user_id', return_value='u1'), \
+             patch('routes.bug_reports._triage_client', return_value=Mock()), \
+             patch('repositories.user_repository.UserRepository.is_superadmin', return_value=False):
+            assert client.post(self.URL, json={}, headers=auth_headers).status_code == 401
+
+    def test_the_pipeline_report_finishes_tickets_then_mails(self, client):
+        from app_config import Config
+        deploy = {'sha': 'h' * 40, 'surfaces': ['web'], 'commits_seen': 2,
+                  'resolved': ['t1'], 'waiting': [], 'no_fix_commit': []}
+        notify = {'sent': ['t1'], 'skipped': [], 'pending': [], 'failed': []}
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('services.ticket_finalize_service.apply_deploy', return_value=deploy) as apply, \
+             patch('services.ticket_finalize_service.notify_resolved_reporters', return_value=notify) as mail, \
+             patch('services.ticket_finalize_service.send_fixed_but_not_live_nag') as nag:
+            resp = client.post(self.URL, headers={'X-Cron-Secret': 'shhh'}, json={
+                'sha': 'h' * 40, 'commits': ['h' * 40, 'a' * 40], 'surfaces': ['web'],
+            })
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert data['deploy']['resolved'] == ['t1'] and data['notify']['sent'] == ['t1']
+        apply.assert_called_once_with('h' * 40, ['h' * 40, 'a' * 40], ['web'])
+        mail.assert_called_once()
+        nag.assert_not_called()
+
+    def test_the_cron_tick_only_mails(self, client):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('services.ticket_finalize_service.apply_deploy') as apply, \
+             patch('services.ticket_finalize_service.notify_resolved_reporters',
+                   return_value={'sent': [], 'skipped': [], 'pending': [], 'failed': []}) as mail:
+            resp = client.post(self.URL, headers={'X-Cron-Secret': 'shhh'}, json={})
+        assert resp.status_code == 200
+        apply.assert_not_called()
+        mail.assert_called_once()
+        assert 'deploy' not in json.loads(resp.data)
+
+    def test_the_daily_tick_adds_the_nag(self, client):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('services.ticket_finalize_service.notify_resolved_reporters', return_value={}), \
+             patch('services.ticket_finalize_service.send_fixed_but_not_live_nag',
+                   return_value={'stale': 2, 'sent': True}) as nag:
+            resp = client.post(self.URL, headers={'X-Cron-Secret': 'shhh'}, json={'nag': True})
+        assert resp.status_code == 200
+        nag.assert_called_once()
+        assert json.loads(resp.data)['nag'] == {'stale': 2, 'sent': True}
+
+    def test_a_malformed_commits_list_is_a_400_not_a_sweep(self, client):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('services.ticket_finalize_service.apply_deploy') as apply:
+            assert client.post(self.URL, headers={'X-Cron-Secret': 'shhh'},
+                               json={'commits': 'abc'}).status_code == 400
+            assert client.post(self.URL, headers={'X-Cron-Secret': 'shhh'},
+                               json={'commits': ['a' * 40], 'surfaces': 'web'}).status_code == 400
+        apply.assert_not_called()
+
+    def test_a_superadmin_session_may_run_it_by_hand(self, client, auth_headers, mock_verify_token):
+        from app_config import Config
+        with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('utils.session_manager.session_manager.get_effective_user_id', return_value='super-1'), \
+             patch('routes.bug_reports._triage_client', return_value=Mock()), \
+             patch('repositories.user_repository.UserRepository.is_superadmin', return_value=True) as is_super, \
+             patch('services.ticket_finalize_service.notify_resolved_reporters', return_value={}):
+            resp = client.post(self.URL, json={}, headers=auth_headers)
+        assert resp.status_code == 200
+        is_super.assert_called_once_with('super-1')
 
 
 @pytest.mark.unit

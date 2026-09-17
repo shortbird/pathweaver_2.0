@@ -407,6 +407,10 @@ class Config:
     # the prod and dev Render services in the same Sentry project.
     SENTRY_DSN = os.getenv('SENTRY_DSN')
     SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT')
+    # The commit this process was built from. Render sets it on every deploy;
+    # /api/health reports it so release.yml can wait for its own commit, and
+    # the ticket sweep names it in the fixed-but-not-live mail. None locally.
+    DEPLOYED_COMMIT = os.getenv('RENDER_GIT_COMMIT')
 
     # The other direction: Sentry issue alerts POST to /api/webhooks/sentry and
     # open a ticket in bug_reports (routes/sentry_webhook.py). This is the

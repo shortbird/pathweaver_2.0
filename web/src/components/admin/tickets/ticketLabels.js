@@ -6,6 +6,9 @@ export const STATUS_LABELS = {
   new: 'New',
   triaged: 'Triaged',
   fixing: 'In progress',
+  // Committed, waiting for production. The release pipeline moves it on and
+  // mails the reporter; nobody has to come back to it.
+  fixed: 'Fixed, not live',
   resolved: 'Resolved',
   wont_fix: 'Declined',
 }
@@ -14,6 +17,7 @@ export const STATUS_CLASSES = {
   new: 'bg-optio-purple/10 text-optio-purple',
   triaged: 'bg-amber-50 text-amber-700',
   fixing: 'bg-optio-pink/10 text-optio-pink-dark',
+  fixed: 'bg-sky-50 text-sky-700',
   resolved: 'bg-green-50 text-green-700',
   wont_fix: 'bg-gray-100 text-gray-600',
 }

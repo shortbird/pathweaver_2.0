@@ -17,8 +17,11 @@ import { STATUS_LABELS, STATUS_CLASSES, TYPE_LABELS, PRIORITY_LABELS, SOURCE_LAB
  *
  * The top half is what the reporter said and where they were; the bottom half
  * is the triage: status, type, priority, internal notes, and -- once it is
- * done -- the resolution. Resolving here is the same write Claude Code makes
- * over the MCP, so a ticket closed either way reads the same.
+ * done -- the resolution and how to check it, both written for the reporter,
+ * who is emailed them when the ticket resolves. A code fix is marked "Fixed,
+ * not live" with its commit and the release pipeline resolves it; "Mark
+ * resolved" here is for the rest (an answered question, a data fix) and mails
+ * the reporter straight away. The same writes Claude Code makes over the MCP.
  */
 const Field = ({ label, children }) => (
   <div>
@@ -57,7 +60,22 @@ const seed = (ticket) => ({
   priority: ticket.priority,
   triage_notes: ticket.triage_notes || '',
   resolution: ticket.resolution || '',
+  verification: ticket.verification || '',
+  fix_commit: ticket.fix_commit || '',
+  notify_reporter: ticket.notify_reporter !== false,
 })
+
+// What the reporter will (or did) hear, in one line under the resolution.
+const noticeLine = (ticket) => {
+  if (ticket.source === 'sentry') return 'Sentry tickets never email anyone.'
+  if (!ticket.user_email) return 'No reporter email on this ticket, so nothing is sent.'
+  if (ticket.reporter_notified_at) return `Reporter emailed ${formatWhen(ticket.reporter_notified_at)}.`
+  if (ticket.notify_reporter === false) return 'Reporter will not be emailed.'
+  if (ticket.status === 'wont_fix') return 'Declined tickets do not email the reporter.'
+  if (ticket.status === 'resolved') return 'Reporter email is pending (the next sweep sends it).'
+  if (ticket.status === 'fixed') return 'Reporter is emailed once this commit is live on production.'
+  return 'Reporter is emailed the resolution and how to check it when this resolves.'
+}
 
 export default function TicketDetail({ ticketId, onClose }) {
   const { data: ticket, isLoading, isError } = useAdminTicket(ticketId)
@@ -112,6 +130,15 @@ function TicketBody({ ticket }) {
   }
 
   const resolve = () => save({ status: 'resolved' })
+  const markFixed = () => {
+    // Twelve is the shortest SHA the deploy sweep will match; the backend
+    // refuses less too, this just says so before the round trip.
+    if (!/^[0-9a-fA-F]{12,40}$/.test(form.fix_commit.trim())) {
+      toast.error('Paste the full commit SHA that fixes it first')
+      return
+    }
+    save({ status: 'fixed' })
+  }
   const decline = () => save({ status: 'wont_fix' })
   const reopen = () => save({ status: 'triaged' })
 
@@ -168,6 +195,9 @@ function TicketBody({ ticket }) {
         <Field label={isClosed ? 'Closed' : 'Updated'}>
           {formatWhen(isClosed ? ticket.resolved_at : ticket.updated_at)}
         </Field>
+        {ticket.deployed_at && (
+          <Field label="Live on production">{formatWhen(ticket.deployed_at)}</Field>
+        )}
         {(ticket.app_version || ticket.build_number) && (
           <Field label="Build">
             {[ticket.app_version, ticket.build_number, ticket.ota_update_id].filter(Boolean).join(' · ')}
@@ -276,6 +306,7 @@ function TicketBody({ ticket }) {
         <div>
           <label htmlFor="ticket-resolution" className="block text-sm font-medium text-gray-700">
             Resolution
+            <span className="ml-2 text-xs font-normal text-gray-500">sent to the reporter</span>
           </label>
           <textarea
             id="ticket-resolution"
@@ -283,9 +314,49 @@ function TicketBody({ ticket }) {
             value={form.resolution}
             onChange={(e) => set('resolution')(e.target.value)}
             className="input-field mt-1 px-3 py-2 text-sm w-full"
-            placeholder="What was done, and the commit if there is one."
+            placeholder="What changed, in one or two plain sentences. No commit, no file names."
           />
         </div>
+        <div>
+          <label htmlFor="ticket-verification" className="block text-sm font-medium text-gray-700">
+            How to check
+            <span className="ml-2 text-xs font-normal text-gray-500">sent to the reporter</span>
+          </label>
+          <textarea
+            id="ticket-verification"
+            rows={2}
+            value={form.verification}
+            onChange={(e) => set('verification')(e.target.value)}
+            className="input-field mt-1 px-3 py-2 text-sm w-full"
+            placeholder="Where to go and what they should see now."
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+          <div>
+            <label htmlFor="ticket-fix-commit" className="block text-sm font-medium text-gray-700">
+              Fix commit
+            </label>
+            <input
+              id="ticket-fix-commit"
+              value={form.fix_commit}
+              onChange={(e) => set('fix_commit')(e.target.value.trim())}
+              maxLength={40}
+              spellCheck={false}
+              className="input-field mt-1 px-3 py-2 text-sm w-full font-mono"
+              placeholder="Full SHA on main"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700 pb-2">
+            <input
+              type="checkbox"
+              checked={form.notify_reporter}
+              onChange={(e) => set('notify_reporter')(e.target.checked)}
+              disabled={ticket.source === 'sentry' || !ticket.user_email || !!ticket.reporter_notified_at}
+            />
+            Email the reporter when this resolves
+          </label>
+        </div>
+        <p className="text-xs text-gray-500">{noticeLine(ticket)}</p>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex gap-2">
@@ -298,6 +369,11 @@ function TicketBody({ ticket }) {
                 <button type="button" className="btn-quiet" onClick={decline} disabled={update.isPending}>
                   Decline
                 </button>
+                {ticket.status !== 'fixed' && (
+                  <button type="button" className="btn-quiet" onClick={markFixed} disabled={update.isPending}>
+                    Mark fixed, not live
+                  </button>
+                )}
                 <button type="button" className="btn-primary" onClick={resolve} disabled={update.isPending}>
                   {update.isPending ? <Spinner size="sm" className="border-white" /> : 'Mark resolved'}
                 </button>

@@ -12,11 +12,13 @@ import { queryKeys } from '../../utils/queryKeys'
  * worked on and what was done, without leaving the admin console.
  *
  * The vocabulary is the backend's and is deliberately small:
- *   status    new | triaged | fixing | resolved | wont_fix   ('open' = first three)
+ *   status    new | triaged | fixing | fixed | resolved | wont_fix
+ *             ('open' = the first four; `fixed` is committed but not yet on
+ *             production, and the release pipeline resolves it)
  *   type      bug | feature | question | tweak
  *   priority  low | normal | high | urgent
  */
-export const TICKET_STATUSES = ['new', 'triaged', 'fixing', 'resolved', 'wont_fix']
+export const TICKET_STATUSES = ['new', 'triaged', 'fixing', 'fixed', 'resolved', 'wont_fix']
 export const TICKET_TYPES = ['bug', 'feature', 'question', 'tweak']
 export const TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent']
 
