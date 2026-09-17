@@ -46,7 +46,7 @@ def _no_sleeping(monkeypatch):
 
 
 def _run_once(monkeypatch, *, post_status, backend_commit, cron_commit=CRON_SHA):
-    monkeypatch.setattr(dispatch, '_post', lambda url, secret: _response(post_status))
+    monkeypatch.setattr(dispatch, '_post', lambda url, secret, body=None: _response(post_status))
     monkeypatch.setattr(dispatch.requests, 'get',
                         lambda url, timeout=None: _health(backend_commit))
     if cron_commit is None:
@@ -75,7 +75,7 @@ class TestTheDeployWindow:
 
     def test_an_unreadable_health_check_still_fails(self, monkeypatch):
         """No evidence of a deploy window is not evidence of one."""
-        monkeypatch.setattr(dispatch, '_post', lambda url, secret: _response(404))
+        monkeypatch.setattr(dispatch, '_post', lambda url, secret, body=None: _response(404))
         monkeypatch.setattr(dispatch.requests, 'get',
                             MagicMock(side_effect=dispatch.requests.RequestException('down')))
         monkeypatch.setenv('RENDER_GIT_COMMIT', CRON_SHA)
@@ -99,7 +99,7 @@ class TestEverythingElseIsUnchanged:
     def test_403_fails_without_consulting_health(self, monkeypatch):
         """A bad CRON_SECRET is not a deploy window, and retrying cannot help."""
         health = MagicMock()
-        monkeypatch.setattr(dispatch, '_post', lambda url, secret: _response(403))
+        monkeypatch.setattr(dispatch, '_post', lambda url, secret, body=None: _response(403))
         monkeypatch.setattr(dispatch.requests, 'get', health)
         monkeypatch.setenv('RENDER_GIT_COMMIT', CRON_SHA)
         failures = []
@@ -111,7 +111,7 @@ class TestEverythingElseIsUnchanged:
     def test_500_is_retried_then_fails(self, monkeypatch):
         posts = []
 
-        def _post(url, secret):
+        def _post(url, secret, body=None):
             posts.append(url)
             return _response(500)
 

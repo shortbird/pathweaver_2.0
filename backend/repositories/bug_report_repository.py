@@ -3,9 +3,11 @@ Bug Report Repository - data access for the platform ticket tracker.
 
 `bug_reports` is the one table every Optio platform report lands in: the
 mobile app's shake-to-report sheet, the staff reporter on the web platform
-and SIS console, and (since 2026-09-14) the open tickets imported from Perch.
-Rows are written via the admin client, since Optio uses a custom JWT rather
-than Supabase auth.uid(), and read by superadmin in /admin/tickets.
+and SIS console, (since 2026-09-14) the open tickets imported from Perch, and
+(since 2026-09-15) Sentry issue alerts. Rows are written via the admin client,
+since Optio uses a custom JWT rather than Supabase auth.uid(), and read by
+superadmin in /admin/tickets and by the deploy sweep
+(services/ticket_finalize_service.py).
 """
 
 from datetime import datetime, timezone
@@ -19,8 +21,12 @@ from utils.validation.sanitizers import pgrst_pattern
 
 logger = get_logger(__name__)
 
-# The three statuses that mean "somebody still has to do something".
-OPEN_STATUSES = ('new', 'triaged', 'fixing')
+# The statuses that mean the ticket is not finished. The first three need a
+# person; `fixed` (committed, not yet live) needs a deploy, and the deploy
+# sweep is what moves it on. It counts as open so the console keeps showing
+# it and a repeat Sentry alert lands on it rather than opening a twin.
+OPEN_STATUSES = ('new', 'triaged', 'fixing', 'fixed')
+ALL_STATUSES = OPEN_STATUSES + ('resolved', 'wont_fix')
 
 # Columns the list view needs. The diagnostics blobs (breadcrumbs, API log,
 # console errors) are large and only the detail view reads them. The
@@ -30,6 +36,7 @@ _REPORTER = 'users(first_name, last_name, display_name)'
 LIST_COLUMNS = (
     'id, title, type, priority, status, source, platform, current_route, '
     'user_email, user_role, organization_id, created_at, updated_at, resolved_at, '
+    'fix_commit, deployed_at, reporter_notified_at, notify_reporter, '
     f'organizations(name, slug), {_REPORTER}'
 )
 DETAIL_COLUMNS = f'*, organizations(name, slug), {_REPORTER}'
@@ -113,11 +120,11 @@ class BugReportRepository(BaseRepository):
     def counts_by_status(self) -> Dict[str, int]:
         """How many tickets sit in each status, for the tracker's tabs.
 
-        One exact-count query per status: five cheap HEAD-style requests
+        One exact-count query per status: six cheap HEAD-style requests
         against an indexed column, and no row is ever transferred.
         """
         counts: Dict[str, int] = {}
-        for status in ('new', 'triaged', 'fixing', 'resolved', 'wont_fix'):
+        for status in ALL_STATUSES:
             try:
                 response = (
                     self.client.table(self.table_name)
@@ -133,13 +140,21 @@ class BugReportRepository(BaseRepository):
         return counts
 
     def update_fields(self, report_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply a triage edit. Resolving stamps resolved_at; reopening clears it."""
+        """Apply a triage edit. Resolving stamps resolved_at; reopening clears it.
+
+        Reopening also clears deployed_at and reporter_notified_at, so a ticket
+        that comes back after its mail went out is mailed again when it is
+        fixed again -- the reporter asked twice and should hear twice.
+        """
         data = dict(changes)
         status = data.get('status')
         if status in ('resolved', 'wont_fix'):
-            data['resolved_at'] = datetime.now(timezone.utc).isoformat()
+            data.setdefault('resolved_at', datetime.now(timezone.utc).isoformat())
         elif status in OPEN_STATUSES:
             data['resolved_at'] = None
+            if status != 'fixed':
+                data['deployed_at'] = None
+                data['reporter_notified_at'] = None
 
         try:
             response = (
@@ -154,6 +169,58 @@ class BugReportRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error updating bug_report {report_id}: {e}")
             raise DatabaseError("Failed to update bug report") from e
+
+    # -- The deploy sweep's reads ------------------------------------------
+    #
+    # Both slices are small (a handful of rows against ~400 resolved), each
+    # has a partial index (20260918160000), and neither can reach the
+    # PostgREST row cap without something else having gone badly wrong. The
+    # limit is there so a runaway is bounded, not because it is expected.
+
+    SWEEP_COLUMNS = (
+        'id, title, type, status, source, user_email, user_id, organization_id, '
+        'fix_commit, resolution, verification, notify_reporter, '
+        'resolved_at, deployed_at, reporter_notified_at, created_at, updated_at'
+    )
+
+    def list_fixed(self) -> List[Dict[str, Any]]:
+        """Every ticket that is committed and waiting for production."""
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select(self.SWEEP_COLUMNS)
+                .eq('status', 'fixed')
+                .order('created_at')
+                .limit(500)
+                .execute()
+            )
+            return response.data or []
+        except APIError as e:
+            logger.error(f"Error listing fixed bug_reports: {e}")
+            raise DatabaseError("Failed to list fixed bug reports") from e
+
+    def list_awaiting_reporter_notice(self) -> List[Dict[str, Any]]:
+        """Resolved tickets whose reporter has not been told yet.
+
+        The rule that decides whether a given row SHOULD be mailed (a Sentry
+        ticket never is, nor a row with no address) lives in the service;
+        this returns what the flag and the stamp say is outstanding.
+        """
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select(self.SWEEP_COLUMNS)
+                .eq('status', 'resolved')
+                .eq('notify_reporter', True)
+                .is_('reporter_notified_at', 'null')
+                .order('resolved_at')
+                .limit(500)
+                .execute()
+            )
+            return response.data or []
+        except APIError as e:
+            logger.error(f"Error listing bug_reports awaiting notice: {e}")
+            raise DatabaseError("Failed to list bug reports awaiting notice") from e
 
     def find_latest_by_sentry_issue(self, sentry_key: str) -> Optional[Dict[str, Any]]:
         """The newest ticket a Sentry issue has, open or closed, if any.

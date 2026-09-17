@@ -149,6 +149,13 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     # internal integration's client secret (Sentry-Hook-Signature), checked in
     # constant time before anything is read.
     'sentry_webhook.sentry_webhook',
+    # The ticket deploy sweep. Called by release.yml (GitHub Actions, no
+    # session) once production serves a commit, and by the cron every ten
+    # minutes; both carry X-Cron-Secret. A superadmin may also trigger it from
+    # a signed-in session, and that path is what this entry is for: the
+    # sweep only finishes tickets whose fix is already live and sends the
+    # mail the cron would send within ten minutes anyway.
+    'bug_reports.deploy_sweep',
 })
 
 

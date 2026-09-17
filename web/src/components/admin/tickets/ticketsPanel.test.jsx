@@ -120,14 +120,75 @@ describe('TicketsPanel', () => {
 
     expect(await screen.findByText(/Lee Office/)).toBeInTheDocument()
     expect(screen.getByText('office@school.org')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Resolution'), { target: { value: 'Fixed in a1b2c3d.' } })
+    fireEvent.change(screen.getByLabelText(/^Resolution/), { target: { value: 'Add them under Family.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Mark resolved' }))
 
     await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
     expect(api.patch).toHaveBeenCalledWith(`/api/bug-reports/${TICKET.id}`, {
       status: 'resolved',
-      resolution: 'Fixed in a1b2c3d.',
+      resolution: 'Add them under Family.',
     })
+  })
+
+  it('marks a ticket fixed with its commit and the reporter note, and will not without a commit', async () => {
+    api.patch.mockResolvedValue({ data: { success: true, report: { ...TICKET, status: 'fixed' } } })
+    renderAt(`/admin/tickets/${TICKET.id}`)
+    await screen.findByText(/Lee Office/)
+
+    // No commit yet: refused client-side, no request.
+    fireEvent.click(screen.getByRole('button', { name: 'Mark fixed, not live' }))
+    expect(api.patch).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText(/^Resolution/), {
+      target: { value: 'The phone column is back in the roster export.' },
+    })
+    fireEvent.change(screen.getByLabelText(/^How to check/), {
+      target: { value: 'Export any roster and check the last column.' },
+    })
+    fireEvent.change(screen.getByLabelText('Fix commit'), {
+      target: { value: 'abcdef0123456789abcdef0123456789abcdef01' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark fixed, not live' }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(api.patch).toHaveBeenCalledWith(`/api/bug-reports/${TICKET.id}`, {
+      status: 'fixed',
+      resolution: 'The phone column is back in the roster export.',
+      verification: 'Export any roster and check the last column.',
+      fix_commit: 'abcdef0123456789abcdef0123456789abcdef01',
+    })
+  })
+
+  it('shows a fixed ticket as waiting on the deploy, with the tab to find it under', async () => {
+    const fixed = { ...TICKET, status: 'fixed', fix_commit: 'abcdef0123456789abcdef0123456789abcdef01' }
+    api.get.mockImplementation((url) => {
+      if (url === '/api/bug-reports/summary') {
+        return Promise.resolve({ data: { counts: { new: 0, triaged: 0, fixing: 0, fixed: 1, resolved: 0, wont_fix: 0, open: 1 } } })
+      }
+      if (url === `/api/bug-reports/${fixed.id}`) return Promise.resolve({ data: { report: fixed } })
+      return Promise.resolve({ data: { reports: [fixed], count: 1, total: 1 } })
+    })
+    renderAt(`/admin/tickets/${fixed.id}`)
+    expect(await screen.findByText('Reporter is emailed once this commit is live on production.')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Fixed, not live/ })).toBeInTheDocument()
+    // Already fixed: the button to mark it so is gone; resolving by hand stays possible.
+    expect(screen.queryByRole('button', { name: 'Mark fixed, not live' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Mark resolved' })).toBeInTheDocument()
+  })
+
+  it('says when the reporter was emailed, and never offers to email a Sentry reporter', async () => {
+    const done = {
+      ...TICKET, status: 'resolved', resolved_at: '2026-09-17T18:00:00Z',
+      reporter_notified_at: '2026-09-17T18:05:00Z',
+    }
+    api.get.mockImplementation((url) => {
+      if (url === '/api/bug-reports/summary') return Promise.resolve({ data: { counts: {} } })
+      if (url === `/api/bug-reports/${done.id}`) return Promise.resolve({ data: { report: done } })
+      return Promise.resolve({ data: { reports: [], count: 0, total: 0 } })
+    })
+    renderAt(`/admin/tickets/${done.id}`)
+    expect(await screen.findByText(/^Reporter emailed /)).toBeInTheDocument()
+    expect(screen.getByLabelText('Email the reporter when this resolves')).toBeDisabled()
   })
 
   it('offers Reopen, not Resolve, on a closed ticket', async () => {

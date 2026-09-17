@@ -13,16 +13,21 @@ One table for every Optio platform report. Four senders write to it:
   * Sentry issue alerts on the three Optio projects, through the signed
     webhook in routes/sentry_webhook.py (source 'sentry', since 2026-09-15).
 
-Superadmin triages in /admin/tickets. Claude Code reads and resolves rows over
+Superadmin triages in /admin/tickets. Claude Code reads and works rows over
 the Supabase MCP (see .claude/skills/tickets/SKILL.md), which is why the
 vocabulary below is small and fixed: a status, a type and a priority are the
 whole state machine, and `resolution` is where the fix is written down.
 
+The last transition is not a person's. A code fix goes to `fixed` with its
+commit; the release pipeline POSTs /api/bug-reports/internal/deploy-sweep
+once production serves that commit, and the sweep moves the ticket to
+`resolved` and mails the reporter (services/ticket_finalize_service.py).
+Until 2026-09-17 the tracker sent nothing but the admin inbox mail, by
+decision; that decision was reversed because "resolved" written at commit
+time left reporters unanswered whenever the pusher walked away mid-deploy.
+
 Screenshots live in the PRIVATE `bug-reports` bucket and are surfaced to
 superadmin via short-lived signed URLs, never public.
-
-No notifications beyond the admin inbox email that predates this: the tracker
-is a list, not an inbox, by decision (2026-09-14).
 """
 
 import json
@@ -32,7 +37,7 @@ from flask import Blueprint, request, jsonify
 
 from database import get_supabase_admin_client
 from middleware.rate_limiter import rate_limit
-from repositories.bug_report_repository import BugReportRepository
+from repositories.bug_report_repository import ALL_STATUSES, OPEN_STATUSES, BugReportRepository
 from utils.auth.decorators import require_auth, require_role
 from utils.logger import get_logger
 from utils.roles import get_effective_role
@@ -43,7 +48,7 @@ bp = Blueprint('bug_reports', __name__, url_prefix='/api/bug-reports')
 
 SCREENSHOT_BUCKET = 'bug-reports'
 MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024  # 10MB (matches bucket file_size_limit)
-ALLOWED_STATUSES = {'new', 'triaged', 'fixing', 'resolved', 'wont_fix'}
+ALLOWED_STATUSES = set(ALL_STATUSES)
 ALLOWED_TYPES = {'bug', 'feature', 'question', 'tweak'}
 ALLOWED_PRIORITIES = {'low', 'normal', 'high', 'urgent'}
 # What a sender may claim about itself. 'perch' and 'hq' are set by hand and
@@ -325,9 +330,9 @@ def _int_arg(name, default, ceiling):
 def list_bug_reports(user_id):
     """List reports for the tracker (superadmin only).
 
-    `status` may be one of the five statuses or `open` (new + triaged +
-    fixing). `total` is the exact count for the filter; `count` is the number
-    of rows in this page.
+    `status` may be one of the six statuses or `open` (everything not yet
+    resolved or declined, `fixed` included). `total` is the exact count for
+    the filter; `count` is the number of rows in this page.
     """
     status = request.args.get('status') or None
     if status and status != 'open' and status not in ALLOWED_STATUSES:
@@ -362,7 +367,7 @@ def bug_report_summary(user_id):
     """How many tickets sit in each status (superadmin only)."""
     repo = BugReportRepository(client=_triage_client())
     counts = repo.counts_by_status()
-    counts['open'] = sum(counts.get(s, 0) for s in ('new', 'triaged', 'fixing'))
+    counts['open'] = sum(counts.get(s, 0) for s in OPEN_STATUSES)
     return jsonify({'counts': counts}), 200
 
 
@@ -399,7 +404,9 @@ _PATCH_ENUMS = {
     'type': ALLOWED_TYPES,
     'priority': ALLOWED_PRIORITIES,
 }
-_PATCH_TEXT = ('title', 'triage_notes', 'resolution')
+_PATCH_TEXT = ('title', 'triage_notes', 'resolution', 'verification', 'fix_commit')
+_PATCH_BOOL = ('notify_reporter',)
+_SHA_CHARS = set('0123456789abcdef')
 
 
 @bp.route('/<report_id>', methods=['PATCH'])
@@ -407,8 +414,12 @@ _PATCH_TEXT = ('title', 'triage_notes', 'resolution')
 def update_bug_report(user_id, report_id):
     """Update a ticket's triage fields (superadmin only).
 
-    Accepts status, type, priority, title, triage_notes and resolution.
-    Resolving stamps resolved_at; moving back to an open status clears it.
+    Accepts status, type, priority, title, triage_notes, resolution,
+    verification, fix_commit and notify_reporter. Resolving stamps
+    resolved_at; moving back to an open status clears it. Resolving from the
+    console also runs the reporter mail right away, so the person who filed
+    it is not waiting on the next cron tick for something a superadmin just
+    decided.
     """
     data = request.get_json(silent=True) or {}
     changes = {}
@@ -423,10 +434,23 @@ def update_bug_report(user_id, report_id):
             if value is not None and not isinstance(value, str):
                 return jsonify({'error': f'Invalid {field}'}), 400
             changes[field] = value.strip() if isinstance(value, str) else None
+    for field in _PATCH_BOOL:
+        if field in data:
+            if not isinstance(data[field], bool):
+                return jsonify({'error': f'Invalid {field}'}), 400
+            changes[field] = data[field]
     if changes.get('title') == '':
         return jsonify({'error': 'Title cannot be empty'}), 400
     if changes.get('title'):
         changes['title'] = changes['title'][:TITLE_MAX]
+    if changes.get('fix_commit'):
+        # The sweep refuses anything shorter than MIN_SHA_MATCH, so a SHA the
+        # console would accept but the sweep would never match is refused here.
+        from services.ticket_finalize_service import MIN_SHA_MATCH
+        sha = changes['fix_commit'].lower()
+        if len(sha) < MIN_SHA_MATCH or len(sha) > 40 or not set(sha) <= _SHA_CHARS:
+            return jsonify({'error': f'fix_commit must be a SHA of at least {MIN_SHA_MATCH} characters'}), 400
+        changes['fix_commit'] = sha
     if not changes:
         return jsonify({'error': 'Nothing to update'}), 400
 
@@ -437,4 +461,86 @@ def update_bug_report(user_id, report_id):
         logger.error(f"[BugReport] update failed for {report_id}: {e}")
         return jsonify({'error': 'Failed to update bug report'}), 500
 
+    if changes.get('status') == 'resolved':
+        try:
+            from services.ticket_finalize_service import notify_resolved_reporters
+            notify_resolved_reporters()
+            updated = repo.find_detail(report_id) or updated
+        except Exception as e:  # the cron retries; the edit itself succeeded
+            logger.warning(f"[BugReport] reporter notice after resolving {report_id} deferred: {e}")
+
     return jsonify({'success': True, 'report': updated}), 200
+
+
+# ---------------------------------------------------------------------------
+# The deploy sweep.
+#
+# Two callers, one endpoint:
+#
+#   release.yml, after production is serving the pushed commit, with a body:
+#     {"sha": "<head>", "commits": ["<sha>", ...], "surfaces": ["web"]}
+#     and again with ["mobile"] once the OTA has published. Every fixed
+#     ticket whose fix_commit is in `commits` becomes resolved, and the
+#     reporter is mailed.
+#
+#   the cron, every ten minutes, with an empty body: mails whatever resolved
+#     ticket still owes its reporter a message (a question answered over the
+#     MCP, a ticket the console resolved while mail was down). Once a day the
+#     cron adds {"nag": true}, and anything that has sat in `fixed` for more
+#     than a day goes to the admin inbox.
+#
+# Auth is X-Cron-Secret, or a signed-in superadmin for a manual run from the
+# console -- the same dual gate as every other internal sweep. Idempotent:
+# a ticket is resolved once and mailed once, whatever the caller does.
+
+
+def _cron_or_superadmin():
+    from utils.cron_auth import is_valid_cron_secret
+    if is_valid_cron_secret(request.headers.get('X-Cron-Secret')):
+        return True
+    from utils.session_manager import session_manager
+    uid = session_manager.get_effective_user_id()
+    if not uid:
+        return False
+    from repositories.user_repository import UserRepository
+    # The role lookup IS the access check, so it runs on the admin client
+    # (already justified above for _triage_client) rather than the caller's.
+    return UserRepository(client=_triage_client()).is_superadmin(uid)
+
+
+MAX_DEPLOY_COMMITS = 5000
+
+
+@bp.route('/internal/deploy-sweep', methods=['POST'])
+def deploy_sweep():
+    """Finish tickets whose fix is live; mail the reporters who are owed one."""
+    if not _cron_or_superadmin():
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    from services import ticket_finalize_service as finalize
+
+    body = request.get_json(silent=True) or {}
+    if not isinstance(body, dict):
+        return jsonify({'success': False, 'error': 'Body must be a JSON object'}), 400
+
+    result = {}
+    try:
+        commits = body.get('commits')
+        if commits is not None:
+            if not isinstance(commits, list) or len(commits) > MAX_DEPLOY_COMMITS:
+                return jsonify({'success': False, 'error': 'commits must be a list of SHAs'}), 400
+            surfaces = body.get('surfaces') or ['web']
+            if not isinstance(surfaces, list):
+                return jsonify({'success': False, 'error': 'surfaces must be a list'}), 400
+            sha = str(body.get('sha') or (commits[0] if commits else ''))
+            result['deploy'] = finalize.apply_deploy(sha, commits, surfaces)
+
+        result['notify'] = finalize.notify_resolved_reporters()
+
+        if body.get('nag'):
+            result['nag'] = finalize.send_fixed_but_not_live_nag()
+    except Exception as e:
+        logger.error(f"[BugReport] deploy sweep failed: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Deploy sweep failed', **result}), 500
+
+    return jsonify({'success': True, **result}), 200

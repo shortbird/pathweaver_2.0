@@ -428,7 +428,11 @@ BASELINES = {
     # referenced. On HEAD plus this sweep alone repositories/ counts 522; the
     # working tree also carried the class-chat and safety repositories above
     # when this landed, so the figure here is that session's number minus 52.
-    'repositories': 553,
+    # 2026-09-17: 553 -> 555. BugReportRepository.list_fixed and
+    # list_awaiting_reporter_notice, the two reads the ticket deploy sweep
+    # makes (services/ticket_finalize_service.py). Repository reads, where
+    # they belong; routes and services did not move.
+    'repositories': 555,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
