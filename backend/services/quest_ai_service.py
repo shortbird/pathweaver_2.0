@@ -11,7 +11,7 @@ import time
 from typing import Dict, List, Optional, Any
 
 from app_config import Config
-from services.base_ai_service import BaseAIService, AIParsingError
+from services.base_ai_service import BaseAIService, AIParsingError, GENERATION_CONFIGS, AIServiceOverloadedError
 from database import get_supabase_admin_client
 from utils.logger import get_logger
 
@@ -328,6 +328,44 @@ Return ONLY valid JSON (no markdown code blocks):
     # and only guards the token budget.
     VERBATIM_MAX_TASKS = 30
 
+    # What the model must hand back for a draft. Given to Gemini as a response
+    # schema, which switches it into JSON mode: the answer is generated as
+    # JSON rather than as prose that happens to look like JSON, so a copied
+    # quote mark or line break inside a description cannot break the parse
+    # (the failure behind tickets 8cdaef04 and 7c8c12a2). Pillar and subjects
+    # stay free strings here and are validated by _normalize_quest_draft; an
+    # enum the model cannot satisfy makes it drop the field, not pick nearest.
+    DRAFT_RESPONSE_SCHEMA = {
+        'type': 'OBJECT',
+        'properties': {
+            'title': {'type': 'STRING'},
+            'description': {'type': 'STRING'},
+            'tasks': {
+                'type': 'ARRAY',
+                'items': {
+                    'type': 'OBJECT',
+                    'properties': {
+                        'title': {'type': 'STRING'},
+                        'description': {'type': 'STRING'},
+                        'pillar': {'type': 'STRING'},
+                        'school_subjects': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+                        'xp_value': {'type': 'INTEGER'},
+                        'is_required': {'type': 'BOOLEAN'},
+                    },
+                    'required': ['title', 'pillar', 'xp_value', 'is_required'],
+                },
+            },
+        },
+        'required': ['title', 'description', 'tasks'],
+    }
+
+    # Output budgets. Thinking tokens come out of the same allowance, and a
+    # verbatim copy of thirty tasks at up to 300 + 1000 characters each is
+    # about 13,000 tokens of JSON on its own. The composed draft is eight
+    # short tasks but reads long documents, which is where the thinking goes.
+    DRAFT_OUTPUT_TOKENS = 16384
+    DRAFT_OUTPUT_TOKENS_VERBATIM = 32768
+
     def draft_quest_from_context(self, context: str, notes: str = "",
                                  target_task_count: int = 4,
                                  keep_wording: bool = False) -> Dict[str, Any]:
@@ -451,18 +489,28 @@ Return a single JSON object: {{"title": str, "description": str, "tasks": [...]}
 """
 
         try:
-            # Thinking tokens are drawn from the same max_output_tokens budget,
-            # so the 2048 of 'structured_output' is not 2048 tokens of JSON. A
-            # teacher's handbook upload spent nearly all of it reasoning and the
-            # answer was cut off one task in (Sentry OPTIO-BACKEND-65..6E).
-            # Eight tasks of quest JSON is roughly 800 tokens; the rest is
-            # headroom for the model to think first.
-            data = self.generate_json(
-                prompt,
-                generation_config_preset='structured_output',
-                max_output_tokens=8192,
-                strict=True,
+            # JSON mode (response_schema) and a budget sized for the mode.
+            # Until 2026-09-17 this was generate_json with 8192 tokens: a
+            # thirteen-task handbook came back as five tasks (the answer ran
+            # out of room and the truncation repair kept what was whole) or
+            # as a 502 (a copied quote mark broke the parse). See
+            # DRAFT_RESPONSE_SCHEMA and DRAFT_OUTPUT_TOKENS_* above.
+            budget = (self.DRAFT_OUTPUT_TOKENS_VERBATIM if keep_wording
+                      else self.DRAFT_OUTPUT_TOKENS)
+            answer = self.generate_json_multimodal(
+                [prompt],
+                generation_config={
+                    **{k: v for k, v in GENERATION_CONFIGS['structured_output'].items()
+                       if k != 'max_output_tokens'},
+                    'max_output_tokens': budget,
+                },
+                response_schema=self.DRAFT_RESPONSE_SCHEMA,
             )
+            data = answer.data
+        except AIServiceOverloadedError:
+            # The route answers this one as 503 "busy, try again"; swallowing
+            # it here would turn a transient into "could not build a quest".
+            raise
         except AIParsingError as e:
             # The model answered; we could not read what it said. Reporting
             # that as "not enough in your document" sent a teacher back to

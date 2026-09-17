@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from unittest.mock import patch
 
+from services.base_ai_service import AIJsonResult
+
 from services.quest_ai_service import QuestAIService
 
 
@@ -31,14 +33,16 @@ TWELVE_TASKS = [{'title': f'Step {i}', 'description': f'Do step {i}', 'pillar': 
 
 def _run(keep_wording: bool, tasks=None, task_count: int = 4):
     service = QuestAIService()
-    with patch.object(service, 'generate_json', return_value={
+    answer = AIJsonResult(data={
         'title': 'T', 'description': 'D', 'tasks': tasks or TWELVE_TASKS[:1],
-    }) as gen:
+    }, model_name='test')
+    with patch.object(service, 'generate_json_multimodal', return_value=answer) as gen:
         result = service.draft_quest_from_context(
             'Week 1: Read the handbook. Week 2: Visit the makerspace.',
             target_task_count=task_count, keep_wording=keep_wording)
     assert gen.call_count == 1
-    return gen.call_args[0][0], result
+    # The prompt is the one text part; the schema and budget ride alongside.
+    return gen.call_args[0][0][0], result
 
 
 class TestKeepWordingChangesThePrompt:

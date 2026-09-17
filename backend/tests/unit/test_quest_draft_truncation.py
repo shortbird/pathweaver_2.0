@@ -30,8 +30,12 @@ from unittest.mock import patch
 
 import pytest
 
-from services.base_ai_service import BaseAIService, AIParsingError
+from services.base_ai_service import BaseAIService, AIParsingError, AIJsonResult
 from services.quest_ai_service import QuestAIService
+
+
+def _answer(data):
+    return AIJsonResult(data=data, model_name='test')
 
 
 # Verbatim from the Sentry event body (OPTIO-BACKEND-6E).
@@ -175,24 +179,89 @@ def test_strict_no_longer_raises_on_merely_truncated_json():
 
 
 # --------------------------------------------------------------------------
+# Valid JSON is parsed as delivered, before any "cleaning"
+# --------------------------------------------------------------------------
+
+# The head of the answer Sentry issue 7737031236 recorded (2026-09-17): valid
+# JSON whose description quotes a video title in curly quotes, exactly as the
+# handbook wrote it. _clean_json_text turns curly quotes into straight ones,
+# which made this unparseable AFTER it had arrived parseable.
+CURLY_QUOTED_DRAFT = ('{"title": "iCreate Foundations", "description": "13 short trainings.", '
+                      '"tasks": [{"title": "Task 1 (Training 1): Why iCreate Exists", '
+                      '"description": "Watch \u201cVideo 1: Why iCreate Exists\u201d in the '
+                      'Training section, then write what you noticed.", "pillar": "wellness", '
+                      '"school_subjects": ["electives"], "xp_value": 50, "is_required": true}]}')
+
+
+def test_valid_json_with_curly_quotes_inside_a_string_survives():
+    result = _parser().extract_json(CURLY_QUOTED_DRAFT)
+    assert result is not None, 'valid JSON was broken by the cleaner'
+    assert result['tasks'][0]['description'].startswith('Watch \u201cVideo 1')
+
+
+def test_the_cleaner_is_still_there_for_input_that_needs_it():
+    """Curly quotes used AS the delimiters are the case the cleaner exists for."""
+    result = _parser().extract_json('{\u201ca\u201d: 1}')
+    assert result == {'a': 1}
+
+
+# --------------------------------------------------------------------------
 # What the teacher is told
 # --------------------------------------------------------------------------
 
 def test_draft_asks_for_more_than_the_preset_token_budget():
     """2048 has to cover thinking AND the JSON; for a quest it does not."""
     svc = _drafter()
-    with patch.object(QuestAIService, 'generate_json',
-                      return_value={'title': 't', 'description': 'd',
-                                    'tasks': [{'title': 'Do a thing'}]}) as gen:
+    with patch.object(QuestAIService, 'generate_json_multimodal',
+                      return_value=_answer({'title': 't', 'description': 'd',
+                                            'tasks': [{'title': 'Do a thing'}]})) as gen:
         svc.draft_quest_from_context('some source material', target_task_count=4)
 
-    assert gen.call_args.kwargs['max_output_tokens'] > 2048
+    assert gen.call_args.kwargs['generation_config']['max_output_tokens'] > 2048
+
+
+def test_a_verbatim_copy_gets_room_for_thirty_long_tasks():
+    """Thirteen tasks came back as five (Molly, 8cdaef04): the answer ran out
+    of room at 8192 and the truncation repair kept what was whole. Thirty
+    tasks at 300 + 1000 characters is ~13,000 tokens before any thinking."""
+    svc = _drafter()
+    with patch.object(QuestAIService, 'generate_json_multimodal',
+                      return_value=_answer({'title': 't', 'description': 'd',
+                                            'tasks': [{'title': 'Do a thing'}]})) as gen:
+        svc.draft_quest_from_context('a thirteen-task document', keep_wording=True)
+
+    assert gen.call_args.kwargs['generation_config']['max_output_tokens'] >= 32768
+
+
+def test_draft_is_generated_in_json_mode():
+    """A response schema puts Gemini in JSON mode, where a copied quote mark
+    inside a description cannot break the parse (7c8c12a2)."""
+    svc = _drafter()
+    with patch.object(QuestAIService, 'generate_json_multimodal',
+                      return_value=_answer({'title': 't', 'description': 'd',
+                                            'tasks': [{'title': 'Do a thing'}]})) as gen:
+        svc.draft_quest_from_context('source')
+
+    schema = gen.call_args.kwargs['response_schema']
+    assert schema['type'] == 'OBJECT'
+    assert set(schema['required']) == {'title', 'description', 'tasks'}
+    task = schema['properties']['tasks']['items']
+    assert {'title', 'pillar', 'xp_value', 'is_required'} <= set(task['properties'])
+
+
+def test_a_busy_model_is_reported_as_busy_not_as_a_bad_document():
+    from services.base_ai_service import AIServiceOverloadedError
+    svc = _drafter()
+    with patch.object(QuestAIService, 'generate_json_multimodal',
+                      side_effect=AIServiceOverloadedError('503')):
+        with pytest.raises(AIServiceOverloadedError):
+            svc.draft_quest_from_context('source')
 
 
 def test_cut_off_answer_does_not_blame_the_document():
     """The old message sent a teacher to re-upload a handbook that was fine."""
     svc = _drafter()
-    with patch.object(QuestAIService, 'generate_json',
+    with patch.object(QuestAIService, 'generate_json_multimodal',
                       side_effect=AIParsingError('Unbalanced braces: 2 open, 0 close')):
         result = svc.draft_quest_from_context('the iCreate handbook text')
 
@@ -203,7 +272,7 @@ def test_cut_off_answer_does_not_blame_the_document():
 
 def test_parse_error_detail_is_not_leaked_to_the_teacher():
     svc = _drafter()
-    with patch.object(QuestAIService, 'generate_json',
+    with patch.object(QuestAIService, 'generate_json_multimodal',
                       side_effect=AIParsingError(
                           'Failed to parse JSON: Preview: {"title": "x...')):
         result = svc.draft_quest_from_context('source')
@@ -215,8 +284,8 @@ def test_parse_error_detail_is_not_leaked_to_the_teacher():
 def test_empty_task_list_still_says_not_enough_to_build_from():
     """That sentence is correct here - readable JSON that carried no tasks."""
     svc = _drafter()
-    with patch.object(QuestAIService, 'generate_json',
-                      return_value={'title': 't', 'description': 'd', 'tasks': []}):
+    with patch.object(QuestAIService, 'generate_json_multimodal',
+                      return_value=_answer({'title': 't', 'description': 'd', 'tasks': []})):
         result = svc.draft_quest_from_context('a grocery list')
 
     assert result['success'] is False

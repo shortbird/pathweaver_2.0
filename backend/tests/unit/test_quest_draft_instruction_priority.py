@@ -39,6 +39,8 @@ from __future__ import annotations
 import re
 from unittest.mock import patch
 
+from services.base_ai_service import AIJsonResult
+
 import pytest
 
 from services.quest_ai_service import QuestAIService
@@ -57,14 +59,15 @@ def _flat(text: str) -> str:
 def _prompt_for(notes: str = "", context: str = "The iCreate handbook, part 1 and part 2.") -> str:
     """The prompt draft_quest_from_context would send, without sending it."""
     service = QuestAIService()
-    with patch.object(service, 'generate_json', return_value={
+    answer = AIJsonResult(data={
         'title': 'T', 'description': 'D',
         'tasks': [{'title': 'Read part 1', 'description': 'x',
                    'pillar': 'art', 'xp_value': 25, 'is_required': True}],
-    }) as gen:
+    }, model_name='test')
+    with patch.object(service, 'generate_json_multimodal', return_value=answer) as gen:
         service.draft_quest_from_context(context, notes=notes, target_task_count=4)
     assert gen.call_count == 1
-    return gen.call_args[0][0]
+    return gen.call_args[0][0][0]
 
 
 class TestNotesOutrankTheSpec:
@@ -139,13 +142,14 @@ class TestTheSpecSurvives:
 
     def test_requested_task_count_still_reaches_the_prompt(self):
         service = QuestAIService()
-        with patch.object(service, 'generate_json', return_value={
+        answer = AIJsonResult(data={
             'title': 'T', 'description': 'D',
             'tasks': [{'title': 'a', 'description': 'b', 'pillar': 'art',
                        'xp_value': 25, 'is_required': True}],
-        }) as gen:
+        }, model_name='test')
+        with patch.object(service, 'generate_json_multimodal', return_value=answer) as gen:
             service.draft_quest_from_context('material', notes='', target_task_count=7)
-        assert 'exactly 7 tasks' in gen.call_args[0][0]
+        assert 'exactly 7 tasks' in gen.call_args[0][0][0]
 
 
 class TestAnUnstatedRequirementIsNotOne:
@@ -160,8 +164,8 @@ class TestAnUnstatedRequirementIsNotOne:
 
     def _draft(self, tasks):
         service = QuestAIService()
-        with patch.object(service, 'generate_json',
-                          return_value={'title': 'T', 'description': 'D', 'tasks': tasks}):
+        answer = AIJsonResult(data={'title': 'T', 'description': 'D', 'tasks': tasks}, model_name='test')
+        with patch.object(service, 'generate_json_multimodal', return_value=answer):
             result = service.draft_quest_from_context('material', notes='', target_task_count=3)
         assert result['success'], result
         return result['quest']

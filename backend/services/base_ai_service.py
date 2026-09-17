@@ -1188,6 +1188,20 @@ class BaseAIService(BaseService):
         text = self._strip_markdown_code_blocks(text)
         logger.debug(f"extract_json: after stripping, text starts with: {repr(text[:50]) if text else '(empty)'}")
 
+        # Try 0: exactly what the model sent. _clean_json_text below turns
+        # curly quotes into straight ones, which rescues a model that used
+        # them AS delimiters and breaks a model that used them INSIDE a
+        # string: a quest draft copying a handbook's "Watch “Video 1” ..."
+        # came back as valid JSON and left here unparseable (Sentry
+        # 7737031236, tickets 8cdaef04 / 7c8c12a2, 2026-09-17). Valid input
+        # is never cleaned; the cleaner is for input that already failed.
+        try:
+            result = json.loads(text)
+            logger.info("JSON parsed as delivered")
+            return result
+        except json.JSONDecodeError:
+            pass
+
         # Clean common issues before parsing
         cleaned_text = self._clean_json_text(text)
 
