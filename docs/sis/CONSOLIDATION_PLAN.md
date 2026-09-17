@@ -26,7 +26,7 @@ and patterns instead.
 
 | Move | Wave | Status | Commit | Baseline after |
 |---|---|---|---|---|
-| M0 Guards | 0 | not started | | frozen at today's counts |
+| M0 Guards | 0 | shipped (branch `consolidate/m0-guards`, 2026-09-17) | filled in at merge | 51 rows frozen at the counts in `shared/sisConcepts.json` |
 | M1 One school voice | 0 | not started | | |
 | M3 One API hold gate | 0 | not started | | |
 | M8a One settings writer | 0 | not started | | |
@@ -107,13 +107,19 @@ One entry per concept:
 }
 ```
 
-Fields: `owner` paths are excluded from the count. `forbid.<side>.pattern` is a
-regular expression applied line by line to files under `dirs` (backend: relative to
-`backend/`; web: relative to `web/src`). `baseline` is per side and may only fall.
-`use_instead` is the sentence the failing test prints — it is the documentation a
-session reads at the moment it is about to add a copy. `lowered_by` names the move.
-An owner that does not exist yet (`services/sis_holds.py`) carries `"proposed": true`
-and the freshness test skips its existence check until the move ships.
+Fields: `owner` paths are excluded from the count unless the row says `exempt: []`
+(the canonical copy matches its own pattern and counts; the target after the move is
+one). `forbid.<side>.pattern` is a regular expression applied line by line, after
+comments and docstrings are blanked, to files under `dirs` (backend: relative to
+`backend/`; web: relative to `web/src`; mobile: relative to `mobile/`; a `dirs` entry
+may be one file, or a prefix like `services/sis_`). `files` lists paths whose mere
+existence counts one each; `unit: "files"` counts files with a match instead of lines.
+Test files are never scanned. `baseline` is per side and may only fall. `use_instead`
+is the sentence the failing test prints — it is the documentation a session reads at
+the moment it is about to add a copy. `lowered_by` names the move. An owner that does
+not exist yet (`services/sis_holds.py`) carries `"proposed": true`; the freshness test
+skips its existence check until the move ships, and fails once every owner exists
+and the flag is still there.
 
 **`backend/tests/unit/test_sis_concepts.py`** — parametrized over every manifest entry
 with a backend pattern. Three assertions per entry, in the house style of
@@ -121,16 +127,24 @@ with a backend pattern. Three assertions per entry, in the house style of
 
 - *ceiling*: matches outside the owners `<= baseline`; on failure, print every
   offending `path:line` and the entry's `use_instead`.
-- *floor*: if `baseline > 0`, matches `> 0` — a scan that stops matching passes
-  forever, which RATCHETS.md forbids; a move that reaches zero sets the baseline to
-  zero, and the floor test then asserts exactly zero.
-- *freshness*: `measured` is a date; owners exist on disk unless `proposed`.
+- *floor*: matches `>= baseline`, so with the ceiling the count is exact — a scan
+  that stops matching passes forever, which RATCHETS.md forbids, and slack below the
+  real number is the fraction of a fix that can be undone silently. A copy that was
+  genuinely removed lowers the baseline in the same commit; the message says so and
+  names the number.
+- *freshness*: `measured` is a date; owners exist on disk unless `proposed`, and a
+  `proposed` row whose owners have all arrived fails until the flag is removed.
 
-Plus `test_the_scan_reads_real_files` (total matches across the manifest above a
-sanity minimum), the guard-on-the-guard the repository already uses.
+Plus `test_the_scan_reads_real_files` (the walk finds the tree, the stripper keeps
+the code) and `test_comment_stripping_rules` (the rules stated as a fixture), the
+guard-on-the-guard the repository already uses.
 
-**`web/src/__tests__/sisConcepts.test.js`** — the same three assertions for web
-patterns, in the style of `brandPalette.test.js`; reads the same JSON.
+**`web/src/__tests__/sisConcepts.test.js`** — the same assertions for web patterns,
+in the style of `brandPalette.test.js`; reads the same JSON. The comment rules and the
+file walk live in `web/src/tests/sourceScan.js`, shared with the two bespoke tests
+below. **`mobile/src/__tests__/sisConcepts.test.ts`** does the same for the one row
+with a mobile pattern (the client-side feed merge), in the style of
+`schoolEventWallClock.test.ts`.
 
 **Two bespoke tests**, where a count is not the right shape:
 
@@ -139,9 +153,13 @@ patterns, in the style of `brandPalette.test.js`; reads the same JSON.
   legitimately repeat). Today: one duplicate, `connections`; baselined and lowered by
   M19.
 - `web/src/__tests__/schoolEventWallClock.test.js` — the port of mobile's
-  `schoolEventWallClock.test.ts`: any web file that formats a school event's
-  `starts_at`/`ends_at` outside `web/src/utils/timeFormat.js` fails. Baselined at
-  today's four renderers; lowered to zero by M12.
+  `schoolEventWallClock.test.ts`: any web file that reads a school event's
+  `start_at`/`end_at` and formats a Date itself, outside `web/src/utils/timeFormat.js`,
+  fails. Baselined per file at today's four offenders (`SchoolCommunity`,
+  `FamilyCalendarPage`, `CommunityPage`, `SisDashboard`; `CalendarPage` reads the
+  stamps by slicing and is clean); lowered to zero by M12. `CommunityPage`'s
+  `fmtDateTime` formats a timed event in local time today — the admin's own event
+  list has the 12:30 bug the parents reported.
 
 **Skill edits**, because the manifest is only useful if a session consults it before
 building:
@@ -157,61 +175,78 @@ building:
 
 **`docs/remediation-2026-09/RATCHETS.md`** §1 gains one line per guard.
 
-### Initial manifest rows (measured 2026-09-17)
+### Manifest rows as landed (measured 2026-09-17, commit M0)
 
-The pattern column is the grep; the number is what it finds today outside the named
-owner. Measure again at PR time — three days moved several of these.
+`shared/sisConcepts.json` is the source of truth for the pattern, the `means` sentence
+and the `use_instead` sentence; this table is the record of what M0 froze, so a later
+session can see at a glance which rows its move owns. `today` is copies outside the
+owner, except where the row says `exempt: []` (the canonical copy matches its own
+pattern and counts, so the target after the move is one, not zero).
 
-| id | owner (canonical) | forbidden outside owner | today | lowered by |
-|---|---|---|---|---|
-| `invoice_row` | `services/sis_billing_service.py` | `.table('sis_invoices').insert` | 3 | M6 |
-| `stripe_checkout` | `services/sis_billing_service.py` (proposed `start_checkout`) | `checkout.Session.create` (excl. tests) | 7 | M6 |
-| `stripe_verify` | `services/sis_billing_service.py` (proposed `find_paid_session`) | `checkout.Session.retrieve` / `.list(` on sessions | 2 | M6 |
-| `pay_link_signing` | `services/sis_pay_links.py` | `itsdangerous`/`hmac` signer construction elsewhere | 0 | — (floor only) |
-| `registration_fee_quote` | `services/registration_pricing.py` | `def _compute_fee_cents` and `*_cents` arithmetic in `web/src` outside display: `estimateFeeCents`, `draftFeeCents`, `monthlyLineItems` | backend 1 / web 3 | M5 |
-| `money_format` | web `utils/money.js` (proposed); backend `utils/money.py` (proposed) | web `const money =` / `function money(`; backend `def _money(` | web 10 / backend 5 | M7 |
-| `family_hold` | `services/sis_holds.py` (proposed) | a payload containing `'registration_hold':` sent to `.update`/`.upsert`, and any `FEE_HOLD_REASON` comparison | 7 / 2 | M2 |
-| `hold_middleware` | `middleware/api_hold_gate.py` (proposed) | a `before_request` in `middleware/` that imports a `*_hold` util | 2 | M3 |
-| `emergency_contacts_write` | `services/emergency_contacts_service.py` (proposed) | `.table('emergency_contacts')` followed by `.insert`/`.delete`/`.update` | 6 | M4 |
-| `funding_source_write` | `services/sis_payment_profile.py` | a payload containing `'funding_source':` or `'ufa_private':` or `'enrolled_private_school':` | 3 | M4 |
-| `announcement_publish` | `services/sis_community_service.py` | `announcement_service.publish(` callers; web `mergeFeedItems`; mobile `norm(title)` in `SchoolFeed` | 1 / 1 / 1 | M1 |
-| `audience_vocabulary` | `services/sis_audiences.py` (proposed) | `ROLE_AUDIENCES =`, `_NOTIFY_ROLES =`, `AUDIENCES =`, `_ARCHIVE_SEES_ALL =` | 4 | M1, M12 |
-| `school_sender` | `services/school_inbox_service.py` | `inbox_user_id` resolution outside the service | measure at PR | M1 |
-| `role_tuple_literal` | `utils/sis_roles.py` | `@require_role(` whose arguments include the literal `'org_admin'` under `routes/sis/` | 3 | M1 |
-| `org_resolution` | `utils/org_resolve.py` (proposed) | `def _org_or_error` / `def _org(` under `routes/` | 27 | M15 |
-| `cron_route` | `routes/sis/internal.py` (proposed) | `@bp.route('/internal/` outside the registrar | 7 | M15 |
-| `events_read` | `services/sis_events_service.py` (proposed) | `.table('sis_events')` | 10 | M12 |
-| `today_schedule` | `services/sis_coordinator_service.py` | a second `_today`/`today_` assembler; `sis_service.get_dashboard` callers | 2 | M12 |
-| `event_wall_clock` | web `utils/timeFormat.js` | `timeZone: 'UTC'` in `web/src` | 6 | M12 |
-| `time_blocks_read` | `services/sis_catalog_service.schedule_settings` | `['time_blocks']` / `.get('time_blocks')` elsewhere | measure at PR | M8b |
-| `settings_write` | web `hooks/api/useSisSettings.js` (proposed); backend `PATCH /api/sis/settings` | web `` api.put(`/api/admin/organizations/ `` with a `feature_flags` body | 17 | M8a |
-| `registration_config_mirror` | `utils/registration_config.py` | `icreate_registration` as a write key in `web/src` | 3 | M8a |
-| `org_payload_fetch` | web `hooks/api/useRegistrationConfig.js` (proposed) | `` api.get(`/api/admin/organizations/${ `` in `pages/sis` | 2 | M8a |
-| `schedule_helpers` | web `utils/schedule.js` (proposed) | `const fmtTime =`, `const fmt =` (time), `fmt12ap`, `fitsAge`, `toMin`, `toMinutes`, `ageFromDob`, `ageOf` definitions | fmtTime 12, fitsAge 3, toMin 7, age 4 | M11 |
-| `weekly_grid` | web `components/sis/WeeklyScheduleGrid.jsx` | a second grid: `clp/ScheduleGrid.jsx`, inline grid in `MyClassesPage.jsx` | 2 | M11 |
-| `class_summary_line` | web `components/sis/ClassSummaryLine.jsx` (proposed) | seat-state strings: `Full — waitlist`, `Class full`, `seats left`, `spots left` | 6 | M11 |
-| `status_map` | web `components/sis/ui/statusMaps.js` (proposed) | `const (STATUS_STYLES\|ATT_COLORS\|ITEM_BADGE\|STATUS_TONE\|STATUS_META\|STATUS_PILL\|KIND_PILL\|STATUS_LABELS) =` in SIS | 14 | M10 |
-| `legacy_tab_remap` | — | `LEGACY_TABS` | 1 | M10 |
-| `queue_double_mount` | `pages/sis/TaskCenterPage.jsx` | `AdminQueue` rendered by more than one route | 1 | M10 |
-| `dashboard_card` | web `components/sis/DashboardCard.jsx` (proposed) | `function Card(` / `const Card =` in `pages/sis/*Dashboard.jsx` | 3 | M10 |
-| `org_picker_header` | `components/sis/SisLayout.jsx` | `<SisOrgPicker` under `pages/sis` | 30 | M14a |
-| `tab_bar` | `components/ui/GlassTabBar.jsx` | `border-b-2` tab recipes under `pages/sis` + `components/sis` (files) | 16 | M14b |
-| `input_recipe` | `components/ui/Input.jsx`, `FormField.jsx` | `const (field\|inputClass\|inputCls\|cell) = '` in SIS | 36 | M14e |
-| `modal_shell` | `components/ui/Modal.jsx` | hand-rolled `fixed inset-0` in SIS; `billingPage/Modal.jsx` | 6 / 1 | M14d |
-| `sort_header` | web `components/sis/SortableTable.jsx` (proposed) | `function SortHeader` / `const SortHeader` | 6 | M14e |
-| `person_picker` | `components/ui/SearchSelect.jsx` | the four rebuilt pickers by file (`StaffComposeModal`, `TrainingPeoplePicker`, `AssignComposer.RecipientList`, `RoleViewSwitcher` list) | 4 | M14c |
-| `brand_gradient` | design system | `bg-gradient-to-r from-optio-purple` in SIS | 96 | M14e |
-| `export_columns` | web `components/sis/ExportColumnsModal.jsx` (proposed) | `localStorage` keys matching `sis_*_(export\|cols)`; `window.print(` in SIS | 5 / 5 | M17 |
-| `roster_csv` | `services/roster_export_service.py` (proposed) | CSV routes: `.csv` rules under `routes/sis/` | 6 | M17 |
-| `training_system` | `routes/sis/staff_training.py` | `routes/sis/training_links.py` routes; `is_training` reads outside the owner; web `TrainingLinks.jsx` | 7 / 2 / 1 | M18 |
-| `portal_views` | `routes/sis/portal_views.py` (proposed) | route bodies in `parent.py`/`staff_portal.py` over onboarding, forms, my-documents longer than 3 lines | measure at PR | M9 |
-| `signature_capture` | web `components/sis/SignatureCapture.jsx` (proposed) | hard-coded affirmation sentences: `I agree that typing my name` etc. | 2 | M9 |
-| `signature_request_mount` | `routes/sis/secure_documents.py` | `signature_request_views` mounted from a second blueprint | 1 | M9 |
-| `entity_modals` | — | `phone_number` inputs for staff across SIS; `CreateClassModal` mounts | 4 / 2 | M13c, M13d |
-| `household_member_write` | `services/sis_attach_service.py` (proposed) | `.table('household_members').insert/.upsert`; `repo.add_member(` | 4 app + 3 scripts | M16 |
-| `duplicate_detection` | `services/person_matching.py` (proposed) | `likely_same_student` and its three re-implementations by name | 4 | M16 |
-| `route_rule_unique` | bespoke test | duplicate `path=` in one `<Routes>` | 1 | M19 |
-| `absence_request_shape` | `routes/sis/parent.py` | `student_user_ids` legacy branch | 1 | M19 |
+Where the number differs from the estimate the plan carried before M0, the reason is
+in the row: `stripe_verify` counts every `Session.retrieve`/`.list` (7), not the two
+verifier functions the audit named; `invoice_row` counts the three writers inside the
+owner; `org_picker_header` is 29 mounts (the thirtieth was a test file); `portal_views`
+is the eleven service calls the two route files make; `org_payload_fetch` found a third
+copy in `RegistrationSetupTab`; `person_picker` is three (RoleViewSwitcher already
+moved to `SearchSelect`); `family_hold` split into `family_hold_write` (files) and
+`fee_hold_sentinel` (comparisons); `entity_modals` split into `staff_phone_edit` and
+`class_form_mount`; `export_columns` split from `print_path`; `signature_capture` is
+three because `ChecklistSignature` carries a fallback sentence too.
+
+| id | owner (canonical) | today | lowered by |
+|---|---|---|---|
+| `invoice_row` | backend `services/sis_billing_service.py` | backend 3 (incl. owner) | M6 |
+| `stripe_checkout` | backend `services/sis_billing_service.py` | backend 7 (incl. owner) | M6 |
+| `stripe_verify` | backend `services/sis_billing_service.py` | backend 7 (incl. owner) | M6 |
+| `pay_link_signing` | backend `services/sis_pay_links.py`, backend `services/parent_digest_links.py` | backend 0 | none |
+| `registration_fee_quote` | backend `services/registration_pricing.py` | backend 1, web 4 | M5 |
+| `money_format` | web `utils/money.js`, backend `utils/money.py` (proposed) | web 10, backend 5 | M7 |
+| `family_hold_write` | backend `services/sis_holds.py` (proposed) | backend 7 | M2 |
+| `fee_hold_sentinel` | backend `services/sis_holds.py` (proposed) | backend 2 | M2 |
+| `hold_middleware` | backend `middleware/api_hold_gate.py` (proposed) | backend 2 | M3 |
+| `emergency_contacts_write` | backend `services/emergency_contacts_service.py` (proposed) | backend 6 | M4 |
+| `funding_source_write` | backend `services/sis_payment_profile.py` | backend 3 | M4 |
+| `announcement_publish` | backend `services/sis_community_service.py`, web `components/announcements/UnifiedFeed.jsx`, mobile `src/components/school/SchoolFeed.tsx` | backend 1, web 1, mobile 1 (incl. owner) | M1 |
+| `audience_vocabulary` | backend `services/sis_audiences.py` (proposed) | backend 4 | M1 |
+| `school_sender` | backend `services/school_inbox_service.py` | backend 4 | M1 |
+| `role_tuple_literal` | backend `utils/sis_roles.py` | backend 3 | M1 |
+| `org_resolution` | backend `utils/org_resolve.py` (proposed) | backend 27 | M15 |
+| `cron_route` | backend `routes/sis/internal.py` (proposed) | backend 7 | M15 |
+| `events_read` | backend `services/sis_events_service.py` (proposed) | backend 10 | M12 |
+| `today_schedule` | backend `services/sis_coordinator_service.py` | backend 1 | M12 |
+| `event_wall_clock` | web `utils/timeFormat.js` | web 6 | M12 |
+| `time_blocks_read` | backend `services/sis_catalog_service.py` | backend 8 | M8b |
+| `settings_write` | web `hooks/api/useSisSettings.js`, backend `routes/sis/settings.py` (proposed) | web 17 | M8a |
+| `registration_config_mirror` | backend `utils/registration_config.py` | web 3 | M8a |
+| `org_payload_fetch` | web `hooks/api/useRegistrationConfig.js` (proposed) | web 3 | M8a |
+| `schedule_helpers` | web `utils/schedule.js`, web `utils/timeFormat.js`, web `utils/age.js` (proposed) | web 25 | M11 |
+| `weekly_grid` | web `components/sis/WeeklyScheduleGrid.jsx` | web 2 | M11 |
+| `class_summary_line` | web `components/sis/ClassSummaryLine.jsx` (proposed) | web 6 | M11 |
+| `status_map` | web `components/sis/ui/statusMaps.js` (proposed) | web 14 | M10 |
+| `legacy_tab_remap` | web `pages/sis/TaskCenterPage.jsx` | web 1 (incl. owner) | M10 |
+| `queue_double_mount` | web `pages/sis/TaskCenterPage.jsx` | web 1 | M10 |
+| `dashboard_card` | web `components/sis/DashboardCard.jsx` (proposed) | web 3 | M10 |
+| `org_picker_header` | web `components/sis/SisLayout.jsx` | web 29 | M14a |
+| `tab_bar` | web `components/ui/GlassTabBar.jsx` | web 16 | M14b |
+| `input_recipe` | web `components/ui/Input.jsx`, web `components/ui/FormField.jsx` | web 37 | M14e |
+| `modal_shell` | web `components/ui/Modal.jsx`, web `components/ui/ModalOverlay.jsx` | web 7 | M14d |
+| `sort_header` | web `components/sis/SortableTable.jsx` (proposed) | web 6 | M14e |
+| `person_picker` | web `components/ui/SearchSelect.jsx` | web 3 | M14c |
+| `brand_gradient` | web `components/ui/Button.jsx` | web 96 | M14e |
+| `export_columns` | web `components/sis/ExportColumnsModal.jsx` (proposed) | web 5 | M17 |
+| `print_path` | web `components/sis/PrintView.jsx` (proposed) | web 5 | M17 |
+| `roster_csv` | backend `services/roster_export_service.py` (proposed) | backend 5 | M17 |
+| `training_system` | backend `routes/sis/staff_training.py`, web `pages/sis/StaffTrainingPage.jsx` | backend 7, web 1 | M18 |
+| `portal_views` | backend `routes/sis/portal_views.py` (proposed) | backend 11 | M9 |
+| `signature_capture` | web `components/sis/SignatureCapture.jsx` (proposed) | web 3 | M9 |
+| `signature_request_mount` | backend `routes/sis/secure_documents.py`, backend `routes/sis/signature_request_views.py` | backend 4 | M9 |
+| `staff_phone_edit` | web `components/sis/StaffDetailModal.jsx`, web `pages/sis/MyProfilePage.jsx` | web 4 | M13c |
+| `class_form_mount` | web `components/sis/ClassFieldsEditor.jsx` | web 2 | M13d |
+| `household_member_write` | backend `services/sis_attach_service.py` (proposed) | backend 8 | M16 |
+| `duplicate_detection` | backend `services/person_matching.py` (proposed) | backend 2 | M16 |
+| `absence_request_shape` | backend `routes/sis/parent.py` | backend 1 (incl. owner) | M19 |
+| `route_rule_unique` | web `App.jsx` | web 1 (`routeRulesAreUnique.test.js`) | M19 |
 
 ### Verification for M0
 
@@ -219,9 +254,17 @@ owner. Measure again at PR time — three days moved several of these.
 - Add one deliberate copy locally (a second `.table('sis_invoices').insert` in a
   scratch route), run the backend test, confirm it fails and prints the
   `use_instead` sentence; revert. Same on the web with a second `const money =`.
-- Confirm the floor: set one baseline to zero without changing code, confirm the
-  floor test fails; revert.
+- Confirm the floor: raise one baseline above the real count without changing code,
+  confirm the floor test fails and names the number to lower it to; revert. (Setting
+  it to zero fails the ceiling instead, which is the other half of the same fence.)
 - Confirm `test_the_scan_reads_real_files` fails if the scan directory is wrong.
+
+Done 2026-09-17 in `../pw-M0`: a planted fourth `sis_invoices` insert failed
+`test_no_new_copies[invoice_row]` and printed the `use_instead` sentence with all four
+sites; a planted `const money =` under `pages/sis` failed the web row the same way;
+`org_resolution` at 0 failed the ceiling (27 > 0) and at 30 failed the floor ("Only 27
+... lower baseline.backend to 27"). No behaviour changed, so there is nothing to
+verify at :3000 for this move.
 
 ---
 
@@ -295,7 +338,8 @@ Migration: none. Web/mobile: none — the 403 codes (`signature_required`,
 Verify: as a held iCreate parent (masquerade off), every API call 403s with the same
 code as before and the web bounces to the same page; masquerading as that parent as
 superadmin, nothing is held. Run `backend/tests/test_phone_verification_gate*.py` and
-the signature-gate tests unchanged. Manifest `hold_middleware` → 1.
+the signature-gate tests unchanged. Manifest `hold_middleware` → 0 (the one gate
+imports its providers from `api_hold_gate.py`, which is the owner).
 
 ### M8a — One settings writer
 
@@ -439,8 +483,8 @@ on `fetch_all_rows` behind the six CSV routes, which keep their URLs and owners.
 
 Verify: export People, a class roster and a Reports roster as CSV; the column
 picker looks the same and remembers per context; print a class roster and the
-billing detail; both use one stylesheet. Manifest `export_columns` → 0/0,
-`roster_csv` → 1.
+billing detail; both use one stylesheet. Manifest `export_columns` → 0,
+`print_path` → 0, `roster_csv` → 0 (the CSV helper lives in the owner).
 
 ### M14a/b — Layout header, tab bars
 
@@ -510,7 +554,8 @@ Verify, Stripe test mode, per `kind`: registration fee, monthly plan, one invoic
 pay link, whole family, autopay setup, card setup — each session carries the
 convention, each is settled by the one verifier, each lands on `/family/billing`
 as paid with the same trail. As Arete admin, record a manual charge. Manifest
-`invoice_row` → 0, `stripe_checkout` → 0, `stripe_verify` → 0.
+`invoice_row` → 1, `stripe_checkout` → 1, `stripe_verify` → 1 (each counts the
+canonical copy inside the owner; `exempt: []` in the manifest says why).
 
 ### M7 — One household billing view, `formatCents`
 
@@ -554,7 +599,8 @@ Verify at :3000: waive a fee for a held iCreate family → hold clears; edit a m
 hold's reason → the family stays held and the chip shows the new text; a family with
 a `fee_prepaid` directive registers → fee $0 and the directive shows applied; a new
 Gryffin registrant with no directive → no hold. Run
-`backend/tests/test_sis_enrollment_waitlist.py`. Manifest `family_hold` → 0/0.
+`backend/tests/test_sis_enrollment_waitlist.py`. Manifest `family_hold_write` → 0
+(directive staging goes through `sis_holds` too), `fee_hold_sentinel` → 0.
 
 ### M4 — The funnel lands the family in the SIS's own stores
 
@@ -663,7 +709,8 @@ signature. Manifest `portal_views` → 0, `signature_capture` → 0,
 
 Verify per sub-move at :3000 as iCreate admin: open the entity from every place it
 appears; the same modal with the same tabs opens; edits made in one place show in
-all. Manifest `entity_modals` → 0/1 (one `CreateClassModal` mount).
+all. Manifest `staff_phone_edit` → 0 (13c), `class_form_mount` → 1 (13d, the one
+`CreateClassModal` mount).
 
 ### M14c/d/e — Pickers, modals, inputs, tables
 

@@ -34,6 +34,14 @@ Two specific things to check rather than assume:
 - **Did an exemption list grow?** `EXEMPTIONS` in `test_route_file_sizes.py` and
   `EXEMPT` in `componentSize.test.js` are both empty and should stay empty. The
   allowlists that do have entries carry a written reason per entry.
+- **Did any `baseline` in `shared/sisConcepts.json` rise?** `git diff main...HEAD
+  -- shared/sisConcepts.json`. A baseline moves down when a move ships and never
+  up; a diff that raises one is a diff that added a copy of something the
+  manifest already names an owner for.
+- **Did the diff add an SIS table, route prefix, service or page without a
+  manifest row?** The manifest only knows the concepts somebody named. A new
+  noun with no row is the gap the tests cannot see, and the reviewer is the
+  only check on it: ask what existing thing does most of this job already.
 
 ## 2. Read for the things no test sees
 

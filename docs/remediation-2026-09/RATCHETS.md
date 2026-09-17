@@ -1,6 +1,6 @@
 # Ratchets, guards and gates — the enforcement inventory
 
-**As of 2026-09-15.** Every mechanical control in this repository, in one place,
+**As of 2026-09-17.** Every mechanical control in this repository, in one place,
 with what it protects and what its current ceiling is.
 
 This file exists because the controls were spread across 115 test files,
@@ -59,10 +59,14 @@ Four rules, learned the hard way:
 | 50 modals with a raw fixed-inset backdrop | `web/src/tests/modalPortalGuard.test.js` | Modal overlays render through a portal. A separate test fails on a stale entry |
 | Per-file class-scope call floors (attendance 2, catalog 2, submissions 1, engagement 2, staff portal 2, gradebook 6, student records 1) | `backend/tests/unit/test_class_scope_coverage.py` | Teacher-reachable SIS reads apply `class_scope`. Allowlist of 10, each with a reason |
 | 1 definition of the admin client | `backend/tests/unit/test_one_admin_accessor.py` | One place that builds a client which bypasses RLS |
+| 51 SIS concept rows, each with a per-side baseline (backend 27 rows, web 27, mobile 1, one enforced by a bespoke test; e.g. 7 Stripe checkout sites, 27 `_org_or_error` copies, 17 `feature_flags` writers, 10 web `money()`) | `shared/sisConcepts.json`, read by `backend/tests/unit/test_sis_concepts.py`, `web/src/__tests__/sisConcepts.test.js`, `mobile/src/__tests__/sisConcepts.test.ts` | The consolidation plan (`docs/sis/CONSOLIDATION_PLAN.md`). One manifest names each duplicated concept, its owner and the pattern a copy matches; the count is frozen at 2026-09-17 and each move lowers its rows to zero. Ceiling and floor are exact; the failing message prints `use_instead` |
+| 1 duplicate `<Route path>` in `App.jsx` (`/connections`) | `web/src/__tests__/routeRulesAreUnique.test.js` | One route, one owner, web side. `KNOWN_DUPLICATES` is exact both ways; M19 empties it |
+| 4 files formatting school event stamps outside `utils/timeFormat.js` (9 calls) | `web/src/__tests__/schoolEventWallClock.test.js` | The wall-clock bug that shipped three times (6:30 read as 12:30 in Denver). Port of the mobile guard; `BASELINE` per file, exact; M12 empties it |
 
 **Two-sided ratchets.** Five of the above also fail when the count drops *too
 far below* the baseline: `eslintRatchet` (slack 60), `brandPalette` (40),
-`dataFetchingParadigm` (40), `typeWidening` (60), and the `utcnow` baseline. The
+`dataFetchingParadigm` (40), `typeWidening` (60), and the `utcnow` baseline; the
+three SIS-concept guards at the bottom of the table have no slack at all. The
 reason is worth understanding — a large silent drop is more often a broken scan
 than a cleanup, and slack below the real number is the fraction of a fix that
 can be undone without anything failing. When you legitimately reduce a count,
