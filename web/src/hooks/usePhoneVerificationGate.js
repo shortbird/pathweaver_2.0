@@ -9,7 +9,7 @@ import { isMasquerading } from '../services/masqueradeService'
 // coordinators, teachers, parents — to verify a phone number by SMS code
 // before using the platform. Until then, every authenticated route lands on
 // /verify-phone. This is the router half of the rule — the enforcing half is
-// backend/middleware/phone_verification_gate.py, which answers the same
+// backend/middleware/api_hold_gate.py, which answers the same
 // question for callers that never load the router at all. The two must agree,
 // so this hook asks the backend rather than deciding anything itself.
 //

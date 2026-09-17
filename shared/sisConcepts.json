@@ -154,16 +154,15 @@
     },
     {
       "id": "hold_middleware",
-      "means": "An API-wide gate that blocks a held adult until they do something (sign paperwork, verify a phone). Two middlewares carry the same allow-list, the same cache, and had the same masquerade bug fixed twice.",
+      "means": "An API-wide gate that blocks a held adult until they do something (sign paperwork, verify a phone). Until M3 two middlewares carried the same allow-list, the same cache, and had the same masquerade bug fixed twice.",
       "owner": { "backend": ["middleware/api_hold_gate.py"] },
-      "proposed": true,
       "forbid": {
         "backend": { "pattern": "^from utils import \\w+_hold$", "dirs": ["middleware"] }
       },
-      "baseline": { "backend": 2 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M3",
-      "use_instead": "middleware/api_hold_gate.py (M3) has the one before_request and a provider registry; a new hold is a provider (utils/<thing>_hold.py) registered there, not a third middleware."
+      "use_instead": "Add a Hold to HOLDS in middleware/api_hold_gate.py: its code, its message, its is_blocked(user_id) from a utils/<thing>_hold.py, and the prefixes its own flow needs. The gate merges the allow-list and asks every hold in order. Never a second before_request."
     },
     {
       "id": "emergency_contacts_write",

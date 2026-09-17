@@ -4,7 +4,7 @@ Phone verification (SMS code) — the flow that lifts the phone-verification hol
 Three endpoints under /api/phone-verification, all authenticated: the hold
 applies to logged-in adults, so unlike the registration funnel's OTP there is
 no pre-session path here and CSRF applies as normal. The middleware
-(middleware/phone_verification_gate.py) allowlists this prefix — these are,
+(middleware/api_hold_gate.py) allowlists this prefix — these are,
 with /api/auth/, the only calls a held adult can make.
 
 Who is required to verify is decided in utils/phone_verification_hold; this

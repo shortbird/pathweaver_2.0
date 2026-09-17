@@ -45,7 +45,7 @@ def register_all(app):
         app.register_blueprint(oauth_bp)
 
     # Phone verification (SMS code). The flow that lifts the phone-verification
-    # hold (middleware/phone_verification_gate.py); url_prefix on the blueprint.
+    # hold (middleware/api_hold_gate.py); url_prefix on the blueprint.
     from routes.phone_verification import bp as phone_verification_bp
     app.register_blueprint(phone_verification_bp)
 

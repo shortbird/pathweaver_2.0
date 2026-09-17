@@ -11,7 +11,7 @@ import { clearRegistrationGate } from '../hooks/useRegistrationGate'
  *
  * iCreate, 2026-08-21: an org can require every adult account to verify a
  * phone number by SMS code. The API enforces it
- * (backend/middleware/phone_verification_gate.py); this is the part that puts
+ * (backend/middleware/api_hold_gate.py); this is the part that puts
  * the adult on the verification page instead of leaving them to discover a 403
  * behind every link. Same shape, and same cases, as the paperwork gate's test
  * directly beside this one.

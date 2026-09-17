@@ -7,7 +7,7 @@ import { isMasquerading } from '../services/masqueradeService'
 // The school marks a document it sends as required; until the guardian signs
 // it, every authenticated route lands on /family/required-documents. This is
 // the router half of the rule — the enforcing half is
-// backend/middleware/signature_gate.py, which answers the same question for
+// backend/middleware/api_hold_gate.py, which answers the same question for
 // callers that never load the router at all (a stale tab, the mobile app, a
 // console). The two must agree, so this hook asks the backend rather than
 // deciding anything itself.

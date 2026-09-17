@@ -28,7 +28,7 @@ and patterns instead.
 |---|---|---|---|---|
 | M0 Guards | 0 | shipped | `40e27712` | 51 rows frozen at the counts in `shared/sisConcepts.json` |
 | M1 One school voice | 0 | not started | | |
-| M3 One API hold gate | 0 | not started | | |
+| M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
 | M8a One settings writer | 0 | not started | | |
 | M10 One status pill, one door | 0 | not started | | |
 | M11 One schedule toolkit | 0 | not started | | |
@@ -325,12 +325,16 @@ Canonical: new `backend/middleware/api_hold_gate.py` with one allow-list and a
 provider registry; `utils/signature_hold.py` and `utils/phone_verification_hold.py`
 become providers exposing `is_held(user) -> (held, code, redirect)`.
 
-Files: the two gate modules become thin registrations (kept one release for import
-compatibility, then deleted); `backend/app.py` or wherever `before_request` handlers
-register; `backend/tests/unit/test_hold_gate_allowlist.py` pins the allow-list as the
-union of today's two lists (snapshot), so neither surface loses an exemption.
-Masquerade exemption and the `PrivateRoute` redirect counter (incident 2026-08-22,
-`e4768113`) are preserved and tested.
+As shipped: `middleware/api_hold_gate.py` holds a `HOLDS` table of `Hold(code,
+message, provider, allowed_prefixes)`; the two `utils/*_hold.py` modules are the
+providers unchanged (held as modules, so tests that patch `<module>.is_blocked` still
+work). The two old middlewares and their two near-identical test files are deleted
+outright — nothing but `app.py` imported them — and
+`tests/test_api_hold_gate_middleware.py` keeps every case from both plus the one only
+a single gate can have: a person under both holds can reach both flows (with two
+lists, each gate refused the other's endpoints). The allow-list is pinned as a
+tuple in that test. Masquerade exemption preserved and tested for each hold and
+for both together; the web `PrivateRoute` redirect counter is untouched.
 
 Migration: none. Web/mobile: none — the 403 codes (`signature_required`,
 `phone_verification_required`) are unchanged.
