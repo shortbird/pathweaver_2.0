@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from services import sis_service
+from services import sis_age
 from services import sis_notifications
 # One definition of "a phone number", shared with the SMS verification flow, so
 # a number typed on the staff profile is stored in the shape verification reads.
@@ -540,16 +541,6 @@ def my_onboarding_summary(org_id: str, user_id: str) -> Optional[Dict[str, Any]]
 
 # ── Teacher class roster (health/safety alerts, access-logged) ───────────────
 
-def _age(dob: Optional[str], today: date) -> Optional[int]:
-    if not dob:
-        return None
-    try:
-        d = date.fromisoformat(dob[:10])
-    except ValueError:
-        return None
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-
-
 def _norm_time(v: Any) -> str:
     """Normalize HH:MM or H:MM or HH:MM:SS to HH:MM:SS for comparison."""
     if not v:
@@ -729,7 +720,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             s[r['status']] += 1
 
     now = _org_now(org_id)
-    today = now.date()
+    age = sis_age.ages_for(org_id)
     next_class = _next_class_by_student(org_id, class_id, ids, now)
     students = []
     for e in enrollments:
@@ -747,7 +738,7 @@ def class_roster_detail(org_id: str, class_id: str, accessor_id: str,
             'name': _full_name(u),
             'preferred_name': u.get('preferred_name'),
             'last_name': u.get('last_name'),
-            'age': _age(u.get('date_of_birth'), today),
+            'age': age(u.get('date_of_birth')),
             'avatar_url': u.get('avatar_url'),
             'household_name': hh.get('name'),
             'household_phone': hh.get('phone'),

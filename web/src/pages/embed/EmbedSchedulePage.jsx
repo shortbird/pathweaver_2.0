@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { range12h } from '../../utils/timeFormat'
 import { fetchEmbed, agesLabel, useEmbedAutoHeight } from './embedShared'
+import { seatState, seatText } from '../../components/sis/ClassSummaryLine'
 
 /**
  * Public, iframe-able weekly schedule widget: GET /api/embed/:slug/schedule.
@@ -12,22 +13,13 @@ import { fetchEmbed, agesLabel, useEmbedAutoHeight } from './embedShared'
  * inside its own container so the page body never scrolls sideways.
  */
 
+// The words are ClassSummaryLine's short form; only the dot colour is local.
 const SeatDot = ({ cls }) => {
-  const { open_seats, waitlist_count } = cls
-  let color = 'bg-green-500'
-  let label = 'Open'
-  if (open_seats != null) {
-    if (open_seats > 0) {
-      label = `${open_seats} left`
-    } else {
-      color = 'bg-optio-pink'
-      label = waitlist_count > 0 ? `Waitlist: ${waitlist_count}` : 'Full'
-    }
-  }
+  const full = seatState(cls).kind === 'full'
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-      <span className={`h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
-      {label}
+      <span className={`h-2 w-2 rounded-full ${full ? 'bg-optio-pink' : 'bg-green-500'}`} aria-hidden="true" />
+      {seatText(cls, { short: true })}
     </span>
   )
 }

@@ -1,42 +1,20 @@
 /**
- * Shared vocabulary of the CLP meeting view (QF-02): time and money
- * formatting, the meeting-overlap arithmetic that decides whether a class
- * conflicts with a student's schedule, and the three badge components every
- * region of the page renders.
+ * Shared vocabulary of the CLP meeting view (QF-02): money formatting, the
+ * meeting summary, and the three badge components every region of the page
+ * renders. The time arithmetic (minutes, overlaps, age bands) is
+ * utils/schedule, re-exported under the names the CLP's regions use.
  *
  * Pulled out of ClpPage.jsx verbatim -- these were module scope there, and the
  * regions that use them now live in their own files.
  */
 import React from 'react'
 
-export const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-export const DEFAULT_DAYS = [1, 2, 3, 4, 5] // Mon–Fri
+import {
+  DAY_LABELS, fmtTime, toMin as toMinutes, overlaps as meetingsOverlap, fitsAge,
+} from '../../../utils/schedule'
 
-export const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = String(hhmm).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
-export const toMinutes = (hhmm) => {
-  const [h, m] = String(hhmm || '').split(':').map(Number)
-  return Number.isNaN(h) ? null : h * 60 + (m || 0)
-}
-
-// Two meetings overlap when they share a weekday and their time ranges intersect.
-export const meetingsOverlap = (a, b) => {
-  if (a.day_of_week == null || b.day_of_week == null) return false
-  if (a.day_of_week !== b.day_of_week) return false
-  const as = toMinutes(a.start_time)
-  const ae = toMinutes(a.end_time)
-  const bs = toMinutes(b.start_time)
-  const be = toMinutes(b.end_time)
-  if (as == null || ae == null || bs == null || be == null) return false
-  return as < be && bs < ae
-}
+export { DAY_LABELS, fmtTime, toMinutes, meetingsOverlap, fitsAge }
+export const DEFAULT_DAYS = [1, 2, 3, 4, 5] // Mon-Fri
 
 // Does any meeting of `cls` overlap any meeting in the enrolled schedule
 // (ignoring the class itself)?
@@ -80,14 +58,6 @@ export const firstSlot = (c) => {
     if (key < best) best = key
   }
   return best
-}
-
-// Does this class admit a student of `age`? Unknown ages and unbounded classes pass.
-export const fitsAge = (cls, age) => {
-  if (age == null) return true
-  if (cls.min_age != null && age < cls.min_age) return false
-  if (cls.max_age != null && age > cls.max_age) return false
-  return true
 }
 
 export const Pill = ({ children, className = '' }) => (

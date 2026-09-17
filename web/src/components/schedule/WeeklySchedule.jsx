@@ -1,4 +1,5 @@
 import React from 'react'
+import { toMin, fmtTime } from '../../utils/schedule'
 
 // M-F weekly schedule grid. Renders each class's meeting blocks positioned by
 // time so families can see when they have classes and what's still open.
@@ -40,23 +41,7 @@ export const SCHEDULE_PALETTE = [
   'bg-teal-500/85 text-white',
 ]
 
-const toMin = (t) => {
-  if (!t) return null
-  const [h, m] = String(t).split(':').map(Number)
-  return (Number.isNaN(h) ? null : h * 60 + (m || 0))
-}
 
-// Exported below as formatTime, so surfaces that list the same meetings in
-// prose (the printable family schedule) read times exactly like the grid does.
-const fmt = (t) => {
-  const m = toMin(t)
-  if (m == null) return ''
-  const h = Math.floor(m / 60)
-  const mm = m % 60
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${mm ? `:${String(mm).padStart(2, '0')}` : ''}${ampm}`
-}
 
 const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotClick = null, onClassClick = null, selectedSlot = null, timeBlocks = [], flaggedSlots = [], dayFooters = null }) => {
   // Time range: default school hours, expanded to fit every meeting shown.
@@ -98,7 +83,7 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
       blocksByDay[d].push({
         name: c.name, cls: isGhost ? null : c, top: (s - startMin) * pxPerMin,
         height: Math.max((e - s) * pxPerMin, compact ? 14 : 22),
-        label: `${fmt(m.start_time)}–${fmt(m.end_time)}`,
+        label: `${fmtTime(m.start_time)}–${fmtTime(m.end_time)}`,
         day: d, startAt: s, endAt: e,
         color: isGhost ? 'bg-neutral-400/50 text-white border border-dashed border-neutral-500' : colorFor(i),
       })
@@ -127,7 +112,7 @@ const WeeklySchedule = ({ classes = [], ghost = null, compact = false, onSlotCli
           {hourRows.map((t) => (
             <div key={t} className="absolute right-2 -translate-y-1/2 text-[10px] text-neutral-400"
               style={{ top: (t - startMin) * pxPerMin }}>
-              {fmt(`${Math.floor(t / 60)}:00`)}
+              {fmtTime(`${Math.floor(t / 60)}:00`)}
             </div>
           ))}
         </div>
@@ -249,7 +234,7 @@ export const meetingsText = (meetings) => {
   })
   return sorted.map((m) => {
     const day = (MEETING_DAY_NAMES[m.day_of_week] || '').slice(0, 3)
-    const time = [fmt(m.start_time), fmt(m.end_time)].filter(Boolean).join('-')
+    const time = [fmtTime(m.start_time), fmtTime(m.end_time)].filter(Boolean).join('-')
     return [day, time].filter(Boolean).join(' ')
   }).filter(Boolean).join('; ')
 }
@@ -310,5 +295,7 @@ export const meetingsByDay = (classes = []) => {
   return ordered
 }
 
-export { fmt as formatTime }
+// Surfaces that list the same meetings in prose (the printable family
+// schedule) read times exactly like the grid does.
+export { fmtTime as formatTime }
 export default WeeklySchedule

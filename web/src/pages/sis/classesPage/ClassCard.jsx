@@ -4,6 +4,7 @@
  */
 
 import Chip from './Chip'
+import { seatState, seatText } from '../../../components/sis/ClassSummaryLine'
 
 const ClassCard = ({ c, onOpen }) => (
   <button
@@ -22,7 +23,7 @@ const ClassCard = ({ c, onOpen }) => (
         </div>
       )}
       <span className="absolute top-2 right-2"><Chip className="bg-white/90 text-optio-purple">Class</Chip></span>
-      {c.is_full && <span className="absolute top-2 left-2"><Chip className="bg-red-500 text-white">Full</Chip></span>}
+      {seatState(c).kind === 'full' && <span className="absolute top-2 left-2"><Chip className="bg-red-500 text-white">{seatText(c, { short: true })}</Chip></span>}
     </div>
 
     <div className="p-4">

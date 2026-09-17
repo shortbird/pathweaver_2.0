@@ -31,7 +31,7 @@ and patterns instead.
 | M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
 | M8a One settings writer | 0 | shipped | see git log (`consolidate/M8a-settings-writer`) | `settings_write` 0, `registration_config_mirror` 0, `org_payload_fetch` 0 |
 | M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
-| M11 One schedule toolkit | 0 | not started | | |
+| M11 One schedule toolkit | 0 | shipped | see git log (`consolidate/M11-schedule-toolkit`) | `schedule_helpers` 0, `weekly_grid` 0, `class_summary_line` 0; new backend `student_age` 6 |
 | M12 One today, one events feed, one event clock | 0 | shipped | see git log (`consolidate/M12-today-events`) | `events_read` 0, `today_schedule` 0, `event_wall_clock` 0, `audience_vocabulary` 0 |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
@@ -468,6 +468,41 @@ CLP page (as staff) and the student modal agree on which classes fit; a class at
 9:30 reads "9:30 AM" everywhere; a full class reads the same sentence on the builder,
 the embed and the CLP card; the printable schedule matches the builder. Manifest
 `schedule_helpers` → 0 each, `weekly_grid` → 0, `class_summary_line` → 0.
+
+**As shipped (2026-09-17).** Web: `utils/schedule.js` exports `toMin`, `overlaps`,
+`conflictsWith`, `fitsAge(cls, age)`, `ageFromDob` (re-exported from `utils/age.js`,
+which gained the `asOf` argument rather than folding in), `fmtTime` (=
+`timeFormat.compact12h`), `DAY_LABELS`/`DAY_ORDER` and `weekGrid(classes, {
+recurringOnly })` — the row model (start-time rows across the week, `covering` for the
+rows a long class runs through, `unscheduled`) that `WeeklyScheduleGrid`, the CLP's
+`ScheduleGrid`, the teacher's My Classes week and the public `ScheduleEmbedPage` now
+all draw; the last two were per-day stacks and are now rows, with clickable cells kept.
+The twelve `fmtTime`/`fmt`/`fmt12ap` definers, seven `toMin`, three overlap tests, four
+`fitsAge` and four `ageFromDob`/`ageOf` are gone (`clpHelpers.jsx` re-exports the
+toolkit under the CLP's names; `classFields.fmt12ap` and `scheduleBuilder/ageBandText`
+are re-exports). `components/sis/ClassSummaryLine.jsx` holds `seatState` (reads both the
+SIS `is_full`/`spots_left` and the embed `open_seats` shapes), `seatText` (long: "Open
+enrollment" / "3 seats left" / "Full — waitlist" / "Full — 4 waiting"; short: "Open" /
+"3 left" / "Full"), `ageBandText`, `SeatPill` and the line itself; the six renderers use
+it (`meetings` is passed in, since the builder's `meetingText` and the staff
+`classLabel.meetingText` phrase the week differently and merging them is copy, not
+code). Backend: `services/sis_age.py` — `school_year_start(org_id)` (via
+`OrganizationRepository`), `school_age(org_id, dob)` and `ages_for(org_id)` for a roster
+— on the pure `sis_eligibility.age_on`; the roster, households, CLP (directory, student,
+siblings), teacher class roster, attendance sheet, class waitlist, catalog roster, the
+three reports, the training audience and the enrollment waitlist all judge age as of
+the org's `first_day_of_school` (the user's call, 2026-09-17: a child's age is fixed
+for the year, as schools count it). `registration_identity_service.calc_age` (is this
+signer an adult) and the funnel's own-login age stay today-based on `age_on`. New
+manifest row `student_age` (pattern `.year - x.year`, baseline 6: the platform account
+helpers and two 120-year sanity checks, all today-based by design). Not done: the
+"one `student_schedule` shape behind three routes" — the two SIS reads already share
+`sis_parent_service._enrolled_classes` and differ on purpose (the guardian payload
+carries household money a student may not see), and `/api/student/classes` is the LMS
+cohort-class list, a different concept; a shape merge would also need a mobile OTA.
+Also fixed on the way: `MyClassesPage`'s persisted view validated `'cards' | 'table'`
+while the values are `'cards' | 'schedule'` (an M17 slip), so the week view never
+survived a reload.
 
 ### M12 — One today, one events feed, one event clock
 

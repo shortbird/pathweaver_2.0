@@ -14,6 +14,11 @@
  * their own boundary rather than teaching this module a second dialect.
  */
 
+import { toMin, fmtTime } from '../../utils/schedule'
+
+/** 12-hour time WITH am/pm, for times shown outside a block context. */
+export { fmtTime as fmt12ap }
+
 // The form only ever offers the school week.
 export const DAY_OPTIONS = [
   { dow: 1, code: 'mon', short: 'M', label: 'Mon' },
@@ -27,11 +32,6 @@ export const DOW_TO_CODE = Object.fromEntries(DAY_OPTIONS.map((d) => [d.dow, d.c
 export const DAY_LETTER = { 0: 'Su', 1: 'M', 2: 'T', 3: 'W', 4: 'Th', 5: 'F', 6: 'Sa' }
 
 export const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
-
-const toMin = (t) => {
-  const [h, m] = hhmm(t).split(':').map(Number)
-  return Number.isNaN(h) ? null : h * 60 + (m || 0)
-}
 
 export const minutesBetween = (start, end) => {
   if (!start || !end) return ''
@@ -48,14 +48,6 @@ export const fmt12 = (t) => {
   if (Number.isNaN(h)) return ''
   const h12 = h % 12 === 0 ? 12 : h % 12
   return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}`
-}
-
-/** 12-hour time WITH am/pm — for times shown outside a block context. */
-export const fmt12ap = (t) => {
-  const [h, m] = hhmm(t).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${h >= 12 ? 'pm' : 'am'}`
 }
 
 export const blockLabel = (b) => `${fmt12(b.start)}–${fmt12(b.end)}`

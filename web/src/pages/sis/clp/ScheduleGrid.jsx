@@ -3,47 +3,18 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 
-import { DAY_LABELS, Pill, fmtTime, toMinutes, dollars } from './clpHelpers'
+import { DAY_LABELS, Pill, fmtTime, dollars } from './clpHelpers'
+import { weekGrid } from '../../../utils/schedule'
 
 const ScheduleGrid = ({ busyId, confirm, drop, schedule, scheduleDays, setTimeFocus, timeFocus }) => {
-  // Rows are keyed on START time, shared across the whole week — the row
-  // model WeeklyScheduleGrid proved out. Independent per-day stacks put
-  // Tuesday's 9:30 class at a different height than Monday's 9:30, so the
-  // grid read as "empty at 9:30" on the day it was busiest (iCreate,
-  // 2026-08-25). Each card carries its own end time, so rows only need the
-  // shared start.
-  const cell = {}
-  const slotSet = new Set()
-  const dayHasClass = {}
-  for (const c of schedule) {
-    for (const m of c.meetings) {
-      if (m.day_of_week == null) continue
-      const slot = m.start_time || ''
-      slotSet.add(slot)
-      dayHasClass[m.day_of_week] = true
-      ;(cell[`${m.day_of_week}|${slot}`] = cell[`${m.day_of_week}|${slot}`] || []).push({ cls: c, m })
-    }
-  }
-  const slots = [...slotSet].sort((a, b) => (toMinutes(a) || 0) - (toMinutes(b) || 0))
+  // One row per start time across the whole week, with continuation markers
+  // for the rows a long class is still running through: utils/schedule.weekGrid
+  // carries both rules and their history (iCreate 2026-08-25, 32b2beb3).
+  const week = weekGrid(schedule)
+  const { cell, covering, unscheduled } = week
+  const dayHasClass = Object.fromEntries(week.days.map((d) => [d, true]))
+  const slots = [...week.slots]
   if (!slots.length) slots.push('') // one row of day placeholders for an empty week
-  const unscheduled = schedule.filter((c) => !c.meetings.some((m) => m.day_of_week != null))
-
-  // A class that spans several blocks starts in one row and then vanishes from
-  // the rows it is still running through: an all-day 9:30-3:00 Monday class put
-  // nothing in the 1:00 row, while Tuesday's 1:00 class sat there alone, so
-  // reading across that row said the student was free on Monday at 1:00 when
-  // she was in class (iCreate 32b2beb3, after the earlier per-day-stack fix).
-  // Rows key on start time and cannot key on anything else -- a card has to
-  // live somewhere -- so the covered rows get a continuation marker instead.
-  const covering = (d, slot) => {
-    const at = toMinutes(slot)
-    if (at == null) return []
-    return schedule.flatMap((c) => (c.meetings || [])
-      .filter((m) => m.day_of_week === d
-        && toMinutes(m.start_time) != null && toMinutes(m.end_time) != null
-        && toMinutes(m.start_time) < at && at < toMinutes(m.end_time))
-      .map(() => c))
-  }
 
   // Per-day supply-fee totals — each class counted once per day it meets.
   const supplyByDay = {}

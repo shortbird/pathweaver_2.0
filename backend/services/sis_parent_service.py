@@ -1197,21 +1197,13 @@ def request_age_exception(user_id: str, org_id: str, student_user_id: str,
     if not klass or klass.get('registration_status') != 'open':
         return {'error': 'This class is not open for registration'}
 
-    # Snapshot the student's age the same way the builder judges it: as of the
-    # first day of school when configured, else today.
-    from datetime import date as _date
-    from services.sis_eligibility import age_on
-    first_day = _first_day_of_school(org_id)
-    on = None
-    if first_day:
-        try:
-            on = _date.fromisoformat(str(first_day)[:10])
-        except ValueError:
-            on = None
+    # Snapshot the student's age the same way the builder judges it: the
+    # school-year age (sis_age).
+    from services import sis_age
     from services import sis_exception_service as exceptions
     return exceptions.create_request(
         org_id, user_id, student_user_id, class_id, message=message,
-        student_age=age_on(student.get('date_of_birth'), on),
+        student_age=sis_age.school_age(org_id, student.get('date_of_birth')),
         class_min_age=klass.get('min_age'), class_max_age=klass.get('max_age'))
 
 

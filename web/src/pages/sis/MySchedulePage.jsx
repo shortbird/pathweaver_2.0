@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import { fmtTime } from '../../utils/schedule'
 
 /**
  * MySchedulePage — the teacher's weekly view: recurring class meetings and
@@ -33,14 +34,6 @@ const KIND_STYLE = {
   meeting: 'bg-gray-100 text-neutral-600',
   substitute: 'bg-pink-100 text-pink-700',
   other: 'bg-gray-100 text-neutral-600',
-}
-
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = hhmm.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
 }
 
 const fmtAges = (min, max) => {

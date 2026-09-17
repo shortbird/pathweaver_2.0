@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api from '../services/api'
+import { weekGrid, fmtTime } from '../utils/schedule'
+import ClassSummaryLine from '../components/sis/ClassSummaryLine'
 
 // Public, embeddable weekly class schedule (iCreate feedback 2026-07-21):
 // a read-only grid of the org's open classes for the school's own website,
@@ -10,27 +12,6 @@ import api from '../services/api'
 
 const DAYS = [1, 2, 3, 4, 5]
 const DAY_LABELS = { 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday' }
-
-const toMin = (t) => {
-  if (!t) return null
-  const [h, m] = String(t).split(':').map(Number)
-  return Number.isNaN(h) ? null : h * 60 + (m || 0)
-}
-
-const fmtTime = (t) => {
-  const min = toMin(t)
-  if (min == null) return ''
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
-const ageText = (c) => (c.min_age != null && c.max_age != null
-  ? `ages ${c.min_age}–${c.max_age}`
-  : c.min_age != null ? `ages ${c.min_age}+`
-    : c.max_age != null ? `up to age ${c.max_age}` : null)
 
 const ScheduleEmbedPage = () => {
   const { previewCode } = useParams()
@@ -43,24 +24,10 @@ const ScheduleEmbedPage = () => {
       .catch(() => setError(true))
   }, [previewCode])
 
-  // Every (day, class-meeting) pairing sorted by start time — a class meeting
-  // Tue & Thu appears in both columns.
-  const byDay = useMemo(() => {
-    const out = {}
-    for (const c of data?.classes || []) {
-      const seen = new Set()
-      for (const m of c.meetings || []) {
-        const d = m.day_of_week
-        if (!DAYS.includes(d) || seen.has(d)) continue
-        seen.add(d)
-        ;(out[d] = out[d] || []).push({ cls: c, m })
-      }
-    }
-    for (const d of Object.keys(out)) {
-      out[d].sort((a, b) => (toMin(a.m.start_time) || 0) - (toMin(b.m.start_time) || 0))
-    }
-    return out
-  }, [data])
+  // One row per start time across the week (utils/schedule.weekGrid, the
+  // model every schedule grid shares), weekdays only: a class meeting Tue &
+  // Thu sits on the same row in both columns.
+  const week = useMemo(() => weekGrid(data?.classes || [], { recurringOnly: true }), [data])
 
   if (error) {
     return (
@@ -77,7 +44,7 @@ const ScheduleEmbedPage = () => {
     )
   }
 
-  const days = DAYS.filter((d) => (byDay[d] || []).length > 0)
+  const days = DAYS.filter((d) => week.days.includes(d))
 
   return (
     <div className="min-h-screen bg-white p-4 sm:p-6">
@@ -91,30 +58,51 @@ const ScheduleEmbedPage = () => {
         {days.length === 0 ? (
           <p className="text-neutral-400 text-sm py-8 text-center">No classes are currently open for registration.</p>
         ) : (
-          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
-            {days.map((d) => (
-              <div key={d} className="min-w-0">
-                <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">
-                  {DAY_LABELS[d]}
-                </div>
-                <div className="space-y-2">
-                  {(byDay[d] || []).map(({ cls, m }, i) => (
-                    <div key={`${cls.id}-${i}`}
-                      className="rounded-lg border border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white p-2.5">
-                      <div className="text-sm font-semibold text-neutral-900 leading-tight">{cls.name}</div>
-                      <div className="text-xs text-neutral-500 mt-0.5">
-                        {fmtTime(m.start_time)}–{fmtTime(m.end_time)}
-                      </div>
-                      <div className="text-[11px] text-neutral-400 mt-0.5">
-                        {[ageText(cls),
-                          cls.is_full ? 'Full' : cls.spots_left != null ? `${cls.spots_left} spot${cls.spots_left === 1 ? '' : 's'} left` : null,
-                        ].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-xs border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-1.5 w-20"></th>
+                  {days.map((d) => (
+                    <th key={d} className="p-1.5 text-center font-semibold uppercase tracking-wide text-neutral-400">
+                      {DAY_LABELS[d]}
+                    </th>
                   ))}
-                </div>
-              </div>
-            ))}
+                </tr>
+              </thead>
+              <tbody>
+                {week.slots.map((slot) => {
+                  const ends = [...(week.endsBySlot[slot] || [])]
+                  const uniformEnd = ends.length === 1 ? ends[0] : null
+                  return (
+                    <tr key={slot} className="border-t border-gray-100">
+                      <td className="p-1.5 text-neutral-400 whitespace-nowrap align-top">
+                        {uniformEnd ? `${fmtTime(slot)}–${fmtTime(uniformEnd)}` : fmtTime(slot)}
+                      </td>
+                      {days.map((d) => (
+                        <td key={d} className="p-1 align-top">
+                          {(week.cell[`${d}|${slot}`] || []).map(({ cls, m }, i) => (
+                            <div key={`${cls.id}-${i}`}
+                              className="rounded-lg border border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white p-2.5 mb-1">
+                              <div className="text-sm font-semibold text-neutral-900 leading-tight">{cls.name}</div>
+                              {!uniformEnd && m.end_time && (
+                                <div className="text-xs text-neutral-500 mt-0.5">until {fmtTime(m.end_time)}</div>
+                              )}
+                              <ClassSummaryLine cls={cls} short hideOpen className="block text-[11px] text-neutral-400 mt-0.5" />
+                            </div>
+                          ))}
+                          {!(week.cell[`${d}|${slot}`] || []).length && week.covering(d, slot).map((cls, i) => (
+                            <div key={`cont-${i}`} className="rounded-lg border border-dashed border-gray-200 text-neutral-400 px-2 py-1 mb-1 text-[11px]">
+                              {cls.name} (continues)
+                            </div>
+                          ))}
+                        </td>
+                      ))}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
         <p className="text-[11px] text-neutral-300 mt-6 text-center">Powered by Optio</p>

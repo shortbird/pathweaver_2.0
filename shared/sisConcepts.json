@@ -389,41 +389,38 @@
     },
     {
       "id": "schedule_helpers",
-      "means": "Minutes-since-midnight, 12-hour time labels, 'does this class fit this age', 'how old is this child'. Twenty-five private copies across the parent builder, the CLP, the SIS calendar, the class pages and the embeds, and the builder and the CLP compute a child's age against different dates.",
+      "means": "Minutes-since-midnight, 12-hour time labels, 'does this class fit this age', 'how old is this child'. Twenty-five private copies lived across the parent builder, the CLP, the SIS calendar, the class pages and the embeds, and the builder and the CLP computed a child's age against different dates; utils/schedule.js is the one module (M11, 2026-09-17).",
       "owner": { "web": ["utils/schedule.js", "utils/timeFormat.js", "utils/age.js"] },
-      "proposed": true,
       "forbid": {
         "web": {
           "pattern": "^\\s*(export )?(const|function) (fmtTime|fmt|fmt12ap|fitsAge|toMin|toMinutes|ageFromDob|ageOf)\\b",
           "dirs": ["pages", "components", "programs"]
         }
       },
-      "baseline": { "web": 25 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "toMin, overlaps, fitsAge, ageFromDob(dob, asOf) and fmtTime from utils/schedule.js (M11); asOf is the org's first_day_of_school so every surface agrees on a child's age."
+      "use_instead": "toMin, overlaps, conflictsWith, fitsAge, ageFromDob(dob, asOf), fmtTime, DAY_LABELS and weekGrid from utils/schedule.js. A child's age is judged as of the org's first_day_of_school on every surface (web: pass asOf; backend: services/sis_age)."
     },
     {
       "id": "weekly_grid",
-      "means": "A week laid out as a grid of class meetings. WeeklyScheduleGrid is canonical; the CLP has its own copy and MyClassesPage draws a third inline. The first two carry the same bug comment from 2026-08-25.",
-      "owner": { "web": ["components/sis/WeeklyScheduleGrid.jsx"] },
+      "means": "A week laid out as rows of class meetings keyed on start time. utils/schedule.weekGrid is the one model; WeeklyScheduleGrid, the CLP grid, the teacher's My Classes week and the public schedule embed draw it. Three hand-rolled copies carried the same 2026-08-25 bug comment and the continuation-row fix (32b2beb3) had reached only one.",
+      "owner": { "web": ["utils/schedule.js", "components/sis/WeeklyScheduleGrid.jsx"] },
       "forbid": {
         "web": {
-          "files": ["pages/sis/clp/ScheduleGrid.jsx"],
-          "pattern": "const DAY_LABELS = |gridTemplateRows",
-          "dirs": ["pages/sis/MyClassesPage.jsx"]
+          "pattern": "slotSet = new Set\\(|daySet = new Set\\(|\\(byDay\\[\\w+\\] = byDay\\[\\w+\\] \\|\\| \\[\\]\\)",
+          "dirs": ["pages", "components"]
         }
       },
-      "baseline": { "web": 2 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "<WeeklyScheduleGrid meetings={...} /> from components/sis. Fix a layout bug there, once."
+      "use_instead": "weekGrid(classes, { recurringOnly }) from utils/schedule for the rows (days, slots, cell, endsBySlot, covering, unscheduled); <WeeklyScheduleGrid classes={...} /> when the student modal's blocks are what you want. Fix a row bug in the model, once."
     },
     {
       "id": "class_summary_line",
-      "means": "One line describing a class to a family: seats, ages, price, times. Six files say 'Full -- waitlist', 'Class full', '8 / 8', 'N seats left' and 'N spots left' for the same state.",
+      "means": "One line describing a class to a family: seats, ages, price, times. Six files said 'Full -- waitlist', 'Class full', 'Full · Waitlist: 3', 'N seats left' and 'N spots left' for the same state; components/sis/ClassSummaryLine.jsx holds the words (M11, 2026-09-17).",
       "owner": { "web": ["components/sis/ClassSummaryLine.jsx"] },
-      "proposed": true,
       "forbid": {
         "web": {
           "pattern": "(Full — waitlist|Class full|seats left|spots? left|spot\\$\\{|Full · Waitlist|Waitlist: \\$\\{|>Full<)",
@@ -431,10 +428,22 @@
           "unit": "files"
         }
       },
-      "baseline": { "web": 6 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "<ClassSummaryLine cls={cls} /> (M11) renders seats, ages, price and times with one vocabulary for the builder, the CLP, the class pages and both embeds."
+      "use_instead": "<ClassSummaryLine cls={c} meetings={...} price={...} /> for the line; seatState(cls), seatText(cls, { short }), ageBandText(cls) and <SeatPill cls /> from the same module when a screen needs one segment."
+    },
+    {
+      "id": "student_age",
+      "means": "How old a student is for the school year: whole years as of the org's first day of school, the date the enrollment gates and the parent's builder already used. Ten SIS modules kept their own year-subtraction and counted from today, so a child was 9 on the roster and 10 on the CLP.",
+      "owner": { "backend": ["services/sis_eligibility.py", "services/sis_age.py"] },
+      "forbid": {
+        "backend": { "pattern": "\\.year - \\w+\\.year", "dirs": ["routes", "services", "utils"] }
+      },
+      "baseline": { "backend": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M11",
+      "use_instead": "sis_age.school_age(org_id, dob) for one student, sis_age.ages_for(org_id) for a roster (one settings read). sis_eligibility.age_on(dob) when the question really is about today (an adult signing, a child old enough for her own login). The copies left are platform account policy and two 120-year sanity checks; fold them onto age_on when those files are next open."
     },
     {
       "id": "status_map",

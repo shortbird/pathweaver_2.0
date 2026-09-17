@@ -31,6 +31,7 @@ INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 #   reads/writes rows belonging to every family in the org, which no single
 #   caller can see under RLS; the route's role+org gate is the authorization
 from utils.admin_client import admin_client as _admin
+from services import sis_age
 
 
 def is_student(user: Dict[str, Any]) -> bool:
@@ -329,21 +330,6 @@ def _parse_iso_date(v: Any):
         return None
 
 
-def _age_years(dob: Any) -> Optional[int]:
-    """Whole years from a DOB (ISO string or date), or None when unknown."""
-    from datetime import date
-    d = _parse_iso_date(dob)
-    if d is None:
-        return None
-    today = date.today()
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-
-
-# Public name for the same thing, for callers outside this module (the training
-# catalog narrows a student audience by age). Nothing here is private-by-design;
-# the underscore is only how this file names its own helpers.
-age_years = _age_years
-
 
 def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
     """Absolute day gap between two DOBs, or None when either is unknown."""
@@ -438,6 +424,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
     enrollments = _enrollments_by_student(org_id)
     households = _household_by_user(org_id)
     roster = []
+    age = sis_age.ages_for(org_id)
     for s in users:
         student = is_student(s)
         enr = enrollments.get(s['id']) if student else None
@@ -452,7 +439,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
-            'age': _age_years(s.get('date_of_birth')) if student else None,
+            'age': age(s.get('date_of_birth')) if student else None,
             'preferred_name': s.get('preferred_name'),
             'gender': s.get('gender'),
             'allergies': s.get('allergies'),
@@ -2533,6 +2520,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
 
     enrollments = _enrollments_by_student(org_id)
     by_household: Dict[str, List[Dict[str, Any]]] = {}
+    age = sis_age.ages_for(org_id)
     for m in members:
         u = users.get(m['user_id'], {})
         entry = {
@@ -2547,7 +2535,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             enr = enrollments.get(m['user_id']) or {}
             entry['status'] = enr.get('status') or 'unassigned'
             entry['grade_level'] = enr.get('grade_level')
-            entry['age'] = _age_years(u.get('date_of_birth')) if u else None
+            entry['age'] = age(u.get('date_of_birth')) if u else None
             # Carried only for duplicate detection; stripped before returning.
             entry['first_name'] = u.get('first_name') if u else None
             entry['last_name'] = u.get('last_name') if u else None

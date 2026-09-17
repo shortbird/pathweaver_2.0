@@ -413,7 +413,7 @@ class TestRosterReport:
 
         with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
                 patch('services.sis_reports_service.fetch_all_rows', side_effect=_fetch), \
-                patch('services.sis_reports_service._org_today',
+                patch('services.sis_age.school_year_start',
                       return_value=__import__('datetime').date(2026, 8, 19)), \
                 patch('services.sis_reports_service._log_roster_access') as logger_mock:
             out = reports.roster_report('org-1', ['c1', 'c2'], accessor_id='admin-1',
@@ -608,7 +608,7 @@ class TestStudentScheduleReport:
     ]
 
     def _run(self, classes=None, enrollments=None, blocks=None, roster=None):
-        with patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+        with patch('services.sis_age.school_year_start', return_value=self.TODAY), \
                 patch('services.sis_catalog_service.list_classes',
                       return_value=self.CLASSES if classes is None else classes), \
                 patch('services.sis_catalog_service.schedule_settings',
@@ -656,9 +656,10 @@ class TestStudentScheduleReport:
         assert all(v == '' for v in ada['by_day'].values())
 
     def test_every_row_carries_the_student_age(self):
-        """iCreate (Molly), 2026-08-22: ages on the master list. Counted
-        against the school's own today, and blank — not zero, not an error —
-        for a student whose birthday nobody has entered yet."""
+        """iCreate (Molly), 2026-08-22: ages on the master list. The
+        school-year age (as of the first day of school, sis_age), and blank --
+        not zero, not an error -- for a student whose birthday nobody has
+        entered yet."""
         out = self._run()
         ages = {r['student']: r['age'] for r in out['rows']}
         assert ages['Nora Candland'] == '13'
@@ -682,7 +683,7 @@ class TestStudentScheduleReport:
     def test_no_classes_reads_nothing_and_lists_everyone(self):
         """An empty `in_` list matches everything in PostgREST, so the
         enrollment read must be skipped entirely."""
-        with patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+        with patch('services.sis_age.school_year_start', return_value=self.TODAY), \
                 patch('services.sis_catalog_service.list_classes', return_value=[]), \
                 patch('services.sis_catalog_service.schedule_settings',
                       return_value={'time_blocks': []}), \
@@ -916,7 +917,7 @@ class TestBlockRostersReport:
         from services import sis_reports_service as svc
         with patch('services.sis_catalog_service.list_classes', return_value=self.CLASSES), \
              patch('services.sis_catalog_service.schedule_settings', return_value=self.BLOCKS), \
-             patch('services.sis_reports_service._org_today', return_value=self.TODAY), \
+             patch('services.sis_age.school_year_start', return_value=self.TODAY), \
              patch.object(svc, 'fetch_all_rows', return_value=self.ENROLLMENTS), \
              patch('services.sis_service.get_roster', return_value=self.ROSTER):
             return svc.block_rosters_report('org-1', day=day)

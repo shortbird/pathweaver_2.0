@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import MarketingLayout from '../../components/marketing/MarketingLayout'
 import { getPoeCohorts, enrollInPoe } from './poeService'
+import { ageFromDob } from '../../utils/age'
 
 // Hidden public page for the 2026 Pipe Organ Encounter pilot. Not linked in nav;
 // families reach it via /poe from the AGO announcement email. This is an interest
@@ -25,12 +26,6 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July', 'Aug', 'Sep',
 
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 
-const ageFromDob = (dob) => {
-  if (!dob) return null
-  const d = new Date(dob)
-  if (isNaN(d.getTime())) return null
-  return (Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
-}
 
 const formatDateRange = (start, end) => {
   if (!start) return null

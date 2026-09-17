@@ -29,7 +29,6 @@ const addDays = (dateStr, n) => {
 // The stamp parts, the compact time and the day headings come from
 // utils/timeFormat.js, the one place an event stamp becomes text (M12).
 const splitStamp = splitEventStamp
-const fmtTime = compact12h
 const fmtDayLong = (dateStr) => fmtDateOnly(dateStr, 'long')
 const fmtDayShort = (dateStr) => fmtDateOnly(dateStr, 'short').replace(/, \d{4}$/, '')
 
@@ -45,8 +44,8 @@ export const fmtWhen = (e) => {
   const span = end && end.date !== start.date ? `${fmtDayShort(start.date)} – ${fmtDayShort(end.date)}` : ''
   if (e.all_day) return span ? `${span} · All day` : 'All day'
   const times = end && end.time && end.time !== start.time
-    ? `${fmtTime(start.time)} – ${fmtTime(end.time)}`
-    : fmtTime(start.time)
+    ? `${compact12h(start.time)} – ${compact12h(end.time)}`
+    : compact12h(start.time)
   return span ? `${span} · ${times}` : times
 }
 
@@ -208,7 +207,7 @@ const FamilyCalendarPage = () => {
                             <div key={e.id}
                               className="rounded px-1.5 py-0.5 bg-optio-purple/10 text-optio-purple">
                               <span className="text-[11px] font-semibold leading-tight block truncate">{e.title}</span>
-                              {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{fmtTime(time)}</span>}
+                              {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{compact12h(time)}</span>}
                             </div>
                           )
                         })}

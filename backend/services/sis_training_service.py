@@ -22,7 +22,7 @@ import logging
 from typing import Any, Dict, Iterable, List, Optional
 
 from database import get_supabase_admin_client
-from services import sis_service
+from services import sis_age
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,8 @@ def catch_up_students(org_id: str, student_ids: Optional[Iterable[str]]) -> int:
     admin = get_supabase_admin_client()
     rows = (admin.table('users').select('id, date_of_birth')
             .in_('id', ids).execute()).data or []
-    people = [{'id': r['id'], 'age': sis_service.age_years(r.get('date_of_birth'))}
-              for r in rows]
+    age = sis_age.ages_for(org_id)
+    people = [{'id': r['id'], 'age': age(r.get('date_of_birth'))} for r in rows]
 
     created = 0
     for row in catalog:

@@ -35,23 +35,14 @@ import UfaRequirementsPanel from './scheduleBuilder/UfaRequirementsPanel'
 import SlotClassesModal from './scheduleBuilder/SlotClassesModal'
 import AddDropRequestModal from './scheduleBuilder/AddDropRequestModal'
 import field from './scheduleBuilder/field'
-import conflictsWith from './scheduleBuilder/conflictsWith'
 import fmtDate from './scheduleBuilder/fmtDate'
 import DAY_LONG from './scheduleBuilder/DAY_LONG'
-import toMin from './scheduleBuilder/toMin'
+import { toMin, fitsAge, ageFromDob, conflictsWith } from '../utils/schedule'
 import slotEnd from './scheduleBuilder/slotEnd'
-const ageOn = (dob, onDate) => {
-  if (!dob) return null
-  const d = new Date(`${String(dob).slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return null
-  const t = onDate ? new Date(`${onDate}T00:00:00`) : new Date()
-  let a = t.getFullYear() - d.getFullYear()
-  if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a -= 1
-  return a
-}
-// Unknown age (no DOB on file) never hides classes.
-const fitsAge = (c, age) => age == null
-  || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
+// The child's age for the year: as of the first day of school, the same
+// answer the funnel's waitlist notice, the CLP and the student modal give
+// (utils/age.js). Unknown age (no DOB on file) never hides classes.
+const ageOn = ageFromDob
 // Only called for classes the age filter hid, so at least one bound is set.
 const classBlocks = (c, timeBlocks) => {
   if (c.billing_blocks != null) return c.billing_blocks

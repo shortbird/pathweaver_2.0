@@ -29,7 +29,6 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
 // parsing, from utils/timeFormat.js, the one place an event stamp becomes text.
 const splitStamp = splitEventStamp
 const joinStamp = (date, time) => (date ? `${date}T${time || '00:00'}:00Z` : null)
-const fmtTime = compact12h
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -202,7 +201,7 @@ const CalendarPage = () => {
                       const going = startDate === key && e.rsvp_enabled
                         ? (e.rsvp_summary?.people || 0) : 0
                       const meta = [
-                        !e.all_day && startDate === key ? fmtTime(time) : null,
+                        !e.all_day && startDate === key ? compact12h(time) : null,
                         going ? `${going} going` : null,
                       ].filter(Boolean)
                       return (

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import Modal from '../ui/Modal'
 import api from '../../services/api'
+import { fmtTime } from '../../utils/schedule'
+import { seatText, seatState } from '../sis/ClassSummaryLine'
 
 // Read-only detail view for a catalog entry in the family Schedule Builder:
 // a scheduled class (org_classes) or an Optio course (at-home learning).
@@ -18,13 +20,6 @@ const stripHtml = (html) => {
 }
 
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const fmtTime = (t) => {
-  if (!t) return ''
-  const [h, m] = String(t).split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
 export const meetingText = (meetings = []) => {
   const recurring = meetings.filter((m) => m.day_of_week != null)
   if (!recurring.length) return 'Schedule TBD'
@@ -63,17 +58,14 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
 
   const name = isCourse ? item.title : item.name
   const image = isCourse ? item.cover_image_url : item.image_url
-  const isFull = !isCourse && item.is_full
+  const isFull = !isCourse && seatState(item).kind === 'full'
   const teacher = item.primary_instructor
   const assistants = (!isCourse && item.assistant_instructors) || []
   const ages = isCourse ? item.age_range : ageText(item.min_age, item.max_age)
   const tuition = money(isCourse ? item.tuition_cents : item.price_cents)
   const supplyFee = !isCourse && item.supply_fee != null ? `$${Number(item.supply_fee).toFixed(2)}` : null
 
-  const availability = isCourse ? null
-    : isFull ? 'Full — waitlist available'
-    : item.spots_left != null ? `${item.spots_left} spot${item.spots_left === 1 ? '' : 's'} left`
-    : 'Open enrollment'
+  const availability = isCourse ? null : seatText(item)
 
   return (
     <Modal isOpen onClose={onClose} size="md" bodyClassName="!p-0" footer={
@@ -115,7 +107,7 @@ const ClassDetailsModal = ({ item, type, conflict, locked, busy, onClose, onAdd,
         <div className="absolute bottom-0 left-0 right-0 p-5">
           <div className="flex flex-wrap gap-1.5 mb-1.5">
             {isCourse && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white backdrop-blur-sm">At-home learning</span>}
-            {isFull && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-amber-950">Full — waitlist</span>}
+            {isFull && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-amber-950">{seatText(item)}</span>}
             {conflict && <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-500 text-white">Overlaps {conflict}</span>}
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-white">{name}</h2>

@@ -5,11 +5,21 @@ per class), can't pick classes until released, and a fully-waitlisted family's
 registration fee defers to the first release.
 """
 
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from services import sis_enrollment_waitlist_service as ewl
+
+
+@pytest.fixture(autouse=True)
+def _first_day_of_school():
+    """Ages are the school-year age (services.sis_age), read through the
+    organization repository rather than this service's client; pin the first
+    day the fixtures' flags carry."""
+    with patch('services.sis_age.school_year_start', return_value=date(2026, 8, 15)):
+        yield
 
 
 def _chain(*datasets):

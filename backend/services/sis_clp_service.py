@@ -14,10 +14,11 @@ endpoints. Admin (service_role) client, same justification as sis_service.py: th
 SIS tables are RLS-locked to backend-only and this is a cross-table read.
 """
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 
 from services import sis_service
+from services import sis_age
 from services import sis_catalog_service as catalog
 from utils.logger import get_logger
 from utils import person_name
@@ -60,18 +61,6 @@ def _full_name(u: Dict[str, Any]) -> str:
     return person_name.full_name(u, 'Unknown')
 
 
-def _age(dob: Any) -> Optional[int]:
-    """Whole years from an ISO date (or date) — None when unknown/unparseable."""
-    if not dob:
-        return None
-    if not isinstance(dob, date):
-        try:
-            dob = date.fromisoformat(str(dob)[:10])
-        except ValueError:
-            return None
-    today = date.today()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-
 
 def _last_first(s: Dict[str, Any]) -> str:
     """Sort key that always leads with the last name, so solo students interleave
@@ -106,6 +95,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
     except Exception as e:  # noqa: BLE001 — the flag is decoration, never a blocker
         logger.warning(f'CLP: finished lookup failed for org {org_id}: {e}')
         finished = set()
+    age = sis_age.ages_for(org_id)
     students = [{
         'student_id': r['student_id'],
         'name': r['name'],
@@ -113,7 +103,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
         'last_name': r.get('last_name'),
         'preferred_name': r.get('preferred_name'),
         'date_of_birth': r.get('date_of_birth'),
-        'age': _age(r.get('date_of_birth')),
+        'age': age(r.get('date_of_birth')),
         'household_id': r.get('household_id'),
         'household_name': r.get('household_name'),
         'grade_level': r.get('grade_level'),
@@ -154,7 +144,7 @@ def clp_directory(org_id: str) -> Dict[str, Any]:
     return {'families': family_list, 'students': students, 'counts': counts}
 
 
-def _student_profile(student_id: str) -> Optional[Dict[str, Any]]:
+def _student_profile(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     rows = (
         _admin().table('users')
         .select('id, first_name, last_name, display_name, username, email, '
@@ -171,7 +161,7 @@ def _student_profile(student_id: str) -> Optional[Dict[str, Any]]:
         'last_name': u.get('last_name'),
         'preferred_name': u.get('preferred_name'),
         'date_of_birth': u.get('date_of_birth'),
-        'age': _age(u.get('date_of_birth')),
+        'age': sis_age.school_age(org_id, u.get('date_of_birth')),
     }
 
 
@@ -218,8 +208,9 @@ def _family_and_siblings(org_id: str, student_id: str):
             .select('id, first_name, last_name, display_name, username, email, date_of_birth, preferred_name')
             .in_('id', sib_ids).execute()
         ).data or []
+        age = sis_age.ages_for(org_id)
         siblings = [{'student_id': r['id'], 'name': _full_name(r),
-                     'age': _age(r.get('date_of_birth'))} for r in rows]
+                     'age': age(r.get('date_of_birth'))} for r in rows]
         siblings.sort(key=lambda s: s['name'].lower())
     return family, siblings, guardian_ids
 
@@ -275,7 +266,7 @@ def get_clp_student(org_id: str, student_id: str) -> Optional[Dict[str, Any]]:
     counts. Returns None when the student isn't in this org."""
     if not sis_service.student_in_org(student_id, org_id):
         return None
-    student = _student_profile(student_id)
+    student = _student_profile(org_id, student_id)
     if not student:
         return None
 

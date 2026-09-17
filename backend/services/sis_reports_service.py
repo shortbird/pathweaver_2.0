@@ -12,6 +12,7 @@ the decision was reversed and the plan is deleted.
 from typing import Dict, List, Any, Optional
 
 from services import sis_attendance_service as attendance
+from services import sis_age
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
 
@@ -471,7 +472,7 @@ ROSTER_REPORT_FIELDS: List[Dict[str, Any]] = [
     {'key': 'preferred_name', 'label': 'Goes by', 'hint': 'Preferred name, if any', 'default': False},
     {'key': 'first_name', 'label': 'First name', 'hint': 'On its own, for mail merges', 'default': False},
     {'key': 'last_name', 'label': 'Last name', 'hint': 'On its own, for sorting', 'default': False},
-    {'key': 'age', 'label': 'Age', 'hint': 'Years, as of today', 'default': True},
+    {'key': 'age', 'label': 'Age', 'hint': 'Years, as of the first day of school', 'default': True},
     # Collected (and required) at iCreate registration, and already in the
     # People export — it was simply never offered here. iCreate, 2026-08-19:
     # "we also need a gender, because I'm not really sure if some of these are
@@ -557,7 +558,7 @@ def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
 
     households, guardians_by_hh, hh_by_student = _household_context(student_ids)
 
-    today = _org_today(org_id)
+    age_text = _age_column(org_id)
     rows = []
     for source, status_label, when_key in (
             (enrollments, 'Enrolled', 'enrolled_at'),
@@ -575,7 +576,7 @@ def roster_report(org_id: str, class_ids: List[str], accessor_id: str,
                 'preferred_name': u.get('preferred_name') or '',
                 'first_name': u.get('first_name') or '',
                 'last_name': u.get('last_name') or '',
-                'age': _age_years(u.get('date_of_birth'), today),
+                'age': age_text(u.get('date_of_birth')),
                 'date_of_birth': (u.get('date_of_birth') or '')[:10],
                 'gender': u.get('gender') or '',
                 'student_email': u.get('email') or '',
@@ -653,20 +654,14 @@ def _person_name(u: Dict[str, Any]) -> str:
     return name or (u.get('display_name') or '')
 
 
-def _org_today(org_id: str):
-    from services.sis_staff_service import _org_now
-    return _org_now(org_id).date()
+def _age_column(org_id: str):
+    """dob -> age text for a report row: the school-year age (sis_age), '' when unknown."""
+    age = sis_age.ages_for(org_id)
 
-
-def _age_years(dob: Optional[str], today) -> str:
-    if not dob:
-        return ''
-    try:
-        from datetime import date
-        b = date.fromisoformat(str(dob)[:10])
-    except (TypeError, ValueError):
-        return ''
-    return str(today.year - b.year - ((today.month, today.day) < (b.month, b.day)))
+    def text(dob: Optional[str]) -> str:
+        years = age(dob)
+        return '' if years is None else str(years)
+    return text
 
 
 # ── Student schedule report (master list: who comes when) ────────────────────
@@ -793,11 +788,10 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         {d for entries in slots_by_class.values() for d, _, _ in entries},
         key=lambda d: _SCHOOL_WEEK.index(d) if d in _SCHOOL_WEEK else d)
 
-    # iCreate (Molly), 2026-08-22: the office wants ages on this list too —
+    # iCreate (Molly), 2026-08-22: the office wants ages on this list too --
     # who comes when reads differently for a 5-year-old than a 15-year-old.
-    # Counted against the school's own today, like the roster report, so a
-    # birthday turns over on the school's date rather than UTC's.
-    today = _org_today(org_id)
+    # The school-year age, like every other SIS screen (sis_age).
+    age_text = _age_column(org_id)
 
     rows = []
     for s in sis_service.get_roster(org_id):
@@ -806,7 +800,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
         sched = by_student.get(s['student_id'], {})
         rows.append({
             'student': s['name'],
-            'age': _age_years(s.get('date_of_birth'), today),
+            'age': age_text(s.get('date_of_birth')),
             'family': s.get('household_name') or '',
             'days': ' '.join(DOW_SHORT[d] for d in days_present if sched.get(d)),
             'by_day': {str(d): '; '.join(t for _, t in sorted(sched.get(d, [])))
@@ -1053,7 +1047,7 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
         _admin().table('class_enrollments').select('class_id, student_id')
         .in_('class_id', class_ids).eq('status', 'active'))) if class_ids else []
 
-    today = _org_today(org_id)
+    age_text = _age_column(org_id)
     roster = {s['student_id']: s for s in sis_service.get_roster(org_id)}
     students_by_class: Dict[str, List[Dict[str, str]]] = {}
     for e in enrollments:
@@ -1062,7 +1056,7 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
             continue
         students_by_class.setdefault(e['class_id'], []).append({
             'name': s['name'],
-            'age': _age_years(s.get('date_of_birth'), today),
+            'age': age_text(s.get('date_of_birth')),
         })
     for entries in students_by_class.values():
         entries.sort(key=lambda r: (r['name'] or '').lower())
