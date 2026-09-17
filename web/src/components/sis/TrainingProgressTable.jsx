@@ -3,19 +3,25 @@ import { progressLabel, progressStyle, words } from '../../pages/sis/trainingCop
 
 /**
  * Who has done what: one row per person, one column per training item, in
- * the creator's order and narrowed by the page's search. Lifted out of
- * StaffTrainingPage on 2026-09-17 when that page crossed the size cap; the
- * page owns the data (the two report halves and the arranged column list)
- * and this renders it.
+ * the creator's order. The page's search narrows the ROWS by the person's
+ * name -- every column stays, so one teacher's whole progress is in view at
+ * once (Tanner, 2026-09-17). Lifted out of StaffTrainingPage the same day,
+ * when that page crossed the size cap; the page owns the data (the two
+ * report halves and the arranged column list) and this renders it.
  *
  * A quest cell is that person's progress; a link cell is done / not done, or
  * a dash where the link was never aimed at this person, so nobody reads "not
  * done" on a training they were not given.
  */
-export default function TrainingProgressTable({ report, reportColumns, linkCells, linkReport, audience }) {
+export default function TrainingProgressTable({
+  report, reportColumns, linkCells, linkReport, audience, personMatches = () => true,
+}) {
+  const people = (report?.staff || []).filter((s) => personMatches(s.name))
   return (
   !report?.staff?.length
-    ? <p className="text-neutral-500">No {words(audience).many} to report on yet.</p> : (
+    ? <p className="text-neutral-500">No {words(audience).many} to report on yet.</p>
+    : !people.length
+      ? <p className="text-neutral-500">Nobody matches that search.</p> : (
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
@@ -33,7 +39,7 @@ export default function TrainingProgressTable({ report, reportColumns, linkCells
           </tr>
         </thead>
         <tbody>
-          {report.staff.map((s) => (
+          {people.map((s) => (
             <tr key={s.user_id} className="border-b border-gray-100 last:border-0">
               <td className="px-4 py-2.5 font-medium text-neutral-900">{s.name}</td>
               {/* Cells follow the header: the creator's order, narrowed

@@ -658,8 +658,11 @@ const StaffTrainingPage = () => {
 
   // Quests and links share the category headings: a category is how the
   // office files training, whatever shape each item takes.
-  // Type to narrow the list by name. The same box narrows the who-has-done-
-  // what columns, so an admin looking for one training sees it in both views.
+  // Type to narrow by name. The box means the thing each view is a list OF:
+  // in "The quests" it finds a training; in "Who has done what" it finds a
+  // person and shows their whole row, every column, so an admin can look
+  // one teacher up and see all of their progress at once (Tanner,
+  // 2026-09-17). The columns there stay complete for that reason.
   const [search, setSearch] = useState('')
   const matches = useCallback((title) => !search.trim()
     || (title || '').toLowerCase().includes(search.trim().toLowerCase()), [search])
@@ -692,18 +695,16 @@ const StaffTrainingPage = () => {
   const linkCells = useMemo(() => Object.fromEntries(
     (linkReport?.staff || []).map((s) => [s.user_id, s])), [linkReport])
   const reportLinks = linkReport?.links || []
-  // Columns in the creator's order too, and narrowed by the search box; the
-  // body cells are looked up per column so they always sit under their own
-  // header.
+  // Columns in the creator's order too, all of them; the body cells are
+  // looked up per column so they always sit under their own header.
   const reportColumns = useMemo(() => {
     const rank = new Map(ordered.map((r, i) => [`${r.kind}:${r.kind === 'quest' ? r.quest_id : r.id}`, i]))
     const cols = [
       ...(report?.training || []).map((t) => ({ ...t, _key: `quest:${t.quest_id}` })),
       ...reportLinks.map((l) => ({ ...l, _key: `link:${l.id}` })),
     ]
-    return cols.filter((c) => matches(c.title))
-      .sort((a, b) => (rank.get(a._key) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b._key) ?? Number.MAX_SAFE_INTEGER))
-  }, [report, reportLinks, ordered, matches])
+    return cols.sort((a, b) => (rank.get(a._key) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b._key) ?? Number.MAX_SAFE_INTEGER))
+  }, [report, reportLinks, ordered])
 
   return (
     <div>
@@ -783,8 +784,10 @@ const StaffTrainingPage = () => {
       {!loading && (training.length + links.length) > 0 && (
         <div className="mb-4 max-w-md">
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${words(audience).quests} by name\u2026`}
-            aria-label={`Search ${words(audience).quests}`}
+            placeholder={view === 'everyone'
+              ? `Search ${words(audience).many} by name\u2026`
+              : `Search ${words(audience).quests} by name\u2026`}
+            aria-label={view === 'everyone' ? `Search ${words(audience).many}` : `Search ${words(audience).quests}`}
             className={inputClass} />
         </div>
       )}
@@ -928,7 +931,8 @@ const StaffTrainingPage = () => {
 
       {!loading && view === 'everyone' && admin && (
         <TrainingProgressTable report={report} reportColumns={reportColumns}
-          linkCells={linkCells} linkReport={linkReport} audience={audience} />
+          linkCells={linkCells} linkReport={linkReport} audience={audience}
+          personMatches={matches} />
       )}
 
       {picking && (

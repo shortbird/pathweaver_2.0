@@ -122,6 +122,50 @@ describe('the creator\'s order on the Training page', () => {
     expect(titlesInOrder()).toEqual(['First training', 'Second training (video)', 'Third training'])
   })
 
+  it('in Who has done what, the search finds a person and shows their whole row', async () => {
+    const cells = (done) => [
+      { quest_id: 'q-t3', started: done, completed: done, done: done ? 2 : 0, total: 2 },
+      { quest_id: 'q-t1', started: false, completed: false, done: 0, total: 2 },
+    ]
+    api.get.mockImplementation((url) => {
+      if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
+      if (url.includes('/training/links/progress')) {
+        return Promise.resolve({ data: { links: LINKS, required_total: 0,
+          staff: [{ user_id: 'u-jane', cells: [{ link_id: 'l2', applies: true, done: true }], required_completed: 0 },
+                  { user_id: 'u-omar', cells: [{ link_id: 'l2', applies: true, done: false }], required_completed: 0 }] } })
+      }
+      if (url.includes('/training/links')) return Promise.resolve({ data: { links: LINKS } })
+      if (url.includes('/training/progress')) {
+        return Promise.resolve({ data: { required_total: 0,
+          training: [{ quest_id: 'q-t3', title: 'Third training', is_required: false },
+                     { quest_id: 'q-t1', title: 'First training', is_required: false }],
+          staff: [{ user_id: 'u-jane', name: 'Jane Bird', cells: cells(true), required_completed: 0 },
+                  { user_id: 'u-omar', name: 'Omar Reyes', cells: cells(false), required_completed: 0 }] } })
+      }
+      if (url.includes('/api/sis/training')) return Promise.resolve({ data: { training: TRAINING } })
+      return Promise.resolve({ data: {} })
+    })
+    render(<StaffTrainingPage />)
+    await screen.findByText('Third training')
+    fireEvent.click(screen.getByRole('button', { name: 'Who has done what' }))
+    expect(await screen.findByText('Jane Bird')).toBeInTheDocument()
+    expect(screen.getByText('Omar Reyes')).toBeInTheDocument()
+
+    // The box now searches people, and says so.
+    const box = screen.getByLabelText('Search people')
+    fireEvent.change(box, { target: { value: 'jane' } })
+    expect(screen.getByText('Jane Bird')).toBeInTheDocument()
+    expect(screen.queryByText('Omar Reyes')).toBeNull()
+    // Every column is still there, in the creator's order, with her cells.
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent)
+    expect(headers.slice(1, 4)).toEqual(['First training', 'Second training (video)', 'Third training'])
+    const row = screen.getByText('Jane Bird').closest('tr')
+    expect(within(row).getByText('Done')).toBeInTheDocument()
+
+    fireEvent.change(box, { target: { value: 'zzz' } })
+    expect(screen.getByText('Nobody matches that search.')).toBeInTheDocument()
+  })
+
   it('shows a teacher the same order with no arrows', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_role: 'advisor' } }
     render(<StaffTrainingPage />)
