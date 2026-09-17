@@ -73,11 +73,12 @@ Allow: /academy-handbook
 # /messages, /admin, /quests, ...); one-shot token links (/auth/*,
 # /invitation/*, /reset-password, /shared/*, /report/*); embeds and kiosks,
 # which are framed or device-local and never a useful search result; the whole
-# SIS console on sis.optioeducation.com; and the stale marketing pages that
-# still route in this SPA after moving to www (/academy, /how-it-works,
-# /philosophy, /for-families, /for-schools, /classes). Those last ones are
-# duplicates of live www pages and would compete with them - deleting the
-# routes is the tracked cleanup item in marketing/DEPLOYMENT.md.
+# SIS console on sis.optioeducation.com; and any path this SPA no longer
+# routes. The marketing copies that lived here after the www cutover
+# (/academy, /how-it-works, /philosophy, /for-families, /for-schools,
+# /classes) were deleted on 2026-09-07; an unknown path now client-redirects
+# to / (NotFoundRedirect), and this rule keeps Google from indexing that
+# shell while the old URLs age out of Search Console.
 Disallow: /
 
 # No Sitemap directive on purpose. This host has no sitemap of its own; the

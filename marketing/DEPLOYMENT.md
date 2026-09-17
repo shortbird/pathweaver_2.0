@@ -240,8 +240,10 @@ marketing pages, so www serves exactly what it did before.
 
 ## Post-cutover cleanup (separate, later)
 
-- Remove the now-dead marketing pages/routes from `web/` (they were left
-  untouched on purpose during this refactor).
+- ~~Remove the now-dead marketing pages/routes from `web/`~~ Done 2026-09-07.
+  Search Console still lists the old app-host URLs under "Blocked by
+  robots.txt" and "Duplicate" for a few weeks after; that is the report
+  catching up, not a regression.
 - Point the app's `robots.txt` at disallow-all except `/portfolio/*` and
   `/public/*`, or keep indexing there; decide SEO ownership of portfolios
   (they currently rank on www URLs, and the 301s transfer that equity to app).
