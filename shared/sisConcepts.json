@@ -510,15 +510,15 @@
     },
     {
       "id": "tab_bar",
-      "means": "A row of tabs on an SIS page. Sixteen files hand-roll the underline recipe; GlassTabBar is used by fifteen non-SIS pages and no SIS page.",
+      "means": "A row of tabs on an SIS page. Fourteen files hand-rolled the underline recipe (plus the inbox's pill bar and the prior-learning chips) while GlassTabBar served fifteen non-SIS pages; every SIS tab bar is GlassTabBar now (M14b, 2026-09-17), and the pattern also catches the hand-rolled spinner, which is components/ui/Spinner.",
       "owner": { "web": ["components/ui/GlassTabBar.jsx"] },
       "forbid": {
         "web": { "pattern": "border-b-2", "dirs": ["pages/sis", "components/sis"], "unit": "files" }
       },
-      "baseline": { "web": 16 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14b",
-      "use_instead": "<GlassTabBar tabs={...} active={...} onChange={...} /> from components/ui."
+      "use_instead": "<GlassTabBar align=\"start\" tabs={[{ id, label, badge? }]} active={...} onSelect={...} /> from components/ui (size=\"md\" for a page's section bar, the default for a modal's). Tabs are role=tab: tests query getByRole('tab', { name }). Loading: <Spinner /> or <PageLoader /> from components/ui/Spinner."
     },
     {
       "id": "input_recipe",

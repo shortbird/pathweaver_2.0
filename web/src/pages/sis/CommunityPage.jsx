@@ -17,6 +17,7 @@ import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import { htmlToText } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { fmtEventWhen, fmtDateOnly, fmtLongDate, isDateOnly } from '../../utils/timeFormat'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -73,21 +74,11 @@ const CommunityPage = () => {
         The heartbeat of your school — announcements, lost &amp; found, and shout-outs, all in one place.
       </p>
 
-      <div className="flex flex-wrap gap-1 border-b border-gray-200 mb-6">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? 'border-optio-purple text-optio-purple'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <GlassTabBar
+        align="start" size="md" className="mb-6" aria-label="Community sections"
+        tabs={TABS.map((t) => ({ id: t.key, label: t.label }))}
+        active={tab} onSelect={setTab}
+      />
 
       {!orgId ? (
         <p className="text-neutral-500">Select an organization to view its community.</p>

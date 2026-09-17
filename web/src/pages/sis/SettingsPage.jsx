@@ -6,6 +6,7 @@ import { AuthContext } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import { SettingsCards } from '../../settings/settingsRegistry'
 import { useOrgSettings } from '../../hooks/api/useSisSettings'
+import { Spinner } from '../../components/ui/Spinner'
 
 /**
  * SIS Settings page — the console surface of the ONE settings registry
@@ -49,7 +50,7 @@ const SettingsPage = () => {
 
       {(loading || orgLoading) ? (
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+          <Spinner />
         </div>
       ) : !orgId ? (
         <p className="text-neutral-500">Select an organization to manage its settings.</p>

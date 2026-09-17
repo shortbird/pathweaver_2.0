@@ -32,6 +32,7 @@ import CourseDetailModal from './classesPage/CourseDetailModal'
 import ClassDetailModal from './classesPage/ClassDetailModal'
 import OPTIO_COURSE_FEE from './classesPage/OPTIO_COURSE_FEE'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
 // "HH:MM" + minutes -> "HH:MM:00" for the meetings API.
@@ -630,20 +631,11 @@ const ClassesPage = () => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-5 border-b border-gray-200 mb-5">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-1 py-2.5 text-sm font-medium -mb-px border-b-2 transition-colors ${
-              tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t.label} ({t.count})
-          </button>
-        ))}
-      </div>
+      <GlassTabBar
+        align="start" size="md" className="mb-5" aria-label="Classes sections"
+        tabs={TABS.map((t) => ({ id: t.key, label: `${t.label} (${t.count})` }))}
+        active={tab} onSelect={setTab}
+      />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-5">

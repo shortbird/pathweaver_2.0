@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom'
 import ClassRoster from './ClassRoster'
 import ClassWaitlist from './ClassWaitlist'
 import CLASS_TABS from './CLASS_TABS'
+import GlassTabBar from '../../../components/ui/GlassTabBar'
 
 const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, orgId, initialTab = 'details', onClose, onSubmit, onToggleRegistration, onArchive, onRestore, onRosterChanged }) => {
   const [tab, setTab] = useState(initialTab)
@@ -50,15 +51,12 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
           </div>
         </div>
-        <div className="flex gap-4 px-4 mt-2 border-b border-gray-200 shrink-0">
-          {CLASS_TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 mt-2 shrink-0">
+          <GlassTabBar
+            align="start" aria-label="Class sections"
+            tabs={CLASS_TABS.map((t) => ({ id: t.key, label: t.label }))}
+            active={tab} onSelect={setTab}
+          />
         </div>
 
         <div className="p-4 overflow-y-auto flex-1">

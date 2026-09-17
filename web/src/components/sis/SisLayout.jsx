@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Outlet, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import { Bars3Icon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
@@ -10,6 +10,7 @@ import { useSisOrg } from '../../pages/sis/useSisOrg'
 import SisOrgPicker from '../../pages/sis/SisOrgPicker'
 import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
+import { PageLoader } from '../ui/Spinner'
 
 const PreviewBanner = () => {
   const navigate = useNavigate()
@@ -33,11 +34,7 @@ const PreviewBanner = () => {
 }
 
 
-const Spinner = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple" />
-  </div>
-)
+const Spinner = () => <PageLoader className="min-h-screen" />
 
 /**
  * Gate + chrome for the SIS console.
@@ -50,16 +47,17 @@ const Spinner = () => (
  */
 const SisLayout = () => {
   const { isAuthenticated, user, loading } = useAuth()
-  const [navOpen, setNavOpen] = useState(false)
   const location = useLocation()
+  // The drawer remembers the page it was opened on, so navigating closes it
+  // without an effect: on the next page the path no longer matches.
+  const [navOpenAt, setNavOpenAt] = useState(null)
+  const navOpen = navOpenAt === location.pathname
+  const setNavOpen = (open) => setNavOpenAt(open ? location.pathname : null)
   // Staff in orgs that require a verified phone number are locked to verifying
   // it. The SIS host never runs PrivateRoute, so the check lives here too —
   // same hook, same backend answer, mirrored on both surfaces.
   const phoneGate = usePhoneVerificationGate(user, isAuthenticated)
 
-  // Close the drawer on navigation — otherwise it stays over the page you just
-  // opened. (Hooks run before the auth guards below, which is why they're here.)
-  useEffect(() => { setNavOpen(false) }, [location.pathname])
   // The org picker is chrome, mounted once here: a superadmin switches the
   // school in view from the header on every page. Twenty-eight pages used to
   // mount it in their own title row (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, L6).

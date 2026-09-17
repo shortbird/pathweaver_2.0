@@ -67,7 +67,7 @@ describe('the This Week tab on the SIS class page', () => {
     await screen.findByText('Explorers')
     expect(screen.queryByText('activity-tab')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'This Week' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'This Week' }))
     expect(await screen.findByText('activity-tab')).toBeInTheDocument()
     expect(activityProps).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: 'org-1', classId: 'c1', className: 'Explorers' }),

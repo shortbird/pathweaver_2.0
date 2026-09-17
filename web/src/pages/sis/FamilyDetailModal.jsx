@@ -19,6 +19,7 @@ import {
   useHouseholdBilling, useHouseholdContacts, useHouseholdRegistration, sisFamilyApi,
 } from '../../hooks/api/useSisFamilyDetail'
 import { queryKeys } from '../../utils/queryKeys'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
@@ -234,13 +235,12 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved }) => {
           </div>
         </div>
 
-        <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {familyTabsFor(user).map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}>
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 pt-3 pb-1">
+          <GlassTabBar
+            align="start" aria-label="Family sections"
+            tabs={familyTabsFor(user).map((t) => ({ id: t.key, label: t.label }))}
+            active={tab} onSelect={setTab}
+          />
         </div>
 
         <div className="p-5 overflow-y-auto">

@@ -29,6 +29,8 @@ import StaffComposeModal from '../../components/sis/StaffComposeModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
+import { Spinner } from '../../components/ui/Spinner'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * SchoolInboxPage — messages and announcements in one place (/inbox).
@@ -365,11 +367,6 @@ const SchoolInboxPage = () => {
     resolveMutation.mutate({ conversationId: convo.id, resolved, source, userId: user?.id })
   }
 
-  const tabClass = (t) => `px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-    tab === t
-      ? 'bg-optio-purple text-white border-optio-purple'
-      : 'bg-white text-neutral-600 border-gray-300 hover:border-optio-purple'}`
-
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -389,19 +386,16 @@ const SchoolInboxPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {admin && (
-          <button type="button" onClick={() => setTab('school')} className={tabClass('school')}>
-            {orgName || 'School'}{tab === 'school' && totalUnread > 0 ? ` (${totalUnread})` : ''}
-          </button>
-        )}
-        <button type="button" onClick={() => setTab('mine')} className={tabClass('mine')}>
-          My messages{tab === 'mine' && totalUnread > 0 ? ` (${totalUnread})` : ''}
-        </button>
-        <button type="button" onClick={() => setTab('announcements')} className={tabClass('announcements')}>
-          Announcements
-        </button>
-      </div>
+      <GlassTabBar
+        align="start" size="md" className="mb-4" aria-label="Messaging sections"
+        tabs={[
+          ...(admin ? [{ id: 'school', label: orgName || 'School',
+            badge: tab === 'school' && totalUnread > 0 ? totalUnread : null }] : []),
+          { id: 'mine', label: 'My messages', badge: tab === 'mine' && totalUnread > 0 ? totalUnread : null },
+          { id: 'announcements', label: 'Announcements' },
+        ]}
+        active={tab} onSelect={setTab}
+      />
 
       <StaffComposeModal
         isOpen={staffCompose}
@@ -483,7 +477,7 @@ const SchoolInboxPage = () => {
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-40">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+                <Spinner />
               </div>
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 p-4 text-center">
@@ -571,7 +565,7 @@ const SchoolInboxPage = () => {
               <div ref={scrollerRef} className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 px-4 py-3">
                 {messagesLoading ? (
                   <div className="flex items-center justify-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+                    <Spinner />
                   </div>
                 ) : messages.length === 0 ? (
                   <p className="text-center text-sm text-neutral-400 py-8">

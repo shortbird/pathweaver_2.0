@@ -19,6 +19,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../../utils/queryKeys'
 import { ageFromDob, fitsAge, conflictsWith } from '../../utils/schedule'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * Tabbed per-student management modal.
@@ -117,18 +118,13 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           </div>
         </div>
 
-        <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
-                tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 pt-3 pb-1">
+          <GlassTabBar
+            align="start" aria-label="Student sections"
+            tabs={TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent)
+              .map((t) => ({ id: t.key, label: t.label }))}
+            active={tab} onSelect={setTab}
+          />
         </div>
 
         <div className="p-5 overflow-y-auto">

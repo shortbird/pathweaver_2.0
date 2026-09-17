@@ -329,7 +329,7 @@ describe('starting a piece of work', () => {
 describe('the tabs', () => {
   it('opens on requests by default', async () => {
     renderPage('/tasks')
-    expect(await screen.findByRole('button', { name: 'Requests' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Requests' })).toBeInTheDocument()
     await waitFor(() => expect(
       api.get.mock.calls.some(([u]) => u.includes('/api/sis/staff-admin/forms'))).toBe(true))
   })
@@ -366,7 +366,7 @@ describe('the tabs', () => {
     // tiles link to the live names, and no sent notification uses an old
     // one), so an unknown tab is simply the first tab.
     renderPage('/tasks?tab=paperwork')
-    expect(await screen.findByRole('button', { name: 'Requests' })).toHaveClass('border-optio-purple')
+    expect(await screen.findByRole('tab', { name: 'Requests' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
   })
 
@@ -397,8 +397,8 @@ describe('the documents tab', () => {
     authState.user = { id: 'kate', role: 'org_managed', org_roles: ['campus_coordinator'] }
     renderPage('/tasks?tab=documents')
     // The tab is gone and the deep link falls back to Requests.
-    expect(await screen.findByRole('button', { name: 'Requests' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Documents' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Requests' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Documents' })).not.toBeInTheDocument()
     expect(api.get.mock.calls.some(([u]) => u.includes('/api/sis/secure-documents?'))).toBe(false)
   })
 })

@@ -65,7 +65,7 @@ beforeEach(() => {
 describe('StudentDetailModal Schedule enroll', () => {
   it('posts a JSON-serializable body with force: false, not the click event', async () => {
     render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
 
     fireEvent.change(await screen.findByLabelText('class'), { target: { value: 'c1' } })
@@ -103,7 +103,7 @@ describe('StudentDetailModal class picker', () => {
       return Promise.resolve({ data: {} })
     })
     render(<StudentDetailModal student={{ ...student, ...studentProps }} orgId="org-1" onClose={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
     // The enrolled classes and the org's class list are two queries now, and
     // they settle independently -- wait for the picker itself, not the heading
@@ -132,7 +132,7 @@ describe('StudentDetailModal class picker', () => {
       return Promise.resolve({ data: {} })
     })
     render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }))
     await screen.findByText('Enroll in a class')
     await screen.findByLabelText('class')
     expect(optionNames()).toHaveLength(3)
@@ -159,7 +159,7 @@ describe('StudentDetailModal class picker', () => {
       return Promise.resolve({ data: {} })
     })
     render(<StudentDetailModal student={student} orgId="org-1" onClose={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Schedule' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Schedule' }))
     await screen.findByLabelText('class')
     fireEvent.click(screen.getByRole('button', { name: 'List' }))
     const listed = [...document.querySelectorAll('.font-medium.text-neutral-900')].map((el) => el.textContent)

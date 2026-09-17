@@ -15,6 +15,7 @@ import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTempl
 import { awaitingReviewOf } from './OnboardingPage'
 import { SecureDocumentsPanel } from './SecureDocumentsPage'
 import { isPathHidden } from './sisModules'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * Task Center — organized by direction, because that is how the office thinks:
@@ -200,26 +201,11 @@ const TaskCenterPage = () => {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-gray-200">
-        {TABS.map(([value, label]) => {
-          const n = counts[value]
-          return (
-            <button key={value} onClick={() => setTab(value)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === value
-                  ? 'border-optio-purple text-optio-purple'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
-              {label}
-              {n ? (
-                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                  tab === value ? 'bg-optio-purple/10 text-optio-purple' : 'bg-gray-100 text-neutral-600'}`}>
-                  {n}
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
+      <GlassTabBar
+        align="start" size="md" aria-label="Task Center sections"
+        tabs={TABS.map(([value, label]) => ({ id: value, label, badge: counts[value] || null }))}
+        active={tab} onSelect={setTab}
+      />
 
       {tab === 'requests' && (
         <div className="space-y-4">

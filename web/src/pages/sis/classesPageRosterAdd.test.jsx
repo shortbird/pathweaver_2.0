@@ -93,7 +93,7 @@ const openRoster = async () => {
   const cardToggle = screen.getByTitle('Card view')
   if (cardToggle.getAttribute('aria-pressed') !== 'true') fireEvent.click(cardToggle)
   fireEvent.click(await screen.findByText('Lego Robotics (Tue 1:00)'))
-  fireEvent.click(await screen.findByRole('button', { name: 'Roster' }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'Roster' }))
   return screen.findByText('Nora Candland')
 }
 

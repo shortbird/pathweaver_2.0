@@ -19,6 +19,7 @@ import parseCourseText from './priorLearning/parseCourseText'
 import courseTotal from './priorLearning/courseTotal'
 import creditsFromSuggestion from './priorLearning/creditsFromSuggestion'
 import StatusPill from '../../components/sis/ui/StatusPill'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 export { default as previewKindFor } from './priorLearning/previewKindFor'
 export { default as LOW_CONFIDENCE } from './priorLearning/LOW_CONFIDENCE'
 export { default as transcriptRows } from './priorLearning/transcriptRows'
@@ -274,17 +275,11 @@ const PriorLearningPage = () => {
                                 onFiled={afterFiling} />
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {STATUS_TABS.map(([key, label]) => (
-          <button key={key} type="button" onClick={() => setStatus(key)}
-                  className={`text-sm px-3 py-1.5 rounded-full border ${
-                    status === key
-                      ? 'border-optio-purple text-optio-purple bg-purple-50'
-                      : 'border-gray-300 text-gray-600'}`}>
-            {label}{counts[key] ? ` (${counts[key]})` : ''}
-          </button>
-        ))}
-      </div>
+      <GlassTabBar
+        align="start" aria-label="Prior learning queues"
+        tabs={STATUS_TABS.map(([id, label]) => ({ id, label, badge: counts[id] || null }))}
+        active={status} onSelect={setStatus}
+      />
 
       {loading && <p className="text-sm text-gray-500">Loading…</p>}
       {!loading && !records.length && (

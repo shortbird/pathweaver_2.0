@@ -10,6 +10,7 @@ import QuestAiDraftPanel from './QuestAiDraftPanel'
 import PresetTaskManager from './PresetTaskManager'
 import QuestResourcesPanel from './QuestResourcesPanel'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import GlassTabBar from '../ui/GlassTabBar'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -415,14 +416,12 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
       {/* Assign panel */}
       {mode && (
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex gap-1 border-b border-gray-200 mb-4">
-            {[['existing', 'Assign existing'], ['new', 'Create new']].map(([k, label]) => (
-              <button key={k} onClick={() => setMode(k)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                  mode === k ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 mb-4">
+            <GlassTabBar
+              align="start" aria-label="How to assign a quest"
+              tabs={[{ id: 'existing', label: 'Assign existing' }, { id: 'new', label: 'Create new' }]}
+              active={mode} onSelect={setMode}
+            />
             <button onClick={() => setMode(null)} className="ml-auto text-sm text-neutral-400 hover:text-neutral-700">Cancel</button>
           </div>
 

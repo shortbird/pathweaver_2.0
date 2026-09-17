@@ -35,7 +35,7 @@ and patterns instead.
 | M12 One today, one events feed, one event clock | 0 | shipped | see git log (`consolidate/M12-today-events`) | `events_read` 0, `today_schedule` 0, `event_wall_clock` 0, `audience_vocabulary` 0 |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
-| M14a/b Layout header, tab bars | 0 | M14a shipped (`consolidate/M14a-layout-header`); M14b pending | | `org_picker_header` 0 |
+| M14a/b Layout header, tab bars | 0 | shipped (`consolidate/M14a-layout-header`, `consolidate/M14b-glass-tab-bar`) | | `org_picker_header` 0, `tab_bar` 0 |
 | M5 One quote | 1 | not started | | |
 | M6 One invoice writer, checkout, verifier | 1 | not started | | |
 | M7 One household billing view, `formatCents` | 1 | not started | | |
@@ -615,6 +615,25 @@ for every page's actions, which is not less code. (b)
 `components/ui/GlassTabBar.jsx` for every SIS tab bar (`tabs`, `active`, `onChange`
 — the component already exists and is documented). Each is one PR; the manifest
 rows `org_picker_header` and `tab_bar` count down by page.
+
+(b) As shipped (2026-09-17): the twelve underline bars (Task Center, My Tasks, the
+teacher's class page, Classes, Community, Registration, the student and family modals,
+the class and course modals, the training add-panel doors, the class-quest assign
+panel), the inbox's pill bar and the prior-learning status chips are all
+`<GlassTabBar align="start" ...>`; `GlassTabBar` gained the `align` prop (the SIS
+reads left-aligned, the platform's rails are centred) and its `badge` carries the
+counts the old bars spelled inline. Tabs are `role="tab"`, so the eleven page tests
+that clicked them as buttons now ask for tabs, and "the active tab" is
+`aria-selected` rather than a border class. The `border-b-2` pattern also caught the
+hand-rolled loading spinner in six SIS files; those are `components/ui/Spinner`
+(`Spinner`, `PageLoader`) now, so the row reads zero honestly. Carried in the same
+branch: the peer session's `4b196423` (`useSisOrg()` in `SisLayout` moved above the
+auth guards -- M14a had called it after the early returns, and the hook count
+changing between the loading and loaded renders took every SIS page down locally),
+cherry-picked so both branches hold the identical change. With the hooks
+unconditional, eslint could finally analyse the layout and flagged the
+close-the-drawer-on-navigation effect (`setState` inside an effect); the drawer now
+remembers the path it opened on and is closed by the path changing, no effect.
 
 Verify: every SIS page keeps its title, org picker (superadmin) and tabs; deep links
 with `?tab=` still select the tab.

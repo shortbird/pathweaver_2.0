@@ -122,7 +122,7 @@ describe('building a quest on the page', () => {
     render(<StaffTrainingPage />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
-    expect(await screen.findByRole('button', { name: 'Build a new one' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Build a new one' })).toBeInTheDocument()
   })
 
   it('builds the quest and sets it for the audience in one step', async () => {
@@ -130,7 +130,7 @@ describe('building a quest on the page', () => {
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Build a new one' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
 
     fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Back to school night' } })
     fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Come and meet us' } })
@@ -146,7 +146,7 @@ describe('building a quest on the page', () => {
     render(<StaffTrainingPage />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Build a new one' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
 
     fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Classroom basics' } })
     fireEvent.change(screen.getByPlaceholderText('Task 1 — what should they do?'), { target: { value: 'Watch the intro video' } })
@@ -165,7 +165,7 @@ describe('building a quest on the page', () => {
     render(<StaffTrainingPage />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Build a new one' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
     expect(screen.getByRole('button', { name: 'Build and add' })).toBeDisabled()
   })
 })

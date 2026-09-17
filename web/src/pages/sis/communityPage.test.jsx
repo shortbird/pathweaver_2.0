@@ -106,7 +106,7 @@ describe('CommunityPage', () => {
 
   it('switches to the Announcements tab and shows the post button for admins', async () => {
     render(<CommunityPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Announcements' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Announcements' }))
     expect(await screen.findByText('Post announcement')).toBeInTheDocument()
     // Announcement content loads
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(expect.stringContaining('/api/sis/community/announcements')))
@@ -114,7 +114,7 @@ describe('CommunityPage', () => {
 
   it('creates an announcement via the form', async () => {
     render(<CommunityPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Announcements' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Announcements' }))
     fireEvent.click(await screen.findByText('Post announcement'))
     fireEvent.change(screen.getByPlaceholderText('Early dismissal Friday'), { target: { value: 'Snow day' } })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))
@@ -126,14 +126,14 @@ describe('CommunityPage', () => {
 
   it('shows the donation countdown on a lost & found item', async () => {
     render(<CommunityPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Lost & Found' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Lost & Found' }))
     expect(await screen.findByText('Blue bottle')).toBeInTheDocument()
     expect(screen.getByText(/Donate in 7 days/)).toBeInTheDocument()
   })
 
   it('posts a recognition', async () => {
     render(<CommunityPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Recognition' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Recognition' }))
     fireEvent.click(await screen.findByText('Post recognition'))
     fireEvent.change(screen.getByPlaceholderText('What are you celebrating?'), { target: { value: 'You rock' } })
     fireEvent.click(screen.getByRole('button', { name: 'Post' }))

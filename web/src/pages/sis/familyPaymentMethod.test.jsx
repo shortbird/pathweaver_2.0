@@ -130,7 +130,7 @@ describe('Family record — funding source and payment plan', () => {
 
   it('shows the answer the family gave at registration beside the staff field', async () => {
     open(FORD)
-    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
     expect(await screen.findByText(/answered at registration/i)).toBeInTheDocument()
     expect(screen.getByText('Utah Fits All')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Not set')).toBeInTheDocument()
@@ -138,7 +138,7 @@ describe('Family record — funding source and payment plan', () => {
 
   it('sets the funding source from that answer in one click', async () => {
     open(FORD)
-    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
     fireEvent.click(await screen.findByRole('button', { name: /Set funding source to UFA/ }))
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
       '/api/sis/households/h1',
@@ -147,14 +147,14 @@ describe('Family record — funding source and payment plan', () => {
 
   it('does not offer the shortcut once the funding source already matches', async () => {
     open({ ...FORD, funding_source: 'ufa' })
-    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
     await screen.findByText(/answered at registration/i)
     expect(screen.queryByRole('button', { name: /Set funding source/ })).not.toBeInTheDocument()
   })
 
   it('records that a family is paying monthly', async () => {
     open(FORD)
-    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
     fireEvent.change(await screen.findByDisplayValue('Not recorded'),
       { target: { value: 'monthly' } })
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith(

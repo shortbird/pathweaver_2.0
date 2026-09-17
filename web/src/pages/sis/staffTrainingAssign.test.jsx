@@ -154,7 +154,7 @@ describe('previewing the quest before committing to it', () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /build a new one/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
 
   it('shows the draft the way the people doing it will meet it', async () => {
@@ -237,7 +237,7 @@ describe('the header image', () => {
   const openBuilder = async () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /build a new one/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
 
   const choose = async () => {
@@ -304,7 +304,7 @@ describe('saving a quest as a draft', () => {
   const openBuilder = async () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /build a new one/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
 
   it('builds it without putting it on anybody', async () => {
@@ -562,7 +562,7 @@ describe('building a training quest', () => {
   const openBuilder = async () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /build a new one/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
 
   it('offers the document upload, so a handbook does not have to be retyped', async () => {

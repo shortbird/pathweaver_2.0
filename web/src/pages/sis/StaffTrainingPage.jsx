@@ -21,6 +21,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   progressLabel, xpLabel, xpStyle, progressStyle, words, assignedMessage,
 } from './trainingCopy'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * StaffTrainingPage — the quests a school sets, built out of ordinary quests.
@@ -272,15 +273,13 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
               ? 'A student quest is an ordinary quest, set by the school rather than chosen. Attach one you already have, or build it here.'
               : 'Training is a quest or a link. Attach a quest you already have, build one here, or link to a video or document.'}
       </p>
-      <div className={`flex gap-1 flex-wrap border-b border-gray-200 ${editItem ? 'hidden' : ''}`}>
-        {doors.map(([k, label]) => (
-          <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === k ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {!editItem && (
+        <GlassTabBar
+          align="start" aria-label="How to add training"
+          tabs={doors.map(([id, label]) => ({ id, label }))}
+          active={tab} onSelect={setTab}
+        />
+      )}
     </>
   )
 

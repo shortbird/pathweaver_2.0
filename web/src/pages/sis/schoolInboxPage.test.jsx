@@ -209,7 +209,7 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('offers no New message button to a teacher — the shared inbox is the office\'s', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />)
-    await screen.findByRole('button', { name: /^My messages/ })
+    await screen.findByRole('tab', { name: /^My messages/ })
     expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
   })
 
@@ -219,7 +219,7 @@ describe('SchoolInboxPage — combined inbox', () => {
     // With the org it is for -- not null -- or the list never loads.
     expect(await screen.findByText('composer-stub org-1')).toBeInTheDocument()
     // And the tabs switch back to threads.
-    fireEvent.click(screen.getByRole('button', { name: /^My messages/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /^My messages/ }))
     expect(screen.queryByText(/composer-stub/)).not.toBeInTheDocument()
   })
 
@@ -235,8 +235,8 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('offers an admin both the school inbox and their own threads', async () => {
     authUser = { id: 'me-1', role: 'org_admin' }
     render(<SchoolInboxPage />)
-    expect(await screen.findByRole('button', { name: /^Hearthwood/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^My messages/ })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /^Hearthwood/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^My messages/ })).toBeInTheDocument()
   })
 
   it('opens an admin on the school queue, which is the one they work', async () => {
@@ -306,8 +306,8 @@ describe('SchoolInboxPage — combined inbox', () => {
   it('gives a teacher no school tab — they have no school inbox to read', async () => {
     authUser = { id: 'me-1', role: 'advisor' }
     render(<SchoolInboxPage />)
-    await screen.findByRole('button', { name: /^My messages/ })
-    expect(screen.queryByRole('button', { name: /^Hearthwood/ })).not.toBeInTheDocument()
+    await screen.findByRole('tab', { name: /^My messages/ })
+    expect(screen.queryByRole('tab', { name: /^Hearthwood/ })).not.toBeInTheDocument()
   })
 
   // OPTIO-WEB-3 / OPTIO-BACKEND-8T: 45 staff in two weeks. A thread open on the
@@ -328,7 +328,7 @@ describe('SchoolInboxPage — combined inbox', () => {
       expect(api.get).toHaveBeenCalledWith('/api/school-inbox/conversations/c-school')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /^My messages/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /^My messages/ }))
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith('/api/messages/conversations')
     })

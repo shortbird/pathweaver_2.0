@@ -10,6 +10,7 @@ import { MyDocumentsPanel } from './MyDocumentsPage'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import StatusPill from '../../components/sis/ui/StatusPill'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * My Tasks — everything the school is currently asking this person to do,
@@ -307,17 +308,11 @@ const MyTasksPage = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-2 border-b border-gray-200">
-        {[['tasks', 'My tasks'], ['documents', 'My documents']].map(([value, label]) => (
-          <button key={value} onClick={() => setTab(value)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === value
-                ? 'border-optio-purple text-optio-purple'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <GlassTabBar
+        align="start" size="md" aria-label="My Tasks sections"
+        tabs={[{ id: 'tasks', label: 'My tasks' }, { id: 'documents', label: 'My documents' }]}
+        active={tab} onSelect={setTab}
+      />
 
       {tab === 'documents' && <MyDocumentsPanel orgId={orgId} preview={preview} />}
 
