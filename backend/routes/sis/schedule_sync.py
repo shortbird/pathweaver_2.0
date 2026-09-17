@@ -16,7 +16,8 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
-from routes.sis import _org_or_error, ADMIN_ROLES
+from routes.sis import ADMIN_ROLES
+from services import sis_service
 from database import get_supabase_admin_client
 
 logger = get_logger(__name__)
@@ -35,7 +36,7 @@ def _stored_sheet_url(org_id):
 @bp.route('/config', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def config(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _, _, sheet_url = _stored_sheet_url(org_id)
@@ -46,7 +47,7 @@ def config(user_id):
 @require_role(*ADMIN_ROLES)
 @rate_limit(max_requests=15, window_seconds=300)
 def propose(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 

@@ -238,7 +238,7 @@ api.interceptors.response.use(
     }
 
     // The school requires a signature before this family may use the platform
-    // (backend/middleware/signature_gate.py). The router gate catches this on
+    // (backend/middleware/api_hold_gate.py). The router gate catches this on
     // navigation; this catches the case where the hold ARRIVES mid-session —
     // otherwise the family sits in an app whose every call has quietly started
     // failing, with nothing telling them why.
@@ -252,7 +252,7 @@ api.interceptors.response.use(
     }
 
     // Same shape for the phone-verification hold
-    // (backend/middleware/phone_verification_gate.py). Both surfaces route
+    // (backend/middleware/api_hold_gate.py). Both surfaces route
     // /verify-phone, so the assign stays on whichever host the 403 hit.
     if (error.response?.status === 403
         && error.response?.data?.code === 'phone_verification_required') {

@@ -5,6 +5,7 @@ import api from '../../services/api'
 import ChecklistSignature from './ChecklistSignature'
 import { itemDocuments } from '../../pages/sis/checklistDocuments'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import StatusPill from './ui/StatusPill'
 
 /**
  * A guardian's checklists: the items the school assigned to the family, each
@@ -26,12 +27,6 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * added another meanwhile).
  */
 
-const ITEM_BADGE = {
-  pending: 'bg-gray-100 text-gray-600',
-  complete: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
 
 export default function ChecklistAssignments({ orgId, assignments, onChanged }) {
   const confirm = useConfirm()
@@ -128,9 +123,7 @@ export default function ChecklistAssignments({ orgId, assignments, onChanged }) 
                       </span>
                       {!item.required && <span className="text-xs text-gray-400">optional</span>}
                       {item.due_date && <span className="text-xs text-gray-400">due {item.due_date}</span>}
-                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${ITEM_BADGE[item.status] || ITEM_BADGE.pending}`}>
-                        {item.status || 'pending'}
-                      </span>
+                      <StatusPill domain="checklist_item" status={item.status} fallback="pending" />
                     </div>
                     {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
                     {item.admin_notes && <p className="text-sm text-amber-700 mt-0.5">Note: {item.admin_notes}</p>}

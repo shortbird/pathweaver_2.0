@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
+import { withOrg } from './useSisOrg'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { useConfirm } from '../../contexts/ConfirmContext'
 
@@ -761,29 +760,6 @@ export const SecureDocumentsPanel = ({ orgId }) => {
   )
 }
 
-const SecureDocumentsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Secure documents</h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            A private, admin-only store for sensitive files — contracts, background checks,
-            custody and medical documents. Files are encrypted at rest and opened through
-            short-lived links.
-          </p>
-        </div>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
-      </div>
-
-      {!orgId && (
-        <p className="text-neutral-500">Select an organization to manage its secure documents.</p>
-      )}
-
-      {orgId && <SecureDocumentsPanel orgId={orgId} />}
-    </div>
-  )
-}
-
-export default SecureDocumentsPage
+// The page shell that used to sit at /secure-documents is gone (M10): the
+// panel above is the Task Center's Documents tab, and that route redirects
+// there. Nothing else mounted it.

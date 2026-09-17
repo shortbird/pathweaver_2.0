@@ -19,18 +19,8 @@ import today from './billingPage/today'
 import METHOD_LABEL from './billingPage/METHOD_LABEL'
 import payLabel from './billingPage/payLabel'
 import payAmountCls from './billingPage/payAmountCls'
-const KIND_LABEL = {
-  tuition: 'Tuition', supply: 'Supplies', registration: 'Registration',
-  fee: 'Fee', other: 'Other', unclassified: 'Unclassified',
-}
-const KIND_PILL = {
-  tuition: 'bg-indigo-100 text-indigo-700',
-  supply: 'bg-teal-100 text-teal-700',
-  registration: 'bg-amber-100 text-amber-700',
-  fee: 'bg-neutral-100 text-neutral-600',
-  other: 'bg-neutral-100 text-neutral-600',
-  unclassified: 'bg-neutral-100 text-neutral-500',
-}
+import StatusPill from '../../components/sis/ui/StatusPill'
+import { statusLabel } from '../../components/sis/ui/statusMaps'
 
 // Build the last 12 months (YYYY-MM) plus an "All open" option.
 const monthOptions = () => {
@@ -89,7 +79,7 @@ const outstandingText = (row) => [
 
 const detailRowText = (r) => [
   r.family_name, r.student_name, r.invoice_number, r.description,
-  KIND_LABEL[r.kind] || r.kind, money(r.amount_cents), money(r.invoice_balance_cents),
+  statusLabel('invoice_kind', r.kind), money(r.amount_cents), money(r.invoice_balance_cents),
 ]
 
 const paymentText = (p) => [
@@ -608,9 +598,7 @@ const BillingPage = () => {
                         <td className="px-4 py-2 text-neutral-500 whitespace-nowrap">{r.invoice_number || '—'}</td>
                         <td className="px-4 py-2 text-neutral-600">{r.description || '—'}</td>
                         <td className="px-4 py-2">
-                          <span className={`text-xs rounded-full px-2 py-0.5 ${KIND_PILL[r.kind] || KIND_PILL.unclassified}`}>
-                            {KIND_LABEL[r.kind] || r.kind}
-                          </span>
+                          <StatusPill domain="invoice_kind" status={r.kind} fallback="unclassified" />
                         </td>
                         <td className="px-4 py-2 text-right font-medium">{money(r.amount_cents)}</td>
                         <td className="px-4 py-2 text-right text-neutral-500">{money(r.invoice_balance_cents)}</td>

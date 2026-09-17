@@ -18,6 +18,7 @@ import transcriptRows from './priorLearning/transcriptRows'
 import parseCourseText from './priorLearning/parseCourseText'
 import courseTotal from './priorLearning/courseTotal'
 import creditsFromSuggestion from './priorLearning/creditsFromSuggestion'
+import StatusPill from '../../components/sis/ui/StatusPill'
 export { default as previewKindFor } from './priorLearning/previewKindFor'
 export { default as LOW_CONFIDENCE } from './priorLearning/LOW_CONFIDENCE'
 export { default as transcriptRows } from './priorLearning/transcriptRows'
@@ -68,12 +69,6 @@ const STATUS_TABS = [
   ['rejected', 'Not accepted'],
 ]
 
-const STATUS_STYLES = {
-  submitted: 'bg-blue-100 text-blue-700',
-  under_review: 'bg-amber-100 text-amber-800',
-  accepted: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
 
 const dateRange = (record) => (
   [record.started_on, record.ended_on].filter(Boolean).join(' – ') || null
@@ -303,9 +298,7 @@ const PriorLearningPage = () => {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="font-semibold text-gray-900">{record.title}</h2>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[record.status]}`}>
-                    {record.status.replace('_', ' ')}
-                  </span>
+                  <StatusPill domain="prior_learning" status={record.status} />
                   {/* Accepted-and-awarded but not yet transcribed reads as
                       "done" from the status alone, and it is the state where
                       the credit exists but the student has none of it. */}

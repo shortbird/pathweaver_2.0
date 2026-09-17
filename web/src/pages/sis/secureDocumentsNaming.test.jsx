@@ -28,7 +28,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import SecureDocumentsPage from './SecureDocumentsPage'
+import { SecureDocumentsPanel } from './SecureDocumentsPage'
 
 const ROSTER = [
   { student_id: 'staff-1', name: 'Jane Doe', is_student: false, role: 'Teacher' },
@@ -63,7 +63,7 @@ beforeEach(() => {
 })
 
 const show = async () => {
-  render(<SecureDocumentsPage />)
+  render(<SecureDocumentsPanel orgId="org-1" />)
   await screen.findByText('Lee - Background check')
 }
 

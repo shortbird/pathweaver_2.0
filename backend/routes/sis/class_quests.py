@@ -60,7 +60,6 @@ from services.class_quest_enrollment import (
     enroll_class_in_quests,
     enroll_safe,
     is_published,
-    publish_due_class_quests,
     withdraw_students_from_quest,
 )
 from repositories.class_quest_audience_repository import ClassQuestAudienceRepository
@@ -72,8 +71,6 @@ from datetime import datetime
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_class_quests', __name__, url_prefix='/api/sis')
-
-
 
 
 def _bad_uuid(*values):
@@ -203,7 +200,6 @@ def _student_ids_or_error(data, roster_ids):
         return None, (jsonify({'success': False, 'error': 'Invalid student id'}), 400)
     on_roster = set(roster_ids)
     return [sid for sid in dict.fromkeys(raw) if sid in on_roster], None
-
 
 
 def _front_office_call(user_id, class_row):
@@ -1180,34 +1176,3 @@ def _is_done(user_quest, done, total):
     Read the docstring there — it carries the postmortem.
     """
     return is_quest_done(user_quest, done, total)
-
-
-@bp.route('/internal/publish-class-quests', methods=['POST'])
-def publish_class_quests_sweep():
-    """Cron entrypoint: enroll students in class quests whose publish time passed.
-
-    Assigning a quest enrolls the class, but a quest scheduled for LATER
-    deliberately doesn't -- so this is what enrolls it when its time arrives.
-    Without it a scheduled quest would never reach anyone, now that the
-    dashboard's separate "assigned to you" tray is gone.
-
-    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering --
-    mirrors /api/sis/internal/engagement-sweep exactly. Idempotent, so running it
-    every cycle is safe.
-    """
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    if not is_valid_cron_secret(secret):
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: superadmin check for the manual trigger of a cron-only sweep; the role lookup IS the access check
-            row = (get_supabase_admin_client().table('users').select('role')
-                   .eq('id', uid).limit(1).execute()).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    # admin client justified: publishes due class quests across the org on a
-    #   schedule, with no caller session
-    return jsonify({'success': True, **publish_due_class_quests(get_supabase_admin_client())})

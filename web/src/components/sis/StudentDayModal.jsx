@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import api from '../../services/api'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { range12h } from '../../utils/timeFormat'
+import StatusPill from './ui/StatusPill'
 
 /**
  * One student's whole day: every class they meet on a date and the status the
@@ -15,13 +16,6 @@ import { range12h } from '../../utils/timeFormat'
  *
  * Backed by GET /api/sis/students/:id/attendance/day?date= (ADMIN_ROLES).
  */
-
-const STATUS_PILL = {
-  present: 'bg-green-100 text-green-700',
-  absent: 'bg-red-100 text-red-700',
-  late: 'bg-amber-100 text-amber-700',
-  excused: 'bg-blue-100 text-blue-700',
-}
 
 // "Roll not taken" is deliberately not styled as a status: nobody has looked
 // yet, which is a different fact from any of the four statuses.
@@ -112,11 +106,9 @@ const StudentDayModal = ({ studentId, studentName, date, orgId, onClose, onOpenR
                         )}
                       </span>
                     </span>
-                    <span className={`text-[11px] font-semibold capitalize rounded-full px-2 py-0.5 shrink-0 ${
-                      STATUS_PILL[c.status] || NOT_TAKEN
-                    }`}>
-                      {c.status || 'Roll not taken'}
-                    </span>
+                    {c.status
+                      ? <StatusPill domain="attendance" status={c.status} />
+                      : <span className={`text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0 ${NOT_TAKEN}`}>Roll not taken</span>}
                     {onOpenRoster && (
                       <button type="button"
                         onClick={() => { onOpenRoster(c.class_id, day.date); onClose() }}

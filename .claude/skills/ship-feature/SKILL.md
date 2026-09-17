@@ -26,6 +26,18 @@ guide roles, an upload cap, role resolution, the subject vocabulary — and four
 were live or one migration from live. If your change encodes a rule both apps
 need, put it in `shared/` and add a conformance test per surface.
 
+**Then grep `shared/sisConcepts.json` for the noun you are about to build**
+(invoice, hold, feed, training, schedule, contact, settings, export, picker).
+The SIS console was built in eleven one-day rounds, and each round added a
+feature next to the one that already did most of the job — seven Stripe
+checkout sites, twenty-seven copies of one org helper, two training systems
+three days apart. The manifest names every such concept, its owner, and the
+pattern a copy would match; a test per surface holds the count. If the concept
+has an owner, extend the owner. If it does not, add a row naming the new owner
+in the same PR — a row is how a concept is declared, and the reviewer sees the
+declaration. The failing test prints the row's `use_instead` sentence, which is
+the same answer, later.
+
 ## 2. Verify the schema before you write the query
 
 Table and column names here have changed more than once, and 33 calls in the

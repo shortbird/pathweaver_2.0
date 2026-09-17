@@ -5,6 +5,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import StatusPill from '../../components/sis/ui/StatusPill'
 
 /**
  * MyTimePage — the hourly teacher's time clock: clock in/out, review the
@@ -21,12 +22,6 @@ const defaultPeriod = () => {
   return { start: iso(start), end: iso(now) }
 }
 
-const STATUS_STYLES = {
-  open: 'bg-amber-100 text-amber-800',
-  submitted: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
 
 const MyTimePage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -153,9 +148,7 @@ const MyTimePage = () => {
                   <td className="py-2 pr-4 font-medium">{e.hours}</td>
                   <td className="py-2 pr-4 text-neutral-500">{e.job_label || '—'}</td>
                   <td className="py-2 pr-4">
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[e.status] || ''}`}>
-                      {e.status}
-                    </span>
+                    <StatusPill domain="timesheet" status={e.status} />
                     {e.edit_reason && <span className="text-xs text-neutral-400 ml-2" title={e.edit_reason}>edited</span>}
                   </td>
                 </tr>

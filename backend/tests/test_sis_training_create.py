@@ -48,7 +48,7 @@ def _create(body, tables=None):
     from flask import Flask
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch('services.image_service.search_quest_image', return_value=None), \
          app.test_request_context(json=body):
         fn = getattr(training.create_training_quest, '__wrapped__', training.create_training_quest)

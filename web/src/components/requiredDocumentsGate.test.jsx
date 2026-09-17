@@ -10,7 +10,7 @@ import { clearRegistrationGate } from '../hooks/useRegistrationGate'
  *
  * iCreate, 2026-08-18: a school assigns a document to a family and blocks their
  * platform access until it is signed. The API enforces it
- * (backend/middleware/signature_gate.py); this is the part that puts the family
+ * (backend/middleware/api_hold_gate.py); this is the part that puts the family
  * on the signing page instead of leaving them to discover a 403 behind every
  * link.
  *

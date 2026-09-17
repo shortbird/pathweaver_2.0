@@ -19,22 +19,18 @@ from utils.auth.decorators import require_auth
 from utils.logger import get_logger
 from services import sis_parent_service as parent
 from services import sis_prior_learning_service as prior
+from services import sis_service
 
 logger = get_logger(__name__)
 
 bp = Blueprint('sis_parent_prior_learning', __name__, url_prefix='/api/sis/parent')
 
 
-def _org(req):
-    body = req.get_json(silent=True) or {}
-    return req.args.get('organization_id') or body.get('organization_id')
-
-
 def _guard(user_id, student_id=None):
     """(org_id, students, error_response). One place for the three checks every
     endpoint below shares: an org was named, it has the feature on, and the
     caller is a guardian in it (of this student, when one is named)."""
-    org_id = _org(request)
+    org_id = sis_service.requested_org_id()
     if not org_id:
         return None, None, (jsonify({'success': False,
                                      'error': 'organization_id is required'}), 400)

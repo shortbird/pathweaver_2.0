@@ -131,6 +131,7 @@ These authorize per-record rather than per-role, which is usually stricter:
 | `parent.py`, `parent_forms.py`, `parent_prior_learning.py` | The family relationship, checked inside `sis_parent_service`. |
 | `school.py`, `signature_request_views.py` | Membership, or a signed token. |
 | `pay.py` | A token in the URL — no session at all. |
+| `internal.py` | The seven cron sweeps: the `X-Cron-Secret` header, or a signed-in superadmin triggering one by hand. Not org-scoped — a sweep covers every org and the service filters per org. |
 
 ## Parents
 

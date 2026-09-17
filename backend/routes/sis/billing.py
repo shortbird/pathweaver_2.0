@@ -21,23 +21,11 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_billing', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 # ── Discount rules ───────────────────────────────────────────────────────────
 @bp.route('/discount-rules', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def list_rules(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'rules': billing.list_discount_rules(org_id)})
@@ -46,7 +34,7 @@ def list_rules(user_id):
 @bp.route('/discount-rules', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def create_rule(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -60,7 +48,7 @@ def create_rule(user_id):
 @bp.route('/discount-rules/<rule_id>', methods=['PATCH'])
 @require_role(*FINANCE_ROLES)
 def update_rule(user_id, rule_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     rule = billing.update_discount_rule(org_id, rule_id, request.json or {})
@@ -72,7 +60,7 @@ def update_rule(user_id, rule_id):
 @bp.route('/discount-rules/<rule_id>', methods=['DELETE'])
 @require_role(*FINANCE_ROLES)
 def delete_rule(user_id, rule_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     billing.delete_discount_rule(org_id, rule_id)
@@ -83,7 +71,7 @@ def delete_rule(user_id, rule_id):
 @bp.route('/registrations/<reg_id>/quote', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def quote(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = billing.quote_for_registration(
@@ -98,7 +86,7 @@ def quote(user_id, reg_id):
 @bp.route('/registrations/<reg_id>/invoice', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def create_invoice(user_id, reg_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -115,7 +103,7 @@ def create_invoice(user_id, reg_id):
 @bp.route('/invoices', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def list_invoices(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'invoices': billing.list_invoices(
@@ -126,7 +114,7 @@ def list_invoices(user_id):
 @bp.route('/invoices/<invoice_id>', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def get_invoice(user_id, invoice_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     inv = billing.get_invoice(org_id, invoice_id)
@@ -140,7 +128,7 @@ def get_invoice(user_id, invoice_id):
 def invoice_document(user_id, invoice_id):
     """Branded, itemized invoice payload for print/PDF (org identity, number,
     family, line items, discount, processing fee, funding source, amount due)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = billing.invoice_document(org_id, invoice_id)
@@ -162,7 +150,7 @@ def update_invoice(user_id, invoice_id):
     The card processing fee is one of the line items (kind 'fee', description
     'Card processing fee'), so it is edited and waived like any other line.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -188,7 +176,7 @@ def void_invoice(user_id, invoice_id):
     """Cancel an invoice. It stays on the record and drops off the family portal,
     the outstanding report and the reminder sweep. Refused once a payment has
     been recorded — that is an edit or a refund, not a void."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = billing.void_invoice(org_id, invoice_id, actor_user_id=user_id,
@@ -210,7 +198,7 @@ def billing_detail(user_id):
     honoured on the CSV only: the download has to be of what the office is
     looking at, not of rows the screen filtered out.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     report = billing.billing_detail(
@@ -255,7 +243,7 @@ def billing_detail(user_id):
 @require_role(*FINANCE_ROLES)
 def invoice_audit(user_id, invoice_id):
     """The audit trail for one invoice (who marked paid / overrode a fee / edited)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'audit': billing.invoice_audit(org_id, invoice_id)})
@@ -268,7 +256,7 @@ def set_processing_fee(user_id, invoice_id):
 
     Writes the fee LINE on the invoice, so the family's copy shows what changed.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -289,7 +277,7 @@ def create_charge(user_id):
     Body: {household_id?, student_user_id?, description, amount_cents, due_date?,
     kind?}. At least one of household_id/student_user_id is required; `kind`
     classifies the charge for the reconciliation report."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -314,7 +302,7 @@ def create_charge(user_id):
 def billing_ledger(user_id):
     """Charges ledger for the staff table. Optional ?month=YYYY-MM filters by
     due_date; omitted returns all non-void, non-draft invoices."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -325,7 +313,7 @@ def billing_ledger(user_id):
 @bp.route('/invoices/<invoice_id>/payment-plan', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def create_plan(user_id, invoice_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -345,7 +333,7 @@ def create_plan(user_id, invoice_id):
 @bp.route('/invoices/<invoice_id>/payments', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def record_payment(user_id, invoice_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -373,7 +361,7 @@ def record_refund(user_id, invoice_id):
     the balance — if the family no longer owes it, the invoice also needs an
     edit or a void.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -400,7 +388,7 @@ def correct_payment(user_id, payment_id):
     ignored rather than rejected, so a client sending the whole row back cannot
     smuggle a new amount past this.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = billing.update_payment_record(
@@ -414,7 +402,7 @@ def correct_payment(user_id, payment_id):
 @bp.route('/billing/apply-late-fees', methods=['POST'])
 @require_role(*FINANCE_ROLES)
 def apply_late_fees(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -427,7 +415,7 @@ def apply_late_fees(user_id):
 @bp.route('/households/<household_id>/billing', methods=['GET'])
 @require_role(*FINANCE_ROLES)
 def household_billing(user_id, household_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **billing.household_billing(org_id, household_id)})
@@ -439,7 +427,7 @@ def household_billing(user_id, household_id):
 def outstanding_report(user_id):
     """Org-scoped outstanding/overdue invoice report: family name, amount due,
     days overdue, and unpaid installments."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'outstanding': billing.outstanding_invoices(org_id)})
@@ -450,101 +438,7 @@ def outstanding_report(user_id):
 def run_reminders(user_id):
     """Manual admin trigger: email guardians of past-due invoices in this org.
     Same logic as the cron sweep, scoped to the caller's organization."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **billing.run_payment_reminders(org_id=org_id)})
-
-
-@bp.route('/internal/billing-reminders', methods=['POST'])
-def billing_reminders_cron():
-    """Cron entrypoint: payment-reminder sweep across ALL orgs.
-    Auth via X-Cron-Secret, or a signed-in superadmin for manual triggering
-    (mirrors /api/sis/internal/attendance-sweep)."""
-    from database import get_supabase_admin_client
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    is_cron = is_valid_cron_secret(secret)
-    if not is_cron:
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: resolves the CALLER's own role to make the access
-            #   decision; under RLS the row the check depends on may be invisible, so the
-            #   check could not run
-            row = (
-                get_supabase_admin_client().table('users').select('role')
-                .eq('id', uid).limit(1).execute()
-            ).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    # The online-payment sweep rides on this daily run rather than getting a
-    # cron entry of its own: a new schedule means new Render config, and a
-    # half-applied cron change already took every job down for two days
-    # (CRON_SECRET, July 2026). It runs first so a payment made yesterday is
-    # recorded before we consider nagging that family about it.
-    swept = billing.sweep_online_payments()
-    return jsonify({'success': True, 'payment_sweep': swept,
-                    **billing.run_payment_reminders()})
-
-
-@bp.route('/internal/tuition-autopay', methods=['POST'])
-def tuition_autopay_cron():
-    """Cron entrypoint: charge every due auto-charge installment across ALL orgs
-    (saved-card payment plans). Auth via X-Cron-Secret, or a signed-in superadmin
-    for manual triggering (mirrors /api/sis/internal/billing-reminders)."""
-    from database import get_supabase_admin_client
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    is_cron = is_valid_cron_secret(secret)
-    if not is_cron:
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: resolves the CALLER's own role to make the access
-            #   decision; under RLS the row the check depends on may be invisible, so the
-            #   check could not run
-            row = (
-                get_supabase_admin_client().table('users').select('role')
-                .eq('id', uid).limit(1).execute()
-            ).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    return jsonify({'success': True, **billing.charge_due_installments()})
-
-
-@bp.route('/internal/recurring-tuition', methods=['POST'])
-def recurring_tuition_cron():
-    """Cron entrypoint: bill every household whose open-ended monthly tuition
-    falls due today, across ALL orgs. One invoice and one charge per household,
-    with a line per student.
-
-    Same auth as the autopay sweep: X-Cron-Secret, or a signed-in superadmin for
-    manual triggering. Idempotent within a day — a billed row's next_charge_on
-    has already moved to next month, so a re-run finds nothing due.
-    """
-    from database import get_supabase_admin_client
-    from services import sis_recurring_tuition_service as recurring
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    is_cron = is_valid_cron_secret(secret)
-    if not is_cron:
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: resolves the CALLER's own role to make the access
-            #   decision; under RLS the row the check depends on may be invisible, so the
-            #   check could not run
-            row = (
-                get_supabase_admin_client().table('users').select('role')
-                .eq('id', uid).limit(1).execute()
-            ).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    return jsonify({'success': True, **recurring.charge_due()})

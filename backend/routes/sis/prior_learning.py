@@ -32,31 +32,11 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_prior_learning', __name__, url_prefix='/api/sis/prior-learning')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form too: a file upload is multipart, so its organization_id (the
-    # one a superadmin has to pass) is not in a JSON body.
-    requested = (request.args.get('organization_id') or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    if not prior.enabled_for_org(org_id):
-        return None, (jsonify({
-            'success': False,
-            'error': 'Prior learning records are not enabled for this school'
-        }), 403)
-    return org_id, None
-
-
 @bp.route('', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_records(user_id):
     """The review queue. ?status= filters; drafts are never listed."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     status = request.args.get('status') or None
@@ -89,7 +69,7 @@ def list_students(user_id):
     every tab change, and the roster it would carry is only ever read when
     somebody opens the upload form.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'students': prior.student_options(org_id)})
@@ -109,7 +89,7 @@ def create_record(user_id):
     the queue immediately and runs through the same analyze/accept/transcribe
     steps as anything a family sent.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -134,7 +114,7 @@ def add_evidence(user_id, record_id):
     Works on a record at any status, unlike the family's own upload: the office
     adds paperwork during review, which is exactly when the family side locks.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -161,7 +141,7 @@ def get_record(user_id, record_id):
     """One record, with its evidence and what this student has already been
     granted — a reviewer awarding 1.0 math needs to know about the 1.0 math
     another record already carried."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     record = prior.get_record(record_id, org_id)
@@ -183,7 +163,7 @@ def get_record(user_id, record_id):
 def review_record(user_id, record_id):
     """Move a record through review. Accepting carries the credit award with it:
     {status: 'accepted', awarded_credits: {math: 1.0}, review_notes: '...'}"""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -207,7 +187,7 @@ def delete_evidence(user_id, record_id, evidence_id):
     own delete this is not gated on the record still being editable, because
     the documents worth removing are the ones found during review.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = prior.staff_delete_evidence(evidence_id, record_id, org_id)
@@ -235,7 +215,7 @@ def analyze_record(user_id, record_id):
     against every locked file. They are used for this one call — never written
     to the record, never logged, and not echoed back in the response.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     record = prior.get_record(record_id, org_id)
@@ -269,7 +249,7 @@ def credit_record(user_id, record_id):
     transcribes it when the credit is settled. Keeping them apart is also what
     makes the double-credit guard meaningful.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     record = prior.get_record(record_id, org_id)
@@ -294,7 +274,7 @@ def credit_record(user_id, record_id):
 def student_accepted(user_id, student_id):
     """Everything accepted for one student — the transcript-side view of this
     queue, and what the credit-application step will read when it's built."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     records = [r for r in prior.accepted_for_student(student_id)

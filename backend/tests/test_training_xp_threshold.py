@@ -62,7 +62,7 @@ def _run(fn, body, tables=None, args=(), stock_image=None):
     client.table.side_effect = lambda n: _FakeTable(n, rows.get(n, []), log)
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch('services.image_service.search_quest_image', return_value=stock_image), \
          app.test_request_context(json=body):
         target = getattr(fn, '__wrapped__', fn)
@@ -344,7 +344,7 @@ def test_publishing_a_quest_that_goes_to_everyone_enrols_them():
     }]})
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(training, '_assign_item',
                       return_value={'enrolled': 4, 'already': 0, 'failed': 0}) as assigner, \
          app.test_request_context(json={}):
@@ -366,7 +366,7 @@ def test_publishing_a_quest_people_opt_into_enrols_nobody():
     }]})
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(training, '_assign_item') as assigner, \
          app.test_request_context(json={}):
         fn = getattr(training.publish_training, '__wrapped__', training.publish_training)
@@ -383,7 +383,7 @@ def test_publishing_another_org_s_draft_is_refused():
     }]})
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(training, '_assign_item') as assigner, \
          app.test_request_context(json={}):
         fn = getattr(training.publish_training, '__wrapped__', training.publish_training)
@@ -409,7 +409,7 @@ def _edit(body, quest_org=ORG, tasks=()):
     })
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          app.test_request_context(json=body):
         fn = getattr(training.update_training_quest, '__wrapped__', training.update_training_quest)
         resp = fn('user-1', TRAINING_ID)
@@ -487,7 +487,7 @@ def test_publishing_can_skip_the_bulk_assignment():
     }]})
     app = Flask(__name__)
     with patch.object(training, '_admin', return_value=client), \
-         patch.object(training, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(training, '_assign_item') as assigner, \
          app.test_request_context(json={'assign': False}):
         fn = getattr(training.publish_training, '__wrapped__', training.publish_training)

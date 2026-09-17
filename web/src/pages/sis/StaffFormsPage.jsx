@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
@@ -9,9 +9,9 @@ import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import SearchSelect from '../../components/ui/SearchSelect'
-import PaperworkTemplatesManager from '../../components/sis/tasks/PaperworkTemplatesManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
+import StatusPill from '../../components/sis/ui/StatusPill'
 
 /**
  * StaffFormsPage — staff forms and the internal task system (iCreate Phase 2).
@@ -21,13 +21,6 @@ import AnnouncementBody from '../../components/announcements/AnnouncementBody'
  * discuss it in comments. An admin can also file a task pre-assigned.
  */
 
-const STATUS_STYLES = {
-  submitted: 'bg-gray-100 text-neutral-600',
-  under_review: 'bg-blue-100 text-blue-700',
-  in_progress: 'bg-amber-100 text-amber-700',
-  waiting: 'bg-purple-100 text-purple-700',
-  resolved: 'bg-green-100 text-green-700',
-}
 
 const STATUSES = [
   ['submitted', 'New'],
@@ -45,11 +38,7 @@ const PRIORITY_STYLES = {
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
-const StatusPill = ({ status }) => (
-  <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${STATUS_STYLES[status] || STATUS_STYLES.submitted}`}>
-    {String(status || '').replace('_', ' ')}
-  </span>
-)
+const FormStatus = ({ status }) => <StatusPill domain="form_submission" status={status} fallback="submitted" />
 
 // Exported: the Task Center opens this in a dialog from its "Assign or send"
 // menu, so filing a task no longer means leaving the page you track tasks on.
@@ -613,7 +602,7 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                   <span className="text-xs px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple font-medium">Parent</span>
                 )}
                 <span className="font-medium text-neutral-900">{f.title}</span>
-                <StatusPill status={f.status} />
+                <FormStatus status={f.status} />
                 {PRIORITY_STYLES[f.priority] && (
                   <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[f.priority]}`}>{f.priority}</span>
                 )}
@@ -805,6 +794,17 @@ const StaffFormsPage = () => {
       .catch(() => setClasses([]))
   }, [orgId, admin])
 
+  // The office's side of forms -- the request queue and the templates -- is
+  // the Task Center's Requests and Templates tabs. This page used to mount
+  // both a second time for admins, so the same submission could be open in two
+  // places and a notification's /forms?submission= link landed on whichever
+  // the reader had bookmarked. An admin who is not previewing a teacher goes
+  // to the one queue, the deep link intact; a teacher, or an admin previewing
+  // one, gets the teacher's page below.
+  if (admin && !preview) {
+    return <Navigate replace to={`/tasks?tab=requests${openSubmissionId ? `&submission=${openSubmissionId}` : ''}`} />
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -832,18 +832,12 @@ const StaffFormsPage = () => {
               <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600 shrink-0">{f.form_type_label}</span>
               <span className="text-sm text-neutral-800 truncate">{f.title}</span>
               <span className="text-xs text-neutral-400 ml-auto shrink-0">{new Date(f.created_at).toLocaleDateString()}</span>
-              <StatusPill status={f.status} />
+              <FormStatus status={f.status} />
             </li>
           ))}
         </ul>
       </div>
 
-      {admin && !preview && (
-        <>
-          <AdminQueue orgId={orgId} staff={staff} openSubmissionId={openSubmissionId} />
-          <PaperworkTemplatesManager orgId={orgId} staff={staff} defaultTab="forms" />
-        </>
-      )}
     </div>
   )
 }

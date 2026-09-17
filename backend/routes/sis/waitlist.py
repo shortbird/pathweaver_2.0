@@ -22,18 +22,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_waitlist', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _class_in_org(org_id, class_id):
     # admin client justified: org_classes ownership check used as the org-scoping gate by every staff-gated waitlist route
     cls = SisClassRepository(client=get_supabase_admin_client()).find_by_id(class_id)
@@ -43,7 +31,7 @@ def _class_in_org(org_id, class_id):
 @bp.route('/classes/<class_id>/waitlist', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def list_waitlist(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _class_in_org(org_id, class_id):
@@ -54,7 +42,7 @@ def list_waitlist(user_id, class_id):
 @bp.route('/classes/<class_id>/waitlist', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def add_waitlist(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -88,7 +76,7 @@ def add_waitlist(user_id, class_id):
 @bp.route('/classes/<class_id>/waitlist/offer-next', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def offer_next(user_id, class_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _class_in_org(org_id, class_id):
@@ -110,7 +98,7 @@ def offer_entry(user_id, entry_id):
 
     'Offer next seat' can only reach the front of the queue; this is how an
     expired or declined offer gets handed back out."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = waitlist.offer_entry(org_id, entry_id)
@@ -126,7 +114,7 @@ def enroll_entry(user_id, entry_id):
     """Admit a waitlisted student into the class directly, without waiting for
     the family to claim the offer. Capacity is not enforced — an admin doing
     this by hand is the override."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # An optional class_id enrolls them in ANOTHER section of the same class —
@@ -154,7 +142,7 @@ def offer_other_section(user_id, entry_id):
     The office can see the open seat; only the family can see whether that time
     works, so this hands them a claimable offer instead of enrolling them into a
     slot that may already be taken."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -173,7 +161,7 @@ def offer_other_section(user_id, entry_id):
 def sibling_sections(user_id, class_id):
     """Other sections of this class that still have room, so a waitlisted
     student can be offered a different time instead of just waiting."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not _class_in_org(org_id, class_id):
@@ -184,7 +172,7 @@ def sibling_sections(user_id, class_id):
 @bp.route('/waitlist/<entry_id>/respond', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def respond(user_id, entry_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.json or {}
@@ -203,34 +191,8 @@ def respond(user_id, entry_id):
 @bp.route('/waitlist/<entry_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def remove_entry(user_id, entry_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     waitlist.remove(org_id, entry_id)
     return jsonify({'success': True})
-
-
-@bp.route('/internal/waitlist-offer-sweep', methods=['POST'])
-def waitlist_offer_sweep():
-    """Cron entrypoint: expire per-class waitlist offers past their TTL and
-    re-alert admins that the seat is open. Auth via X-Cron-Secret, or a signed-in
-    superadmin for manual triggering (mirrors /api/sis/internal/attendance-sweep)."""
-    secret = request.headers.get('X-Cron-Secret')
-    from utils.cron_auth import is_valid_cron_secret
-    is_cron = is_valid_cron_secret(secret)
-    if not is_cron:
-        from utils.session_manager import session_manager
-        uid = session_manager.get_effective_user_id()
-        is_super = False
-        if uid:
-            # admin client justified: resolves the CALLER's own role to make the access
-            #   decision; under RLS the row the check depends on may be invisible, so the
-            #   check could not run
-            row = (
-                get_supabase_admin_client().table('users').select('role')
-                .eq('id', uid).limit(1).execute()
-            ).data
-            is_super = bool(row and row[0].get('role') == 'superadmin')
-        if not is_super:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    return jsonify({'success': True, **waitlist.expire_stale_offers()})

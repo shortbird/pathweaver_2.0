@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 bp = Blueprint('admin_roster_import', __name__, url_prefix='/api/admin/roster-import')
 
 
-def _org_or_error(admin, org_id):
+def _org_row_or_error(admin, org_id):
     if not org_id:
         return None, (jsonify({'error': 'organization_id is required'}), 400)
     try:
@@ -63,7 +63,7 @@ def preview_roster(user_id):
     admin = get_supabase_admin_client()
 
     org_id = (request.get_json(silent=True) or {}).get('organization_id')
-    org, error = _org_or_error(admin, org_id)
+    org, error = _org_row_or_error(admin, org_id)
     if error:
         return error
 
@@ -90,7 +90,7 @@ def commit_roster(user_id):
 
     body = request.get_json(silent=True) or {}
     org_id = body.get('organization_id')
-    org, error = _org_or_error(admin, org_id)
+    org, error = _org_row_or_error(admin, org_id)
     if error:
         return error
 

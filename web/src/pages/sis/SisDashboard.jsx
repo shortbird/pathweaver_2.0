@@ -10,6 +10,7 @@ import { getPreviewTeacher } from './teacherPreview'
 import { range12h } from '../../utils/timeFormat'
 import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
+import DashboardCard from '../../components/sis/DashboardCard'
 
 /**
  * The School Dashboard — what is waiting on the office, then what is happening
@@ -29,18 +30,6 @@ import CoordinatorDashboard from './CoordinatorDashboard'
 // A card in the masonry flow: keep it whole across the column break, and carry
 // its own bottom gap (multi-column has no row-gap to space them with).
 const MASONRY_CARD = 'mb-4 break-inside-avoid'
-
-const Card = ({ title, action, children, className = '' }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-5 ${className}`}>
-    {(title || action) && (
-      <div className="flex items-center justify-between gap-3 mb-3">
-        {title && <h2 className="font-semibold text-neutral-900">{title}</h2>}
-        {action}
-      </div>
-    )}
-    {children}
-  </div>
-)
 
 const StatCard = ({ label, value, accent, note }) => (
   <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -65,9 +54,9 @@ const ATTENTION_TILES = [
     module: '/tasks', urgent: true },
   { key: 'requests_unassigned', label: 'Unassigned requests', to: '/tasks?tab=requests',
     module: '/tasks' },
-  { key: 'signatures_pending', label: 'Signatures pending', to: '/tasks?tab=paperwork',
+  { key: 'signatures_pending', label: 'Signatures pending', to: '/tasks?tab=assigned',
     module: '/tasks' },
-  { key: 'onboarding_incomplete', label: 'Checklists in progress', to: '/tasks?tab=checklists',
+  { key: 'onboarding_incomplete', label: 'Checklists in progress', to: '/tasks?tab=assigned',
     module: '/tasks' },
   { key: 'age_exceptions', label: 'Age exception requests', to: '/registration?tab=queues' },
   { key: 'waitlist_waiting', label: 'Waiting for a place', to: '/registration?tab=queues' },
@@ -89,7 +78,7 @@ const QUICK_ACTIONS = [
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Add a family', to: '/people?add=family' },
   { label: 'Message families', to: '/inbox?tab=announcements' },
-  { label: 'Send for signature', to: '/tasks?tab=paperwork', module: '/tasks' },
+  { label: 'Send for signature', to: '/tasks?tab=assigned', module: '/tasks' },
   { label: 'Reports', to: '/reports', module: '/reports' },
 ]
 
@@ -262,7 +251,7 @@ const SisDashboard = () => {
               card being sliced in half across the column boundary. */}
           <div className="columns-1 lg:columns-2 2xl:columns-3 gap-4">
             {today.schedule && (
-              <Card
+              <DashboardCard
                 title="Today's classes"
                 className={MASONRY_CARD}
                 action={(
@@ -293,11 +282,11 @@ const SisDashboard = () => {
                     ))}
                   </ul>
                 )}
-              </Card>
+              </DashboardCard>
             )}
 
             {board && (
-              <Card title="Today's attendance" className={MASONRY_CARD}>
+              <DashboardCard title="Today's attendance" className={MASONRY_CARD}>
                 <div className="grid grid-cols-2 gap-3 text-center">
                   <div>
                     <div className="text-2xl font-bold text-green-600">{recorded.present || 0}</div>
@@ -321,11 +310,11 @@ const SisDashboard = () => {
                 <Link to="/attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
                   Open attendance →
                 </Link>
-              </Card>
+              </DashboardCard>
             )}
 
             {finance && (
-              <Card title="Money" className={MASONRY_CARD}>
+              <DashboardCard title="Money" className={MASONRY_CARD}>
                 {!invoices ? (
                   <p className="text-sm text-neutral-500">Billing figures are unavailable.</p>
                 ) : (
@@ -363,11 +352,11 @@ const SisDashboard = () => {
                     </Link>
                   )}
                 </div>
-              </Card>
+              </DashboardCard>
             )}
 
             {events.length > 0 && (
-              <Card title="Coming up" className={MASONRY_CARD}>
+              <DashboardCard title="Coming up" className={MASONRY_CARD}>
                 <ul className="space-y-1.5">
                   {events.map((e) => (
                     <li key={e.id} className="text-sm text-neutral-800">
@@ -379,7 +368,7 @@ const SisDashboard = () => {
                 <Link to="/calendar" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
                   Open calendar →
                 </Link>
-              </Card>
+              </DashboardCard>
             )}
           </div>
 

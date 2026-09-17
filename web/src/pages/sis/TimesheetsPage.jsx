@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
+import StatusPill from '../../components/sis/ui/StatusPill'
 
 /**
  * TimesheetsPage (admin) — per-staff hour totals for a pay period, entry-level
@@ -20,12 +21,6 @@ const defaultPeriod = () => {
   return { start: iso(start), end: iso(now) }
 }
 
-const STATUS_STYLES = {
-  open: 'bg-amber-100 text-amber-800',
-  submitted: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
 
 const EntryRow = ({ entry, orgId, onChanged }) => {
   const [editing, setEditing] = useState(false)
@@ -90,7 +85,7 @@ const EntryRow = ({ entry, orgId, onChanged }) => {
       </td>
       <td className="py-1.5 pr-3 font-medium">{entry.hours}</td>
       <td className="py-1.5 pr-3">
-        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[entry.status] || ''}`}>{entry.status}</span>
+        <StatusPill domain="timesheet" status={entry.status} />
         {entry.edit_reason && <span className="text-xs text-neutral-400 ml-1.5" title={entry.edit_reason}>edited</span>}
       </td>
       <td className="py-1.5 text-right">

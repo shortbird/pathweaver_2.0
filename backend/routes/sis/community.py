@@ -18,7 +18,7 @@ from utils.logger import get_logger
 from database import get_supabase_admin_client
 from services import sis_community_service as community
 from services import sis_service
-from routes.sis import _org_or_error, STAFF_ROLES, ADMIN_ROLES
+from routes.sis import STAFF_ROLES, ADMIN_ROLES
 from utils.storage_urls import public_object_url, sign_stored_url
 
 logger = get_logger(__name__)
@@ -37,7 +37,7 @@ _MAX_IMAGE_BYTES = 5 * 1024 * 1024
 @bp.route('/highlights', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def get_highlights(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'highlights': community.highlights(org_id)})
@@ -47,7 +47,7 @@ def get_highlights(user_id):
 @bp.route('/announcements', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_announcements(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'announcements': community.list_announcements(org_id)})
@@ -56,7 +56,7 @@ def list_announcements(user_id):
 @bp.route('/announcements', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_announcement(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.create_announcement(org_id, user_id, request.get_json() or {})
@@ -68,7 +68,7 @@ def create_announcement(user_id):
 @bp.route('/announcements/<announcement_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_announcement(user_id, announcement_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.update_announcement(org_id, announcement_id, request.get_json() or {})
@@ -82,7 +82,7 @@ def update_announcement(user_id, announcement_id):
 @bp.route('/announcements/<announcement_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_announcement(user_id, announcement_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # Not delete_row: taking the post down has to pull the send it spawned too.
@@ -95,7 +95,7 @@ def delete_announcement(user_id, announcement_id):
 @bp.route('/lost-found', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_lost_found(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     status = request.args.get('status')
@@ -105,7 +105,7 @@ def list_lost_found(user_id):
 @bp.route('/lost-found', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_lost_found(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.create_lost_found(org_id, user_id, request.get_json() or {})
@@ -117,7 +117,7 @@ def create_lost_found(user_id):
 @bp.route('/lost-found/<item_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_lost_found(user_id, item_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.update_lost_found(org_id, item_id, request.get_json() or {})
@@ -131,7 +131,7 @@ def update_lost_found(user_id, item_id):
 @bp.route('/lost-found/<item_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_lost_found(user_id, item_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not community.delete_row(org_id, 'sis_lost_found', item_id):
@@ -143,7 +143,7 @@ def delete_lost_found(user_id, item_id):
 @require_role(*ADMIN_ROLES)
 def mark_lost_found_expired(user_id):
     """Flag every unclaimed item past its 14-day donation deadline as donated."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, **community.mark_expired_for_donation(org_id)})
@@ -158,7 +158,7 @@ def upload_lost_found_image(user_id):
 
     The bucket is PRIVATE: these are photographs taken inside a school and
     routinely have children in them. See utils/storage_urls.py."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if 'file' not in request.files:
@@ -208,7 +208,7 @@ def upload_lost_found_image(user_id):
 @bp.route('/recognition', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def list_recognition(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     rec_type = request.args.get('type')
@@ -225,7 +225,7 @@ def list_recognition(user_id):
 @require_role(*STAFF_ROLES)
 def create_recognition(user_id):
     """Any staff member can post a shout-out (v1)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.create_recognition(org_id, user_id, request.get_json() or {})
@@ -237,7 +237,7 @@ def create_recognition(user_id):
 @bp.route('/recognition/<recognition_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_recognition(user_id, recognition_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not community.delete_row(org_id, 'sis_recognition', recognition_id):
@@ -250,7 +250,7 @@ def delete_recognition(user_id, recognition_id):
 def list_recognition_comments(user_id, recognition_id):
     """A shout-out's replies. Any staff member may read them — the board is the
     staffroom noticeboard, and a reply nobody can read is not a reply."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -265,7 +265,7 @@ def add_recognition_comment(user_id, recognition_id):
     iCreate, 2026-08-31 (d0c7ac4e). Before this, agreeing with a shout-out meant
     writing a second shout-out, which pushed the first down the board.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     body = (request.get_json() or {}).get('body')
@@ -280,7 +280,7 @@ def add_recognition_comment(user_id, recognition_id):
 @require_role(*STAFF_ROLES)
 def delete_recognition_comment(user_id, comment_id):
     """Its author may take it back; an admin may take anyone's down."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = community.delete_recognition_comment(
@@ -330,7 +330,6 @@ def _feed_affordances(user_id, preview, view_as, is_student=None):
     it for the announcement audiences too and one role lookup per request is
     enough. Left out, it is resolved here as before.
     """
-    from services import sis_service
     if preview:
         return {'can_post_carpool': view_as != 'student',
                 'can_moderate': view_as == 'admin'}
@@ -390,7 +389,6 @@ def _is_student(user_id):
 @require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def create_carpool(user_id):
     """A family (or staff member) posts a ride offer or need."""
-    from services import sis_service
     org_id = sis_service.member_org_id(user_id)
     if not org_id:
         return jsonify({'success': False, 'error': 'Not in a school'}), 403
@@ -406,7 +404,6 @@ def create_carpool(user_id):
 @require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
 def delete_carpool(user_id, post_id):
     """The author takes their post down, or an admin moderates it away."""
-    from services import sis_service
     org_id = sis_service.member_org_id(user_id)
     if not org_id:
         return jsonify({'success': False, 'error': 'Not in a school'}), 403
@@ -432,8 +429,7 @@ def _org_name(org_id):
 @require_role(*STAFF_ROLES)
 def list_members(user_id):
     """Org members for the Recognition recipient picker (id + name)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    from services import sis_service
     return jsonify({'success': True, 'members': sis_service.list_org_members(org_id)})

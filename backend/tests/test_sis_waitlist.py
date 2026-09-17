@@ -133,7 +133,7 @@ class TestWaitlistRoutes:
             getattr(cat_table, chained).return_value = cat_table
         cat_table.execute.return_value = Mock(data=[{'id': 's1', 'organization_id': 'org-1'}])
         with staff(), patch('routes.sis.catalog.get_supabase_admin_client', return_value=cat_client), \
-             patch('routes.sis.catalog._org_or_error', return_value=('org-1', None)), \
+             patch('services.sis_service.org_or_error', return_value=('org-1', None)), \
              patch('routes.sis.catalog._load_class', return_value={'id': 'c1'}), \
              patch('services.sis_enrollment_waitlist_service.waiting_entry',
                    return_value={'id': 'e1', 'position': 2}):
@@ -154,7 +154,7 @@ class TestWaitlistRoutes:
         cat_table.execute.return_value = Mock(data=[{'id': 's1', 'organization_id': 'org-1'}])
         clash = [{'class_id': 'c2', 'class_name': 'Elementary Microschool (Wednesday 9-11)'}]
         with staff(), patch('routes.sis.catalog.get_supabase_admin_client', return_value=cat_client), \
-             patch('routes.sis.catalog._org_or_error', return_value=('org-1', None)), \
+             patch('services.sis_service.org_or_error', return_value=('org-1', None)), \
              patch('routes.sis.catalog._load_class', return_value={'id': 'c1'}), \
              patch('services.sis_enrollment_waitlist_service.waiting_entry', return_value=None), \
              patch('services.sis_waitlist_service.schedule_conflicts', return_value=clash):
@@ -223,16 +223,16 @@ class TestOfferSweepRoute:
     def test_sweep_forbidden_for_non_super_without_secret(self, client, auth_headers, mock_verify_token):
         with patch('utils.session_manager.session_manager.get_effective_user_id',
                    return_value='test-user-123'), \
-             patch('routes.sis.waitlist.get_supabase_admin_client',
-                   return_value=_admin_client_for_role('student')):
+             patch('services.sis_service.get_user_org_context',
+                   return_value={'role': 'student'}):
             resp = client.post('/api/sis/internal/waitlist-offer-sweep', headers=auth_headers, json={})
         assert resp.status_code == 401
 
     def test_sweep_runs_for_superadmin(self, client, auth_headers, mock_verify_token):
         with patch('utils.session_manager.session_manager.get_effective_user_id',
                    return_value='super-1'), \
-             patch('routes.sis.waitlist.get_supabase_admin_client',
-                   return_value=_admin_client_for_role('superadmin')), \
+             patch('services.sis_service.get_user_org_context',
+                   return_value={'role': 'superadmin'}), \
              patch('routes.sis.waitlist.waitlist.expire_stale_offers',
                    return_value={'expired': 2, 'reAlerted': 1}) as sweep:
             resp = client.post('/api/sis/internal/waitlist-offer-sweep', headers=auth_headers, json={})

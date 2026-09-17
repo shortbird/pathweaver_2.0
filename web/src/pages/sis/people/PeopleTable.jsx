@@ -3,7 +3,8 @@ import PersonPhoto from '../../../components/sis/PersonPhoto'
 import { RolePill } from '../../../components/ui/RolePill'
 import { PaymentMethodPills } from '../PaymentMethodPills'
 import { RowActions } from './RowActions'
-import { rolesOf, statusOf, STATUS_LABELS, isRecent } from './peopleFilters'
+import { rolesOf, statusOf, isRecent } from './peopleFilters'
+import StatusPill from '../../../components/sis/ui/StatusPill'
 
 const fmtDate = (d) => {
   if (!d) return '—'
@@ -27,21 +28,7 @@ const waitingFor = (d) => {
   return `invited ${days} days ago`
 }
 
-const STATUS_TONE = {
-  no_login: 'bg-amber-100 text-amber-800',
-  invite_pending: 'bg-blue-100 text-blue-800',
-  archived: 'bg-gray-100 text-neutral-500',
-  withdrawn: 'bg-gray-100 text-neutral-500',
-  graduated: 'bg-gray-100 text-neutral-500',
-  applicant: 'bg-sky-50 text-sky-700',
-  not_enrolled: 'bg-gray-100 text-neutral-500',
-}
-
-const StatusPill = ({ status }) => status ? (
-  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_TONE[status] || 'bg-gray-100 text-neutral-500'}`}>
-    {STATUS_LABELS[status] || status}
-  </span>
-) : null
+const PersonStatus = ({ status }) => <StatusPill domain="person" status={status} />
 
 const SortHeader = ({ label, col, sort, onSort, className = '' }) => {
   const arrow = sort.key === col ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''
@@ -107,7 +94,7 @@ const PeopleTable = ({
               <td className="px-4 py-3">
                 <span className="inline-flex items-center gap-1 flex-wrap">
                   {rolesOf(s).map((r) => <RolePill key={r} role={r} />)}
-                  <StatusPill status={status} />
+                  <PersonStatus status={status} />
                   {status === 'invite_pending' && (
                     <span className="text-xs text-neutral-500">{waitingFor(s.joined_at)}</span>
                   )}

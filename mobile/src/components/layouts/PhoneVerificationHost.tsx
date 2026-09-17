@@ -4,7 +4,7 @@
  * An org can require every adult account to verify a phone number by SMS
  * before using Optio (feature_flags.sis_settings.require_adult_phone_verification
  * — iCreate, Aug 2026). The rule is enforced in Flask middleware
- * (backend/middleware/phone_verification_gate.py), so it applies to EVERY
+ * (backend/middleware/api_hold_gate.py), so it applies to EVERY
  * client, this app included: a held adult gets 403
  * `phone_verification_required` on everything except /api/auth/* and
  * /api/phone-verification/*.

@@ -42,23 +42,6 @@ _MAX_TITLE_LEN = sis_secure_docs_service.MAX_TITLE_LEN
 _MAX_BULK_SHARE = 200
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form matters for multipart (uploads): get_json returns nothing
-    # there, so a superadmin -- who has no org to fall back to -- could not
-    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _display_name(u):
     """Best available display name for a user row."""
     if not u:
@@ -145,7 +128,7 @@ def upload_secure_document(user_id):
     title, and `owner_user_id` / `student_user_id` — either of which may repeat
     to file one upload against several people at once.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -208,7 +191,7 @@ def send_hr_signature_request(user_id):
     The coordinator-reachable twin lives at /api/sis/staff-admin/signature-requests
     and differs only in refusing sensitivity='hr'.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.send_signature_request(user_id, org_id, allow_hr=True)
@@ -218,7 +201,7 @@ def send_hr_signature_request(user_id):
 @require_role(*HR_ROLES)
 def list_hr_signature_requests(user_id):
     """Every send in the org, HR paperwork included."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.list_signature_requests(org_id, include_hr=True)
@@ -228,7 +211,7 @@ def list_hr_signature_requests(user_id):
 @require_role(*HR_ROLES)
 def remind_hr_signature_request(user_id, assignment_id):
     """Chase one person who has not signed, employment paperwork included."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.remind_signature_request(
@@ -239,7 +222,7 @@ def remind_hr_signature_request(user_id, assignment_id):
 @require_role(*HR_ROLES)
 def release_hr_signature_hold(user_id, assignment_id):
     """Let a family back into the platform without signing, HR sends included."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.release_signature_hold(
@@ -251,7 +234,7 @@ def release_hr_signature_hold(user_id, assignment_id):
 def list_secure_documents(user_id):
     """All secure documents for the org (newest first), hydrated with display
     names. Optional ?owner_user_id / ?student_user_id filters."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
 
@@ -305,7 +288,7 @@ def list_secure_documents(user_id):
 
 def _doc_or_error(user_id, doc_id):
     """Load a doc and verify it belongs to the caller's org."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return None, None, err
     # admin client justified: service-role-only sis_secure_documents lookup; doc-belongs-to-org verified below before callers act on it
@@ -365,7 +348,7 @@ def bulk_share_secure_documents(user_id):
     the caller selected a set, and one unattached file in it should not undo
     the rest.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}

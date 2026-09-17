@@ -1,0 +1,748 @@
+{
+  "_comment": [
+    "The SIS concept manifest: one row per thing that was built more than once.",
+    "",
+    "Why this exists. Between 2026-06-23 and 2026-09-10 the SIS console was built in",
+    "eleven one-day rounds, each answering that week's client feedback, and each round",
+    "added a feature next to the one that already did most of the job. The audit",
+    "(docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md) counted the result: seven Stripe",
+    "checkout sites, seventeen writers of one settings blob, twenty-seven copies of one",
+    "org helper. Between the audit's first sweep and its re-check three days later,",
+    "seventeen new duplicates appeared. The plan (docs/sis/CONSOLIDATION_PLAN.md) merges",
+    "them one move at a time; this file is what stops them growing in the meantime.",
+    "",
+    "How it is read. backend/tests/unit/test_sis_concepts.py, web/src/__tests__/",
+    "sisConcepts.test.js and mobile/src/__tests__/sisConcepts.test.ts each take the rows",
+    "that name their side, apply `forbid.<side>.pattern` line by line to the files under",
+    "`dirs`, and assert the count is at most `baseline.<side>` (ceiling) and, while the",
+    "baseline is above zero, at least one (floor: a scan that stops matching passes",
+    "forever). The failing message prints every path:line and `use_instead`, which is the",
+    "sentence a session needs at the moment it is about to write another copy.",
+    "",
+    "Fields. `means` says what the concept is. `owner.<side>` lists the canonical files;",
+    "they must exist unless the row says `proposed: true`, in which case the move named in",
+    "`lowered_by` creates them, and the test fails once they all exist and the flag is",
+    "still here. `forbid.<side>` has `pattern` (a regular expression that both Python's re",
+    "and JavaScript's RegExp accept: no lookbehind, no inline flags), `dirs` (scan roots",
+    "relative to the side's root -- backend/, web/src, mobile/ -- a file path is allowed),",
+    "optional `files` (paths whose mere existence counts one each), optional `unit`",
+    "('lines', the default, or 'files' when the copies are whole files rather than lines),",
+    "and optional `exempt` (paths excluded from the count; defaults to the owners, so a",
+    "row whose canonical copy matches its own pattern sets `exempt: []` and a baseline of",
+    "one). Test files and __pycache__ are never scanned. `baseline.<side>` is the count",
+    "on `measured`; it moves down in the same commit as the merge, never up.",
+    "",
+    "Adding a row is how a concept is declared. If you are about to build something that",
+    "has a noun here -- invoice, hold, feed, training, schedule, contact, settings --",
+    "extend the owner. If it has no row, add one naming the owner in the same PR."
+  ],
+  "concepts": [
+    {
+      "id": "invoice_row",
+      "means": "A row in sis_invoices. Every charge a family sees, whatever created it.",
+      "owner": { "backend": ["services/sis_billing_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "\\.table\\(\\s*['\"]sis_invoices['\"]\\s*\\)\\s*\\.insert",
+          "dirs": ["routes", "services", "repositories", "utils", "jobs"],
+          "exempt": []
+        }
+      },
+      "baseline": { "backend": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M6",
+      "use_instead": "sis_billing_service.create_charge(org_id, household_id, lines=..., kind=..., source=...) will be the one row writer after M6; until then, call one of the three creators in sis_billing_service rather than inserting a fourth. Baseline after M6: 1."
+    },
+    {
+      "id": "stripe_checkout",
+      "means": "A Stripe Checkout session. Seven places build one today, with seven metadata conventions; the verifier has to know all seven.",
+      "owner": { "backend": ["services/sis_billing_service.py"] },
+      "forbid": {
+        "backend": { "pattern": "checkout\\.Session\\.create\\(", "dirs": ["routes", "services", "utils", "jobs"], "exempt": [] }
+      },
+      "baseline": { "backend": 7 },
+      "measured": "2026-09-17",
+      "lowered_by": "M6",
+      "use_instead": "sis_billing_service.start_checkout(kind, ref, mode, urls) (M6) wraps every session with one metadata convention; mode='subscription' is one of its modes. Baseline after M6: 1."
+    },
+    {
+      "id": "stripe_verify",
+      "means": "Reading a Checkout session back from Stripe to learn whether it was paid. There are no webhooks; every reader polls, and each poll re-derives 'is this paid' its own way.",
+      "owner": { "backend": ["services/sis_billing_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "checkout\\.Session\\.(retrieve|list)\\(",
+          "dirs": ["routes", "services", "utils", "jobs"],
+          "exempt": []
+        }
+      },
+      "baseline": { "backend": 7 },
+      "measured": "2026-09-17",
+      "lowered_by": "M6",
+      "use_instead": "sis_billing_service.find_paid_session(kind, ref) (M6) is the one verifier, used by the sweep and by the funnel's confirm. The setup-mode retrieves (saved card, autopay) are the same call with a different kind."
+    },
+    {
+      "id": "pay_link_signing",
+      "means": "A signed, expiring link a family can pay from. Three namespaces (invoice, statement, card setup) share one signing helper in sis_pay_links; a fourth link kind must use it too.",
+      "owner": { "backend": ["services/sis_pay_links.py", "services/parent_digest_links.py"] },
+      "forbid": {
+        "backend": { "pattern": "hmac\\.new\\(", "dirs": ["routes/sis", "services/sis_", "services/registration"] }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "none",
+      "use_instead": "sis_pay_links._signed(namespace, payload). Do not construct an HMAC in an SIS route or service."
+    },
+    {
+      "id": "registration_fee_quote",
+      "means": "What the registration funnel charges a family, in cents. Today one backend engine (registration_pricing) and one older one (_compute_fee_cents) disagree about the fee, and three browser copies re-derive it for display.",
+      "owner": { "backend": ["services/registration_pricing.py"] },
+      "forbid": {
+        "backend": { "pattern": "def _compute_fee_cents\\(", "dirs": ["routes", "services"] },
+        "web": {
+          "pattern": "(const (estimateFeeCents|draftFeeCents) = |export const (monthlyLineItems|monthlyTotalCents) = )",
+          "dirs": ["pages", "components"]
+        }
+      },
+      "baseline": { "backend": 1, "web": 4 },
+      "measured": "2026-09-17",
+      "lowered_by": "M5",
+      "use_instead": "GET /api/registration/<id>/quote (M5), served by registration_pricing, is the one number; the browser renders lines it was given and does no cents arithmetic. monthlyPricing.js goes with M5, its tests moving to the backend."
+    },
+    {
+      "id": "money_format",
+      "means": "Cents rendered as dollars. Ten web copies and five backend copies disagree on null ('--' vs '$0.00' vs '$0'), negatives, and trailing zeros.",
+      "owner": { "web": ["utils/money.js"], "backend": ["utils/money.py"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "^\\s*(export )?(const money = |function money\\()", "dirs": ["pages", "components"] },
+        "backend": { "pattern": "^\\s*def _money\\(", "dirs": ["routes", "services", "utils"] }
+      },
+      "baseline": { "web": 10, "backend": 5 },
+      "measured": "2026-09-17",
+      "lowered_by": "M7",
+      "use_instead": "web: formatCents(cents) from utils/money.js; backend: utils.money.format_cents(cents). One null rule, one negative rule, everywhere."
+    },
+    {
+      "id": "family_hold_write",
+      "means": "A family put on hold (households.registration_hold, or the pre-household directive that becomes it). Seven files write the flag; each has its own idea of when it clears.",
+      "owner": { "backend": ["services/sis_holds.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": { "pattern": "['\"]registration_hold['\"]\\s*:", "dirs": ["routes", "services", "scripts"], "unit": "files" }
+      },
+      "baseline": { "backend": 7 },
+      "measured": "2026-09-17",
+      "lowered_by": "M2",
+      "use_instead": "sis_holds.set_hold(household, code, reason) / clear_hold_if(household, code) / family_gate(household). Directives are staged for a family that has no household yet and applied once at attach."
+    },
+    {
+      "id": "fee_hold_sentinel",
+      "means": "The unpaid-fee hold is recognised by comparing the hold's free-text reason to the sentence FEE_HOLD_REASON. Editing that text on the Families page makes the hold un-clearable.",
+      "owner": { "backend": ["services/sis_holds.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "(==\\s*FEE_HOLD_REASON|['\"]registration_hold_reason['\"]\\s*,\\s*FEE_HOLD_REASON)",
+          "dirs": ["routes", "services"]
+        }
+      },
+      "baseline": { "backend": 2 },
+      "measured": "2026-09-17",
+      "lowered_by": "M2",
+      "use_instead": "households.registration_hold_code (M2) names the hold kind; sis_holds.clear_hold_if(household, 'unpaid_fee') clears it. Never compare the reason text."
+    },
+    {
+      "id": "hold_middleware",
+      "means": "An API-wide gate that blocks a held adult until they do something (sign paperwork, verify a phone). Until M3 two middlewares carried the same allow-list, the same cache, and had the same masquerade bug fixed twice.",
+      "owner": { "backend": ["middleware/api_hold_gate.py"] },
+      "forbid": {
+        "backend": { "pattern": "^from utils import \\w+_hold$", "dirs": ["middleware"] }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M3",
+      "use_instead": "Add a Hold to HOLDS in middleware/api_hold_gate.py: its code, its message, its is_blocked(user_id) from a utils/<thing>_hold.py, and the prefixes its own flow needs. The gate merges the allow-list and asks every hold in order. Never a second before_request."
+    },
+    {
+      "id": "emergency_contacts_write",
+      "means": "A student's emergency contacts. The funnel deletes and reinserts them on every back-edit, and the SIS has two endpoint families over the same rows, so a parent re-submitting details erases what staff added.",
+      "owner": { "backend": ["services/emergency_contacts_service.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "\\.table\\(\\s*['\"]emergency_contacts['\"]\\s*\\)\\s*\\.(insert|delete|update|upsert)",
+          "dirs": ["routes", "services", "repositories"]
+        }
+      },
+      "baseline": { "backend": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M4",
+      "use_instead": "emergency_contacts_service.replace_for_students(org_id, student_ids, contacts, source=...) (M4) is the one write path for the funnel, both SIS endpoint families and copy-from-family."
+    },
+    {
+      "id": "funding_source_write",
+      "means": "How a family pays (households.funding_source) and its two legacy mirrors, ufa_private and enrolled_private_school, written in lockstep at three sites.",
+      "owner": { "backend": ["services/sis_payment_profile.py"] },
+      "forbid": {
+        "backend": { "pattern": "fields\\[['\"]enrolled_private_school['\"]\\]\\s*=", "dirs": ["routes", "services", "scripts"] }
+      },
+      "baseline": { "backend": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M4",
+      "use_instead": "sis_payment_profile.set_funding_source(household_id, source, actor) (M4) writes the field and its mirrors once. derive_funding_source(answers) is already the one derivation; do not add a fourth site that spells the mirror rule."
+    },
+    {
+      "id": "announcement_publish",
+      "means": "A school announcement, delivered once. sis_announcements is the post; announcements is the delivery receipt. The two clients each re-merge the two tables with a different heuristic, and an edited post shows twice on the phone.",
+      "owner": {
+        "backend": ["services/sis_community_service.py"],
+        "web": ["components/announcements/UnifiedFeed.jsx"],
+        "mobile": ["src/components/school/SchoolFeed.tsx"]
+      },
+      "forbid": {
+        "backend": { "pattern": "announcement_service\\.publish\\(", "dirs": ["routes", "services"], "exempt": [] },
+        "web": { "pattern": "function mergeFeedItems\\(", "dirs": ["components", "pages", "hooks"], "exempt": [] },
+        "mobile": { "pattern": "function mergeSchoolFeed\\(", "dirs": ["src", "app"], "exempt": [] }
+      },
+      "baseline": { "backend": 1, "web": 1, "mobile": 1 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "sis_community_service.post() is the only caller of announcement_service.publish, and after M1 the family feed is assembled once, server-side, in sis_community_service.family_feed -- neither client merges tables. Baseline after M1: backend 1, web 0, mobile 0."
+    },
+    {
+      "id": "audience_vocabulary",
+      "means": "Who a message is for. Announcements say students/parents/advisors, the community board says school/families/teachers, events say school/teachers/admins, the archive has its own tuple.",
+      "owner": { "backend": ["services/sis_audiences.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "^(ROLE_AUDIENCES|_NOTIFY_ROLES|AUDIENCES|_ARCHIVE_SEES_ALL)\\s*=\\s*[({\\[']",
+          "dirs": ["routes/announcements.py", "routes/sis/events.py", "services/announcement_service.py", "services/sis_community_service.py"]
+        }
+      },
+      "baseline": { "backend": 4 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "sis_audiences.py (M1) holds the canonical audience keys and the role sets behind them; stored values do not change, the vocabulary does. Events adopt it in M12."
+    },
+    {
+      "id": "school_sender",
+      "means": "The account a school speaks as. Four callers resolve organizations.inbox_user_id themselves before sending; the household and student 'message' endpoints send as the school through a different door.",
+      "owner": { "backend": ["services/school_inbox_service.py"] },
+      "forbid": {
+        "backend": { "pattern": "get_or_create_inbox_user\\(", "dirs": ["routes", "services"] }
+      },
+      "baseline": { "backend": 4 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "school_inbox_service.send_as_school(org, recipient_ids, body, actor) (M1) resolves the sender itself. A route that needs the inbox user id for listing asks school_inbox_service.school_account(org)."
+    },
+    {
+      "id": "role_tuple_literal",
+      "means": "A hand-written role tuple on an SIS route. The tiers live in utils/sis_roles.py so a role added to one is added everywhere; three routes in community.py still spell their own.",
+      "owner": { "backend": ["utils/sis_roles.py"] },
+      "forbid": {
+        "backend": { "pattern": "@require_role\\([^)]*['\"]org_admin['\"]", "dirs": ["routes/sis"] }
+      },
+      "baseline": { "backend": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "@require_role(*ADMIN_ROLES) or another tuple from utils/sis_roles.py. If no tier fits, add one there with a docstring."
+    },
+    {
+      "id": "org_resolution",
+      "means": "Resolving the caller's organisation in an SIS route. Twenty-seven private copies of _org_or_error in three variants until M15; only three carried the request.form fix, so superadmin uploads failed on the other twenty-four.",
+      "owner": { "backend": ["services/sis_service.py"] },
+      "forbid": {
+        "backend": { "pattern": "^def (_org_or_error|_org)\\(", "dirs": ["routes"] }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M15",
+      "use_instead": "sis_service.org_or_error(user_id) for a staff route (org_id, err); sis_service.requested_org_id() where the route only needs the org the client named (the parent portal). One reader of the request, one resolver; never a private copy. The plan proposed utils/org_resolve.py, but utils may not import services (test_import_layers) and twenty-six tests patch services.sis_service.resolve_org_id, so the helper lives beside the resolver."
+    },
+    {
+      "id": "cron_route",
+      "means": "An /api/sis/internal/* endpoint the Render cron calls. Seven identical shapes across five route modules until M15: secret check, a users read for the superadmin fallback, call the service, log the count.",
+      "owner": { "backend": ["routes/sis/internal.py"] },
+      "forbid": {
+        "backend": { "pattern": "route\\(\\s*['\"]/internal/", "dirs": ["routes/sis"] }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M15",
+      "use_instead": "Add a row to CRON_SWEEPS in routes/sis/internal.py: name -> a function returning the summary dict. The blueprint declares the route, checks the secret or the superadmin, and logs. jobs/cron_dispatch.py names the same paths."
+    },
+    {
+      "id": "events_read",
+      "means": "Reading sis_events. Ten reads with four different audience filters: the SIS calendar, the parent feed, the community feed (which re-reads the table), the ICS export, the dashboard, RSVPs.",
+      "owner": { "backend": ["services/sis_events_service.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "\\.table\\(\\s*['\"]sis_events['\"]",
+          "dirs": ["routes", "services", "repositories", "utils", "jobs"]
+        }
+      },
+      "baseline": { "backend": 10 },
+      "measured": "2026-09-17",
+      "lowered_by": "M12",
+      "use_instead": "sis_events_service.feed(org_id, viewer, window) (M12) applies the audience filter from the viewer's role; every reader, ICS included, calls it."
+    },
+    {
+      "id": "today_schedule",
+      "means": "What is happening at the school today. sis_coordinator_service._today_org_schedule assembles it; the admin dashboard also calls the legacy sis_service.get_dashboard for a second copy of the same slice, and the teacher dashboard has a third.",
+      "owner": { "backend": ["services/sis_coordinator_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "(def _today_\\w*schedule\\(|def today_schedule\\(|sis_service\\.get_dashboard\\()",
+          "dirs": ["routes", "services"]
+        }
+      },
+      "baseline": { "backend": 1 },
+      "measured": "2026-09-17",
+      "lowered_by": "M12",
+      "use_instead": "sis_coordinator_service.today_schedule(org_id, date, class_scope=None) (M12): the admin route passes no scope, the teacher route passes class_scope(). get_dashboard's schedule slice goes."
+    },
+    {
+      "id": "event_wall_clock",
+      "means": "A school event's start_at is a wall clock wearing a UTC label (the office typed 18:30; Postgres stored 18:30+00). Every renderer must read it in UTC, and six web sites each spell that rule themselves. The rule shipped wrong three times.",
+      "owner": { "web": ["utils/timeFormat.js"] },
+      "forbid": {
+        "web": {
+          "pattern": "timeZone['\"]?\\s*[:=]\\s*['\"]UTC['\"]",
+          "dirs": ["pages/sis", "components/sis", "components/announcements"]
+        }
+      },
+      "baseline": { "web": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M12",
+      "use_instead": "fmtEventWhen(event) / fmtEventTimeRange(event) / fmtDayHeading(ymd) from utils/timeFormat.js (M12, ported from mobile's components/school/format.ts). schoolEventWallClock.test.js refuses a reader that formats the stamps anywhere else."
+    },
+    {
+      "id": "time_blocks_read",
+      "means": "The school's time blocks, a JSON list inside feature_flags.sis_settings with no ids. Eight readers outside the catalog service; renaming a block orphans block rosters, the parent builder, the sheet sync and the AI editor at once.",
+      "owner": { "backend": ["services/sis_catalog_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "(\\.get\\(\\s*['\"]time_blocks['\"]|\\[['\"]time_blocks['\"]\\])",
+          "dirs": ["routes", "services", "utils"]
+        }
+      },
+      "baseline": { "backend": 8 },
+      "measured": "2026-09-17",
+      "lowered_by": "M8b",
+      "use_instead": "sis_catalog_service.schedule_settings(org_id)['time_blocks'] today; a sis_time_blocks table with stable ids behind the same function after M8b."
+    },
+    {
+      "id": "settings_write",
+      "means": "A school setting. Thirteen components each read the whole feature_flags blob, spread it, change one key and PUT the whole thing back -- last write wins, and two cards open in two tabs erase each other.",
+      "owner": { "web": ["hooks/api/useSisSettings.js"], "backend": ["routes/sis/settings.py"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "api\\.put\\(\\s*`/api/admin/organizations/", "dirs": ["components", "pages", "settings"] }
+      },
+      "baseline": { "web": 17 },
+      "measured": "2026-09-17",
+      "lowered_by": "M8a",
+      "use_instead": "const { settings, patch } = useSisSettings(); patch({ key: value }) -- PATCH /api/sis/settings (M8a) does the read-modify-write server-side, one key at a time."
+    },
+    {
+      "id": "registration_config_mirror",
+      "means": "The registration funnel's config, stored under feature_flags.registration and mirrored to the legacy icreate_registration key on every save.",
+      "owner": { "backend": ["utils/registration_config.py"] },
+      "forbid": {
+        "web": { "pattern": "\\bicreate_registration\\b", "dirs": ["pages", "components"] }
+      },
+      "baseline": { "web": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M8a",
+      "use_instead": "The web writes feature_flags.registration only; utils/registration_config.py resolves the legacy key on read until the rename is retired. Do not write icreate_registration from a browser."
+    },
+    {
+      "id": "org_payload_fetch",
+      "means": "An SIS page fetching the whole organisation record to read one config key. Three places copy-paste the same fetch and the same parsing.",
+      "owner": { "web": ["hooks/api/useRegistrationConfig.js"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "api\\.get\\(\\s*`/api/admin/organizations/\\$\\{", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M8a",
+      "use_instead": "useRegistrationConfig() (M8a) for the funnel config; useSisSettings() for sis_settings. Neither page needs the whole org row."
+    },
+    {
+      "id": "schedule_helpers",
+      "means": "Minutes-since-midnight, 12-hour time labels, 'does this class fit this age', 'how old is this child'. Twenty-five private copies across the parent builder, the CLP, the SIS calendar, the class pages and the embeds, and the builder and the CLP compute a child's age against different dates.",
+      "owner": { "web": ["utils/schedule.js", "utils/timeFormat.js", "utils/age.js"] },
+      "proposed": true,
+      "forbid": {
+        "web": {
+          "pattern": "^\\s*(export )?(const|function) (fmtTime|fmt|fmt12ap|fitsAge|toMin|toMinutes|ageFromDob|ageOf)\\b",
+          "dirs": ["pages", "components", "programs"]
+        }
+      },
+      "baseline": { "web": 25 },
+      "measured": "2026-09-17",
+      "lowered_by": "M11",
+      "use_instead": "toMin, overlaps, fitsAge, ageFromDob(dob, asOf) and fmtTime from utils/schedule.js (M11); asOf is the org's first_day_of_school so every surface agrees on a child's age."
+    },
+    {
+      "id": "weekly_grid",
+      "means": "A week laid out as a grid of class meetings. WeeklyScheduleGrid is canonical; the CLP has its own copy and MyClassesPage draws a third inline. The first two carry the same bug comment from 2026-08-25.",
+      "owner": { "web": ["components/sis/WeeklyScheduleGrid.jsx"] },
+      "forbid": {
+        "web": {
+          "files": ["pages/sis/clp/ScheduleGrid.jsx"],
+          "pattern": "const DAY_LABELS = |gridTemplateRows",
+          "dirs": ["pages/sis/MyClassesPage.jsx"]
+        }
+      },
+      "baseline": { "web": 2 },
+      "measured": "2026-09-17",
+      "lowered_by": "M11",
+      "use_instead": "<WeeklyScheduleGrid meetings={...} /> from components/sis. Fix a layout bug there, once."
+    },
+    {
+      "id": "class_summary_line",
+      "means": "One line describing a class to a family: seats, ages, price, times. Six files say 'Full -- waitlist', 'Class full', '8 / 8', 'N seats left' and 'N spots left' for the same state.",
+      "owner": { "web": ["components/sis/ClassSummaryLine.jsx"] },
+      "proposed": true,
+      "forbid": {
+        "web": {
+          "pattern": "(Full — waitlist|Class full|seats left|spots? left|spot\\$\\{|Full · Waitlist|Waitlist: \\$\\{|>Full<)",
+          "dirs": ["pages", "components"],
+          "unit": "files"
+        }
+      },
+      "baseline": { "web": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M11",
+      "use_instead": "<ClassSummaryLine cls={cls} /> (M11) renders seats, ages, price and times with one vocabulary for the builder, the CLP, the class pages and both embeds."
+    },
+    {
+      "id": "status_map",
+      "means": "A status word mapped to a pill colour. Fourteen private maps in fourteen files until M10 (STATUS_STYLES x5, ATT_COLORS twice verbatim, ITEM_BADGE copied and drifted by one token).",
+      "owner": { "web": ["components/sis/ui/statusMaps.js"] },
+      "forbid": {
+        "web": {
+          "pattern": "^\\s*(export )?const (STATUS_STYLES|ATT_COLORS|ITEM_BADGE|STATUS_TONE|STATUS_META|STATUS_PILL|KIND_PILL|STATUS_LABELS|STATUS_CLASS|STATUS_COLORS)\\s*=",
+          "dirs": ["pages/sis", "components/sis"]
+        }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M10",
+      "use_instead": "<StatusPill domain=\"attendance\" status={s} /> from components/sis/ui/StatusPill; the vocabularies are data in components/sis/ui/statusMaps.js, one domain per queue, with statusLabel() and statusTone() for the rare non-pill use. A new status is a row in the map, not a new map."
+    },
+    {
+      "id": "legacy_tab_remap",
+      "means": "Dashboard tiles deep-linked to tab names the Task Center no longer had, and the page remapped them on arrival. Retired by M10: the tiles name the live tabs and no sent notification uses an old name.",
+      "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
+      "forbid": {
+        "web": { "pattern": "const LEGACY_TABS\\s*=", "dirs": ["pages/sis"], "exempt": [] }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M10",
+      "use_instead": "Link to the canonical tab id (M10). A tile that links to a tab the page does not have is a bug in the tile."
+    },
+    {
+      "id": "queue_double_mount",
+      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10; /forms now sends an admin to the Task Center with the deep link intact.",
+      "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
+      "forbid": {
+        "web": { "pattern": "<AdminQueue\\b", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M10",
+      "use_instead": "AdminQueue mounts once, in TaskCenterPage; /forms redirects there (M10)."
+    },
+    {
+      "id": "dashboard_card",
+      "means": "The tile on a dashboard. The admin, coordinator and teacher dashboards each defined their own Card until M10.",
+      "owner": { "web": ["components/sis/DashboardCard.jsx"] },
+      "forbid": {
+        "web": { "pattern": "^(function Card\\(|const Card = )", "dirs": ["pages/sis"] }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M10",
+      "use_instead": "<DashboardCard title action className> from components/sis/DashboardCard.jsx."
+    },
+    {
+      "id": "org_picker_header",
+      "means": "The org picker and page header, mounted by twenty-eight SIS pages individually instead of once by the layout (twenty-nine until M10 retired the standalone secure-documents page).",
+      "owner": { "web": ["components/sis/SisLayout.jsx"] },
+      "forbid": {
+        "web": { "pattern": "<SisOrgPicker\\b", "dirs": ["pages/sis"] }
+      },
+      "baseline": { "web": 28 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14a",
+      "use_instead": "SisLayout renders the picker once (M14a); a page contributes a title, not a header."
+    },
+    {
+      "id": "tab_bar",
+      "means": "A row of tabs on an SIS page. Sixteen files hand-roll the underline recipe; GlassTabBar is used by fifteen non-SIS pages and no SIS page.",
+      "owner": { "web": ["components/ui/GlassTabBar.jsx"] },
+      "forbid": {
+        "web": { "pattern": "border-b-2", "dirs": ["pages/sis", "components/sis"], "unit": "files" }
+      },
+      "baseline": { "web": 16 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14b",
+      "use_instead": "<GlassTabBar tabs={...} active={...} onChange={...} /> from components/ui."
+    },
+    {
+      "id": "input_recipe",
+      "means": "The Tailwind string for a text input, spelled as a local constant in four incompatible recipes across thirty-seven SIS files. components/ui/Input.jsx and FormField.jsx are used by no SIS file.",
+      "owner": { "web": ["components/ui/Input.jsx", "components/ui/FormField.jsx"] },
+      "forbid": {
+        "web": {
+          "pattern": "^\\s*(export )?const (field|inputClass|inputCls|cell|input|INPUT|inputClasses|fieldClass)\\s*=\\s*['`]",
+          "dirs": ["pages/sis", "components/sis"]
+        }
+      },
+      "baseline": { "web": 37 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14e",
+      "use_instead": "<Input> / <FormField> from components/ui. A page that needs a variant adds it there, once."
+    },
+    {
+      "id": "modal_shell",
+      "means": "A dialog's backdrop and frame. Six SIS files hand-roll a fixed inset-0 overlay; billingPage has a private Modal beside components/ui/Modal.jsx.",
+      "owner": { "web": ["components/ui/Modal.jsx", "components/ui/ModalOverlay.jsx"] },
+      "forbid": {
+        "web": {
+          "pattern": "className=\"fixed inset-0",
+          "dirs": ["pages/sis", "components/sis"],
+          "files": ["pages/sis/billingPage/Modal.jsx"]
+        }
+      },
+      "baseline": { "web": 7 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14d",
+      "use_instead": "<Modal> from components/ui (or <ModalOverlay> for a bare backdrop). The portal guard in tests/modalPortalGuard.test.js counts the same recipe app-wide."
+    },
+    {
+      "id": "sort_header",
+      "means": "A sortable column header. Six copies of SortHeader with five different sort-state models over twenty-three raw tables.",
+      "owner": { "web": ["components/sis/SortableTable.jsx"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "(function SortHeader\\b|const SortHeader\\s*=)", "dirs": ["pages", "components"] }
+      },
+      "baseline": { "web": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14e",
+      "use_instead": "<SortableTable columns={...} rows={...} /> (M14e), one sort model, one header."
+    },
+    {
+      "id": "person_picker",
+      "means": "Picking a person from the school by typing. SearchSelect does this; three components rebuild it as a filtered list with a query box.",
+      "owner": { "web": ["components/ui/SearchSelect.jsx"] },
+      "forbid": {
+        "web": { "pattern": "people\\.filter\\(\\(p\\) => [`(]", "dirs": ["components/sis", "pages/sis"] }
+      },
+      "baseline": { "web": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14c",
+      "use_instead": "<SearchSelect options={people} .../> from components/ui, the platform rule for any long-list picker."
+    },
+    {
+      "id": "brand_gradient",
+      "means": "The brand gradient spelled by hand (bg-gradient-to-r from-optio-purple ...) ninety-six times in SIS files, the spelling the design system forbids.",
+      "owner": { "web": ["components/ui/Button.jsx"] },
+      "forbid": {
+        "web": { "pattern": "bg-gradient-to-r from-optio-purple", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 96 },
+      "measured": "2026-09-17",
+      "lowered_by": "M14e",
+      "use_instead": "<Button variant=\"primary\"> or the .btn-primary class; see docs/design/DESIGN_SYSTEM.md."
+    },
+    {
+      "id": "export_columns",
+      "means": "A column picker for an export, each with its own localStorage key. Five keys across four modals and the reports page.",
+      "owner": { "web": ["components/sis/ExportColumnsModal.jsx"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "= '(sis_\\w*(export|cols))'", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 5 },
+      "measured": "2026-09-17",
+      "lowered_by": "M17",
+      "use_instead": "<ExportColumnsModal columns={...} storageKey=\"...\" /> (M17); the key is a prop, the picker is one component."
+    },
+    {
+      "id": "print_path",
+      "means": "Printing from an SIS page. Five window.print() sites and five @media print blocks, each styling the page for paper its own way.",
+      "owner": { "web": ["components/sis/PrintView.jsx"] },
+      "proposed": true,
+      "forbid": {
+        "web": { "pattern": "window\\.print\\(", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 5 },
+      "measured": "2026-09-17",
+      "lowered_by": "M17",
+      "use_instead": "<PrintView> (M17) with one stylesheet; a page renders its printable body inside it."
+    },
+    {
+      "id": "roster_csv",
+      "means": "A CSV download of SIS rows. Five routes each build the response by hand; one of them says in a comment that it copies another.",
+      "owner": { "backend": ["services/roster_export_service.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": { "pattern": "text/csv", "dirs": ["routes/sis"] }
+      },
+      "baseline": { "backend": 5 },
+      "measured": "2026-09-17",
+      "lowered_by": "M17",
+      "use_instead": "roster_export_service.rows(org_id, scope, columns) on fetch_all_rows, and one csv_response(rows, filename) helper, behind every CSV route (M17)."
+    },
+    {
+      "id": "training_system",
+      "means": "Staff training. Two APIs, two stores, two targeting models and two progress reports: staff_training.py (quests, since July) and training_links.py (org_resources.is_training, since 2026-09-15). Six open tickets on /training are the symptom.",
+      "owner": { "backend": ["routes/sis/staff_training.py"], "web": ["pages/sis/StaffTrainingPage.jsx"] },
+      "forbid": {
+        "backend": { "pattern": "^@bp\\.route\\(", "dirs": ["routes/sis/training_links.py"] },
+        "web": { "files": ["components/sis/TrainingLinks.jsx"] }
+      },
+      "baseline": { "backend": 7, "web": 1 },
+      "measured": "2026-09-17",
+      "lowered_by": "M18",
+      "use_instead": "One training catalogue row {kind: 'quest'|'link', targeting, required, progress} served by staff_training.py (M18); a link is a training whose completion is an ack. Web: one TrainingForm with a kind switch."
+    },
+    {
+      "id": "portal_views",
+      "means": "The parent portal and the teacher portal serve the same onboarding, forms and documents views from two route files with the bodies copied (eleven service calls), differing by bucket and gate.",
+      "owner": { "backend": ["routes/sis/portal_views.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "(\\b(onboarding|forms|sis_secure_docs_service)\\.\\w+\\(|\\.create_signed_url\\()",
+          "dirs": ["routes/sis/parent.py", "routes/sis/staff_portal.py"]
+        }
+      },
+      "baseline": { "backend": 11 },
+      "measured": "2026-09-17",
+      "lowered_by": "M9",
+      "use_instead": "portal_views.<view>(org_id, user_id, bucket=..., allow_hr=...) (M9), mounted by parent.py and staff_portal.py as one-line routes; the route owners do not change."
+    },
+    {
+      "id": "signature_capture",
+      "means": "Typing your name as a signature. Three UIs, two hard-coded affirmation sentences and one fetched from the server.",
+      "owner": { "web": ["components/sis/SignatureCapture.jsx"] },
+      "proposed": true,
+      "forbid": {
+        "web": {
+          "pattern": "(By typing your name|typing my own name)",
+          "dirs": ["pages/sis", "components/sis", "pages/registerFunnel"]
+        }
+      },
+      "baseline": { "web": 3 },
+      "measured": "2026-09-17",
+      "lowered_by": "M9",
+      "use_instead": "<SignatureCapture statement={fromServer} onSign={...} /> (M9) for the funnel step, the checklist and HR; the affirmation text comes from the server."
+    },
+    {
+      "id": "signature_request_mount",
+      "means": "Signature requests reachable at two paths (staff-admin and secure-documents) that mount the same view functions with a different allow_hr.",
+      "owner": { "backend": ["routes/sis/secure_documents.py", "routes/sis/signature_request_views.py"] },
+      "forbid": {
+        "backend": { "pattern": "signature_request_views\\.\\w+\\(", "dirs": ["routes"] }
+      },
+      "baseline": { "backend": 4 },
+      "measured": "2026-09-17",
+      "lowered_by": "M9",
+      "use_instead": "/api/sis/secure-documents/signature-requests is the one mount (M9); the staff-admin path redirects for one release, then goes."
+    },
+    {
+      "id": "staff_phone_edit",
+      "means": "A staff member's phone number, editable on four surfaces (TeacherModal, StaffProfileModal, MyProfilePage, the TeacherDashboard prompt).",
+      "owner": { "web": ["components/sis/StaffDetailModal.jsx", "pages/sis/MyProfilePage.jsx"] },
+      "forbid": {
+        "web": {
+          "pattern": "(value=\\{(form|formData)\\.phone_number\\}|setPhone\\(e\\.target\\.value\\))",
+          "dirs": ["pages/sis", "components/sis"],
+          "exempt": ["pages/sis/StudentDetailModal.jsx", "pages/sis/FamilyDetailModal.jsx"],
+          "unit": "files"
+        }
+      },
+      "baseline": { "web": 4 },
+      "measured": "2026-09-17",
+      "lowered_by": "M13c",
+      "use_instead": "MyProfilePage edits your own phone; StaffDetailModal edits anyone else's (M13c). StudentDetailModal and FamilyDetailModal are exempt because a student's or guardian's phone is a different concept (M13a, M13b)."
+    },
+    {
+      "id": "class_form_mount",
+      "means": "The create-or-edit class form, mounted by the Classes page and again inside the class detail modal.",
+      "owner": { "web": ["components/sis/ClassFieldsEditor.jsx"] },
+      "forbid": {
+        "web": { "pattern": "<CreateClassModal\\b", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 2 },
+      "measured": "2026-09-17",
+      "lowered_by": "M13d",
+      "use_instead": "ClassFieldsEditor is the one form; CreateClassModal mounts once from ClassesPage and the detail modal edits in place (M13d). Baseline after M13d: 1."
+    },
+    {
+      "id": "household_member_write",
+      "means": "Putting a person in a family (household_members). Four app paths and three scripts insert the row; each re-implements 'is this the same student'.",
+      "owner": { "backend": ["services/sis_attach_service.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "(\\.table\\(\\s*['\"]household_members['\"]\\s*\\)\\s*\\.(insert|upsert)|repo\\.add_member\\()",
+          "dirs": ["routes", "services", "scripts"]
+        }
+      },
+      "baseline": { "backend": 8 },
+      "measured": "2026-09-17",
+      "lowered_by": "M16",
+      "use_instead": "sis_attach_service.attach_student(org_id, student, household, source) (M16) is the one write path; M2's apply_directives runs inside it."
+    },
+    {
+      "id": "duplicate_detection",
+      "means": "'Is this the same person as that one.' likely_same_student in sis_service, _match_existing_dependent in registration_accounts_service, and two inline versions in the backfill and import scripts.",
+      "owner": { "backend": ["services/person_matching.py"] },
+      "proposed": true,
+      "forbid": {
+        "backend": {
+          "pattern": "^def (likely_same_student|_match_existing_dependent|_likely_same\\w*|_same_person\\w*)\\(",
+          "dirs": ["routes", "services", "scripts"]
+        }
+      },
+      "baseline": { "backend": 2 },
+      "measured": "2026-09-17",
+      "lowered_by": "M16",
+      "use_instead": "person_matching.likely_same_student(a, b) (M16), one matcher with one definition of 'same', imported by every attach path."
+    },
+    {
+      "id": "absence_request_shape",
+      "means": "The parent absence endpoint accepts three request shapes (student_user_id, student_user_ids, selections); web sends the newest, mobile the oldest.",
+      "owner": { "backend": ["routes/sis/parent.py"] },
+      "forbid": {
+        "backend": { "pattern": "data\\.get\\(\\s*['\"]student_user_ids['\"]", "dirs": ["routes/sis/parent.py"], "exempt": [] }
+      },
+      "baseline": { "backend": 1 },
+      "measured": "2026-09-17",
+      "lowered_by": "M19",
+      "use_instead": "selections: [{student_user_id, class_ids}] is the one shape (M19), once the mobile OTA that sends it has shipped."
+    },
+    {
+      "id": "route_rule_unique",
+      "means": "Two <Route path> rules for one path in App.jsx; the second is unreachable. One today (/connections).",
+      "owner": { "web": ["App.jsx"] },
+      "enforced_by": "web/src/__tests__/routeRulesAreUnique.test.js",
+      "baseline": { "web": 1 },
+      "measured": "2026-09-17",
+      "lowered_by": "M19",
+      "use_instead": "One rule per path. A redirect for a retired path replaces the old rule; it does not sit beside it."
+    }
+  ]
+}

@@ -244,7 +244,7 @@ class TestRoutesReturnTheConversation:
 
         app = Flask(__name__)
         with self._ctx(app, '/api/sis/students/s1/message', {'body': 'Hello'}), \
-             patch.object(sis_routes, '_org_or_error', return_value=(ORG, None)), \
+             patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
              patch.object(sis_routes.sis_service, 'student_in_org', return_value=True), \
              patch.object(sis_routes.sis_service, 'message_student',
                           return_value={'conversation_id': 'convo-9'}):
@@ -260,7 +260,7 @@ class TestRoutesReturnTheConversation:
         repo.find_by_id.return_value = {'id': 'hh-1', 'organization_id': ORG}
         app = Flask(__name__)
         with self._ctx(app, '/api/sis/households/hh-1/message', {'body': 'Hello'}), \
-             patch.object(sis_routes, '_org_or_error', return_value=(ORG, None)), \
+             patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
              patch.object(sis_routes, 'get_supabase_admin_client', return_value=Mock()), \
              patch.object(sis_routes, 'HouseholdRepository', return_value=repo), \
              patch.object(sis_routes.sis_service, 'message_household_guardians',

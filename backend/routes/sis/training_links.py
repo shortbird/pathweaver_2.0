@@ -52,18 +52,6 @@ def _repo():
     return TrainingLinkRepository(client=_admin())
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _clean_url(raw):
     """(url, error). A training link opens in a new tab from a button, so it
     has to be something a browser can open -- not a bare filename, and not a
@@ -139,7 +127,7 @@ def _applies_to(link, person):
 
 def _owned_link(user_id, link_id):
     """(org_id, link, repo, error) for one link this caller's school owns."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return None, None, None, err
     ok, _ = validate_uuid(link_id)
@@ -211,7 +199,7 @@ def list_training_links(user_id):
     applies, so a coordinator-only training does not appear on a teacher's
     page.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     repo = _repo()
@@ -229,7 +217,7 @@ def create_training_link(user_id):
     Body: {title, url, description?, category?, is_required?,
            visible_to_roles?, visible_to_user_ids?}
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -305,7 +293,7 @@ def training_links_progress(user_id):
     """Every staff member against every link, for the report beside the quest
     columns. A cell `applies` only where the link was aimed at that person,
     so nobody is shown as behind on a training they were never given."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     repo = _repo()

@@ -2,8 +2,7 @@
  * holdStore - "a hold just lifted, refetch everything that starved".
  *
  * The phone-verification and paperwork holds 403 every API call except
- * /api/auth/* (backend/middleware/phone_verification_gate.py and
- * signature_gate.py). This app discovers a hold REACTIVELY: screens mount,
+ * /api/auth/* (backend/middleware/api_hold_gate.py). This app discovers a hold REACTIVELY: screens mount,
  * fire their requests, fail, and the interceptor raises the host overlay on
  * top of them. So by the time the adult sees the hold screen, the screens
  * underneath have already resolved to their empty state and will not fetch

@@ -205,7 +205,11 @@ BASELINES = {
     # sis/goals.py and the my-children / my-dependents routes now ask
     # utils.class_membership and services.family_children_service instead
     # of reading the link tables themselves.
-    'routes': 2285,
+    # 2026-09-17 (M15, docs/sis/CONSOLIDATION_PLAN.md): 2285 -> 2278. The seven
+    # SIS cron endpoints each carried a private users read for the superadmin
+    # fallback; routes/sis/internal.py declares them once and asks
+    # sis_service.get_user_org_context instead, which already reads that row.
+    'routes': 2278,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -514,7 +518,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2285 + 1836
+UPPER_TOTAL_BASELINE = 2278 + 1836
 
 
 def test_the_upper_layers_do_not_grow_in_total():

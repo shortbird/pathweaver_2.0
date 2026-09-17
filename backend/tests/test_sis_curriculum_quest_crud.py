@@ -86,7 +86,7 @@ def _quest_row(org=ORG):
 def _run(route, args, body, tables):
     log = []
     with patch.object(curriculum, '_admin', return_value=_client(tables, log)), \
-         patch.object(curriculum, '_org_or_error', return_value=(ORG, None)), \
+         patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(curriculum, '_owned', return_value={'id': CURR, 'organization_id': ORG}), \
          patch.object(curriculum, 'request', Mock(get_json=lambda silent=True: body, args={})):
         from flask import Flask

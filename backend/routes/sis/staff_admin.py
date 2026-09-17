@@ -35,30 +35,13 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_staff_admin', __name__, url_prefix='/api/sis/staff-admin')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    # request.form matters for multipart (uploads): get_json returns nothing
-    # there, so a superadmin -- who has no org to fall back to -- could not
-    # reach any upload endpoint. See routes/sis/__init__._org_or_error.
-    requested = (request.args.get('organization_id')
-                 or body.get('organization_id')
-                 or request.form.get('organization_id'))
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 # ── Employment profiles ──────────────────────────────────────────────────────
 
 @bp.route('/profiles/<staff_id>', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('staff_id', allow=('org_staff',))
 def get_profile(user_id, staff_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -71,7 +54,7 @@ def get_profile(user_id, staff_id):
 @require_role(*ADMIN_ROLES)
 @require_relationship_to('staff_id', allow=('org_staff',))
 def put_profile(user_id, staff_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     payload = request.get_json() or {}
@@ -95,7 +78,7 @@ def put_profile(user_id, staff_id):
 @bp.route('/assignments', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def create_assignment(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = staff.create_assignment(org_id, request.get_json() or {}, created_by=user_id)
@@ -107,7 +90,7 @@ def create_assignment(user_id):
 @bp.route('/assignments/<assignment_id>', methods=['DELETE'])
 @require_role(*ADMIN_ROLES)
 def delete_assignment(user_id, assignment_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     if not staff.delete_assignment(org_id, assignment_id):
@@ -121,7 +104,7 @@ def delete_assignment(user_id, assignment_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def list_forms(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -134,7 +117,7 @@ def list_forms(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def update_form(user_id, submission_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = forms.update_status(org_id, submission_id, request.get_json() or {},
@@ -150,7 +133,7 @@ def update_form(user_id, submission_id):
 def create_form(user_id):
     """Admin files a request/task, optionally already assigned, prioritised and
     dated — the internal task system's create door (iCreate Phase 2)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = forms.submit(org_id, user_id, request.get_json() or {},
@@ -169,7 +152,7 @@ def get_form_routing(user_id):
     ADMIN_ROLES, coordinators included: deciding that substitute requests go to
     the person who covers classes is running the campus, not spending money.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -181,7 +164,7 @@ def get_form_routing(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def put_form_routing(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -195,7 +178,7 @@ def put_form_routing(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def list_form_comments(user_id, submission_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -206,7 +189,7 @@ def list_form_comments(user_id, submission_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def add_form_comment(user_id, submission_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}
@@ -226,7 +209,7 @@ def add_form_comment(user_id, submission_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def list_form_templates(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True,
@@ -243,7 +226,7 @@ def set_builtin_form_visibility(user_id, key):
     """Hide or restore one built-in form for this school. The list is shared by
     every org, so a school that never files reimbursements switches it off for
     itself rather than deleting it (iCreate, 2026-09-02)."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     from services.sis_forms_service import FORM_TYPES, PARENT_FORM_TYPES
@@ -258,7 +241,7 @@ def set_builtin_form_visibility(user_id, key):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def create_form_template(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = form_templates.save_template(org_id, request.get_json() or {}, actor_id=user_id)
@@ -271,7 +254,7 @@ def create_form_template(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def update_form_template(user_id, template_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = form_templates.save_template(org_id, request.get_json() or {},
@@ -285,7 +268,7 @@ def update_form_template(user_id, template_id):
 @require_role(*ADMIN_ROLES)
 @require_module('forms')
 def duplicate_form_template(user_id, template_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = form_templates.duplicate_template(org_id, template_id, actor_id=user_id)
@@ -299,7 +282,7 @@ def duplicate_form_template(user_id, template_id):
 @require_module('forms')
 def delete_form_template(user_id, template_id):
     """409 with submission_count when submissions exist, unless ?force=1."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     force = str(request.args.get('force', '')).lower() in ('1', 'true', 'yes')
@@ -314,7 +297,7 @@ def delete_form_template(user_id, template_id):
 @require_role(*ADMIN_ROLES)
 @require_module('onboarding')
 def list_templates(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return jsonify({'success': True, 'templates': onboarding.list_templates(org_id)})
@@ -324,7 +307,7 @@ def list_templates(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('onboarding')
 def create_template(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = onboarding.save_template(org_id, request.get_json() or {}, actor_id=user_id)
@@ -337,7 +320,7 @@ def create_template(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('onboarding')
 def update_template(user_id, template_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = onboarding.save_template(org_id, request.get_json() or {},
@@ -353,7 +336,7 @@ def update_template(user_id, template_id):
 def duplicate_template(user_id, template_id):
     """Copy a template under a free "(Copy)" name. Server-side so the copy keeps
     blocks_access and drops the original's per-person document bindings."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = onboarding.duplicate_template(org_id, template_id, actor_id=user_id)
@@ -369,7 +352,7 @@ def sync_template_assignments(user_id, template_id):
     """Push this template's current items onto checklists already assigned.
     Returns counts: what was added, updated, removed, and how many finished
     checklists were deliberately left alone."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = onboarding.sync_assignments(org_id, template_id)
@@ -384,7 +367,7 @@ def sync_template_assignments(user_id, template_id):
 def delete_template(user_id, template_id):
     """Delete a template. 409 (with assigned_count) when people still hold a
     checklist from it, unless the caller passes ?force=1 after confirming."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     force = str(request.args.get('force', '')).lower() in ('1', 'true', 'yes')
@@ -399,7 +382,7 @@ def delete_template(user_id, template_id):
 @require_role(*ADMIN_ROLES)
 @require_module('onboarding')
 def list_onboarding_assignments(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     # 'checklist' only: a document sent to 40 people for signature is 40
@@ -413,7 +396,7 @@ def list_onboarding_assignments(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('onboarding')
 def assign_onboarding(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -451,7 +434,7 @@ def assign_onboarding(user_id):
 @require_module('onboarding')
 def unassign_onboarding(user_id, assignment_id):
     """Take a checklist back off someone. Their uploaded documents are kept."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = onboarding.unassign(org_id, assignment_id)
@@ -470,7 +453,7 @@ def onboarding_attachable_documents(user_id, assignment_id):
     onboarding still reading "pending" and has no way to connect the two
     (c23105fa, 2026-09-05: "I have like 18 or so people in that same boat").
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     assignment = onboarding.load_assignment_for_admin(org_id, assignment_id)
@@ -490,7 +473,7 @@ def onboarding_admin_doc_url(user_id):
     the staff bucket; the admin roll-up also shows family checklists, whose
     uploads live in family-documents — `audience` picks the bucket the same way
     the upload routes did."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     bucket = onboarding.CHECKLIST_BUCKETS.get(
@@ -515,7 +498,7 @@ def onboarding_admin_doc_url(user_id):
 def onboarding_recipients(user_id):
     """People an admin can assign a template to. ?audience=staff returns staff;
     ?audience=family returns the org's guardians (parents) for family checklists."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     audience = (request.args.get('audience') or 'staff').strip().lower()
@@ -534,7 +517,7 @@ def onboarding_recipients(user_id):
 @require_role(*ADMIN_ROLES)
 @require_module('tasks')
 def send_signature_request(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.send_signature_request(user_id, org_id, allow_hr=False)
@@ -546,7 +529,7 @@ def send_signature_request(user_id):
 def list_signature_requests(user_id):
     """Campus paperwork sends only — HR sends stay invisible here even to an
     org_admin, who has the HR view for those."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.list_signature_requests(org_id, include_hr=False)
@@ -557,7 +540,7 @@ def list_signature_requests(user_id):
 @require_module('tasks')
 def remind_signature_request(user_id, assignment_id):
     """Chase one person who has not signed. HR sends 404 here."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.remind_signature_request(
@@ -569,7 +552,7 @@ def remind_signature_request(user_id, assignment_id):
 @require_module('tasks')
 def release_signature_hold(user_id, assignment_id):
     """Let a family back into the platform without signing. HR sends 404 here."""
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     return signature_request_views.release_signature_hold(
@@ -591,7 +574,7 @@ def _period_or_error():
 @require_role(*FINANCE_ROLES)
 @require_module('timesheets')
 def timesheets(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     start, end, perr = _period_or_error()
@@ -609,7 +592,7 @@ def timesheets(user_id):
 @require_role(*FINANCE_ROLES)
 @require_module('timesheets')
 def edit_time_entry(user_id, entry_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     result = staff.update_time_entry(org_id, entry_id, request.get_json() or {},
@@ -623,7 +606,7 @@ def edit_time_entry(user_id, entry_id):
 @require_role(*FINANCE_ROLES)
 @require_module('timesheets')
 def approve_timesheet(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json() or {}
@@ -638,7 +621,7 @@ def approve_timesheet(user_id):
 @require_role(*FINANCE_ROLES)
 @require_module('timesheets')
 def payroll_csv(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     start, end, perr = _period_or_error()
@@ -658,7 +641,7 @@ def payroll_csv(user_id):
 @bp.route('/staff-roster.csv', methods=['GET'])
 @require_role(*ADMIN_ROLES)
 def staff_roster_csv(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     rows = sis_service.list_org_staff(org_id)

@@ -33,18 +33,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_tasks', __name__, url_prefix='/api/sis')
 
 
-def _org_or_error(user_id):
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 @bp.route('/my-tasks', methods=['GET'])
 @require_role(*STAFF_ROLES)
 def my_tasks(user_id):
@@ -55,7 +43,7 @@ def my_tasks(user_id):
     ?include_done=1 keeps finished items in the list (the "show completed"
     toggle); by default they are counted and dropped.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     include_done = str(request.args.get('include_done', '')).lower() in ('1', 'true', 'yes')
@@ -73,7 +61,7 @@ def acknowledge_resource(user_id):
     with the version acknowledged — an ack is for the version that was read, so
     re-versioning a policy re-opens the task for everyone.
     """
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     data = request.get_json(silent=True) or {}

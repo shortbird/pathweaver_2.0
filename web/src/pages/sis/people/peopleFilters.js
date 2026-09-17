@@ -13,6 +13,7 @@
  */
 import { matchesPersonSearch } from '../../../utils/personSearch'
 import { matchesPaymentFilter } from '../PaymentMethodPills'
+import { statusLabel } from '../../../components/sis/ui/statusMaps'
 
 export const STAFF_ROLES = ['org_admin', 'campus_coordinator', 'advisor']
 
@@ -75,16 +76,6 @@ export const statusOf = (r) => {
   return null
 }
 
-export const STATUS_LABELS = {
-  applicant: 'Applicant',
-  not_enrolled: 'Not enrolled',
-  withdrawn: 'Withdrawn',
-  graduated: 'Graduated',
-  invite_pending: 'Invite pending',
-  no_login: 'No login yet',
-  archived: 'Archived',
-  hold: 'Registration hold',
-}
 const STATUS_ORDER = ['applicant', 'not_enrolled', 'invite_pending', 'no_login', 'hold', 'withdrawn', 'graduated', 'archived']
 
 const matchesStatus = (r, status) => {
@@ -158,7 +149,7 @@ export const statusOptions = (rows, f) => {
   })
   return STATUS_ORDER
     .filter((s) => counts[s] || s === f.status)
-    .map((s) => ({ key: s, label: STATUS_LABELS[s], count: counts[s] || 0 }))
+    .map((s) => ({ key: s, label: statusLabel('person', s), count: counts[s] || 0 }))
 }
 
 /** Family options with counts. "Not in a family" counts students and parents

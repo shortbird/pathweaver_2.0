@@ -53,19 +53,6 @@ from utils.admin_client import admin_client as _admin
 from utils.timestamps import now_iso as _now  # noqa: E402
 
 
-def _org_or_error(user_id):
-    """Resolve the org for this request or return (None, error_response)."""
-    body = request.get_json(silent=True) or {}
-    requested = request.args.get('organization_id') or body.get('organization_id')
-    org_id = sis_service.resolve_org_id(user_id, requested)
-    if not org_id:
-        return None, (jsonify({
-            'success': False,
-            'error': 'No organization in context. Superadmins must pass ?organization_id.'
-        }), 400)
-    return org_id, None
-
-
 def _assessment_fields(org_id):
     """Org-configured assessment field definitions, defaulting to the CLE set."""
     row = (_admin().table('organizations').select('feature_flags')
@@ -196,7 +183,7 @@ def _student_payload(org_id, u):
 @require_role(*STAFF_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',), discloses='student_record')
 def get_student_record(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     u = _student_in_org(org_id, student_id)
@@ -219,7 +206,7 @@ def get_student_record(user_id, student_id):
 @require_role(*STAFF_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def save_student_record(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     u = _student_in_org(org_id, student_id)
@@ -263,7 +250,7 @@ def save_student_record(user_id, student_id):
 @require_role(*STAFF_ROLES)
 @require_relationship_to('student_id', allow=('org_staff',))
 def add_material(user_id, student_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     u = _student_in_org(org_id, student_id)
@@ -299,7 +286,7 @@ def _material_or_error(user_id, org_id, material_id):
 @bp.route('/materials/<material_id>', methods=['PATCH'])
 @require_role(*STAFF_ROLES)
 def update_material(user_id, material_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _m, err = _material_or_error(user_id, org_id, material_id)
@@ -331,7 +318,7 @@ def update_material(user_id, material_id):
 @bp.route('/materials/<material_id>', methods=['DELETE'])
 @require_role(*STAFF_ROLES)
 def delete_material(user_id, material_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     _m, err = _material_or_error(user_id, org_id, material_id)

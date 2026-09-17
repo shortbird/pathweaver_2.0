@@ -15,7 +15,8 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from middleware.rate_limiter import rate_limit
-from routes.sis import _org_or_error, ADMIN_ROLES
+from routes.sis import ADMIN_ROLES
+from services import sis_service
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,7 @@ bp = Blueprint('sis_schedule_ai', __name__, url_prefix='/api/sis/schedule-ai')
 @require_role(*ADMIN_ROLES)
 @rate_limit(max_requests=20, window_seconds=300)
 def propose(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     prompt = ((request.json or {}).get('prompt') or '').strip()
@@ -53,7 +54,7 @@ def propose(user_id):
 @require_role(*ADMIN_ROLES)
 @rate_limit(max_requests=30, window_seconds=300)
 def apply(user_id):
-    org_id, err = _org_or_error(user_id)
+    org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     operations = (request.json or {}).get('operations') or []

@@ -17,6 +17,7 @@ import { matchAssignment } from './checklistSearch'
 import {
   useMyOnboarding, useOnboardingAssignments, sisOnboardingApi,
 } from '../../hooks/api/useSisOnboarding'
+import StatusPill from '../../components/sis/ui/StatusPill'
 
 /**
  * OnboardingPage — role-switched.
@@ -27,18 +28,7 @@ import {
  * system instead.
  */
 
-const ITEM_BADGE = {
-  pending: 'bg-gray-100 text-neutral-600',
-  complete: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
-
-const ItemBadge = ({ status }) => (
-  <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${ITEM_BADGE[status] || ITEM_BADGE.pending}`}>
-    {status || 'pending'}
-  </span>
-)
+const ItemBadge = ({ status }) => <StatusPill domain="checklist_item" status={status} fallback="pending" />
 
 // ── Teacher view ──────────────────────────────────────────────────────────────
 

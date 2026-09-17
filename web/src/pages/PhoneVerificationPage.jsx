@@ -8,7 +8,7 @@ import { clearPhoneVerificationGate } from '../hooks/usePhoneVerificationGate'
 
 /**
  * The one screen an adult sees while their school requires a verified phone
- * number (backend/middleware/phone_verification_gate.py).
+ * number (backend/middleware/api_hold_gate.py).
  *
  * Deliberately standalone, like RequiredDocumentsPage — no sidebar, no
  * navigation, nothing to click except the two fields that lift the hold. It is
