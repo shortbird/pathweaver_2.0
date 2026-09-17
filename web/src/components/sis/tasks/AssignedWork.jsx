@@ -4,8 +4,9 @@ import api from '../../../services/api'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import {
   ReviewStrip, AssignmentCard, awaitingReviewOf,
-} from '../../../pages/sis/OnboardingPage'
+} from './ChecklistReview'
 import PaperworkTemplatesManager from './PaperworkTemplatesManager'
+import { matchAssignment } from '../../../pages/sis/checklistSearch'
 import { SignatureBatchCard } from './SignatureBatches'
 
 /**
@@ -69,8 +70,9 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
   // that list are a signature batch and a checklist, and they separate here.
   const [type, setType] = useState('')
   const [sort, setSort] = useState('newest')
-  // Narrowing by name, for the list that has grown past scanning: 200-odd
-  // assignments across 60 staff, and the office is looking for one of them.
+  // Narrowing by person or by form, for the list that has grown past
+  // scanning: 200-odd assignments across 60 staff, and the office is looking
+  // for one of them -- or for whoever still owes a W-4 (checklistSearch).
   const [q, setQ] = useState('')
 
   const load = useCallback(() => {
@@ -105,10 +107,12 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
         outstanding: a.status !== 'complete',
         when: a.created_at || '',
         person: a.user_name || '',
-        label: `${a.user_name || ''} ${a.template_name || ''}`,
-        node: (
+        // A word of the search may name the person, the checklist, an item or
+        // an attached document; the card opens on the items it named.
+        match: (query) => matchAssignment(a, query),
+        node: (openOn) => (
           <AssignmentCard key={`a:${a.id}`} orgId={orgId} assignment={a} onChanged={load}
-            badge={<TypeBadge>{a.template_id ? 'Checklist' : 'Task'}</TypeBadge>} />
+            openOn={openOn} badge={<TypeBadge>{a.template_id ? 'Checklist' : 'Task'}</TypeBadge>} />
         ),
       })),
       ...batches.map((b) => ({
@@ -119,8 +123,8 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
         outstanding: b.signed_count < b.total_count,
         when: b.sent_at || '',
         person: '',
-        label: b.title || '',
-        node: (
+        match: (query) => ((b.title || '').toLowerCase().includes(query.trim().toLowerCase()) ? { items: [] } : null),
+        node: () => (
           <SignatureBatchCard key={`b:${b.batch_id}`} orgId={orgId} endpoint={sigEndpoint}
             batch={b} onChanged={load} badge={<TypeBadge>Signature</TypeBadge>} />
         ),
@@ -133,10 +137,11 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
   const outstanding = entries.filter((e) => e.outstanding)
   const byStatus = view === 'outstanding' ? outstanding : entries
   const byType = type ? byStatus.filter((e) => e.type === type) : byStatus
-  const needle = q.trim().toLowerCase()
-  const shown = needle
-    ? byType.filter((e) => (e.label || '').toLowerCase().includes(needle))
-    : byType
+  const needle = q.trim()
+  const shown = (needle
+    ? byType.map((e) => ({ e, hit: e.match(needle) })).filter(({ hit }) => hit)
+    : byType.map((e) => ({ e, hit: { items: [] } })))
+    .map(({ e, hit }) => e.node(hit.items))
   const countOf = (t) => entries.filter((e) => e.type === t).length
 
   return (
@@ -166,7 +171,7 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
 
         <div className="flex items-center gap-2 flex-wrap">
           <input value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder="Find a person or a form…" aria-label="Search assigned work"
+            placeholder="Find a person or a form, e.g. Lisa W-4" aria-label="Search assigned work"
             className="flex-1 min-w-[12rem] px-3 py-1.5 rounded-lg border border-gray-300 text-sm" />
           <label className="text-sm text-neutral-600 flex items-center gap-1.5">
             Sort
@@ -189,14 +194,14 @@ export default function AssignedWork({ orgId, sigEndpoint, reloadKey = 0, onCoun
         {!loading && entries.length > 0 && !shown.length && (
           <p className="text-sm text-neutral-500">
             {needle && byType.length
-              ? `Nothing here matches "${q.trim()}".`
+              ? `Nothing here matches "${needle}".`
               : type && byStatus.length
                 ? `No ${(TYPES.find(([v]) => v === type) || [null, 'items'])[1].toLowerCase()} here.`
                 : 'Everything assigned is done.'}
           </p>
         )}
         <div className="space-y-2">
-          {shown.map((e) => e.node)}
+          {shown}
         </div>
       </div>
 

@@ -15,7 +15,8 @@
 import React from 'react'
 import { Section, PrimaryButton, field, absUrl } from '../../registration/funnelUi'
 import FeeStep from '../../../pages/registerFunnel/FeeStep'
-import { Editable, mockInput, STRIPE_KEY_RE } from './setupChrome'
+import { Editable, STRIPE_KEY_RE } from './setupChrome'
+import SignatureCapture from '../SignatureCapture'
 
 // The monthly plan's editor: program fee + family cap, and the add-on rows.
 const MonthlyPlanEditor = ({
@@ -238,10 +239,7 @@ const paperworkStep = (
                   className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
                 I confirm I have read and agree to the above terms
               </label>
-              <input className={mockInput} readOnly placeholder="Type your full name to sign" value="" />
-              <p className="text-xs text-neutral-400 mt-1.5">
-                By typing your name above, you agree this electronic signature has the same legal force and effect as a manual written signature.
-              </p>
+              <SignatureCapture preview />
             </div>
           </Editable>
         ))}

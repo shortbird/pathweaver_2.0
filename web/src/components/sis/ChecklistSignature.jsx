@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React from 'react'
+import SignatureCapture from './SignatureCapture'
 
 /**
  * Signing a checklist item by typing your name.
@@ -13,16 +14,16 @@ import React, { useState } from 'react'
  * sentence somebody agrees to here is the same one recorded against their name,
  * not a second copy that can drift.
  *
- * Shared by the SIS staff checklist and the family portal, because a signature
- * should not be two implementations with two sets of bugs.
+ * This file knows the checklist item's states -- already signed, waiting on
+ * the office's document, previewed by an admin. The box itself is
+ * SignatureCapture, shared with the registration funnel (M9), because a
+ * signature should not be two implementations with two sets of bugs.
  *
  * Items that sign a document from the office (item.sign_docs present) show that
  * document to read and withhold the sign box until it exists — you cannot sign
  * a contract you were never given. The backend refuses such a signature too;
  * this is the courteous version of the same rule.
  */
-
-const FALLBACK_STATEMENT = 'I am typing my own name below, and I intend it to count as my official signature.'
 
 const fmtSigned = (iso) => {
   if (!iso) return null
@@ -31,9 +32,6 @@ const fmtSigned = (iso) => {
 }
 
 export default function ChecklistSignature({ item, statement, disabled = false, busy = false, onSign, onOpenDoc }) {
-  const [name, setName] = useState('')
-  const [agreed, setAgreed] = useState(false)
-
   const signature = item.signature
   if (signature?.name) {
     const on = fmtSigned(signature.signed_at)
@@ -65,48 +63,14 @@ export default function ChecklistSignature({ item, statement, disabled = false, 
     return <p className="mt-1.5 text-sm text-neutral-400">Waiting for their signature.</p>
   }
 
-  const ready = name.trim().length > 0 && agreed
-
   return (
-    <div className="mt-2 rounded-lg border border-gray-200 bg-neutral-50 p-3 space-y-2">
-      {Array.isArray(docs) && docs.length > 0 && (
-        <div>
-          <span className="block text-xs font-medium text-neutral-500 mb-1">Review before signing</span>
-          {docs.map((d) => (
-            <button key={d.id} type="button" onClick={() => onOpenDoc?.(d)}
-              className="block text-sm text-optio-purple hover:underline">
-              {d.title}
-            </button>
-          ))}
-        </div>
-      )}
-      <label className="block">
-        <span className="block text-xs font-medium text-neutral-500 mb-1">Type your full name</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Your full name"
-          maxLength={120}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-        />
-      </label>
-      <label className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-purple-700"
-        />
-        <span>{statement || FALLBACK_STATEMENT}</span>
-      </label>
-      <button
-        type="button"
-        disabled={!ready || busy}
-        onClick={() => onSign({ signature_name: name.trim(), signature_agreed: true })}
-        className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50"
-      >
-        {busy ? 'Signing…' : 'Sign'}
-      </button>
-    </div>
+    <SignatureCapture
+      statement={statement}
+      docs={docs}
+      onOpenDoc={onOpenDoc}
+      busy={busy}
+      onSign={onSign}
+      className="mt-2 rounded-lg border border-gray-200 bg-neutral-50 p-3"
+    />
   )
 }

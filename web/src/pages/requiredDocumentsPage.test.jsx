@@ -58,13 +58,13 @@ describe('the paperwork hold', () => {
     render(<RequiredDocumentsPage />)
     expect(await screen.findByText('Your school needs a signature')).toBeInTheDocument()
     expect(screen.getByText('Back to school paperwork')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Your full name')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
   })
 
   it('signs through the same parent endpoint the portal uses, then re-asks the gate', async () => {
     render(<RequiredDocumentsPage />)
-    fireEvent.change(await screen.findByPlaceholderText('Your full name'), { target: { value: 'Dana Myers' } })
+    fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'), { target: { value: 'Dana Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
 

@@ -29,7 +29,9 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import OnboardingPage from './OnboardingPage'
+import AssignedWork from '../../components/sis/tasks/AssignedWork'
+
+const SIG = '/api/sis/staff-admin/signature-requests'
 
 const sampleTemplate = {
   id: 'tmpl-1',
@@ -66,14 +68,14 @@ const openTemplates = async () => {
 
 describe('Onboarding templates management', () => {
   it('renders template list with Duplicate button', async () => {
-    render(<OnboardingPage />)
+    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     expect(await screen.findByText('Staff Onboarding')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Duplicate' })).toBeInTheDocument()
   })
 
   it('duplicates a template server-side', async () => {
-    render(<OnboardingPage />)
+    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     const duplicateBtn = await screen.findByRole('button', { name: 'Duplicate' })
     fireEvent.click(duplicateBtn)
@@ -89,7 +91,7 @@ describe('Onboarding templates management', () => {
   })
 
   it('allows moving sections up and down in template editor', async () => {
-    render(<OnboardingPage />)
+    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     const editBtn = await screen.findByRole('button', { name: 'Edit' })
     fireEvent.click(editBtn)
@@ -137,7 +139,7 @@ describe('Onboarding templates management', () => {
     })
   })
   it('duplicates a single item without copying its key', async () => {
-    render(<OnboardingPage />)
+    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
@@ -167,7 +169,7 @@ describe('Onboarding templates management', () => {
   })
 
   it('duplicates template from inside the editor modal', async () => {
-    render(<OnboardingPage />)
+    render(<AssignedWork orgId="org-1" sigEndpoint={SIG} />)
     await openTemplates()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 

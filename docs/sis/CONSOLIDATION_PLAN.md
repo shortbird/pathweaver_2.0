@@ -42,7 +42,7 @@ and patterns instead.
 | M2 One family hold | 1 | shipped (migration applied to prod + staging) | see git log (`consolidate/M2-one-family-hold`) | `family_hold_write` 0, `fee_hold_sentinel` 0 |
 | M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not; enrollment backfill written, not run) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | not started | | |
-| M9 One portal, one signature capture | 2 | not started | | |
+| M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
 | M14c-e Pickers, modals, inputs, tables | 2 | not started | | |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
@@ -960,6 +960,54 @@ Verify at :3000 as an iCreate teacher who is also a parent: one checklist on
 signed with the same widget and the same sentence; as admin, one place to send for
 signature. Manifest `portal_views` → 0, `signature_capture` → 0,
 `signature_request_mount` → 0.
+
+**As shipped (2026-09-17).** Backend: `routes/sis/portal_views.py` holds each
+portal body once -- `list_onboarding`, `update_onboarding_item`, `upload_doc`,
+`doc_url`, `office_document_url`, `list_tasks`, `list_assigned_tasks`,
+`list_my_forms`, `submit_form` -- and `routes/sis/parent.py` /
+`routes/sis/staff_portal.py` are one-line mounts under their own gates (the
+route owners, the buckets and the audiences are unchanged; `ROLE_CAPABILITIES.md`
+lists the file under "gated some other way" and `test_role_matrix_doc.py`'s
+`DOCUMENTED_UNGATED` names it). The teacher's document link signs through
+`sis_secure_docs_service.signed_url` like the parent's did, instead of a second
+storage call. `GET /api/registration/signature-statement` (public) serves
+`sis_onboarding_service.SIGNATURE_STATEMENT`; the funnel's public config carries
+it as `signature_statement`, and `POST .../paperwork` now requires `agreed` per
+item and records `agreed_to` beside the name, the same three facts a checklist
+signature stores. Web: `components/sis/SignatureCapture.jsx` is the one box
+(name + affirmation tick; `onSign` for a checklist item, `value`/`onChange` for
+the funnel's several-at-once, `preview` for the setup tab), fed by
+`hooks/api/useSignatureStatement.js` when the payload carries no sentence;
+`ChecklistSignature` keeps only the checklist item's states (signed, waiting on
+the office's document, previewed) and renders it; `PaperworkStep` and the setup
+tab's `PaperworkFeeSteps` render it. One portal: `OnboardingPage` is gone --
+its teacher half is `components/sis/tasks/MyChecklists.jsx`, the Checklist tab
+of `MyTasksPage` (preview-aware, `?item=` highlight kept), and its admin half
+(`AdminOnboarding`, a second "Checklist progress" list only `/onboarding` showed
+admins) folded into the Task Center's `AssignedWork`, which took the
+person-or-form search (`checklistSearch.matchAssignment`, opens the card on the
+matching item); `AssignmentCard`/`ReviewStrip`/`awaitingReviewOf` live in
+`components/sis/tasks/ChecklistReview.jsx`. `/onboarding` redirects to
+`/my-tasks?tab=checklist` with its query string, so `?assignment=&item=` links
+in older notifications still land on the item; the sidebar's Onboarding entry
+(kept -- the client asked for the door on 09-10) opens that tab, and
+`SisSidebar` highlights the tab door only on its tab. Backend notification
+links point at the tab (`/my-tasks?tab=checklist`) and at the Task Center's
+Assigned list. Deliberately NOT done: `signature_request_mount` stays at 4 --
+`test_the_hr_store_is_hr_gated` requires `secure_documents.py` to remain
+HR_ROLES-only, and a front-office admin without HR access sends a form for
+signature through the staff-admin door, so the second mount is a gate, not a
+copy (the manifest row's `means` says so; the four routes are one-liners over
+one view module). Also not merged: the family's Forms tab (`FamilyFormsPage` +
+`ChecklistAssignments`, over `/api/sis/parent/*`) and the staff Checklist tab
+(`MyChecklists`, over `/api/sis/teacher/*`) are still two renderers of the same
+checklist rows; the signature box inside both is now the same component.
+Verify at :3000: as a teacher, `/my-tasks` has three tabs and "See your full
+onboarding checklist" opens the Checklist tab; `/onboarding` lands there;
+sign a checklist item; as a parent, the funnel's paperwork step shows the
+affirmation tick and refuses to continue without it; as an admin, the setup
+tab's paperwork preview shows the same sentence, and Task Center > Assigned
+finds "lisa w-4" and opens the card on the W-4.
 
 ### M13 — One detail surface per entity
 

@@ -661,13 +661,16 @@ const RegisterFunnelPage = () => {
     const items = config.paperwork || []
     for (const it of items) {
       if (!agreed[it.key]) return toast.error(`Please confirm you agree to: ${it.label}`)
-      if (!(signatures[it.key] || '').trim()) return toast.error(`Please sign: ${it.label}`)
+      if (!(signatures[it.key]?.name || '').trim()) return toast.error(`Please sign: ${it.label}`)
+      if (!signatures[it.key]?.agreed) return toast.error(`Tick the box to confirm your signature: ${it.label}`)
     }
     setSubmitting(true)
     try {
       const { data } = await api.post(`/api/registration/registrations/${reg.registration_id}/paperwork`, {
         access_token: reg.access_token,
-        acknowledgements: items.map((it) => ({ key: it.key, signed_name: signatures[it.key].trim() })),
+        acknowledgements: items.map((it) => ({
+          key: it.key, signed_name: signatures[it.key].name.trim(), agreed: true,
+        })),
       })
       setFeeCents(data.fee_cents || 0)
       if ((data.fee_cents || 0) > 0 || data.payment_url || monthlyPlan) setStep('fee')

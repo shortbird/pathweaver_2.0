@@ -13,6 +13,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import MyChecklists from '../../components/sis/tasks/MyChecklists'
+import { AssignmentCard } from '../../components/sis/tasks/ChecklistReview'
 
 // Onboarding reads its checklists through hooks/api (QF-03), so these need a
 // QueryClient. Fresh client per render keeps one test's cache out of the next
@@ -42,7 +44,6 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import OnboardingPage from './OnboardingPage'
 import { withConfirm, answerConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 const item = (over = {}) => ({
@@ -74,18 +75,18 @@ beforeEach(() => {
 describe('signing a checklist item', () => {
   it('asks for a typed name and the affirmation', async () => {
     mockChecklist([item()])
-    render(<OnboardingPage />)
-    expect(await screen.findByPlaceholderText('Your full name')).toBeInTheDocument()
+    render(<MyChecklists orgId="org-1" />)
+    expect(await screen.findByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
   })
 
   it('will not sign until both are given', async () => {
     mockChecklist([item()])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     const sign = await screen.findByRole('button', { name: 'Sign' })
     expect(sign).toBeDisabled()
 
-    fireEvent.change(screen.getByPlaceholderText('Your full name'), { target: { value: 'Kate Myers' } })
+    fireEvent.change(screen.getByPlaceholderText('Type your full name to sign'), { target: { value: 'Kate Myers' } })
     expect(sign).toBeDisabled()  // name alone is not a signature
 
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
@@ -94,8 +95,8 @@ describe('signing a checklist item', () => {
 
   it('sends the name and the affirmation together', async () => {
     mockChecklist([item()])
-    render(<OnboardingPage />)
-    fireEvent.change(await screen.findByPlaceholderText('Your full name'), { target: { value: 'Kate Myers' } })
+    render(<MyChecklists orgId="org-1" />)
+    fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'), { target: { value: 'Kate Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
 
@@ -110,16 +111,16 @@ describe('signing a checklist item', () => {
       status: 'complete',
       signature: { name: 'Kate Myers', signed_at: '2026-08-06T17:00:00Z' },
     })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     expect(await screen.findByText(/Signed by/)).toBeInTheDocument()
     expect(screen.getByText('Kate Myers')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Type your full name to sign')).not.toBeInTheDocument()
   })
 
   it('does not let a signature item be ticked off like an ordinary one', async () => {
     mockChecklist([item()])
-    render(<OnboardingPage />)
-    await screen.findByPlaceholderText('Your full name')
+    render(<MyChecklists orgId="org-1" />)
+    await screen.findByPlaceholderText('Type your full name to sign')
     expect(screen.getByRole('checkbox', { checked: false, name: '' })).toBeDisabled()
   })
 
@@ -128,7 +129,7 @@ describe('signing a checklist item', () => {
     // view. Uploading is what completes it; the tick alone must not.
     mockChecklist([item({ key: 'i9', title: 'Upload your I-9 Form', needs_signature: false,
                           needs_document: true, documents: [] })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     await screen.findByText('Upload your I-9 Form')
     expect(screen.getByRole('checkbox', { checked: false })).toBeDisabled()
     expect(screen.getByText('Upload document')).toBeInTheDocument()
@@ -138,16 +139,16 @@ describe('signing a checklist item', () => {
     mockChecklist([item({ key: 'i9', title: 'Upload your I-9 Form', needs_signature: false,
                           needs_document: true, status: 'complete',
                           documents: [{ path: 'staff/kate/i9.pdf', filename: 'i9.pdf' }] })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     await screen.findByText('i9.pdf')
     expect(screen.getByRole('checkbox', { checked: true })).not.toBeDisabled()
   })
 
   it('leaves ordinary items alone', async () => {
     mockChecklist([item({ key: 'handbook', title: 'Read the handbook', needs_signature: false })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     await screen.findByText('Read the handbook')
-    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Type your full name to sign')).not.toBeInTheDocument()
   })
 
   it('shows the link the office gave them', async () => {
@@ -155,7 +156,7 @@ describe('signing a checklist item', () => {
     // teachers could not reach the I-9 they were asked to fill in.
     mockChecklist([item({ key: 'i9', title: 'Upload your I-9', needs_signature: false,
       link: 'https://example.org/i-9.pdf' })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     const link = await screen.findByRole('link', { name: 'Open link' })
     expect(link).toHaveAttribute('href', 'https://example.org/i-9.pdf')
   })
@@ -169,17 +170,17 @@ describe('signing a document from the office', () => {
   // sign yet.
   it('withholds the sign box until the office uploads the document', async () => {
     mockChecklist([item({ sign_docs: [] })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     await screen.findByText('Staff agreement')
-    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Type your full name to sign')).not.toBeInTheDocument()
     expect(screen.getByText(/Your document is not here yet/)).toBeInTheDocument()
   })
 
   it('offers the document to read, then the sign box', async () => {
     mockChecklist([item({ sign_docs: [{ id: 'doc-1', title: 'Contract - Kate Myers.pdf' }] })])
-    render(<OnboardingPage />)
+    render(<MyChecklists orgId="org-1" />)
     expect(await screen.findByText('Review before signing')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Your full name')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Contract - Kate Myers.pdf' }))
     await waitFor(() => expect(api.get).toHaveBeenCalledWith(
@@ -211,7 +212,7 @@ describe('clearing a signature as an admin', () => {
       return Promise.resolve({ data: {} })
     })
 
-    render(<OnboardingPage />)
+    render(<AssignmentCard orgId="org-1" assignment={signedAssignment} onChanged={() => {}} />)
 
     expect(await screen.findByText(/Signed by/)).toBeInTheDocument()
     expect(screen.getAllByText('Karina Worlton').length).toBeGreaterThan(0)

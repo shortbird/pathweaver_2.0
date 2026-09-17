@@ -7,6 +7,8 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import { getPreviewTeacher } from './teacherPreview'
 import { MyDocumentsPanel } from './MyDocumentsPage'
+import MyChecklists from '../../components/sis/tasks/MyChecklists'
+import { isPathHidden } from './sisModules'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import StatusPill from '../../components/sis/ui/StatusPill'
@@ -32,10 +34,17 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
  * you sent in. Half of what lands here is "sign this" or "upload that", so the
  * files those tasks produce live one tab over instead of one nav entry away.
  *
+ * The Checklist tab is the whole onboarding checklist, ticks and all -- the
+ * one list people go looking for on purpose ("which of my documents are in,
+ * which are still owed", iCreate 2026-09-10), which an inbox of outstanding
+ * work cannot answer. It was its own page, /onboarding, until M9; that path
+ * redirects here and the sidebar's Onboarding entry opens this tab.
+ *
  * Under a teacher preview the tasks tab cannot answer for the teacher — the
  * inbox is always the CALLER's own (routes/sis/tasks.py takes no ?teacher_id=)
  * — so a preview lands on Documents, which does support it, and the tasks tab
- * says whose list it would be showing.
+ * says whose list it would be showing. The Checklist tab supports the
+ * preview too.
  */
 
 const TYPE_LABEL = {
@@ -245,13 +254,20 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
   )
 }
 
+const TABS = ['tasks', 'checklist', 'documents']
+
 const MyTasksPage = () => {
-  const { orgId } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [preview] = useState(() => getPreviewTeacher())
   const [searchParams, setSearchParams] = useSearchParams()
+  // An org that hid the onboarding module before the tab existed keeps it
+  // hidden: the config is a promise already made (sisModules).
+  const checklistHidden = isPathHidden('/onboarding', activeOrg)
   // A preview lands on Documents: the tasks tab can only answer for the caller.
-  const tab = searchParams.get('tab') === 'documents' || (preview && !searchParams.get('tab'))
-    ? 'documents' : 'tasks'
+  const wanted = searchParams.get('tab')
+  const tab = TABS.includes(wanted) && !(wanted === 'checklist' && checklistHidden)
+    ? wanted : (preview ? 'documents' : 'tasks')
+  const openItemKey = searchParams.get('item')
   const [data, setData] = useState({ tasks: [], counts: {} })
   const [showDone, setShowDone] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -302,19 +318,24 @@ const MyTasksPage = () => {
         {preview && tab === 'tasks' && (
           <p className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
             These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
-            the task inbox. Their checklist is on Onboarding; their documents are on the
-            Documents tab here.
+            the task inbox. Their checklist and their documents are on the other two tabs here.
           </p>
         )}
       </div>
 
       <GlassTabBar
         align="start" size="md" aria-label="My Tasks sections"
-        tabs={[{ id: 'tasks', label: 'My tasks' }, { id: 'documents', label: 'My documents' }]}
+        tabs={[
+          { id: 'tasks', label: 'My tasks' },
+          ...(checklistHidden ? [] : [{ id: 'checklist', label: 'My checklist' }]),
+          { id: 'documents', label: 'My documents' },
+        ]}
         active={tab} onSelect={setTab}
       />
 
       {tab === 'documents' && <MyDocumentsPanel orgId={orgId} preview={preview} />}
+
+      {tab === 'checklist' && <MyChecklists orgId={orgId} preview={preview} openItemKey={openItemKey} />}
 
       {tab === 'tasks' && (
         <>
@@ -352,11 +373,12 @@ const MyTasksPage = () => {
                 needs the whole checklist, ticks and all, so say where it is
                 rather than leaving an empty page to imply there was never
                 anything here (iCreate, 2026-09-10). */}
-            {!loading && !preview && (
+            {!loading && !preview && !checklistHidden && (
               <p className="text-sm text-neutral-500 mt-3 pt-3 border-t border-gray-100">
-                <Link to="/onboarding" className="text-optio-purple hover:underline">
+                <button type="button" onClick={() => setTab('checklist')}
+                  className="text-optio-purple hover:underline">
                   See your full onboarding checklist
-                </Link>
+                </button>
                 {' '}— every item, including the ones you have already finished.
               </p>
             )}

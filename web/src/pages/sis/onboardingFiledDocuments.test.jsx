@@ -44,7 +44,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import { AssignmentCard } from './OnboardingPage'
+import { AssignmentCard } from '../../components/sis/tasks/ChecklistReview'
 
 // Molly's exact situation on the day of the report: the background check is on
 // file and the item is still pending.

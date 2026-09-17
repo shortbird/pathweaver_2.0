@@ -60,13 +60,13 @@ beforeEach(() => {
 describe('a family signing their paperwork', () => {
   it('offers the typed signature on the item', async () => {
     render(<FamilyFormsPage />)
-    expect(await screen.findByPlaceholderText('Your full name')).toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('Type your full name to sign')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
   })
 
   it('signs through the parent endpoint', async () => {
     render(<FamilyFormsPage />)
-    fireEvent.change(await screen.findByPlaceholderText('Your full name'), { target: { value: 'Dana Myers' } })
+    fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'), { target: { value: 'Dana Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
 
@@ -96,7 +96,7 @@ describe('signing a document from the office on the Forms page', () => {
 
     render(<FamilyFormsPage />)
     await screen.findByText('Photo and media release')
-    expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Type your full name to sign')).not.toBeInTheDocument()
     expect(screen.getByText(/Your document is not here yet/)).toBeInTheDocument()
   })
 })

@@ -1,11 +1,12 @@
 /**
- * The Checklists tab, ordered by how often an admin does each thing.
+ * The Assigned list, ordered by how often an admin does each thing.
  *
  * It used to read in exactly the reverse order: authoring templates (rare) sat
  * at the top and injected a full inline editor when opened, assigning (weekly)
  * came next, and tracking (daily) was last. Worse, the one thing the tab exists
  * to surface — an item somebody has finished that is now waiting on the office
  * to approve — was reachable only by opening every person's checklist in turn.
+ * (Assigning is the Task Center's own button; taskCenter.test covers it.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -41,7 +42,9 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import { AdminOnboarding } from './OnboardingPage'
+import AssignedWork from '../../components/sis/tasks/AssignedWork'
+
+const SIG = '/api/sis/staff-admin/signature-requests'
 
 const TEMPLATE = {
   id: 't1', name: 'Employee onboarding', audience: 'staff', role_type: 'employee',
@@ -72,7 +75,7 @@ const mockData = ({ templates = [TEMPLATE], assignments = [ASSIGNMENT] } = {}) =
 }
 
 const renderTab = (props = {}) => render(
-  <MemoryRouter><AdminOnboarding orgId="org-1" {...props} /></MemoryRouter>)
+  <MemoryRouter><AssignedWork orgId="org-1" sigEndpoint={SIG} {...props} /></MemoryRouter>)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -103,7 +106,7 @@ describe('what needs the admin', () => {
   it('says nothing at all when nothing is waiting', async () => {
     mockData({ assignments: [{ ...ASSIGNMENT, items: [ASSIGNMENT.items[0]] }] })
     renderTab()
-    await screen.findByText('Checklist progress')
+    await screen.findByText('Sam Teacher')
     expect(screen.queryByText(/Needs your review/)).not.toBeInTheDocument()
   })
 
@@ -132,19 +135,12 @@ describe('where each job lives now', () => {
     expect(await screen.findByRole('dialog', { name: /Checklist template/i })).toBeInTheDocument()
   })
 
-  it('assigns through a dialog', async () => {
-    renderTab()
-    fireEvent.click(await screen.findByRole('button', { name: /Assign a checklist/ }))
-    expect(await screen.findByRole('dialog', { name: /Assign a checklist/i })).toBeInTheDocument()
-  })
 })
 
 describe('removing a checklist', () => {
   it('keeps Unassign out of the row you click to expand', async () => {
     renderTab()
-    await screen.findByText('Checklist progress')
-    // The heading is static; the rows arrive with the assignments query, so
-    // wait for a row rather than for the section around it.
+    // The rows arrive with the assignments query, so wait for a row.
     await screen.findAllByText('Sam Teacher')
     // "Sam Teacher" names them in the review strip too; the progress row is the
     // one wrapped in a <summary>.

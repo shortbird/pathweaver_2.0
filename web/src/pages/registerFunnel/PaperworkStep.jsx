@@ -1,6 +1,10 @@
 // Funnel step 5: read, tick and type-to-sign each configured paperwork item.
+// Two ticks per item, on purpose: one agrees to the document, the other
+// (inside SignatureCapture) makes the typed name a signature. The server
+// records the affirmation wording against each name.
 import React from 'react'
-import { field, absUrl, Section, PrimaryButton } from '../../components/registration/funnelUi'
+import { absUrl, Section, PrimaryButton } from '../../components/registration/funnelUi'
+import SignatureCapture from '../../components/sis/SignatureCapture'
 
 const PaperworkStep = ({ agreed, config, setAgreed, setSignatures, signatures, submitPaperwork, submitting }) => (
   <div className="space-y-6">
@@ -29,11 +33,11 @@ const PaperworkStep = ({ agreed, config, setAgreed, setSignatures, signatures, s
                 className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
               I confirm I have read and agree to the above terms
             </label>
-            <input className={field} placeholder="Type your full name to sign"
-              value={signatures[it.key] || ''} onChange={(e) => setSignatures((s) => ({ ...s, [it.key]: e.target.value }))} />
-            <p className="text-xs text-neutral-400 mt-1.5">
-              By typing your name above, you agree this electronic signature has the same legal force and effect as a manual written signature.
-            </p>
+            <SignatureCapture
+              statement={config.signature_statement}
+              value={signatures[it.key] || { name: '', agreed: false }}
+              onChange={(next) => setSignatures((s) => ({ ...s, [it.key]: next }))}
+            />
           </div>
         ))}
       </div>

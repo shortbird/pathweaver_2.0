@@ -654,39 +654,37 @@
     },
     {
       "id": "portal_views",
-      "means": "The parent portal and the teacher portal serve the same onboarding, forms and documents views from two route files with the bodies copied (eleven service calls), differing by bucket and gate.",
+      "means": "The parent portal and the teacher portal serve the same onboarding, forms and documents views. Until M9 (2026-09-17) two route files carried the bodies copied (eleven service calls), differing by bucket and gate; now routes/sis/portal_views.py holds each body once and parent.py and staff_portal.py mount it under their own gates.",
       "owner": { "backend": ["routes/sis/portal_views.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "(\\b(onboarding|forms|sis_secure_docs_service)\\.\\w+\\(|\\.create_signed_url\\()",
           "dirs": ["routes/sis/parent.py", "routes/sis/staff_portal.py"]
         }
       },
-      "baseline": { "backend": 11 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M9",
-      "use_instead": "portal_views.<view>(org_id, user_id, bucket=..., allow_hr=...) (M9), mounted by parent.py and staff_portal.py as one-line routes; the route owners do not change."
+      "use_instead": "portal_views.<view>(org_id, user_id, ...) mounted by parent.py and staff_portal.py as one-line routes; the route owners do not change."
     },
     {
       "id": "signature_capture",
-      "means": "Typing your name as a signature. Three UIs, two hard-coded affirmation sentences and one fetched from the server.",
-      "owner": { "web": ["components/sis/SignatureCapture.jsx"] },
-      "proposed": true,
+      "means": "Typing your name as a signature. Until M9 (2026-09-17) three UIs drew the box, two with their own hard-coded affirmation sentence; now components/sis/SignatureCapture.jsx is the one box, showing the server's sentence (sis_onboarding_service.SIGNATURE_STATEMENT, carried by every signable payload and by GET /api/registration/signature-statement). The owner keeps one fallback copy for a failed fetch.",
+      "owner": { "web": ["components/sis/SignatureCapture.jsx", "hooks/api/useSignatureStatement.js"] },
       "forbid": {
         "web": {
           "pattern": "(By typing your name|typing my own name)",
-          "dirs": ["pages/sis", "components/sis", "pages/registerFunnel"]
+          "dirs": ["pages/sis", "components/sis", "pages/registerFunnel", "hooks/api"]
         }
       },
-      "baseline": { "web": 3 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M9",
-      "use_instead": "<SignatureCapture statement={fromServer} onSign={...} /> (M9) for the funnel step, the checklist and HR; the affirmation text comes from the server."
+      "use_instead": "<SignatureCapture statement={payload.signature_statement} onSign={...} /> (or value/onChange for a form that submits several at once); leave statement out and it fetches the sentence."
     },
     {
       "id": "signature_request_mount",
-      "means": "Signature requests reachable at two paths (staff-admin and secure-documents) that mount the same view functions with a different allow_hr.",
+      "means": "Signature requests reachable at two paths (staff-admin and secure-documents) that mount the same view functions with a different allow_hr. Kept at two on purpose (M9, 2026-09-17): the HR store must stay HR_ROLES-only (test_role_matrix_doc.test_the_hr_store_is_hr_gated), and a front-office admin sending a form for signature without HR access needs the staff-admin door. The two mounts are four one-line routes over one view module; the number must not grow.",
       "owner": { "backend": ["routes/sis/secure_documents.py", "routes/sis/signature_request_views.py"] },
       "forbid": {
         "backend": { "pattern": "signature_request_views\\.\\w+\\(", "dirs": ["routes"] }
@@ -694,7 +692,7 @@
       "baseline": { "backend": 4 },
       "measured": "2026-09-17",
       "lowered_by": "M9",
-      "use_instead": "/api/sis/secure-documents/signature-requests is the one mount (M9); the staff-admin path redirects for one release, then goes."
+      "use_instead": "A new signature-request route goes in signature_request_views.py once and is mounted by both files; never a third path."
     },
     {
       "id": "staff_phone_edit",

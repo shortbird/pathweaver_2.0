@@ -1,5 +1,5 @@
 /**
- * One search box over Checklist progress, for a person or a form or both.
+ * One search box over the Assigned list, for a person or a form or both.
  *
  * iCreate, 2026-09-14: the office could see that Lisa Price had uploaded her
  * W-4 and I-9, and had to scroll a list of every assigned checklist to reach
@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
-import { AdminOnboarding } from './OnboardingPage'
+import AssignedWork from '../../components/sis/tasks/AssignedWork'
 import { matchAssignment } from './checklistSearch'
 
 const render = (ui) => {
@@ -67,9 +67,13 @@ beforeEach(() => {
 })
 
 const renderList = async () => {
-  render(<MemoryRouter><AdminOnboarding orgId="org-1" /></MemoryRouter>)
+  render(<MemoryRouter>
+    <AssignedWork orgId="org-1" sigEndpoint="/api/sis/staff-admin/signature-requests" />
+  </MemoryRouter>)
+  // Lisa's checklist is finished, so the default Outstanding view hides it.
+  fireEvent.click(await screen.findByRole('button', { name: /^All \(/ }))
   await screen.findByText('Lisa Price')
-  return screen.getByLabelText('Search checklists by name or document')
+  return screen.getByLabelText('Search assigned work')
 }
 
 describe('matchAssignment', () => {
@@ -108,7 +112,7 @@ describe('Checklist progress search', () => {
   it('says so when nothing matches', async () => {
     const box = await renderList()
     fireEvent.change(box, { target: { value: 'zzz' } })
-    await waitFor(() => expect(screen.getByText('No checklists match "zzz".')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Nothing here matches "zzz".')).toBeInTheDocument())
     expect(screen.queryByText('Lisa Price')).not.toBeInTheDocument()
   })
 })

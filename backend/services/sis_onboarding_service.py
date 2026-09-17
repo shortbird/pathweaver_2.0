@@ -454,7 +454,7 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     # Family checklists live in the learning-app family portal; staff ones in the
     # SIS console — point the notification at the right place.
     is_family = _clean_audience(template.get('audience')) == 'family'
-    link = '/family/portal' if is_family else '/onboarding'
+    link = '/family/portal' if is_family else '/my-tasks?tab=checklist'
     items = [{**i, 'status': 'pending', 'document_url': None,
               'submitted_at': None, 'approved_by': None, 'approved_at': None,
               'admin_notes': None, 'signature': None}
@@ -1486,14 +1486,14 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
                     sis_notifications.notify(
                         admin_id, 'Onboarding item ready for review',
                         f'{target["title"]} — {assignment.get("template_name") or "onboarding"}',
-                        link='/onboarding', organization_id=org_id)
+                        link='/tasks?tab=assigned', organization_id=org_id)
         if status in ('approved', 'rejected'):
             target['approved_by'] = actor_id
             target['approved_at'] = _now()
             sis_notifications.notify(
                 assignment['user_id'],
                 f'Onboarding item {status}', target['title'],
-                link='/onboarding', organization_id=org_id)
+                link='/my-tasks?tab=checklist', organization_id=org_id)
     if is_admin and 'admin_notes' in fields:
         target['admin_notes'] = (fields.get('admin_notes') or '').strip() or None
 

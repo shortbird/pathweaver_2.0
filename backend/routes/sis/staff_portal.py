@@ -17,8 +17,7 @@ from utils.logger import get_logger
 from utils import class_membership as membership
 from services import sis_service
 from services import sis_staff_service as staff
-from services import sis_forms_service as forms
-from services import sis_onboarding_service as onboarding
+from routes.sis import portal_views
 from services import sis_supply_budget_service as supply_budget
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES
@@ -29,7 +28,6 @@ logger = get_logger(__name__)
 bp = Blueprint('sis_staff_portal', __name__, url_prefix='/api/sis/teacher')
 
 
-_STAFF_DOCS_BUCKET = 'staff-documents'  # PRIVATE bucket (onboarding uploads)
 _DOC_EXTENSIONS = {'pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 _MAX_DOC_BYTES = 10 * 1024 * 1024
 
@@ -309,14 +307,8 @@ def my_forms(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    from services import sis_form_template_service as form_templates
-    return jsonify({'success': True,
-                    'submissions': forms.list_mine(org_id, _read_target(user_id, org_id)),
-                    'form_types': forms.FORM_TYPES,
-                    # Built-ins and the school's own forms in one list, with the
-                    # questions each one asks.
-                    'forms': form_templates.submittable_forms(
-                        org_id, 'staff', roles=sis_service.effective_roles(user_id))})
+    return portal_views.list_my_forms(org_id, _read_target(user_id, org_id),
+                                      sis_service.effective_roles(user_id))
 
 
 @bp.route('/forms', methods=['POST'])
@@ -326,26 +318,25 @@ def submit_form(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    result = forms.submit(org_id, user_id, request.get_json() or {})
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result}), 201
+    return portal_views.submit_form(org_id, user_id)
 
 
 @bp.route('/tasks', methods=['GET'])
 @require_role(*STAFF_ROLES)
 @require_module('tasks')
 def my_tasks(user_id):
-    """Open requests/tasks assigned to the caller — any staff member can be an
+    """Open requests/tasks assigned to the caller -- any staff member can be an
     assignee ("Family requests can be assigned to any staff member")."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True,
-                    'tasks': forms.list_assigned(org_id, _read_target(user_id, org_id))})
+    return portal_views.list_assigned_tasks(org_id, _read_target(user_id, org_id))
 
 
 # ── Onboarding (mine) ────────────────────────────────────────────────────────
+# The bodies are routes/sis/portal_views.py, shared with the family portal
+# (routes/sis/parent.py); this side reads the staff audience and the
+# staff-documents bucket, and an admin may open any file in the org.
 
 @bp.route('/onboarding', methods=['GET'])
 @require_role(*STAFF_ROLES)
@@ -356,10 +347,7 @@ def my_onboarding(user_id):
         return err
     # The mirror of the family portal's filter: staff checklists only, so a
     # teacher who is also a parent doesn't meet their family paperwork here.
-    return jsonify({'success': True,
-                    'assignments': onboarding.list_assignments(
-                        org_id, user_id=_read_target(user_id, org_id),
-                        audience='staff')})
+    return portal_views.list_onboarding(org_id, _read_target(user_id, org_id), 'staff')
 
 
 @bp.route('/onboarding/<assignment_id>/items/<item_key>', methods=['PATCH'])
@@ -369,15 +357,8 @@ def update_onboarding_item(user_id, assignment_id, item_key):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    is_admin = sis_service.caller_is_admin(user_id)
-    # The signing address is corroboration for a typed signature, so it comes
-    # from the request rather than from anything the client can set.
-    fields = {**(request.get_json() or {}), 'signature_ip': request.remote_addr}
-    result = onboarding.update_item(org_id, assignment_id, item_key,
-                                    fields, user_id, is_admin)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result})
+    return portal_views.update_onboarding_item(org_id, user_id, assignment_id, item_key,
+                                               is_admin=sis_service.caller_is_admin(user_id))
 
 
 @bp.route('/onboarding/upload', methods=['POST'])
@@ -389,39 +370,7 @@ def upload_onboarding_doc(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'error': 'No file provided'}), 400
-    file = request.files['file']
-    if not file.filename:
-        return jsonify({'success': False, 'error': 'No file selected'}), 400
-    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-    if ext not in _DOC_EXTENSIONS:
-        return jsonify({'success': False, 'error': 'Allowed types: pdf, doc, docx, png, jpg, webp'}), 400
-    file.seek(0, 2)
-    if file.tell() > _MAX_DOC_BYTES:
-        return jsonify({'success': False, 'error': 'File size exceeds 10MB limit'}), 400
-    file.seek(0)
-
-    # admin client justified: upload to the PRIVATE staff-documents bucket (service-role-only storage); path pinned to org_id/user_id from @require_role(STAFF_ROLES)
-    supabase = get_supabase_admin_client()
-    try:
-        supabase.storage.get_bucket(_STAFF_DOCS_BUCKET)
-    except Exception:
-        try:
-            supabase.storage.create_bucket(_STAFF_DOCS_BUCKET, options={'public': False})
-        except Exception:
-            # create-if-missing: the error means it already exists
-            ...
-    path = f"{org_id}/{user_id}/{_uuid.uuid4().hex}.{ext}"
-    try:
-        supabase.storage.from_(_STAFF_DOCS_BUCKET).upload(
-            path=path, file=file.read(),
-            file_options={'content-type': file.content_type or 'application/octet-stream'},
-        )
-    except Exception as e:
-        logger.error(f'Onboarding doc upload failed: {e}')
-        return jsonify({'success': False, 'error': 'Failed to upload document'}), 500
-    return jsonify({'success': True, 'path': path})
+    return portal_views.upload_doc(org_id, user_id, portal_views.STAFF_DOCS_BUCKET)
 
 
 @bp.route('/onboarding/doc-url', methods=['GET'])
@@ -433,21 +382,8 @@ def onboarding_doc_url(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    path = request.args.get('path') or ''
-    parts = path.split('/')
-    if len(parts) < 3 or parts[0] != org_id:
-        return jsonify({'success': False, 'error': 'Document not found'}), 404
-    if not sis_service.caller_is_admin(user_id) and parts[1] != user_id:
-        return jsonify({'success': False, 'error': 'Document not found'}), 404
-    try:
-        # admin client justified: signed URL on the PRIVATE staff-documents bucket; path prefix checked above (own file, or any org file for caller_is_admin)
-        signed = get_supabase_admin_client().storage.from_(_STAFF_DOCS_BUCKET) \
-            .create_signed_url(path, 3600)
-        url = signed.get('signedURL') or signed.get('signedUrl')
-    except Exception as e:
-        logger.error(f'Signed URL failed for {path}: {e}')
-        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
-    return jsonify({'success': True, 'url': url})
+    return portal_views.doc_url(org_id, user_id, portal_views.STAFF_DOCS_BUCKET,
+                                any_in_org=sis_service.caller_is_admin(user_id))
 
 
 # ── Time clock ───────────────────────────────────────────────────────────────
@@ -652,30 +588,13 @@ def upload_my_document(user_id):
 @require_role(*STAFF_ROLES)
 @require_module('secure_documents')
 def my_document_url(user_id, doc_id):
-    """Signed URL for a document belonging to whoever this portal is showing —
+    """Signed URL for a document belonging to whoever this portal is showing --
     the caller, or the teacher an HR admin is previewing. Ownership and sharing
-    are re-checked here, not trusted from the list call."""
+    are re-checked in the shared body, not trusted from the list call."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
     owner, err = _documents_target(user_id, org_id)
     if err:
         return err
-    # admin client justified: service-role-only sis_secure_documents lookup; org + owner_user_id + shared_with_owner re-checked below before any URL is issued
-    rows = (get_supabase_admin_client().table('sis_secure_documents')
-            .select('id, storage_path, organization_id, owner_user_id, shared_with_owner')
-            .eq('id', doc_id).limit(1).execute()).data or []
-    doc = rows[0] if rows else None
-    if (not doc or doc.get('organization_id') != org_id
-            or doc.get('owner_user_id') != owner
-            or not doc.get('shared_with_owner')):
-        return jsonify({'success': False, 'error': 'Document not found'}), 404
-    try:
-        # admin client justified: signed URL on the private sis-secure-documents bucket, only after the ownership/sharing re-check above
-        signed = get_supabase_admin_client().storage.from_(_SECURE_DOCS_BUCKET) \
-            .create_signed_url(doc['storage_path'], 3600)
-        url = signed.get('signedURL') or signed.get('signedUrl')
-    except Exception as e:
-        logger.error(f'Signed URL failed for staff document {doc_id}: {e}')
-        return jsonify({'success': False, 'error': 'Could not open the document'}), 500
-    return jsonify({'success': True, 'url': url})
+    return portal_views.office_document_url(org_id, owner, doc_id)

@@ -16,6 +16,14 @@ import { useAuth } from '../contexts/AuthContext'
 // is bounced too — mirroring exactly what the org's admin can reach. `path`
 // is the leading-slash nav path (e.g. '/clp'). Replaced the former
 // ModuleRoute / CommunityRoute / PriorLearningRoute trio.
+// /onboarding -> My Tasks' Checklist tab, query string intact.
+const OnboardingRedirect = () => {
+  const { search } = useLocation()
+  const params = new URLSearchParams(search)
+  params.set('tab', 'checklist')
+  return <Navigate to={`/my-tasks?${params.toString()}`} replace />
+}
+
 const ModuleGate = ({ path, children }) => {
   const { activeOrg } = useSisOrg()
   if (isPathHidden(path, activeOrg)) return <Navigate to="/" replace />
@@ -115,7 +123,6 @@ const MySchedulePage = lazy(() => import('../pages/sis/MySchedulePage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
-const OnboardingPage = lazy(() => import('../pages/sis/OnboardingPage'))
 const MyTasksPage = lazy(() => import('../pages/sis/MyTasksPage'))
 const TaskCenterPage = lazy(() => import('../pages/sis/TaskCenterPage'))
 const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
@@ -193,14 +200,16 @@ const SisRoutes = () => (
       <Route path="my-schedule" element={<ModuleGate path="/my-schedule"><MySchedulePage /></ModuleGate>} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
-      {/* The unified surfaces. /forms and /onboarding stay mounted rather than
-          redirecting: they own the deep-linked completion flows the task inbox
-          links into (?submission=, ?assignment=&item=), and every notification
-          sent before this shipped points at them. They are simply off the nav. */}
+      {/* The unified surfaces. /forms stays mounted rather than redirecting: it
+          owns the deep-linked completion flow the task inbox links into
+          (?submission=), and every notification sent before this shipped
+          points at it. It is simply off the nav. /onboarding became the
+          Checklist tab of My Tasks (M9); the redirect keeps ?assignment=&item=
+          so older notifications still land on the item. */}
       <Route path="my-tasks" element={<ModuleGate path="/my-tasks"><MyTasksPage /></ModuleGate>} />
       <Route path="tasks" element={<AdminRoute><ModuleGate path="/tasks"><TaskCenterPage /></ModuleGate></AdminRoute>} />
       <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
-      <Route path="onboarding" element={<ModuleGate path="/onboarding"><OnboardingPage /></ModuleGate>} />
+      <Route path="onboarding" element={<ModuleGate path="/onboarding"><OnboardingRedirect /></ModuleGate>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />
       <Route path="time" element={<ModuleGate path="/time"><MyTimePage /></ModuleGate>} />
       <Route path="timesheets" element={<FinanceRoute><ModuleGate path="/timesheets"><TimesheetsPage /></ModuleGate></FinanceRoute>} />

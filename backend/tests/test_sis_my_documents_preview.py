@@ -79,6 +79,8 @@ def _as(client_mock, *, is_admin=True, sees_hr=True, org_role='org_admin'):
     with patch('database.get_supabase_admin_client', return_value=_role_client(org_role=org_role)), \
          patch('services.sis_service._admin', return_value=client_mock), \
          patch('routes.sis.staff_portal.get_supabase_admin_client', return_value=client_mock), \
+         patch('routes.sis.portal_views.get_supabase_admin_client', return_value=client_mock), \
+         patch('services.sis_secure_docs_service._admin', return_value=client_mock), \
          patch('services.sis_service.resolve_org_id', return_value=ORG), \
          patch('services.sis_service.caller_is_admin', return_value=is_admin), \
          patch('services.sis_service.caller_sees_hr', return_value=sees_hr):

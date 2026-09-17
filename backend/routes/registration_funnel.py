@@ -20,6 +20,7 @@ Account-first flow: the parent creates their Optio account (or signs into an
 existing one) BEFORE seeing the rest of the form.
 
     GET  /api/registration/config/<invitation_code>    -> branding + questions + paperwork + fee config
+    GET  /api/registration/signature-statement          -> the affirmation a typed name is signed under
     GET  /api/registration/schedule-preview/<invitation_code> -> open classes + time blocks (staff funnel preview)
     POST /api/registration/start                        -> create parent account, email a 6-digit code
     POST /api/registration/verify                       -> confirm the code -> issues the funnel access_token
@@ -89,6 +90,8 @@ from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
 from services import sis_holds
 from services import emergency_contacts_service as emergency_contacts
+# The one affirmation sentence every typed signature is recorded under.
+from services.sis_onboarding_service import SIGNATURE_STATEMENT
 # Monthly program pricing (Optio Academy): the plan, and the total it comes
 # to for this family's kids. See the module docstring for the config shape.
 from services.registration_pricing import monthly_plan, monthly_total_cents, registration_fee_cents
@@ -232,6 +235,9 @@ def _public_config(org, cfg, paperwork_urls=None):
         # only this boolean, which discloses configuration, not a credential.
         'stripe_enabled': _org_stripe_enabled(org.get('id')),
         'paperwork': _paperwork,
+        # What the family ticks to make a typed name a signature -- the same
+        # sentence the server records against it (SignatureCapture, M9).
+        'signature_statement': SIGNATURE_STATEMENT,
         'questions': [
             {'key': q.get('key'), 'label': q.get('label'), 'help': q.get('help') or '',
              'type': q.get('type') or 'select', 'options': q.get('options') or [],
@@ -316,6 +322,17 @@ def _existing_household_for_parent(admin, org_id, parent_id):
 
 
 
+
+
+@bp.route('/signature-statement', methods=['GET'])
+@rate_limit(max_requests=60, window_seconds=60)
+def signature_statement():
+    """Public: the sentence a person ticks to make a typed name a signature.
+
+    For surfaces that draw the signature box without a payload carrying it
+    (the setup tab's preview). The funnel config and every checklist payload
+    include the same sentence, so they never call this."""
+    return jsonify({'success': True, 'statement': SIGNATURE_STATEMENT}), 200
 
 
 @bp.route('/config/<invitation_code>', methods=['GET'])
@@ -1084,17 +1101,23 @@ def submit_paperwork(reg_id):
     admin = _admin()
     cfg = _org_config(admin, reg['organization_id'])
     required = [p for p in (cfg.get('paperwork') or []) if p.get('key') and p.get('label')]
-    submitted = {a.get('key'): (a.get('signed_name') or '').strip()
-                 for a in (body.get('acknowledgements') or [])}
+    submitted = {a.get('key'): a for a in (body.get('acknowledgements') or []) if isinstance(a, dict)}
 
+    # The same three things a checklist signature stores (sis_onboarding_service
+    # ._apply_signature): the name, the affirmation ticked by its full text,
+    # and when. A name without the affirmation is not a signature.
     saved = []
     for item in required:
-        name = submitted.get(item['key'], '')
+        ack = submitted.get(item['key']) or {}
+        name = (ack.get('signed_name') or '').strip()
         if not name:
             return jsonify({'error': f"Please sign: {item['label']}"}), 400
+        if not ack.get('agreed'):
+            return jsonify({'error': f"Tick the box to confirm your signature: {item['label']}"}), 400
         saved.append({
             'key': item['key'], 'label': item['label'],
             'signed_name': sanitize_input(name),
+            'agreed_to': SIGNATURE_STATEMENT,
             'acknowledged_at': datetime.utcnow().isoformat(),
         })
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * My Tasks — the unified inbox.
@@ -121,7 +122,7 @@ describe('signing a document without leaving the page', () => {
   it('signs the underlying checklist item', async () => {
     respond([SIGNATURE_TASK])
     renderPage()
-    fireEvent.change(await screen.findByPlaceholderText('Your full name'),
+    fireEvent.change(await screen.findByPlaceholderText('Type your full name to sign'),
       { target: { value: 'Kate Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: /official signature/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
@@ -179,20 +180,36 @@ describe('the finished half of the checklist is still reachable', () => {
   // An inbox drops what is done, so an empty page says "nothing outstanding"
   // and reads as "your onboarding is gone" — which is how iCreate's teachers
   // reported it on 2026-09-10 after the Onboarding nav entry was removed. The
-  // full checklist, ticks and all, lives on /onboarding; say so here.
-  it('points at the full onboarding checklist even when nothing is waiting', async () => {
+  // full checklist, ticks and all, is the Checklist tab (M9); say so here.
+  const renderWithQueries = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(
+      <QueryClientProvider client={client}><MemoryRouter><MyTasksPage /></MemoryRouter></QueryClientProvider>)
+  }
+
+  it('opens the full onboarding checklist even when nothing is waiting', async () => {
     respond([])
-    renderPage()
+    renderWithQueries()
     await screen.findByText(/Nothing is waiting on you/i)
-    const link = screen.getByRole('link', { name: /full onboarding checklist/i })
-    expect(link).toHaveAttribute('href', '/onboarding')
+    fireEvent.click(screen.getByRole('button', { name: /full onboarding checklist/i }))
+    expect(screen.getByRole('tab', { name: 'My checklist' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText(/No onboarding checklist assigned to you/)).toBeInTheDocument()
   })
 
   it('still points at it when there is outstanding work', async () => {
     respond([SIGNATURE_TASK])
     renderPage()
     await screen.findByText('Sign: Employee handbook')
-    expect(screen.getByRole('link', { name: /full onboarding checklist/i }))
-      .toHaveAttribute('href', '/onboarding')
+    expect(screen.getByRole('button', { name: /full onboarding checklist/i })).toBeInTheDocument()
+  })
+
+  it('lands on the checklist tab from an /onboarding-era link', async () => {
+    respond([])
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/my-tasks?tab=checklist&assignment=a1&item=sign']}><MyTasksPage /></MemoryRouter>
+      </QueryClientProvider>)
+    expect(await screen.findByRole('tab', { name: 'My checklist' })).toHaveAttribute('aria-selected', 'true')
   })
 })

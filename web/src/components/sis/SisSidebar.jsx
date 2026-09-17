@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { userHasFamily } from '../../contexts/FamilyScopeContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -106,10 +106,10 @@ export const NAV_SECTIONS = [
       // items behind a checkbox, so a teacher who wanted to re-read her
       // checklist — which docs are in, which are still owed — found the entry
       // gone and the items gone with it, and reported onboarding as broken
-      // (iCreate, 2026-09-10). MyChecklists shows every item in one place,
-      // done and not done, which is the question actually being asked. Both
-      // doors stay open; they read the same rows.
-      { name: 'Onboarding', path: '/onboarding', d: ICONS.doc },
+      // (iCreate, 2026-09-10). The Checklist tab of My Tasks shows every item
+      // in one place, done and not done, which is the question actually being
+      // asked. Both doors stay open; since M9 they open the same page.
+      { name: 'Onboarding', path: '/my-tasks?tab=checklist', d: ICONS.doc },
       { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
     ],
   },
@@ -168,8 +168,22 @@ const linkClass = ({ isActive }) => `
     : 'text-neutral-700 hover:bg-[#F3EFF4]'}
 `
 
+// Two doors can share a pathname when one opens a tab of the other's page
+// (Onboarding is My Tasks' Checklist tab). NavLink matches on the pathname
+// alone, so the tab door is active only on its tab, and the page's own door
+// everywhere on that page except a sibling door's tab.
+const tabOf = (search) => new URLSearchParams(search).get('tab')
+const doorIsActive = (item, isActive, location) => {
+  if (!isActive) return false
+  const [pathname, query] = item.path.split('?')
+  const here = tabOf(location.search)
+  if (query) return here === tabOf(`?${query}`)
+  return !NAV_SECTIONS.some((s) => s.items.some((it) => it.path === `${pathname}?tab=${here}`))
+}
+
 const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   const { user } = useAuth()
+  const location = useLocation()
   // activeOrg is the org currently in view — for a superadmin that's the one
   // picked in the org selector, so the nav mirrors that org's admin exactly.
   const { activeOrg } = useSisOrg()
@@ -252,7 +266,8 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
                 </div>
               )}
               {items.map((item) => (
-                <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}
+                <NavLink key={item.path} to={item.path} end={item.end}
+                  className={({ isActive }) => linkClass({ isActive: doorIsActive(item, isActive, location) })}
                   onClick={onNavigate}>
                   <span className="text-neutral-500">{icon(item.d)}</span>
                   {item.name}

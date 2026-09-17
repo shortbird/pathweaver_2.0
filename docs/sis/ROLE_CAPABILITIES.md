@@ -135,6 +135,7 @@ These authorize per-record rather than per-role, which is usually stricter:
 | `quest_resources.py` | An org admin of the quest's org, or a teacher of a class the quest is attached to. |
 | `parent.py`, `parent_forms.py`, `parent_prior_learning.py` | The family relationship, checked inside `sis_parent_service`. |
 | `school.py`, `signature_request_views.py` | Membership, or a signed token. |
+| `portal_views.py` | No routes of its own. The bodies of the parent portal (`parent.py`) and the teacher portal (`staff_portal.py`) -- onboarding, uploads, document links, tasks, forms -- mounted once each under those files' own gates. |
 | `pay.py` | A token in the URL — no session at all. |
 | `internal.py` | The seven cron sweeps: the `X-Cron-Secret` header, or a signed-in superadmin triggering one by hand. Not org-scoped — a sweep covers every org and the service filters per org. |
 

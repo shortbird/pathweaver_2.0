@@ -15,7 +15,7 @@ import { MemoryRouter } from 'react-router-dom'
  *
  * iCreate, 2026-07-31, three reports in two minutes: "No way to get back to the
  * dashboard from this page" (/my-classes), "No way to get to the teacher
- * dashboard from this page" (/forms, /onboarding). The sidebar's Dashboard link
+ * dashboard from this page" (/forms, /my-tasks). The sidebar's Dashboard link
  * exists but reads as generic nav; the class page's own "← My Classes" is the
  * pattern people actually find.
  */
@@ -57,7 +57,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import MyClassesPage from './MyClassesPage'
 import StaffFormsPage from './StaffFormsPage'
-import OnboardingPage from './OnboardingPage'
+import MyTasksPage from './MyTasksPage'
 import MyDocumentsPage from './MyDocumentsPage'
 import DirectoryPage from './DirectoryPage'
 import MySchedulePage from './MySchedulePage'
@@ -72,7 +72,7 @@ beforeEach(() => {
 const PAGES = [
   ['My Classes', MyClassesPage],
   ['Forms', StaffFormsPage],
-  ['Onboarding', OnboardingPage],
+  ['My Tasks', MyTasksPage],
   ['My Documents', MyDocumentsPage],
   ['Staff Directory', DirectoryPage],
   ['My schedule', MySchedulePage],
