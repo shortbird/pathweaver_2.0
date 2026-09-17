@@ -40,13 +40,25 @@ logger = get_logger(__name__)
 _SIG_CHARS = 32
 
 
-def _sign(invoice_id: str) -> str:
-    # Config.SECRET_KEY — FLASK_SECRET_KEY is the env var it reads, not the
-    # attribute. Config refuses to start without it, so this is belt and braces.
+_PAY_NS = 'sis-invoice-pay'
+
+
+def _signed(namespace: str, payload: str) -> str:
+    """The one signature: HMAC-SHA256 over `namespace:payload`, truncated.
+
+    Three token namespaces (pay an invoice, set up autopay for it, save a card
+    for a household) are three different powers, kept apart by the namespace
+    in the signed string; the signing itself lives once (M6). Config.SECRET_KEY
+    is FLASK_SECRET_KEY -- Config refuses to start without it, so the check
+    here is belt and braces."""
     secret = (Config.SECRET_KEY or '').encode()
     if not secret:
         raise RuntimeError('FLASK_SECRET_KEY is required to sign payment links')
-    return hmac.new(secret, f'sis-invoice-pay:{invoice_id}'.encode(), sha256).hexdigest()[:_SIG_CHARS]
+    return hmac.new(secret, f'{namespace}:{payload}'.encode(), sha256).hexdigest()[:_SIG_CHARS]
+
+
+def _sign(invoice_id: str) -> str:
+    return _signed(_PAY_NS, invoice_id)
 
 
 def make_token(invoice_id: str) -> str:
@@ -106,11 +118,7 @@ _AUTOPAY_NS = 'sis-invoice-autopay'
 
 
 def _sign_autopay(invoice_id: str, count: int) -> str:
-    secret = (Config.SECRET_KEY or '').encode()
-    if not secret:
-        raise RuntimeError('FLASK_SECRET_KEY is required to sign payment links')
-    payload = f'{_AUTOPAY_NS}:{invoice_id}:{count}'.encode()
-    return hmac.new(secret, payload, sha256).hexdigest()[:_SIG_CHARS]
+    return _signed(_AUTOPAY_NS, f'{invoice_id}:{count}')
 
 
 def make_autopay_token(invoice_id: str, count: int) -> str:
@@ -164,11 +172,7 @@ _SETUP_NS = 'sis-household-card-setup'
 
 
 def _sign_setup(household_id: str) -> str:
-    secret = (Config.SECRET_KEY or '').encode()
-    if not secret:
-        raise RuntimeError('FLASK_SECRET_KEY is required to sign payment links')
-    return hmac.new(secret, f'{_SETUP_NS}:{household_id}'.encode(),
-                    sha256).hexdigest()[:_SIG_CHARS]
+    return _signed(_SETUP_NS, household_id)
 
 
 def make_setup_token(household_id: str) -> str:

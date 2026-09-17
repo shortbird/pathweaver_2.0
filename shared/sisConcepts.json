@@ -39,7 +39,7 @@
   "concepts": [
     {
       "id": "invoice_row",
-      "means": "A row in sis_invoices. Every charge a family sees, whatever created it.",
+      "means": "A row in sis_invoices. Every charge a family sees, whatever created it. Three copies of the insert had drifted on which columns they set; sis_billing_service.write_invoice is the one insert (M6, 2026-09-17), and the manual charge, the tuition approver, the class-registration cart, the recurring biller and the event RSVP fee reach it through create_charge / create_tuition_invoice / create_invoice_from_registration.",
       "owner": { "backend": ["services/sis_billing_service.py"] },
       "forbid": {
         "backend": {
@@ -48,26 +48,26 @@
           "exempt": []
         }
       },
-      "baseline": { "backend": 3 },
+      "baseline": { "backend": 1 },
       "measured": "2026-09-17",
       "lowered_by": "M6",
-      "use_instead": "sis_billing_service.create_charge(org_id, household_id, lines=..., kind=..., source=...) will be the one row writer after M6; until then, call one of the three creators in sis_billing_service rather than inserting a fourth. Baseline after M6: 1."
+      "use_instead": "sis_billing_service.write_invoice(org_id, household_id=, student_user_id=, lines=[{description, amount_cents, class_id?, kind?}], discount_cents=, status=, due_date=, registration_id=, invoice_id=) -- or one of its three public callers when the shape matches. The count of 1 is the writer itself (exempt: [])."
     },
     {
       "id": "stripe_checkout",
-      "means": "A Stripe Checkout session. Seven places build one today, with seven metadata conventions; the verifier has to know all seven.",
+      "means": "A Stripe Checkout Session being opened. Seven sites each built their own (an invoice, the emailed pay link, the whole family, autopay setup, household card setup, the funnel's fee or monthly plan, the funnel's staff preview); sis_billing_service.start_checkout is the one factory (M6, 2026-09-17) and every session's metadata carries kind, organization_id and ref_id beside the kind's own keys.",
       "owner": { "backend": ["services/sis_billing_service.py"] },
       "forbid": {
         "backend": { "pattern": "checkout\\.Session\\.create\\(", "dirs": ["routes", "services", "utils", "jobs"], "exempt": [] }
       },
-      "baseline": { "backend": 7 },
+      "baseline": { "backend": 1 },
       "measured": "2026-09-17",
       "lowered_by": "M6",
-      "use_instead": "sis_billing_service.start_checkout(kind, ref, mode, urls) (M6) wraps every session with one metadata convention; mode='subscription' is one of its modes. Baseline after M6: 1."
+      "use_instead": "sis_billing_service.start_checkout(secret, kind=, org_id=, ref_id=, success_url=, cancel_url=, mode=, line_items=, metadata=, idempotency_key=, **session_kwargs); kinds are CHECKOUT_KINDS. The count of 1 is the factory (exempt: [])."
     },
     {
       "id": "stripe_verify",
-      "means": "Reading a Checkout session back from Stripe to learn whether it was paid. There are no webhooks; every reader polls, and each poll re-derives 'is this paid' its own way.",
+      "means": "A Checkout Session being read back from Stripe to decide whether somebody paid (no webhooks: the platform verifies by reading). Seven readers each had their own loop and their own idea of paid; sis_billing_service.first_session(secret, session_ids, accept) is the one reader over retrieve_session / list_sessions (M6, 2026-09-17), with is_paid and is_complete_of_kind as the accept rules.",
       "owner": { "backend": ["services/sis_billing_service.py"] },
       "forbid": {
         "backend": {
@@ -76,10 +76,10 @@
           "exempt": []
         }
       },
-      "baseline": { "backend": 7 },
+      "baseline": { "backend": 2 },
       "measured": "2026-09-17",
       "lowered_by": "M6",
-      "use_instead": "sis_billing_service.find_paid_session(kind, ref) (M6) is the one verifier, used by the sweep and by the funnel's confirm. The setup-mode retrieves (saved card, autopay) are the same call with a different kind."
+      "use_instead": "sis_billing_service.first_session(secret, ids, billing.is_paid) (newest first; errors= to count unreadable sessions), retrieve_session for one known id, list_sessions for the funnel's by-email rescue. The count of 2 is retrieve_session + list_sessions inside the owner (exempt: [])."
     },
     {
       "id": "pay_link_signing",

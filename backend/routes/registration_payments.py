@@ -40,6 +40,9 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.sis_roles import ADMIN_ROLES
 from services import sis_service
+# One Stripe Checkout factory and one session reader for the whole platform
+# (M6): the funnel's sessions carry the same metadata convention as the SIS's.
+from services import sis_billing_service as billing
 from services.registration_funnel_support import (
     _admin,
     _valid_email,
@@ -149,31 +152,26 @@ def _paid_recorded_session(reg, secret):
     Shared by /confirm-payment (as the first pass before the account sweep)
     and /checkout, which must refuse to open ANOTHER session once one of these
     is paid -- see create_checkout."""
-    import stripe
-
     reg_id = reg['id']
     candidates = []
     for sid in [reg.get('stripe_session_id')] + list(reversed(reg.get('stripe_session_ids') or [])):
         if sid and sid not in candidates:
             candidates.append(sid)
 
-    errors = 0
-    for sid in candidates:
-        try:
-            session = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception as e:  # noqa: BLE001
-            logger.error(f'registration payment: retrieve failed for {sid[:20]}: {e}')
-            errors += 1
-            continue
-        if session.get('payment_status') != 'paid':
-            continue
-        # A session id we stored for THIS registration is ours by construction —
+    def ours_and_paid(session):
+        # A session id we stored for THIS registration is ours by construction --
         # accept it when paid unless its metadata explicitly names a DIFFERENT
         # registration (defensive; shouldn't happen for our own sessions).
+        if not billing.is_paid(session):
+            return False
         meta_reg = (session.get('metadata') or {}).get('registration_id')
-        if not meta_reg or meta_reg == reg_id:
-            return session, errors
-    return None, errors
+        return not meta_reg or meta_reg == reg_id
+
+    errors: list = []
+    session = billing.first_session(secret, candidates, ours_and_paid, newest_first=False, errors=errors)
+    for e in errors:
+        logger.error(f'registration payment: retrieve failed: {e}')
+    return session, len(errors)
 
 
 def _find_paid_session(reg, secret, parent_email=None):
@@ -196,8 +194,6 @@ def _find_paid_session(reg, secret, parent_email=None):
     their money (MaKenzie Candland, paid 2026-07-12).
     Returns (paid_session_or_None, retrieve_errors_count).
     """
-    import stripe
-
     reg_id = reg['id']
     fee_cents = _amount_due_cents(reg)
     parent_email = (parent_email.strip().lower()
@@ -227,13 +223,13 @@ def _find_paid_session(reg, secret, parent_email=None):
     except (ValueError, TypeError):
         created_gte = None
     try:
-        params = {'limit': 100, 'api_key': secret}
+        params = {'limit': 100}
         if created_gte:
             params['created'] = {'gte': created_gte}
-        listing = stripe.checkout.Session.list(**params)
+        listing = billing.list_sessions(secret, **params)
         for _page in range(3):
             for session in listing.get('data') or []:
-                if session.get('payment_status') != 'paid':
+                if not billing.is_paid(session):
                     continue
                 meta_reg = (session.get('metadata') or {}).get('registration_id')
                 if meta_reg == reg_id or (not meta_reg and _email_amount_match(session)):
@@ -242,7 +238,7 @@ def _find_paid_session(reg, secret, parent_email=None):
                 break
             last = (listing.get('data') or [])[-1]
             params['starting_after'] = last['id']
-            listing = stripe.checkout.Session.list(**params)
+            listing = billing.list_sessions(secret, **params)
     except Exception as e:  # noqa: BLE001
         logger.error(f'registration confirm-payment: session list fallback failed: {e}')
         errors += 1
@@ -325,10 +321,10 @@ def register_routes(bp):
             }
 
         try:
-            import stripe
             sep = '&' if '?' in return_url else '?'
-            session = stripe.checkout.Session.create(
-                api_key=secret,  # the school's key — funds go to their account
+            session = billing.start_checkout(
+                secret,  # the school's key -- funds go to their account
+                kind='registration', org_id=reg['organization_id'], ref_id=reg['id'],
                 mode='subscription' if subscription else 'payment',
                 line_items=line_items,
                 customer_email=parent.get('email') or None,
@@ -383,11 +379,9 @@ def register_routes(bp):
             return jsonify({'error': 'Invalid return URL'}), 400
 
         try:
-            import stripe
             sep = '&' if '?' in return_url else '?'
-            session = stripe.checkout.Session.create(
-                api_key=secret,
-                mode='payment',
+            session = billing.start_checkout(
+                secret, kind='registration_preview', org_id=org.get('id'), ref_id=None,
                 line_items=[{
                     'price_data': {
                         'currency': 'usd',

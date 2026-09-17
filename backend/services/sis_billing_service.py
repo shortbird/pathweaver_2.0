@@ -275,21 +275,6 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
         return {'error': 'Registration has no classes to invoice'}
     quote = quote_for_registration(org_id, reg_id, promo_code, manual_rule_ids)
 
-    invoice = (
-        _admin().table('sis_invoices').insert({
-            'organization_id': org_id,
-            'household_id': reg.get('household_id'),
-            'student_user_id': reg.get('student_user_id'),
-            'registration_id': reg_id,
-            'status': 'sent',
-            'subtotal_cents': quote['subtotal_cents'],
-            'discount_cents': quote['discount_cents'],
-            'total_cents': quote['total_cents'],
-            'issued_at': _now(),
-        }).execute()
-    ).data[0]
-    invoice = _assign_invoice_number(invoice)
-
     # class names for line descriptions
     class_ids = [it['class_id'] for it in items]
     names = {}
@@ -297,18 +282,57 @@ def create_invoice_from_registration(org_id: str, reg_id: str,
         names = {c['id']: c['name'] for c in (
             _admin().table('org_classes').select('id, name').in_('id', class_ids).execute()
         ).data or []}
-    line_rows = [{
-        'invoice_id': invoice['id'],
-        'description': names.get(it['class_id'], 'Class'),
-        'class_id': it['class_id'],
-        'amount_cents': it.get('price_snapshot_cents') or 0,
-        'quantity': 1,
-    } for it in items]
-    if line_rows:
-        _admin().table('sis_invoice_line_items').insert(line_rows).execute()
-
+    invoice = write_invoice(
+        org_id, household_id=reg.get('household_id'), student_user_id=reg.get('student_user_id'),
+        lines=[{'description': names.get(it['class_id'], 'Class'), 'class_id': it['class_id'],
+                'amount_cents': it.get('price_snapshot_cents') or 0, 'kind': 'tuition'} for it in items],
+        discount_cents=quote['discount_cents'], registration_id=reg_id)
     enqueue_qbo(org_id, 'invoice', invoice['id'])
     return {'invoice': invoice, 'discount_lines': quote.get('discount_lines', [])}
+
+
+def write_invoice(org_id: str, *, household_id: Optional[str], student_user_id: Optional[str],
+                  lines: List[Dict[str, Any]], discount_cents: int = 0, status: str = 'sent',
+                  due_date: Optional[str] = None, registration_id: Optional[str] = None,
+                  invoice_id: Optional[str] = None) -> Dict[str, Any]:
+    """The one sis_invoices insert: the row, its number, its line items.
+
+    Every charge a family sees goes through here whatever created it -- the
+    office's manual charge (create_charge), the tuition approver
+    (create_tuition_invoice), the class-registration cart, the recurring
+    tuition biller and the event RSVP fee through those. Three copies of this
+    insert had drifted on which columns they set (amount_paid_cents, due_date)
+    (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, A4; M6).
+
+    `lines` are already clean ({description, amount_cents, class_id?, kind?}).
+    subtotal = sum(amounts); total = subtotal - discount, never below zero.
+    A draft carries no issued_at. `invoice_id` is an id the caller reserved
+    (the approver's preview), already checked for reuse.
+    """
+    subtotal = sum(int(li['amount_cents']) for li in lines)
+    discount = max(0, min(int(discount_cents or 0), subtotal))
+    row = {
+        'organization_id': org_id,
+        'household_id': household_id,
+        'student_user_id': student_user_id,
+        'status': status,
+        'subtotal_cents': subtotal,
+        'discount_cents': discount,
+        'total_cents': subtotal - discount,
+        'amount_paid_cents': 0,
+        'issued_at': _now() if status != 'draft' else None,
+        'due_date': due_date or None,
+    }
+    if registration_id:
+        row['registration_id'] = registration_id
+    if invoice_id:
+        row['id'] = invoice_id
+    invoice = _admin().table('sis_invoices').insert(row).execute().data[0]
+    invoice = _assign_invoice_number(invoice)
+    if lines:
+        _admin().table('sis_invoice_line_items').insert(
+            [_line_row(invoice['id'], li) for li in lines]).execute()
+    return invoice
 
 
 def list_invoices(org_id: str, household_id: Optional[str] = None,
@@ -400,25 +424,12 @@ def create_charge(org_id: str, fields: Dict[str, Any]) -> Dict[str, Any]:
         return {'error': 'A description is required'}
     if not isinstance(amount_cents, int) or amount_cents <= 0:
         return {'error': 'amount_cents must be a positive integer'}
-    invoice = (
-        _admin().table('sis_invoices').insert({
-            'organization_id': org_id,
-            'household_id': household_id,
-            'student_user_id': student_user_id,
-            'status': 'sent',
-            'subtotal_cents': amount_cents,
-            'discount_cents': 0,
-            'total_cents': amount_cents,
-            'amount_paid_cents': 0,
-            'issued_at': _now(),
-            'due_date': due_date,
-        }).execute()
-    ).data[0]
-    invoice = _assign_invoice_number(invoice)
     kind = fields.get('kind')
-    _admin().table('sis_invoice_line_items').insert(
-        _line_row(invoice['id'], {'description': description, 'amount_cents': amount_cents,
-                                  'kind': kind if kind in LINE_KINDS else None})).execute()
+    invoice = write_invoice(
+        org_id, household_id=household_id, student_user_id=student_user_id,
+        lines=[{'description': description, 'amount_cents': amount_cents,
+                'kind': kind if kind in LINE_KINDS else None}],
+        due_date=due_date)
     return {'invoice': invoice}
 
 
@@ -500,24 +511,10 @@ def create_tuition_invoice(org_id: str, student_user_id: Optional[str],
             return {'error': 'That invoice has already been created'}
         reserved['id'] = invoice_id
 
-    invoice = (
-        _admin().table('sis_invoices').insert({
-            **reserved,
-            'organization_id': org_id,
-            'household_id': household_id,
-            'student_user_id': student_user_id,
-            'status': status,
-            'subtotal_cents': subtotal,
-            'discount_cents': discount,
-            'total_cents': total,
-            'amount_paid_cents': 0,
-            'issued_at': _now() if status != 'draft' else None,
-            'due_date': due_date or None,
-        }).execute()
-    ).data[0]
-    invoice = _assign_invoice_number(invoice)
-    _admin().table('sis_invoice_line_items').insert(
-        [_line_row(invoice['id'], li) for li in clean]).execute()
+    invoice = write_invoice(
+        org_id, household_id=household_id, student_user_id=student_user_id, lines=clean,
+        discount_cents=discount, status=status, due_date=due_date,
+        invoice_id=reserved.get('id'))
     _audit(org_id, invoice['id'], actor_user_id, 'tuition_invoice_created',
            {'subtotal_cents': subtotal, 'discount_cents': discount,
             'total_cents': total, 'line_count': len(clean),
@@ -1683,6 +1680,86 @@ def _org_stripe_secret(org_id: str) -> Optional[str]:
     return get_org_secret(org_id, STRIPE_SECRET_KEY)
 
 
+# ── Stripe Checkout: one factory, one reader ─────────────────────────────────
+#
+# Seven places opened a Checkout Session and seven read one back, each with
+# its own metadata and its own idea of "paid" (docs/icreate/
+# FRANKENSTEIN_AUDIT_2026-09-17.md, A4; M6). Every session now carries the
+# same three keys -- kind, organization_id, ref_id -- beside whatever the kind
+# needs, and every verifier reads through first_session(). No webhooks: the
+# platform verifies by reading the session back, from the family's return
+# and from the nightly sweep.
+
+CHECKOUT_KINDS = ('invoice', 'pay_link', 'family', 'autopay_setup', 'recurring_card_setup',
+                  'registration', 'registration_preview')
+
+
+def start_checkout(secret: str, *, kind: str, org_id: Optional[str], ref_id: Optional[str],
+                   success_url: str, cancel_url: str, mode: str = 'payment',
+                   line_items: Optional[List[Dict[str, Any]]] = None,
+                   metadata: Optional[Dict[str, Any]] = None,
+                   idempotency_key: Optional[str] = None, **session_kwargs):
+    """The one stripe.checkout.Session.create. `kind` names what is being
+    paid for (CHECKOUT_KINDS) and `ref_id` the row it settles (an invoice, a
+    household, a registration); both land in the session's metadata beside
+    the kind's own keys so a reader can tell sessions apart without a
+    database lookup. Extra kwargs (customer, customer_email, currency,
+    subscription_data, ...) pass straight through."""
+    import stripe
+    if kind not in CHECKOUT_KINDS:
+        raise ValueError(f'unknown checkout kind {kind!r}')
+    md = {'kind': kind, 'organization_id': org_id or '', 'ref_id': ref_id or '', **(metadata or {})}
+    kwargs: Dict[str, Any] = {'api_key': secret, 'mode': mode, 'metadata': md,
+                              'success_url': success_url, 'cancel_url': cancel_url, **session_kwargs}
+    if line_items is not None:
+        kwargs['line_items'] = line_items
+    if idempotency_key:
+        kwargs['idempotency_key'] = idempotency_key
+    return stripe.checkout.Session.create(**kwargs)
+
+
+def retrieve_session(secret: str, session_id: str, **params):
+    """One Checkout Session read back from Stripe (raises like Stripe does)."""
+    import stripe
+    return stripe.checkout.Session.retrieve(session_id, api_key=secret, **params)
+
+
+def list_sessions(secret: str, **params):
+    """A page of Checkout Sessions (the funnel's search by customer email)."""
+    import stripe
+    return stripe.checkout.Session.list(api_key=secret, **params)
+
+
+def first_session(secret: str, session_ids: List[str], accept, *, newest_first: bool = True,
+                  errors: Optional[List[Exception]] = None, **retrieve_params):
+    """The newest of the sessions WE recorded that `accept(session)` is
+    satisfied with (paid, complete, the right kind...), or None. A session
+    Stripe cannot return is skipped, not fatal: an unreadable id is no
+    evidence of a payment, and refusing would strand a paid family. Pass an
+    `errors` list to learn how many reads failed (the funnel tells the parent
+    when verification could not reach Stripe at all)."""
+    ids = list(session_ids or [])
+    for sid in (reversed(ids) if newest_first else ids):
+        try:
+            sess = retrieve_session(secret, sid, **retrieve_params)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug('Stripe session retrieve failed: %s', exc, exc_info=True)
+            if errors is not None:
+                errors.append(exc)
+            continue
+        if accept(sess):
+            return sess
+    return None
+
+
+def is_paid(sess) -> bool:
+    return sess.get('payment_status') == 'paid'
+
+
+def is_complete_of_kind(kind: str):
+    return lambda sess: (sess.get('metadata') or {}).get('kind') == kind and sess.get('status') == 'complete'
+
+
 def _fee_to_add(org_id: str, invoice: Dict[str, Any], balance_cents: int) -> int:
     """The card fee to add to a Checkout for `balance_cents`.
 
@@ -1730,7 +1807,6 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
     org_name = org.get('name') or 'School'
     guardian = _users_map([user_id]).get(user_id) or {}
     try:
-        import stripe
         sep = '&' if '?' in return_url else '?'
         line_items = [{
             'price_data': {'currency': 'usd',
@@ -1745,8 +1821,8 @@ def create_invoice_checkout(user_id: str, invoice_id: str, return_url: str) -> D
                                'unit_amount': fee},
                 'quantity': 1,
             })
-        session = stripe.checkout.Session.create(
-            api_key=secret, mode='payment', line_items=line_items,
+        session = start_checkout(
+            secret, kind='invoice', org_id=org_id, ref_id=invoice_id, line_items=line_items,
             customer_email=guardian.get('email') or None,
             metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee},
             success_url=f'{return_url}{sep}payment=return',
@@ -1785,18 +1861,11 @@ def settle_invoice_from_stripe(invoice: Dict[str, Any],
     session_ids = list(invoice.get('stripe_session_ids') or [])
     if not session_ids:
         return {'paid': False}
-    try:
-        import stripe
-    except Exception:  # noqa: BLE001
-        return {'error': 'Payment library unavailable'}
-    for sid in reversed(session_ids):  # newest first
-        try:
-            sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception as _exc:  # noqa: BLE001
-            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
-            continue
-        if (sess.get('payment_status') != 'paid'):
-            continue
+    # The newest paid session is the one; a setup-mode session on the same
+    # invoice (autopay) is never 'paid' and falls through.
+    sess = first_session(secret, session_ids, is_paid)
+    if sess is not None:
+        sid = sess.get('id')
         pi = sess.get('payment_intent')
         # Idempotency: skip if we've already recorded a payment for this session.
         already = (_admin().table('sis_payment_records').select('id')
@@ -1855,7 +1924,6 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
     org = _org_branding([org_id]).get(org_id) or {}
     org_name = org.get('name') or 'School'
     try:
-        import stripe
         line_items = [{
             'price_data': {'currency': 'usd',
                            'product_data': {'name': f"{org_name} tuition · {inv.get('invoice_number') or ''}".strip()},
@@ -1869,8 +1937,8 @@ def checkout_for_pay_link(invoice_id: str, return_url: str) -> Dict[str, Any]:
                                'unit_amount': fee},
                 'quantity': 1,
             })
-        session = stripe.checkout.Session.create(
-            api_key=secret, mode='payment', line_items=line_items,
+        session = start_checkout(
+            secret, kind='pay_link', org_id=org_id, ref_id=invoice_id, line_items=line_items,
             metadata={'invoice_id': invoice_id, 'base_cents': balance, 'fee_cents': fee,
                       'source': 'pay_link'},
             success_url=f'{return_url}?payment=return',
@@ -1981,7 +2049,6 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
         return {'error': 'Only a parent or guardian can pay a family balance'}
     students = _users_map([i.get('student_user_id') for i in invoices])
     try:
-        import stripe
         sep = '&' if '?' in return_url else '?'
         line_items = []
         for inv in invoices:
@@ -2001,10 +2068,10 @@ def create_family_checkout(user_id: str, household_id: str, return_url: str) -> 
                 'price_data': {'currency': 'usd',
                                'product_data': {'name': 'Card processing fee'}, 'unit_amount': fee},
                 'quantity': 1})
-        session = stripe.checkout.Session.create(
-            api_key=secret, mode='payment', line_items=line_items,
+        session = start_checkout(
+            secret, kind='family', org_id=org_id, ref_id=household_id, line_items=line_items,
             customer_email=guardian.get('email') or None,
-            metadata={'kind': 'family', 'household_id': household_id,
+            metadata={'household_id': household_id,
                       'fee_cents': fee, 'base_total_cents': base_total,
                       'fee_base_cents': fee_base},
             success_url=f'{return_url}{sep}payment=return',
@@ -2044,20 +2111,12 @@ def confirm_family_payment(user_id: str, household_id: str) -> Dict[str, Any]:
                 session_ids.append(sid)
     if not session_ids:
         return {'paid': False}
-    try:
-        import stripe
-    except Exception:  # noqa: BLE001
-        return {'error': 'Payment library unavailable'}
-    for sid in reversed(session_ids):  # newest first
-        try:
-            sess = stripe.checkout.Session.retrieve(sid, api_key=secret)
-        except Exception as _exc:  # noqa: BLE001
-            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
-            continue
+    sess = first_session(secret, session_ids, lambda s: (
+        is_paid(s) and (s.get('metadata') or {}).get('kind') == 'family'
+        and (s.get('metadata') or {}).get('household_id') == household_id))
+    if sess is not None:
+        sid = sess.get('id')
         md = sess.get('metadata') or {}
-        if sess.get('payment_status') != 'paid' or md.get('kind') != 'family' \
-                or md.get('household_id') != household_id:
-            continue
         pi = sess.get('payment_intent')
         fee_total = int(md.get('fee_cents') or 0)
         base_total = int(md.get('base_total_cents') or 0)
@@ -2184,12 +2243,13 @@ def _start_autopay_checkout(inv: Dict[str, Any], guardian_user_id: str,
             customer_id = stripe.Customer.create(
                 api_key=secret, email=guardian_email or None,
                 metadata={'guardian_user_id': guardian_user_id, 'organization_id': org_id}).id
-        session = stripe.checkout.Session.create(
+        session = start_checkout(
             # currency is REQUIRED in setup mode (no line items to infer it from)
             # unless payment_method_types is pinned; Stripe needs it to decide
             # which automatic payment methods are eligible.
-            api_key=secret, mode='setup', customer=customer_id, currency='usd',
-            metadata={'kind': 'autopay_setup', 'invoice_id': invoice_id,
+            secret, kind='autopay_setup', org_id=org_id, ref_id=invoice_id,
+            mode='setup', customer=customer_id, currency='usd',
+            metadata={'invoice_id': invoice_id,
                       'guardian_user_id': guardian_user_id, 'installment_count': count},
             success_url=f'{return_url}{sep}autopay=return',
             cancel_url=f'{return_url}{sep}autopay=canceled')
@@ -2279,20 +2339,8 @@ def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
     secret = _org_stripe_secret(org_id)
     if not secret:
         return {'error': 'Online card payment is not set up for this school'}
-    try:
-        import stripe
-    except Exception:  # noqa: BLE001
-        return {'error': 'Payment library unavailable'}
-    setup_sess = None
-    for sid in reversed(list(inv.get('stripe_session_ids') or [])):
-        try:
-            sess = stripe.checkout.Session.retrieve(sid, api_key=secret, expand=['setup_intent'])
-        except Exception as _exc:  # noqa: BLE001
-            logger.debug("Stripe session retrieve failed: %s", _exc, exc_info=True)
-            continue
-        if (sess.get('metadata') or {}).get('kind') == 'autopay_setup' and sess.get('status') == 'complete':
-            setup_sess = sess
-            break
+    setup_sess = first_session(secret, list(inv.get('stripe_session_ids') or []),
+                               is_complete_of_kind('autopay_setup'), expand=['setup_intent'])
     if not setup_sess:
         return {'ready': False}
     si = setup_sess.get('setup_intent')
@@ -2303,6 +2351,7 @@ def _confirm_autopay(inv: Dict[str, Any], guardian_user_id: str,
     brand = last4 = None
     exp_month = exp_year = None
     try:
+        import stripe
         pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
         card = (pm.get('card') or {}) if isinstance(pm, dict) else {}
         brand, last4 = card.get('brand'), card.get('last4')
@@ -2947,10 +2996,10 @@ def start_card_setup_for_household(org_id: str, household_id: str,
                 api_key=secret, email=guardian.get('email') or None,
                 metadata={'guardian_user_id': guardian['user_id'],
                           'organization_id': org_id}).id
-        session = stripe.checkout.Session.create(
-            api_key=secret, mode='setup', customer=customer_id, currency='usd',
-            metadata={'kind': 'recurring_card_setup', 'household_id': household_id,
-                      'guardian_user_id': guardian['user_id'], 'organization_id': org_id},
+        session = start_checkout(
+            secret, kind='recurring_card_setup', org_id=org_id, ref_id=household_id,
+            mode='setup', customer=customer_id, currency='usd',
+            metadata={'household_id': household_id, 'guardian_user_id': guardian['user_id']},
             success_url=f'{return_url}{sep}session_id={{CHECKOUT_SESSION_ID}}',
             cancel_url=f'{return_url}{sep}setup=canceled')
     except Exception as e:  # noqa: BLE001
@@ -2972,9 +3021,7 @@ def save_card_from_setup_session(org_id: str, household_id: str,
     if not secret:
         return {'error': 'Online card payment is not set up for this school'}
     try:
-        import stripe
-        sess = stripe.checkout.Session.retrieve(session_id, api_key=secret,
-                                                expand=['setup_intent'])
+        sess = retrieve_session(secret, session_id, expand=['setup_intent'])
     except Exception as e:  # noqa: BLE001
         logger.warning(f'[SIS billing] setup session {session_id[:12]} unreadable: {e}')
         return {'ready': False}
@@ -2992,6 +3039,7 @@ def save_card_from_setup_session(org_id: str, household_id: str,
     brand = last4 = None
     exp_month = exp_year = None
     try:
+        import stripe
         pm = stripe.PaymentMethod.retrieve(pm_id, api_key=secret)
         card = (pm.get('card') or {}) if isinstance(pm, dict) else {}
         brand, last4 = card.get('brand'), card.get('last4')

@@ -37,7 +37,7 @@ and patterns instead.
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
 | M14a/b Layout header, tab bars | 0 | shipped (`consolidate/M14a-layout-header`, `consolidate/M14b-glass-tab-bar`) | | `org_picker_header` 0, `tab_bar` 0 |
 | M5 One quote | 1 | shipped | see git log (`consolidate/M5-one-quote`) | `registration_fee_quote` 0/0; new `tuition_quote` 0 |
-| M6 One invoice writer, checkout, verifier | 1 | not started | | |
+| M6 One invoice writer, one checkout factory, one verifier | 1 | shipped (code + tests; no Stripe test-mode run) | see git log (`consolidate/M6-one-invoice-writer`) | `invoice_row` 1, `stripe_checkout` 1, `stripe_verify` 2, `pay_link_signing` 0 |
 | M7 One household billing view, `formatCents` | 1 | not started | | |
 | M2 One family hold | 1 | not started | | |
 | M4 Funnel lands in SIS stores | 1 | not started | | |
@@ -728,6 +728,33 @@ convention, each is settled by the one verifier, each lands on `/family/billing`
 as paid with the same trail. As Arete admin, record a manual charge. Manifest
 `invoice_row` → 1, `stripe_checkout` → 1, `stripe_verify` → 1 (each counts the
 canonical copy inside the owner; `exempt: []` in the manifest says why).
+
+**As shipped (2026-09-17).** `sis_billing_service.write_invoice(org_id, household_id=,
+student_user_id=, lines=, discount_cents=, status=, due_date=, registration_id=,
+invoice_id=)` is the one `sis_invoices` insert (row, number, line items);
+`create_charge`, `create_tuition_invoice` and `create_invoice_from_registration` keep
+their contracts and call it, so the recurring biller, the event RSVP fee and the two
+billing routes are callers of callers. The plan's name was `create_charge`; that
+function already has a public single-line contract two routes use, so the writer got
+its own name rather than a breaking signature. `start_checkout(secret, kind=, org_id=,
+ref_id=, success_url=, cancel_url=, mode=, line_items=, metadata=, idempotency_key=,
+**kwargs)` is the one `checkout.Session.create` for all seven sites (`CHECKOUT_KINDS`:
+invoice, pay_link, family, autopay_setup, recurring_card_setup, registration,
+registration_preview); every session's metadata now carries `kind`, `organization_id`
+and `ref_id` beside the keys each verifier already read, and the funnel's subscription
+mode passes through untouched. `first_session(secret, ids, accept, newest_first=,
+errors=, **retrieve_params)` over `retrieve_session` / `list_sessions` is the one
+reader, with `is_paid` and `is_complete_of_kind(kind)` as the accept rules; the invoice
+settle, the whole-family confirm, the autopay confirm, the household card save and the
+funnel's recorded-session and by-email rescue all read through it (the funnel keeps its
+oldest-first order and its retrieve-error count). `sis_pay_links._signed(namespace,
+payload)` is the one HMAC under the three token namespaces. Not done, and why: no
+Stripe test-mode run (the local backend holds the live key; each `kind` was exercised
+through the existing fixture tests instead, 289 billing + 66 funnel), no webhooks
+(still one place to add), and `quote_for_registration` still reads the class-
+registration cart -- the cart is a zero-row feature the 2026-09-14 decision keeps, and
+there is nothing else for a cart quote to read; the dead-code list already names the
+path for the day the tables go.
 
 ### M7 — One household billing view, `formatCents`
 

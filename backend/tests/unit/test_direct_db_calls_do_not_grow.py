@@ -278,7 +278,12 @@ BASELINES = {
     # delete); four other services gave up their own read of the table for it
     # and the route gave up six, so this is a move down a layer (+5 here, -4
     # here, -6 in routes/), not new querying. The combined total fell by five.
-    'services': 1837,
+    # 2026-09-17 (M5, M6): 1837 -> 1833. sis_billing_service.write_invoice is
+    # the one sis_invoices insert where three functions each had their own
+    # (-2), and the UFA learning-day bulk read went to a repository while the
+    # tuition queue's time-block read goes through sis_catalog_service (-2).
+    # Measured on the tree; lowered per rule 2 of RATCHETS.md.
+    'services': 1833,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -551,7 +556,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2268 + 1837
+UPPER_TOTAL_BASELINE = 2268 + 1833
 
 
 def test_the_upper_layers_do_not_grow_in_total():
