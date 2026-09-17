@@ -909,6 +909,49 @@ def update_training(user_id, training_id):
     return jsonify({'success': True})
 
 
+@bp.route('/training/order', methods=['PUT'])
+@require_role(*ADMIN_ROLES)
+def set_training_order(user_id):
+    """Save the creator's order of the catalog, quests and links together.
+
+    Body: {"items": [{"kind": "quest"|"link", "id": "<row id>"}, ...]} in the
+    order the page shows them. Each row gets its index on ONE shared scale --
+    sequence_order on sis_staff_training, sort_order on org_resources -- so the
+    Training page, which lists both kinds in one list, can sort the merged
+    list by that number and show exactly what the creator arranged. Molly
+    (iCreate, 2026-09-17, b26c05e3): "I entered them in numerical order but
+    then they ..." Rows that are not this org's are skipped, not an error.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    items = (request.get_json(silent=True) or {}).get('items')
+    if not isinstance(items, list) or not items or len(items) > 500:
+        return jsonify({'success': False, 'error': 'items must be a list of {kind, id}'}), 400
+    quest_ids, link_ids, positions = [], [], {}
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or _bad_uuid(item.get('id')):
+            return jsonify({'success': False, 'error': 'Invalid item id'}), 400
+        kind = item.get('kind')
+        if kind == 'quest':
+            quest_ids.append(item['id'])
+        elif kind == 'link':
+            link_ids.append(item['id'])
+        else:
+            return jsonify({'success': False, 'error': 'kind must be quest or link'}), 400
+        positions[item['id']] = index
+
+    from repositories.staff_training_repository import StaffTrainingRepository
+    from repositories.training_link_repository import TrainingLinkRepository
+    written = StaffTrainingRepository(client=_admin()).set_sequence_order(org_id, quest_ids, positions)
+    links_repo = TrainingLinkRepository(client=_admin())
+    for link_id in link_ids:
+        link = links_repo.get_owned(org_id, link_id)
+        if link and links_repo.update_link(link['id'], {'sort_order': positions[link_id]}):
+            written += 1
+    return jsonify({'success': True, 'ordered': written})
+
+
 @bp.route('/training/<training_id>/assign', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def assign_training(user_id, training_id):

@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   AcademicCapIcon, CheckCircleIcon, PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon,
-  PhotoIcon, EyeIcon,
+  PhotoIcon, EyeIcon, ChevronUpIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline'
+import SearchSelect from '../../components/ui/SearchSelect'
+import useTrainingOrder from '../../hooks/useTrainingOrder'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
@@ -13,6 +15,7 @@ import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
 import QuestPreviewModal from '../../components/sis/QuestPreviewModal'
 import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
+import TrainingProgressTable from '../../components/sis/TrainingProgressTable'
 import { TrainingLinkForm, TrainingLinkRow } from '../../components/sis/TrainingLinks'
 import {
   useTrainingLinks, useTrainingLinksProgress, useDeleteTrainingLink,
@@ -49,6 +52,10 @@ const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm f
 const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editItem = null }) => {
   const [options, setOptions] = useState([])
   const [questId, setQuestId] = useState('')
+  // The Optio library is 168 quests to the school's few dozen. Off by default
+  // the picker is the school's own list; on, the library joins it, each entry
+  // saying where it came from.
+  const [includeLibrary, setIncludeLibrary] = useState(false)
   const [category, setCategory] = useState('')
   const [required, setRequired] = useState(false)
   // On by default: somebody setting a quest for their whole school almost always
@@ -298,26 +305,30 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
       {header}
 
       {tab === 'existing' ? (
-        /* Grouped by where the quest came from and alphabetical inside each
-           group — a flat list in storage order is unsearchable once a school
-           has a few dozen (iCreate, 2026-08-19). The API sorts; this names the
-           groups. */
-        <select value={questId} onChange={(e) => setQuestId(e.target.value)} className={inputClass}
-          aria-label="Choose a quest">
-          <option value="">Choose a quest…</option>
-          {[['organization', "Your school's quests"], ['library', 'Optio library']].map(
-            ([source, groupLabel]) => {
-              const group = options.filter((q) => q.source === source)
-              if (!group.length) return null
-              return (
-                <optgroup key={source} label={groupLabel}>
-                  {group.map((q) => (
-                    <option key={q.quest_id} value={q.quest_id}>{q.title}</option>
-                  ))}
-                </optgroup>
-              )
-            })}
-        </select>
+        /* Type to find. The native dropdown this replaced held the school's
+           quests and the whole Optio library in one scroll -- about two
+           hundred rows -- which is unsearchable however it is grouped
+           (Tanner, 2026-09-17). SearchSelect is the platform rule for any
+           long-list picker (components/ui/SearchSelect); the school's own
+           quests are the list, the library joins on request. */
+        <div className="space-y-2">
+          <SearchSelect
+            value={questId}
+            onChange={setQuestId}
+            options={options.filter((q) => includeLibrary || q.source === 'organization')}
+            getId={(q) => q.quest_id}
+            getLabel={(q) => (q.source === 'library' ? `${q.title} \u00b7 Optio library` : q.title)}
+            placeholder={includeLibrary ? 'Type a quest name (school or Optio library)\u2026' : 'Type a quest name\u2026'}
+            limit={60}
+          />
+          <label className="flex items-center gap-2 text-xs text-neutral-600">
+            <input type="checkbox" checked={includeLibrary} onChange={(e) => setIncludeLibrary(e.target.checked)} />
+            Also search the Optio library
+            {options.some((q) => q.source === 'library') && (
+              <span className="text-neutral-400">({options.filter((q) => q.source === 'library').length} quests)</span>
+            )}
+          </label>
+        </div>
       ) : (
         <div className="space-y-3">
           {/* Orientation and training already exist as a handbook. Upload it and
@@ -648,14 +659,25 @@ const StaffTrainingPage = () => {
 
   // Quests and links share the category headings: a category is how the
   // office files training, whatever shape each item takes.
-  const grouped = useMemo(() => [
-    ...training.map((t) => ({ ...t, kind: 'quest' })),
-    ...links.map((l) => ({ ...l, kind: 'link' })),
-  ].reduce((acc, t) => {
-    const key = t.category || 'General'
-    ;(acc[key] = acc[key] || []).push(t)
-    return acc
-  }, {}), [training, links])
+  // Type to narrow the list by name. The same box narrows the who-has-done-
+  // what columns, so an admin looking for one training sees it in both views.
+  const [search, setSearch] = useState('')
+  const matches = useCallback((title) => !search.trim()
+    || (title || '').toLowerCase().includes(search.trim().toLowerCase()), [search])
+
+  // One list, in the order the creator arranged it (hooks/useTrainingOrder):
+  // quests and links on one shared scale, moved with the arrows below.
+  const { ordered, move } = useTrainingOrder({ training, links, orgId, reload: load })
+
+  const grouped = useMemo(() => ordered
+    .filter((t) => matches(t.title))
+    .reduce((acc, t) => {
+      const key = t.category || 'General'
+      ;(acc[key] = acc[key] || []).push(t)
+      return acc
+    }, {}), [ordered, matches])
+  const anyMatch = Object.keys(grouped).length > 0
+
 
   const mine = useMemo(() => {
     const req = training.filter((t) => t.is_required)
@@ -671,6 +693,18 @@ const StaffTrainingPage = () => {
   const linkCells = useMemo(() => Object.fromEntries(
     (linkReport?.staff || []).map((s) => [s.user_id, s])), [linkReport])
   const reportLinks = linkReport?.links || []
+  // Columns in the creator's order too, and narrowed by the search box; the
+  // body cells are looked up per column so they always sit under their own
+  // header.
+  const reportColumns = useMemo(() => {
+    const rank = new Map(ordered.map((r, i) => [`${r.kind}:${r.kind === 'quest' ? r.quest_id : r.id}`, i]))
+    const cols = [
+      ...(report?.training || []).map((t) => ({ ...t, _key: `quest:${t.quest_id}` })),
+      ...reportLinks.map((l) => ({ ...l, _key: `link:${l.id}` })),
+    ]
+    return cols.filter((c) => matches(c.title))
+      .sort((a, b) => (rank.get(a._key) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b._key) ?? Number.MAX_SAFE_INTEGER))
+  }, [report, reportLinks, ordered, matches])
 
   return (
     <div>
@@ -747,7 +781,20 @@ const StaffTrainingPage = () => {
         </div>
       )}
 
+      {!loading && (training.length + links.length) > 0 && (
+        <div className="mb-4 max-w-md">
+          <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${words(audience).quests} by name\u2026`}
+            aria-label={`Search ${words(audience).quests}`}
+            className={inputClass} />
+        </div>
+      )}
+
       {loading && <p className="text-neutral-500">Loading…</p>}
+
+      {!loading && view === 'mine' && (training.length + links.length) > 0 && !anyMatch && (
+        <p className="text-sm text-neutral-500">Nothing matches that search.</p>
+      )}
 
       {!loading && !training.length && !links.length && (
         <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
@@ -765,7 +812,26 @@ const StaffTrainingPage = () => {
         <div key={category} className="mb-6">
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 mb-2">{category}</h2>
           <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            {items.map((t) => t.kind === 'link' ? (
+            {items.map((t, index) => (
+              <div key={`${t.kind}-${t.id}`} className="flex items-stretch">
+                {/* The creator's order. Arrows rather than drag: the rows are
+                    tall and the list is short, and a keyboard can do it. */}
+                {admin && !search.trim() && (
+                  <div className="flex flex-col justify-center pl-2 shrink-0">
+                    <button type="button" onClick={() => move(t, -1)} disabled={index === 0}
+                      aria-label={`Move ${t.title} up`}
+                      className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-gray-400">
+                      <ChevronUpIcon className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => move(t, 1)} disabled={index === items.length - 1}
+                      aria-label={`Move ${t.title} down`}
+                      className="p-0.5 text-gray-400 hover:text-optio-purple disabled:opacity-30 disabled:hover:text-gray-400">
+                      <ChevronDownIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                {t.kind === 'link' ? (
               <TrainingLinkRow key={`link-${t.id}`} link={t} orgId={orgId} admin={admin}
                 onEdit={() => { setAdding(false); setEditing(null); setEditingLink(t) }}
                 onRemove={() => removeLink(t)} />
@@ -853,64 +919,17 @@ const StaffTrainingPage = () => {
                   </div>
                 )}
               </div>
+            )}
+                </div>
+              </div>
             ))}
           </div>
         </div>
       ))}
 
       {!loading && view === 'everyone' && admin && (
-        !report?.staff?.length
-          ? <p className="text-neutral-500">No {words(audience).many} to report on yet.</p> : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-        <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
-                    {audience === 'family' ? 'Family' : audience === 'student' ? 'Student' : 'Staff'}
-                  </th>
-                  {[...(report.training || []), ...reportLinks].map((t) => (
-                    <th key={t.quest_id || `link-${t.id}`} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
-                      <span className="block truncate max-w-[10rem] mx-auto" title={t.title}>{t.title}</span>
-                      {t.is_required && <span className="block text-[11px] font-normal text-optio-purple">required</span>}
-                    </th>
-                  ))}
-                  <th className="px-3 py-2.5 font-medium text-neutral-600">Required done</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.staff.map((s) => (
-                  <tr key={s.user_id} className="border-b border-gray-100 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-neutral-900">{s.name}</td>
-                    {s.cells.map((c) => (
-                      <td key={c.quest_id} className="px-3 py-2.5 text-center">
-                        <span className={`inline-block px-2 py-1 rounded-md text-xs ${progressStyle(c)}`}>
-                          {progressLabel(c)}
-                        </span>
-                      </td>
-                    ))}
-                    {/* A dash where the link was never aimed at this person,
-                        so nobody reads "not done" on a training they were not
-                        given. */}
-                    {(linkCells[s.user_id]?.cells || reportLinks.map((l) => ({ link_id: l.id, applies: true }))).map((c) => (
-                      <td key={`link-${c.link_id}`} className="px-3 py-2.5 text-center">
-                        {!c.applies ? <span className="text-neutral-300">{'\u2014'}</span> : (
-                          <span className={`inline-block px-2 py-1 rounded-md text-xs ${
-                            c.done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-500'}`}>
-                            {c.done ? 'Done' : 'Not done'}
-                          </span>
-                        )}
-                      </td>
-                    ))}
-                    <td className="px-3 py-2.5 text-center text-neutral-600">
-                      {s.required_completed + (linkCells[s.user_id]?.required_completed || 0)}
-                      <span className="text-neutral-400">/{report.required_total + (linkReport?.required_total || 0)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+        <TrainingProgressTable report={report} reportColumns={reportColumns}
+          linkCells={linkCells} linkReport={linkReport} audience={audience} />
       )}
 
       {picking && (

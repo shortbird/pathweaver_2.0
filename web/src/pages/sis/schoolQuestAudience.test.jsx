@@ -92,7 +92,12 @@ describe('school quests by audience', () => {
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
-    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'q9' } })
+    // The picker is a type-to-find SearchSelect (the native select over the
+    // whole Optio library was ~200 rows): focus, type, pick on mouseDown.
+    const picker = await screen.findByPlaceholderText(/Type a quest name/)
+    fireEvent.focus(picker)
+    fireEvent.change(picker, { target: { value: 'Open' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'Open house' }))
     fireEvent.click(screen.getByRole('button', { name: /^Add training$/ }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(

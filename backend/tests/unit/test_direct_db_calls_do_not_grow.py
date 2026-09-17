@@ -449,7 +449,11 @@ BASELINES = {
     # org's quests, their tasks, curriculum links, class links, the pickers,
     # and the one attach write, which routes/sis/curriculum.py now also uses
     # (routes fell by three in the same commit).
-    'repositories': 568,
+    # 2026-09-17: 568 -> 569. StaffTrainingRepository.set_sequence_order, the
+    # one write behind the Training page's creator-set order (PUT
+    # /api/sis/training/order); the links half of that order goes through
+    # TrainingLinkRepository.update_link, which already existed.
+    'repositories': 569,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
