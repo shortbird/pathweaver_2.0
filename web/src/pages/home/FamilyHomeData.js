@@ -6,8 +6,8 @@ import { useSisParentContext } from '../../hooks/api/useSchoolContext'
 /**
  * Data hooks for FamilyHome (pages/home/FamilyHome.jsx).
  *
- * Every hook here composes EXISTING endpoints — the same ones the management
- * pages use (FamilyPortalPage, FamilyFormsPage, FamilyBillingPage) —
+ * Every hook here composes EXISTING endpoints — the same ones FamilyFormsPage
+ * uses —
  * read-only, via react-query. The home is a
  * digest, so every source degrades silently: a failed fetch shows nothing,
  * never an error wall. The page each item deep-links to owns error display.
@@ -26,11 +26,16 @@ const SILENT = {
 // copy of the union rule.
 
 /**
- * "Needs your attention": pending checklist items (FamilyPortalPage's API),
- * open requests (FamilyFormsPage's API), balance due (FamilyBillingPage's
- * API). Each source is its own query so one failing hides only itself.
- * Non-SIS families get empty orgs from the context call and every downstream
- * query stays disabled.
+ * "Needs your attention": pending checklist items and open requests (the two
+ * halves of FamilyFormsPage, each its own API). Each source is its own query
+ * so one failing hides only itself. Non-SIS families get empty orgs from the
+ * context call and every downstream query stays disabled.
+ *
+ * The balance due was a third card here until 2026-09-16. It is on Billing
+ * now, as the notice at the top of the household with the pay button in it:
+ * the home is for the children, and money on it was the one card most
+ * families always had, so the strip was never empty and stopped meaning
+ * anything.
  */
 export function useFamilyAttention() {
   // The shared guardian-context read (hooks/api/useSchoolContext), the same
@@ -68,18 +73,6 @@ export function useFamilyAttention() {
     ...SILENT,
   })
 
-  const billing = useQuery({
-    queryKey: ['family-home', 'billing'],
-    queryFn: async () => {
-      const r = await api.get('/api/sis/parent/billing')
-      return r.data?.households || []
-    },
-    // Billing needs no org id, but it is a family-with-a-school surface —
-    // don't fire it for platform parents with no school context.
-    enabled: Boolean(orgId),
-    ...SILENT,
-  })
-
   const orgName = org?.organization_name || 'your school'
   const items = []
 
@@ -89,9 +82,9 @@ export function useFamilyAttention() {
     items.push({
       id: 'checklist',
       kind: 'checklist',
-      to: '/family/portal',
-      label: `${checklistPending} checklist item${checklistPending === 1 ? '' : 's'} to complete`,
-      detail: `Assigned to your family by ${orgName}`,
+      to: '/family/forms',
+      label: `${checklistPending} form item${checklistPending === 1 ? '' : 's'} to complete`,
+      detail: `${orgName} needs these signed or filled in`,
     })
   }
 
@@ -100,21 +93,9 @@ export function useFamilyAttention() {
     items.push({
       id: 'forms',
       kind: 'forms',
-      to: '/family/forms',
-      label: `${openRequests} open request${openRequests === 1 ? '' : 's'} with ${orgName}`,
-      detail: 'Track replies or add details',
-    })
-  }
-
-  const balanceCents = (billing.data || [])
-    .reduce((sum, hh) => sum + Math.max(hh.totals?.balance_cents || 0, 0), 0)
-  if (balanceCents > 0) {
-    items.push({
-      id: 'billing',
-      kind: 'billing',
-      to: '/family/billing',
-      label: `$${(balanceCents / 100).toFixed(2)} balance due`,
-      detail: `Invoices and receipts from ${orgName}`,
+      to: '/family/forms#requests',
+      label: `${openRequests} request${openRequests === 1 ? '' : 's'} waiting on ${orgName}`,
+      detail: 'Their reply shows up under it',
     })
   }
 

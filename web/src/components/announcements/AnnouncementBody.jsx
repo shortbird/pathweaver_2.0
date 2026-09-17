@@ -21,9 +21,18 @@ import { isHtml } from '../../utils/richText'
  * bare text in the editor, or a proper editor link — becomes a small labeled
  * button. A link whose visible text IS its URL gets the site's hostname as its
  * label; text the author actually wrote is kept.
+ *
+ * The button is an inline chip, not an inline-flex block. Staff write links
+ * into the middle of a sentence ("buy tickets at this website: <link> Our
+ * director is in the show"), and a flex box with its own padding and
+ * line-height pushed that line apart from its neighbours -- the family
+ * calendar's event notes read as a ragged wall of text (2026-09-16). An
+ * `inline` element's padding does not touch the line box, so the chip sits in
+ * the sentence at the sentence's size and the lines stay evenly spaced.
  */
 
-const LINK_CLS = 'inline-flex max-w-full items-center gap-1.5 rounded-lg bg-optio-purple/10 px-3 py-1 text-sm font-medium text-optio-purple no-underline hover:bg-optio-purple/20 transition-colors align-middle'
+const LINK_CLS = 'inline rounded-md bg-optio-purple/10 px-1.5 py-0.5 font-medium text-optio-purple no-underline hover:bg-optio-purple/20 transition-colors box-decoration-clone'
+const ICON_CLS = 'inline-block w-[0.85em] h-[0.85em] ml-1 align-[-0.1em]'
 
 const URL_RE = /https?:\/\/[^\s<>"']+/g
 
@@ -64,7 +73,7 @@ const externalIcon = (doc) => {
   svg.setAttribute('fill', 'none')
   svg.setAttribute('stroke', 'currentColor')
   svg.setAttribute('stroke-width', '1.5')
-  svg.setAttribute('class', 'w-3.5 h-3.5 flex-shrink-0')
+  svg.setAttribute('class', ICON_CLS)
   svg.setAttribute('aria-hidden', 'true')
   const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path')
   path.setAttribute('stroke-linecap', 'round')
@@ -179,8 +188,8 @@ export default function AnnouncementBody({ text, className = '' }) {
           title={s.url}
           className={LINK_CLS}
         >
-          <span className="truncate">{hostLabel(s.url)}</span>
-          <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+          {hostLabel(s.url)}
+          <ArrowTopRightOnSquareIcon className={ICON_CLS} aria-hidden="true" />
         </a>
       ) : (
         <React.Fragment key={i}>{s.text}</React.Fragment>

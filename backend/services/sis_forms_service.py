@@ -281,6 +281,19 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
 # relative the way an in-app notification link is.
 SIS_TASKS_URL = 'https://sis.optioeducation.com/my-tasks'
 
+# Where the person who filed a submission reads it. Staff read the console's
+# queue; a family reads the Forms page in the learning app, and the two are
+# different hosts. Until 2026-09-16 every "your request is resolved" and
+# "new comment" notification linked to /forms, which for a parent is the staff
+# page: a family got told the office had answered and the link went nowhere
+# they could open. The reply itself was only ever visible on /family/forms.
+FAMILY_FORMS_LINK = '/family/forms#requests'
+
+
+def submitter_link(submission: Dict[str, Any]) -> str:
+    """The link a notification to the SUBMITTER of this row should carry."""
+    return FAMILY_FORMS_LINK if submission.get('submitter_role') == 'parent' else '/forms'
+
 
 def _email_assignment(user_id: str, org_id: str, title: str,
                       form_type_label: str, due_date: Optional[str] = None) -> None:
@@ -449,7 +462,7 @@ def update_status(org_id: str, submission_id: str, fields: Dict[str, Any],
     if status and rows[0].get('submitted_by') != actor_id:
         sis_notifications.notify(
             rows[0]['submitted_by'], f'Your {label.lower()} is {status.replace("_", " ")}',
-            title, link='/forms', organization_id=org_id)
+            title, link=submitter_link(rows[0]), organization_id=org_id)
     return {'submission': updated}
 
 
@@ -487,9 +500,10 @@ def add_comment(org_id: str, submission_id: str, author_id: str,
     title = sub.get('title') or ALL_FORM_TYPES.get(sub.get('form_type'), 'form')
     for uid in {sub.get('submitted_by'), sub.get('assigned_to')}:
         if uid and uid != author_id:
+            link = submitter_link(sub) if uid == sub.get('submitted_by') else '/forms'
             sis_notifications.notify(
                 uid, 'New comment', f'{title}: {body[:120]}',
-                link='/forms', organization_id=org_id)
+                link=link, organization_id=org_id)
     return {'comment': inserted[0] if inserted else None}
 
 

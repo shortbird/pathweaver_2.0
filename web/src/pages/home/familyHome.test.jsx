@@ -320,18 +320,25 @@ describe('FamilyHome', () => {
       })
     })
 
-    it('aggregates checklist, request and balance items, each deep-linking to its page', async () => {
+    it('aggregates checklist and request items, each deep-linking to its page', async () => {
       renderFamilyHome()
       expect(await screen.findByText('Needs your attention')).toBeInTheDocument()
 
-      const checklist = await screen.findByText('2 checklist items to complete')
-      expect(checklist.closest('a')).toHaveAttribute('href', '/family/portal')
+      const checklist = await screen.findByText('2 form items to complete')
+      expect(checklist.closest('a')).toHaveAttribute('href', '/family/forms')
 
-      const request = screen.getByText('1 open request with iCreate')
-      expect(request.closest('a')).toHaveAttribute('href', '/family/forms')
+      const request = screen.getByText('1 request waiting on iCreate')
+      expect(request.closest('a')).toHaveAttribute('href', '/family/forms#requests')
+    })
 
-      const balance = screen.getByText('$125.50 balance due')
-      expect(balance.closest('a')).toHaveAttribute('href', '/family/billing')
+    // The balance due lived here as a third card until 2026-09-16. It is the
+    // notice at the top of Billing now (familyBillingPage.test: "the balance
+    // due is the notice at the top"); the home neither shows it nor asks for it.
+    it('leaves money to the Billing page', async () => {
+      renderFamilyHome()
+      await screen.findByText('Needs your attention')
+      expect(screen.queryByText(/balance due/)).not.toBeInTheDocument()
+      expect(api.get.mock.calls.some(([url]) => url.startsWith('/api/sis/parent/billing'))).toBe(false)
     })
 
     it('hides the strip entirely when nothing needs attention', async () => {
@@ -355,15 +362,15 @@ describe('FamilyHome', () => {
         if (url.startsWith('/api/sis/parent/context')) {
           return Promise.resolve({ data: { orgs: [{ organization_id: 'org-1', organization_name: 'iCreate' }] } })
         }
-        if (url.startsWith('/api/sis/parent/billing')) {
-          return Promise.resolve({ data: { households: [{ household_id: 'hh1', totals: { balance_cents: 5000 } }] } })
+        if (url.startsWith('/api/sis/parent/forms')) {
+          return Promise.resolve({ data: { submissions: [{ id: 'f1', status: 'submitted' }] } })
         }
         return Promise.reject(new Error('boom'))
       })
       renderFamilyHome()
-      // The failed checklist/forms sources show nothing; billing still lands.
-      expect(await screen.findByText('$50.00 balance due')).toBeInTheDocument()
-      expect(screen.queryByText(/checklist item/)).not.toBeInTheDocument()
+      // The failed checklist source shows nothing; the request still lands.
+      expect(await screen.findByText('1 request waiting on iCreate')).toBeInTheDocument()
+      expect(screen.queryByText(/form item/)).not.toBeInTheDocument()
     })
   })
 

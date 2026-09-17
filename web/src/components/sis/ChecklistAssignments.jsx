@@ -11,8 +11,9 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * completed by ticking it, following its link, attaching a document, or
  * signing it by typed name (ChecklistSignature).
  *
- * The one rendering, on two pages. The family portal (/family/portal) shows
- * every checklist; the paperwork hold (/family/required-documents) shows only
+ * The one rendering, on two pages. The Forms page (/family/forms) shows
+ * every checklist under its "To complete" heading; the paperwork hold
+ * (/family/required-documents) shows only
  * the required, unsigned ones and nothing else on the screen. Until
  * 2026-09-15 the hold page carried its own copy of this list, with its own
  * PATCH and its own "Mark as done" button, over the same endpoints -- two
@@ -99,7 +100,7 @@ export default function ChecklistAssignments({ orgId, assignments, onChanged }) 
       {assignments.map((a) => (
         <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-900">{a.template_name || 'Checklist'}</h2>
+            <h3 className="font-semibold text-gray-900">{a.template_name || 'Checklist'}</h3>
             <span className="text-sm text-gray-500">{a.done_count}/{a.total_count} complete</span>
           </div>
           {a.description && (

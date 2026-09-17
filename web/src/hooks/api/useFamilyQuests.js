@@ -66,12 +66,22 @@ export function useEnrollChildrenInQuest() {
  * (student_id, resolved by the backend's @student_scope). Same route the
  * quest page's End button uses; the work and XP are kept and the quest can
  * be reopened from the child's completed quests.
+ *
+ * `force` is for LEAVING a quest a school set for the parent themself
+ * (FamilyFormsPage). The route refuses to end a quest below its XP goal
+ * (quests.xp_threshold) because that goal is a student's finish line for
+ * credit -- iCreate's Exploration Quest asks for 400 XP. A parent ending
+ * their own copy is not submitting for credit, and without `force` the only
+ * exit was refused for every one of the 80 parents it was auto-assigned to.
  */
 export function useEndMemberQuest() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ questId, studentId }) =>
-      api.post(`/api/quests/${questId}/end`, studentId ? { student_id: studentId } : {}),
+    mutationFn: ({ questId, studentId, force = false }) =>
+      api.post(`/api/quests/${questId}/end`, {
+        ...(studentId ? { student_id: studentId } : {}),
+        ...(force ? { force: true } : {}),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.family.quests() })
       queryClient.invalidateQueries({ queryKey: ['quests'] })

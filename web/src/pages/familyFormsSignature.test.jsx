@@ -1,10 +1,10 @@
 /**
- * The family portal side of the typed signature.
+ * The family side of the typed signature, on the Forms page.
  *
  * Families sign the same way staff do — the block is one shared component
  * (components/sis/ChecklistSignature) precisely so a parent's signature and a
  * teacher's signature are the same thing. This file holds the wiring: that the
- * family portal renders it, and that it posts to the parent endpoint rather than
+ * Forms page renders it, and that it posts to the parent endpoint rather than
  * the staff one.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -33,7 +33,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
-import FamilyPortalPage from './FamilyPortalPage'
+import FamilyFormsPage from './FamilyFormsPage'
 
 const ITEM = {
   key: 'media', title: 'Photo and media release', required: true,
@@ -59,13 +59,13 @@ beforeEach(() => {
 
 describe('a family signing their paperwork', () => {
   it('offers the typed signature on the item', async () => {
-    render(<FamilyPortalPage />)
+    render(<FamilyFormsPage />)
     expect(await screen.findByPlaceholderText('Your full name')).toBeInTheDocument()
     expect(screen.getByText(STATEMENT)).toBeInTheDocument()
   })
 
   it('signs through the parent endpoint', async () => {
-    render(<FamilyPortalPage />)
+    render(<FamilyFormsPage />)
     fireEvent.change(await screen.findByPlaceholderText('Your full name'), { target: { value: 'Dana Myers' } })
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp('official signature') }))
     fireEvent.click(screen.getByRole('button', { name: 'Sign' }))
@@ -77,7 +77,7 @@ describe('a family signing their paperwork', () => {
   })
 })
 
-describe('signing a document from the office on family portal', () => {
+describe('signing a document from the office on the Forms page', () => {
   it('withholds the sign box until the office uploads the document', async () => {
     api.get.mockImplementation((url) => {
       if (url.includes('/parent/context')) {
@@ -94,7 +94,7 @@ describe('signing a document from the office on family portal', () => {
       return Promise.resolve({ data: {} })
     })
 
-    render(<FamilyPortalPage />)
+    render(<FamilyFormsPage />)
     await screen.findByText('Photo and media release')
     expect(screen.queryByPlaceholderText('Your full name')).not.toBeInTheDocument()
     expect(screen.getByText(/Your document is not here yet/)).toBeInTheDocument()

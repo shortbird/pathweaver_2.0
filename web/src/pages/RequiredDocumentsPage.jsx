@@ -14,7 +14,7 @@ import { clearRequiredDocumentsGate } from '../hooks/useRequiredDocumentsGate'
  * each one; showing them the single thing that lifts the hold is both more
  * honest and faster to get through.
  *
- * The list itself is ChecklistAssignments, the family portal's own, so a
+ * The list itself is ChecklistAssignments, the Forms page's own, so a
  * signature collected here is the same record, with the same affirmation and
  * the same evidence, as one collected there. The hold is a routing decision
  * layered on top of the existing flow, not a second way to sign. (This page
