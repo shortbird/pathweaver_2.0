@@ -17,11 +17,12 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * in the left stepper; anything an org can change carries an Edit control.
  *
  * Config lives at organizations.feature_flags.registration (org-neutral; the
- * legacy icreate_registration key is mirrored on save until the rename is live
- * in prod). Saving PUTs the whole feature_flags blob back, so edited items
- * spread the original object — fields this editor doesn't know about survive
- * the round-trip (the old settings form dropped paperwork `body` and question
- * `per_student` on save; this one must not).
+ * server keeps a legacy icreate_registration mirror in step where an org row
+ * still carries one, so this editor reads either and writes neither by name).
+ * Saving PATCHes the registration config through the settings endpoint, which
+ * merges it onto what is stored — fields this editor doesn't know about
+ * survive the round-trip (the old settings form dropped paperwork `body` and
+ * question `per_student` on save; this one must not).
  */
 
 const slugKey = (label) => (label || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `item_${Date.now()}`
@@ -36,6 +37,7 @@ import FamilyStepPreview from './registrationSetup/FamilyStepPreview'
 import { DetailsStepPreview, RecordsStepPreview } from './registrationSetup/DetailsRecordsSteps'
 import { PaperworkStepPreview, FeeStepPreview } from './registrationSetup/PaperworkFeeSteps'
 import DoneStepPreview from './registrationSetup/DoneStepPreview'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const confirm = useConfirm()
@@ -48,6 +50,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const org = orgData?.organization || {}
   const flags = org.feature_flags || {}
   // Org-neutral key first; legacy key until the prod rename ships.
+  // The legacy key is read-only here: a row that still has it also has the
+  // canonical key kept equal by the server.
   const cfg = flags.registration || flags.icreate_registration
   const sisSettings = flags.sis_settings || {}
   const logo = org.branding_config?.logo_url || org.logo_url
@@ -164,9 +168,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         registration_fee_cents: 0, per_student_fee_cents: 0,
         payment_url: '', scheduling_url: '', paperwork: [], questions: [],
       }
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: { ...flags, registration: seeded, icreate_registration: seeded },
-      })
+      await patchSisSettings(orgId, { registration: seeded })
       toast.success('Family registration is on — configure the steps below')
       onUpdate && onUpdate()
     } catch (e) {
@@ -359,13 +361,12 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
 
     setSaving(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...flags,
-          registration: newCfg,
-          icreate_registration: newCfg, // legacy mirror until the rename ships
-          sis_settings: { ...sisSettings, post_registration_flow: flow },
-        },
+      // One PATCH, two keys: the funnel config and the post-registration
+      // flow. The server merges each onto what is stored and keeps the legacy
+      // icreate_registration mirror in step where a row still carries one.
+      await patchSisSettings(orgId, {
+        registration: newCfg,
+        sis_settings: { post_registration_flow: flow },
       })
       // Reconcile uploaded paperwork docs into the Resources library (single
       // source of truth). Non-fatal — the settings still saved if this hiccups.

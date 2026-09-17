@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { EnvelopeIcon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * The weekly parent digest: on or off, and when it goes out.
@@ -46,15 +46,8 @@ export default function ParentDigestCard({ orgId, org, onUpdate }) {
   const save = async (next) => {
     setSaving(true)
     try {
-      const flags = org?.feature_flags || {}
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...flags,
-          sis_settings: {
-            ...(flags.sis_settings || {}),
-            parent_weekly_digest: { enabled: next.enabled, day: next.day, hour: next.hour },
-          },
-        },
+      await patchSisSettings(orgId, {
+        sis_settings: { parent_weekly_digest: { enabled: next.enabled, day: next.day, hour: next.hour } },
       })
       setEnabled(next.enabled)
       setDay(next.day)

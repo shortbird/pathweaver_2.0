@@ -8,7 +8,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({
-  api: { put: vi.fn(() => Promise.resolve({ data: { success: true } })) },
+  api: { patch: vi.fn(() => Promise.resolve({ data: { success: true } })) },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -48,17 +48,16 @@ describe('ClassroomsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save rooms' }))
 
     await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith(
-        '/api/admin/organizations/org-1',
+      // One key through the settings PATCH (M8a); the server merges it.
+      expect(api.patch).toHaveBeenCalledWith(
+        '/api/sis/settings?organization_id=org-1',
         expect.objectContaining({
-          feature_flags: expect.objectContaining({
-            sis_settings: expect.objectContaining({
-              rooms: [
-                { name: 'Room 101', description: 'Science Lab' },
-                { name: 'Art Studio', description: 'Craft room' },
-                { name: 'Main Gym', description: 'Large sports hall' },
-              ],
-            }),
+          sis_settings: expect.objectContaining({
+            rooms: [
+              { name: 'Room 101', description: 'Science Lab' },
+              { name: 'Art Studio', description: 'Craft room' },
+              { name: 'Main Gym', description: 'Large sports hall' },
+            ],
           }),
         })
       )

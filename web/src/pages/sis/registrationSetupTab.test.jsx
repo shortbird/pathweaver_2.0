@@ -42,6 +42,9 @@ const { api, state } = vi.hoisted(() => {
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
       post: vi.fn(() => Promise.resolve({ data: {} })),
+      // The setup tab saves through PATCH /api/sis/settings (M8a): the body
+      // names the registration config and the flow, the server merges them.
+      patch: vi.fn((url, body) => { state.putBodies.push(body); return Promise.resolve({ data: {} }) }),
       put: vi.fn((url, body) => { state.putBodies.push(body); return Promise.resolve({ data: {} }) }),
       delete: vi.fn(() => Promise.resolve({ data: {} })),
     },
@@ -110,23 +113,27 @@ describe('Registration setup tab (the editable funnel)', () => {
     expect(screen.getByText(/repeat for each child/)).toBeInTheDocument()
   })
 
-  it('saves to BOTH flag keys and preserves body/per_student through the round-trip', async () => {
-    state.flags = { registration: CFG, sis_settings: { post_registration_flow: 'goals' } }
+  it('saves the canonical key only and preserves body/per_student through the round-trip', async () => {
+    state.flags = { registration: CFG, icreate_registration: CFG, sis_settings: { post_registration_flow: 'goals' } }
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
 
+    expect(api.patch.mock.calls[0][0]).toBe('/api/sis/settings?organization_id=org-1')
     const body = state.putBodies[0]
-    const saved = body.feature_flags.registration
-    expect(body.feature_flags.icreate_registration).toEqual(saved) // legacy mirror
+    const saved = body.registration
+    // The browser never writes the legacy mirror again; the server keeps a
+    // row's icreate_registration equal to registration where one still exists.
+    expect('icreate_registration' in body).toBe(false)
+    expect('feature_flags' in body).toBe(false)
     expect(saved.paperwork[0].body).toBe('Please read the handbook.')
     expect(saved.questions.find((q) => q.key === 'grade').per_student).toBe(true)
     expect(saved.questions.find((q) => q.key === 'how_heard').per_student).toBe(false)
     // The never-echoed Stripe key must not be touched on an ordinary save.
     expect('stripe_secret_key' in saved).toBe(false)
-    // The org's post-registration flow survives.
-    expect(body.feature_flags.sis_settings.post_registration_flow).toBe('goals')
+    // The org's post-registration flow is sent as its own key.
+    expect(body.sis_settings.post_registration_flow).toBe('goals')
   })
 
   it('mirrors the funnel for a zero-fee, no-contacts, no-health org (Optio Academy shape)', async () => {
@@ -165,8 +172,8 @@ describe('Registration setup tab (the editable funnel)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect(state.putBodies[0].feature_flags.registration.emergency_contacts).toBe(false)
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(state.putBodies[0].registration.emergency_contacts).toBe(false)
   })
 
   it('offers to enable registration for an org without the funnel', async () => {
@@ -174,10 +181,10 @@ describe('Registration setup tab (the editable funnel)', () => {
     render(<RegistrationPage />)
     expect(await screen.findByText('Family registration is not set up')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Set up family registration'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
     const body = state.putBodies[0]
-    expect(body.feature_flags.registration.enabled).toBe(true)
-    expect(body.feature_flags.icreate_registration.enabled).toBe(true)
+    expect(body.registration.enabled).toBe(true)
+    expect('icreate_registration' in body).toBe(false)
   })
 })
 
@@ -204,9 +211,9 @@ describe('Registration setup tab for a campus coordinator', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
 
-    const saved = state.putBodies[0].feature_flags.registration
+    const saved = state.putBodies[0].registration
     for (const key of ['fee_mode', 'registration_fee_cents', 'per_student_fee_cents',
       'payment_url', 'stripe_secret_key']) {
       expect(key in saved).toBe(false)
@@ -264,8 +271,8 @@ describe('Registration setup tab with a monthly plan (Optio Academy)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    const saved = state.putBodies[0].feature_flags.registration
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    const saved = state.putBodies[0].registration
     expect(saved.monthly).toEqual({
       per_student_cents: 5000, family_cap_cents: 15000,
       add_ons: [{ key: 'teacher_support', label: 'Optio teacher support',
@@ -293,8 +300,8 @@ describe('Registration setup tab with a monthly plan (Optio Academy)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect('monthly' in state.putBodies[0].feature_flags.registration).toBe(false)
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect('monthly' in state.putBodies[0].registration).toBe(false)
   })
 })
 
@@ -337,8 +344,8 @@ describe('Credit partner switches (Optio Academy credit)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    const saved = state.putBodies[0].feature_flags.registration
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    const saved = state.putBodies[0].registration
     expect(saved.records_destination).toBe(false)
     expect(saved.academy_enrollment).toBe(false)
   })
@@ -351,8 +358,8 @@ describe('Credit partner switches (Optio Academy credit)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     fireEvent.click(screen.getByText('Save registration settings'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    const saved = state.putBodies[0].feature_flags.registration
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    const saved = state.putBodies[0].registration
     expect(saved.records_destination).toBe(true)
     expect(saved.academy_enrollment).toBe(true)
   })

@@ -29,7 +29,7 @@ and patterns instead.
 | M0 Guards | 0 | shipped | `40e27712` | 51 rows frozen at the counts in `shared/sisConcepts.json` |
 | M1 One school voice | 0 | not started | | |
 | M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
-| M8a One settings writer | 0 | not started | | |
+| M8a One settings writer | 0 | shipped | see git log (`consolidate/M8a-settings-writer`) | `settings_write` 0, `registration_config_mirror` 0, `org_payload_fetch` 0 |
 | M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
 | M11 One schedule toolkit | 0 | not started | | |
 | M12 One today, one events feed, one event clock | 0 | not started | | |
@@ -349,21 +349,24 @@ imports its providers from `api_hold_gate.py`, which is the owner).
 
 **Audit**: H1-H3, G6 (G-7), NW5. **Size S.**
 
-Canonical, backend: `PATCH /api/sis/settings` in `routes/sis/__init__.py` (or a new
-`routes/sis/settings.py`, `ADMIN_ROLES`), body `{sis_settings: {key: value}}`,
-doing the read-modify-write server-side in `services/sis_service.update_settings`;
-registration config goes through `utils/registration_config.with_registration_config`
-only, and the `icreate_registration` mirror write stops (the read fallback stays one
-release). Web: `hooks/api/useSisSettings.js` (`settings`, `patch({key})`, cache
-invalidation) and `hooks/api/useRegistrationConfig.js`; the thirteen files that PUT
-the blob use `patch` — `SisOrgSettings.jsx` (seven sites), `ClassroomsCard`,
-`QuickLinksCard`, `EnrollmentAgeGatesCard`, `CalendarCategoriesCard`,
-`TimeBlocksCard`, `FirstDayOfSchoolCard`, `RegistrationSetupTab`,
-`settings/cards/{HelpVideoCard,ParentDigestCard,PillarsCard,StepPrintingCard}.jsx`,
-and the learning app's `components/organization/QuestsTab.jsx`. `SettingsPage.jsx`
-and `RegistrationPage.jsx` use the hook instead of the copy-pasted fetch. The two
-cards mounted inside the funnel preview register in `settings/settingsRegistry.jsx`
-and the preview links to them.
+As shipped. Backend: `routes/sis/settings.py` (`PATCH /api/sis/settings`,
+`ADMIN_ROLES`, module-gated as `sis`), body `{sis_settings: {key: value}}` or
+`{registration: {...}}` or a top-level flag; `services/org_settings_service.py` does
+the merge (`merge_patch`: a dict merges one level down, null removes, else replaces;
+the registration config goes through `utils/registration_config.with_registration_config`
+so a row's legacy `icreate_registration` key stays equal without the browser writing
+it) and holds the guard set the admin console's PUT always ran — `modules` restored,
+finance paths held, the Stripe key diverted, credential-shaped keys refused — as
+`clean_feature_flags`, which the PUT now calls too (`test_secret_exposure_guard`
+checks both doors). Web: `hooks/api/useSisSettings.js` — `patchSisSettings(orgId,
+patch)` for the twelve blob writers (`SisOrgSettings` four sites, the six SIS cards,
+`RegistrationSetupTab` two sites, the four `settings/cards`), and `useOrgSettings(orgId)`
+for the two pages' copy-pasted fetch. `QuestsTab.jsx` keeps its PUT: it writes
+`quest_visibility_policy`, a column, not the blob; so do `SisOrgSettings`'s name,
+branding and AI-entitlement saves. The two cards inside the funnel preview are NOT
+also registered in `settingsRegistry.jsx`: the setup tab is their one mount, and a
+registry entry would have been a second door; their docstrings said "Settings page"
+and now say where they live.
 
 Migration: none.
 

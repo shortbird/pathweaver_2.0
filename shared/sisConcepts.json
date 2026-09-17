@@ -337,41 +337,49 @@
     },
     {
       "id": "settings_write",
-      "means": "A school setting. Thirteen components each read the whole feature_flags blob, spread it, change one key and PUT the whole thing back -- last write wins, and two cards open in two tabs erase each other.",
-      "owner": { "web": ["hooks/api/useSisSettings.js"], "backend": ["routes/sis/settings.py"] },
-      "proposed": true,
-      "forbid": {
-        "web": { "pattern": "api\\.put\\(\\s*`/api/admin/organizations/", "dirs": ["components", "pages", "settings"] }
+      "means": "A school setting. Thirteen components each read the whole feature_flags blob, spread it, changed one key and PUT the whole thing back until M8a -- last write wins, and two cards open in two tabs erased each other.",
+      "owner": {
+        "web": ["hooks/api/useSisSettings.js"],
+        "backend": ["routes/sis/settings.py", "services/org_settings_service.py"]
       },
-      "baseline": { "web": 17 },
+      "forbid": {
+        "web": {
+          "pattern": "^\\s*feature_flags:\\s*\\{",
+          "dirs": ["components", "pages", "settings"],
+          "exempt": ["hooks/api/useSisSettings.js"]
+        }
+      },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M8a",
-      "use_instead": "const { settings, patch } = useSisSettings(); patch({ key: value }) -- PATCH /api/sis/settings (M8a) does the read-modify-write server-side, one key at a time."
+      "use_instead": "patchSisSettings(orgId, { sis_settings: { key: value } }) from hooks/api/useSisSettings.js; PATCH /api/sis/settings merges the keys you name onto the stored blob (services/org_settings_service.merge_patch) and runs the one guard set. Never build a feature_flags body in the browser, and never send a key you did not change. The organization row's own columns (name, branding, AI entitlements, quest policy) still go through the admin console's PUT."
     },
     {
       "id": "registration_config_mirror",
-      "means": "The registration funnel's config, stored under feature_flags.registration and mirrored to the legacy icreate_registration key on every save.",
+      "means": "The registration funnel's config, stored under feature_flags.registration. Until M8a the web mirrored every save to the legacy icreate_registration key; the server (utils/registration_config.with_registration_config) keeps a row's legacy key in step, and the one web read of it is the fallback the setup tab makes.",
       "owner": { "backend": ["utils/registration_config.py"] },
       "forbid": {
-        "web": { "pattern": "\\bicreate_registration\\b", "dirs": ["pages", "components"] }
+        "web": { "pattern": "icreate_registration\\s*:", "dirs": ["pages", "components"] }
       },
-      "baseline": { "web": 3 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M8a",
-      "use_instead": "The web writes feature_flags.registration only; utils/registration_config.py resolves the legacy key on read until the rename is retired. Do not write icreate_registration from a browser."
+      "use_instead": "Write feature_flags.registration only, through patchSisSettings(orgId, { registration: {...} }). Reading `flags.registration || flags.icreate_registration` is fine until the legacy keys are scrubbed."
     },
     {
       "id": "org_payload_fetch",
-      "means": "An SIS page fetching the whole organisation record to read one config key. Three places copy-paste the same fetch and the same parsing.",
-      "owner": { "web": ["hooks/api/useRegistrationConfig.js"] },
-      "proposed": true,
+      "means": "An SIS page fetching the whole organisation record to read its config. Two pages copy-pasted the fetch until M8a.",
+      "owner": { "web": ["hooks/api/useSisSettings.js"] },
       "forbid": {
-        "web": { "pattern": "api\\.get\\(\\s*`/api/admin/organizations/\\$\\{", "dirs": ["pages/sis", "components/sis"] }
+        "web": {
+          "pattern": "api\\.get\\(\\s*`/api/admin/organizations/\\$\\{orgId\\}`\\)",
+          "dirs": ["pages/sis", "components/sis"]
+        }
       },
-      "baseline": { "web": 3 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M8a",
-      "use_instead": "useRegistrationConfig() (M8a) for the funnel config; useSisSettings() for sis_settings. Neither page needs the whole org row."
+      "use_instead": "const { data, organization, loading, reload } = useOrgSettings(orgId) from hooks/api/useSisSettings.js."
     },
     {
       "id": "schedule_helpers",

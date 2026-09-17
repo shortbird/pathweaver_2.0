@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * The dates that bound the school year (organizations.feature_flags.sis_settings):
@@ -18,8 +18,9 @@ import api from '../../services/api'
  * Class registration itself opens as soon as a family registers — access is
  * controlled by who has the registration link, not by these dates.
  *
- * Lives on the SIS Settings page (Registration & enrollment). Props mirror the
- * other org-settings cards: orgId, org (the organization row), onUpdate.
+ * Lives on the Registration page's setup tab, inside the family step of the
+ * funnel preview -- its one mount. Props mirror the other org-settings cards:
+ * orgId, org (the organization row), onUpdate.
  */
 const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
   const settings = org.feature_flags?.sis_settings || {}
@@ -31,12 +32,7 @@ const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
   const save = async (patch, message) => {
     setSaving(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...settings, ...patch },
-        },
-      })
+      await patchSisSettings(orgId, { sis_settings: patch })
       toast.success(message)
       onUpdate && onUpdate()
     } catch (e) {

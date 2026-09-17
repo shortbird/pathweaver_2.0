@@ -10,6 +10,7 @@ import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useOrgSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * SIS Registration page — everything about how families register, in two tabs:
@@ -31,26 +32,10 @@ const TABS = [
 
 const RegistrationPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
-  const [orgData, setOrgData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: orgData, loading, reload: fetchOrg } = useOrgSettings(orgId)
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') === 'queues' ? 'queues' : 'setup'
   const setTab = (t) => setSearchParams(t === 'setup' ? {} : { tab: t }, { replace: true })
-
-  const fetchOrg = useCallback((options = {}) => {
-    const showSpinner = options?.showSpinner ?? false
-    if (!orgId) { setOrgData(null); setLoading(false); return }
-    if (showSpinner) setLoading(true)
-    api.get(`/api/admin/organizations/${orgId}`)
-      .then((r) => setOrgData(r.data))
-      .catch(() => setOrgData(null))
-      .finally(() => setLoading(false))
-  }, [orgId])
-
-  useEffect(() => {
-    setOrgData(null)
-    fetchOrg({ showSpinner: true })
-  }, [orgId, fetchOrg])
 
   return (
     <div>

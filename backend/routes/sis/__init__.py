@@ -1127,6 +1127,7 @@ def register_sis_routes(app):
     from routes.sis.messaging import bp as messaging_bp
     from routes.sis.quest_resources import bp as quest_resources_bp
     from routes.sis.internal import bp as internal_bp
+    from routes.sis.settings import bp as settings_bp
 
     for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
@@ -1164,6 +1165,7 @@ def register_sis_routes(app):
         (engagement_bp, 'classes'),
         (goals_bp, 'goals'),
         (student_records_bp, 'sis'),
+        (settings_bp, 'sis'),
         (community_bp, 'community'),
         # P3: the staff surfaces get the 'sis' baseline (their per-feature
         # tags are on the routes); the two single-module family blueprints
@@ -1221,3 +1223,4 @@ def register_sis_routes(app):
     # The seven cron sweeps, declared in one place and not module-gated: a
     # sweep is about every org at once (routes/sis/internal.py says why).
     app.register_blueprint(internal_bp)
+    app.register_blueprint(settings_bp)

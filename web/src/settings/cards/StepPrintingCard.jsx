@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { PrinterIcon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * Step printing: schools with a kiosk receipt printer opt in to a "Print my
@@ -19,9 +19,7 @@ export default function StepPrintingCard({ orgId, org, onUpdate }) {
     const newValue = !stepPrinting
     setSaving(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: { ...(org?.feature_flags || {}), step_printing: newValue },
-      })
+      await patchSisSettings(orgId, { step_printing: newValue })
       setStepPrinting(newValue)
       onUpdate?.()
     } catch (error) {

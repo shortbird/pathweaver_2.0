@@ -201,13 +201,25 @@ def test_me_endpoint_strips_secrets_from_the_org_payload():
 
 
 def test_org_update_route_diverts_and_rejects_credentials():
-    """The admin PUT accepts a whole feature_flags blob from the browser."""
-    mgmt = (REPO_ROOT / 'backend' / 'routes' / 'admin' / 'organization_management.py')
-    text = mgmt.read_text(encoding='utf-8')
+    """Both doors onto organizations.feature_flags run the one guard.
+
+    The admin PUT accepts a whole blob from the browser and the SIS settings
+    PATCH accepts a key at a time (M8, docs/sis/CONSOLIDATION_PLAN.md); the
+    diverting and refusing lives in services/org_settings_service, and each
+    route must call it rather than carry a copy that can drift.
+    """
+    service = (REPO_ROOT / 'backend' / 'services' / 'org_settings_service.py')
+    text = service.read_text(encoding='utf-8')
     for required in ('strip_secrets_from_feature_flags', 'secret_shaped_keys', 'set_org_secret'):
         assert required in text, (
-            f"organization_management.py no longer calls {required}; a client can "
+            f"org_settings_service.py no longer calls {required}; a client can "
             f"write a credential straight into the anon-readable config blob."
+        )
+    for route in ('routes/admin/organization_management.py', 'routes/sis/settings.py'):
+        route_text = (REPO_ROOT / 'backend' / route).read_text(encoding='utf-8')
+        assert 'org_settings_service' in route_text and 'FlagsRejected' in route_text, (
+            f"{route} writes feature_flags without services.org_settings_service; "
+            f"the credential guard does not run on that door."
         )
 
 

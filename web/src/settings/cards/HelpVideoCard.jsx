@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import api, { oeaAPI } from '../../services/api'
+import { oeaAPI } from '../../services/api'
 import { getProgramForSlug } from '../../programs/registry'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * Program getting-started video (diploma programs opt in via the program
@@ -54,13 +55,7 @@ export default function HelpVideoCard({ orgId, org, onUpdate }) {
     }
     setSaving(true)
     try {
-      const flags = org?.feature_flags || {}
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...flags,
-          oea_settings: { ...(flags.oea_settings || {}), help_video_url: url || null },
-        },
-      })
+      await patchSisSettings(orgId, { oea_settings: { help_video_url: url || null } })
       onUpdate?.()
     } catch (error) {
       alert(error.response?.data?.error || 'Failed to save the video URL')

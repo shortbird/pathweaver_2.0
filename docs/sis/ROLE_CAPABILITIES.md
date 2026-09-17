@@ -87,7 +87,10 @@ Read off the decorators on 2026-09-10. Regenerate with
 
 `__init__.py` (people, households, roster), `registration.py`, `waitlist.py`,
 `clp.py`, `coordinator.py`, `messaging.py`, `prior_learning.py`,
-`schedule_ai.py`, `schedule_sync.py`, `reports.py`, `staff_admin.py`.
+`schedule_ai.py`, `schedule_sync.py`, `reports.py`, `staff_admin.py`,
+`settings.py` (`PATCH /settings`, the one writer of the school's settings; the
+finance paths inside the blob are still held for a coordinator by
+`org_finance_flags`).
 
 `reports.py` and `staff_admin.py` also carry `FINANCE_ROLES` on their money
 routes. `__init__.py` carried `ROLE_GRANT_ROLES` on `PUT /staff/<id>/roles`

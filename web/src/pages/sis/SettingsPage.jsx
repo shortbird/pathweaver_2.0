@@ -1,12 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../../services/api'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import { SettingsCards } from '../../settings/settingsRegistry'
+import { useOrgSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * SIS Settings page — the console surface of the ONE settings registry
@@ -33,23 +33,7 @@ const SettingsPage = () => {
   // whether to render a card that would come back empty and save nothing.
   const seesOrgCard = canSeeFinance(user)
   const { refreshOrganization } = useOrganization()
-  const [orgData, setOrgData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  const fetchOrg = useCallback((options = {}) => {
-    const showSpinner = options?.showSpinner ?? false
-    if (!orgId) { setOrgData(null); setLoading(false); return }
-    if (showSpinner) setLoading(true)
-    api.get(`/api/admin/organizations/${orgId}`)
-      .then((r) => setOrgData(r.data))
-      .catch(() => setOrgData(null))
-      .finally(() => setLoading(false))
-  }, [orgId])
-
-  useEffect(() => {
-    setOrgData(null)
-    fetchOrg({ showSpinner: true })
-  }, [orgId, fetchOrg])
+  const { data: orgData, loading, reload: fetchOrg } = useOrgSettings(orgId)
 
   // The registration section moved to the Registration page — send old
   // bookmarks and in-app links (/settings#registration) there.

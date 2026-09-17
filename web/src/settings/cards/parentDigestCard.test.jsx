@@ -1,20 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
+import ParentDigestCard from './ParentDigestCard'
+
 /**
  * The "Send parent weekly digest email" switch (Dallin Bird, Gryffin,
  * 2026-09-07).
  *
  * Two things must hold, and both have burned this codebase before:
  * the switch is OFF for a school that never touched it, and saving it does not
- * wipe the rest of that school's settings — PUT /api/admin/organizations
- * REPLACES feature_flags with whatever the card sends.
+ * wipe the rest of that school's settings. Since M8a the card PATCHes the one
+ * key it owns through /api/sis/settings and the server merges it onto what is
+ * stored (backend/tests/test_sis_settings_patch.py holds that half); what
+ * this side proves is that the card names its key and nothing else.
  */
 
-const { api } = vi.hoisted(() => ({ api: { put: vi.fn() } }))
+const { api } = vi.hoisted(() => ({ api: { patch: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
-
-import ParentDigestCard from './ParentDigestCard'
 
 const ORG = {
   id: 'org-1',
@@ -25,11 +27,11 @@ const ORG = {
   },
 }
 
-const flags = () => api.put.mock.calls[0][1].feature_flags
+const sent = () => api.patch.mock.calls[0][1]
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.put.mockResolvedValue({ data: {} })
+  api.patch.mockResolvedValue({ data: {} })
 })
 
 describe('ParentDigestCard', () => {
@@ -43,17 +45,19 @@ describe('ParentDigestCard', () => {
   it('saves the default Sunday 5pm schedule when switched on', async () => {
     render(<ParentDigestCard orgId="org-1" org={ORG} />)
     fireEvent.click(screen.getByRole('switch'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect(flags().sis_settings.parent_weekly_digest)
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(api.patch.mock.calls[0][0]).toBe('/api/sis/settings?organization_id=org-1')
+    expect(sent().sis_settings.parent_weekly_digest)
       .toEqual({ enabled: true, day: 'sunday', hour: 17 })
   })
 
-  it('keeps every other setting the school has', async () => {
+  it('sends only the key it owns, so every other setting the school has is untouched', async () => {
     render(<ParentDigestCard orgId="org-1" org={ORG} />)
     fireEvent.click(screen.getByRole('switch'))
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect(flags().step_printing).toBe(true)
-    expect(flags().sis_settings.add_drop_deadline).toBe('2026-09-08')
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(sent()).toEqual({
+      sis_settings: { parent_weekly_digest: { enabled: true, day: 'sunday', hour: 17 } },
+    })
   })
 
   it('shows the schedule, in the school\'s timezone, once it is on', () => {
@@ -80,8 +84,8 @@ describe('ParentDigestCard', () => {
     }
     render(<ParentDigestCard orgId="org-1" org={on} />)
     fireEvent.change(screen.getByLabelText('Digest send day'), { target: { value: 'monday' } })
-    await waitFor(() => expect(api.put).toHaveBeenCalled())
-    expect(flags().sis_settings.parent_weekly_digest)
+    await waitFor(() => expect(api.patch).toHaveBeenCalled())
+    expect(sent().sis_settings.parent_weekly_digest)
       .toEqual({ enabled: true, day: 'monday', hour: 17 })
   })
 
