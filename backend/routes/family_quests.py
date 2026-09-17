@@ -31,6 +31,7 @@ Endpoints:
 from flask import Blueprint, g, request, jsonify
 from database import get_supabase_admin_client
 from routes.dependents import verify_parent_role
+from middleware.error_handler import AuthorizationError
 from utils.auth.decorators import require_auth
 from utils.auth.relationships import student_scope
 from utils.db_fetch import fetch_all_rows
@@ -58,6 +59,29 @@ def _delegated_child():
 
 
 _NAME_A_CHILD = {'success': False, 'error': 'student_id is required'}
+
+
+def verify_family_access(user_id: str) -> None:
+    """The caller is a guardian: by role, or by being linked to a child.
+
+    verify_parent_role asks about the role columns only. The web decides who
+    gets the family surface with userHasFamily(), which also counts an
+    approved parent_student_links row or a managed dependent -- the same
+    links children_of_parent reads. Horizon's director holds org_admin, no
+    parent role, and three approved links; the app sent her to /family and
+    this route refused her (Sentry OPTIO-WEB, ticket 9d5a6b40, 2026-09-17).
+    Every route here derives the family from those links server-side, so a
+    caller with links can only ever see their own family, and a caller with
+    neither a role nor a link is refused as before.
+    """
+    try:
+        verify_parent_role(user_id)
+        return
+    except AuthorizationError:
+        from utils.class_membership import children_of_parent
+        if children_of_parent(user_id):
+            return
+        raise
 
 
 @bp.route('/quests', methods=['GET'])
@@ -93,7 +117,7 @@ def list_family_quests(user_id):
     run the quest leaves this list; it is reachable again from each member's
     completed quests.
     """
-    verify_parent_role(user_id)
+    verify_family_access(user_id)
 
     from utils.class_membership import children_of_parent
     from routes.parent.engagement import quest_rhythm
@@ -218,7 +242,7 @@ def create_family_quest(user_id):
     Always creates a private, active quest owned by the parent.
     """
     try:
-        verify_parent_role(user_id)
+        verify_family_access(user_id)
 
         data = request.get_json()
         if not data:
@@ -280,7 +304,7 @@ def enroll_children_in_family_quest(user_id, quest_id):
     Copies template tasks (if any) to each child's user_quest_tasks.
     """
     try:
-        verify_parent_role(user_id)
+        verify_family_access(user_id)
 
         data = request.get_json()
         if not data or not data.get('child_ids'):
@@ -398,7 +422,7 @@ def create_task_for_dependent(user_id, quest_id):
         if not delegated:
             return jsonify(_NAME_A_CHILD), 400
         user_id, child_id = delegated
-        verify_parent_role(user_id)
+        verify_family_access(user_id)
 
         data = request.get_json()
         if not data:
@@ -486,7 +510,7 @@ def delete_task_for_dependent(user_id, quest_id, task_id):
         if not delegated:
             return jsonify(_NAME_A_CHILD), 400
         user_id, child_id = delegated
-        verify_parent_role(user_id)
+        verify_family_access(user_id)
 
         # admin client justified: parent deletes a child's task; cross-user write (user_quest_tasks for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
@@ -526,7 +550,7 @@ def uncomplete_task_for_dependent(user_id, quest_id, task_id):
         if not delegated:
             return jsonify(_NAME_A_CHILD), 400
         user_id, child_id = delegated
-        verify_parent_role(user_id)
+        verify_family_access(user_id)
 
         # admin client justified: parent reverses a child's task completion; cross-user writes (completions + XP for child) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
