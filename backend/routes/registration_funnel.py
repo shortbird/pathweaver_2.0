@@ -88,6 +88,7 @@ from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
 from services import sis_holds
+from services import emergency_contacts_service as emergency_contacts
 # Monthly program pricing (Optio Academy): the plan, and the total it comes
 # to for this family's kids. See the module docstring for the config shape.
 from services.registration_pricing import monthly_plan, monthly_total_cents, registration_fee_cents
@@ -632,7 +633,7 @@ def submit_family(reg_id):
         try:
             from services import sis_enrollment_waitlist_service as enrollment_waitlist
             enrollment_waitlist.remove_for_students(org_id, prior_kids)
-            admin.table('emergency_contacts').delete().in_('student_user_id', prior_kids).execute()
+            emergency_contacts.delete_for_students(prior_kids)
             admin.table('parent_student_links').delete().in_('student_user_id', prior_kids).execute()
             # Drop only the prior kids' household memberships (so kids removed on a
             # back-edit fall off); the household row itself is preserved and reused
@@ -940,24 +941,13 @@ def submit_details(reg_id):
         return jsonify({'error': 'Please add at least one emergency contact'}), 400
 
     kid_ids = [k.get('user_id') for k in (reg.get('kids') or []) if k.get('user_id')]
-    # Re-submittable (back-editing): replace the contacts this funnel created.
-    if kid_ids:
-        try:
-            admin.table('emergency_contacts').delete().in_('student_user_id', kid_ids).execute()
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f'registration details: contact cleanup failed: {e}')
-    for kid_id in kid_ids:
-        for pri, c in enumerate(contacts, start=1):
-            try:
-                admin.table('emergency_contacts').insert({
-                    'student_user_id': kid_id,
-                    'organization_id': reg['organization_id'],
-                    'name': c['name'], 'relationship': c['relationship'],
-                    'phone': c['phone'], 'email': c['email'],
-                    'priority': pri,
-                }).execute()
-            except Exception as e:  # noqa: BLE001
-                logger.error(f'registration details: contact insert failed for kid {kid_id[:8]}: {e}')
+    # Re-submittable (back-editing): replace the contacts THIS funnel wrote and
+    # leave the office's alone (emergency_contacts_service, M4). The
+    # registration row keeps its own copy as the funnel's draft.
+    try:
+        emergency_contacts.replace_for_students(reg['organization_id'], kid_ids, contacts)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'registration details: contact write failed for {reg["id"]}: {e}')
 
     # Credit partner funnels ask where the transcript goes before paperwork;
     # everyone else goes straight to paperwork as before.
@@ -997,12 +987,8 @@ def _sync_household_payment(admin, reg, answers):
         if not current.get('funding_source'):
             derived = payment_profile.derive_funding_source(answers)
             if derived:
-                fields['funding_source'] = derived
-                # Mirror the legacy boolean the learning-day feature gates on,
-                # exactly as the Families-page PATCH does.
-                fields['ufa_private'] = (derived == 'ufa_private')
-                if derived == 'ufa_private':
-                    fields['enrolled_private_school'] = True
+                # One write path for the field and its mirrors (sis_payment_profile).
+                fields.update(payment_profile.funding_fields(derived))
         if not current.get('payment_plan_preference'):
             plan = payment_profile.read_answers(answers).get('plan')
             if plan:

@@ -100,7 +100,7 @@ def _get_contacts(client, auth_headers, can_access):
          patch('modules.gate.check_module', return_value=None), \
          patch('services.sis_service.resolve_org_id', return_value='org-1'), \
          patch('services.sis_service.student_in_org', return_value=True), \
-         patch('services.sis_service.list_emergency_contacts', return_value=[]):
+         patch('services.emergency_contacts_service.list_emergency_contacts', return_value=[]):
         return client.get(
             f'/api/sis/students/{STUDENT}/emergency-contacts', headers=auth_headers)
 

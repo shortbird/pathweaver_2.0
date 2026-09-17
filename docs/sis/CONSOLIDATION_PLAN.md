@@ -40,7 +40,7 @@ and patterns instead.
 | M6 One invoice writer, one checkout factory, one verifier | 1 | shipped (code + tests; no Stripe test-mode run) | see git log (`consolidate/M6-one-invoice-writer`) | `invoice_row` 1, `stripe_checkout` 1, `stripe_verify` 2, `pay_link_signing` 0 |
 | M7 One household billing view, formatCents | 1 | shipped | see git log (`consolidate/M7-household-billing`) | `money_format` 0/0 |
 | M2 One family hold | 1 | shipped (migration applied to prod + staging) | see git log (`consolidate/M2-one-family-hold`) | `family_hold_write` 0, `fee_hold_sentinel` 0 |
-| M4 Funnel lands in SIS stores | 1 | not started | | |
+| M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not; enrollment backfill written, not run) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | not started | | |
 | M9 One portal, one signature capture | 2 | not started | | |
 | M13a-d, f One detail surface per entity | 2 | not started | | |
@@ -878,6 +878,35 @@ edits on the family modal is the one the funnel resume shows, the family's fundi
 choice on `/family/billing` and the office's on the family modal are one field; as
 Optio Academy, the same funnel lands in `goals` flow. Manifest
 `emergency_contacts_write` → 0, `funding_source_write` → 0.
+
+**As shipped (2026-09-17).** (a) NOT done, on purpose: the funnel's verification is
+an emailed 6-digit code, not an SMS one, so stamping `users.phone_verified_at` there
+would mark a phone verified because somebody typed it, which is exactly what the
+phone hold (Twilio Verify) exists to prevent. The funnel already prefills the
+verification flow from `users.phone_number`; the second verification stays and the
+audit's B11 is a decision, not a bug. (b) `sis_person_service.enroll_students(org,
+student_ids, applicant_ids=)` is the one `school_enrollments` write for "this child
+is at the school" (the reinstate path keeps its own single-row upsert); the funnel's
+completion calls it after the Academy enrollment, with a child still queued on the
+enrollment waitlist recorded as an `applicant`, and never downgrades an enrolled
+student. The backfill is `backend/scripts/backfill_school_enrollments.py` (dry-run by
+default, one org at a time); its dry run against prod on 2026-09-17: iCreate 197
+funnel children, 9 with a row, 188 to fill (2 as applicant); Gryffin 6 to fill; Optio
+Academy 2 to fill. It has NOT been run: it changes what the People page says about
+188 students and is the school's to review. (c) `services/emergency_contacts_service.py`
+holds every read and write (moved verbatim from `sis_service`; the routes call it
+directly); migration `20260918200000_emergency_contacts_source` (applied to prod and
+staging) adds `emergency_contacts.source`, the funnel writes `registration_funnel`
+and `replace_for_students` replaces only those rows plus any pre-column row that is
+the same contact being re-submitted, so a family's back-edit no longer wipes what the
+office added. (d) `sis_payment_profile.funding_fields(source)` and
+`set_funding_source(household_id, source, extra=)` are the one write path; the
+Families PATCH, the funnel's derive-when-blank and the family's own billing page use
+it, and the PATCH no longer accepts `ufa_private` on its own (`enrolled_private_school`
+stays a field: a family can attend the school and pay privately). (e) The parent
+dashboard's family photo is `households.image_url` in the `family-images` bucket for
+any guardian with a household row -- the same photo the office sets on the family
+record; a platform family with no household keeps `users.family_cover_url`.
 
 ### M18 — One training system
 

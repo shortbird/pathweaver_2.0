@@ -56,6 +56,14 @@ class TestStoreImageUpload:
 
 
 class TestFamilyCoverRoutes:
+    """A platform family with no household row: the photo is the parent's own
+    users.family_cover_url (the SIS family is TestFamilyCoverOnTheHousehold)."""
+
+    @pytest.fixture(autouse=True)
+    def _no_household(self):
+        with patch.object(family_cover, '_household_for', return_value=None):
+            yield
+
     def _client(self):
         client = MagicMock()
         client.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
@@ -98,3 +106,60 @@ class TestFamilyCoverRoutes:
             body = _innermost(family_cover.remove_family_cover)(PARENT).get_json()
         client.table.return_value.update.assert_called_with({'family_cover_url': None})
         assert body == {'success': True, 'family_cover_url': None}
+
+
+class TestFamilyCoverOnTheHousehold:
+    """A guardian whose family has a household row (every SIS family) reads
+    and writes households.image_url, the same photo the office sets on the
+    family record -- one photo, one bucket (M4)."""
+    HH = {'id': 'hh-1', 'name': 'Hanna', 'organization_id': 'org-1'}
+
+    def _client(self):
+        client = MagicMock()
+        client.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
+            'image_url': 'https://x.supabase.co/storage/v1/object/public/family-images/households/hh-1/1.jpg',
+        }
+        return client
+
+    def test_get_reads_the_household_photo(self, app):
+        client = self._client()
+        with app.test_request_context('/api/parent/family-cover'), \
+                patch.object(family_cover, '_household_for', return_value=self.HH), \
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=client), \
+                patch.object(family_cover, 'sign_stored_url', side_effect=lambda v, b: f'{b}:{v}' if v else None):
+            body = _innermost(family_cover.get_family_cover)(PARENT).get_json()
+        assert body['family_cover_url'].startswith('family-images:')
+        client.table.assert_called_with('households')
+
+    def test_post_stores_the_image_on_the_household(self, app):
+        client = self._client()
+        data = {'cover': (io.BytesIO(b'jpegbytes'), 'us.jpg', 'image/jpeg')}
+        with app.test_request_context('/api/parent/family-cover', method='POST', data=data,
+                                      content_type='multipart/form-data'), \
+                patch.object(family_cover, '_household_for', return_value=self.HH), \
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=client), \
+                patch.object(family_cover, 'store_image_upload', return_value='pointer') as store, \
+                patch.object(family_cover, 'sign_stored_url', side_effect=lambda v, b: f'{b}:{v}'):
+            body = _innermost(family_cover.upload_family_cover)(PARENT).get_json()
+        assert store.call_args.args[2] == 'households/hh-1'
+        assert store.call_args.kwargs['bucket'] == 'family-images'
+        client.table.assert_called_with('households')
+        client.table.return_value.update.assert_called_with({'image_url': 'pointer'})
+        client.table.return_value.update.return_value.eq.assert_called_with('id', 'hh-1')
+        assert body == {'success': True, 'family_cover_url': 'family-images:pointer'}
+
+    def test_delete_clears_the_household_photo(self, app):
+        client = self._client()
+        with app.test_request_context('/api/parent/family-cover', method='DELETE'), \
+                patch.object(family_cover, '_household_for', return_value=self.HH), \
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=client):
+            body = _innermost(family_cover.remove_family_cover)(PARENT).get_json()
+        client.table.assert_called_with('households')
+        client.table.return_value.update.assert_called_with({'image_url': None})
+        assert body == {'success': True, 'family_cover_url': None}
+
+    def test_the_household_is_the_guardians(self):
+        with patch('services.sis_billing_service._guardian_household_rows', return_value=[self.HH, {'id': 'hh-2'}]):
+            assert family_cover._household_for(PARENT) == self.HH
+        with patch('services.sis_billing_service._guardian_household_rows', return_value=[]):
+            assert family_cover._household_for(PARENT) is None

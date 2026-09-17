@@ -25,6 +25,7 @@ from services import sis_service
 from services import sis_staff_service
 from services import sis_payment_profile
 from services import sis_holds
+from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES
@@ -451,11 +452,13 @@ def update_household(user_id, household_id):
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
         'directory_opt_in', 'directory_opted_out', 'carpool_interest',
-        'ufa_private', 'funding_source', 'enrolled_private_school',
+        'funding_source', 'enrolled_private_school',
         'payment_plan_preference'
     ) if k in data}
+    # ufa_private is derived from funding_source (sis_payment_profile
+    # .funding_fields) and is not accepted on its own any more (M4).
     for flag in ('directory_opt_in', 'directory_opted_out',
-                 'carpool_interest', 'ufa_private', 'enrolled_private_school'):
+                 'carpool_interest', 'enrolled_private_school'):
         if flag in fields:
             fields[flag] = bool(fields[flag])
     # The hold is one decision with three columns (sis_holds): staff setting it
@@ -477,13 +480,10 @@ def update_household(user_id, household_id):
     # (which gates the learning-day feature) mirrored from it. Setting a funding
     # source of ufa_private also implies enrolled in the private school.
     if 'funding_source' in fields:
-        fs = fields['funding_source'] or None
-        if fs not in (None, 'ufa', 'ufa_private', 'private_pay', 'other'):
+        try:
+            fields.update(sis_payment_profile.funding_fields(fields.pop('funding_source')))
+        except ValueError:
             return jsonify({'success': False, 'error': 'invalid funding_source'}), 400
-        fields['funding_source'] = fs
-        fields['ufa_private'] = (fs == 'ufa_private')
-        if fs == 'ufa_private':
-            fields['enrolled_private_school'] = True
     if 'payment_plan_preference' in fields:
         plan = fields['payment_plan_preference'] or None
         if plan not in (None,) + sis_payment_profile.PLAN_VALUES:
@@ -836,7 +836,7 @@ def list_emergency_contacts(user_id, student_id):
         return err
     if not sis_service.student_in_org(student_id, org_id):
         return jsonify({'success': False, 'error': 'Student not found'}), 404
-    return jsonify({'success': True, 'contacts': sis_service.list_emergency_contacts(student_id)})
+    return jsonify({'success': True, 'contacts': emergency_contacts.list_emergency_contacts(student_id)})
 
 
 @bp.route('/students/<student_id>/emergency-contacts', methods=['POST'])
@@ -851,7 +851,7 @@ def add_emergency_contact(user_id, student_id):
     data = request.json or {}
     if not (data.get('name') or '').strip():
         return jsonify({'success': False, 'error': 'Contact name is required'}), 400
-    contact = sis_service.add_emergency_contact(student_id, org_id, data)
+    contact = emergency_contacts.add_emergency_contact(student_id, org_id, data)
     return jsonify({'success': True, 'contact': contact}), 201
 
 
@@ -861,7 +861,7 @@ def delete_emergency_contact(user_id, contact_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    if not sis_service.delete_emergency_contact(contact_id, org_id):
+    if not emergency_contacts.delete_emergency_contact(contact_id, org_id):
         return jsonify({'success': False, 'error': 'Contact not found'}), 404
     return jsonify({'success': True})
 
@@ -875,7 +875,7 @@ def copy_family_contacts(user_id, student_id):
         return err
     if not sis_service.student_in_org(student_id, org_id):
         return jsonify({'success': False, 'error': 'Student not found'}), 404
-    return jsonify({'success': True, **sis_service.copy_family_contacts_to_student(org_id, student_id)})
+    return jsonify({'success': True, **emergency_contacts.copy_family_contacts_to_student(org_id, student_id)})
 
 
 @bp.route('/households/<household_id>/message', methods=['POST'])
@@ -906,7 +906,7 @@ def list_household_contacts(user_id, household_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
+    return jsonify({'success': True, 'contacts': emergency_contacts.household_emergency_contacts(org_id, household_id)})
 
 
 @bp.route('/households/<household_id>/registration', methods=['GET'])
@@ -954,9 +954,9 @@ def add_household_contact(user_id, household_id):
     data = request.json or {}
     if not (data.get('name') or '').strip():
         return jsonify({'success': False, 'error': 'Contact name is required'}), 400
-    result = sis_service.add_household_emergency_contact(org_id, household_id, data)
+    result = emergency_contacts.add_household_emergency_contact(org_id, household_id, data)
     return jsonify({'success': True, **result,
-                    'contacts': sis_service.household_emergency_contacts(org_id, household_id)}), 201
+                    'contacts': emergency_contacts.household_emergency_contacts(org_id, household_id)}), 201
 
 
 @bp.route('/households/<household_id>/emergency-contacts/delete', methods=['POST'])
@@ -966,8 +966,8 @@ def remove_household_contact(user_id, household_id):
     if err:
         return err
     ids = (request.json or {}).get('ids') or []
-    sis_service.remove_household_emergency_contacts(org_id, household_id, ids)
-    return jsonify({'success': True, 'contacts': sis_service.household_emergency_contacts(org_id, household_id)})
+    emergency_contacts.remove_household_emergency_contacts(org_id, household_id, ids)
+    return jsonify({'success': True, 'contacts': emergency_contacts.household_emergency_contacts(org_id, household_id)})
 
 
 # ── Family directives — settings staged by parent email before registration ──

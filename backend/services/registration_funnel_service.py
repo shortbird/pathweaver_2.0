@@ -122,6 +122,22 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
 
     academy_enrollment.enroll_registration_kids(reg, cfg, client=admin)
 
+    # The funnel lands its students in the SIS's own enrollment store, the
+    # same one the roster's assign and reinstate write (M4). Before this every
+    # funnel-registered child sat on the People page as "not enrolled" until
+    # somebody assigned them by hand. A child the school queued on the
+    # enrollment waitlist is an applicant until released. Best-effort: the
+    # registration is complete whatever happens here.
+    try:
+        from services import sis_person_service
+        from services import sis_enrollment_waitlist_service as enrollment_waitlist
+        kid_ids = [k.get('user_id') for k in (reg.get('kids') or []) if k.get('user_id')]
+        waiting = [sid for sid in kid_ids
+                   if enrollment_waitlist.waiting_entry(reg['organization_id'], sid)]
+        sis_person_service.enroll_students(reg['organization_id'], kid_ids, applicant_ids=waiting)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'registration fee: school enrollment failed for {reg["id"]}: {e}')
+
     # A release put this household on hold until the deferred fee was settled —
     # settling it clears the hold (only OUR hold; a school-set hold stays).
     # Skipped while the fee is still deferred (all-waitlisted family finishing

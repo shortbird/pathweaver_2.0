@@ -47,6 +47,40 @@ PLAN_LABELS = {'in_full': 'Pays in full', 'monthly': 'Monthly payments'}
 from utils.admin_client import admin_client as _admin
 
 
+FUNDING_SOURCES = ('ufa', 'ufa_private', 'private_pay', 'other')
+
+
+def funding_fields(source: Optional[str]) -> Dict[str, Any]:
+    """PURE. The household columns one funding source implies.
+
+    `funding_source` is the field; `ufa_private` (the legacy boolean the
+    learning-day feature gates on) and `enrolled_private_school` (the school of
+    record) are derived from it, never set on their own. Three write paths
+    each spelled this mirror by hand (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md,
+    B10/N7; M4). A source of ufa_private implies enrolment in the private
+    school; any other source leaves that flag alone (a family can attend the
+    school and pay privately)."""
+    fs = source or None
+    if fs is not None and fs not in FUNDING_SOURCES:
+        raise ValueError(f'invalid funding_source {source!r}')
+    fields: Dict[str, Any] = {'funding_source': fs, 'ufa_private': fs == 'ufa_private'}
+    if fs == 'ufa_private':
+        fields['enrolled_private_school'] = True
+    return fields
+
+
+def set_funding_source(household_id: str, source: Optional[str], *,
+                       extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """The one write of a household's funding source (and its derived
+    mirrors), whoever is setting it: the office on the Families page, the
+    funnel deriving it from the family's answer, the family on their own
+    billing page. Returns the columns written."""
+    from repositories.household_repository import HouseholdRepository
+    fields = {**(extra or {}), **funding_fields(source)}
+    HouseholdRepository(client=_admin()).update(household_id, fields)
+    return fields
+
+
 def _as_list(val) -> List[str]:
     """Registration answers are a list for 'multi' questions, a string otherwise."""
     if val is None or val == '':

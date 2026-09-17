@@ -362,6 +362,32 @@ def withdraw_household(org_id: str, household_id: str,
             'household_name': household.get('name')}
 
 
+def enroll_students(org_id: str, student_ids: List[str], *, applicant_ids=()) -> int:
+    """Record these students as enrolled at the school: the one
+    school_enrollments write the SIS "assign", the reinstate and the funnel's
+    completion share (M4). A student the school has queued on the enrollment
+    waitlist (`applicant_ids`) is recorded as an applicant unless they are
+    already enrolled; nothing here ever downgrades an enrolled student.
+    Returns the rows written."""
+    from repositories.school_enrollment_repository import SchoolEnrollmentRepository
+    ids = [s for s in dict.fromkeys(student_ids or []) if s]
+    if not ids:
+        return 0
+    repo = SchoolEnrollmentRepository(client=_admin())
+    existing = repo.statuses_for_students(org_id, ids)
+    rows = []
+    for sid in ids:
+        wanted = 'applicant' if sid in set(applicant_ids or ()) else 'enrolled'
+        current = existing.get(sid)
+        if current == 'enrolled' and wanted == 'applicant':
+            continue
+        if current == wanted:
+            continue
+        rows.append({'organization_id': org_id, 'student_user_id': sid,
+                     'status': wanted, 'updated_at': _now_iso()})
+    return repo.upsert_statuses(rows)
+
+
 def set_student_standing(org_id: str, student_id: str, withdrawn: bool) -> Dict[str, Any]:
     """Withdraw one student, or take a withdrawal back, from the org admin's
     People tab on the web platform.

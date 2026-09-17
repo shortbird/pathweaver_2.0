@@ -1586,10 +1586,7 @@ def set_stated_payment_methods(user_id: str, household_id: str, methods: List[st
         RegistrationRepository(client=admin).update_answers(target['id'], answers)
 
     fs = payment_profile.derive_funding_source(answers)
-    fields: Dict[str, Any] = {'funding_source': fs, 'ufa_private': fs == 'ufa_private'}
-    if fs == 'ufa_private':
-        fields['enrolled_private_school'] = True
-    HouseholdRepository(client=admin).update(household_id, fields)
+    HouseholdRepository(client=admin).update(household_id, payment_profile.funding_fields(fs))
 
     read = payment_profile.read_answers(answers)
     return {'household_id': household_id,

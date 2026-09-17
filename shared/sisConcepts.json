@@ -178,31 +178,30 @@
     },
     {
       "id": "emergency_contacts_write",
-      "means": "A student's emergency contacts. The funnel deletes and reinserts them on every back-edit, and the SIS has two endpoint families over the same rows, so a parent re-submitting details erases what staff added.",
+      "means": "A student's emergency contact rows. The funnel, the SIS student endpoint, the household endpoints and copy-from-family each wrote them, and a family re-submitting its details deleted what the office had added; services/emergency_contacts_service.py is the one writer (M4, 2026-09-17) and rows carry a `source`, so the funnel replaces only its own.",
       "owner": { "backend": ["services/emergency_contacts_service.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "\\.table\\(\\s*['\"]emergency_contacts['\"]\\s*\\)\\s*\\.(insert|delete|update|upsert)",
           "dirs": ["routes", "services", "repositories"]
         }
       },
-      "baseline": { "backend": 6 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M4",
-      "use_instead": "emergency_contacts_service.replace_for_students(org_id, student_ids, contacts, source=...) (M4) is the one write path for the funnel, both SIS endpoint families and copy-from-family."
+      "use_instead": "emergency_contacts_service.replace_for_students(org, student_ids, contacts) for a family's own submission; add_emergency_contact / delete_emergency_contact / add_household_emergency_contact / remove_household_emergency_contacts / copy_family_contacts_to_student for the office; delete_for_students when the students themselves go. registrations.emergency_contacts is the funnel's draft only."
     },
     {
       "id": "funding_source_write",
-      "means": "How a family pays (households.funding_source) and its two legacy mirrors, ufa_private and enrolled_private_school, written in lockstep at three sites.",
+      "means": "households.funding_source and its two mirrors (ufa_private, enrolled_private_school). Three write paths each spelled the mirror by hand; sis_payment_profile.funding_fields / set_funding_source is the one (M4, 2026-09-17), and ufa_private is not accepted on its own any more.",
       "owner": { "backend": ["services/sis_payment_profile.py"] },
       "forbid": {
         "backend": { "pattern": "fields\\[['\"]enrolled_private_school['\"]\\]\\s*=", "dirs": ["routes", "services", "scripts"] }
       },
-      "baseline": { "backend": 3 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M4",
-      "use_instead": "sis_payment_profile.set_funding_source(household_id, source, actor) (M4) writes the field and its mirrors once. derive_funding_source(answers) is already the one derivation; do not add a fourth site that spells the mirror rule."
+      "use_instead": "sis_payment_profile.funding_fields(source) to merge into a household write, or set_funding_source(household_id, source, extra=) to write it; derive_funding_source(answers) for the family's own answer."
     },
     {
       "id": "announcement_publish",

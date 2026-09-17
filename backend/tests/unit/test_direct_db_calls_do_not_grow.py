@@ -223,7 +223,11 @@ BASELINES = {
     # 2026-09-17 (M2): 2268 -> 2266. The Families PATCH and the bulk directive
     # paste stopped writing sis_family_directives / households themselves; the
     # calls moved down into services/sis_holds.py (+2 there), a lateral move.
-    'routes': 2266,
+    # 2026-09-17 (M4): 2266 -> 2263. The funnel's three emergency-contact
+    # writes moved into services/emergency_contacts_service.py (which then
+    # writes through the repository); the family-cover route reads and writes
+    # the household through HouseholdRepository.
+    'routes': 2263,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -484,7 +488,12 @@ BASELINES = {
     # price every pending student's week in one pass (M5, the one tuition
     # quote). A repository read, where it belongs; routes and services did not
     # move (the queue's other new read goes through sis_catalog_service).
-    'repositories': 571,
+    # 2026-09-17 (M4): 571 -> 577. EmergencyContactRepository gained the
+    # funnel's replace (delete-by-source, the pre-column rows, delete, insert)
+    # and SchoolEnrollmentRepository the funnel's enrollment write (statuses
+    # for a list of students, upsert). New queries in the layer that owns
+    # them; routes fell by three and services did not move.
+    'repositories': 577,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -564,7 +573,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2266 + 1835
+UPPER_TOTAL_BASELINE = 2263 + 1835
 
 
 def test_the_upper_layers_do_not_grow_in_total():
