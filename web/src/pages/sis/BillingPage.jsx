@@ -3,7 +3,6 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import RecurringTuitionList, { useRecurringTuition } from './RecurringTuitionList'
 
 
@@ -116,7 +115,7 @@ const checkSortPrefs = (raw) => Object.fromEntries(Object.entries(raw || {})
   .filter(([k, v]) => k in SORT_DEFAULTS && (v === 'default' || v === 'family')))
 
 const BillingPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'monthly' | 'detail'
   // A school billing a monthly rate has no invoice until the first month is
   // charged, so Charges and Outstanding are both empty while real money is
@@ -281,7 +280,6 @@ const BillingPage = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-neutral-900">Billing</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       <p className="text-sm text-neutral-500 mb-6 max-w-2xl">

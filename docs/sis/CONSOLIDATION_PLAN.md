@@ -35,7 +35,7 @@ and patterns instead.
 | M12 One today, one events feed, one event clock | 0 | not started | | |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
-| M14a/b Layout header, tab bars | 0 | not started | | |
+| M14a/b Layout header, tab bars | 0 | M14a shipped (`consolidate/M14a-layout-header`); M14b pending | | `org_picker_header` 0 |
 | M5 One quote | 1 | not started | | |
 | M6 One invoice writer, checkout, verifier | 1 | not started | | |
 | M7 One household billing view, `formatCents` | 1 | not started | | |
@@ -523,8 +523,12 @@ billing detail; both use one stylesheet. Manifest `export_columns` → 0,
 
 **Audit**: L2, L6. **Size S each, per page.**
 
-(a) `components/sis/SisLayout.jsx` renders `SisOrgPicker` and the page header row
-once, taking the title from the route; the thirty pages delete theirs. (b)
+(a) As shipped: `components/sis/SisLayout.jsx` renders `SisOrgPicker` once, in the
+console header beside the notification bell, so a superadmin switches the school in
+view from any page; the twenty-eight pages delete their mount and the org variables
+they only held for it. Page titles and their action rows stay on the pages — moving
+titles into the layout would have meant a route-to-title table and a second place
+for every page's actions, which is not less code. (b)
 `components/ui/GlassTabBar.jsx` for every SIS tab bar (`tabs`, `active`, `onChange`
 — the component already exists and is documented). Each is one PR; the manifest
 rows `org_picker_header` and `tab_bar` count down by page.

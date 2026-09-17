@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { RolePill } from '../../components/ui/RolePill'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 
@@ -16,7 +15,7 @@ import BackToDashboard from '../../components/sis/BackToDashboard'
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join('')
 
 const DirectoryPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -39,7 +38,6 @@ const DirectoryPage = () => {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Staff Directory</h1>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search staff…"
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>

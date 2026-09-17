@@ -4,7 +4,6 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { ModalOverlay } from '../../components/ui'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
 import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
@@ -83,7 +82,7 @@ const dotFor = (category, categories) => {
 }
 
 const CalendarPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth()) // 0-11
@@ -155,7 +154,6 @@ const CalendarPage = () => {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Calendar</h1>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <Button variant="outline" size="sm" onClick={() => setShowSubscribe(true)} disabled={!orgId}>Subscribe</Button>
           <Button size="sm" onClick={() => setModal({ date: today })} disabled={!orgId}>Add event</Button>
         </div>

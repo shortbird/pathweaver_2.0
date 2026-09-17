@@ -5,7 +5,6 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
@@ -166,7 +165,7 @@ const SortHeader = ({ label, col, sort, onSort }) => (
 const CurriculumPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const admin = isSisAdmin(user)
   const [entries, setEntries] = useState([])
   const [classes, setClasses] = useState([])
@@ -241,7 +240,6 @@ const CurriculumPage = () => {
     <div>
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-neutral-900">Curriculum</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
         Your curriculum library. Link the Drive folder once and attach it to the classes that use it —

@@ -7,7 +7,6 @@ import { safeHref } from '../../utils/safeHref'
 import { blockItems, isImageUrl, itemLabel } from '../../utils/evidenceItems'
 import { getPillarName } from '../../utils/pillarMappings'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { classLabel } from '../../components/sis/classLabel'
 import CreditFeedbackThread from '../../components/credit/CreditFeedbackThread'
@@ -194,7 +193,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
 }
 
 const SubmissionsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
   const [scope, setScope] = useState('new')
   // Pre-filtered when arrived at from a class's Student Progress tab, which is
@@ -399,7 +398,6 @@ const SubmissionsPage = () => {
       )}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Submissions</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">

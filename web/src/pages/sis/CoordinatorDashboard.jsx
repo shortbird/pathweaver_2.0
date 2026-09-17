@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import { range12h } from '../../utils/timeFormat'
 import DashboardCard from '../../components/sis/DashboardCard'
@@ -16,7 +15,7 @@ import DashboardCard from '../../components/sis/DashboardCard'
  */
 
 const CoordinatorDashboard = ({ userName }) => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
 
@@ -46,7 +45,6 @@ const CoordinatorDashboard = ({ userName }) => {
             <p className="text-neutral-500 mt-1">{data.organization.name} · {data.date}</p>
           )}
         </div>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       {(data.quick_links || []).length > 0 && (

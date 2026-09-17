@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
 import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
@@ -31,7 +30,7 @@ const TABS = [
 ]
 
 const RegistrationPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
+  const { orgId, loading: orgLoading } = useSisOrg()
   const { data: orgData, loading, reload: fetchOrg } = useOrgSettings(orgId)
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') === 'queues' ? 'queues' : 'setup'
@@ -41,7 +40,6 @@ const RegistrationPage = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Registration</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       <div className="flex items-center gap-1 border-b border-gray-200 mb-6">

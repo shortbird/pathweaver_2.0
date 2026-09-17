@@ -3,7 +3,6 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
 import RecurringTuitionModal from './RecurringTuitionModal'
 import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
@@ -36,7 +35,7 @@ const toCents = (str) => {
 }
 
 const TuitionApprovalPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   // CLPs are iCreate's. Every other school shares this page but runs no CLP
   // meeting, so its wording — filters, empty state, badges — was telling them
   // to finish a thing that does not exist for them.
@@ -236,7 +235,6 @@ const TuitionApprovalPage = () => {
       <div className="flex items-center justify-between mb-4 gap-3">
         <h1 className="text-2xl font-bold text-neutral-900">Tuition</h1>
         <div className="flex items-center gap-2">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
       <RecurringTuitionModal

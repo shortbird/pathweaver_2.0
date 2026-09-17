@@ -3,7 +3,6 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { matchesPersonSearch } from '../../utils/personSearch'
 
@@ -37,7 +36,7 @@ import StudentDetail from './clp/StudentDetail'
 
 const ClpPage = () => {
   const confirm = useConfirm()
-  const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
+  const { orgId, loading: orgLoading } = useSisOrg()
 
   const [directory, setDirectory] = useState({ families: [], students: [], counts: null })
   // Directory lens: everyone / CLP still to do / CLP done. iCreate asked for
@@ -388,7 +387,6 @@ const ClpPage = () => {
           <p className="text-neutral-500 mt-1 text-sm">Search a family’s student, review their schedule, and finalize classes together.</p>
         </div>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <Button size="sm" variant="outline" disabled={!selectedId} onClick={() => setPresentation(true)}>
             Presentation mode
           </Button>

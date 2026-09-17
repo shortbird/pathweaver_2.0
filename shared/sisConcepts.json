@@ -483,15 +483,15 @@
     },
     {
       "id": "org_picker_header",
-      "means": "The org picker and page header, mounted by twenty-eight SIS pages individually instead of once by the layout (twenty-nine until M10 retired the standalone secure-documents page).",
+      "means": "The org picker (a superadmin's school switcher), mounted by twenty-eight SIS pages in their own title rows until M14a; SisLayout mounts it once in the header.",
       "owner": { "web": ["components/sis/SisLayout.jsx"] },
       "forbid": {
         "web": { "pattern": "<SisOrgPicker\\b", "dirs": ["pages/sis"] }
       },
-      "baseline": { "web": 28 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14a",
-      "use_instead": "SisLayout renders the picker once (M14a); a page contributes a title, not a header."
+      "use_instead": "Nothing: SisLayout renders <SisOrgPicker> in the console header on every page. A page reads orgId from useSisOrg() and never mounts the picker."
     },
     {
       "id": "tab_bar",

@@ -3,7 +3,6 @@ import { Navigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
@@ -740,7 +739,7 @@ const KIND_STYLES = {
 
 const StaffFormsPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
   const openSubmissionId = searchParams.get('submission')
   const admin = isSisAdmin(user)
@@ -811,7 +810,6 @@ const StaffFormsPage = () => {
         <BackToDashboard className="mb-1" />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-neutral-900">Forms</h1>
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
 

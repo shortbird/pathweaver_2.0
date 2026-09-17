@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import ChecklistSignature from '../../components/sis/ChecklistSignature'
 import { getPreviewTeacher } from './teacherPreview'
@@ -246,7 +245,7 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
 }
 
 const MyTasksPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [preview] = useState(() => getPreviewTeacher())
   const [searchParams, setSearchParams] = useSearchParams()
   // A preview lands on Documents: the tasks tab can only answer for the caller.
@@ -294,7 +293,6 @@ const MyTasksPage = () => {
           <h1 className="text-2xl font-bold text-neutral-900">
             {preview && tab === 'documents' ? `${preview.name}'s documents` : 'My Tasks'}
           </h1>
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
         <p className="text-sm text-neutral-500 mt-1">
           Everything waiting on you — documents to sign, checklists, requests and policies to

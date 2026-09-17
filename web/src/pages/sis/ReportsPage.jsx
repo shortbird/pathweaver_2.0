@@ -5,7 +5,6 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
-import SisOrgPicker from './SisOrgPicker'
 import shapeReport from './reportsPage/shapeReport'
 import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
@@ -214,7 +213,7 @@ const RunButton = ({ onClick, disabled, ariaLabel, children = 'Run report' }) =>
 )
 
 const ReportsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   // Money is not the campus coordinator's -- the same subtraction the backend
@@ -543,7 +542,6 @@ const ReportsPage = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       {loading && <p className="text-neutral-500">Loading…</p>}

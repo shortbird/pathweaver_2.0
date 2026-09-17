@@ -2,7 +2,6 @@ import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { AuthContext } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import { SettingsCards } from '../../settings/settingsRegistry'
@@ -22,7 +21,7 @@ import { useOrgSettings } from '../../hooks/api/useSisSettings'
  * so that is where it stays. The old /settings#registration deep link redirects.
  */
 const SettingsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
+  const { orgId, loading: orgLoading } = useSisOrg()
   // Read the context directly rather than through useAuth(): this page is
   // rendered bare in tests, and a missing provider must degrade, not throw.
   const user = React.useContext(AuthContext)?.user
@@ -46,7 +45,6 @@ const SettingsPage = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Settings</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       {(loading || orgLoading) ? (

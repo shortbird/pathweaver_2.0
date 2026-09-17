@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin, isCampusCoordinator } from './sisRole'
 import { isPathHidden } from './sisModules'
@@ -125,7 +124,7 @@ export const eventTime = (e) => {
 
 const SisDashboard = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading, activeOrg } = useSisOrg()
+  const { orgId, loading: orgLoading, activeOrg } = useSisOrg()
   const admin = isSisAdmin(user)
   // A coordinator's morning is operational (today's campus, attendance,
   // tasks), not enrollment statistics — they get their own dashboard.
@@ -192,7 +191,6 @@ const SisDashboard = () => {
             </p>
           )}
         </div>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       {(loading || orgLoading) && <p className="text-neutral-500">Loading…</p>}

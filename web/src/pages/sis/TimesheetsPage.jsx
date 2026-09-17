@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import StatusPill from '../../components/sis/ui/StatusPill'
 import { downloadBlob } from '../../utils/csv'
 
@@ -164,7 +163,7 @@ const MissingRateNotice = ({ setup }) => {
 }
 
 const TimesheetsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [{ start, end }, setPeriod] = useState(defaultPeriod())
   const [sheets, setSheets] = useState([])
   const [setup, setSetup] = useState(null)
@@ -207,7 +206,6 @@ const TimesheetsPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-neutral-900">Timesheets</h1>
         <div className="flex flex-wrap items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <input type="date" value={start} onChange={(e) => setPeriod((p) => ({ ...p, start: e.target.value }))}
             className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
           <span className="text-neutral-400">to</span>

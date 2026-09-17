@@ -11,7 +11,6 @@ import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { useSisOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
@@ -70,7 +69,7 @@ const fmtDateTime = (v) => {
  */
 const CommunityPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const admin = isSisAdmin(user)
   const [tab, setTab] = useState('highlights')
 
@@ -78,7 +77,6 @@ const CommunityPage = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-neutral-900">Community</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-5 max-w-2xl">
         The heartbeat of your school — announcements, lost &amp; found, and shout-outs, all in one place.
