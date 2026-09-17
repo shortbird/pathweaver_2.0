@@ -10,6 +10,7 @@ import { getPreviewTeacher } from './teacherPreview'
 import { MyDocumentsPanel } from './MyDocumentsPage'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
+import StatusPill from '../../components/sis/ui/StatusPill'
 
 /**
  * My Tasks — everything the school is currently asking this person to do,
@@ -45,19 +46,6 @@ const TYPE_LABEL = {
   ack: 'Acknowledge',
 }
 
-const STATUS_LABEL = {
-  todo: 'To do',
-  in_progress: 'In progress',
-  waiting_on_admin: 'With the office',
-  done: 'Done',
-}
-
-const STATUS_STYLES = {
-  todo: 'bg-optio-purple/10 text-optio-purple',
-  in_progress: 'bg-amber-100 text-amber-700',
-  waiting_on_admin: 'bg-blue-100 text-blue-700',
-  done: 'bg-green-100 text-green-700',
-}
 
 const PRIORITY_STYLES = {
   high: 'bg-orange-100 text-orange-700',
@@ -72,11 +60,7 @@ const parseOnboardingId = (id) => {
   return parts[0] === 'onb' ? { assignmentId: parts[1], itemKey: parts.slice(2).join(':') } : null
 }
 
-const StatusPill = ({ status }) => (
-  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${STATUS_STYLES[status] || STATUS_STYLES.todo}`}>
-    {STATUS_LABEL[status] || status}
-  </span>
-)
+const TaskStatus = ({ status }) => <StatusPill domain="task" status={status} fallback="todo" />
 
 const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
   const confirm = useConfirm()
@@ -187,7 +171,7 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
             <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-neutral-600">
               {TYPE_LABEL[task.type] || 'Task'}
             </span>
-            <StatusPill status={task.status} />
+            <TaskStatus status={task.status} />
             {PRIORITY_STYLES[task.priority] && (
               <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${PRIORITY_STYLES[task.priority]}`}>
                 {task.priority}
@@ -392,7 +376,7 @@ const MyTasksPage = () => {
                 {done.map((t) => (
                   <li key={t.id} className="py-2.5 flex items-center gap-2">
                     <span className="text-sm text-neutral-400 line-through truncate">{t.title}</span>
-                    <span className="ml-auto"><StatusPill status="done" /></span>
+                    <span className="ml-auto"><TaskStatus status="done" /></span>
                   </li>
                 ))}
               </ul>

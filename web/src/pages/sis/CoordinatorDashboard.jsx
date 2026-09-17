@@ -5,6 +5,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import { range12h } from '../../utils/timeFormat'
+import DashboardCard from '../../components/sis/DashboardCard'
 
 /**
  * The campus coordinator's dashboard (iCreate requirements, 2026-08-09) — the
@@ -13,13 +14,6 @@ import { range12h } from '../../utils/timeFormat'
  * GET /api/sis/coordinator/dashboard; org admins opening it see the same
  * campus (the endpoint is ADMIN_ROLES).
  */
-
-const Card = ({ title, children, className = '' }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-4 ${className}`}>
-    {title && <h2 className="font-semibold text-neutral-900 mb-3">{title}</h2>}
-    {children}
-  </div>
-)
 
 const CoordinatorDashboard = ({ userName }) => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -72,7 +66,7 @@ const CoordinatorDashboard = ({ userName }) => {
           2026-09-01). These are external URLs, not routes: an anchor, not a
           Link. */}
       {(data.pinned_links || []).length > 0 && (
-        <Card title="Links">
+        <DashboardCard title="Links">
           <div className="flex flex-wrap gap-2">
             {data.pinned_links.map((l) => (
               <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
@@ -82,14 +76,14 @@ const CoordinatorDashboard = ({ userName }) => {
               </a>
             ))}
           </div>
-        </Card>
+        </DashboardCard>
       )}
 
       <AttendanceAlerts alerts={att.open_alerts} resolutions={att.resolutions}
         orgId={orgId} onResolved={load} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card title="Today's schedule" className="lg:col-span-2">
+        <DashboardCard title="Today's schedule" className="lg:col-span-2">
           {!(data.today_schedule || []).length && (
             <p className="text-sm text-neutral-500">No classes meet today.</p>
           )}
@@ -111,10 +105,10 @@ const CoordinatorDashboard = ({ userName }) => {
               </li>
             ))}
           </ul>
-        </Card>
+        </DashboardCard>
 
         <div className="space-y-4">
-          <Card title="Today's attendance">
+          <DashboardCard title="Today's attendance">
             <div className="grid grid-cols-2 gap-3 text-center">
               <div><div className="text-2xl font-bold text-green-600">{recorded.present || 0}</div><div className="text-xs text-neutral-500">Present</div></div>
               <div><div className="text-2xl font-bold text-red-600">{recorded.absent || 0}</div><div className="text-xs text-neutral-500">Absent</div></div>
@@ -124,9 +118,9 @@ const CoordinatorDashboard = ({ userName }) => {
             <Link to="/attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
               Open attendance →
             </Link>
-          </Card>
+          </DashboardCard>
 
-          <Card title="My schedule">
+          <DashboardCard title="My schedule">
             {!(data.my_schedule?.today || []).length && (
               <p className="text-sm text-neutral-500">Nothing scheduled today.</p>
             )}
@@ -150,12 +144,12 @@ const CoordinatorDashboard = ({ userName }) => {
                 </ul>
               </>
             )}
-          </Card>
+          </DashboardCard>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card title={`My tasks (${(data.my_tasks || []).length})`}>
+        <DashboardCard title={`My tasks (${(data.my_tasks || []).length})`}>
           {!(data.my_tasks || []).length && (
             <p className="text-sm text-neutral-500">Nothing assigned to you. </p>
           )}
@@ -174,9 +168,9 @@ const CoordinatorDashboard = ({ userName }) => {
           <Link to="/my-tasks" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
             Open my tasks →
           </Link>
-        </Card>
+        </DashboardCard>
 
-        <Card title="Resources">
+        <DashboardCard title="Resources">
           {!(data.staff_resources || []).length && (
             <p className="text-sm text-neutral-500">No staff resources yet.</p>
           )}
@@ -192,7 +186,7 @@ const CoordinatorDashboard = ({ userName }) => {
           <Link to="/resources" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
             All resources →
           </Link>
-        </Card>
+        </DashboardCard>
       </div>
     </div>
   )

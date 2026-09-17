@@ -34,7 +34,7 @@ const { api, confirmMock } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('../../contexts/ConfirmContext', () => ({ useConfirm: () => confirmMock }))
 
-import SecureDocumentsPage from './SecureDocumentsPage'
+import { SecureDocumentsPanel } from './SecureDocumentsPage'
 
 const ROSTER = [
   { student_id: 'staff-1', name: 'Karin Jaccard', is_student: false, role: 'Teacher' },
@@ -84,7 +84,7 @@ beforeEach(() => {
 })
 
 const show = async () => {
-  render(<SecureDocumentsPage />)
+  render(<SecureDocumentsPanel orgId="org-1" />)
   await screen.findByText('Contract - Karin')
 }
 
@@ -296,7 +296,7 @@ describe('once they have signed', () => {
       ...KARIN, requires_signature: true, shared_with_owner: true,
       signed_at: '2026-08-25T01:29:36+00:00', signed_by_name: 'Karin Jaccard',
     }]
-    render(<SecureDocumentsPage />)
+    render(<SecureDocumentsPanel orgId="org-1" />)
     await screen.findByText('Contract - Karin')
     expect(screen.getByText(/^Signed /)).toBeInTheDocument()
     expect(screen.queryByText('Needs signature')).not.toBeInTheDocument()
@@ -304,7 +304,7 @@ describe('once they have signed', () => {
 
   it('still shows the ask while nobody has signed', async () => {
     DOCS = [{ ...KARIN, requires_signature: true, shared_with_owner: true, signed_at: null }]
-    render(<SecureDocumentsPage />)
+    render(<SecureDocumentsPanel orgId="org-1" />)
     await screen.findByText('Contract - Karin')
     expect(screen.getByText('Needs signature')).toBeInTheDocument()
   })
@@ -333,7 +333,7 @@ describe('checklist attachments in the cabinet', () => {
       return Promise.resolve({ data: { documents: DOCS } })
     })
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
-    render(<SecureDocumentsPage />)
+    render(<SecureDocumentsPanel orgId="org-1" />)
     await screen.findAllByText('Background Check')
     fireEvent.click(screen.getByRole('button', { name: 'Open' }))
     await waitFor(() => expect(open).toHaveBeenCalledWith('https://signed.example/bg.pdf', '_blank', 'noopener,noreferrer'))
@@ -345,7 +345,7 @@ describe('checklist attachments in the cabinet', () => {
 
   it('cannot be renamed or deleted here — it is managed on the checklist', async () => {
     DOCS = [BG_CHECK]
-    render(<SecureDocumentsPage />)
+    render(<SecureDocumentsPanel orgId="org-1" />)
     await screen.findAllByText('Background Check')
     expect(screen.getByText('From their checklist')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()

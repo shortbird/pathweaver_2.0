@@ -53,10 +53,6 @@ const tabsFor = (hr) => [
   ...(hr ? [['documents', 'Documents']] : []),
 ]
 
-// Every tab name this page has ever had, mapped to where that work lives now —
-// old notification links and bookmarks must keep landing on the right list.
-const LEGACY_TABS = { checklists: 'assigned', tasks: 'assigned', paperwork: 'assigned', forms: 'templates' }
-
 const CREATE_ACTIONS = [
   ['assign', 'Assign a task'],
   ['request', 'New request'],
@@ -76,9 +72,11 @@ const TaskCenterPage = () => {
   const hr = canSeeHr(user)
   const showDocuments = hr && !isPathHidden('/secure-documents', activeOrg)
   const TABS = tabsFor(showDocuments)
+  // An unknown ?tab= (a bookmark from before the tabs were renamed) lands on
+  // Requests. Nothing the platform sends links to an old name: the dashboard
+  // tiles name these tabs, and notifications link to /forms and /onboarding.
   const rawTab = searchParams.get('tab')
-  const mapped = TABS.some(([t]) => t === rawTab) ? rawTab : LEGACY_TABS[rawTab]
-  const tab = TABS.some(([t]) => t === mapped) ? mapped : 'requests'
+  const tab = TABS.some(([t]) => t === rawTab) ? rawTab : 'requests'
   const openSubmissionId = searchParams.get('submission')
   const sigEndpoint = hr ? '/api/sis/secure-documents/signature-requests'
     : '/api/sis/staff-admin/signature-requests'

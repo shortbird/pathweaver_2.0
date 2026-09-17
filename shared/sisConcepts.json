@@ -424,65 +424,63 @@
     },
     {
       "id": "status_map",
-      "means": "A status word mapped to a pill colour. Fourteen private maps in fourteen files (STATUS_STYLES x5, ATT_COLORS twice verbatim, ITEM_BADGE copied and drifted by one token).",
+      "means": "A status word mapped to a pill colour. Fourteen private maps in fourteen files until M10 (STATUS_STYLES x5, ATT_COLORS twice verbatim, ITEM_BADGE copied and drifted by one token).",
       "owner": { "web": ["components/sis/ui/statusMaps.js"] },
-      "proposed": true,
       "forbid": {
         "web": {
           "pattern": "^\\s*(export )?const (STATUS_STYLES|ATT_COLORS|ITEM_BADGE|STATUS_TONE|STATUS_META|STATUS_PILL|KIND_PILL|STATUS_LABELS|STATUS_CLASS|STATUS_COLORS)\\s*=",
           "dirs": ["pages/sis", "components/sis"]
         }
       },
-      "baseline": { "web": 14 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
-      "use_instead": "<StatusPill status={s} map=\"attendance\" /> from components/sis/ui (M10); the vocabularies are data in statusMaps.js, one entry per queue."
+      "use_instead": "<StatusPill domain=\"attendance\" status={s} /> from components/sis/ui/StatusPill; the vocabularies are data in components/sis/ui/statusMaps.js, one domain per queue, with statusLabel() and statusTone() for the rare non-pill use. A new status is a row in the map, not a new map."
     },
     {
       "id": "legacy_tab_remap",
-      "means": "Dashboard tiles deep-link to tab names the Task Center no longer has, and the page remaps them on arrival.",
+      "means": "Dashboard tiles deep-linked to tab names the Task Center no longer had, and the page remapped them on arrival. Retired by M10: the tiles name the live tabs and no sent notification uses an old name.",
       "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
       "forbid": {
         "web": { "pattern": "const LEGACY_TABS\\s*=", "dirs": ["pages/sis"], "exempt": [] }
       },
-      "baseline": { "web": 1 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
       "use_instead": "Link to the canonical tab id (M10). A tile that links to a tab the page does not have is a bug in the tile."
     },
     {
       "id": "queue_double_mount",
-      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) with two doors on the sidebar.",
+      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10; /forms now sends an admin to the Task Center with the deep link intact.",
       "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
       "forbid": {
         "web": { "pattern": "<AdminQueue\\b", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 1 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
       "use_instead": "AdminQueue mounts once, in TaskCenterPage; /forms redirects there (M10)."
     },
     {
       "id": "dashboard_card",
-      "means": "The tile on a dashboard. The admin, coordinator and teacher dashboards each define their own Card.",
+      "means": "The tile on a dashboard. The admin, coordinator and teacher dashboards each defined their own Card until M10.",
       "owner": { "web": ["components/sis/DashboardCard.jsx"] },
-      "proposed": true,
       "forbid": {
         "web": { "pattern": "^(function Card\\(|const Card = )", "dirs": ["pages/sis"] }
       },
-      "baseline": { "web": 3 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
-      "use_instead": "<DashboardCard> from components/sis (M10) for all three dashboards."
+      "use_instead": "<DashboardCard title action className> from components/sis/DashboardCard.jsx."
     },
     {
       "id": "org_picker_header",
-      "means": "The org picker and page header, mounted by twenty-nine SIS pages individually instead of once by the layout.",
+      "means": "The org picker and page header, mounted by twenty-eight SIS pages individually instead of once by the layout (twenty-nine until M10 retired the standalone secure-documents page).",
       "owner": { "web": ["components/sis/SisLayout.jsx"] },
       "forbid": {
         "web": { "pattern": "<SisOrgPicker\\b", "dirs": ["pages/sis"] }
       },
-      "baseline": { "web": 29 },
+      "baseline": { "web": 28 },
       "measured": "2026-09-17",
       "lowered_by": "M14a",
       "use_instead": "SisLayout renders the picker once (M14a); a page contributes a title, not a header."

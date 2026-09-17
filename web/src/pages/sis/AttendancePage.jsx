@@ -10,6 +10,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import { classLabel, meetingText } from '../../components/sis/classLabel'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
 import { isSisAdmin } from './sisRole'
+import { statusTone } from '../../components/sis/ui/statusMaps'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -21,12 +22,6 @@ import { isSisAdmin } from './sisRole'
  */
 
 const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
-const ATT_COLORS = {
-  present: 'bg-green-600 text-white',
-  absent: 'bg-red-600 text-white',
-  late: 'bg-amber-500 text-white',
-  excused: 'bg-blue-600 text-white',
-}
 const CARD = {
   present: 'border-gray-200 bg-white hover:border-neutral-300',
   absent: 'border-red-300 bg-red-50',
@@ -334,7 +329,7 @@ const AttendancePage = () => {
                       aria-pressed={s.mark === st}
                       onClick={() => setMark(s.student_user_id, st)}
                       className={`px-2 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
-                        s.mark === st ? ATT_COLORS[st] : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'
+                        s.mark === st ? statusTone('attendance', st, 'solid') : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'
                       }`}
                     >
                       {st}

@@ -6,6 +6,8 @@ import ModalOverlay from '../../components/ui/ModalOverlay'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import FamilyGoalsPage from '../FamilyGoalsPage'
+import StatusPill from '../../components/sis/ui/StatusPill'
+import { statusLabel } from '../../components/sis/ui/statusMaps'
 
 /**
  * Goals — the staff side of goal/direction setting (goals-mode schools). Parents
@@ -15,11 +17,6 @@ import FamilyGoalsPage from '../FamilyGoalsPage'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
-const STATUS_META = {
-  submitted: { label: 'Submitted', pill: 'bg-optio-purple/10 text-optio-purple' },
-  draft: { label: 'Draft', pill: 'bg-gray-100 text-neutral-600' },
-  reviewed: { label: 'Reviewed', pill: 'bg-green-100 text-green-700' },
-}
 const STATUS_ORDER = ['submitted', 'draft', 'reviewed']
 
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '')
@@ -41,7 +38,6 @@ const GoalDetail = ({ goal, orgId, onClose, onReviewed }) => {
     }
   }
 
-  const meta = STATUS_META[goal.status] || STATUS_META.draft
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
@@ -54,7 +50,7 @@ const GoalDetail = ({ goal, orgId, onClose, onReviewed }) => {
               {goal.submitted_at ? ` · Submitted ${fmtDate(goal.submitted_at)}` : ''}
             </div>
           </div>
-          <span className={`shrink-0 text-xs font-semibold rounded-full px-2.5 py-1 ${meta.pill}`}>{meta.label}</span>
+          <StatusPill domain="goal" status={goal.status} fallback="draft" />
         </div>
 
         <div className="mb-4">
@@ -181,11 +177,10 @@ const GoalsReviewPage = () => {
       )}
 
       {grouped.map(({ status, items }) => {
-        const meta = STATUS_META[status]
         return (
           <div key={status} className="mb-6">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">
-              {meta.label} ({items.length})
+              {statusLabel('goal', status)} ({items.length})
             </h2>
             <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
               {items.map((g) => (
@@ -202,7 +197,7 @@ const GoalsReviewPage = () => {
                       {g.submitted_at ? ` · Submitted ${fmtDate(g.submitted_at)}` : ''}
                     </span>
                   </span>
-                  <span className={`shrink-0 text-xs font-semibold rounded-full px-2.5 py-1 ${meta.pill}`}>{meta.label}</span>
+                  <StatusPill domain="goal" status={g.status} fallback="draft" />
                 </button>
               ))}
             </div>

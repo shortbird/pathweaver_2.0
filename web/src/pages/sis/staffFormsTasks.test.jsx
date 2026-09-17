@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// StaffFormsPage renders the unified paperwork manager now (ticket b0d6324a),
-// and its checklist half reads through hooks/api, so this needs a QueryClient.
+// The queue is AdminQueue, exported from StaffFormsPage and mounted by the Task
+// Center (since M10, docs/sis/CONSOLIDATION_PLAN.md, the only mount: /forms
+// sends an admin there). It is rendered here directly, with the staff list the
+// page would have loaded. The checklist half reads through hooks/api, so this
+// needs a QueryClient.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
@@ -46,7 +49,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import StaffFormsPage from './StaffFormsPage'
+import { AdminQueue, SubmitForm } from './StaffFormsPage'
 
 const SUBMISSION = {
   id: 'f1', form_type: 'maintenance', form_type_label: 'Maintenance request',
@@ -78,7 +81,14 @@ beforeEach(() => {
   })
 })
 
-const renderPage = () => render(<MemoryRouter><StaffFormsPage /></MemoryRouter>)
+const renderPage = () => render(<MemoryRouter><AdminQueue orgId="org-1" staff={STAFF} /></MemoryRouter>)
+
+// The Task Center's "New request" is this form with admin={true}; it is what
+// an admin files from since /forms stopped mounting a second copy (M10).
+const renderAdminForm = () => render(<MemoryRouter>
+  <SubmitForm orgId="org-1" admin staff={STAFF} embedded onSubmitted={() => {}}
+    formTypes={{ maintenance: 'Maintenance request', task: 'Task' }} />
+</MemoryRouter>)
 
 // A queue row is a scan line until it is opened — every control below lives in
 // the expanded body. See the AdminQueue comment for why editing is a state of
@@ -208,8 +218,7 @@ describe('the task queue', () => {
   })
 
   it('lets an admin create a task assigned to someone', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+    renderAdminForm()
     // The admin submit form carries assignment fields; posting goes through
     // the staff-admin create door, which may assign.
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
@@ -294,9 +303,8 @@ describe('reading the queue at a glance', () => {
 })
 
 describe('the admin submit form', () => {
-  it('still files a task from the forms page itself', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+  it('files a task from the New request form, assigned to someone', async () => {
+    renderAdminForm()
     // The admin submit form carries assignment fields; posting goes through
     // the staff-admin create door, which may assign.
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
@@ -322,8 +330,7 @@ describe('assigning one task to several people', () => {
     api.post.mock.calls.filter(([u]) => u.includes('/staff-admin/forms') && !u.includes('/comments'))
 
   it('creates a copy per person, so each can finish their own', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+    renderAdminForm()
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 't-1' } })
     fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Count the laptops' } })
@@ -334,8 +341,7 @@ describe('assigning one task to several people', () => {
   })
 
   it('still files one row when nobody is named', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+    renderAdminForm()
     fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Someone look at this' } })
     fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
@@ -344,8 +350,7 @@ describe('assigning one task to several people', () => {
   })
 
   it('lets a name be taken back off before sending', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+    renderAdminForm()
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
     fireEvent.click(await screen.findByLabelText('Remove Kate Coordinator'))
     fireEvent.change(screen.getByPlaceholderText(/what happened/i), { target: { value: 'Never mind' } })
@@ -356,8 +361,7 @@ describe('assigning one task to several people', () => {
   })
 
   it('does not offer somebody already on the task', async () => {
-    renderPage()
-    await screen.findByText('Printer in Room 3')
+    renderAdminForm()
     fireEvent.change(screen.getByLabelText(/assign to/i), { target: { value: 'cc-1' } })
     await screen.findByLabelText('Remove Kate Coordinator')
     const options = within(screen.getByLabelText(/assign to/i)).getAllByRole('option')

@@ -20,8 +20,10 @@ import { MemoryRouter } from 'react-router-dom'
  * What is worth locking down: which endpoints a given role's page talks to
  * (that is where the HR line is drawn on the client — the server enforces it
  * regardless), that the unified Assigned list really carries all three kinds
- * of work, and that every tab name this page has ever had still lands
- * somewhere (old notification links say ?tab=paperwork).
+ * of work, and that a retired tab name still lands somewhere sensible (it
+ * lands on Requests; nothing the platform sends links to an old name -- the
+ * dashboard tiles name the live tabs and notifications link to /forms and
+ * /onboarding, checked against the notifications table on 2026-09-17).
  */
 
 const authState = { user: { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] } }
@@ -358,17 +360,14 @@ describe('the tabs', () => {
     expect(await screen.findByLabelText('Who receives Substitute request')).toHaveValue('julia-1')
   })
 
-  it('still answers every tab name this page has ever had', async () => {
-    // ?tab=paperwork, ?tab=checklists and ?tab=tasks are in sent notifications
-    // and bookmarks; all of that work lives on Assigned now.
+  it('lands a retired tab name on Requests rather than nowhere', async () => {
+    // ?tab=paperwork was a tab once; a bookmark may still say so. The page
+    // used to carry a remap for every name it ever had (M10 retired it: the
+    // tiles link to the live names, and no sent notification uses an old
+    // one), so an unknown tab is simply the first tab.
     renderPage('/tasks?tab=paperwork')
-    expect(await screen.findByText('Employee handbook')).toBeInTheDocument()
-  })
-
-  it('opens manage forms directly when landing on tab=forms', async () => {
-    mockGets({ extra: { '/form-templates': { templates: [] } } })
-    renderPage('/tasks?tab=forms')
-    expect(await screen.findByRole('button', { name: '+ New form' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Requests' })).toHaveClass('border-optio-purple')
+    expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
   })
 
   it('opens manage forms from the new form template action menu', async () => {

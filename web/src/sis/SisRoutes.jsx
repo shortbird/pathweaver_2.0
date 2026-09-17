@@ -103,7 +103,6 @@ const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
-const SecureDocumentsPage = lazy(() => import('../pages/sis/SecureDocumentsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
 const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
@@ -168,7 +167,9 @@ const SisRoutes = () => (
       <Route path="submissions" element={<ModuleGate path="/submissions"><SubmissionsPage /></ModuleGate>} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
-      <Route path="secure-documents" element={<HrRoute><ModuleGate path="/secure-documents"><SecureDocumentsPage /></ModuleGate></HrRoute>} />
+      {/* The HR document store is the Task Center's Documents tab; this was a
+          second door to the same panel that nothing linked to (M10). */}
+      <Route path="secure-documents" element={<HrRoute><Navigate to="/tasks?tab=documents" replace /></HrRoute>} />
       {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
           working for bookmarks and old notification links. */}
       <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />

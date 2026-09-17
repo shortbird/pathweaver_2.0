@@ -16,6 +16,7 @@ import ClassActivityTab from '../../components/classes/ClassActivityTab'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 import SubstituteSheet from '../../components/sis/SubstituteSheet'
+import { statusTone } from '../../components/sis/ui/statusMaps'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -33,12 +34,6 @@ import SubstituteSheet from '../../components/sis/SubstituteSheet'
  */
 
 const ATT_STATUSES = ['present', 'absent', 'late', 'excused']
-const ATT_COLORS = {
-  present: 'bg-green-600 text-white',
-  absent: 'bg-red-600 text-white',
-  late: 'bg-amber-500 text-white',
-  excused: 'bg-blue-600 text-white',
-}
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -413,7 +408,7 @@ const TeacherClassPage = () => {
                           <button key={st}
                             onClick={() => setMarks((prev) => ({ ...prev, [s.student_id]: st }))}
                             className={`px-2 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${
-                              markOf(s.student_id) === st ? ATT_COLORS[st] : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}>
+                              markOf(s.student_id) === st ? statusTone('attendance', st, 'solid') : 'bg-gray-100 text-neutral-500 hover:bg-gray-200'}`}>
                             {st}
                           </button>
                         ))}

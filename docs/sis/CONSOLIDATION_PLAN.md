@@ -30,7 +30,7 @@ and patterns instead.
 | M1 One school voice | 0 | not started | | |
 | M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
 | M8a One settings writer | 0 | not started | | |
-| M10 One status pill, one door | 0 | not started | | |
+| M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
 | M11 One schedule toolkit | 0 | not started | | |
 | M12 One today, one events feed, one event clock | 0 | not started | | |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
@@ -385,12 +385,21 @@ takes `domain` and `status`. `OnboardingPage`'s `ITEM_BADGE` and the drifted cop
 used by `AttendancePage` and `TeacherClassPage`. `people/PeopleTable.jsx`'s
 `STATUS_TONE` and `peopleFilters.js`'s `STATUS_LABELS` fold in.
 
-Doors: `TaskCenterPage.jsx` drops `LEGACY_TABS`; `SisDashboard.jsx` tiles link to
-canonical tab ids; `SisRoutes.jsx` turns `/forms` and `/onboarding` into redirects
-that preserve the query string (`?submission=`, `?assignment=&item=`) into
-`/tasks?tab=…` and `/my-tasks?tab=…`; `SisSidebar.jsx` drops the Onboarding item and
-adds Secure Documents under the existing `hrOnly` gate; one
-`components/sis/DashboardCard.jsx` replaces the three local `Card`s.
+Doors, as shipped (two of the plan's four changed on inspection): `TaskCenterPage.jsx`
+drops `LEGACY_TABS` and the dashboard tiles link to the live tab ids (the
+`notifications` table holds no `/tasks?tab=` link at all — 156 point at `/forms`, 56 at
+`/onboarding`, none at a retired tab name); `/forms` stays mounted for teachers and
+sends an admin who is not previewing to `/tasks?tab=requests&submission=…`, so the
+admin queue and the templates manager mount once. **`/onboarding` keeps its sidebar
+door**: the entry was removed on 2026-08-14 and put back on 2026-09-10 after iCreate
+reported onboarding as broken (My Tasks hides finished items; the checklist page is the
+one that shows every item), and that reason is written on the sidebar item — the
+plan's redirect would have re-broken it. **Secure Documents gets no sidebar entry**:
+the Task Center's Documents tab already renders `SecureDocumentsPanel` for HR, so a
+nav entry to `/secure-documents` would have been a second door to the same panel;
+instead the standalone route redirects to `/tasks?tab=documents` (behind `HrRoute`)
+and the page shell is deleted. One `components/sis/DashboardCard.jsx` replaces the
+three local `Card`s.
 
 Verify at :3000 as iCreate admin: every queue page shows the same colour for the
 same status; a notification link to `/onboarding?assignment=…` lands on the item; the

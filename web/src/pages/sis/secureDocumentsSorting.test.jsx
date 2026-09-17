@@ -30,7 +30,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import SecureDocumentsPage from './SecureDocumentsPage'
+import { SecureDocumentsPanel } from './SecureDocumentsPage'
 
 // Deliberately not in any of the orders under test: newest is Baker's W-4,
 // first alphabetically by person is Adams, by type is Background check.
@@ -61,7 +61,7 @@ beforeEach(() => {
 })
 
 const show = async () => {
-  render(<SecureDocumentsPage />)
+  render(<SecureDocumentsPanel orgId="org-1" />)
   await screen.findByText('Baker W-4')
 }
 

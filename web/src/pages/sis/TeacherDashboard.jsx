@@ -6,6 +6,7 @@ import api from '../../services/api'
 import { withOrg, useSisOrg } from './useSisOrg'
 import { withPreview } from './teacherPreview'
 import { getHiddenModules } from './sisModules'
+import DashboardCard from '../../components/sis/DashboardCard'
 
 /**
  * TeacherDashboard — the advisor home for the SIS teacher portal.
@@ -17,16 +18,6 @@ import { getHiddenModules } from './sisModules'
  * drop to the bottom. One backend call (/api/sis/teacher/dashboard) feeds
  * every card.
  */
-
-const Card = ({ title, children, action }) => (
-  <div className="bg-white rounded-xl border border-gray-200 p-5">
-    <div className="flex items-center justify-between mb-3">
-      <h2 className="font-semibold text-neutral-900">{title}</h2>
-      {action}
-    </div>
-    {children}
-  </div>
-)
 
 const ALERT_LABEL = {
   unfinished_next_released: (a) =>
@@ -239,7 +230,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           "Pin to teacher home"). Moved above the class grid by request
           (iCreate 2026-08-31) — documents and forms teachers always need. */}
       {pinnedLinks.length > 0 && (
-        <Card title="Links"
+        <DashboardCard title="Links"
           action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
           <div className="flex flex-wrap gap-2">
             {pinnedLinks.map((l) => (
@@ -250,7 +241,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               </a>
             ))}
           </div>
-        </Card>
+        </DashboardCard>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -261,7 +252,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             dashboard (iCreate, 2026-07-31: "it'd be nice just to show ALL the
             classes on the dashboard instead of having to click to see all"). */}
         <div className="lg:col-span-2">
-          <Card title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
+          <DashboardCard title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
             action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
             {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -291,22 +282,22 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                 </div>
               ))}
             </div>
-          </Card>
+          </DashboardCard>
         </div>
 
         {/* Secondary rail: time clock + recent forms */}
         <div className="space-y-4">
           {profile.uses_time_clock && preview && (
-            <Card title="Time clock">
+            <DashboardCard title="Time clock">
               <p className="text-sm text-neutral-500">
                 {openEntry
                   ? `Clocked in at ${new Date(openEntry.clock_in).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
                   : 'Not clocked in.'} Clock actions are hidden in preview.
               </p>
-            </Card>
+            </DashboardCard>
           )}
           {profile.uses_time_clock && !preview && !hidden.has('timesheets') && (
-            <Card title="Time clock">
+            <DashboardCard title="Time clock">
               {openEntry ? (
                 <div>
                   <p className="text-sm text-neutral-600 mb-3">
@@ -326,13 +317,13 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               <Link to="/time" className="block text-center text-sm text-optio-purple hover:underline mt-3">
                 View my hours
               </Link>
-            </Card>
+            </DashboardCard>
           )}
 
           {/* The staff handbook and anything else the school keeps for teachers.
               Previously only reachable while an acknowledgment was outstanding. */}
           {staffResources.length > 0 && (
-            <Card title="Teacher resources"
+            <DashboardCard title="Teacher resources"
               action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
               <ul className="space-y-2">
                 {staffResources.slice(0, 5).map((r) => (
@@ -348,14 +339,14 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                   </li>
                 ))}
               </ul>
-            </Card>
+            </DashboardCard>
           )}
 
           {/* Named for what a teacher comes here to do, not for what the card
               happens to list (iCreate, 2026-09-02). The recent ones stay
               underneath: they are how you tell whether you already sent it. */}
           {!hidden.has('forms') && (
-          <Card title="Submit a form" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
+          <DashboardCard title="Submit a form" action={<Link to="/forms" className="text-sm text-optio-purple hover:underline">All forms</Link>}>
             {!recentForms.length && (
               <p className="text-sm text-neutral-500">
                 Supply requests, incident reports and the rest — send one from{' '}
@@ -375,14 +366,14 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                 </li>
               ))}
             </ul>
-          </Card>
+          </DashboardCard>
           )}
         </div>
       </div>
 
       {/* Learning-app engagement alerts — secondary, below class management. */}
       {alerts.length > 0 && (
-        <Card title={`Needs attention (${alerts.length})`}>
+        <DashboardCard title={`Needs attention (${alerts.length})`}>
           <ul className="divide-y divide-gray-100">
             {alerts.map((a) => (
               <li key={a.id} className="py-2.5 flex items-start gap-3">
@@ -409,7 +400,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               </li>
             ))}
           </ul>
-        </Card>
+        </DashboardCard>
       )}
     </div>
   )

@@ -101,11 +101,13 @@ describe('attendance page — students not accounted for', () => {
     // Every class on the day, with its status — the absent one and the one
     // that proves she was on campus.
     const robotics = screen.getByText('Robotics').closest('[data-day-class]')
-    expect(within(robotics).getByText('present')).toBeInTheDocument()
+    // The status pill shows the vocabulary's label (statusMaps.js), not the
+    // raw word CSS-capitalised: same on screen, real text in the DOM.
+    expect(within(robotics).getByText('Present')).toBeInTheDocument()
     // "Pottery" is also a class-picker option, so pick the day row, not the first match.
     const pottery = screen.getAllByText('Pottery')
       .map((el) => el.closest('[data-day-class]')).find(Boolean)
-    expect(within(pottery).getByText('absent')).toBeInTheDocument()
+    expect(within(pottery).getByText('Absent')).toBeInTheDocument()
     // "Roll not taken" is not styled as a status — it is a different fact.
     const choir = screen.getByText('Choir').closest('[data-day-class]')
     expect(within(choir).getByText('Roll not taken')).toBeInTheDocument()
