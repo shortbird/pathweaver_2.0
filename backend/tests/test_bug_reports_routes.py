@@ -385,21 +385,29 @@ class TestDeploySweep:
         mail.assert_called_once()
         nag.assert_not_called()
 
-    def test_the_cron_tick_only_mails(self, client):
+    def test_the_cron_tick_replays_the_last_report_then_mails(self, client):
+        """No commits in the body: the tick reruns the comparison against what
+        production was last reported to serve, so a ticket marked fixed after
+        that release resolves now rather than on the next push."""
         from app_config import Config
         with patch.object(Config, 'CRON_SECRET', 'shhh'), \
              patch('services.ticket_finalize_service.apply_deploy') as apply, \
+             patch('services.ticket_finalize_service.replay_last_reports',
+                   return_value={'replayed': [{'surface': 'web'}], 'resolved': ['t9']}) as replay, \
              patch('services.ticket_finalize_service.notify_resolved_reporters',
-                   return_value={'sent': [], 'skipped': [], 'pending': [], 'failed': []}) as mail:
+                   return_value={'sent': ['t9'], 'skipped': [], 'pending': [], 'failed': []}) as mail:
             resp = client.post(self.URL, headers={'X-Cron-Secret': 'shhh'}, json={})
         assert resp.status_code == 200
         apply.assert_not_called()
+        replay.assert_called_once()
         mail.assert_called_once()
-        assert 'deploy' not in json.loads(resp.data)
+        data = json.loads(resp.data)
+        assert 'deploy' not in data and data['replay']['resolved'] == ['t9']
 
     def test_the_daily_tick_adds_the_nag(self, client):
         from app_config import Config
         with patch.object(Config, 'CRON_SECRET', 'shhh'), \
+             patch('services.ticket_finalize_service.replay_last_reports', return_value={}), \
              patch('services.ticket_finalize_service.notify_resolved_reporters', return_value={}), \
              patch('services.ticket_finalize_service.send_fixed_but_not_live_nag',
                    return_value={'stale': 2, 'sent': True}) as nag:
@@ -424,6 +432,7 @@ class TestDeploySweep:
              patch('utils.session_manager.session_manager.get_effective_user_id', return_value='super-1'), \
              patch('routes.bug_reports._triage_client', return_value=Mock()), \
              patch('repositories.user_repository.UserRepository.is_superadmin', return_value=True) as is_super, \
+             patch('services.ticket_finalize_service.replay_last_reports', return_value={}), \
              patch('services.ticket_finalize_service.notify_resolved_reporters', return_value={}):
             resp = client.post(self.URL, json={}, headers=auth_headers)
         assert resp.status_code == 200

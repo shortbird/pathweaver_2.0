@@ -170,13 +170,15 @@ def main():
     _run("parent-weekly-digest", f"{base}/api/parent-digest/internal/sweep",
          cron_secret, failures, base=base)
 
-    # Every run: the ticket deploy sweep. Mails the reporter of any ticket that
-    # resolved since the last tick and still owes them a message (the release
-    # pipeline sends most of these itself the moment a deploy is live; this
-    # catches a question answered over the MCP, or a send that failed). Once
-    # a day at 14:00 UTC it also asks for the nag: fixed tickets whose commit
-    # has not reached production in a day, mailed to the admin inbox, which is
-    # the only signal there is when a release went red after the push.
+    # Every run: the ticket deploy sweep. Replays the release pipeline's last
+    # report so a ticket marked fixed after that release still resolves once
+    # its commit is seen live, then mails the reporter of any ticket that
+    # resolved since the last tick and still owes them a message (the pipeline
+    # sends most of these itself the moment a deploy is live; this catches a
+    # question answered over the MCP, or a send that failed). Once a day at
+    # 14:00 UTC it also asks for the nag: fixed tickets whose commit has not
+    # reached production in a day, mailed to the admin inbox, which is the
+    # only signal there is when a release went red after the push.
     nag = now.hour == 14 and now.minute < 10
     _run("ticket-deploy-sweep", f"{base}/api/bug-reports/internal/deploy-sweep",
          cron_secret, failures, base=base, body={"nag": True} if nag else None)

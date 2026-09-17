@@ -15,6 +15,14 @@ Three entry points, all reached through POST /api/bug-reports/internal/deploy-sw
       whose fix_commit is in `commits`, and whose reporter's surface is among
       `surfaces`, becomes `resolved`. Matching is by SHA, never by time: a
       ticket can be marked fixed on Monday and its commit pushed on Thursday.
+      The report is kept, one row per surface (production_deploys), so that
+
+  replay_last_reports()
+      the cron's ten-minute tick can run the same comparison against what
+      production was last seen serving. A ticket marked fixed AFTER the
+      release that carried its commit -- a backlog being reconciled, or an
+      agent writing its rows after a quick push -- resolves on the next tick
+      instead of waiting for the next push.
 
   notify_resolved_reporters()
       Mails every resolved ticket that still owes its reporter a message, and
@@ -42,8 +50,10 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from app_config import Config
 from repositories.bug_report_repository import BugReportRepository
-# admin client justified: bug_reports is deny-all RLS (0 policies); the sweep
-# runs from the cron and the release pipeline, with no user session to scope to
+from repositories.production_deploy_repository import ProductionDeployRepository
+# admin client justified: bug_reports and production_deploys are deny-all RLS
+# (0 policies); the sweep runs from the cron and the release pipeline, with no
+# user session to scope to
 from utils.admin_client import admin_client
 from utils.logger import get_logger
 from utils.timestamps import now_iso as _now_iso
@@ -69,6 +79,10 @@ STALE_FIXED_AFTER = timedelta(hours=24)
 
 def _repo() -> BugReportRepository:
     return BugReportRepository(client=admin_client())
+
+
+def _deploys() -> ProductionDeployRepository:
+    return ProductionDeployRepository(client=admin_client())
 
 
 # ---------------------------------------------------------------------------
@@ -108,16 +122,28 @@ def surface_for(ticket: Dict[str, Any]) -> str:
     return SURFACE_FOR_SOURCE.get(ticket.get('source') or '', DEFAULT_SURFACE)
 
 
-def apply_deploy(sha: str, commits: Iterable[Any], surfaces: Iterable[str]) -> Dict[str, Any]:
+def apply_deploy(sha: str, commits: Iterable[Any], surfaces: Iterable[str],
+                 record: bool = True) -> Dict[str, Any]:
     """Move every fixed ticket whose commit is now live to resolved.
 
     Returns what it did, for the pipeline log: the ids resolved, the ids
     still waiting (and why), and the ids whose fix_commit could not be read.
+    With `record` (the pipeline's call) the report is stored per surface for
+    replay_last_reports; a replay passes False so it does not rewrite what it
+    just read.
     """
     live = _normalise_shas(commits)
     live_surfaces = {s for s in (surfaces or ()) if s in KNOWN_SURFACES}
     repo = _repo()
     resolved, waiting, unreadable = [], [], []
+
+    if record and live:
+        deploys = _deploys()
+        for surface in live_surfaces:
+            try:
+                deploys.record(surface, sha, live)
+            except Exception as e:  # the tickets still resolve; only the replay loses this report
+                logger.error(f"[TicketFinalize] could not store the {surface} report for {sha[:12]}: {e}")
 
     for ticket in repo.list_fixed():
         needed = surface_for(ticket)
@@ -149,6 +175,27 @@ def apply_deploy(sha: str, commits: Iterable[Any], surfaces: Iterable[str]) -> D
         'waiting': waiting,
         'no_fix_commit': unreadable,
     }
+
+
+def replay_last_reports() -> Dict[str, Any]:
+    """Run apply_deploy against the last stored report for each surface.
+
+    The cron's tick. Nothing to replay (no release has reported yet) is an
+    empty result, not an error. Each surface is applied on its own, with its
+    own history, because the web and mobile reports come from different jobs
+    at different times and a mobile ticket must not resolve on web's say-so.
+    """
+    replayed = []
+    resolved: List[str] = []
+    for row in _deploys().latest():
+        surface = row.get('surface')
+        if surface not in KNOWN_SURFACES:
+            continue
+        out = apply_deploy(row.get('sha') or '', row.get('commits') or [], [surface], record=False)
+        replayed.append({'surface': surface, 'sha': (row.get('sha') or '')[:12],
+                         'reported_at': row.get('reported_at'), 'resolved': out['resolved']})
+        resolved.extend(out['resolved'])
+    return {'replayed': replayed, 'resolved': resolved}
 
 
 # ---------------------------------------------------------------------------

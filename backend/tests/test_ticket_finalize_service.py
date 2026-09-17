@@ -48,6 +48,15 @@ def repo():
         yield r
 
 
+@pytest.fixture
+def deploys():
+    d = Mock()
+    d.latest.return_value = []
+    d.record.return_value = {}
+    with patch.object(svc, '_deploys', return_value=d):
+        yield d
+
+
 @pytest.mark.unit
 class TestCommitMatching:
 
@@ -75,7 +84,22 @@ class TestCommitMatching:
 @pytest.mark.unit
 class TestApplyDeploy:
 
-    def test_resolves_a_web_ticket_whose_commit_is_live(self, repo):
+    def test_the_pipelines_report_is_stored_per_surface(self, repo, deploys):
+        # Only the usable SHAs are kept, and only for surfaces that exist.
+        svc.apply_deploy('b' * 40, ['b' * 40, 'a' * 40, 'junk'], ['web', 'lunar'])
+        deploys.record.assert_called_once_with('web', 'b' * 40, ['b' * 40, 'a' * 40])
+
+    def test_a_report_with_no_usable_shas_is_not_stored(self, repo, deploys):
+        svc.apply_deploy('h' * 40, ['junk'], ['web'])
+        deploys.record.assert_not_called()
+
+    def test_a_failed_store_does_not_stop_tickets_resolving(self, repo, deploys):
+        deploys.record.side_effect = RuntimeError('db')
+        repo.list_fixed.return_value = [_ticket()]
+        out = svc.apply_deploy('h' * 40, ['a' * 40], ['web'])
+        assert out['resolved'] == ['t1']
+
+    def test_resolves_a_web_ticket_whose_commit_is_live(self, repo, deploys):
         repo.list_fixed.return_value = [_ticket()]
         out = svc.apply_deploy('head' * 10, ['c' * 40, 'a' * 40], ['web'])
         assert out['resolved'] == ['t1']
@@ -83,14 +107,14 @@ class TestApplyDeploy:
         assert changes['status'] == 'resolved'
         assert changes['resolved_at'] and changes['deployed_at'] == changes['resolved_at']
 
-    def test_leaves_a_ticket_whose_commit_is_not_in_the_history(self, repo):
+    def test_leaves_a_ticket_whose_commit_is_not_in_the_history(self, repo, deploys):
         repo.list_fixed.return_value = [_ticket(fix_commit='b' * 40)]
         out = svc.apply_deploy('h' * 40, ['a' * 40], ['web'])
         assert out['resolved'] == []
         assert out['waiting'][0]['id'] == 't1'
         repo.update_fields.assert_not_called()
 
-    def test_a_mobile_ticket_waits_for_the_ota_report(self, repo):
+    def test_a_mobile_ticket_waits_for_the_ota_report(self, repo, deploys):
         repo.list_fixed.return_value = [_ticket(source='mobile')]
         web = svc.apply_deploy('h' * 40, ['a' * 40], ['web'])
         assert web['resolved'] == [] and 'mobile not deployed yet' in web['waiting'][0]['reason']
@@ -98,7 +122,7 @@ class TestApplyDeploy:
         ota = svc.apply_deploy('h' * 40, ['a' * 40], ['mobile'])
         assert ota['resolved'] == ['t1']
 
-    def test_every_other_source_resolves_on_the_web_report(self, repo):
+    def test_every_other_source_resolves_on_the_web_report(self, repo, deploys):
         repo.list_fixed.return_value = [
             _ticket(id='w', source='web'), _ticket(id='p', source='perch'),
             _ticket(id='h', source='hq'), _ticket(id='s', source='sentry'),
@@ -106,17 +130,46 @@ class TestApplyDeploy:
         out = svc.apply_deploy('h' * 40, ['a' * 40], ['web'])
         assert sorted(out['resolved']) == ['h', 'p', 's', 'w']
 
-    def test_unknown_surfaces_are_ignored_and_reported(self, repo):
+    def test_unknown_surfaces_are_ignored_and_reported(self, repo, deploys):
         repo.list_fixed.return_value = [_ticket()]
         out = svc.apply_deploy('h' * 40, ['a' * 40], ['backend', 'web', 'lunar'])
         assert out['surfaces'] == ['web']
         assert out['resolved'] == ['t1']
 
-    def test_a_fixed_ticket_with_no_usable_commit_is_named_not_resolved(self, repo):
+    def test_a_fixed_ticket_with_no_usable_commit_is_named_not_resolved(self, repo, deploys):
         repo.list_fixed.return_value = [_ticket(id='x', fix_commit=None), _ticket(id='y', fix_commit='abc')]
         out = svc.apply_deploy('h' * 40, ['a' * 40], ['web'])
         assert sorted(out['no_fix_commit']) == ['x', 'y']
         repo.update_fields.assert_not_called()
+
+
+@pytest.mark.unit
+class TestReplayLastReports:
+    """The cron tick: a ticket marked fixed AFTER the release that carried its
+    commit resolves on the next tick, from the stored report, without waiting
+    for another push."""
+
+    def test_nothing_stored_is_nothing_to_do(self, repo, deploys):
+        assert svc.replay_last_reports() == {'replayed': [], 'resolved': []}
+
+    def test_each_surface_is_applied_with_its_own_history_and_not_re_recorded(self, repo, deploys):
+        deploys.latest.return_value = [
+            {'surface': 'mobile', 'sha': 'm' * 40, 'commits': ['m' * 40], 'reported_at': 'T1'},
+            {'surface': 'web', 'sha': 'w' * 40, 'commits': ['w' * 40, 'a' * 40], 'reported_at': 'T2'},
+        ]
+        repo.list_fixed.return_value = [_ticket(id='web-t', source='web'),
+                                        _ticket(id='mob-t', source='mobile')]
+        out = svc.replay_last_reports()
+        # The web ticket's commit is in web's history: resolved. The mobile
+        # ticket's commit is only in web's history, and mobile's report does
+        # not carry it: it waits, even though the same SHA is live on web.
+        assert out['resolved'] == ['web-t']
+        assert [r['surface'] for r in out['replayed']] == ['mobile', 'web']
+        deploys.record.assert_not_called()
+
+    def test_a_row_for_a_surface_nobody_knows_is_skipped(self, repo, deploys):
+        deploys.latest.return_value = [{'surface': 'lunar', 'sha': 'x' * 40, 'commits': ['x' * 40]}]
+        assert svc.replay_last_reports()['replayed'] == []
 
 
 @pytest.mark.unit

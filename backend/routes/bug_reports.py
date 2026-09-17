@@ -483,11 +483,13 @@ def update_bug_report(user_id, report_id):
 #     ticket whose fix_commit is in `commits` becomes resolved, and the
 #     reporter is mailed.
 #
-#   the cron, every ten minutes, with an empty body: mails whatever resolved
-#     ticket still owes its reporter a message (a question answered over the
-#     MCP, a ticket the console resolved while mail was down). Once a day the
-#     cron adds {"nag": true}, and anything that has sat in `fixed` for more
-#     than a day goes to the admin inbox.
+#   the cron, every ten minutes, with an empty body: replays the last stored
+#     report per surface, so a ticket marked fixed after the release that
+#     carried its commit still resolves within ten minutes, then mails
+#     whatever resolved ticket still owes its reporter a message (a question
+#     answered over the MCP, a ticket the console resolved while mail was
+#     down). Once a day the cron adds {"nag": true}, and anything that has
+#     sat in `fixed` for more than a day goes to the admin inbox.
 #
 # Auth is X-Cron-Secret, or a signed-in superadmin for a manual run from the
 # console -- the same dual gate as every other internal sweep. Idempotent:
@@ -534,6 +536,8 @@ def deploy_sweep():
                 return jsonify({'success': False, 'error': 'surfaces must be a list'}), 400
             sha = str(body.get('sha') or (commits[0] if commits else ''))
             result['deploy'] = finalize.apply_deploy(sha, commits, surfaces)
+        else:
+            result['replay'] = finalize.replay_last_reports()
 
         result['notify'] = finalize.notify_resolved_reporters()
 
