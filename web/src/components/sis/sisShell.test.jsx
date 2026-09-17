@@ -15,10 +15,20 @@ vi.mock('../../services/api', () => ({
 }))
 // The sidebar resolves the active org via useSisOrg; stub it so these gate/nav
 // tests don't depend on the org-list fetch. activeOrg null => nothing hidden.
-vi.mock('../../pages/sis/useSisOrg', () => ({
-  useSisOrg: () => ({ orgId: null, setOrgId: vi.fn(), orgs: [], isSuperadmin: true, loading: false, activeOrg: null }),
-  withOrg: (p) => p,
-}))
+// The stub is still a HOOK (it calls useState), because the real one is: a
+// stub that calls no hook would let useSisOrg be called after an early return
+// without React noticing, and that is the exact bug the re-render test below
+// exists to catch.
+vi.mock('../../pages/sis/useSisOrg', async () => {
+  const { useState } = await import('react')
+  return {
+    useSisOrg: () => {
+      const [orgId] = useState(null)
+      return { orgId, setOrgId: vi.fn(), orgs: [], isSuperadmin: true, loading: false, activeOrg: null }
+    },
+    withOrg: (p) => p,
+  }
+})
 
 const nav = vi.hoisted(() => ({ goToLearningSurface: vi.fn(), goToSisSurface: vi.fn(), switchSurfaceInApp: vi.fn() }))
 vi.mock('../../utils/appSurface', () => nav)
@@ -64,6 +74,32 @@ describe('SisLayout gate', () => {
     renderLayout()
     expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
     expect(nav.goToLearningSurface).not.toHaveBeenCalled()
+  })
+
+  it('survives auth finishing loading in the same mounted tree', () => {
+    // The first render returns a Spinner while auth loads; the second renders
+    // the console. A hook placed after that early return runs only on the
+    // second render, and React throws "Rendered more hooks than during the
+    // previous render" -- which took the whole console down on 2026-09-17
+    // when the org picker moved into this layout. Every hook, including
+    // useSisOrg, has to run on both renders.
+    authState.loading = true
+    const { rerender } = renderLayout()
+    expect(screen.queryByText('CHILD CONTENT')).not.toBeInTheDocument()
+    authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    expect(() => rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Routes>
+            <Route element={<SisLayout />}>
+              <Route index element={<div>CHILD CONTENT</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )).not.toThrow()
+    expect(screen.getByText('CHILD CONTENT')).toBeInTheDocument()
   })
 
   it('bounces unauthenticated visitors to the learning login', () => {
