@@ -43,5 +43,9 @@ export const OFFER = {
     'If your school will not accept the credit, we refund you in full. That is the Transfer Guarantee.',
   academyMonthly: '$50',
   academyFamilyCap: '$150',
+  // 12 x $50. Every $100 of tuition covers one credit, so a year covers six
+  // and four years covers the 24-credit diploma. Keep these three in step.
+  academyYearly: '$600',
   academyPerCredit: '$100',
+  academyCreditsPerYear: 'six',
 }

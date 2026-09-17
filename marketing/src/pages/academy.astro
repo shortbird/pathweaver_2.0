@@ -22,10 +22,10 @@ const SCREENSHOTS = [
   },
 ]
 
-// TODO(tanner): confirm the exact accrual mechanics of the $50/month payment
-// counting toward the $100-per-credit fee (e.g. does every dollar apply, does
-// it expire, how is teacher support billed on top). Copy below states the
-// simple version you gave; tighten it once mechanics are confirmed.
+// Tuition-to-credit rule confirmed 2026-09-17: every $100 of tuition is one
+// credit, $50/month is six credits a year, extra credits are $100 each, and
+// students 13+ earn high school credit. Still open: whether an unused balance
+// rolls across years, and how the family cap divides among several teens.
 const FAQS = [
   {
     q: 'Is the diploma real? Will colleges accept it?',
@@ -33,7 +33,7 @@ const FAQS = [
   },
   {
     q: 'How much does Optio Academy cost?',
-    a: `Enrollment is ${OFFER.academyMonthly} per kid per month, capped at ${OFFER.academyFamilyCap} per family, and the price is the same for every grade, K through 12. In high school, what you pay counts toward credits: each credit costs ${OFFER.academyPerCredit} as your student earns it, and a full diploma is 24 credits. Families who want one-on-one support from a licensed Optio teacher can add it; we price that together on your discovery call.`,
+    a: `Tuition is ${OFFER.academyMonthly} per kid per month, capped at ${OFFER.academyFamilyCap} per family, and the price is the same for every grade, K through 12. Every ${OFFER.academyPerCredit} of tuition covers one high school credit, so a year of tuition (${OFFER.academyYearly}) covers ${OFFER.academyCreditsPerYear} credits. That is the standard pace for a diploma: 24 credits over four years, fully covered by the monthly tuition. Students who want to move faster can earn credits beyond that pace for ${OFFER.academyPerCredit} each. Families who want one-on-one support from a licensed Optio teacher can add it; we price that together on your discovery call.`,
   },
   {
     q: 'Can we try it before enrolling?',
@@ -299,10 +299,14 @@ const schema = [
               observer access for grandparents and mentors.
             </p>
             <p>
-              In high school, what you pay counts toward credits at {OFFER.academyPerCredit} per
-              credit; a full diploma is 24 credits. You guide the learning day to day; Optio
-              provides the structure, licensed teacher review, the official transcript, and the
-              WASC-accredited diploma.
+              From age 13, tuition pays for high school credits. Every {OFFER.academyPerCredit}
+              covers one credit, so a year of tuition ({OFFER.academyYearly}) covers
+              {OFFER.academyCreditsPerYear}, and four years covers the full 24-credit diploma.
+              Move faster and each credit beyond that pace is {OFFER.academyPerCredit}.
+            </p>
+            <p>
+              You guide the learning day to day; Optio provides the structure, licensed teacher
+              review, the official transcript, and the WASC-accredited diploma.
             </p>
           </div>
         </div>
