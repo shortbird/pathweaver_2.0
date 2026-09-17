@@ -7,7 +7,7 @@ vi.mock('react-hot-toast', () => ({
 }))
 
 const { api } = vi.hoisted(() => ({
-  api: { put: vi.fn(() => Promise.resolve({ data: {} })) },
+  api: { patch: vi.fn(() => Promise.resolve({ data: {} })) },
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
@@ -28,11 +28,9 @@ describe('EnrollmentAgeGatesCard', () => {
     fireEvent.change(screen.getByLabelText('Maximum age'), { target: { value: '9' } })
     fireEvent.click(screen.getByRole('button', { name: 'Waitlist this age group' }))
     await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', expect.objectContaining({
-        feature_flags: expect.objectContaining({
-          sis_settings: expect.objectContaining({
-            enrollment_age_gates: [{ min_age: 5, max_age: 9, mode: 'waitlist' }],
-          }),
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/settings?organization_id=org-1', expect.objectContaining({
+        sis_settings: expect.objectContaining({
+          enrollment_age_gates: [{ min_age: 5, max_age: 9, mode: 'waitlist' }],
         }),
       })),
     )
@@ -45,10 +43,8 @@ describe('EnrollmentAgeGatesCard', () => {
     expect(await screen.findByText(/Ages 5–9/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Open this group' }))
     await waitFor(() =>
-      expect(api.put).toHaveBeenCalledWith('/api/admin/organizations/org-1', expect.objectContaining({
-        feature_flags: expect.objectContaining({
-          sis_settings: expect.objectContaining({ enrollment_age_gates: [] }),
-        }),
+      expect(api.patch).toHaveBeenCalledWith('/api/sis/settings?organization_id=org-1', expect.objectContaining({
+        sis_settings: expect.objectContaining({ enrollment_age_gates: [] }),
       })),
     )
   })

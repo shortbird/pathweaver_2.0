@@ -1,4 +1,5 @@
 import React from 'react'
+import ColumnPicker from '../../../components/sis/ColumnPicker'
 
 /**
  * The generic report output: an optional column picker, then a table whose
@@ -18,25 +19,16 @@ export default function ReportTable({
         <fieldset className="no-print mb-4 rounded-lg border border-gray-200 bg-neutral-50/60 px-3 py-2">
           <legend className="sr-only">Columns</legend>
           <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Columns</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5">
-            {report.fields.map((f) => (
-              <label key={f.key} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  aria-label={f.label}
-                  className="mt-0.5 accent-optio-purple shrink-0"
-                  checked={report.selected.includes(f.key)}
-                  disabled={lockedColumn(f.key)}
-                  title={lockedColumn(f.key) ? 'Needed while waitlisted students are included' : undefined}
-                  onChange={() => onToggleColumn(f.key)}
-                />
-                <span className="leading-tight">
-                  <span className="block font-medium text-neutral-800">{f.label}</span>
-                  {f.hint && <span className="block text-[11px] text-neutral-500">{f.hint}</span>}
-                </span>
-              </label>
-            ))}
-          </div>
+          <ColumnPicker
+            columns={report.fields.map((f) => ({
+              ...f,
+              locked: lockedColumn(f.key),
+              lockedTitle: 'Needed while waitlisted students are included',
+            }))}
+            selected={report.selected}
+            onToggle={onToggleColumn}
+            columnsClass="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5"
+          />
         </fieldset>
       )}
       {rows.length === 0 ? (

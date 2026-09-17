@@ -12,10 +12,8 @@ for them rather than the whole profile withheld -- it also carries the
 emergency contact and work schedule, which they do need.
 """
 
-import csv
-import io
 
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
@@ -29,6 +27,7 @@ from services import sis_form_template_service as form_templates
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
 from utils.sis_roles import ADMIN_ROLES, FINANCE_ROLES
+from utils.csv_response import csv_response
 
 logger = get_logger(__name__)
 
@@ -627,15 +626,11 @@ def payroll_csv(user_id):
     start, end, perr = _period_or_error()
     if perr:
         return perr
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['Employee', 'Payroll ID', 'Pay Period', 'Date', 'Job/Class',
-                     'Hours', 'Hourly Rate', 'Amount', 'Notes', 'Status'])
-    for row in staff.payroll_rows(org_id, start, end):
-        writer.writerow(row)
-    return Response(
-        buf.getvalue(), mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename=payroll_{start}_{end}.csv'})
+    return csv_response(
+        f'payroll_{start}_{end}.csv',
+        ['Employee', 'Payroll ID', 'Pay Period', 'Date', 'Job/Class',
+         'Hours', 'Hourly Rate', 'Amount', 'Notes', 'Status'],
+        staff.payroll_rows(org_id, start, end))
 
 
 @bp.route('/staff-roster.csv', methods=['GET'])
@@ -656,21 +651,18 @@ def staff_roster_csv(user_id):
     # which is a different and wrong statement. Position and Active stay: those
     # are what the front office runs the campus on.
     sees_pay = sis_service.caller_sees_pay(user_id)
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['Name', 'Email', 'Roles', 'Position']
-                    + (['Staff Type', 'Pay Type', 'Payroll ID',
-                        'Start Date', 'End Date'] if sees_pay else [])
-                    + ['Active', 'Last Active'])
-    for s in rows:
+    header = (['Name', 'Email', 'Roles', 'Position']
+              + (['Staff Type', 'Pay Type', 'Payroll ID',
+                  'Start Date', 'End Date'] if sees_pay else [])
+              + ['Active', 'Last Active'])
+
+    def _row(s):
         p = profiles.get(s['id']) or {}
-        writer.writerow([
+        return ([
             s['name'], s.get('email') or '', ', '.join(s.get('role_labels') or []),
             p.get('position') or '',
         ] + ([p.get('staff_type') or '', p.get('pay_type') or '', p.get('payroll_id') or '',
               p.get('start_date') or '', p.get('end_date') or ''] if sees_pay else []) + [
             'No' if p.get('is_active') is False else 'Yes', s.get('last_active') or '',
         ])
-    return Response(
-        buf.getvalue(), mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=staff_roster.csv'})
+    return csv_response('staff_roster.csv', header, (_row(s) for s in rows))

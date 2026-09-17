@@ -505,3 +505,20 @@
 .rich-body > :last-child {
   margin-bottom: 0;
 }
+
+/* Printing one part of a page: utils/printView.js marks the print area and
+   the body, and this is the one stylesheet behind every SIS Print button.
+   Anything marked no-print inside the area stays off the paper. */
+@media print {
+  body.sis-printing * { visibility: hidden; }
+  body.sis-printing .sis-print-area,
+  body.sis-printing .sis-print-area * { visibility: visible; }
+  body.sis-printing .sis-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  body.sis-printing .no-print { display: none !important; }
+  /* Print the whole thing, not the slice that happens to be scrolled into view. */
+  body.sis-printing .modal-scroll,
+  body.sis-printing .sis-print-area .overflow-y-auto { overflow: visible !important; max-height: none !important; }
+  /* Block and day rosters: one per page, the way they are read. */
+  .sis-block + .sis-block { break-before: page; }
+  .sis-day-section + .sis-day-section { break-before: page; }
+}

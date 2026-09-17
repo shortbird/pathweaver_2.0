@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { canSeeHr } from './sisRole'
 import BackToDashboard from '../../components/sis/BackToDashboard'
@@ -67,7 +66,7 @@ const PRIMARY_ACTION = {
 
 const TaskCenterPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [searchParams, setSearchParams] = useSearchParams()
   const hr = canSeeHr(user)
   const showDocuments = hr && !isPathHidden('/secure-documents', activeOrg)
@@ -190,7 +189,6 @@ const TaskCenterPage = () => {
                 </>
               )}
             </div>
-            <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">

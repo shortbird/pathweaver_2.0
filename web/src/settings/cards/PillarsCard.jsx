@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Squares2X2Icon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * Optio's five pillars (STEM / Wellness / Communication / Civics / Art). On by
@@ -25,9 +25,7 @@ export default function PillarsCard({ orgId, org, onUpdate }) {
     const newValue = !hidePillars
     setSaving(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: { ...(org?.feature_flags || {}), hide_pillars: newValue },
-      })
+      await patchSisSettings(orgId, { hide_pillars: newValue })
       setHidePillars(newValue)
       onUpdate?.()
     } catch (error) {

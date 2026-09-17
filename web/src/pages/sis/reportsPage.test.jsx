@@ -544,11 +544,13 @@ describe('Day rosters', () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
     render(<DayRosters days={DAYS} />)
     fireEvent.click(screen.getByRole('button', { name: 'Print Tuesday' }))
-    // The body class is what the print stylesheet keys off to hide the rest.
-    expect(document.body.classList.contains('printing-one-day')).toBe(true)
+    // The body class is what the one print stylesheet (index.css, via
+    // utils/printView.js) keys off to hide everything but the marked area.
+    expect(document.body.classList.contains('sis-printing')).toBe(true)
+    expect(document.getElementById('sis-day-2').classList.contains('sis-print-area')).toBe(true)
     expect(print).toHaveBeenCalled()
     window.dispatchEvent(new Event('afterprint'))
-    expect(document.body.classList.contains('printing-one-day')).toBe(false)
+    expect(document.body.classList.contains('sis-printing')).toBe(false)
     print.mockRestore()
   })
 
@@ -611,10 +613,10 @@ describe('Block rosters', () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
     render(<BlockRosters days={DAYS} day="2" onDayChange={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Print Block 1' }))
-    expect(document.body.classList.contains('printing-one-day')).toBe(true)
+    expect(document.body.classList.contains('sis-printing')).toBe(true)
     expect(print).toHaveBeenCalled()
     window.dispatchEvent(new Event('afterprint'))
-    expect(document.body.classList.contains('printing-one-day')).toBe(false)
+    expect(document.body.classList.contains('sis-printing')).toBe(false)
     print.mockRestore()
   })
 

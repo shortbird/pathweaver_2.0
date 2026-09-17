@@ -9,7 +9,6 @@ import { sisPeopleApi } from '../../hooks/api/useSisPeople'
 import { queryKeys } from '../../utils/queryKeys'
 import Button from '../../components/ui/Button'
 import { useSisOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
 import FamilyDetailModal from './FamilyDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
@@ -78,7 +77,7 @@ const asStaffRow = (r) => ({
 })
 
 const PeoplePage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, canViewAs } = useSisOrg()
+  const { orgId, canViewAs } = useSisOrg()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
@@ -210,7 +209,6 @@ const PeoplePage = () => {
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="text-2xl font-bold text-neutral-900">People</h1>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visible.length}
             title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
           <div className="relative">

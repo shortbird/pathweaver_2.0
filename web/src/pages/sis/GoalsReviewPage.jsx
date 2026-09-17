@@ -4,7 +4,6 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import FamilyGoalsPage from '../FamilyGoalsPage'
 import StatusPill from '../../components/sis/ui/StatusPill'
 import { statusLabel } from '../../components/sis/ui/statusMaps'
@@ -105,7 +104,7 @@ const GoalDetail = ({ goal, orgId, onClose, onReviewed }) => {
 }
 
 const GoalsReviewPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   const [goals, setGoals] = useState(null)
   const [config, setConfig] = useState(null)
   const [year, setYear] = useState('')
@@ -135,7 +134,6 @@ const GoalsReviewPage = () => {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Goals</h1>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           <Button variant="secondary" size="sm" onClick={() => setPreviewing(true)}>
             Preview family view
           </Button>

@@ -5,7 +5,6 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { classLabel, meetingText } from '../../components/sis/classLabel'
 import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
@@ -39,7 +38,7 @@ const today = () => {
 
 const AttendancePage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [classes, setClasses] = useState([])
   const [classId, setClassId] = useState('')
   const [date, setDate] = useState(today())
@@ -175,7 +174,6 @@ const AttendancePage = () => {
             </Link>
           )}
         </div>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       {myClasses.length > 0 && (

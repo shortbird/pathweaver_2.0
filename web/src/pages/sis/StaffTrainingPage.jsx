@@ -6,7 +6,6 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -540,7 +539,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
 const StaffTrainingPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  const { orgId, activeOrg } = useSisOrg()
   // The default header image, so the builder and the preview show what will
   // actually be used rather than a placeholder.
   const orgLogo = activeOrg?.branding_config?.logo_url || null
@@ -677,7 +676,6 @@ const StaffTrainingPage = () => {
     <div>
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-neutral-900">Training</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
         {admin

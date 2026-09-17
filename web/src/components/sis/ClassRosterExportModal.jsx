@@ -4,6 +4,10 @@ import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
 import Button from '../ui/Button'
 import { withOrg } from '../../pages/sis/useSisOrg'
+import ColumnPicker from './ColumnPicker'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { toCsv, downloadCsv as saveCsv, dateStamp } from '../../utils/csv'
+import { printElement } from '../../utils/printView'
 
 /**
  * Print a class roster, or download it as a CSV.
@@ -85,21 +89,12 @@ const COLUMNS = [
 
 const DEFAULT_KEYS = ['name', 'age', 'guardians', 'household_phone', 'allergies']
 
-const cell = (v) => {
-  const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
 const slug = (s) => (s || 'class').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 export default function ClassRosterExportModal({ classId, className, orgId, onClose }) {
   const [students, setStudents] = useState(null)
-  const [keys, setKeys] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
-      if (Array.isArray(saved) && saved.length) return saved
-    } catch { /* first run, or a browser that refuses storage */ }
-    return DEFAULT_KEYS
+  const [keys, setKeys] = usePersistedChoice(STORE_KEY, DEFAULT_KEYS, {
+    validate: (saved) => (Array.isArray(saved) && saved.length ? saved : null),
   })
 
   useEffect(() => {
@@ -117,66 +112,32 @@ export default function ClassRosterExportModal({ classId, className, orgId, onCl
   const chosen = useMemo(
     () => COLUMNS.filter((c) => c.always || keys.includes(c.key)), [keys])
 
-  const toggle = (key) => setKeys((prev) => {
-    const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-    return next
-  })
+  const toggle = (key) => setKeys((prev) => (
+    prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
 
   const rows = students || []
 
   const downloadCsv = () => {
     if (!rows.length) { toast.error('Nothing to export'); return }
-    const csv = [
-      chosen.map((c) => cell(c.label)).join(','),
-      ...rows.map((s) => chosen.map((c) => cell(c.get(s))).join(',')),
-    ].join('\r\n')
-    // The BOM is what makes Excel open a UTF-8 CSV without mangling accented
-    // names — same as the people export.
-    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `roster-${slug(className)}-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const csv = toCsv(chosen.map((c) => c.label), rows.map((s) => chosen.map((c) => c.get(s))))
+    saveCsv(csv, `roster-${slug(className)}-${dateStamp()}.csv`)
     toast.success(`Exported ${rows.length} student${rows.length === 1 ? '' : 's'}`)
   }
 
-  const print = () => { try { window.print() } catch { /* jsdom */ } }
+  const print = () => printElement('.sis-roster-print')
 
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5 space-y-4 sis-roster-export"
         role="dialog" aria-modal="true" aria-label="Print or export the class roster">
-        {/* Reduce the printed page to the roster table: no modal chrome, no
-            app shell, no column picker. */}
-        <style>{`
-          @media print {
-            body * { visibility: hidden; }
-            .sis-roster-print, .sis-roster-print * { visibility: visible; }
-            .sis-roster-print { position: absolute; left: 0; top: 0; width: 100%; }
-            .sis-roster-noprint { display: none !important; }
-          }
-        `}</style>
-
-        <div className="flex items-center justify-between sis-roster-noprint">
+        <div className="flex items-center justify-between no-print">
           <h2 className="text-lg font-semibold text-neutral-900">Roster — {className}</h2>
           <button onClick={onClose} className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
         </div>
 
-        <div className="sis-roster-noprint">
+        <div className="no-print">
           <span className="block text-xs font-medium text-neutral-500 mb-1.5">Columns</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-            {COLUMNS.map((c) => (
-              <label key={c.key}
-                className={`flex items-center gap-1.5 text-sm ${c.always ? 'text-neutral-400' : 'text-neutral-700 cursor-pointer'}`}>
-                <input type="checkbox" checked={c.always || keys.includes(c.key)}
-                  disabled={c.always} onChange={() => toggle(c.key)}
-                  className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
-                {c.label}
-              </label>
-            ))}
-          </div>
+          <ColumnPicker columns={COLUMNS} selected={keys} onToggle={toggle} />
         </div>
 
         {students === null && <p className="text-sm text-neutral-400">Loading…</p>}
@@ -216,7 +177,7 @@ export default function ClassRosterExportModal({ classId, className, orgId, onCl
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-1 sis-roster-noprint">
+        <div className="flex items-center justify-between pt-1 no-print">
           <span className="text-xs text-neutral-500">
             {rows.length} student{rows.length === 1 ? '' : 's'} · {chosen.length} columns
           </span>

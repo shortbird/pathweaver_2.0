@@ -33,6 +33,7 @@ from utils.storage_urls import (
     sign_in_place,
     sign_stored_url,
 )
+from utils.csv_response import csv_response
 
 logger = get_logger(__name__)
 
@@ -1046,22 +1047,15 @@ def roster_csv(user_id):
     if err:
         return err
     roster = sis_service.get_roster(org_id)
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['Name', 'Role', 'Email', 'Username', 'Enrollment Status',
-                     'Grade Level', 'Household', 'Total XP', 'Last Active'])
-    for r in roster:
-        writer.writerow([
-            r['name'], r.get('role') or '', r.get('email') or '', r.get('username') or '',
-            r.get('enrollment_status') or '', r.get('grade_level') or '',
-            r.get('household_name') or '', r.get('total_xp') or 0,
-            r.get('last_active') or '',
-        ])
-    return Response(
-        buf.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=roster.csv'},
-    )
+    return csv_response(
+        'roster.csv',
+        ['Name', 'Role', 'Email', 'Username', 'Enrollment Status',
+         'Grade Level', 'Household', 'Total XP', 'Last Active'],
+        ([r['name'], r.get('role') or '', r.get('email') or '', r.get('username') or '',
+          r.get('enrollment_status') or '', r.get('grade_level') or '',
+          r.get('household_name') or '', r.get('total_xp') or 0,
+          r.get('last_active') or '']
+         for r in roster))
 
 
 def register_sis_routes(app):
@@ -1134,6 +1128,7 @@ def register_sis_routes(app):
     from routes.sis.messaging import bp as messaging_bp
     from routes.sis.quest_resources import bp as quest_resources_bp
     from routes.sis.internal import bp as internal_bp
+    from routes.sis.settings import bp as settings_bp
 
     for blueprint, module_key in (
         (bp, 'sis'),                        # people/households/roster core
@@ -1172,6 +1167,7 @@ def register_sis_routes(app):
         (engagement_bp, 'classes'),
         (goals_bp, 'goals'),
         (student_records_bp, 'sis'),
+        (settings_bp, 'sis'),
         (community_bp, 'community'),
         # P3: the staff surfaces get the 'sis' baseline (their per-feature
         # tags are on the routes); the two single-module family blueprints
@@ -1230,3 +1226,4 @@ def register_sis_routes(app):
     # The seven cron sweeps, declared in one place and not module-gated: a
     # sweep is about every org at once (routes/sis/internal.py says why).
     app.register_blueprint(internal_bp)
+    app.register_blueprint(settings_bp)

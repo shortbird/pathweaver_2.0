@@ -5,7 +5,6 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 
@@ -179,7 +178,7 @@ export const MyDocumentsPanel = ({ orgId, preview = null }) => {
 }
 
 const MyDocumentsPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [preview] = useState(() => getPreviewTeacher())
   const who = preview ? preview.name : null
 
@@ -190,7 +189,6 @@ const MyDocumentsPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">
           {who ? `${who}'s documents` : 'My Documents'}
         </h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
       <p className="text-sm text-neutral-500 mb-6">
         {who

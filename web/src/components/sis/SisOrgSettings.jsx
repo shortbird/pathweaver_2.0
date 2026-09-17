@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { moduleEnabled } from '../../modules/moduleEnabled'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 // The shared org identity + features card (settings/settingsRegistry.jsx
 // renders it on BOTH surfaces since blocks P3). Organization details +
@@ -81,12 +82,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
     if (cents != null && (Number.isNaN(cents) || cents < 0)) return toast.error('Enter a valid tuition amount')
     setSavingTuition(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...(org.feature_flags?.sis_settings || {}), optio_course_tuition_cents: cents },
-        },
-      })
+      await patchSisSettings(orgId, { sis_settings: { optio_course_tuition_cents: cents } })
       toast.success(cents != null ? 'Optio course tuition saved' : 'Optio course tuition cleared')
       onUpdate && onUpdate()
     } catch (e) {
@@ -110,12 +106,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
     if (value != null && (Number.isNaN(value) || value < 0)) return toast.error('Enter a valid amount')
     setSavingAllowance(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...(org.feature_flags?.sis_settings || {}), supply_budget_per_student: value },
-        },
-      })
+      await patchSisSettings(orgId, { sis_settings: { supply_budget_per_student: value } })
       toast.success(value != null ? 'Materials allowance saved' : 'Materials allowance cleared')
       onUpdate && onUpdate()
     } catch (e) {
@@ -170,10 +161,24 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
     } finally { setSavingToggle(false) }
   }
 
+  // The AI entitlements are columns on the organization row and go through
+  // the admin console's PUT; every setting inside feature_flags goes through
+  // the settings PATCH, one key at a time.
   const toggleField = async (payload, apply) => {
     setSavingToggle(true)
     try {
       await api.put(`/api/admin/organizations/${orgId}`, payload)
+      apply()
+      onUpdate && onUpdate()
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to update setting')
+    } finally { setSavingToggle(false) }
+  }
+
+  const toggleSetting = async (patch, apply) => {
+    setSavingToggle(true)
+    try {
+      await patchSisSettings(orgId, patch)
       apply()
       onUpdate && onUpdate()
     } catch (e) {
@@ -284,11 +289,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             label="Optio courses"
             description="Families can add Optio courses as at-home learning in the Schedule Builder"
             on={optioCourses} disabled={savingToggle}
-            onClick={() => toggleField(
-              { feature_flags: {
-                ...(org.feature_flags || {}),
-                sis_settings: { ...(org.feature_flags?.sis_settings || {}), optio_courses_enabled: !optioCourses },
-              } },
+            onClick={() => toggleSetting(
+              { sis_settings: { optio_courses_enabled: !optioCourses } },
               () => setOptioCourses(!optioCourses),
             )}
           />
@@ -339,12 +341,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             label="Family directory lists everyone by default"
             description="On: every family appears in the family directory unless they choose to be left out. Off: a family only appears once they opt in. Either way, each family picks whether their email, phone and street address are shown."
             on={directoryDefaultIn} disabled={savingToggle}
-            onClick={() => toggleField(
-              { feature_flags: {
-                ...(org.feature_flags || {}),
-                sis_settings: { ...(org.feature_flags?.sis_settings || {}),
-                                directory_default_in: !directoryDefaultIn },
-              } },
+            onClick={() => toggleSetting(
+              { sis_settings: { directory_default_in: !directoryDefaultIn } },
               () => setDirectoryDefaultIn(!directoryDefaultIn),
             )}
           />
@@ -353,8 +351,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             label="Public bounties"
             description="Students also see the platform-wide public bounty board. Bounties your organization posts always show."
             on={showPublicJobs} disabled={savingToggle}
-            onClick={() => toggleField(
-              { feature_flags: { ...(org.feature_flags || {}), hide_public_bounties: showPublicJobs } },
+            onClick={() => toggleSetting(
+              { hide_public_bounties: showPublicJobs },
               () => setShowPublicJobs(!showPublicJobs),
             )}
           />
@@ -362,8 +360,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             label="Only teachers can set task XP"
             description="Students keep creating and editing their own tasks, but the XP value is set by the platform and can only be changed by teachers and org admins. Leave off to let students size their own work."
             on={lockXpEditing} disabled={savingToggle}
-            onClick={() => toggleField(
-              { feature_flags: { ...(org.feature_flags || {}), lock_xp_editing: !lockXpEditing } },
+            onClick={() => toggleSetting(
+              { lock_xp_editing: !lockXpEditing },
               () => setLockXpEditing(!lockXpEditing),
             )}
           />
@@ -371,8 +369,8 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             label="Weekly XP goals"
             description="Lets students, parents, and teachers set a weekly XP target that shows on the student's profile with live progress. Off by default; the goal is a target, not a grade."
             on={xpGoals} disabled={savingToggle}
-            onClick={() => toggleField(
-              { feature_flags: { ...(org.feature_flags || {}), xp_goals: !xpGoals } },
+            onClick={() => toggleSetting(
+              { xp_goals: !xpGoals },
               () => setXpGoals(!xpGoals),
             )}
           />

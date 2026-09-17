@@ -29,7 +29,6 @@ import StaffComposeModal from '../../components/sis/StaffComposeModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 
 /**
  * SchoolInboxPage — messages and announcements in one place (/inbox).
@@ -85,7 +84,7 @@ const memberName = (convo) =>
   convo.other_user?.display_name || 'Member'
 
 const SchoolInboxPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, isSuperadmin } = useSisOrg()
   const { user } = useAuth()
   const queryClient = useQueryClient()
   // Whether this caller has a school inbox to read at all. The backend is the
@@ -388,7 +387,6 @@ const SchoolInboxPage = () => {
             {isMessages && totalUnread > 0 && ` ${totalUnread} unread.`}
           </p>
         </div>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">

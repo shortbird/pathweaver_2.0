@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import StatusPill from '../../components/sis/ui/StatusPill'
@@ -24,7 +23,7 @@ const defaultPeriod = () => {
 
 
 const MyTimePage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [{ start, end }, setPeriod] = useState(defaultPeriod())
   const [data, setData] = useState({ entries: [], total_hours: 0, forgot_clock_out: [] })
   const [openEntry, setOpenEntry] = useState(null)
@@ -68,7 +67,6 @@ const MyTimePage = () => {
         <BackToDashboard className="mb-1" />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-neutral-900">My Time</h1>
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
 

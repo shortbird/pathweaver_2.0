@@ -177,83 +177,22 @@ def update_organization(current_user_id, current_org_id, is_superadmin, org_id):
 
                 update_data['slug'] = new_slug
 
-        # The Stripe secret key is submitted through the same feature_flags blob
-        # the settings UI round-trips, but it must never be STORED there:
-        # organizations.feature_flags is anon-readable by row policy (RLS filters
-        # rows, not columns) and is echoed to clients, which is how a live key
-        # reached the public internet -- AUDIT.md C1. Divert it to
-        # organization_secrets and strip it from the blob before any write.
-        #
-        # `absent` vs `empty string` matters: the settings UI PUTs the whole blob
-        # back, and it does not receive the key (by design), so a plain PUT must
-        # LEAVE the stored key alone. Only an explicit empty string clears it.
-        from utils.org_secrets import (
-            STRIPE_SECRET_KEY, secret_shaped_keys, set_org_secret,
-            strip_secrets_from_feature_flags,
-        )
+        # The feature_flags blob: the guards (superadmin-owned `modules`
+        # restored, finance paths held for non-finance writers, the Stripe key
+        # diverted to organization_secrets, credential-shaped keys refused)
+        # live in org_settings_service, shared with the SIS settings PATCH
+        # that is the other door onto this column.
+        from utils.org_secrets import STRIPE_SECRET_KEY, set_org_secret, strip_secrets_from_feature_flags
+        from services.org_settings_service import FlagsRejected, clean_feature_flags
 
         incoming_flags = update_data.get('feature_flags')
-
-        # Guarded blob write: restores superadmin-owned `modules`, merges the
-        # finance paths for non-finance writers — org_finance_flags.guard_org_flags_write.
-        if isinstance(incoming_flags, dict) and not is_superadmin:
-            from utils.org_finance_flags import guard_org_flags_write
-            from repositories.organization_repository import OrganizationRepository as _OrgRepo
-            stored_flags = (_OrgRepo().find_by_id(org_id) or {}).get('feature_flags') or {}
-            incoming_flags, blocked = guard_org_flags_write(stored_flags, incoming_flags, sees_finance)
-            if blocked:
-                return jsonify({'error': 'Tuition and registration fees are managed by an organization admin.', 'fields': blocked}), 403
-            update_data['feature_flags'] = incoming_flags
-
         submitted_key = None
         if isinstance(incoming_flags, dict):
-            # The funnel config lives at 'registration' (org-neutral key); the
-            # legacy 'icreate_registration' mirror is checked for stale tabs.
-            for reg_key in ('registration', 'icreate_registration'):
-                reg = incoming_flags.get(reg_key)
-                if isinstance(reg, dict) and STRIPE_SECRET_KEY in reg:
-                    submitted_key = (reg.get(STRIPE_SECRET_KEY) or '').strip()
-                    break
-
-        # The card-payment credential is finance: a coordinator may not set it,
-        # and may not clear it either.
-        if submitted_key is not None and not sees_finance:
-            return jsonify({'error': 'Card payment settings are managed by an '
-                                     'organization admin.'}), 403
-
-        # A malformed Stripe key breaks the iCreate registration funnel at the
-        # "Pay securely" step, so reject it at save time. Secret keys are sk_…
-        # (or restricted rk_…); loose enough for legacy keys without live/test.
-        if submitted_key and not re.match(r'^(sk|rk)_[A-Za-z0-9_]{20,}$', submitted_key):
-            return jsonify({'error': "That doesn't look like a Stripe secret key — it should start with "
-                                     "sk_live_ or rk_live_. Copy the full key from Stripe Dashboard -> "
-                                     "Developers -> API keys."}), 400
-
-        # Always strip, even when nothing was submitted: a stale tab can PUT back
-        # a blob that still carries the pre-migration nested key.
-        if isinstance(incoming_flags, dict):
-            cleaned_flags = strip_secrets_from_feature_flags(incoming_flags)
-
-            # Refuse to store any OTHER credential-shaped key. This is the guard
-            # that stops the next stripe_secret_key: feature_flags is anon-readable
-            # by row policy and is echoed to every org member, so a credential in
-            # here is public by construction. Named explicitly so the admin knows
-            # what to remove rather than seeing a generic 400.
-            suspicious = secret_shaped_keys(cleaned_flags)
-            if suspicious:
-                return jsonify({
-                    'error': 'Credentials cannot be stored in organization settings.',
-                    'message': (
-                        'These fields look like secrets and would be readable by '
-                        'everyone in the organization: '
-                        + ', '.join(suspicious)
-                        + '. Secrets belong in organization_secrets — ask an Optio '
-                          'admin to add a dedicated field for this credential.'
-                    ),
-                    'fields': suspicious,
-                }), 400
-
-            update_data['feature_flags'] = cleaned_flags
+            try:
+                update_data['feature_flags'], submitted_key = clean_feature_flags(
+                    org_id, incoming_flags, sees_finance=sees_finance, is_superadmin=is_superadmin)
+            except FlagsRejected as rejected:
+                return jsonify(rejected.body), rejected.status
 
         service = OrganizationService()
         org = None

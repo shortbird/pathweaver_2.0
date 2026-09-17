@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import AgeExceptionRequestsCard from '../../components/sis/AgeExceptionRequestsCard'
 import AddToWaitlistModal from '../../components/sis/AddToWaitlistModal'
 import RegistrationSetupTab from '../../components/sis/RegistrationSetupTab'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { useOrgSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * SIS Registration page — everything about how families register, in two tabs:
@@ -30,33 +30,16 @@ const TABS = [
 ]
 
 const RegistrationPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin, loading: orgLoading } = useSisOrg()
-  const [orgData, setOrgData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { orgId, loading: orgLoading } = useSisOrg()
+  const { data: orgData, loading, reload: fetchOrg } = useOrgSettings(orgId)
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') === 'queues' ? 'queues' : 'setup'
   const setTab = (t) => setSearchParams(t === 'setup' ? {} : { tab: t }, { replace: true })
-
-  const fetchOrg = useCallback((options = {}) => {
-    const showSpinner = options?.showSpinner ?? false
-    if (!orgId) { setOrgData(null); setLoading(false); return }
-    if (showSpinner) setLoading(true)
-    api.get(`/api/admin/organizations/${orgId}`)
-      .then((r) => setOrgData(r.data))
-      .catch(() => setOrgData(null))
-      .finally(() => setLoading(false))
-  }, [orgId])
-
-  useEffect(() => {
-    setOrgData(null)
-    fetchOrg({ showSpinner: true })
-  }, [orgId, fetchOrg])
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Registration</h1>
-        <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
       </div>
 
       <div className="flex items-center gap-1 border-b border-gray-200 mb-6">

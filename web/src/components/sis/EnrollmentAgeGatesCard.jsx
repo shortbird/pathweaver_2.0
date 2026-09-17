@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 /**
  * Enrollment age groups (organizations.feature_flags.sis_settings.enrollment_age_gates).
@@ -10,8 +10,10 @@ import api from '../../services/api'
  * students already waiting stay on the list until released from the Enrollment
  * waitlist card (on the Registration page).
  *
- * Lives on the SIS Settings page (Registration & enrollment). Props mirror the
- * other org-settings cards: orgId, org (the organization row), onUpdate.
+ * Lives on the Registration page's setup tab, inside the family step of the
+ * funnel preview, beside the first-day-of-school card the ages are judged
+ * against -- its one mount. Props mirror the other org-settings cards: orgId,
+ * org (the organization row), onUpdate.
  */
 const EnrollmentAgeGatesCard = ({ orgId, org, onUpdate }) => {
   const settings = org.feature_flags?.sis_settings || {}
@@ -25,12 +27,7 @@ const EnrollmentAgeGatesCard = ({ orgId, org, onUpdate }) => {
     const prev = gates
     setGates(next)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...settings, enrollment_age_gates: next },
-        },
-      })
+      await patchSisSettings(orgId, { sis_settings: { enrollment_age_gates: next } })
       toast.success('Age groups saved')
       onUpdate && onUpdate()
     } catch (e) {

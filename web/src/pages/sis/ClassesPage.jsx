@@ -12,7 +12,6 @@ import {
 import {
   useSisScheduleConflicts, useConflictsPatch, acknowledgeScheduleConflict,
 } from '../../hooks/api/useSisScheduleConflicts'
-import SisOrgPicker from './SisOrgPicker'
 import CreateClassModal from '../../components/sis/CreateClassModal'
 import ScheduleAiEditor from '../../components/sis/ScheduleAiEditor'
 import ScheduleSyncModal from '../../components/sis/ScheduleSyncModal'
@@ -32,6 +31,7 @@ import CourseCard from './classesPage/CourseCard'
 import CourseDetailModal from './classesPage/CourseDetailModal'
 import ClassDetailModal from './classesPage/ClassDetailModal'
 import OPTIO_COURSE_FEE from './classesPage/OPTIO_COURSE_FEE'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
 // "HH:MM" + minutes -> "HH:MM:00" for the meetings API.
@@ -176,7 +176,7 @@ const ClassesPage = () => {
   // Not while previewing a teacher: the catalog's admin-only reads (staff,
   // course settings) are refused for the previewed role.
   const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, orgs, isSuperadmin } = useSisOrg()
   const { organization } = useOrganization()
   const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
   // showArchived is declared below but read here: both queries key on it.
@@ -203,13 +203,9 @@ const ClassesPage = () => {
   // on the page, so it asked staff to bulk-publish a set they could not see.
   const [closedOnly, setClosedOnly] = useState(false)
   // cards | table — table is the spreadsheet view of the org's classes.
-  const [view, setViewState] = useState(() => {
-    try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
+  const [view, setView] = usePersistedChoice('sis_classes_view', 'table', {
+    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
   })
-  const setView = (v) => {
-    setViewState(v)
-    try { localStorage.setItem('sis_classes_view', v) } catch { /* ignore */ }
-  }
 
   const catalog = useSisClassCatalog(orgId, { showArchived, isAdmin })
   const conflicts = useSisScheduleConflicts(orgId)
@@ -628,7 +624,6 @@ const ClassesPage = () => {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-neutral-900">Classes</h1>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           {tab === 'classes' && (
             <Button size="sm" onClick={() => setCreating(true)} disabled={!orgId}>Create class</Button>
           )}

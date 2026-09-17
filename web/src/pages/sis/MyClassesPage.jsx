@@ -4,9 +4,9 @@ import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, CalendarDaysIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 
 /**
  * MyClassesPage — the teacher's classes with meeting times and roster counts.
@@ -36,17 +36,13 @@ const meetingLabel = (m) => {
 }
 
 const MyClassesPage = () => {
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const navigate = useNavigate()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState(() => {
-    try { return localStorage.getItem('sis_my_classes_view') || 'cards' } catch { return 'cards' }
+  const [view, setViewPersist] = usePersistedChoice('sis_my_classes_view', 'cards', {
+    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
   })
-  const setViewPersist = (v) => {
-    setView(v)
-    try { localStorage.setItem('sis_my_classes_view', v) } catch { /* ignore */ }
-  }
 
   useEffect(() => {
     if (!orgId) { setLoading(false); return }
@@ -93,7 +89,6 @@ const MyClassesPage = () => {
               <CalendarDaysIcon className="w-4 h-4" />
             </button>
           </div>
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
 

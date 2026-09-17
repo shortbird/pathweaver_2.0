@@ -6,6 +6,8 @@ import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
 import NotificationBell from '../notifications/NotificationBell'
 import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
+import { useSisOrg } from '../../pages/sis/useSisOrg'
+import SisOrgPicker from '../../pages/sis/SisOrgPicker'
 import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 
@@ -84,6 +86,10 @@ const SisLayout = () => {
 
   const admin = isSisAdmin(user)
   const previewing = Boolean(getPreviewTeacher())
+  // The org picker is chrome, mounted once here: a superadmin switches the
+  // school in view from the header on every page. Twenty-eight pages used to
+  // mount it in their own title row (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, L6).
+  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -123,7 +129,8 @@ const SisLayout = () => {
             <Bars3Icon className="w-6 h-6" />
           </button>
           <Link to="/" className="lg:hidden font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
             <NotificationBell />
           </div>
         </header>

@@ -3,7 +3,6 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import BackToDashboard from '../../components/sis/BackToDashboard'
@@ -22,7 +21,7 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
 const ResourcesPage = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const admin = isSisAdmin(user)
   const [resources, setResources] = useState([])
   const [paperwork, setPaperwork] = useState([]) // registration-form documents (linkable)
@@ -115,7 +114,6 @@ const ResourcesPage = () => {
           <h1 className="text-2xl font-bold text-neutral-900">Resources</h1>
         </div>
         <div className="flex items-center gap-3">
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
           {admin && !adding && <Button size="sm" onClick={() => setAdding(true)}>Add resource</Button>}
         </div>
       </div>

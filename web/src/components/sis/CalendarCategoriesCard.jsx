@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
+import { patchSisSettings } from '../../hooks/api/useSisSettings'
 
 const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -25,12 +25,7 @@ const CalendarCategoriesCard = ({ orgId, org, onUpdate }) => {
     const cleaned = [...new Set(categories.map((c) => c.trim()).filter(Boolean))]
     setSaving(true)
     try {
-      await api.put(`/api/admin/organizations/${orgId}`, {
-        feature_flags: {
-          ...(org.feature_flags || {}),
-          sis_settings: { ...settings, calendar_categories: cleaned.length ? cleaned : null },
-        },
-      })
+      await patchSisSettings(orgId, { sis_settings: { calendar_categories: cleaned.length ? cleaned : null } })
       setCategories(cleaned)
       toast.success('Calendar categories saved')
       onUpdate && onUpdate()

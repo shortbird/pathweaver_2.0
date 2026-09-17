@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useSisOrg, withOrg } from './useSisOrg'
-import SisOrgPicker from './SisOrgPicker'
 import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { getPreviewTeacher } from './teacherPreview'
@@ -574,7 +573,7 @@ export const AdminOnboarding = ({ orgId, onCount = null }) => {
 
 const OnboardingPage = () => {
   const { user } = useAuth()
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
   const openItemKey = searchParams.get('item')
   const admin = isSisAdmin(user)
@@ -586,7 +585,6 @@ const OnboardingPage = () => {
         <BackToDashboard className="mb-1" />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-neutral-900">Onboarding</h1>
-          <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
         </div>
       </div>
       {admin && !preview ? (

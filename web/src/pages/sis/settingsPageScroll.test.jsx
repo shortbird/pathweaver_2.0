@@ -45,7 +45,7 @@ describe('SettingsPage scroll position behavior', () => {
       }
       return Promise.resolve({ data: {} })
     })
-    api.put.mockResolvedValue({ data: { success: true } })
+    api.patch.mockResolvedValue({ data: { success: true, feature_flags: mockOrg.feature_flags } })
   })
 
   it('renders settings cards and updates org in background without unmounting/showing full spinner on save', async () => {
@@ -67,8 +67,9 @@ describe('SettingsPage scroll position behavior', () => {
     const saveBtn = screen.getByRole('button', { name: 'Save rooms' })
     fireEvent.click(saveBtn)
 
+    // The card saves its one key through the settings PATCH (M8a).
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalled()
+      expect(api.patch).toHaveBeenCalled()
     })
 
     // Expect api.get for organization to be called again for background refresh
