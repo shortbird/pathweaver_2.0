@@ -26,7 +26,7 @@ and patterns instead.
 
 | Move | Wave | Status | Commit | Baseline after |
 |---|---|---|---|---|
-| M0 Guards | 0 | shipped (branch `consolidate/m0-guards`, 2026-09-17) | filled in at merge | 51 rows frozen at the counts in `shared/sisConcepts.json` |
+| M0 Guards | 0 | shipped | `40e27712` | 51 rows frozen at the counts in `shared/sisConcepts.json` |
 | M1 One school voice | 0 | not started | | |
 | M3 One API hold gate | 0 | not started | | |
 | M8a One settings writer | 0 | not started | | |
