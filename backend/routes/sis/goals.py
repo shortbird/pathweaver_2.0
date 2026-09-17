@@ -109,23 +109,20 @@ def _sanitize_subjects(raw):
 
 
 def _notify(user_ids, title, message, organization_id=None):
-    """Best-effort in-app notification; never fails the request."""
+    """Best-effort in-app notification; never fails the request.
+
+    A private copy of sis_notifications.notify until M1
+    (docs/sis/CONSOLIDATION_PLAN.md), sent as 'announcement'.
+    """
+    from services import sis_notifications
     try:
-        from services.notification_service import NotificationService
-        service = NotificationService()
-        for uid in user_ids:
-            try:
-                service.create_notification(
-                    user_id=uid,
-                    notification_type='announcement',
-                    title=title,
-                    message=message,
-                    organization_id=organization_id,
-                )
-            except Exception as e:  # noqa: BLE001
-                logger.warning(f'goals: notification to {str(uid)[:8]} failed: {e}')
+        service = sis_notifications.shared_service()
     except Exception as e:  # noqa: BLE001
         logger.warning(f'goals: notification setup failed: {e}')
+        return
+    for uid in user_ids:
+        sis_notifications.notify(uid, title, message, organization_id=organization_id,
+                                 service=service)
 
 
 def _org_admin_ids(admin, org_id):

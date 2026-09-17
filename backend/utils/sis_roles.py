@@ -55,6 +55,18 @@ FINANCE_ROLES = ('org_admin', 'superadmin')
 # enforced per call inside the service (sis_service.caller_can_grant_privileged_role).
 ROLE_GRANT_ROLES = ('org_admin', 'superadmin')
 
+# Everyone with a seat in the school: the family-facing reads (the community
+# feed, the board as families see it). A parent has no organization_id of
+# their own, so the route resolves the org through membership; the tuple only
+# says who may ask.
+MEMBER_ROLES = ('student', 'parent', 'observer', 'advisor', 'org_admin', CAMPUS_COORDINATOR, 'superadmin')
+
+# The adults: guardians and staff. Family-authored writes (a carpool post) that
+# a student may not make and an observer has no standing to make. Until M1
+# (docs/sis/CONSOLIDATION_PLAN.md) this and MEMBER_ROLES were spelled by hand
+# on the three routes in routes/sis/community.py.
+ADULT_ROLES = ('parent', 'advisor', 'org_admin', CAMPUS_COORDINATOR, 'superadmin')
+
 # HR-confidential records: the secure-documents store (contracts, background
 # checks, custody/medical files). iCreate's coordinator requirements (2026-08-09)
 # are explicit that coordinators see operational information, not employment

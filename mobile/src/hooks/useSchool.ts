@@ -94,6 +94,9 @@ export interface ArchivedMessage {
   message?: string;
   content?: string;
   created_at: string;
+  /** True while the board post this send came from is on the board: the
+   *  feed shows the board copy and treats this row as its receipt. */
+  on_board?: boolean;
 }
 
 export interface AbsenceStudent {

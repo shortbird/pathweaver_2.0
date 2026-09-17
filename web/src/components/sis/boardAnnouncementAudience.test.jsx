@@ -102,6 +102,22 @@ describe('the audience a board post is written for', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.getByLabelText(/Visible to/).value).toBe('teachers')
   })
+
+  it('says on each posted item who can see it', () => {
+    /* "not sure how to tell if teacher-only announcements show for parents
+       too" (iCreate, 597ba9a4): the list showed a title and a date and no
+       audience at all. A whole-school post needs no chip; a narrower one does. */
+    announcements.current = [
+      { id: 'a1', title: 'Payroll cutoff', audience: 'teachers' },
+      { id: 'a2', title: 'Picture day', audience: 'families' },
+      { id: 'a3', title: 'Assembly', audience: 'school' },
+      { id: 'a4', title: 'Old admin note', audience: 'admins' },
+    ]
+    render(<BoardAnnouncementsTab orgId="org-1" admin />)
+    expect(screen.getAllByText('Staff only')).toHaveLength(2)
+    expect(screen.getByText('Families')).toBeInTheDocument()
+    expect(screen.getByText('Assembly').closest('div').textContent).not.toContain('Everyone at the school')
+  })
 })
 
 describe('what "Also notify people" says it will do', () => {

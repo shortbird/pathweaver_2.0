@@ -27,7 +27,7 @@ and patterns instead.
 | Move | Wave | Status | Commit | Baseline after |
 |---|---|---|---|---|
 | M0 Guards | 0 | shipped | `40e27712` | 51 rows frozen at the counts in `shared/sisConcepts.json` |
-| M1 One school voice | 0 | not started | | |
+| M1 One school voice | 0 | shipped | see git log (`consolidate/M1-school-voice`) | `announcement_publish` 1/0/0, `audience_vocabulary` 1, `role_tuple_literal` 0, `school_sender` 0, new `sis_notice_type` 0 |
 | M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
 | M8a One settings writer | 0 | shipped | see git log (`consolidate/M8a-settings-writer`) | `settings_write` 0, `registration_config_mirror` 0, `org_payload_fetch` 0 |
 | M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
@@ -309,6 +309,32 @@ with `revise_for_source`/`retract_for_source` folded into `post`/`revise`/`retra
 merges; (5) the two older message endpoints delegate; (6) notification types; (7)
 manifest rows `announcement_publish` → 0/0/0, `audience_vocabulary` → 1 (events
 adopt in M12), `role_tuple_literal` → 0, `school_sender` → 0.
+
+**As shipped (2026-09-17).** (1) done: `services/sis_audiences.py` holds the board,
+recipient and event vocabularies and the translation between them; the announcement
+and community services import it; the archive's role tuple is `ADMIN_ROLES`. (2)
+`publish` keeps its name — it already had one caller, `sis_community_service.post`,
+and `revise_for_source`/`retract_for_source` are already what `update_announcement`
+and `delete_announcement` call; renaming bought nothing. (3) not as one list: the
+archive is paged, searched and carries the read receipts a family reports, and the
+board feed is not, so folding them into one endpoint would have meant paging over a
+union. Instead the archive marks each send `on_board` while its source post is on
+the board (`sis_community_service.visible_announcement_ids`), and the four sends
+that predated the link column were linked in the data (`20260918170000`), so (4)
+both clients render what is not marked and neither compares titles or days any
+more. (5) `school_inbox_service.school_account(org)` and `send_as_school(...)` are
+the one resolver and the one sender; the school-inbox route, the contacts list,
+forward-to-school and the two People-page message endpoints go through them. (6)
+one type, `school_notice` (`20260918180000`, applied to prod and staging), for every
+`sis_notifications.notify` call and the goals route's private copy, with the mobile
+preference and the web renderer taught the word; the plan's three types were not
+worth three preference rows. Also: `MEMBER_ROLES` and `ADULT_ROLES` in `sis_roles.py`
+for `community.py`'s three tuples; the board list shows each post's audience chip
+(ticket `597ba9a4`). Not done, on purpose: `InboxUnreadBadge` keeps summing the
+caller's threads and the school's — two facts, one badge, not two implementations;
+`BoardAnnouncementsTab` stays mounted on `/inbox` and `/community`, one component,
+because Community is opt-in per org and `/inbox` is the door every org has;
+`registration_alerts` already used `sis_billing_alerts.recipients`.
 
 Verify at :3000 as iCreate admin: post a board announcement to Families with
 "also notify"; see it once on `/community`, once on `/inbox?tab=announcements`, once

@@ -4,8 +4,14 @@ SIS notifications — thin, best-effort wrapper over the existing NotificationSe
 SIS events (enrollment confirmed, waitlist seat offered, payment reminders) reuse the
 platform's in-app notification + Realtime + push pipeline. Delivery is best-effort:
 a notification failure must never break a registration/enrollment/billing operation,
-so every call is guarded. Uses the existing 'announcement' type so the notification
-bell renders it without any frontend change.
+so every call is guarded.
+
+Type 'school_notice' since M1 (docs/sis/CONSOLIDATION_PLAN.md): what the school's
+office did that concerns you -- a seat offered, an enrollment confirmed, a payment
+due, a document to sign. It used to borrow 'announcement' so the bell would render
+it without a client change, which meant a family could not mute announcements
+without muting the notice that their seat came up, and a real announcement's
+retraction sweep had to dodge these by metadata.
 """
 
 from typing import Optional, Dict, Any
@@ -14,7 +20,7 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-SIS_NOTIFICATION_TYPE = 'announcement'
+SIS_NOTIFICATION_TYPE = 'school_notice'
 
 
 def notify(user_id: Optional[str], title: str, message: str,

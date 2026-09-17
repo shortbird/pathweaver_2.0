@@ -2425,46 +2425,24 @@ def waive_registration_fee(org_id: str, household_id: str,
 # answer. The account and its threads are folded into inbox_user_id by
 # 20260910... _merge_org_messaging_sender_into_school_inbox.sql.
 
-def _school_sender(org_id: str, fallback_id: str) -> tuple:
-    """(sender_id, sent_by_user_id) for a message going out as the school.
-
-    Returns the org's school-inbox account with the staff member recorded as the
-    author, so the School Inbox shows "Sent by Kate" and the reply comes back to
-    a thread the office actually reads. Falls back to the staff member as
-    themselves if the inbox account cannot be resolved -- a message that goes
-    out under the wrong name beats one that does not go out at all.
-    """
-    from services import school_inbox_service
-    try:
-        org = school_inbox_service.get_org(org_id)
-        inbox_id = school_inbox_service.get_or_create_inbox_user(org) if org else None
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"school sender: inbox lookup failed for org {str(org_id)[:8]}: {e}")
-        inbox_id = None
-    if inbox_id:
-        return inbox_id, fallback_id
-    return fallback_id, None
-
-
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,
                                subject: str, body: str) -> Dict[str, Any]:
     """Send a platform message to every guardian in a household (best-effort per
     guardian), from the org's school-inbox account so replies come back to the
     School Inbox. Falls back to the staff sender."""
-    from services.direct_message_service import DirectMessageService
+    from services import school_inbox_service
     members = (
         _admin().table('household_members').select('user_id, relationship')
         .eq('household_id', household_id).execute()
     ).data or []
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') in GUARDIAN_RELATIONSHIPS]
     content = f"{subject}\n\n{body}" if subject else body
-    sender, sent_by = _school_sender(org_id, sender_id)
-    svc = DirectMessageService()
     sent = 0
     conversation_ids = []
     for gid in guardian_ids:
         try:
-            msg = svc.send_message(sender, gid, content, sent_by_user_id=sent_by)
+            msg = school_inbox_service.send_as_school(
+                org_id, gid, content, sent_by=sender_id, fallback_sender=sender_id)
             sent += 1
             if msg.get('conversation_id'):
                 conversation_ids.append(msg['conversation_id'])
@@ -2487,11 +2465,10 @@ def message_student(org_id: str, student_id: str, sender_id: str, subject: str, 
     messages) system, from the org's school-inbox account so replies come back
     to the School Inbox. Falls back to the staff caller.
     Raises ValueError if the sender lacks permission."""
-    from services.direct_message_service import DirectMessageService
+    from services import school_inbox_service
     content = f"{subject}\n\n{body}" if subject else body
-    sender, sent_by = _school_sender(org_id, sender_id)
-    msg = DirectMessageService().send_message(sender, student_id, content,
-                                              sent_by_user_id=sent_by)
+    msg = school_inbox_service.send_as_school(
+        org_id, student_id, content, sent_by=sender_id, fallback_sender=sender_id)
     return {'conversation_id': msg.get('conversation_id')}
 
 

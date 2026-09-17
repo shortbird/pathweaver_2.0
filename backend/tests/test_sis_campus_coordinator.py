@@ -302,7 +302,11 @@ class TestOnboardingOffersCoordinators:
 # The shared tiers (utils/sis_roles.py) all contain campus_coordinator, so a
 # decorator that names one admits them just as surely as spelling the role out —
 # and is the form that stops the next missed literal.
-_COORDINATOR_TIERS = ('STAFF_ROLES', 'ADMIN_ROLES')
+_COORDINATOR_TIERS = ('STAFF_ROLES', 'ADMIN_ROLES',
+    # Everyone with a seat, and the adults, both including the coordinator
+    # (M1: community.py's three literal tuples became these).
+    'MEMBER_ROLES', 'ADULT_ROLES',
+)
 
 
 def _admits_coordinator(module, view_name):

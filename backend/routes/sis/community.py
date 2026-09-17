@@ -19,6 +19,7 @@ from database import get_supabase_admin_client
 from services import sis_community_service as community
 from services import sis_service
 from routes.sis import STAFF_ROLES, ADMIN_ROLES
+from utils.sis_roles import ADULT_ROLES, MEMBER_ROLES
 from utils.storage_urls import public_object_url, sign_stored_url
 
 logger = get_logger(__name__)
@@ -340,7 +341,7 @@ def _feed_affordances(user_id, preview, view_as, is_student=None):
 
 
 @bp.route('/feed', methods=['GET'])
-@require_role('student', 'parent', 'observer', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
+@require_role(*MEMBER_ROLES)
 def family_feed(user_id):
     """The Community Hub as families and students see it.
 
@@ -386,7 +387,7 @@ def _is_student(user_id):
 
 # ── Carpool board (family-authored — iCreate, 2026-08-06) ─────────────────────
 @bp.route('/feed/carpool', methods=['POST'])
-@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
+@require_role(*ADULT_ROLES)
 def create_carpool(user_id):
     """A family (or staff member) posts a ride offer or need."""
     org_id = sis_service.member_org_id(user_id)
@@ -401,7 +402,7 @@ def create_carpool(user_id):
 
 
 @bp.route('/feed/carpool/<post_id>', methods=['DELETE'])
-@require_role('parent', 'advisor', 'org_admin', 'campus_coordinator', 'superadmin')
+@require_role(*ADULT_ROLES)
 def delete_carpool(user_id, post_id):
     """The author takes their post down, or an admin moderates it away."""
     org_id = sis_service.member_org_id(user_id)

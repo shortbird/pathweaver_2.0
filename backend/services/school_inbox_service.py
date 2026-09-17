@@ -138,6 +138,54 @@ def _create_inbox_user(org: Dict[str, Any]) -> Optional[str]:
     return current.get('inbox_user_id') if current else None
 
 
+def school_account(org) -> tuple:
+    """(org row, inbox user id) for the account a school speaks as, or
+    (None, None). `org` may be an id or the row itself.
+
+    The one resolver. Four callers used to look the org up and mint the inbox
+    account each in their own way (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md,
+    D3); a fifth would have been a sixth way to get it wrong.
+    """
+    row = get_org(org) if isinstance(org, str) else org
+    if not row:
+        return None, None
+    return row, get_or_create_inbox_user(row)
+
+
+def send_as_school(org, recipient_id: str, content: str, *, sent_by: Optional[str],
+                   reply_to_message_id: Optional[str] = None,
+                   attachments: Optional[List[Dict[str, Any]]] = None,
+                   fallback_sender: Optional[str] = None) -> Dict[str, Any]:
+    """Send one direct message from the school to a member.
+
+    The recipient sees the school's name; `sent_by` records the staff member
+    who wrote it, so the School Inbox shows "Sent by Kate" and the reply comes
+    back to a thread the office reads. With `fallback_sender`, a school whose
+    inbox account cannot be resolved sends as that staff member instead -- a
+    message that goes out under the wrong name beats one that does not go out
+    at all (the People page's Message buttons); without one, the caller gets
+    the error.
+    """
+    from services.direct_message_service import DirectMessageService
+    try:
+        _row, inbox_user_id = school_account(org)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"school sender: inbox lookup failed for org {str(org)[:8]}: {e}")
+        inbox_user_id = None
+    if not inbox_user_id:
+        if not fallback_sender:
+            raise RuntimeError('School inbox is unavailable')
+        sender, author = fallback_sender, None
+    else:
+        sender, author = inbox_user_id, sent_by
+    return DirectMessageService().send_message(
+        sender, recipient_id, content,
+        reply_to_message_id=reply_to_message_id,
+        attachments=attachments or [],
+        sent_by_user_id=author,
+    )
+
+
 def school_contact(org: Dict[str, Any], inbox_user_id: str) -> Dict[str, Any]:
     """The contact-list entry members see — the school by its own name."""
     return {

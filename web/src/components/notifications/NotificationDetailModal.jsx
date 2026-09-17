@@ -49,6 +49,8 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
         return '🎯'
       case 'announcement':
         return '📢'
+      case 'school_notice':
+        return '🏫'
       case 'badge_earned':
         return '🏆'
       case 'task_approved':
@@ -72,6 +74,8 @@ const NotificationDetailModal = ({ notification, isOpen, onClose }) => {
         return 'Quest Invitation'
       case 'announcement':
         return 'Announcement'
+      case 'school_notice':
+        return 'From the school'
       case 'badge_earned':
         return 'Badge Earned'
       case 'task_approved':

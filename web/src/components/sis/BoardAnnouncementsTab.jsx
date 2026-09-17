@@ -33,9 +33,10 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 // Who can READ the board post, and -- because it is one vocabulary, not two --
-// who "Also notify people" reaches. Kept in step with _NOTIFY_ROLES in
-// services/sis_community_service.py: the server derives the send from this same
-// choice, so a label here that disagrees with it is a lie about what Post does.
+// who "Also notify people" reaches. Kept in step with services/sis_audiences.py
+// (BOARD_AUDIENCES and recipient_roles_for): the server derives the send from
+// this same choice, so a label here that disagrees with it is a lie about what
+// Post does.
 const AUDIENCES = [
   { value: 'school', label: 'Everyone at the school', reach: 'parents, students and teachers' },
   { value: 'families', label: 'Families', reach: 'parents' },
@@ -48,6 +49,14 @@ const AUDIENCES = [
 const LEGACY_AUDIENCE = { admins: 'teachers' }
 
 const reachOf = (value) => AUDIENCES.find((a) => a.value === value)?.reach
+// The chip on a posted item saying who can see it. The whole-school default
+// needs no chip; a narrower post does, because the list otherwise gave no way
+// to tell a staff-only notice from one every family reads (iCreate, 597ba9a4).
+const audienceChip = (value) => {
+  const v = LEGACY_AUDIENCE[value] || value || 'school'
+  if (v === 'school') return null
+  return AUDIENCES.find((a) => a.value === v)?.label || v
+}
 
 const isDateOnly = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
 
@@ -114,6 +123,12 @@ const BoardAnnouncementsTab = ({ orgId, admin }) => {
                 <div className="flex items-center gap-2 flex-wrap">
                   {a.pinned && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">Pinned</span>}
                   {a.priority === 'urgent' && <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">Urgent</span>}
+                  {audienceChip(a.audience) && (
+                    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-gray-100 text-neutral-600"
+                      title={`Seen by ${reachOf(LEGACY_AUDIENCE[a.audience] || a.audience)}`}>
+                      {audienceChip(a.audience)}
+                    </span>
+                  )}
                   <h3 className="text-base font-semibold text-neutral-900">{a.title}</h3>
                 </div>
                 {a.body && <AnnouncementBody text={a.body} className="text-sm text-neutral-600 mt-1" />}

@@ -37,11 +37,10 @@ def _resolve_inbox(user_id):
     if not org_id:
         return None, error_response('No organization context', status_code=400,
                                     error_code='validation_error')
-    org = school_inbox_service.get_org(org_id)
+    org, inbox_user_id = school_inbox_service.school_account(org_id)
     if not org or not org.get('is_active'):
         return None, error_response('Organization not found', status_code=404,
                                     error_code='not_found')
-    inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
     if not inbox_user_id:
         return None, error_response('School inbox is unavailable', status_code=500,
                                     error_code='internal_error')
@@ -124,11 +123,10 @@ def send_as_school(user_id: str, target_user_id: str):
         if content:
             validate_string_length(content, 'content', max_length=2000)
 
-        message = message_service.send_message(
-            ctx['inbox_user_id'], target_user_id, content,
+        message = school_inbox_service.send_as_school(
+            ctx['org'], target_user_id, content, sent_by=user_id,
             reply_to_message_id=data.get('reply_to_message_id'),
             attachments=attachments,
-            sent_by_user_id=user_id,
         )
         return success_response({
             'message': message,

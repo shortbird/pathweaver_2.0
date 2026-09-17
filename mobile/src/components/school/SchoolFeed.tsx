@@ -46,10 +46,13 @@ export interface FeedItem {
   data: any;
 }
 
-const norm = (s?: string | null) => (s || '').trim().toLowerCase();
-const dayOf = (iso?: string | null) => (iso || '').slice(0, 10);
-
-/** Everything merged into one dated list. Exported for tests. */
+/** Everything in one dated list. Exported for tests.
+ *
+ * A board post made with "notify" also writes an archive row; the server marks
+ * that receipt `on_board` while the post is on the board, and the board copy is
+ * the one shown (it carries pinned/urgent). This used to be decided here by
+ * matching title and calendar day, so an announcement whose title the office
+ * edited showed twice on the phone (M1, docs/sis/CONSOLIDATION_PLAN.md). */
 export function mergeSchoolFeed(
   feed: SchoolFeedData | null,
   messages: ArchivedMessage[],
@@ -58,9 +61,8 @@ export function mergeSchoolFeed(
     key: `announcement-${a.id}`, kind: 'announcement',
     date: a.created_at, pinned: Boolean(a.pinned), data: a,
   }));
-  const boardKeys = new Set(board.map((i) => `${norm(i.data.title)}|${dayOf(i.date)}`));
   const msgs: FeedItem[] = (messages || [])
-    .filter((m) => !boardKeys.has(`${norm(m.title)}|${dayOf(m.created_at)}`))
+    .filter((m) => !m.on_board)
     .map((m) => ({ key: `message-${m.id}`, kind: 'message', date: m.created_at, pinned: false, data: m }));
   const shouts: FeedItem[] = (feed?.recognition || []).map((r) => ({
     key: `shoutout-${r.id}`, kind: 'shoutout', date: r.created_at, pinned: false, data: r,

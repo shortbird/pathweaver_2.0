@@ -27,6 +27,7 @@ from utils.storage_urls import (
     sign_stored_url,
 )
 from utils.validation import sanitize_text
+from services import sis_audiences
 
 logger = get_logger(__name__)
 
@@ -49,13 +50,10 @@ ANNOUNCEMENT_PRIORITIES = ('normal', 'urgent')
 # list is not filtered by audience, so every staff member saw both -- and it was
 # the one value with no role to notify, which the composer had to grey a
 # checkbox out to explain. A stored 'admins' row is read as 'teachers'.
-ANNOUNCEMENT_AUDIENCES = ('school', 'families', 'teachers')
-
-# Retired audience values, mapped to their nearest survivor. Mapped rather than
-# dropped: the fallback for an unrecognised audience is 'school', and quietly
-# widening a staff notice to every family is the mistake this column exists to
-# prevent.
-_LEGACY_AUDIENCES = {'admins': 'teachers'}
+# The vocabulary itself lives in services/sis_audiences.py, beside the send's
+# recipient roles and the calendar's audiences, with the translation between
+# them; this name is kept for the readers that import it from here.
+ANNOUNCEMENT_AUDIENCES = sis_audiences.BOARD_AUDIENCES
 LOST_FOUND_STATUSES = ('unclaimed', 'claimed', 'donated')
 
 # Lost & Found photos are taken inside the school and routinely have children in
@@ -128,19 +126,6 @@ def list_announcements(org_id: str, include_hidden: bool = True) -> List[Dict[st
     return rows
 
 
-#: Which roles a board audience notifies, when the poster ticks "also notify".
-#: The board audience already says who the notice is FOR; asking again in a
-#: second vocabulary is how three composers with three different audience models
-#: came to exist in the first place.
-_NOTIFY_ROLES = {
-    'school': ('parents', 'students', 'advisors'),
-    # Families are the parents. Students read the board and are not the audience
-    # of a notice addressed to the people who run the household.
-    'families': ('parents',),
-    'teachers': ('advisors',),
-}
-
-
 def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
     """The role audiences a post should be sent to, or [] for board-only.
 
@@ -152,7 +137,10 @@ def _notify_audiences(data: Dict[str, Any], audience: str) -> List[str]:
     if explicit:
         return list(explicit)
     if data.get('notify'):
-        return list(_NOTIFY_ROLES.get(audience, ()))
+        # The board audience already says who the notice is FOR; asking again
+        # in a second vocabulary is how three composers with three audience
+        # models came to exist. sis_audiences holds the one translation.
+        return sis_audiences.recipient_roles_for(audience)
     return []
 
 
@@ -160,14 +148,12 @@ def _audience(value: Any) -> str:
     """The audience to store for a requested one.
 
     A recognised value as written, a retired one mapped (see
-    _LEGACY_AUDIENCES), and anything else the default. Editing a post sends its
+    sis_audiences.LEGACY_BOARD_AUDIENCES), and anything else the default. Editing a post sends its
     audience back unchanged, so a row written before a value retired must not
     fall through to 'school' -- that would widen a staff notice to every family
     on a title fix.
     """
-    text = str(value or '').strip()
-    text = _LEGACY_AUDIENCES.get(text, text)
-    return text if text in ANNOUNCEMENT_AUDIENCES else 'school'
+    return sis_audiences.board_audience(value)
 
 
 def _default_expires_at(org_id: str) -> Optional[str]:
@@ -764,6 +750,20 @@ def _project(rows: List[Dict[str, Any]], fields) -> List[Dict[str, Any]]:
 #: thing in the notification and another on the board.
 _FAMILY_READABLE = ('school', 'families')
 _STUDENT_READABLE = ('school',)
+
+
+def visible_announcement_ids(org_id: str) -> set:
+    """The board posts a family can read right now.
+
+    The announcements archive asks this to mark the sends that came from a
+    post still on the board: a family sees that notice once, as the board
+    post (which carries pinned and urgent), and the send row is its receipt.
+    Once the post expires or is taken down, the send stands alone in the
+    archive, which is where an old notice belongs. Until M1
+    (docs/sis/CONSOLIDATION_PLAN.md) both clients decided this themselves,
+    and the phone did it by matching title and day.
+    """
+    return {a['id'] for a in list_announcements(org_id, include_hidden=False)}
 
 
 def family_feed(org_id: str, viewer_id: Optional[str] = None,

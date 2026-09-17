@@ -81,7 +81,7 @@ These assert zero, or one, or a structure. No number to raise.
 - `test_require_role_names_are_real.py` — every role name handed to
   `@require_role` is a role that can exist. SEC-01.
 - `test_role_rules_are_enforced.py` — every literal role list includes
-  `superadmin`; all five `sis_roles` tuples contain it.
+  `superadmin`; all seven `sis_roles` tuples contain it.
 - `test_id_routes_declare_relationship.py` — every id-bearing route declares
   `@require_relationship_to`, is superadmin-only, or is allowlisted with a
   written reason. SEC-10. Companion tests forbid stale allowlist entries.

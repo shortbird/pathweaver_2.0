@@ -27,8 +27,12 @@ from utils.roles import get_effective_roles
 
 logger = get_logger(__name__)
 
-# The audiences an announcement can be aimed at.
-ROLE_AUDIENCES = {'students', 'parents', 'advisors'}
+from services.sis_audiences import RECIPIENT_ROLES, normalize_recipient_roles
+
+# The audiences an announcement can be aimed at: the recipient roles, from the
+# one vocabulary (services/sis_audiences.py). Kept as a set under the old name
+# for the readers that compare against it.
+ROLE_AUDIENCES = set(RECIPIENT_ROLES)
 
 # Rows per insert when snapshotting recipients (well under PostgREST limits).
 RECIPIENT_SNAPSHOT_CHUNK = 500
@@ -42,12 +46,7 @@ from utils.admin_client import admin_client as _admin
 def normalize_audiences(audiences: Any, fallback: Any = None) -> List[str]:
     """Clean a requested audience list, tolerating the old single `audience`
     field ('everyone' meaning all roles)."""
-    if not audiences:
-        single = fallback or 'everyone'
-        audiences = list(ROLE_AUDIENCES) if single == 'everyone' else [single]
-    if isinstance(audiences, str):
-        audiences = [audiences]
-    return [a for a in audiences if a in ROLE_AUDIENCES]
+    return normalize_recipient_roles(audiences, fallback)
 
 
 def recipients_for(org_id: str, audiences: Iterable[str],

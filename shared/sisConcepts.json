@@ -194,7 +194,7 @@
     },
     {
       "id": "announcement_publish",
-      "means": "A school announcement, delivered once. sis_announcements is the post; announcements is the delivery receipt. The two clients each re-merge the two tables with a different heuristic, and an edited post shows twice on the phone.",
+      "means": "A school announcement, delivered once. sis_announcements is the post; announcements is the send (receipts, notification, email), linked by source_announcement_id. Until M1 each client decided which archive rows were the post's receipt -- the web by the link, the phone by matching title and day, so an edited post showed twice on the phone.",
       "owner": {
         "backend": ["services/sis_community_service.py"],
         "web": ["components/announcements/UnifiedFeed.jsx"],
@@ -202,50 +202,57 @@
       },
       "forbid": {
         "backend": { "pattern": "announcement_service\\.publish\\(", "dirs": ["routes", "services"], "exempt": [] },
-        "web": { "pattern": "function mergeFeedItems\\(", "dirs": ["components", "pages", "hooks"], "exempt": [] },
-        "mobile": { "pattern": "function mergeSchoolFeed\\(", "dirs": ["src", "app"], "exempt": [] }
+        "web": {
+          "pattern": "(function mergeFeedItems\\(|boardKeys|isBoardCopy)",
+          "dirs": ["components", "pages", "hooks"],
+          "exempt": []
+        },
+        "mobile": {
+          "pattern": "(boardKeys|norm\\(i\\.data\\.title\\)|dayOf\\(i\\.date\\))",
+          "dirs": ["src", "app"],
+          "exempt": []
+        }
       },
-      "baseline": { "backend": 1, "web": 1, "mobile": 1 },
+      "baseline": { "backend": 1, "web": 0, "mobile": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "sis_community_service.post() is the only caller of announcement_service.publish, and after M1 the family feed is assembled once, server-side, in sis_community_service.family_feed -- neither client merges tables. Baseline after M1: backend 1, web 0, mobile 0."
+      "use_instead": "sis_community_service.post() is the only caller of announcement_service.publish. The archive (GET /api/announcements/archive) marks a send `on_board` while its source post is on the board; a client renders what is not marked and never compares titles or days. The four sends that predated the link were linked in the data (20260918170000)."
     },
     {
       "id": "audience_vocabulary",
-      "means": "Who a message is for. Announcements say students/parents/advisors, the community board says school/families/teachers, events say school/teachers/admins, the archive has its own tuple.",
+      "means": "Who a message is for. Announcements said students/parents/advisors, the community board school/families/teachers, events school/teachers/admins, the archive had its own tuple. services/sis_audiences.py is the one vocabulary since M1; the calendar's AUDIENCES adopts it in M12.",
       "owner": { "backend": ["services/sis_audiences.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "^(ROLE_AUDIENCES|_NOTIFY_ROLES|AUDIENCES|_ARCHIVE_SEES_ALL)\\s*=\\s*[({\\[']",
           "dirs": ["routes/announcements.py", "routes/sis/events.py", "services/announcement_service.py", "services/sis_community_service.py"]
         }
       },
-      "baseline": { "backend": 4 },
+      "baseline": { "backend": 1 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "sis_audiences.py (M1) holds the canonical audience keys and the role sets behind them; stored values do not change, the vocabulary does. Events adopt it in M12."
+      "use_instead": "services/sis_audiences.py: BOARD_AUDIENCES, RECIPIENT_ROLES, EVENT_AUDIENCES, recipient_roles_for(board_audience), board_audience(value), normalize_recipient_roles(...). Import the words; never spell a vocabulary in a route or service."
     },
     {
       "id": "school_sender",
-      "means": "The account a school speaks as. Four callers resolve organizations.inbox_user_id themselves before sending; the household and student 'message' endpoints send as the school through a different door.",
+      "means": "The account a school speaks as. Four callers resolved organizations.inbox_user_id themselves before sending until M1.",
       "owner": { "backend": ["services/school_inbox_service.py"] },
       "forbid": {
         "backend": { "pattern": "get_or_create_inbox_user\\(", "dirs": ["routes", "services"] }
       },
-      "baseline": { "backend": 4 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "school_inbox_service.send_as_school(org, recipient_ids, body, actor) (M1) resolves the sender itself. A route that needs the inbox user id for listing asks school_inbox_service.school_account(org)."
+      "use_instead": "school_inbox_service.send_as_school(org, recipient_id, content, sent_by=..., fallback_sender=...) to send as the school; school_inbox_service.school_account(org) -> (org, inbox_user_id) where a route needs the id for a read. Never call get_or_create_inbox_user outside the service."
     },
     {
       "id": "role_tuple_literal",
-      "means": "A hand-written role tuple on an SIS route. The tiers live in utils/sis_roles.py so a role added to one is added everywhere; three routes in community.py still spell their own.",
+      "means": "A hand-written role tuple on an SIS route. The tiers live in utils/sis_roles.py so a role added to one is added everywhere; community.py's three were the last until M1 (MEMBER_ROLES and ADULT_ROLES now exist for them).",
       "owner": { "backend": ["utils/sis_roles.py"] },
       "forbid": {
         "backend": { "pattern": "@require_role\\([^)]*['\"]org_admin['\"]", "dirs": ["routes/sis"] }
       },
-      "baseline": { "backend": 3 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
       "use_instead": "@require_role(*ADMIN_ROLES) or another tuple from utils/sis_roles.py. If no tier fits, add one there with a docstring."
@@ -776,6 +783,22 @@
       "measured": "2026-09-17",
       "lowered_by": "M17",
       "use_instead": "<ColumnPicker columns selected onToggle groups? onSetGroup? /> from components/sis/ColumnPicker.jsx; the caller owns the selection (usePersistedChoice)."
+    },
+    {
+      "id": "sis_notice_type",
+      "means": "An in-app notification from the school's office (a seat offered, a payment due, a document to sign). Sent as type 'announcement' until M1, so a family could not mute announcements without muting these; 'school_notice' since 2026-09-17.",
+      "owner": { "backend": ["services/sis_notifications.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "notification_type\\s*=\\s*['\"]announcement['\"]",
+          "dirs": ["routes/sis", "services/sis_"],
+          "exempt": ["services/sis_notifications.py", "services/sis_community_service.py"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "sis_notifications.notify(user_id, title, message, link=..., organization_id=..., service=...) -- it carries the type. 'announcement' is for announcement_service.publish and nothing else."
     }
   ]
 }
