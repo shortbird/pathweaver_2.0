@@ -20,6 +20,7 @@ ATTENDANCE_STATUSES = ('present', 'absent', 'late', 'excused')
 #   reads/writes rows belonging to every family in the org, which no single
 #   caller can see under RLS; the route's role+org gate is the authorization
 from utils.admin_client import admin_client as _admin
+from services import sis_age
 
 
 from utils.timestamps import now_iso as _now  # noqa: E402
@@ -50,7 +51,7 @@ def summarize(records: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # ── DB-backed ────────────────────────────────────────────────────────────────
-def _enrolled_students(class_id: str) -> List[Dict[str, Any]]:
+def _enrolled_students(org_id: str, class_id: str) -> List[Dict[str, Any]]:
     enr = (
         _admin().table('class_enrollments').select('student_id')
         .eq('class_id', class_id).eq('status', 'active').execute()
@@ -63,24 +64,11 @@ def _enrolled_students(class_id: str) -> List[Dict[str, Any]]:
         .select('id, display_name, first_name, last_name, preferred_name, username, email, date_of_birth')
         .in_('id', ids).execute()
     ).data or []
-    out = [{'student_user_id': u['id'], 'name': _student_name(u), 'age': _age(u.get('date_of_birth'))}
+    age = sis_age.ages_for(org_id)
+    out = [{'student_user_id': u['id'], 'name': _student_name(u), 'age': age(u.get('date_of_birth'))}
            for u in users]
     out.sort(key=lambda s: s['name'].lower())
     return out
-
-
-def _age(dob):
-    """Whole years from an ISO date string — None when unknown/unparseable."""
-    from datetime import date
-    if not dob:
-        return None
-    if not isinstance(dob, date):
-        try:
-            dob = date.fromisoformat(str(dob)[:10])
-        except ValueError:
-            return None
-    today = date.today()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
 def _org_admin_ids(org_id: str) -> List[str]:
@@ -109,7 +97,7 @@ def get_for_date(org_id: str, class_id: str, on_date: str) -> List[Dict[str, Any
     """
     from services import sis_planned_absence_service as planned
 
-    students = _enrolled_students(class_id)
+    students = _enrolled_students(org_id, class_id)
     existing = (
         _admin().table('sis_attendance').select('*')
         .eq('class_id', class_id).eq('date', on_date).execute()

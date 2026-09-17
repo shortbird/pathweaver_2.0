@@ -51,17 +51,22 @@ describe('mergeSchoolFeed', () => {
     expect(keys).toEqual(['announcement-a-old', 'message-m1']);
   });
 
-  it('drops the archive copy of a board post (same title, same day)', () => {
-    // A board post created with "notify" also writes an archive row — the
-    // same words twice. The board copy wins; it carries pinned/urgent.
-    const feed: SchoolFeedData = { ...emptyFeed, announcements: [board()] };
-    const dup = message({ id: 'm-dup', title: 'Picture day', created_at: '2026-08-05T15:00:00Z' });
+  it('drops the archive copy the server marked as a board receipt, whatever its title says', () => {
+    // The phone used to decide this by matching title and calendar day, so a
+    // post whose title the office edited showed twice. The archive now says
+    // `on_board` while the source post is on the board (M1).
+    const feed: SchoolFeedData = { ...emptyFeed, announcements: [board({ title: 'Picture day (moved)' })] };
+    const dup = message({ id: 'm-dup', title: 'Picture day', created_at: '2026-08-05T15:00:00Z', on_board: true });
     const items = mergeSchoolFeed(feed, [dup, message()]);
     expect(items.map((i) => i.key)).toEqual(['announcement-a1', 'message-m1']);
   });
-});
 
-describe('SchoolFeed', () => {
+  it('keeps a send whose post has left the board', () => {
+    const gone = message({ id: 'sent-8', title: 'Old news', created_at: '2026-07-01T10:00:00Z', on_board: false });
+    const items = mergeSchoolFeed(emptyFeed, [gone]);
+    expect(items.map((i) => i.key)).toEqual(['message-sent-8']);
+  });
+
   it('renders nothing when the school has said nothing', () => {
     const { toJSON } = render(
       <SchoolFeed schoolName="iCreate" feed={null} messages={[]} onSeeAll={() => {}} />,

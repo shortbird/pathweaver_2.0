@@ -23,12 +23,14 @@ USER = 'mum'
 def _select_columns():
     """Run org_events against a stubbed client and return what it asked for."""
     chain = Mock()
-    for m in ('select', 'eq', 'or_', 'lt', 'order'):
+    for m in ('select', 'eq', 'in_', 'or_', 'lt', 'order'):
         getattr(chain, m).return_value = chain
     chain.execute.return_value = Mock(data=[])
     admin = Mock()
     admin.table.return_value = chain
-    with patch.object(parent, '_admin', return_value=admin), \
+    # The read is sis_events_service's since M12; the parent service names the
+    # columns and the viewer.
+    with patch('services.sis_events_service._admin', return_value=admin), \
          patch.object(parent, '_is_org_member', return_value=True):
         parent.org_events(USER, ORG)
     return chain.select.call_args.args[0]
@@ -52,12 +54,13 @@ class TestTheFamilyCalendarProjection:
     def test_families_are_still_only_shown_school_wide_events(self):
         """The projection grew; the audience gate must not have moved."""
         chain = Mock()
-        for m in ('select', 'eq', 'or_', 'lt', 'order'):
+        for m in ('select', 'eq', 'in_', 'or_', 'lt', 'order'):
             getattr(chain, m).return_value = chain
         chain.execute.return_value = Mock(data=[])
         admin = Mock()
         admin.table.return_value = chain
-        with patch.object(parent, '_admin', return_value=admin), \
+        with patch('services.sis_events_service._admin', return_value=admin), \
              patch.object(parent, '_is_org_member', return_value=True):
             parent.org_events(USER, ORG)
-        assert ('audience', 'school') in [c.args for c in chain.eq.call_args_list]
+        # The 'family' viewer: school events and nothing else (sis_events_service).
+        assert ('audience', ['school']) in [c.args for c in chain.in_.call_args_list]

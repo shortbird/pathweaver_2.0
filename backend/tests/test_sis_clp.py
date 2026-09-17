@@ -196,12 +196,17 @@ class TestClpStudent:
 
 @pytest.mark.unit
 class TestHelpers:
-    def test_age_from_iso_date(self):
+    def test_age_is_the_school_year_age(self):
+        """The CLP judges a child's age the way every SIS screen does: as of
+        the first day of school (sis_age), not today."""
         from datetime import date
-        dob = date.today().replace(year=date.today().year - 9)
-        assert clp._age(str(dob)) == 9
-        assert clp._age(None) is None
-        assert clp._age('not-a-date') is None
+        from unittest.mock import patch
+        from services import sis_age
+        with patch('services.sis_age.school_year_start', return_value=date(2026, 8, 24)):
+            assert sis_age.school_age('org-1', '2017-08-25') == 8   # turns 9 the day after
+            assert sis_age.school_age('org-1', '2017-08-24') == 9
+            assert sis_age.school_age('org-1', None) is None
+            assert sis_age.school_age('org-1', 'not-a-date') is None
 
     def test_payment_intent_prefers_latest_answered(self):
         rows = [

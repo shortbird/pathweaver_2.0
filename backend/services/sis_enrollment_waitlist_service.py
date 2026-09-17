@@ -23,7 +23,7 @@ backend-only; authorization happens in the callers.
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from services.sis_eligibility import _coerce_date, age_on
+from services import sis_age
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -63,8 +63,7 @@ def matching_gate(org_id: str, dob: Any,
         gates = gates_for_org(org_id)
     if not gates:
         return None
-    first_day = _sis_settings(org_id).get('first_day_of_school')
-    age = age_on(dob, _coerce_date(first_day))
+    age = sis_age.school_age(org_id, dob)
     if age is None:
         return None
     for g in gates:
@@ -214,7 +213,7 @@ def _priority_siblings(org_id: str, household_ids: set) -> Dict[str, Dict[str, A
             .select('id, display_name, first_name, last_name, username, email, date_of_birth, preferred_name')
             .in_('id', list({m['user_id'] for m in accepted})).execute().data) or []
     }
-    first_day = _coerce_date(_sis_settings(org_id).get('first_day_of_school'))
+    age = sis_age.ages_for(org_id)
 
     out: Dict[str, Dict[str, Any]] = {}
     for m in accepted:
@@ -222,7 +221,7 @@ def _priority_siblings(org_id: str, household_ids: set) -> Dict[str, Dict[str, A
         out.setdefault(m['household_id'], {'siblings': [], 'top_age': None})['siblings'].append({
             'user_id': m['user_id'],
             'name': _display_name(user) if user else 'Sibling',
-            'age': age_on(user.get('date_of_birth'), first_day),
+            'age': age(user.get('date_of_birth')),
         })
     for info in out.values():
         # Oldest first; unknown ages last so the badge leads with a real number.
@@ -438,9 +437,8 @@ def add_manual(org_id: str, student_user_id: str, *, added_by: str,
         'student_user_id': student_user_id,
         'household_id': household[0]['household_id'] if household else None,
         # Same yardstick the funnel uses: age as of the first day of school.
-        'age_snapshot': gate.get('age') if gate else age_on(
-            student.get('date_of_birth'),
-            _coerce_date(_sis_settings(org_id).get('first_day_of_school'))),
+        'age_snapshot': gate.get('age') if gate else sis_age.school_age(
+            org_id, student.get('date_of_birth')),
         'band_min_age': band_min_age,
         'band_max_age': band_max_age,
         'added_by': added_by,

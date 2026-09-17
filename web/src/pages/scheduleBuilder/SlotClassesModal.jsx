@@ -9,9 +9,9 @@ import { ModalOverlay } from '../../components/ui'
 // owns that modal. Only the two formatters were ever used.
 import { meetingText, money } from '../../components/schedule/ClassDetailsModal'
 import AgeExceptionFooter from './AgeExceptionFooter'
-import conflictsWith from './conflictsWith'
+import { conflictsWith } from '../../utils/schedule'
 import slotLabel from './slotLabel'
-import ageBandText from './ageBandText'
+import ClassSummaryLine from '../../components/sis/ClassSummaryLine'
 
 const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onRequestException, enrolledHere = [], age, enrolled, busy, locked, onClose, onDetails, onAdd, onDrop }) => (
   <ModalOverlay onClose={onClose}>
@@ -68,16 +68,13 @@ const SlotClassesModal = ({ slot, classes, ageHidden = [], requestedIds, onReque
             <div key={c.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 hover:border-optio-purple/50 transition-colors">
               <div className="min-w-0">
                 <div className="font-medium text-gray-900 truncate">{c.name}</div>
-                <div className="text-xs text-gray-500">
-                  {meetingText(c.meetings)}
-                  {money(c.price_cents) ? ` · ${money(c.price_cents)}` : ''}
-                  {c.spots_left != null && !full ? ` · ${c.spots_left} spot${c.spots_left === 1 ? '' : 's'} left` : ''}
-                  {ageBandText(c) ? ` · ${ageBandText(c)}` : ''}
-                </div>
-                <div className="flex gap-1.5 mt-0.5">
-                  {full && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Full — waitlist</span>}
-                  {conflict && <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Overlaps {conflict}</span>}
-                </div>
+                <ClassSummaryLine cls={c} meetings={meetingText(c.meetings)} price={money(c.price_cents) || ''} hideOpen
+                  className="block text-xs text-gray-500" />
+                {conflict && (
+                  <div className="flex gap-1.5 mt-0.5">
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-600">Overlaps {conflict}</span>
+                  </div>
+                )}
               </div>
               <div className="shrink-0 ml-3 flex items-center gap-2">
                 <button onClick={() => onDetails(c)} className="text-sm text-optio-purple hover:underline">Details</button>

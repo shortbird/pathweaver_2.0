@@ -31,6 +31,7 @@ INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 #   reads/writes rows belonging to every family in the org, which no single
 #   caller can see under RLS; the route's role+org gate is the authorization
 from utils.admin_client import admin_client as _admin
+from services import sis_age
 
 
 def is_student(user: Dict[str, Any]) -> bool:
@@ -329,21 +330,6 @@ def _parse_iso_date(v: Any):
         return None
 
 
-def _age_years(dob: Any) -> Optional[int]:
-    """Whole years from a DOB (ISO string or date), or None when unknown."""
-    from datetime import date
-    d = _parse_iso_date(dob)
-    if d is None:
-        return None
-    today = date.today()
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
-
-
-# Public name for the same thing, for callers outside this module (the training
-# catalog narrows a student audience by age). Nothing here is private-by-design;
-# the underscore is only how this file names its own helpers.
-age_years = _age_years
-
 
 def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
     """Absolute day gap between two DOBs, or None when either is unknown."""
@@ -438,6 +424,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
     enrollments = _enrollments_by_student(org_id)
     households = _household_by_user(org_id)
     roster = []
+    age = sis_age.ages_for(org_id)
     for s in users:
         student = is_student(s)
         enr = enrollments.get(s['id']) if student else None
@@ -452,7 +439,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             'first_name': s.get('first_name'),
             'last_name': s.get('last_name'),
             'date_of_birth': s.get('date_of_birth'),
-            'age': _age_years(s.get('date_of_birth')) if student else None,
+            'age': age(s.get('date_of_birth')) if student else None,
             'preferred_name': s.get('preferred_name'),
             'gender': s.get('gender'),
             'allergies': s.get('allergies'),
@@ -639,7 +626,12 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def get_dashboard(org_id: str) -> Dict[str, Any]:
+def census(org_id: str) -> Dict[str, Any]:
+    """The school's headline counts: students by enrollment status, households,
+    active in the last week. Read by the admin dashboard. Named get_dashboard
+    until M12 (docs/sis/CONSOLIDATION_PLAN.md), which made it read as a second
+    dashboard assembler beside sis_dashboard_service; it is the census the
+    dashboard's first row shows."""
     students = _org_students(org_id)
     enrollments = _enrollments_by_student(org_id)
 
@@ -2425,46 +2417,24 @@ def waive_registration_fee(org_id: str, household_id: str,
 # answer. The account and its threads are folded into inbox_user_id by
 # 20260910... _merge_org_messaging_sender_into_school_inbox.sql.
 
-def _school_sender(org_id: str, fallback_id: str) -> tuple:
-    """(sender_id, sent_by_user_id) for a message going out as the school.
-
-    Returns the org's school-inbox account with the staff member recorded as the
-    author, so the School Inbox shows "Sent by Kate" and the reply comes back to
-    a thread the office actually reads. Falls back to the staff member as
-    themselves if the inbox account cannot be resolved -- a message that goes
-    out under the wrong name beats one that does not go out at all.
-    """
-    from services import school_inbox_service
-    try:
-        org = school_inbox_service.get_org(org_id)
-        inbox_id = school_inbox_service.get_or_create_inbox_user(org) if org else None
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"school sender: inbox lookup failed for org {str(org_id)[:8]}: {e}")
-        inbox_id = None
-    if inbox_id:
-        return inbox_id, fallback_id
-    return fallback_id, None
-
-
 def message_household_guardians(org_id: str, household_id: str, sender_id: str,
                                subject: str, body: str) -> Dict[str, Any]:
     """Send a platform message to every guardian in a household (best-effort per
     guardian), from the org's school-inbox account so replies come back to the
     School Inbox. Falls back to the staff sender."""
-    from services.direct_message_service import DirectMessageService
+    from services import school_inbox_service
     members = (
         _admin().table('household_members').select('user_id, relationship')
         .eq('household_id', household_id).execute()
     ).data or []
     guardian_ids = [m['user_id'] for m in members if m.get('relationship') in GUARDIAN_RELATIONSHIPS]
     content = f"{subject}\n\n{body}" if subject else body
-    sender, sent_by = _school_sender(org_id, sender_id)
-    svc = DirectMessageService()
     sent = 0
     conversation_ids = []
     for gid in guardian_ids:
         try:
-            msg = svc.send_message(sender, gid, content, sent_by_user_id=sent_by)
+            msg = school_inbox_service.send_as_school(
+                org_id, gid, content, sent_by=sender_id, fallback_sender=sender_id)
             sent += 1
             if msg.get('conversation_id'):
                 conversation_ids.append(msg['conversation_id'])
@@ -2487,11 +2457,10 @@ def message_student(org_id: str, student_id: str, sender_id: str, subject: str, 
     messages) system, from the org's school-inbox account so replies come back
     to the School Inbox. Falls back to the staff caller.
     Raises ValueError if the sender lacks permission."""
-    from services.direct_message_service import DirectMessageService
+    from services import school_inbox_service
     content = f"{subject}\n\n{body}" if subject else body
-    sender, sent_by = _school_sender(org_id, sender_id)
-    msg = DirectMessageService().send_message(sender, student_id, content,
-                                              sent_by_user_id=sent_by)
+    msg = school_inbox_service.send_as_school(
+        org_id, student_id, content, sent_by=sender_id, fallback_sender=sender_id)
     return {'conversation_id': msg.get('conversation_id')}
 
 
@@ -2551,6 +2520,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
 
     enrollments = _enrollments_by_student(org_id)
     by_household: Dict[str, List[Dict[str, Any]]] = {}
+    age = sis_age.ages_for(org_id)
     for m in members:
         u = users.get(m['user_id'], {})
         entry = {
@@ -2565,7 +2535,7 @@ def households_with_members(org_id: str) -> List[Dict[str, Any]]:
             enr = enrollments.get(m['user_id']) or {}
             entry['status'] = enr.get('status') or 'unassigned'
             entry['grade_level'] = enr.get('grade_level')
-            entry['age'] = _age_years(u.get('date_of_birth')) if u else None
+            entry['age'] = age(u.get('date_of_birth')) if u else None
             # Carried only for duplicate detection; stripped before returning.
             entry['first_name'] = u.get('first_name') if u else None
             entry['last_name'] = u.get('last_name') if u else None

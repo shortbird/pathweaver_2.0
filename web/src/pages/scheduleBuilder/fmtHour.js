@@ -1,14 +1,8 @@
 /**
- * Extracted from pages/ScheduleBuilderPage.jsx on 2026-09-04 (QF-02).
- * Moved verbatim -- no behaviour changed, only the address.
+ * A slot's minutes-since-midnight as the compact 12-hour label the grids use.
  */
+import { compact12h } from '../../utils/timeFormat'
 
-const fmtHour = (min) => {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
+const fmtHour = (min) => compact12h(`${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`)
 
 export default fmtHour

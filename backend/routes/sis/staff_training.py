@@ -33,6 +33,7 @@ from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import validate_uuid
 from services import sis_service
+from services import sis_age
 from services import sis_training_service
 from services import sis_quest_authoring as authoring
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, clean_visible_roles
@@ -1314,6 +1315,7 @@ def _org_students(org_id):
                 'org_role, org_roles, role, date_of_birth')
         .eq('organization_id', org_id)
     ))
+    age = sis_age.ages_for(org_id)
     out = []
     for u in rows:
         roles = _roles_of(u)
@@ -1329,7 +1331,7 @@ def _org_students(org_id):
                      or u.get('username') or u.get('email') or 'Unnamed'),
             'email': u.get('email'),
             'roles': sorted(roles),
-            'age': sis_service.age_years(u.get('date_of_birth')),
+            'age': age(u.get('date_of_birth')),
         })
     out.sort(key=lambda p: (p['name'] or '').lower())
     return out

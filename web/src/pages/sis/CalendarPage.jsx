@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
 import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
+import { splitEventStamp, compact12h } from '../../utils/timeFormat'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -24,20 +25,10 @@ const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:
  * subscribable from Google/Outlook/Apple via a tokenized ICS feed.
  */
 
-// "2026-08-24T09:00:00+00:00" -> { date: '2026-08-24', time: '09:00' } — no Date() parsing.
-const splitStamp = (iso) => {
-  const s = String(iso || '')
-  return { date: s.slice(0, 10), time: s.slice(11, 16) }
-}
+// "2026-08-24T09:00:00+00:00" -> { date: '2026-08-24', time: '09:00' } — no Date()
+// parsing, from utils/timeFormat.js, the one place an event stamp becomes text.
+const splitStamp = splitEventStamp
 const joinStamp = (date, time) => (date ? `${date}T${time || '00:00'}:00Z` : null)
-
-const fmtTime = (hhmmStr) => {
-  if (!hhmmStr) return ''
-  const [h, m] = hhmmStr.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -210,7 +201,7 @@ const CalendarPage = () => {
                       const going = startDate === key && e.rsvp_enabled
                         ? (e.rsvp_summary?.people || 0) : 0
                       const meta = [
-                        !e.all_day && startDate === key ? fmtTime(time) : null,
+                        !e.all_day && startDate === key ? compact12h(time) : null,
                         going ? `${going} going` : null,
                       ].filter(Boolean)
                       return (

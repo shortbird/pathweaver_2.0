@@ -7,6 +7,7 @@
  */
 
 import { useEffect } from 'react'
+import { ageBandText } from '../../components/sis/ClassSummaryLine'
 
 // Auto-resize handshake: an iframed widget can't grow to fit its content on its
 // own (cross-origin), so it measures its content height and postMessages it to
@@ -73,12 +74,7 @@ export const daysLabel = (days) =>
   (days || []).map((d) => DAY_SHORT[d]).filter(Boolean).join(', ')
 
 // Ages -> a compact human label. "Ages 8-12" / "Ages 11+" / "Up to 8" / "".
-export const agesLabel = (min, max) => {
-  if (min != null && max != null) return `Ages ${min}-${max}`
-  if (min != null) return `Ages ${min}+`
-  if (max != null) return `Up to age ${max}`
-  return ''
-}
+export const agesLabel = (min, max) => ageBandText({ min_age: min, max_age: max }, { capital: true })
 
 // 365 -> "$365"; 35.5 -> "$35.50". null/undefined -> ''.
 export const money = (value) => {

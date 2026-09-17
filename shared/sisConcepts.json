@@ -194,7 +194,7 @@
     },
     {
       "id": "announcement_publish",
-      "means": "A school announcement, delivered once. sis_announcements is the post; announcements is the delivery receipt. The two clients each re-merge the two tables with a different heuristic, and an edited post shows twice on the phone.",
+      "means": "A school announcement, delivered once. sis_announcements is the post; announcements is the send (receipts, notification, email), linked by source_announcement_id. Until M1 each client decided which archive rows were the post's receipt -- the web by the link, the phone by matching title and day, so an edited post showed twice on the phone.",
       "owner": {
         "backend": ["services/sis_community_service.py"],
         "web": ["components/announcements/UnifiedFeed.jsx"],
@@ -202,50 +202,57 @@
       },
       "forbid": {
         "backend": { "pattern": "announcement_service\\.publish\\(", "dirs": ["routes", "services"], "exempt": [] },
-        "web": { "pattern": "function mergeFeedItems\\(", "dirs": ["components", "pages", "hooks"], "exempt": [] },
-        "mobile": { "pattern": "function mergeSchoolFeed\\(", "dirs": ["src", "app"], "exempt": [] }
+        "web": {
+          "pattern": "(function mergeFeedItems\\(|boardKeys|isBoardCopy)",
+          "dirs": ["components", "pages", "hooks"],
+          "exempt": []
+        },
+        "mobile": {
+          "pattern": "(boardKeys|norm\\(i\\.data\\.title\\)|dayOf\\(i\\.date\\))",
+          "dirs": ["src", "app"],
+          "exempt": []
+        }
       },
-      "baseline": { "backend": 1, "web": 1, "mobile": 1 },
+      "baseline": { "backend": 1, "web": 0, "mobile": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "sis_community_service.post() is the only caller of announcement_service.publish, and after M1 the family feed is assembled once, server-side, in sis_community_service.family_feed -- neither client merges tables. Baseline after M1: backend 1, web 0, mobile 0."
+      "use_instead": "sis_community_service.post() is the only caller of announcement_service.publish. The archive (GET /api/announcements/archive) marks a send `on_board` while its source post is on the board; a client renders what is not marked and never compares titles or days. The four sends that predated the link were linked in the data (20260918170000)."
     },
     {
       "id": "audience_vocabulary",
-      "means": "Who a message is for. Announcements say students/parents/advisors, the community board says school/families/teachers, events say school/teachers/admins, the archive has its own tuple.",
+      "means": "Who a message is for. Announcements said students/parents/advisors, the community board school/families/teachers, events school/teachers/admins, the archive had its own tuple. services/sis_audiences.py is the one vocabulary since M1; the calendar adopted it in M12.",
       "owner": { "backend": ["services/sis_audiences.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "^(ROLE_AUDIENCES|_NOTIFY_ROLES|AUDIENCES|_ARCHIVE_SEES_ALL)\\s*=\\s*[({\\[']",
           "dirs": ["routes/announcements.py", "routes/sis/events.py", "services/announcement_service.py", "services/sis_community_service.py"]
         }
       },
-      "baseline": { "backend": 4 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "sis_audiences.py (M1) holds the canonical audience keys and the role sets behind them; stored values do not change, the vocabulary does. Events adopt it in M12."
+      "use_instead": "services/sis_audiences.py: BOARD_AUDIENCES, RECIPIENT_ROLES, EVENT_AUDIENCES, recipient_roles_for(board_audience), board_audience(value), normalize_recipient_roles(...). Import the words; never spell a vocabulary in a route or service."
     },
     {
       "id": "school_sender",
-      "means": "The account a school speaks as. Four callers resolve organizations.inbox_user_id themselves before sending; the household and student 'message' endpoints send as the school through a different door.",
+      "means": "The account a school speaks as. Four callers resolved organizations.inbox_user_id themselves before sending until M1.",
       "owner": { "backend": ["services/school_inbox_service.py"] },
       "forbid": {
         "backend": { "pattern": "get_or_create_inbox_user\\(", "dirs": ["routes", "services"] }
       },
-      "baseline": { "backend": 4 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
-      "use_instead": "school_inbox_service.send_as_school(org, recipient_ids, body, actor) (M1) resolves the sender itself. A route that needs the inbox user id for listing asks school_inbox_service.school_account(org)."
+      "use_instead": "school_inbox_service.send_as_school(org, recipient_id, content, sent_by=..., fallback_sender=...) to send as the school; school_inbox_service.school_account(org) -> (org, inbox_user_id) where a route needs the id for a read. Never call get_or_create_inbox_user outside the service."
     },
     {
       "id": "role_tuple_literal",
-      "means": "A hand-written role tuple on an SIS route. The tiers live in utils/sis_roles.py so a role added to one is added everywhere; three routes in community.py still spell their own.",
+      "means": "A hand-written role tuple on an SIS route. The tiers live in utils/sis_roles.py so a role added to one is added everywhere; community.py's three were the last until M1 (MEMBER_ROLES and ADULT_ROLES now exist for them).",
       "owner": { "backend": ["utils/sis_roles.py"] },
       "forbid": {
         "backend": { "pattern": "@require_role\\([^)]*['\"]org_admin['\"]", "dirs": ["routes/sis"] }
       },
-      "baseline": { "backend": 3 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
       "use_instead": "@require_role(*ADMIN_ROLES) or another tuple from utils/sis_roles.py. If no tier fits, add one there with a docstring."
@@ -276,23 +283,22 @@
     },
     {
       "id": "events_read",
-      "means": "Reading sis_events. Ten reads with four different audience filters: the SIS calendar, the parent feed, the community feed (which re-reads the table), the ICS export, the dashboard, RSVPs.",
+      "means": "Reading sis_events. Ten reads with four different audience filters until M12: the SIS calendar, the parent feed, the community feed, the ICS export, the dashboard, RSVPs.",
       "owner": { "backend": ["services/sis_events_service.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "\\.table\\(\\s*['\"]sis_events['\"]",
           "dirs": ["routes", "services", "repositories", "utils", "jobs"]
         }
       },
-      "baseline": { "backend": 10 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "sis_events_service.feed(org_id, viewer, window) (M12) applies the audience filter from the viewer's role; every reader, ICS included, calls it."
+      "use_instead": "sis_events_service.list_events(org_id, viewer, from_iso=..., to_iso=..., limit=..., columns=...) with viewer 'admin' | 'staff' | 'family' | 'shared' (viewer_for_user(user_id) picks it from the roles); get_event / create_event / update_event / delete_event for the rest. The audience rule lives there and nowhere else."
     },
     {
       "id": "today_schedule",
-      "means": "What is happening at the school today. sis_coordinator_service._today_org_schedule assembles it; the admin dashboard also calls the legacy sis_service.get_dashboard for a second copy of the same slice, and the teacher dashboard has a third.",
+      "means": "What is happening at the school today. sis_coordinator_service.today_schedule(org_id, date, dow=..., class_scope=...) assembles it for both dashboards; the admin dashboard's second source was sis_service.get_dashboard, which is the census and is named so since M12.",
       "owner": { "backend": ["services/sis_coordinator_service.py"] },
       "forbid": {
         "backend": {
@@ -300,14 +306,14 @@
           "dirs": ["routes", "services"]
         }
       },
-      "baseline": { "backend": 1 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "sis_coordinator_service.today_schedule(org_id, date, class_scope=None) (M12): the admin route passes no scope, the teacher route passes class_scope(). get_dashboard's schedule slice goes."
+      "use_instead": "sis_coordinator_service.today_schedule(org_id, today, dow=..., class_scope=...). The school's headline counts are sis_service.census(org_id); there is no second dashboard assembler."
     },
     {
       "id": "event_wall_clock",
-      "means": "A school event's start_at is a wall clock wearing a UTC label (the office typed 18:30; Postgres stored 18:30+00). Every renderer must read it in UTC, and six web sites each spell that rule themselves. The rule shipped wrong three times.",
+      "means": "A school event's start_at is a wall clock wearing a UTC label (the office typed 18:30; Postgres stored 18:30+00). Every renderer must read it in UTC; until M12 six web sites each spelled that rule themselves, and the SIS admin's own Community page did not.",
       "owner": { "web": ["utils/timeFormat.js"] },
       "forbid": {
         "web": {
@@ -315,10 +321,10 @@
           "dirs": ["pages/sis", "components/sis", "components/announcements"]
         }
       },
-      "baseline": { "web": 6 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "fmtEventWhen(event) / fmtEventTimeRange(event) / fmtDayHeading(ymd) from utils/timeFormat.js (M12, ported from mobile's components/school/format.ts). schoolEventWallClock.test.js refuses a reader that formats the stamps anywhere else."
+      "use_instead": "fmtEventWhen(event), fmtEventDay(event), fmtEventTimeRange(event), splitEventStamp(iso) and fmtDayHeading(ymd) from utils/timeFormat.js (EVENT_STAMPS_ARE_WALL_CLOCK). schoolEventWallClock.test.js refuses a reader that formats the stamps anywhere else."
     },
     {
       "id": "time_blocks_read",
@@ -383,41 +389,38 @@
     },
     {
       "id": "schedule_helpers",
-      "means": "Minutes-since-midnight, 12-hour time labels, 'does this class fit this age', 'how old is this child'. Twenty-five private copies across the parent builder, the CLP, the SIS calendar, the class pages and the embeds, and the builder and the CLP compute a child's age against different dates.",
+      "means": "Minutes-since-midnight, 12-hour time labels, 'does this class fit this age', 'how old is this child'. Twenty-five private copies lived across the parent builder, the CLP, the SIS calendar, the class pages and the embeds, and the builder and the CLP computed a child's age against different dates; utils/schedule.js is the one module (M11, 2026-09-17).",
       "owner": { "web": ["utils/schedule.js", "utils/timeFormat.js", "utils/age.js"] },
-      "proposed": true,
       "forbid": {
         "web": {
           "pattern": "^\\s*(export )?(const|function) (fmtTime|fmt|fmt12ap|fitsAge|toMin|toMinutes|ageFromDob|ageOf)\\b",
           "dirs": ["pages", "components", "programs"]
         }
       },
-      "baseline": { "web": 25 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "toMin, overlaps, fitsAge, ageFromDob(dob, asOf) and fmtTime from utils/schedule.js (M11); asOf is the org's first_day_of_school so every surface agrees on a child's age."
+      "use_instead": "toMin, overlaps, conflictsWith, fitsAge, ageFromDob(dob, asOf), fmtTime, DAY_LABELS and weekGrid from utils/schedule.js. A child's age is judged as of the org's first_day_of_school on every surface (web: pass asOf; backend: services/sis_age)."
     },
     {
       "id": "weekly_grid",
-      "means": "A week laid out as a grid of class meetings. WeeklyScheduleGrid is canonical; the CLP has its own copy and MyClassesPage draws a third inline. The first two carry the same bug comment from 2026-08-25.",
-      "owner": { "web": ["components/sis/WeeklyScheduleGrid.jsx"] },
+      "means": "A week laid out as rows of class meetings keyed on start time. utils/schedule.weekGrid is the one model; WeeklyScheduleGrid, the CLP grid, the teacher's My Classes week and the public schedule embed draw it. Three hand-rolled copies carried the same 2026-08-25 bug comment and the continuation-row fix (32b2beb3) had reached only one.",
+      "owner": { "web": ["utils/schedule.js", "components/sis/WeeklyScheduleGrid.jsx"] },
       "forbid": {
         "web": {
-          "files": ["pages/sis/clp/ScheduleGrid.jsx"],
-          "pattern": "const DAY_LABELS = |gridTemplateRows",
-          "dirs": ["pages/sis/MyClassesPage.jsx"]
+          "pattern": "slotSet = new Set\\(|daySet = new Set\\(|\\(byDay\\[\\w+\\] = byDay\\[\\w+\\] \\|\\| \\[\\]\\)",
+          "dirs": ["pages", "components"]
         }
       },
-      "baseline": { "web": 2 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "<WeeklyScheduleGrid meetings={...} /> from components/sis. Fix a layout bug there, once."
+      "use_instead": "weekGrid(classes, { recurringOnly }) from utils/schedule for the rows (days, slots, cell, endsBySlot, covering, unscheduled); <WeeklyScheduleGrid classes={...} /> when the student modal's blocks are what you want. Fix a row bug in the model, once."
     },
     {
       "id": "class_summary_line",
-      "means": "One line describing a class to a family: seats, ages, price, times. Six files say 'Full -- waitlist', 'Class full', '8 / 8', 'N seats left' and 'N spots left' for the same state.",
+      "means": "One line describing a class to a family: seats, ages, price, times. Six files said 'Full -- waitlist', 'Class full', 'Full · Waitlist: 3', 'N seats left' and 'N spots left' for the same state; components/sis/ClassSummaryLine.jsx holds the words (M11, 2026-09-17).",
       "owner": { "web": ["components/sis/ClassSummaryLine.jsx"] },
-      "proposed": true,
       "forbid": {
         "web": {
           "pattern": "(Full — waitlist|Class full|seats left|spots? left|spot\\$\\{|Full · Waitlist|Waitlist: \\$\\{|>Full<)",
@@ -425,10 +428,22 @@
           "unit": "files"
         }
       },
-      "baseline": { "web": 6 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M11",
-      "use_instead": "<ClassSummaryLine cls={cls} /> (M11) renders seats, ages, price and times with one vocabulary for the builder, the CLP, the class pages and both embeds."
+      "use_instead": "<ClassSummaryLine cls={c} meetings={...} price={...} /> for the line; seatState(cls), seatText(cls, { short }), ageBandText(cls) and <SeatPill cls /> from the same module when a screen needs one segment."
+    },
+    {
+      "id": "student_age",
+      "means": "How old a student is for the school year: whole years as of the org's first day of school, the date the enrollment gates and the parent's builder already used. Ten SIS modules kept their own year-subtraction and counted from today, so a child was 9 on the roster and 10 on the CLP.",
+      "owner": { "backend": ["services/sis_eligibility.py", "services/sis_age.py"] },
+      "forbid": {
+        "backend": { "pattern": "\\.year - \\w+\\.year", "dirs": ["routes", "services", "utils"] }
+      },
+      "baseline": { "backend": 6 },
+      "measured": "2026-09-17",
+      "lowered_by": "M11",
+      "use_instead": "sis_age.school_age(org_id, dob) for one student, sis_age.ages_for(org_id) for a roster (one settings read). sis_eligibility.age_on(dob) when the question really is about today (an adult signing, a child old enough for her own login). The copies left are platform account policy and two 120-year sanity checks; fold them onto age_on when those files are next open."
     },
     {
       "id": "status_map",
@@ -495,15 +510,15 @@
     },
     {
       "id": "tab_bar",
-      "means": "A row of tabs on an SIS page. Sixteen files hand-roll the underline recipe; GlassTabBar is used by fifteen non-SIS pages and no SIS page.",
+      "means": "A row of tabs on an SIS page. Fourteen files hand-rolled the underline recipe (plus the inbox's pill bar and the prior-learning chips) while GlassTabBar served fifteen non-SIS pages; every SIS tab bar is GlassTabBar now (M14b, 2026-09-17), and the pattern also catches the hand-rolled spinner, which is components/ui/Spinner.",
       "owner": { "web": ["components/ui/GlassTabBar.jsx"] },
       "forbid": {
         "web": { "pattern": "border-b-2", "dirs": ["pages/sis", "components/sis"], "unit": "files" }
       },
-      "baseline": { "web": 16 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14b",
-      "use_instead": "<GlassTabBar tabs={...} active={...} onChange={...} /> from components/ui."
+      "use_instead": "<GlassTabBar align=\"start\" tabs={[{ id, label, badge? }]} active={...} onSelect={...} /> from components/ui (size=\"md\" for a page's section bar, the default for a modal's). Tabs are role=tab: tests query getByRole('tab', { name }). Loading: <Spinner /> or <PageLoader /> from components/ui/Spinner."
     },
     {
       "id": "input_recipe",
@@ -776,6 +791,22 @@
       "measured": "2026-09-17",
       "lowered_by": "M17",
       "use_instead": "<ColumnPicker columns selected onToggle groups? onSetGroup? /> from components/sis/ColumnPicker.jsx; the caller owns the selection (usePersistedChoice)."
+    },
+    {
+      "id": "sis_notice_type",
+      "means": "An in-app notification from the school's office (a seat offered, a payment due, a document to sign). Sent as type 'announcement' until M1, so a family could not mute announcements without muting these; 'school_notice' since 2026-09-17.",
+      "owner": { "backend": ["services/sis_notifications.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "notification_type\\s*=\\s*['\"]announcement['\"]",
+          "dirs": ["routes/sis", "services/sis_"],
+          "exempt": ["services/sis_notifications.py", "services/sis_community_service.py"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M1",
+      "use_instead": "sis_notifications.notify(user_id, title, message, link=..., organization_id=..., service=...) -- it carries the type. 'announcement' is for announcement_service.publish and nothing else."
     }
   ]
 }

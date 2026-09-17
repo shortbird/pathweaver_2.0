@@ -13,6 +13,7 @@
  */
 
 import { hhmm } from '../../../components/sis/classFields'
+import { fitsAge } from '../../../utils/schedule'
 
 export const EMPTY_FILTER = Object.freeze({ search: '', days: [], time: '', age: '' })
 
@@ -37,10 +38,7 @@ export const classMatchesRosterFilter = (c, f) => {
   if (f.time && !meetings.some((m) => hhmm(m.start_time) === f.time)) return false
   if (f.age !== '') {
     const age = Number(f.age)
-    if (!Number.isNaN(age)) {
-      if (c.min_age != null && age < c.min_age) return false
-      if (c.max_age != null && age > c.max_age) return false
-    }
+    if (!Number.isNaN(age) && !fitsAge(c, age)) return false
   }
   return true
 }

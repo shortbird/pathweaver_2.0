@@ -1,14 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { mergeFeedItems } from './UnifiedFeed'
+import { feedItems } from './UnifiedFeed'
 
 /**
  * A board post created with "notify" writes an archive row too, so the same
  * words reach the family feed twice. Which copy is which used to be guessed
- * from title + calendar day — and that guess broke the moment someone edited
- * the post, showing the family two of a notice the admin had written once
- * (iCreate, 2026-08-27). The archive row now carries the board post's id.
+ * here -- from title + calendar day, which broke the moment someone edited the
+ * post (iCreate, 2026-08-27), then from the link column, while the phone kept
+ * guessing. Since M1 (docs/sis/CONSOLIDATION_PLAN.md) the server says: an
+ * archive row whose source post is on the board right now arrives with
+ * `on_board: true`, and this component renders what is not. No heuristic, on
+ * either client.
  */
-describe('mergeFeedItems', () => {
+describe('feedItems', () => {
   const board = (over = {}) => ({
     id: 'board-1', title: 'Picture day', created_at: '2026-08-27T10:00:00Z', ...over,
   })
@@ -16,38 +19,33 @@ describe('mergeFeedItems', () => {
     id: 'sent-1', title: 'Picture day', created_at: '2026-08-27T10:00:01Z', ...over,
   })
 
-  it('drops the archive copy of a board post it is linked to', () => {
-    const items = mergeFeedItems({ announcements: [board()] },
-      [msg({ source_announcement_id: 'board-1' })])
+  it('renders the board copy and not the receipt the server marked', () => {
+    const items = feedItems({ announcements: [board()] },
+      [msg({ source_announcement_id: 'board-1', on_board: true })])
     expect(items.map((i) => i.kind)).toEqual(['announcement'])
   })
 
-  it('still drops it after the board post title was edited', () => {
-    const items = mergeFeedItems({ announcements: [board({ title: 'Picture day (moved)' })] },
-      [msg({ source_announcement_id: 'board-1' })])
+  it('does not care what the titles say', () => {
+    // The whole reason: an edited title used to turn one notice into two.
+    const items = feedItems({ announcements: [board({ title: 'Picture day (moved)' })] },
+      [msg({ title: 'Picture day', source_announcement_id: 'board-1', on_board: true })])
     expect(items).toHaveLength(1)
     expect(items[0].data.title).toBe('Picture day (moved)')
   })
 
-  it('keeps a send that came from a different board post', () => {
-    const items = mergeFeedItems({ announcements: [board()] },
-      [msg({ id: 'sent-2', title: 'Bus change', source_announcement_id: 'board-2' })])
-    expect(items.map((i) => i.kind).sort()).toEqual(['announcement', 'message'])
+  it('shows a send whose post has left the board, so an old notice stays findable', () => {
+    const items = feedItems({ announcements: [] },
+      [msg({ source_announcement_id: 'board-1', on_board: false })])
+    expect(items.map((i) => i.kind)).toEqual(['message'])
   })
 
-  it('falls back to title and day for sends that predate the link', () => {
-    const items = mergeFeedItems({ announcements: [board()] }, [msg()])
-    expect(items.map((i) => i.kind)).toEqual(['announcement'])
-  })
-
-  it('keeps a standalone Messaging-page send', () => {
-    const items = mergeFeedItems({ announcements: [board()] },
-      [msg({ id: 'sent-3', title: 'Early dismissal' })])
+  it('keeps a standalone Messaging-page send, same title or not', () => {
+    const items = feedItems({ announcements: [board()] }, [msg({ id: 'sent-3' })])
     expect(items).toHaveLength(2)
   })
 
   it('pinned board posts sort to the top', () => {
-    const items = mergeFeedItems(
+    const items = feedItems(
       { announcements: [board({ id: 'b2', title: 'Old', created_at: '2026-08-01T00:00:00Z', pinned: true })] },
       [msg({ id: 'sent-9', title: 'Newer' })])
     expect(items[0].data.title).toBe('Old')

@@ -182,11 +182,8 @@ def _append_school_contact(contacts, user_id):
     """
     from services import school_inbox_service
     try:
-        org = school_inbox_service.member_org(user_id)
-        if not org:
-            return
-        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
-        if not inbox_user_id or inbox_user_id == user_id:
+        org, inbox_user_id = school_inbox_service.school_account(school_inbox_service.member_org(user_id))
+        if not org or not inbox_user_id or inbox_user_id == user_id:
             return
         contacts[:] = [ct for ct in contacts if ct['id'] != inbox_user_id]
         contacts.append(school_inbox_service.school_contact(org, inbox_user_id))
@@ -539,7 +536,7 @@ def _deliver_forward(org, member_id, body, attachments, forwarded_by):
     from services import school_inbox_service
 
     if school_inbox_service.org_uses_school_inbox(org):
-        inbox_user_id = school_inbox_service.get_or_create_inbox_user(org)
+        _org, inbox_user_id = school_inbox_service.school_account(org)
         if not inbox_user_id:
             return None, error_response('School inbox is unavailable',
                                         status_code=500, error_code='internal_error')

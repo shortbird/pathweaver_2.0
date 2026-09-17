@@ -25,7 +25,6 @@ from utils.org_features import org_has_feature
 from modules.enabled import effective_modules_for_row
 from modules.registry import surface_keys
 from utils.logger import get_logger
-from utils.validation.sanitizers import pgrst_timestamp
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
@@ -1198,21 +1197,13 @@ def request_age_exception(user_id: str, org_id: str, student_user_id: str,
     if not klass or klass.get('registration_status') != 'open':
         return {'error': 'This class is not open for registration'}
 
-    # Snapshot the student's age the same way the builder judges it: as of the
-    # first day of school when configured, else today.
-    from datetime import date as _date
-    from services.sis_eligibility import age_on
-    first_day = _first_day_of_school(org_id)
-    on = None
-    if first_day:
-        try:
-            on = _date.fromisoformat(str(first_day)[:10])
-        except ValueError:
-            on = None
+    # Snapshot the student's age the same way the builder judges it: the
+    # school-year age (sis_age).
+    from services import sis_age
     from services import sis_exception_service as exceptions
     return exceptions.create_request(
         org_id, user_id, student_user_id, class_id, message=message,
-        student_age=age_on(student.get('date_of_birth'), on),
+        student_age=sis_age.school_age(org_id, student.get('date_of_birth')),
         class_min_age=klass.get('min_age'), class_max_age=klass.get('max_age'))
 
 
@@ -1349,20 +1340,10 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
     # page (9cf78e9a, found 2026-09-08). `categories` is here for the same
     # reason: the family calendar draws a chip per category and could only ever
     # see the first one.
-    q = (
-        _admin().table('sis_events')
-        .select('id, title, description, location, start_at, end_at, all_day, '
-                'category, categories, audience, '
-                'rsvp_enabled, rsvp_fee_cents, rsvp_closes_at')
-        .eq('organization_id', org_id)
-        .eq('audience', 'school')  # families only ever see school-wide events
-    )
-    if from_iso:
-        _from = pgrst_timestamp(from_iso, 'from')
-        q = q.or_(f'start_at.gte.{_from},end_at.gte.{_from}')
-    if to_iso:
-        q = q.lt('start_at', to_iso)
-    return q.order('start_at').execute().data or []
+    from services import sis_events_service as events
+    # Families only ever see school-wide events: the 'family' viewer.
+    return events.list_events(org_id, 'family', from_iso=from_iso, to_iso=to_iso,
+                              columns=events.FAMILY_COLUMNS)
 
 
 def calendar_feed_url(user_id: str, org_id: str, base_url: str) -> Optional[str]:

@@ -95,7 +95,7 @@ describe('adding a link', () => {
   it('is a third door in the add panel, and posts the link with its targeting', async () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /add training/i }))
-    fireEvent.click(screen.getByRole('button', { name: /link to a video or document/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /link to a video or document/i }))
 
     fireEvent.change(screen.getByLabelText('Training title'), { target: { value: 'Whole Brain Teaching' } })
     fireEvent.change(screen.getByLabelText('Training link'), { target: { value: 'https://loom.com/x' } })
@@ -115,7 +115,7 @@ describe('adding a link', () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
-    expect(screen.queryByRole('button', { name: /link to a video or document/i })).toBeNull()
+    expect(screen.queryByRole('tab', { name: /link to a video or document/i })).toBeNull()
   })
 })
 

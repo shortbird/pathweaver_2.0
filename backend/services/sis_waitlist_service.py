@@ -32,6 +32,7 @@ OFFERABLE_STATUSES = ('waiting', 'offered', 'expired', 'declined')
 #   reads/writes rows belonging to every family in the org, which no single
 #   caller can see under RLS; the route's role+org gate is the authorization
 from utils.admin_client import admin_client as _admin
+from services import sis_age
 
 
 def live_offer_count(class_id: str, exclude_student_id: Optional[str] = None) -> int:
@@ -160,6 +161,7 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
             .in_('id', student_ids).execute()
         ).data or []
     }
+    age = sis_age.ages_for(org_id)
     for r in rows:
         u = users.get(r['student_user_id'], {})
         # Jenner Roberts goes by Jay, and the office reads this list out loud
@@ -175,21 +177,8 @@ def list_for_class(org_id: str, class_id: str) -> List[Dict[str, Any]]:
             r['student_name'] = (u.get('display_name')
                                  or f"{u.get('first_name') or ''} {last}".strip()
                                  or u.get('username') or u.get('email') or 'Unnamed')
-        r['student_age'] = _age_from_dob(u.get('date_of_birth'))
+        r['student_age'] = age(u.get('date_of_birth'))
     return rows
-
-
-def _age_from_dob(dob):
-    """Whole years from an ISO date string, or None when unknown/unparseable."""
-    from datetime import date
-    if not dob:
-        return None
-    try:
-        d = date.fromisoformat(str(dob)[:10])
-    except (ValueError, TypeError):
-        return None
-    today = date.today()
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
 def _sibling_class_ids(org_id: str, class_id: str) -> List[str]:

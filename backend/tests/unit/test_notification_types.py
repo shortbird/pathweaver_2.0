@@ -19,6 +19,10 @@ REQUIRED_MOBILE_PUSH_TYPES = {
     'task_approved',
     'task_revision_requested',
     'announcement',
+    # The office's notices (M1): a seat offered, a payment due, a document to
+    # sign. Their own type since 2026-09-17; they pushed as 'announcement'
+    # before that and must keep pushing.
+    'school_notice',
     'observer_comment',
     'observer_added',
     'parent_approval_required',

@@ -18,6 +18,8 @@ import {
 } from '../../hooks/api/useSisStudentDetail'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../../utils/queryKeys'
+import { ageFromDob, fitsAge, conflictsWith } from '../../utils/schedule'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * Tabbed per-student management modal.
@@ -116,18 +118,13 @@ const StudentDetailModal = ({ student, orgId, onClose, onSaved }) => {
           </div>
         </div>
 
-        <div className="flex gap-1 px-4 pt-3 border-b border-gray-100">
-          {TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
-                tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 pt-3 pb-1">
+          <GlassTabBar
+            align="start" aria-label="Student sections"
+            tabs={TABS.filter((t) => !STUDENT_ONLY_TABS.includes(t.key) || isStudent)
+              .map((t) => ({ id: t.key, label: t.label }))}
+            active={tab} onSelect={setTab}
+          />
         </div>
 
         <div className="p-5 overflow-y-auto">
@@ -452,31 +449,6 @@ const ContactsSection = ({ student, orgId }) => {
   )
 }
 
-// Whole years old on a date, or null when there is no birthday on file.
-const ageOf = (dob) => {
-  if (!dob) return null
-  const [y, m, d] = String(dob).slice(0, 10).split('-').map(Number)
-  if (!y) return null
-  const today = new Date()
-  let age = today.getFullYear() - y
-  const beforeBirthday = today.getMonth() + 1 < m
-    || (today.getMonth() + 1 === m && today.getDate() < d)
-  return beforeBirthday ? age - 1 : age
-}
-
-// Two weekly meetings collide when they share a day and overlap in time.
-const toMin = (t) => {
-  const [h, m] = String(t || '').split(':').map(Number)
-  return Number.isNaN(h) ? null : h * 60 + (m || 0)
-}
-const overlaps = (a, b) => {
-  if (a.day_of_week == null || a.day_of_week !== b.day_of_week) return false
-  const as = toMin(a.start_time); const ae = toMin(a.end_time)
-  const bs = toMin(b.start_time); const be = toMin(b.end_time)
-  if ([as, ae, bs, be].some((v) => v == null)) return false
-  return as < be && bs < ae
-}
-
 // ── Schedule: active classes + teacher + quest link, plus enroll ──────────────
 const SchedulePanel = ({ student, orgId }) => {
   const confirm = useConfirm()
@@ -539,16 +511,13 @@ const SchedulePanel = ({ student, orgId }) => {
   // (iCreate, 2026-09-02). Staff can still see the rest — an exception is
   // theirs to make — but they have to ask for it.
   const [showAll, setShowAll] = useState(false)
-  const age = student.age ?? ageOf(student.date_of_birth)
-  const fitsAge = (c) => (
-    age == null
-    || ((c.min_age == null || age >= c.min_age) && (c.max_age == null || age <= c.max_age))
-  )
-  const clashesWith = (c) => (c.meetings || []).some(
-    (m) => classes.some((e) => (e.meetings || []).some((em) => overlaps(m, em))),
-  )
+  // The server's age is the school-year age (as of the first day of school),
+  // the same one the CLP and the parent builder judge bands by; the birthday
+  // fallback is for a payload without it.
+  const age = student.age ?? ageFromDob(student.date_of_birth)
+  const clashesWith = (c) => conflictsWith(c, classes) != null
   const available = all.filter((c) => !enrolledIds.has(c.id)).sort(byDayAndTime)
-  const eligible = available.filter((c) => fitsAge(c) && !clashesWith(c))
+  const eligible = available.filter((c) => fitsAge(c, age) && !clashesWith(c))
   const options = showAll ? available : eligible
   const excluded = available.length - eligible.length
 
@@ -613,7 +582,7 @@ const SchedulePanel = ({ student, orgId }) => {
                 value={chosen} onChange={setChosen} options={options}
                 getId={(c) => c.id}
                 getLabel={(c) => {
-                  const why = !fitsAge(c) ? ' — outside the age band'
+                  const why = !fitsAge(c, age) ? ' — outside the age band'
                     : clashesWith(c) ? ' — clashes with their schedule' : ''
                   return `${classLabel(c)}${c.capacity != null ? ` (${c.enrolled_count}/${c.capacity})` : ''}${why}`
                 }}

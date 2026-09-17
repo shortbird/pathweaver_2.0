@@ -10,6 +10,7 @@ import { range12h } from '../../utils/timeFormat'
 import TeacherDashboard from './TeacherDashboard'
 import CoordinatorDashboard from './CoordinatorDashboard'
 import DashboardCard from '../../components/sis/DashboardCard'
+import { fmtEventWhen } from '../../utils/timeFormat'
 
 /**
  * The School Dashboard — what is waiting on the office, then what is happening
@@ -103,24 +104,10 @@ const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, {
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 })}`
 
-export const eventTime = (e) => {
-  if (!e.start_at) return ''
-  const d = new Date(e.start_at)
-  if (Number.isNaN(d.getTime())) return ''
-  // Read in UTC throughout. Neither kind of event names an instant: an all-day
-  // event is stored date-only as 00:00 UTC, and a timed event is stored as the
-  // wall clock the office typed, tagged +00 without conversion. Local time
-  // moves both — "NO CLASS - LABOR DAY" on the 7th read "Sun, Sep 6" (iCreate,
-  // 2026-08-31), and a 10am event read 4am (Perch 1d0d41a9). The family-facing
-  // SchoolCommunity.fmtWhen carries the same rule and the same reason.
-  const opts = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
-  const day = d.toLocaleDateString(undefined, opts)
-  if (e.all_day) return day
-  const time = d.toLocaleTimeString(undefined, {
-    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
-  })
-  return `${day}, ${time}`
-}
+// The event's day and time, read as the wall clock the office typed. The
+// rule and its history are in utils/timeFormat.js (EVENT_STAMPS_ARE_WALL_CLOCK);
+// this used to be a private copy of it (M12).
+export const eventTime = fmtEventWhen
 
 const SisDashboard = () => {
   const { user } = useAuth()

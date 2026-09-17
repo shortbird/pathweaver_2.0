@@ -23,6 +23,7 @@ import secrets
 
 from flask import jsonify
 
+from services.sis_eligibility import age_on
 from utils.logger import get_logger
 from utils.sis_roles import FAMILY_REGISTRATION_STAFF_ROLES
 
@@ -37,11 +38,9 @@ FUNNEL_STAFF_ORG_ROLES = FAMILY_REGISTRATION_STAFF_ROLES
 
 
 def calc_age(dob: date) -> int:
-    today = date.today()
-    age = today.year - dob.year
-    if (today.month, today.day) < (dob.month, dob.day):
-        age -= 1
-    return age
+    """Whole years old today. Adulthood and the own-login age are questions
+    about today, not the school year, so this is age_on with no date."""
+    return age_on(dob) or 0
 
 
 def parse_dob(v):

@@ -39,7 +39,7 @@ Four rules, learned the hard way:
 
 | Ceiling | Where | Protects |
 |---|---|---|
-| Direct `.table()` calls per layer: routes 2,278, services 1,836, repositories 522, utils 145, jobs 7, middleware 2, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
+| Direct `.table()` calls per layer: routes 2,271, services 1,837, repositories 522, utils 145, jobs 7, middleware 2, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
 | 415 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
 | 10 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
 | 22 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |
@@ -81,7 +81,7 @@ These assert zero, or one, or a structure. No number to raise.
 - `test_require_role_names_are_real.py` — every role name handed to
   `@require_role` is a role that can exist. SEC-01.
 - `test_role_rules_are_enforced.py` — every literal role list includes
-  `superadmin`; all five `sis_roles` tuples contain it.
+  `superadmin`; all seven `sis_roles` tuples contain it.
 - `test_id_routes_declare_relationship.py` — every id-bearing route declares
   `@require_relationship_to`, is superadmin-only, or is allowlisted with a
   written reason. SEC-10. Companion tests forbid stale allowlist entries.

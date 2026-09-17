@@ -14,6 +14,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import OPTIO_COURSE_FEE from './OPTIO_COURSE_FEE'
 import stripHtml from './stripHtml'
 import COURSE_TABS from './COURSE_TABS'
+import GlassTabBar from '../../../components/ui/GlassTabBar'
 
 const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClose, onSaved }) => {
   const [tab, setTab] = useState('details')
@@ -62,15 +63,12 @@ const CourseDetailModal = ({ course, staff, current, orgId, isSuperadmin, onClos
           <h2 className="text-lg font-semibold text-gray-900">{course.title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
-        <div className="flex gap-4 px-4 mt-2 border-b border-gray-200 shrink-0">
-          {COURSE_TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`pb-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${
-                tab === t.key ? 'border-optio-purple text-optio-purple' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+        <div className="px-4 mt-2 shrink-0">
+          <GlassTabBar
+            align="start" aria-label="Course sections"
+            tabs={COURSE_TABS.map((t) => ({ id: t.key, label: t.label }))}
+            active={tab} onSelect={setTab}
+          />
         </div>
 
         <div className="p-4 overflow-y-auto flex-1">

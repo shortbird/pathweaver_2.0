@@ -101,7 +101,7 @@ const openWaitlistTab = async () => {
   const cardToggle = screen.getByTitle('Card view')
   if (cardToggle.getAttribute('aria-pressed') !== 'true') fireEvent.click(cardToggle)
   fireEvent.click(await screen.findByText('Lego Robotics'))
-  fireEvent.click(await screen.findByRole('button', { name: 'Waitlist' }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'Waitlist' }))
   return screen.findByText(/Van Stanfill/)
 }
 

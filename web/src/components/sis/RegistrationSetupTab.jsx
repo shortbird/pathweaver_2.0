@@ -9,6 +9,7 @@ import { getLearningOrigin } from '../../utils/appSurface'
 import { STEPS, STEP_LABELS, absUrl, feeStepLabel, VerticalStepper } from '../registration/funnelUi'
 import { monthlyPlanFrom } from '../registration/monthlyPricing'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { Spinner } from '../ui/Spinner'
 
 /**
  * The Registration setup tab: the family registration funnel rendered exactly
@@ -485,7 +486,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         <label className="block text-xs font-medium text-neutral-500 mb-1">Family registration link</label>
         {regLinkLoading ? (
           <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-neutral-400">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-optio-purple" />
+            <Spinner size="sm" className="h-4 w-4" />
             Preparing link…
           </div>
         ) : regLink ? (

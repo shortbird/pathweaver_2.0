@@ -28,7 +28,7 @@ WEB_PUSH_NOTIFICATION_TYPES = {
 # pinging the user's device about").
 MOBILE_PUSH_NOTIFICATION_TYPES = {
     # Social / inbound
-    'message_received', 'quest_invitation', 'announcement',
+    'message_received', 'quest_invitation', 'announcement', 'school_notice',
     'observer_comment', 'observer_added', 'observer_accepted',
     # Student-facing work events
     'task_approved', 'task_revision_requested',

@@ -116,12 +116,13 @@ describe('the unified school feed', () => {
 
   it('shows a board post exactly once when its notify-copy is also in the archive', async () => {
     // A board post created with "notify" writes a second row into the
-    // announcements archive. Same title, same day = the same words twice;
-    // the board copy wins (it carries pinned/urgent).
+    // announcements archive. The server marks that row on_board while the
+    // post is on the board (M1); the board copy wins (it carries
+    // pinned/urgent) and the page never compares titles or days.
     archiveMessages = [
       { id: 'ann-dup', title: 'Early dismissal', content: 'Friday at noon',
         message: 'Friday at noon', target_audience: 'everyone',
-        created_at: '2026-08-01T15:00:00Z' },
+        created_at: '2026-08-01T15:00:00Z', source_announcement_id: 'a1', on_board: true },
     ]
     mockApi(FEED)
     renderPage()

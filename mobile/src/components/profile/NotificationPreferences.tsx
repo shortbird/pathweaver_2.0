@@ -45,6 +45,10 @@ const ROWS: PreferenceRow[] = [
   { type: 'observer_added', label: 'New observers', description: 'When someone is added as an observer.', icon: 'people-outline', roles: ['student'] },
   { type: 'parent_approval_required', label: 'Approval requests', description: 'Your child requests portfolio approval.', icon: 'shield-checkmark-outline', roles: ['parent'] },
   { type: 'announcement', label: 'Announcements', description: 'Program or school announcements.', icon: 'megaphone-outline', roles: ['student', 'parent', 'observer', 'advisor'] },
+  // The office's notices (M1): a seat offered, an enrollment confirmed, a
+  // payment due, a document to sign. Sent as 'announcement' until 2026-09-17,
+  // so muting one muted the other.
+  { type: 'school_notice', label: 'School notices', description: "Enrollment, waitlist, billing and paperwork notices from your school's office.", icon: 'business-outline', roles: ['student', 'parent', 'observer', 'advisor'] },
   // The school day, for a parent (2026-09-15): the three things a teacher
   // does to a child's work that a family used to hear about last.
   { type: 'class_quest_assigned', label: 'New class quests', description: 'When a class quest is assigned to your child.', icon: 'school-outline', roles: ['parent'] },

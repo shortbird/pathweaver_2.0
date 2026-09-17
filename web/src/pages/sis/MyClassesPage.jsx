@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { weekGrid, fmtTime, DAY_LABELS } from '../../utils/schedule'
 
 /**
  * MyClassesPage — the teacher's classes with meeting times and roster counts.
@@ -14,21 +15,7 @@ import usePersistedChoice from '../../hooks/usePersistedChoice'
  * they teach. Data comes pre-scoped from /api/sis/teacher/classes.
  */
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const WEEKDAYS = [1, 2, 3, 4, 5] // Mon–Fri
-
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = hhmm.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-
-const toMinutes = (hhmm) => {
-  const [h, m] = String(hhmm || '').split(':').map(Number)
-  return Number.isNaN(h) ? 0 : h * 60 + (m || 0)
-}
+const WEEKDAYS = [1, 2, 3, 4, 5] // Mon-Fri, always shown
 
 const meetingLabel = (m) => {
   const when = m.specific_date ? m.specific_date : DAY_LABELS[m.day_of_week] || ''
@@ -41,7 +28,7 @@ const MyClassesPage = () => {
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
   const [view, setViewPersist] = usePersistedChoice('sis_my_classes_view', 'cards', {
-    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
+    validate: (v) => (v === 'cards' || v === 'schedule' ? v : null),
   })
 
   useEffect(() => {
@@ -53,23 +40,11 @@ const MyClassesPage = () => {
       .finally(() => setLoading(false))
   }, [orgId])
 
-  // Weekly grid: recurring meetings grouped by weekday, sorted by start time.
-  const byDay = useMemo(() => {
-    const map = {}
-    for (const c of classes) {
-      for (const m of (c.meetings || [])) {
-        if (m.day_of_week == null || m.specific_date) continue
-        ;(map[m.day_of_week] = map[m.day_of_week] || []).push({ cls: c, m })
-      }
-    }
-    for (const d of Object.keys(map)) map[d].sort((a, b) => toMinutes(a.m.start_time) - toMinutes(b.m.start_time))
-    return map
-  }, [classes])
-
-  const daysWithMeetings = useMemo(() => {
-    const extra = Object.keys(byDay).map(Number).filter((d) => !WEEKDAYS.includes(d))
-    return [...WEEKDAYS, ...extra.sort((a, b) => a - b)]
-  }, [byDay])
+  // The teacher's week on the shared row model: one row per start time across
+  // the whole week, so a 9:30 class sits on the 9:30 row every day it meets.
+  // Per-day stacks put the same class at different heights on different days.
+  const week = useMemo(() => weekGrid(classes, { recurringOnly: true }), [classes])
+  const days = useMemo(() => [...WEEKDAYS, ...week.days.filter((d) => !WEEKDAYS.includes(d))], [week])
 
   const todayDow = new Date().getDay() // 0=Sun … 6=Sat, matches day_of_week
 
@@ -132,30 +107,61 @@ const MyClassesPage = () => {
 
       {!loading && classes.length > 0 && view === 'schedule' && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 overflow-x-auto">
-          <div className="grid gap-3 min-w-[560px]" style={{ gridTemplateColumns: `repeat(${daysWithMeetings.length}, minmax(0, 1fr))` }}>
-            {daysWithMeetings.map((d) => (
-              <div key={d} className={`min-w-0 rounded-lg ${d === todayDow ? 'bg-optio-purple/5 -mx-1 px-1 pb-1' : ''}`}>
-                <div className={`text-xs font-semibold uppercase tracking-wide mb-2 text-center ${d === todayDow ? 'text-optio-purple' : 'text-neutral-400'}`}>
-                  {DAY_LABELS[d]}{d === todayDow ? ' · Today' : ''}
-                </div>
-                <div className="space-y-2">
-                  {(byDay[d] || []).map(({ cls, m }, i) => (
-                    <button
-                      key={`${cls.id}-${i}`}
-                      type="button"
-                      onClick={() => navigate(`/my-classes/${cls.id}`)}
-                      className="w-full text-left rounded-lg p-2.5 border border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white hover:border-optio-purple transition-colors"
-                    >
-                      <div className="text-sm font-semibold text-neutral-900 leading-tight truncate">{cls.name}</div>
-                      <div className="text-xs text-neutral-500 mt-0.5">{fmtTime(m.start_time)}–{fmtTime(m.end_time)}</div>
-                      {cls.location && <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{cls.location}</div>}
-                    </button>
-                  ))}
-                  {!(byDay[d] || []).length && <div className="text-xs text-neutral-300 text-center py-4">—</div>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <table className="w-full min-w-[560px] text-xs border-collapse">
+            <thead>
+              <tr>
+                <th className="p-1.5 w-20"></th>
+                {days.map((d) => (
+                  <th key={d} className={`p-1.5 text-center font-semibold uppercase tracking-wide ${d === todayDow ? 'text-optio-purple' : 'text-neutral-400'}`}>
+                    {DAY_LABELS[d]}{d === todayDow ? ' · Today' : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {week.slots.map((slot) => {
+                const ends = [...(week.endsBySlot[slot] || [])]
+                const uniformEnd = ends.length === 1 ? ends[0] : null
+                return (
+                  <tr key={slot} className="border-t border-gray-100">
+                    <td className="p-1.5 text-neutral-400 whitespace-nowrap align-top">
+                      {uniformEnd ? `${fmtTime(slot)}–${fmtTime(uniformEnd)}` : fmtTime(slot)}
+                    </td>
+                    {days.map((d) => (
+                      <td key={d} className={`p-1 align-top ${d === todayDow ? 'bg-optio-purple/5' : ''}`}>
+                        {(week.cell[`${d}|${slot}`] || []).map(({ cls, m }, i) => (
+                          <button
+                            key={`${cls.id}-${i}`}
+                            type="button"
+                            onClick={() => navigate(`/my-classes/${cls.id}`)}
+                            className="w-full text-left rounded-lg p-2 mb-1 border border-gray-200 bg-gradient-to-br from-[#F3EFF4] to-white hover:border-optio-purple transition-colors"
+                          >
+                            <div className="text-sm font-semibold text-neutral-900 leading-tight truncate">{cls.name}</div>
+                            {!uniformEnd && m.end_time && (
+                              <div className="text-xs text-neutral-500 mt-0.5">until {fmtTime(m.end_time)}</div>
+                            )}
+                            {(m.location || cls.location) && (
+                              <div className="text-[11px] text-neutral-400 mt-0.5 truncate">{m.location || cls.location}</div>
+                            )}
+                          </button>
+                        ))}
+                        {!(week.cell[`${d}|${slot}`] || []).length && week.covering(d, slot).map((cls, i) => (
+                          <div key={`cont-${i}`} className="rounded-lg border border-dashed border-gray-200 text-neutral-400 px-2 py-1 mb-1 text-[11px]">
+                            {cls.name} (continues)
+                          </div>
+                        ))}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {week.unscheduled.length > 0 && (
+            <p className="text-xs text-neutral-400 mt-3">
+              Not on the weekly grid: {week.unscheduled.map((c) => c.name).join(', ')}
+            </p>
+          )}
         </div>
       )}
     </div>

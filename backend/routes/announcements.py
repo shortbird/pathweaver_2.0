@@ -280,7 +280,8 @@ _AUDIENCE_TOKENS = {'student': 'students', 'parent': 'parents',
 # Who keeps the unfiltered view: the front office. They are the people who SEND
 # announcements and field the questions about them, and a coordinator's
 # restriction is financial, not scope-based. A teacher is not front office.
-_ARCHIVE_SEES_ALL = ('superadmin', 'org_admin', 'campus_coordinator')
+# The same tier the console calls ADMIN_ROLES; spelled once there.
+_ARCHIVE_SEES_ALL = ADMIN_ROLES
 
 
 def _family_audience_token(user_row):
@@ -457,8 +458,15 @@ def announcements_archive(user_id):
         except Exception as _exc:  # noqa: BLE001
             logger.debug("org name lookup failed: %s", _exc, exc_info=True)
 
+        # A send that came from a board post still on the board is that post's
+        # receipt, not a second notice: it is returned (the read receipts the
+        # client reports are keyed on it) and marked on_board so no client has
+        # to work out which rows are duplicates.
+        from services import sis_community_service as community
+        on_board = community.visible_announcement_ids(org_id)
         announcements = [
-            {**row, 'content': row.get('message')}
+            {**row, 'content': row.get('message'),
+             'on_board': bool(row.get('source_announcement_id')) and row['source_announcement_id'] in on_board}
             for row in (result.data or [])
         ]
         # Attachment pointers are private-bucket URLs; hand out signed twins.

@@ -10,6 +10,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { isSisAdmin } from './sisRole'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useOrgSettings } from '../../hooks/api/useSisSettings'
+import GlassTabBar from '../../components/ui/GlassTabBar'
+import { Spinner } from '../../components/ui/Spinner'
 
 /**
  * SIS Registration page — everything about how families register, in two tabs:
@@ -42,22 +44,15 @@ const RegistrationPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Registration</h1>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? 'border-optio-purple text-optio-purple'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <GlassTabBar
+        align="start" size="md" className="mb-6" aria-label="Registration sections"
+        tabs={TABS.map((t) => ({ id: t.key, label: t.label }))}
+        active={tab} onSelect={setTab}
+      />
 
       {(loading || orgLoading) ? (
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple" />
+          <Spinner />
         </div>
       ) : !orgId ? (
         <p className="text-neutral-500">Select an organization to manage its registration.</p>

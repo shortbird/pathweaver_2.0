@@ -27,15 +27,15 @@ and patterns instead.
 | Move | Wave | Status | Commit | Baseline after |
 |---|---|---|---|---|
 | M0 Guards | 0 | shipped | `40e27712` | 51 rows frozen at the counts in `shared/sisConcepts.json` |
-| M1 One school voice | 0 | not started | | |
+| M1 One school voice | 0 | shipped | see git log (`consolidate/M1-school-voice`) | `announcement_publish` 1/0/0, `audience_vocabulary` 1, `role_tuple_literal` 0, `school_sender` 0, new `sis_notice_type` 0 |
 | M3 One API hold gate | 0 | shipped | see git log (`consolidate/M3-hold-gate`) | `hold_middleware` 0 |
 | M8a One settings writer | 0 | shipped | see git log (`consolidate/M8a-settings-writer`) | `settings_write` 0, `registration_config_mirror` 0, `org_payload_fetch` 0 |
 | M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
-| M11 One schedule toolkit | 0 | not started | | |
-| M12 One today, one events feed, one event clock | 0 | not started | | |
+| M11 One schedule toolkit | 0 | shipped | see git log (`consolidate/M11-schedule-toolkit`) | `schedule_helpers` 0, `weekly_grid` 0, `class_summary_line` 0; new backend `student_age` 6 |
+| M12 One today, one events feed, one event clock | 0 | shipped | see git log (`consolidate/M12-today-events`) | `events_read` 0, `today_schedule` 0, `event_wall_clock` 0, `audience_vocabulary` 0 |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
-| M14a/b Layout header, tab bars | 0 | M14a shipped (`consolidate/M14a-layout-header`); M14b pending | | `org_picker_header` 0 |
+| M14a/b Layout header, tab bars | 0 | shipped (`consolidate/M14a-layout-header`, `consolidate/M14b-glass-tab-bar`) | | `org_picker_header` 0, `tab_bar` 0 |
 | M5 One quote | 1 | not started | | |
 | M6 One invoice writer, checkout, verifier | 1 | not started | | |
 | M7 One household billing view, `formatCents` | 1 | not started | | |
@@ -310,6 +310,32 @@ merges; (5) the two older message endpoints delegate; (6) notification types; (7
 manifest rows `announcement_publish` → 0/0/0, `audience_vocabulary` → 1 (events
 adopt in M12), `role_tuple_literal` → 0, `school_sender` → 0.
 
+**As shipped (2026-09-17).** (1) done: `services/sis_audiences.py` holds the board,
+recipient and event vocabularies and the translation between them; the announcement
+and community services import it; the archive's role tuple is `ADMIN_ROLES`. (2)
+`publish` keeps its name — it already had one caller, `sis_community_service.post`,
+and `revise_for_source`/`retract_for_source` are already what `update_announcement`
+and `delete_announcement` call; renaming bought nothing. (3) not as one list: the
+archive is paged, searched and carries the read receipts a family reports, and the
+board feed is not, so folding them into one endpoint would have meant paging over a
+union. Instead the archive marks each send `on_board` while its source post is on
+the board (`sis_community_service.visible_announcement_ids`), and the four sends
+that predated the link column were linked in the data (`20260918170000`), so (4)
+both clients render what is not marked and neither compares titles or days any
+more. (5) `school_inbox_service.school_account(org)` and `send_as_school(...)` are
+the one resolver and the one sender; the school-inbox route, the contacts list,
+forward-to-school and the two People-page message endpoints go through them. (6)
+one type, `school_notice` (`20260918180000`, applied to prod and staging), for every
+`sis_notifications.notify` call and the goals route's private copy, with the mobile
+preference and the web renderer taught the word; the plan's three types were not
+worth three preference rows. Also: `MEMBER_ROLES` and `ADULT_ROLES` in `sis_roles.py`
+for `community.py`'s three tuples; the board list shows each post's audience chip
+(ticket `597ba9a4`). Not done, on purpose: `InboxUnreadBadge` keeps summing the
+caller's threads and the school's — two facts, one badge, not two implementations;
+`BoardAnnouncementsTab` stays mounted on `/inbox` and `/community`, one component,
+because Community is opt-in per org and `/inbox` is the door every org has;
+`registration_alerts` already used `sis_billing_alerts.recipients`.
+
 Verify at :3000 as iCreate admin: post a board announcement to Families with
 "also notify"; see it once on `/community`, once on `/inbox?tab=announcements`, once
 on a parent's `/school` feed (web) and once on the phone; edit it, see the edit in
@@ -443,6 +469,41 @@ CLP page (as staff) and the student modal agree on which classes fit; a class at
 the embed and the CLP card; the printable schedule matches the builder. Manifest
 `schedule_helpers` → 0 each, `weekly_grid` → 0, `class_summary_line` → 0.
 
+**As shipped (2026-09-17).** Web: `utils/schedule.js` exports `toMin`, `overlaps`,
+`conflictsWith`, `fitsAge(cls, age)`, `ageFromDob` (re-exported from `utils/age.js`,
+which gained the `asOf` argument rather than folding in), `fmtTime` (=
+`timeFormat.compact12h`), `DAY_LABELS`/`DAY_ORDER` and `weekGrid(classes, {
+recurringOnly })` — the row model (start-time rows across the week, `covering` for the
+rows a long class runs through, `unscheduled`) that `WeeklyScheduleGrid`, the CLP's
+`ScheduleGrid`, the teacher's My Classes week and the public `ScheduleEmbedPage` now
+all draw; the last two were per-day stacks and are now rows, with clickable cells kept.
+The twelve `fmtTime`/`fmt`/`fmt12ap` definers, seven `toMin`, three overlap tests, four
+`fitsAge` and four `ageFromDob`/`ageOf` are gone (`clpHelpers.jsx` re-exports the
+toolkit under the CLP's names; `classFields.fmt12ap` and `scheduleBuilder/ageBandText`
+are re-exports). `components/sis/ClassSummaryLine.jsx` holds `seatState` (reads both the
+SIS `is_full`/`spots_left` and the embed `open_seats` shapes), `seatText` (long: "Open
+enrollment" / "3 seats left" / "Full — waitlist" / "Full — 4 waiting"; short: "Open" /
+"3 left" / "Full"), `ageBandText`, `SeatPill` and the line itself; the six renderers use
+it (`meetings` is passed in, since the builder's `meetingText` and the staff
+`classLabel.meetingText` phrase the week differently and merging them is copy, not
+code). Backend: `services/sis_age.py` — `school_year_start(org_id)` (via
+`OrganizationRepository`), `school_age(org_id, dob)` and `ages_for(org_id)` for a roster
+— on the pure `sis_eligibility.age_on`; the roster, households, CLP (directory, student,
+siblings), teacher class roster, attendance sheet, class waitlist, catalog roster, the
+three reports, the training audience and the enrollment waitlist all judge age as of
+the org's `first_day_of_school` (the user's call, 2026-09-17: a child's age is fixed
+for the year, as schools count it). `registration_identity_service.calc_age` (is this
+signer an adult) and the funnel's own-login age stay today-based on `age_on`. New
+manifest row `student_age` (pattern `.year - x.year`, baseline 6: the platform account
+helpers and two 120-year sanity checks, all today-based by design). Not done: the
+"one `student_schedule` shape behind three routes" — the two SIS reads already share
+`sis_parent_service._enrolled_classes` and differ on purpose (the guardian payload
+carries household money a student may not see), and `/api/student/classes` is the LMS
+cohort-class list, a different concept; a shape merge would also need a mobile OTA.
+Also fixed on the way: `MyClassesPage`'s persisted view validated `'cards' | 'table'`
+while the values are `'cards' | 'schedule'` (an M17 slip), so the week view never
+survived a reload.
+
 ### M12 — One today, one events feed, one event clock
 
 **Audit**: E2-E4. **Size M.**
@@ -462,6 +523,28 @@ them; one `components/sis/EventCard.jsx`. The bespoke
 
 Migration: none. Stored audience values on `sis_events` unchanged; labels map through
 `sis_audiences`.
+
+**As shipped (2026-09-17).** Backend: `services/sis_events_service.py` is the one
+reader — `list_events(org_id, viewer, from_iso, to_iso, limit, columns)` with a viewer
+kind (`admin` / `staff` / `family` / `shared`, `viewer_for_user` picks it from the
+roles) and the audience rule in one place, plus `get_event` / `create_event` /
+`update_event` / `delete_event`; the calendar route, the parent feed, the dashboard,
+the community feed, the RSVP service and the ICS feed all call it, and the calendar's
+`AUDIENCES` is `sis_audiences.EVENT_AUDIENCES`. `sis_coordinator_service.today_schedule`
+is public, takes the date and an optional `class_scope`, and is what both dashboards
+read; the admin dashboard's other source, `sis_service.get_dashboard`, was the census
+and is now named `census` — it was never a second schedule, and the teacher dashboard
+has had no "today" card since 2026-08-31 (iCreate asked for it to go), so the plan's
+third assembler did not exist to merge. Web: `utils/timeFormat.js` gained the
+wall-clock helpers (`fmtEventWhen`, `fmtEventDay`, `fmtEventTimeRange`,
+`splitEventStamp`) and the day/instant helpers (`fmtDateOnly`, `fmtDayHeading`,
+`fmtShortDate`, `fmtLongDate`, `fmtInstant`, `compact12h`, `isDateOnly`); the two
+calendars, the dashboard, `SchoolCommunity`, `CommunityPage` and
+`BoardAnnouncementsTab` use them and hold no formatting of their own, which fixes
+the admin Community page's timed events (they read in local time). The
+`schoolEventWallClock` guard's baseline is empty. Not built: `EventCard` — the three
+event surfaces are a dashboard row, a community card with an RSVP count and a grid
+cell, and they share the label, not the markup.
 
 Verify at :3000 as iCreate admin, coordinator and a teacher: today's list is
 identical on the three dashboards; a 6:30 PM event typed on the calendar reads
@@ -532,6 +615,25 @@ for every page's actions, which is not less code. (b)
 `components/ui/GlassTabBar.jsx` for every SIS tab bar (`tabs`, `active`, `onChange`
 — the component already exists and is documented). Each is one PR; the manifest
 rows `org_picker_header` and `tab_bar` count down by page.
+
+(b) As shipped (2026-09-17): the twelve underline bars (Task Center, My Tasks, the
+teacher's class page, Classes, Community, Registration, the student and family modals,
+the class and course modals, the training add-panel doors, the class-quest assign
+panel), the inbox's pill bar and the prior-learning status chips are all
+`<GlassTabBar align="start" ...>`; `GlassTabBar` gained the `align` prop (the SIS
+reads left-aligned, the platform's rails are centred) and its `badge` carries the
+counts the old bars spelled inline. Tabs are `role="tab"`, so the eleven page tests
+that clicked them as buttons now ask for tabs, and "the active tab" is
+`aria-selected` rather than a border class. The `border-b-2` pattern also caught the
+hand-rolled loading spinner in six SIS files; those are `components/ui/Spinner`
+(`Spinner`, `PageLoader`) now, so the row reads zero honestly. Carried in the same
+branch: the peer session's `4b196423` (`useSisOrg()` in `SisLayout` moved above the
+auth guards -- M14a had called it after the early returns, and the hook count
+changing between the loading and loaded renders took every SIS page down locally),
+cherry-picked so both branches hold the identical change. With the hooks
+unconditional, eslint could finally analyse the layout and flagged the
+close-the-drawer-on-navigation effect (`setState` inside an effect); the drawer now
+remembers the path it opened on and is closed by the path changing, no effect.
 
 Verify: every SIS page keeps its title, org picker (superadmin) and tabs; deep links
 with `?tab=` still select the tab.

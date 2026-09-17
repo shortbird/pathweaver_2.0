@@ -53,6 +53,8 @@ SIS_ROLE_TUPLES = (
     'FINANCE_ROLES',
     'ROLE_GRANT_ROLES',
     'HR_ROLES',
+    'MEMBER_ROLES',
+    'ADULT_ROLES',
 )
 
 

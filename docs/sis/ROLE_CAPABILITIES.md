@@ -42,7 +42,7 @@ teacher-and-parent refused a group chat).
 
 ## The four tiers
 
-Almost every route names one of four tuples from `backend/utils/sis_roles.py`
+Almost every route names one of the tuples from `backend/utils/sis_roles.py`
 rather than listing roles. Import them; never retype a role tuple.
 
 | Tier | Members | Use for |
@@ -52,6 +52,8 @@ rather than listing roles. Import them; never retype a role tuple.
 | `FINANCE_ROLES` | admin, superadmin | **The money.** Billing, tuition, Stripe, timesheets, payroll. |
 | `HR_ROLES` | admin, superadmin | The secure-documents store: contracts, background checks, custody and medical files. |
 | `ROLE_GRANT_ROLES` | admin, superadmin | Granting `org_admin`, or changing anybody who holds it. Not a route tier since 2026-09-14 — the service asks it per call. |
+| `MEMBER_ROLES` | everyone with a seat: student, parent, observer, advisor, coordinator, admin, superadmin | The family-facing reads (`community.py`'s feed). The route resolves the org through membership; the tuple only says who may ask. |
+| `ADULT_ROLES` | parent, advisor, coordinator, admin, superadmin | Family-authored writes a student may not make (`community.py`'s carpool board). |
 
 `FINANCE_ROLES`, `HR_ROLES` and `ROLE_GRANT_ROLES` have identical membership and
 are deliberately three names: they answer three different questions, and if the

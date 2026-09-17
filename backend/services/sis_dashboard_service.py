@@ -211,15 +211,13 @@ def _upcoming_events(org_id: str, now, sees_all_audiences: bool) -> List[Dict[st
     Audience gate mirrors GET /api/sis/events: admin-only events stay invisible
     to anyone who is not org_admin or superadmin.
     """
-    rows = (_admin().table('sis_events')
-            .select('id, title, start_at, end_at, all_day, location, audience, category')
-            .eq('organization_id', org_id)
-            .gte('start_at', now.isoformat())
-            .lt('start_at', (now + timedelta(days=EVENT_WINDOW_DAYS)).isoformat())
-            .order('start_at').limit(50).execute()).data or []
-    if not sees_all_audiences:
-        rows = [e for e in rows if (e.get('audience') or 'school') in ('school', 'teachers')]
-    return rows[:MAX_EVENTS]
+    from services import sis_events_service as events
+    rows = events.list_events(
+        org_id, 'admin' if sees_all_audiences else 'staff',
+        from_iso=now.isoformat(), to_iso=(now + timedelta(days=EVENT_WINDOW_DAYS)).isoformat(),
+        limit=MAX_EVENTS,
+        columns='id, title, start_at, end_at, all_day, location, audience, category')
+    return rows
 
 
 def _invoice_totals(org_id: str) -> Dict[str, Any]:
@@ -255,7 +253,7 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
 
     jobs: Dict[str, Tuple[Callable[[], Any], Any]] = {
         # The census the old dashboard was, kept whole and demoted to one row.
-        'snapshot': (lambda: sis_service.get_dashboard(org_id), None),
+        'snapshot': (lambda: sis_service.census(org_id), None),
         # The school's permanent links — the noticeboard the office asked for:
         # "what we need is like a 'bulletin Board' or a widget that allows
         # admins to post links that can stay up there for a year (or we can
@@ -299,8 +297,8 @@ def _build_jobs(org_id: str, *, caller_id: str, hidden: set, settings: Dict[str,
                                                 status='submitted'), None)
 
     if 'classes' not in hidden and dow is not None:
-        jobs['schedule'] = (lambda: coordinator._today_org_schedule(
-            org_id, dow, today)[:MAX_SCHEDULE], [])
+        jobs['schedule'] = (lambda: coordinator.today_schedule(
+            org_id, today, dow=dow)[:MAX_SCHEDULE], [])
 
     if 'calendar' not in hidden and now:
         jobs['events'] = (lambda: _upcoming_events(org_id, now, sees_all_audiences), [])

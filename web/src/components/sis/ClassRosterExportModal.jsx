@@ -8,6 +8,7 @@ import ColumnPicker from './ColumnPicker'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { toCsv, downloadCsv as saveCsv, dateStamp } from '../../utils/csv'
 import { printElement } from '../../utils/printView'
+import { fmtTime } from '../../utils/schedule'
 
 /**
  * Print a class roster, or download it as a CSV.
@@ -32,15 +33,6 @@ import { printElement } from '../../utils/printView'
  */
 
 const STORE_KEY = 'sis_roster_export'
-
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = String(hhmm).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
 
 const COLUMNS = [
   { key: 'name', label: 'Student', get: (s) => s.name, always: true },

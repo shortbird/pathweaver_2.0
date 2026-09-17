@@ -13,6 +13,7 @@ from utils.auth.decorators import require_role
 from utils.auth.relationships import require_relationship_to
 from utils.logger import get_logger
 from services import sis_service
+from services import sis_age
 from services import sis_catalog_service as catalog
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
@@ -28,19 +29,6 @@ bp = Blueprint('sis_catalog', __name__, url_prefix='/api/sis')
 
 # Class management is admin-only; teachers get scoped reads (list/detail/
 # meetings/roster) — advisor visibility is filtered via sis_service.class_scope.
-
-
-def _age_from_dob(dob):
-    """Whole years from an ISO date string, or None when unknown/unparseable."""
-    from datetime import date
-    if not dob:
-        return None
-    try:
-        d = date.fromisoformat(str(dob)[:10])
-    except (ValueError, TypeError):
-        return None
-    today = date.today()
-    return today.year - d.year - ((today.month, today.day) < (d.month, d.day))
 
 
 def _truthy(v):
@@ -508,6 +496,7 @@ def class_roster(user_id, class_id):
                 .in_('id', ids).execute()).data or []
         users = {u['id']: u for u in rows}
     next_class = _next_class_by_student(org_id, class_id, ids, _org_now(org_id)) if ids else {}
+    age = sis_age.ages_for(org_id)
     roster = []
     for e in enrollments:
         u = users.get(e['student_id']) or {}
@@ -526,7 +515,7 @@ def class_roster(user_id, class_id):
         roster.append({'student_id': e['student_id'], 'name': name,
                        'preferred_name': u.get('preferred_name'),
                        'last_name': u.get('last_name'),
-                       'age': _age_from_dob(u.get('date_of_birth')),
+                       'age': age(u.get('date_of_birth')),
                        'email': u.get('email'), 'username': u.get('username'),
                        'enrolled_at': e.get('enrolled_at'),
                        'next_class': next_class.get(e['student_id'])})

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { EyeIcon, EyeSlashIcon, LockClosedIcon, CheckIcon, PhotoIcon } from '@heroicons/react/24/outline'
+import { ageFromDob } from '../../utils/age'
 
 /**
  * Presentational pieces of the family registration funnel, shared between the
@@ -56,16 +57,9 @@ export const absUrl = (v) => {
   return /^https?:\/\//i.test(s) ? s : `https://${s}`
 }
 
-export const ageFromDob = (dob, onDate = null) => {
-  if (!dob) return null
-  const d = new Date(dob)
-  if (Number.isNaN(d.getTime())) return null
-  const t = onDate ? new Date(`${String(onDate).slice(0, 10)}T00:00:00`) : new Date()
-  if (Number.isNaN(t.getTime())) return null
-  let a = t.getFullYear() - d.getFullYear()
-  if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a -= 1
-  return a
-}
+// The one age calculation (utils/age.js), re-exported under the name the
+// funnel steps import; the second argument is the date to judge against.
+export { ageFromDob }
 
 // The enrollment-waitlist band this child falls in, or null. Ages are judged as
 // of the first day of school (matching the backend gate), so the notice a

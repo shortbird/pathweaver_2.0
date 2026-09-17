@@ -12,10 +12,11 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.validation import sanitize_text
-from utils.validation.sanitizers import pgrst_timestamp, PostgrestFilterError
+from utils.validation.sanitizers import PostgrestFilterError
 from database import get_supabase_admin_client
 from routes.sis import STAFF_ROLES, ADMIN_ROLES
-from services import sis_service
+from services import sis_audiences, sis_service
+from services import sis_events_service as events
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,9 @@ EVENT_FIELDS = ('title', 'description', 'location', 'start_at', 'end_at', 'all_d
                 # RSVP: whether families are asked to reply, what it costs, and
                 # when replies close (9cf78e9a).
                 'rsvp_enabled', 'rsvp_fee_cents', 'rsvp_closes_at')
-AUDIENCES = ('school', 'teachers', 'admins')
+# The calendar's audience words live with the board's and the send's in
+# services/sis_audiences.py (M12); this name is kept for the readers of it.
+AUDIENCES = sis_audiences.EVENT_AUDIENCES
 MAX_CATEGORIES = 8
 
 
@@ -48,7 +51,7 @@ def _clean(data):
                 cents = None
             fields[k] = cents if cents and cents > 0 else None
         elif k == 'audience':
-            fields[k] = v if v in AUDIENCES else 'school'
+            fields[k] = sis_audiences.event_audience(v)
         elif k == 'categories':
             # An event can sit in several categories ("Field trip" AND "No school").
             # The first one is also written to `category`, which stays the event's
@@ -120,30 +123,15 @@ def list_events(user_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    # admin client justified: sis_events is deny-all RLS (service role only); gated by @require_role(STAFF_ROLES), filtered to resolved org + audience gate below
-    q = (get_supabase_admin_client().table('sis_events').select('*')
-         .eq('organization_id', org_id))
-    if request.args.get('from'):
-        # ?from= is raw query-string input landing in a PostgREST filter STRING,
-        # where a comma ends the clause and starts another. Validate it as a
-        # timestamp so the only thing that can reach the filter is a timestamp.
-        try:
-            f = pgrst_timestamp(request.args['from'], 'from')
-        except PostgrestFilterError:
-            return jsonify({'error': 'from must be an ISO-8601 date or timestamp'}), 400
-        q = q.or_(f'start_at.gte.{f},end_at.gte.{f}')
-    if request.args.get('to'):
-        q = q.lt('start_at', request.args['to'])
-    rows = (q.order('start_at').execute()).data or []
-    # Audience gate: admins see everything; teachers (advisors) see school +
-    # teacher events, never admin-only ones. (Families use a separate endpoint.)
-    from utils.roles import get_effective_role
-    # admin client justified: self-read of the caller's role columns to apply the audience gate (advisors never see admin-only events)
-    viewer = (get_supabase_admin_client().table('users')
-              .select('role, org_role, organization_id').eq('id', user_id).limit(1).execute()).data
-    role = get_effective_role(viewer[0]) if viewer else None
-    if role not in ('org_admin', 'superadmin'):
-        rows = [e for e in rows if (e.get('audience') or 'school') in ('school', 'teachers')]
+    # One reader, one audience rule: admins see everything; teachers and
+    # coordinators see school and teacher events, never admin-only ones.
+    # (Families use a separate endpoint, through the same reader.)
+    try:
+        rows = events.list_events(
+            org_id, events.viewer_for_user(user_id),
+            from_iso=request.args.get('from') or None, to_iso=request.args.get('to') or None)
+    except PostgrestFilterError:
+        return jsonify({'error': 'from must be an ISO-8601 date or timestamp'}), 400
     # How many have said yes, on the events that asked. The office plans the
     # event on this grid, so the headcount belongs here rather than on a screen
     # somebody has to know to open (9cf78e9a). One query for the whole month.
@@ -169,46 +157,33 @@ def create_event(user_id):
         return jsonify({'success': False, 'error': 'A title is required'}), 400
     if not fields.get('start_at'):
         return jsonify({'success': False, 'error': 'A start date/time is required'}), 400
-    fields.update({'organization_id': org_id, 'created_by': user_id})
     try:
-        # admin client justified: insert into deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES), row pinned to resolved org
-        row = (get_supabase_admin_client().table('sis_events').insert(fields).execute()).data
+        row = events.create_event(org_id, user_id, fields)
     except Exception as e:  # noqa: BLE001
         logger.error(f'sis_events: create failed: {e}')
         return jsonify({'success': False, 'error': 'Could not create the event — check the dates'}), 400
-    return jsonify({'success': True, 'event': row[0] if row else None}), 201
-
-
-def _owned_event(event_id, org_id):
-    # admin client justified: deny-all-RLS sis_events ownership check; result is compared against the caller's resolved org before any write
-    rows = (get_supabase_admin_client().table('sis_events').select('id, organization_id')
-            .eq('id', event_id).limit(1).execute()).data or []
-    return rows[0] if rows and rows[0].get('organization_id') == org_id else None
+    return jsonify({'success': True, 'event': row}), 201
 
 
 @bp.route('/events/<event_id>', methods=['PATCH'])
 @require_role(*ADMIN_ROLES)
 def update_event(user_id, event_id):
-    from datetime import datetime
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    if not _owned_event(event_id, org_id):
+    if not events.get_event(org_id, event_id):
         return jsonify({'success': False, 'error': 'Event not found'}), 404
     fields = _clean(request.json or {})
     if 'title' in fields and not fields['title']:
         return jsonify({'success': False, 'error': 'A title is required'}), 400
     if not fields:
         return jsonify({'success': False, 'error': 'Nothing to update'}), 400
-    fields['updated_at'] = datetime.utcnow().isoformat()
     try:
-        # admin client justified: update of deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES) + _owned_event org check above
-        row = (get_supabase_admin_client().table('sis_events').update(fields)
-               .eq('id', event_id).execute()).data
+        row = events.update_event(org_id, event_id, fields)
     except Exception as e:  # noqa: BLE001
         logger.error(f'sis_events: update failed for {event_id}: {e}')
         return jsonify({'success': False, 'error': 'Could not update the event — check the dates'}), 400
-    return jsonify({'success': True, 'event': row[0] if row else None})
+    return jsonify({'success': True, 'event': row})
 
 
 @bp.route('/events/<event_id>', methods=['DELETE'])
@@ -217,10 +192,8 @@ def delete_event(user_id, event_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    if not _owned_event(event_id, org_id):
+    if not events.delete_event(org_id, event_id):
         return jsonify({'success': False, 'error': 'Event not found'}), 404
-    # admin client justified: delete on deny-all-RLS sis_events; gated by @require_role(ADMIN_ROLES) + _owned_event org check above
-    get_supabase_admin_client().table('sis_events').delete().eq('id', event_id).execute()
     return jsonify({'success': True})
 
 
@@ -330,24 +303,19 @@ def calendar_ics(org_id):
     is_staff_token = _match(CALENDAR_FEED_TOKEN)
     if not is_staff_token and not _match(CALENDAR_FEED_TOKEN_FAMILY):
         return 'Not authorized', 403
-    # admin client justified: deny-all-RLS sis_events read for the tokenized feed; token verified above, admin-only events excluded
-    q = (get_supabase_admin_client().table('sis_events').select('*')
-         .eq('organization_id', org_id)
-         # The token can be shared, so never leak admin-only events through the
-         # subscribable feed.
-         .neq('audience', 'admins'))
-    if not is_staff_token:
-        q = q.eq('audience', 'school')
-    events = (q.order('start_at').execute()).data or []
+    # The token can be shared, so the feed never carries an admins-only event;
+    # the family token narrows to school events (the same rule the in-app
+    # calendar enforces, from the same reader).
+    rows = events.list_events(org_id, 'shared' if is_staff_token else 'family')
     # A per-category feed keeps every event that CARRIES that category, not only
     # the ones where it happens to be primary.
     wanted = (request.args.get('category') or '').strip()
     if wanted:
-        events = [e for e in events
-                  if wanted in (e.get('categories') or [])
-                  or e.get('category') == wanted]
+        rows = [e for e in rows
+                if wanted in (e.get('categories') or [])
+                or e.get('category') == wanted]
     from flask import Response
-    return Response(build_ics(org.get('name') or 'School calendar', events),
+    return Response(build_ics(org.get('name') or 'School calendar', rows),
                     mimetype='text/calendar',
                     headers={'Content-Disposition': 'inline; filename=calendar.ics',
                              'Cache-Control': 'public, max-age=300'})

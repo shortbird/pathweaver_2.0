@@ -6,6 +6,7 @@ import useSchoolContext from '../hooks/useSchoolContext'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import EventRsvp from '../components/school/EventRsvp'
 import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { splitEventStamp, compact12h, fmtDateOnly } from '../utils/timeFormat'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
@@ -21,26 +22,15 @@ import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-const splitStamp = (iso) => ({ date: String(iso || '').slice(0, 10), time: String(iso || '').slice(11, 16) })
 const addDays = (dateStr, n) => {
   const [y, m, d] = dateStr.split('-').map(Number)
   return ymd(new Date(y, m - 1, d + n))
 }
-const fmtTime = (hhmmStr) => {
-  if (!hhmmStr) return ''
-  const [h, m] = hhmmStr.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-const fmtDayLong = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
-}
-const fmtDayShort = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+// The stamp parts, the compact time and the day headings come from
+// utils/timeFormat.js, the one place an event stamp becomes text (M12).
+const splitStamp = splitEventStamp
+const fmtDayLong = (dateStr) => fmtDateOnly(dateStr, 'long')
+const fmtDayShort = (dateStr) => fmtDateOnly(dateStr, 'short').replace(/, \d{4}$/, '')
 
 /**
  * When an event is, as one line: "7:30pm – 9:30pm", "All day", or for an
@@ -54,8 +44,8 @@ export const fmtWhen = (e) => {
   const span = end && end.date !== start.date ? `${fmtDayShort(start.date)} – ${fmtDayShort(end.date)}` : ''
   if (e.all_day) return span ? `${span} · All day` : 'All day'
   const times = end && end.time && end.time !== start.time
-    ? `${fmtTime(start.time)} – ${fmtTime(end.time)}`
-    : fmtTime(start.time)
+    ? `${compact12h(start.time)} – ${compact12h(end.time)}`
+    : compact12h(start.time)
   return span ? `${span} · ${times}` : times
 }
 
@@ -217,7 +207,7 @@ const FamilyCalendarPage = () => {
                             <div key={e.id}
                               className="rounded px-1.5 py-0.5 bg-optio-purple/10 text-optio-purple">
                               <span className="text-[11px] font-semibold leading-tight block truncate">{e.title}</span>
-                              {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{fmtTime(time)}</span>}
+                              {!e.all_day && startDate === key && <span className="text-[10px] opacity-80">{compact12h(time)}</span>}
                             </div>
                           )
                         })}

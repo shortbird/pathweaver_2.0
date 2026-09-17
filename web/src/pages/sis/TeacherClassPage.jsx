@@ -17,6 +17,8 @@ import PersonPhoto from '../../components/sis/PersonPhoto'
 import ClassRosterExportModal from '../../components/sis/ClassRosterExportModal'
 import SubstituteSheet from '../../components/sis/SubstituteSheet'
 import { statusTone } from '../../components/sis/ui/statusMaps'
+import { fmtTime } from '../../utils/schedule'
+import GlassTabBar from '../../components/ui/GlassTabBar'
 
 /**
  * TeacherClassPage — one class for its teacher: the roster (photos, ages,
@@ -49,17 +51,6 @@ const today = () => new Date().toISOString().slice(0, 10)
 // is not a substitute: it reads the quests assigned to the class, and a class
 // used as a roster has none.
 const VALID_TABS = ['roster', 'quests', 'curriculum', 'progress', 'activity', 'messages']
-
-// "Next" is only useful with a room and a time on it — the point is a teacher
-// pointing a student down the right hallway (iCreate, 2026-08-25).
-const fmtTime = (hhmm) => {
-  if (!hhmm) return ''
-  const [h, m] = String(hhmm).split(':').map(Number)
-  if (Number.isNaN(h)) return ''
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
 
 // The discussion board folded into Messages (its student chat, 2026-08-31);
 // old ?tab=discussion links land there.
@@ -237,20 +228,14 @@ const TeacherClassPage = () => {
           onClose={() => setSubSheet(false)} />
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
-            then the ones only some classes use. */}
-        {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === key
-                ? 'border-optio-purple text-optio-purple'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
+          then the ones only some classes use. */}
+      <GlassTabBar
+        align="start" size="md" className="mb-6" aria-label="Class sections"
+        tabs={[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']]
+          .map(([id, label]) => ({ id, label }))}
+        active={tab} onSelect={setTab}
+      />
 
       {tab === 'quests' && (
         // Release dates are gated by the org's scheduled_publish flag, read

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { range12h } from '../../utils/timeFormat'
 import { fetchEmbed, daysLabel, agesLabel, money, useEmbedAutoHeight } from './embedShared'
+import { seatState, seatText } from '../../components/sis/ClassSummaryLine'
 
 /**
  * Public, iframe-able class catalog widget: GET /api/embed/:slug/catalog.
@@ -10,27 +11,13 @@ import { fetchEmbed, daysLabel, agesLabel, money, useEmbedAutoHeight } from './e
  * dropped into an <iframe> on an external marketing site. Read-only, no PII.
  */
 
+// The words are ClassSummaryLine's; only the widget's colours are local.
 const SeatBadge = ({ cls }) => {
-  const { open_seats, waitlist_count } = cls
-  // Unlimited capacity (open_seats null) — enrollment is simply open.
-  if (open_seats == null) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-        Open enrollment
-      </span>
-    )
-  }
-  if (open_seats > 0) {
-    return (
-      <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-        {open_seats} {open_seats === 1 ? 'seat' : 'seats'} left
-      </span>
-    )
-  }
-  // Full — surface the waitlist if there's demand.
+  const full = seatState(cls).kind === 'full'
   return (
-    <span className="inline-flex items-center rounded-full bg-optio-pink/10 px-3 py-1 text-xs font-semibold text-optio-pink-dark ring-1 ring-optio-pink/30">
-      {waitlist_count > 0 ? `Full · Waitlist: ${waitlist_count}` : 'Class full'}
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ${
+      full ? 'bg-optio-pink/10 text-optio-pink-dark ring-optio-pink/30' : 'bg-green-50 text-green-700 ring-green-200'}`}>
+      {seatText(cls)}
     </span>
   )
 }

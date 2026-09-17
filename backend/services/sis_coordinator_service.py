@@ -10,7 +10,7 @@ by design — there is no campus entity yet (see the gap analysis), so "the
 campus" currently means "the organization".
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from services import sis_service
 from services import sis_attendance_service as attendance
@@ -73,15 +73,31 @@ def board_from(records: List[Dict[str, Any]], reported_out: int,
 
 # ── DB-backed assembly ───────────────────────────────────────────────────────
 
-def _today_org_schedule(org_id: str, dow: int, today: str) -> List[Dict[str, Any]]:
-    """Every class meeting happening today, org-wide, with teacher names and
-    enrollment counts — the coordinator's answer to "what is happening on
-    campus right now"."""
+def today_schedule(org_id: str, today: str, dow: Optional[int] = None,
+                   class_scope=None) -> List[Dict[str, Any]]:
+    """Every class meeting happening on `today` (YYYY-MM-DD), org-wide, with
+    teacher names and enrollment counts — the answer to "what is happening on
+    campus right now". The one assembler: the admin and coordinator dashboards
+    both read it (M12, docs/sis/CONSOLIDATION_PLAN.md).
+
+    `dow` is the day of week to match recurring meetings on; derived from
+    `today` when not given (callers that already know the org's local weekday
+    pass it, because the org's clock and the server's can disagree at
+    midnight). `class_scope`, when given, is the set of class ids to keep —
+    a teacher's classes, from sis_service.class_scope().
+    """
     from services.sis_staff_service import _enrolled_counts
 
+    if dow is None:
+        from datetime import date as _date
+        dow = _date.fromisoformat(today).weekday()
+        dow = (dow + 1) % 7  # class_meetings.day_of_week is Sunday-based
     classes = (_admin().table('org_classes')
                .select('id, name, location, primary_instructor_id')
                .eq('organization_id', org_id).execute()).data or []
+    if class_scope is not None:
+        allowed = set(class_scope)
+        classes = [c for c in classes if c['id'] in allowed]
     by_id = {c['id']: c for c in classes}
     if not by_id:
         return []
@@ -167,7 +183,7 @@ def get_dashboard(org_id: str, user_id: str) -> Dict[str, Any]:
         'organization': {'id': org_id,
                          'name': org_row[0].get('name') if org_row else None},
         'date': today,
-        'today_schedule': _today_org_schedule(org_id, dow, today),
+        'today_schedule': today_schedule(org_id, today, dow=dow),
         'attendance': {
             **board_from(records, planned.count or 0, alerts),
             'open_alerts': alerts,

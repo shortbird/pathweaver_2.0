@@ -18,16 +18,16 @@ import { htmlToText } from '../../utils/richText'
  * (iCreate, 2026-08-06). Merged here instead, with shout-outs and lost & found
  * folded in as typed items — pinned posts first, then everything newest-first.
  *
- * The one seam the merge has to hide: a board post created with "notify" also
- * writes an archive row (announcement_service.publish via notify_audiences), so
- * the same words arrive twice. The archive row carries the board post's id in
- * source_announcement_id; that copy is dropped and the board copy wins — it
- * carries pinned/urgent.
- *
- * Title + calendar day used to stand in for that link, which held right up
- * until someone edited the post: the titles stopped matching and one notice
- * became two on the family portal (iCreate, 2026-08-27). Sends that predate
- * the link column have no source id, so the old match is kept as a fallback.
+ * The one seam: a board post created with "notify" also writes an archive row
+ * (announcement_service.publish), so the same words arrive twice. The server
+ * says which archive rows are that receipt -- `on_board` on the archive
+ * response, true while the source post is on the board -- and the board copy
+ * wins because it carries pinned/urgent. Until M1
+ * (docs/sis/CONSOLIDATION_PLAN.md) this component decided that itself, first
+ * by title and calendar day (which broke on an edited title, iCreate
+ * 2026-08-27), then by the link, and the phone still did it by title. The
+ * sends that predate the link column were linked in the data on 2026-09-17,
+ * so there is no fallback to keep.
  *
  * Shape (2026-09-16 redesign): the feed IS the column. Each post is a white
  * card on the page, not a gray card inside a white "From iCreate" box with an
@@ -38,24 +38,14 @@ import { htmlToText } from '../../utils/richText'
 
 const FEED_CAP = 6
 
-const norm = (s) => (s || '').trim().toLowerCase()
-const dayOf = (iso) => (iso || '').slice(0, 10)
-
-/** Everything merged into one dated list. Exported for tests. */
-export function mergeFeedItems(feed, messages) {
+/** Everything in one dated list. Exported for tests. */
+export function feedItems(feed, messages) {
   const board = (feed?.announcements || []).map((a) => ({
     key: `announcement-${a.id}`, kind: 'announcement',
     date: a.created_at, pinned: Boolean(a.pinned), data: a,
   }))
-  const boardIds = new Set(board.map((i) => i.data.id))
-  const boardKeys = new Set(board.map((i) => `${norm(i.data.title)}|${dayOf(i.date)}`))
-  const isBoardCopy = (m) => (
-    m.source_announcement_id
-      ? boardIds.has(m.source_announcement_id)
-      : boardKeys.has(`${norm(m.title)}|${dayOf(m.created_at)}`)
-  )
   const msgs = (messages || [])
-    .filter((m) => !isBoardCopy(m))
+    .filter((m) => !m.on_board)
     .map((m) => ({ key: `message-${m.id}`, kind: 'message', date: m.created_at, pinned: false, data: m }))
   const shouts = (feed?.recognition || []).map((r) => ({
     key: `shoutout-${r.id}`, kind: 'shoutout', date: r.created_at, pinned: false, data: r,
@@ -189,7 +179,7 @@ export default function UnifiedFeed({
   const [expanded, setExpanded] = useState(() => new Set())
 
   const items = useMemo(
-    () => mergeFeedItems(feed, messages).filter((i) => matchesQuery(i, query)),
+    () => feedItems(feed, messages).filter((i) => matchesQuery(i, query)),
     [feed, messages, query],
   )
   const overflows = items.length > FEED_CAP
