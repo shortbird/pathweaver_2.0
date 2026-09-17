@@ -283,7 +283,11 @@ const QuestDetail = () => {
     }
 
     endQuestMutation.mutate(id, {
-      onSuccess: () => {
+      onSuccess: (data) => {
+        // Below a school-set XP finish line an ordinary quest is set aside
+        // rather than finished: off the dashboard, work kept, pick-up-able.
+        // Say so, or the person reads the quest's disappearance as "done".
+        if (data?.set_aside) toast(data.message || 'Quest set aside. You can pick it up again any time.');
         navigate('/dashboard');
       },
       onError: (error) => {

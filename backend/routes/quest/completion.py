@@ -466,6 +466,19 @@ def end_quest(user_id: str, quest_id: str):
     For course projects, completion requires BOTH:
     - XP threshold met (if set)
     - ALL required tasks completed
+
+    A quest with an XP finish line (quests.xp_threshold) that has not been
+    reached is handled two ways, by what "end" means for it:
+      - an LTI quest (lms_platform set): refused, XP_THRESHOLD_NOT_MET. There
+        "end" is "submit for the grade", and the teacher set the line so a
+        student cannot submit early.
+      - any other quest: SET ASIDE, not finished. The enrollment goes
+        inactive (status set_down) with no completed_at, so it leaves the
+        dashboard and every "who has finished" report stays honest, and
+        "Pick Up Quest" brings it back. Until 2026-09-17 these were refused
+        too, which left a person with a school-set training quest they could
+        neither finish nor remove from their own account (Tanner: three
+        iCreate quests, "XP goal not reached").
     """
     try:
         # Use admin client - @require_auth already validated user
@@ -548,16 +561,18 @@ def end_quest(user_id: str, quest_id: str):
                     for c in (completed.data or [])
                 )
                 if earned_xp < xp_threshold:
-                    return jsonify({
-                        'success': False,
-                        'error': 'XP goal not reached',
-                        'reason': 'XP_THRESHOLD_NOT_MET',
-                        'message': f'You need {xp_threshold} XP to submit (you have {earned_xp}).',
-                        'requirements': {
-                            'earned_xp': earned_xp,
-                            'required_xp': xp_threshold,
-                        }
-                    }), 400
+                    if (quest_meta.data or {}).get('lms_platform'):
+                        return jsonify({
+                            'success': False,
+                            'error': 'XP goal not reached',
+                            'reason': 'XP_THRESHOLD_NOT_MET',
+                            'message': f'You need {xp_threshold} XP to submit (you have {earned_xp}).',
+                            'requirements': {
+                                'earned_xp': earned_xp,
+                                'required_xp': xp_threshold,
+                            }
+                        }), 400
+                    return _set_aside(supabase, current_enrollment['id'], earned_xp, xp_threshold)
 
         if not force_complete:
             progress_service = CourseProgressService(supabase)
@@ -668,6 +683,27 @@ def end_quest(user_id: str, quest_id: str):
     except Exception as e:
         logger.error(f"Error ending quest: {str(e)}")
         raise
+
+
+def _set_aside(supabase, user_quest_id, earned_xp, xp_threshold):
+    """End an enrollment WITHOUT finishing it: off the dashboard, nothing
+    marked complete, pick-up-able. The same write as the lifecycle service's
+    set-down (status set_down, is_active false, no completed_at), so
+    "Pick Up Quest" reactivates it. No completion webhook and no LTI grade
+    sync, because nothing was completed."""
+    now = datetime.utcnow().isoformat()
+    supabase.table('user_quests')\
+        .update({'status': 'set_down', 'is_active': False, 'last_set_down_at': now})\
+        .eq('id', user_quest_id)\
+        .execute()
+    return jsonify({
+        'success': True,
+        'completed': False,
+        'set_aside': True,
+        'message': (f'Quest set aside. It needs {xp_threshold} XP to count as finished and you have '
+                    f'{earned_xp}; your work is kept, and you can pick it up again any time.'),
+        'requirements': {'earned_xp': earned_xp, 'required_xp': xp_threshold},
+    })
 
 
 @bp.route('/<quest_id>/reopen', methods=['POST'])
