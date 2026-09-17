@@ -143,11 +143,10 @@ def exit_masquerade():
             caller_id = session_manager.get_current_user_id()
             if not caller_id:
                 return jsonify({'error': 'Not signed in'}), 401
+            from repositories.user_repository import UserRepository
             # admin client justified: reads the signed-in caller's own row to
             # return their identity after an exit that had nothing to end
-            me = get_supabase_admin_client().table('users').select(
-                'id, display_name, email, role, avatar_url').eq('id', caller_id).limit(1).execute()
-            me_data = me.data[0] if me.data else {'id': caller_id}
+            me_data = UserRepository(client=get_supabase_admin_client()).find_by_id(caller_id) or {'id': caller_id}
             response = make_response(jsonify({
                 'already_exited': True,
                 'user': {

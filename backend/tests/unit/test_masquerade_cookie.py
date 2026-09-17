@@ -117,19 +117,12 @@ def test_exit_with_no_active_masquerade_is_already_out_not_an_error(app):
     cleared so the client can reload as them."""
     from unittest.mock import Mock
 
-    db = Mock()
-    table = Mock()
-    db.table.return_value = table
-    for chained in ('select', 'eq', 'limit'):
-        getattr(table, chained).return_value = table
-    table.execute.return_value = Mock(data=[{
-        'id': 'admin-1', 'display_name': 'Molly', 'email': 'm@example.com',
-        'role': 'org_managed', 'avatar_url': None,
-    }])
-
+    me = {'id': 'admin-1', 'display_name': 'Molly', 'email': 'm@example.com',
+          'role': 'org_managed', 'avatar_url': None}
     with patch.object(session_manager, 'get_masquerade_info', return_value=None), \
          patch.object(session_manager, 'get_current_user_id', return_value='admin-1'), \
-         patch('routes.admin.masquerade.get_supabase_admin_client', return_value=db):
+         patch('routes.admin.masquerade.get_supabase_admin_client', return_value=Mock()), \
+         patch('repositories.user_repository.UserRepository.find_by_id', return_value=me):
         resp = app.test_client().post('/api/admin/masquerade/exit', json={})
 
     assert resp.status_code == 200
