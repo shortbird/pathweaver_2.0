@@ -209,7 +209,13 @@ BASELINES = {
     # SIS cron endpoints each carried a private users read for the superadmin
     # fallback; routes/sis/internal.py declares them once and asks
     # sis_service.get_user_org_context instead, which already reads that row.
-    'routes': 2278,
+    # 2026-09-17: 2278 -> 2275. The quest library (routes/sis/quest_library.py)
+    # reads through repositories/sis_quest_library_repository.py, and the one
+    # writer for "this quest is on this curriculum" moved out of
+    # routes/sis/curriculum.py's add_quest_to_curriculum into
+    # sis_curriculum_sync.attach_quest_to_curriculum, which uses the same
+    # repository. Lowered in the same commit, per rule 2.
+    'routes': 2275,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -438,7 +444,12 @@ BASELINES = {
     # ProductionDeployRepository.record and .latest, the one write and one
     # read behind the cron's replay of the last release report. Repository
     # calls, where they belong; routes and services did not move.
-    'repositories': 557,
+    # 2026-09-17: 557 -> 568. SisQuestLibraryRepository, eleven calls behind
+    # the Quests page under Operations (routes/sis/quest_library.py): the
+    # org's quests, their tasks, curriculum links, class links, the pickers,
+    # and the one attach write, which routes/sis/curriculum.py now also uses
+    # (routes fell by three in the same commit).
+    'repositories': 568,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -518,7 +529,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2278 + 1836
+UPPER_TOTAL_BASELINE = 2275 + 1836
 
 
 def test_the_upper_layers_do_not_grow_in_total():

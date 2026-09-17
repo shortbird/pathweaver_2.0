@@ -14,6 +14,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
+import StudentProgressTab from './StudentProgressTab'
+import { withConfirm } from '../../tests/confirmTestUtils'
+
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   default: { success: vi.fn(), error: vi.fn() },
@@ -21,9 +24,6 @@ vi.mock('react-hot-toast', () => ({
 
 const { api } = vi.hoisted(() => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }))
 vi.mock('../../services/api', () => ({ default: api }))
-
-import StudentProgressTab from './StudentProgressTab'
-import { withConfirm } from '../../tests/confirmTestUtils'
 
 const render = (ui) => rtlRender(<MemoryRouter>{withConfirm(ui)}</MemoryRouter>)
 

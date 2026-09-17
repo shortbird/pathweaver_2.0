@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
   BookOpenIcon, LinkIcon, PencilSquareIcon, TrashIcon, PlusIcon,
@@ -174,7 +175,11 @@ const CurriculumPage = () => {
   const [editing, setEditing] = useState(null) // null | 'new' | entry
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'title', dir: 'asc' })
-  const [expanded, setExpanded] = useState(null) // entry id whose detail row is open
+  // ?curriculum=<id> opens that entry on arrival: the Quests page links each
+  // quest's curriculum chips here, and "open Curriculum, now find it again"
+  // is the trip that page exists to remove.
+  const [searchParams] = useSearchParams()
+  const [expanded, setExpanded] = useState(() => searchParams.get('curriculum') || null) // entry id whose detail row is open
 
   const load = useCallback(() => {
     if (!orgId) { setLoading(false); return }

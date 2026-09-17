@@ -1118,6 +1118,7 @@ def register_sis_routes(app):
     # and can show to the students of every class teaching it.
     from routes.sis.curriculum_materials import bp as sis_curriculum_materials_bp
     from routes.sis.quest_drafts import bp as quest_drafts_bp
+    from routes.sis.quest_library import bp as quest_library_bp
     from routes.sis.staff_training import bp as staff_training_bp
     from routes.sis.training_links import bp as training_links_bp
     from routes.sis.secure_documents import bp as secure_documents_bp
@@ -1158,6 +1159,7 @@ def register_sis_routes(app):
         (sis_curriculum_bp, 'curriculum'),
         (sis_curriculum_materials_bp, 'curriculum'),
         (quest_drafts_bp, 'curriculum'),
+        (quest_library_bp, 'curriculum'),
         (staff_training_bp, 'training'),
         (training_links_bp, 'training'),
         (secure_documents_bp, 'secure_documents'),
@@ -1210,6 +1212,7 @@ def register_sis_routes(app):
     app.register_blueprint(sis_curriculum_bp)
     app.register_blueprint(sis_curriculum_materials_bp)
     app.register_blueprint(quest_drafts_bp)
+    app.register_blueprint(quest_library_bp)
     app.register_blueprint(staff_training_bp)
     app.register_blueprint(training_links_bp)
     app.register_blueprint(secure_documents_bp)

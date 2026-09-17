@@ -49,7 +49,7 @@ from services.sis_quest_authoring import (
     norm_pillar as _norm_pillar,
     subject_updates as _subject_updates,
 )
-from services.sis_curriculum_sync import push_curriculum_quests_safe
+from services.sis_curriculum_sync import push_curriculum_quests_safe, attach_quest_to_curriculum
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES
 
 logger = get_logger(__name__)
@@ -640,23 +640,10 @@ def add_quest_to_curriculum(user_id, curriculum_id, quest_id):
     if target == curriculum_id:
         return jsonify({'success': False, 'error': 'It is already on this curriculum'}), 400
 
-    existing = (_admin().table('sis_curriculum_quests').select('id, sequence_order')
-                .eq('curriculum_id', target)
-                .order('sequence_order', desc=True).limit(1).execute()).data
-    already = (_admin().table('sis_curriculum_quests').select('id')
-               .eq('curriculum_id', target).eq('quest_id', quest_id)
-               .limit(1).execute()).data
-    if already:
-        return jsonify({'success': True, 'added': False, 'pushed_to_classes': 0})
-    next_order = ((existing[0]['sequence_order'] or 0) + 1) if existing else 0
-    _admin().table('sis_curriculum_quests').insert({
-        'curriculum_id': target, 'quest_id': quest_id,
-        'sequence_order': next_order, 'added_by': user_id,
-    }).execute()
-    pushed = push_curriculum_quests_safe(_admin(), target, org_id, user_id,
-                                         quest_ids=[quest_id])
-    return jsonify({'success': True, 'added': True,
-                    'pushed_to_classes': pushed['classes']})
+    # Shared with the quest library's assign (routes/sis/quest_library.py), so
+    # "on a curriculum" means one thing from either door.
+    result = attach_quest_to_curriculum(_admin(), org_id, target, quest_id, user_id)
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/curriculum/<curriculum_id>/quests/<quest_id>/curricula/<other_curriculum_id>',

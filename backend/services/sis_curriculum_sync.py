@@ -150,6 +150,29 @@ def push_curriculum_quests_to_classes(admin, curriculum_id, org_id, user_id,
     return {'classes': len(touched), 'assignments': len(rows)}
 
 
+def attach_quest_to_curriculum(admin, org_id, curriculum_id, quest_id, user_id):
+    """Put one quest on one curriculum: the sis_curriculum_quests row, at the
+    end of the order, then the push to that curriculum's classes.
+
+    The one writer for "this quest is on this curriculum" from a quest's point
+    of view. routes/sis/curriculum.py (add_quest_to_curriculum: "also put this
+    quest on another curriculum") and routes/sis/quest_library.py (the quest
+    library's assign) both call it, so the two doors cannot disagree about
+    what being on a curriculum means. Idempotent: an existing row is left
+    alone and reported as added=False, with nothing pushed.
+
+    Returns {'added': bool, 'pushed_to_classes': int}.
+    """
+    from repositories.sis_quest_library_repository import SisQuestLibraryRepository
+    repo = SisQuestLibraryRepository(client=admin)
+    if repo.curriculum_has_quest(curriculum_id, quest_id):
+        return {'added': False, 'pushed_to_classes': 0}
+    repo.add_curriculum_quest(curriculum_id, quest_id, repo.next_sequence_order(curriculum_id), user_id)
+    pushed = push_curriculum_quests_safe(admin, curriculum_id, org_id, user_id,
+                                         quest_ids=[quest_id])
+    return {'added': True, 'pushed_to_classes': pushed['classes']}
+
+
 def push_curriculum_quests_safe(admin, curriculum_id, org_id, user_id,
                                 quest_ids=None, class_ids=None):
     """push_curriculum_quests_to_classes, but never raising.

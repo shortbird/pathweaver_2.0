@@ -120,6 +120,9 @@ export const NAV_SECTIONS = [
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
       { name: 'Resources', path: '/resources', d: ICONS.books },
       { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
+      // Every quest the school has made, in one list, with assign-from-here.
+      // Editing stays on the curriculum that carries the quest (f9b5f2ea).
+      { name: 'Quests', path: '/quest-library', adminOnly: true, d: ICONS.books },
       { name: 'Training', path: '/training', d: ICONS.check },
       // Messages + announcements in one place (2026-08-31; /messaging merged
       // in). Admins read the shared "{School Name}" inbox (backend:

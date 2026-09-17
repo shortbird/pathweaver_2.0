@@ -107,6 +107,8 @@ export const queryKeys = {
     studentRecord: (studentId, orgId) => [...queryKeys.sis.all, 'studentRecord', studentId, orgId],
     studentClasses: (studentId, orgId) => [...queryKeys.sis.all, 'studentClasses', studentId, orgId],
     orgClassList: (orgId) => [...queryKeys.sis.all, 'orgClassList', orgId],
+    // The Quests page: every quest the org owns and where each is in use.
+    questLibrary: (orgId) => [...queryKeys.sis.all, 'questLibrary', orgId],
     householdList: (orgId) => [...queryKeys.sis.all, 'householdList', orgId],
     // Family drawer.
     householdBilling: (id, orgId) => [...queryKeys.sis.all, 'householdBilling', id, orgId],

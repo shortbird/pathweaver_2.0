@@ -47,6 +47,7 @@ export const SIS_MODULE_BY_PATH = {
   '/reports': 'reports',
   '/resources': 'resources',
   '/curriculum': 'curriculum',
+  '/quest-library': 'curriculum',
   '/training': 'training',
   '/submissions': 'submissions',
   '/registration': 'registration',

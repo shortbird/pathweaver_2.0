@@ -203,6 +203,7 @@ export const SIS_SURFACE_PATHS = [
   '/clp',
   '/community',
   '/curriculum',
+  '/quest-library',
   '/directory',
   '/forms',
   '/goals',

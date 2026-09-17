@@ -105,6 +105,7 @@ const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
+const QuestLibraryPage = lazy(() => import('../pages/sis/QuestLibraryPage'))
 const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
@@ -178,6 +179,10 @@ const SisRoutes = () => (
       <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
       <Route path="resources" element={<ModuleGate path="/resources"><ResourcesPage /></ModuleGate>} />
       <Route path="curriculum" element={<AdminRoute><ModuleGate path="/curriculum"><CurriculumPage /></ModuleGate></AdminRoute>} />
+      {/* The school's quests in one list, with assign-from-here. Same module
+          and the same admin gate as Curriculum, which is where each quest is
+          edited (Molly, f9b5f2ea). */}
+      <Route path="quest-library" element={<AdminRoute><ModuleGate path="/quest-library"><QuestLibraryPage /></ModuleGate></AdminRoute>} />
       <Route path="training" element={<ModuleGate path="/training"><StaffTrainingPage /></ModuleGate>} />
       <Route path="community" element={<ModuleGate path="/community"><CommunityPage /></ModuleGate>} />
       <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
