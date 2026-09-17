@@ -134,6 +134,56 @@ describe('QuestLibraryPage', () => {
     expect(within(menu).getByRole('button', { name: 'STEM' })).toBeInTheDocument()
   })
 
+  it('builds a new quest from the top of the page and lands it in the list', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1 } })
+    render(<QuestLibraryPage />)
+    await screen.findByText('Watercolor Basics')
+    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
+
+    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+    fireEvent.change(screen.getByLabelText('Quest description'), { target: { value: 'Grow something with a robot.' } })
+    fireEvent.change(screen.getByPlaceholderText(/Task 1 /), { target: { value: 'Plant a seed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests?organization_id=org-1',
+      expect.objectContaining({
+        title: 'Robot Garden', description: 'Grow something with a robot.',
+        tasks: [expect.objectContaining({ title: 'Plant a seed' })],
+      }),
+    ))
+    // No curriculum was chosen: none is sent, and the list is refetched.
+    expect(api.post.mock.calls[0][1]).not.toHaveProperty('curriculum_id')
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: 'Create quest' })).toBeNull()
+  })
+
+  it('can put the new quest straight onto a curriculum', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0,
+      curriculum: { id: 'cur-stem', title: 'STEM' }, added: true, pushed_to_classes: 1 } })
+    render(<QuestLibraryPage />)
+    await screen.findByText('Watercolor Basics')
+    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
+    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+    const picker = screen.getByPlaceholderText('Search curriculum…')
+    fireEvent.focus(picker)
+    fireEvent.change(picker, { target: { value: 'STE' } })
+    fireEvent.mouseDown(await screen.findByRole('button', { name: 'STEM' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/api/sis/quests?organization_id=org-1',
+      expect.objectContaining({ title: 'Robot Garden', curriculum_id: 'cur-stem' }),
+    ))
+  })
+
+  it('will not create a quest with no title', async () => {
+    render(<QuestLibraryPage />)
+    await screen.findByText('Watercolor Basics')
+    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
+    expect(screen.getByRole('button', { name: 'Create quest' })).toBeDisabled()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
   it('says so when the school has no quests', async () => {
     api.get.mockResolvedValue({ data: { quests: [], curricula: [], classes: [] } })
     render(<QuestLibraryPage />)

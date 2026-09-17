@@ -177,3 +177,50 @@ def test_the_curriculum_page_and_the_library_share_one_attach_writer():
     assert 'attach_quest_to_curriculum(' in inspect.getsource(curriculum.add_quest_to_curriculum)
     assert 'attach_quest_to_curriculum(' in inspect.getsource(library.put_quest_on_curriculum)
     assert "table('sis_curriculum_quests').insert" not in inspect.getsource(curriculum.add_quest_to_curriculum)
+
+
+@pytest.mark.unit
+class TestAuthoringFromTheLibrary:
+    """"Add quest" on the library page: the same authoring service as the
+    curriculum and class forms, with nothing required to hang the quest on."""
+
+    def _run_create(self, body, tables=None, created=None):
+        with patch.object(library, 'create_org_quest',
+                          return_value=created or {'quest_id': Q2, 'task_count': 3}) as create:
+            out = _run(library.create_library_quest, (), body=body, tables=tables or {})
+        return out + (create,)
+
+    def test_a_quest_can_be_written_first_and_placed_later(self):
+        body, status, log, create = self._run_create(
+            {'title': 'Bridge Building', 'description': 'Build one.', 'tasks': [{'title': 'Draw it'}]})
+        assert status == 201
+        assert body['quest_id'] == Q2 and body['task_count'] == 3
+        assert 'curriculum' not in body
+        kwargs = create.call_args.kwargs
+        assert kwargs['org_id'] == ORG and kwargs['user_id'] == USER
+        assert kwargs['title'] == 'Bridge Building' and kwargs['raw_tasks'] == [{'title': 'Draw it'}]
+        assert not [e for e in log if e[0] == 'insert']
+
+    def test_with_a_curriculum_it_is_placed_in_the_same_request(self):
+        tables = {'sis_curriculum': [{'id': CURR, 'organization_id': ORG, 'title': 'Art'}],
+                  'sis_curriculum_quests': []}
+        body, status, log, _ = self._run_create(
+            {'title': 'Bridge Building', 'tasks': [], 'curriculum_id': CURR}, tables=tables)
+        assert status == 201
+        assert body['curriculum'] == {'id': CURR, 'title': 'Art'}
+        assert body['added'] is True and body['pushed_to_classes'] == 2
+        assert [e for e in log if e[0] == 'insert'] == [('insert', 'sis_curriculum_quests',
+            {'curriculum_id': CURR, 'quest_id': Q2, 'sequence_order': 0, 'added_by': USER})]
+
+    def test_another_schools_curriculum_is_refused_before_anything_is_written(self):
+        tables = {'sis_curriculum': [{'id': CURR, 'organization_id': OTHER_ORG, 'title': 'Art'}]}
+        body, status, log, create = self._run_create(
+            {'title': 'Bridge Building', 'curriculum_id': CURR}, tables=tables)
+        assert status == 404
+        create.assert_not_called()
+
+    def test_the_authoring_services_rejection_is_returned_as_is(self):
+        from services.sis_quest_authoring import QuestAuthoringError
+        with patch.object(library, 'create_org_quest', side_effect=QuestAuthoringError('A title is required', 400)):
+            body, status, _ = _run(library.create_library_quest, (), body={'title': ''})
+        assert status == 400 and body['error'] == 'A title is required'

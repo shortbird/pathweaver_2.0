@@ -4,6 +4,8 @@ one is in use and a way to put it somewhere from there.
 
   GET  /api/sis/quests                          the org's quests, with their
                                                 curricula, classes and task count
+  POST /api/sis/quests                          author a new one (optionally
+                                                straight onto a curriculum)
   POST /api/sis/quests/<quest_id>/curricula     put one on a curriculum
 
 Why a page of its own. Quests were reachable only through the curriculum that
@@ -33,6 +35,7 @@ from flask import Blueprint, request, jsonify
 from repositories.sis_quest_library_repository import SisQuestLibraryRepository
 from services import sis_service
 from services.sis_curriculum_sync import attach_quest_to_curriculum
+from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
 from utils.sis_roles import ADMIN_ROLES
@@ -119,6 +122,45 @@ def list_org_quests(user_id):
         'curricula': [{'id': c['id'], 'title': c['title']} for c in curricula],
         'classes': [{'id': c['id'], 'name': c['name']} for c in classes if c.get('status') != 'archived'],
     })
+
+
+@bp.route('/quests', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def create_library_quest(user_id):
+    """Author a new school quest from the library page.
+
+    Body: {title, description?, tasks?, curriculum_id?}. The same form and the
+    same authoring service as "create a quest" on a curriculum or a class
+    (services/sis_quest_authoring), the difference being that nothing has to
+    exist to hang it on: a quest can be written first and placed later, which
+    is what the library is for. With curriculum_id it is also put on that
+    curriculum (and pushed to its classes) in the same request.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    curriculum_id = (data.get('curriculum_id') or '').strip() or None
+    curriculum = None
+    if curriculum_id:
+        if _bad_uuid(curriculum_id):
+            return jsonify({'success': False, 'error': 'Invalid curriculum id'}), 400
+        curriculum = _repo().find_curriculum(curriculum_id)
+        if not curriculum or curriculum.get('organization_id') != org_id:
+            return jsonify({'success': False, 'error': 'Curriculum not found'}), 404
+    try:
+        created = create_org_quest(
+            _admin(), org_id=org_id, user_id=user_id,
+            title=data.get('title'), description=data.get('description'),
+            raw_tasks=data.get('tasks'),
+        )
+    except QuestAuthoringError as e:
+        return jsonify({'success': False, 'error': e.message}), e.status
+    out = {'success': True, 'quest_id': created['quest_id'], 'task_count': created['task_count']}
+    if curriculum:
+        out['curriculum'] = {'id': curriculum['id'], 'title': curriculum['title']}
+        out.update(attach_quest_to_curriculum(_admin(), org_id, curriculum_id, created['quest_id'], user_id))
+    return jsonify(out), 201
 
 
 @bp.route('/quests/<quest_id>/curricula', methods=['POST'])

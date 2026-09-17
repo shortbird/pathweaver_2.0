@@ -32,6 +32,19 @@ export const useSisQuestLibrary = (orgId, options = {}) => useQuery({
 const invalidateLibrary = (queryClient, orgId) =>
   queryClient.invalidateQueries({ queryKey: queryKeys.sis.questLibrary(orgId) })
 
+export const useCreateLibraryQuest = (orgId) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ title, description, tasks, curriculumId }) => {
+      const body = { title, description, tasks }
+      if (curriculumId) body.curriculum_id = curriculumId
+      const res = await api.post(withOrg('/api/sis/quests', orgId), body)
+      return res.data
+    },
+    onSuccess: () => invalidateLibrary(queryClient, orgId),
+  })
+}
+
 export const useAddQuestToCurriculum = (orgId) => {
   const queryClient = useQueryClient()
   return useMutation({

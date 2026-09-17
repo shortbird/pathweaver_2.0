@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { BookOpenIcon } from '@heroicons/react/24/outline'
+import { BookOpenIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { useSisOrg } from './useSisOrg'
 import {
-  useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass,
+  useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
 } from '../../hooks/api/useSisQuestLibrary'
+import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
+import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
 import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import SearchSelect from '../../components/ui/SearchSelect'
@@ -163,6 +165,74 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
   )
 }
 
+/**
+ * Building a quest from the library. The same form as the curriculum and
+ * class builders (QuestDraftForm) and the same document-to-draft panel, so a
+ * quest reads the same wherever it was written; the one difference is that
+ * nothing has to exist to hang it on. A curriculum is optional here and the
+ * new quest is placed on it in the same request.
+ */
+export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [tasks, setTasks] = useState([blankTask()])
+  const [curriculumId, setCurriculumId] = useState('')
+  const create = useCreateLibraryQuest(orgId)
+  const hasDraft = Boolean(title.trim() || tasks.some((t) => t.title.trim()))
+
+  const save = async () => {
+    if (!title.trim()) { toast.error('Give the quest a title'); return }
+    try {
+      const data = await create.mutateAsync({
+        title: title.trim(), description: description.trim(),
+        tasks: tasks.filter((t) => t.title.trim()), curriculumId: curriculumId || null,
+      })
+      const where = data?.curriculum?.title
+      toast.success(where
+        ? `Quest created and added to ${where}${data.pushed_to_classes ? ` and ${data.pushed_to_classes} of its classes` : ''}`
+        : 'Quest created. Assign it from its row when you are ready.')
+      onDone?.()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not create the quest')
+    }
+  }
+
+  return (
+    <div className="border border-optio-purple/30 rounded-xl p-4 space-y-4 bg-optio-purple/5 mb-6">
+      <div>
+        <h2 className="text-sm font-semibold text-neutral-900">New quest</h2>
+        <p className="text-xs text-neutral-500">
+          Write it here, or draft it from a document. It lands in this list; put it on a curriculum now or later.
+        </p>
+      </div>
+      <QuestAiDraftPanel alwaysOpen hasDraft={hasDraft}
+        onDrafted={(d) => { setTitle(d.title); setDescription(d.description); setTasks(d.tasks) }} />
+      <QuestDraftForm
+        title={title} setTitle={setTitle}
+        description={description} setDescription={setDescription}
+        tasks={tasks} setTasks={setTasks}
+      />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[14rem]">
+          <span className="block text-xs font-medium text-neutral-600 mb-1">Put it on a curriculum (optional)</span>
+          <SearchSelect value={curriculumId} onChange={setCurriculumId} options={curricula}
+            getId={(c) => c.id} getLabel={(c) => c.title}
+            placeholder="Search curriculum…" emptyLabel="Not yet" />
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <Button size="xs" onClick={save} disabled={create.isPending || !title.trim()}>
+            {create.isPending ? 'Creating…' : 'Create quest'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function QuestLibraryPage() {
   const { orgId } = useSisOrg()
   const { data, isLoading, isError, error } = useSisQuestLibrary(orgId)
@@ -172,6 +242,7 @@ export default function QuestLibraryPage() {
   const loading = !!orgId && isLoading
   const [search, setSearch] = useState('')
   const [assigning, setAssigning] = useState(null) // quest id
+  const [adding, setAdding] = useState(false)
 
   // Filtered here rather than by ?search= so typing does not fire a request
   // per keystroke over a list that fits in one response.
@@ -194,10 +265,22 @@ export default function QuestLibraryPage() {
         for next term, or assign it straight to a class. To edit a quest, open the curriculum it is on.
       </p>
 
-      <div className="mb-4 max-w-md">
-        <Input value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search quests, curricula or classes…" aria-label="Search quests" />
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex-1 min-w-[14rem] max-w-md">
+          <Input value={search} onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search quests, curricula or classes…" aria-label="Search quests" />
+        </div>
+        {!adding && (
+          <Button size="xs" onClick={() => setAdding(true)} className="shrink-0">
+            <PlusIcon className="w-4 h-4 mr-1.5" /> Add quest
+          </Button>
+        )}
       </div>
+
+      {adding && (
+        <NewQuestPanel curricula={curricula} orgId={orgId}
+          onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+      )}
 
       {loading && <p className="text-neutral-500">Loading…</p>}
 
