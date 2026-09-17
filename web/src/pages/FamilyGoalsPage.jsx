@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import BackToSchool from '../components/navigation/BackToSchool'
 import Button from '../components/ui/Button'
 import { GlassTabBar } from '../components/ui'
 import { useConfirm } from '../contexts/ConfirmContext'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
 
 /**
  * Goal Setting — the post-registration step for goals-mode schools (e.g. Gryffin
@@ -77,7 +77,14 @@ const previewStudents = (preview) => ([{
 const FamilyGoalsPage = ({ preview = null }) => {
   const confirm = useConfirm()
   const [students, setStudents] = useState(null)
-  const [activeId, setActiveId] = useState(null)
+  // Which child: in the school shell it is family scope, picked in the
+  // shell's student rail above this panel; the staff preview (no shell, no
+  // scope) keeps a local pick over its sample family.
+  const { selectedChildId } = useFamilyScope()
+  const [previewId, setPreviewId] = useState(null)
+  const activeId = preview
+    ? previewId
+    : (students?.some((s) => s.id === selectedChildId) ? selectedChildId : students?.[0]?.id || null)
   const [forms, setForms] = useState({}) // studentId -> form
   const [saving, setSaving] = useState(false)
 
@@ -85,7 +92,6 @@ const FamilyGoalsPage = ({ preview = null }) => {
     .then((r) => {
       const list = r.data?.students || []
       setStudents(list)
-      setActiveId((prev) => prev && list.some((s) => s.id === prev) ? prev : list[0]?.id || null)
       setForms((prev) => {
         const next = { ...prev }
         list.forEach((s) => {
@@ -100,7 +106,7 @@ const FamilyGoalsPage = ({ preview = null }) => {
     if (preview) {
       const list = previewStudents(preview)
       setStudents(list)
-      setActiveId(list[0].id)
+      setPreviewId(list[0].id)
       setForms({ [list[0].id]: emptyForm(list[0].config.subjects) })
       return
     }
@@ -137,15 +143,23 @@ const FamilyGoalsPage = ({ preview = null }) => {
     }
   }
 
+  // A tab of the school page (pages/school/SchoolShell): the shell carries
+  // the letterhead, the rail and the student picker; this is the panel. The
+  // staff preview renders alone and keeps its own heading and picker.
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <BackToSchool className="mb-3" />
-      <div className="rounded-xl bg-gradient-primary text-white px-6 py-5 mb-6">
-        <h1 className="text-2xl font-bold">Goal Setting</h1>
-        <p className="text-sm opacity-90 mt-1">
+    <div className="max-w-3xl mx-auto">
+      {preview ? (
+        <div className="rounded-xl bg-gradient-primary text-white px-6 py-5 mb-6">
+          <h1 className="text-2xl font-bold">Goal Setting</h1>
+          <p className="text-sm opacity-90 mt-1">
+            Set a direction and this year's goals for each of your children, then review them together with school staff.
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500 mb-6">
           Set a direction and this year's goals for each of your children, then review them together with school staff.
         </p>
-      </div>
+      )}
 
       {students === null && <p className="text-gray-500">Loading…</p>}
       {students?.length === 0 && (
@@ -154,14 +168,16 @@ const FamilyGoalsPage = ({ preview = null }) => {
         </p>
       )}
 
-      <GlassTabBar
-        size="md"
-        className="!mx-0 mb-5"
-        tabs={(students || []).map((s) => ({ id: s.id, label: s.name }))}
-        active={activeId}
-        onSelect={setActiveId}
-        aria-label="Students"
-      />
+      {preview && (
+        <GlassTabBar
+          size="md"
+          className="!mx-0 mb-5"
+          tabs={(students || []).map((s) => ({ id: s.id, label: s.name }))}
+          active={activeId}
+          onSelect={setPreviewId}
+          aria-label="Students"
+        />
+      )}
 
       {active && form && (
         <div>

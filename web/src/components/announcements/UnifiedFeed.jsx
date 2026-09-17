@@ -5,7 +5,7 @@ import {
 } from '@heroicons/react/24/outline'
 import AnnouncementBody from './AnnouncementBody'
 import { AttachmentList } from '../communication/MessageParts'
-import { FeedSection, fmtDate, fmtWhen, RECOGNITION_LABEL } from './SchoolCommunity'
+import { fmtDate, fmtWhen, RECOGNITION_LABEL } from './SchoolCommunity'
 import { htmlToText } from '../../utils/richText'
 
 /**
@@ -28,6 +28,12 @@ import { htmlToText } from '../../utils/richText'
  * until someone edited the post: the titles stopped matching and one notice
  * became two on the family portal (iCreate, 2026-08-27). Sends that predate
  * the link column have no source id, so the old match is kept as a fallback.
+ *
+ * Shape (2026-09-16 redesign): the feed IS the column. Each post is a white
+ * card on the page, not a gray card inside a white "From iCreate" box with an
+ * icon tile and a collapse chevron -- boxes in boxes read as a widget, not a
+ * feed. Pinned and urgent posts carry a colored left edge. The search is a
+ * small field in the heading row, not a full-width bar above the first post.
  */
 
 const FEED_CAP = 6
@@ -74,37 +80,40 @@ const matchesQuery = (item, q) => {
   return hay.includes(q.toLowerCase())
 }
 
+const Badge = ({ tone, children }) => (
+  <span className={`text-[11px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 ${tone}`}>
+    {children}
+  </span>
+)
 const KIND_BADGE = {
-  shoutout: (d) => (
-    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-pink/10 text-optio-pink">
-      {RECOGNITION_LABEL[d.type] || 'Shout-out'}
-    </span>
-  ),
-  lostfound: () => (
-    <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700">
-      Lost &amp; found
-    </span>
-  ),
+  shoutout: (d) => <Badge tone="bg-optio-pink/10 text-optio-pink">{RECOGNITION_LABEL[d.type] || 'Shout-out'}</Badge>,
+  lostfound: () => <Badge tone="bg-amber-100 text-amber-700">Lost &amp; found</Badge>,
 }
+
+// One card, three tones: plain, pinned (purple edge), urgent (red edge).
+const CARD = 'bg-white border border-gray-200 rounded-xl p-5'
+const cardTone = ({ pinned, urgent }) => (
+  urgent ? `${CARD} border-l-4 border-l-red-500`
+    : pinned ? `${CARD} border-l-4 border-l-optio-purple`
+      : CARD
+)
 
 function FeedItem({ item, expanded, onToggleExpand }) {
   const d = item.data
   if (item.kind === 'lostfound') {
     return (
-      <article className="border border-gray-100 bg-gray-50/60 rounded-lg p-4 flex gap-3">
+      <article className={`${CARD} flex gap-4`}>
         {d.image_url && (
           <img src={d.image_url} alt="" loading="lazy"
-            className="w-16 h-16 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
+            className="w-20 h-20 rounded-lg object-cover bg-gray-100 flex-shrink-0" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              {KIND_BADGE.lostfound()}
-              <h3 className="text-sm font-medium text-gray-900">{d.description}</h3>
-            </div>
-            <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">{fmtDate(item.date)}</time>
+          <div className="flex items-center gap-2 flex-wrap">
+            {KIND_BADGE.lostfound()}
+            <time className="text-xs text-gray-400">{fmtDate(item.date)}</time>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <h3 className="text-base font-semibold text-gray-900 mt-1.5">{d.description}</h3>
+          <p className="text-sm text-gray-500 mt-1">
             {[d.category, d.location_found && `found at ${d.location_found}`,
               d.date_found && `on ${fmtDate(d.date_found)}`, 'collect it from the office']
               .filter(Boolean).join(' · ')}
@@ -112,7 +121,7 @@ function FeedItem({ item, expanded, onToggleExpand }) {
           {/* Unclaimed items are donated after a fortnight — the deadline is
               the useful part for a parent, not the log date. */}
           {typeof d.days_until_donation === 'number' && d.days_until_donation >= 0 && (
-            <p className="text-xs text-amber-700 mt-1">
+            <p className="text-sm font-medium text-amber-700 mt-1">
               {d.days_until_donation === 0
                 ? 'Being donated today'
                 : `Donated in ${d.days_until_donation} day${d.days_until_donation === 1 ? '' : 's'}`}
@@ -125,13 +134,13 @@ function FeedItem({ item, expanded, onToggleExpand }) {
 
   if (item.kind === 'shoutout') {
     return (
-      <article className="border border-gray-100 bg-gray-50/60 rounded-lg p-4">
+      <article className={`${CARD} border-l-4 border-l-optio-pink`}>
         <div className="flex items-center gap-2 flex-wrap">
           {KIND_BADGE.shoutout(d)}
-          {d.recipient_name && <h3 className="text-sm font-semibold text-gray-900">{d.recipient_name}</h3>}
-          <time className="text-xs text-gray-400 ml-auto">{fmtDate(item.date)}</time>
+          <time className="text-xs text-gray-400">{fmtDate(item.date)}</time>
         </div>
-        {d.message && <p className="text-sm text-gray-700 mt-2">{d.message}</p>}
+        {d.recipient_name && <h3 className="text-base font-semibold text-gray-900 mt-1.5">{d.recipient_name}</h3>}
+        {d.message && <p className="text-sm text-gray-700 mt-1.5 leading-relaxed">{d.message}</p>}
       </article>
     )
   }
@@ -144,25 +153,13 @@ function FeedItem({ item, expanded, onToggleExpand }) {
   const isLong = item.kind === 'message' && htmlToText(body).length > 280
   const isUrgent = d.priority === 'urgent'
   return (
-    <article className={`border rounded-lg p-4 ${
-      isUrgent ? 'border-red-200 bg-red-50/30' : 'border-gray-100 bg-gray-50/60'}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {item.pinned && (
-            <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">
-              Pinned
-            </span>
-          )}
-          {isUrgent && (
-            <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-100 text-red-700">
-              Urgent
-            </span>
-          )}
-          <h3 className="text-sm font-semibold text-gray-900">{d.title}</h3>
-        </div>
-        <time className="text-xs text-gray-400 whitespace-nowrap mt-0.5">{fmtDate(item.date)}</time>
+    <article className={cardTone({ pinned: item.pinned, urgent: isUrgent })}>
+      <div className="flex items-center gap-2 flex-wrap">
+        {item.pinned && <Badge tone="bg-optio-purple/10 text-optio-purple">Pinned</Badge>}
+        {isUrgent && <Badge tone="bg-red-100 text-red-700">Urgent</Badge>}
+        <time className="text-xs text-gray-400">{fmtDate(item.date)}</time>
       </div>
+      <h3 className="text-base font-semibold text-gray-900 mt-1.5">{d.title}</h3>
       {body && (
         <AnnouncementBody
           text={body}
@@ -208,22 +205,23 @@ export default function UnifiedFeed({
   }
 
   return (
-    <FeedSection
-      id="school-feed"
-      title={schoolName ? `From ${schoolName}` : 'From your school'}
-      Icon={MegaphoneIcon}
-      defaultOpen
-    >
-      {/* Search — the archive filters server-side (?q); board items client-side. */}
-      <div className="relative mb-4">
-        <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search messages…"
-          aria-label="Search messages"
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-        />
+    <section id="school-feed" aria-labelledby="school-feed-heading" className="scroll-mt-14">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h2 id="school-feed-heading" className="text-base font-semibold text-gray-900 flex items-center gap-2">
+          <MegaphoneIcon className="w-5 h-5 text-optio-purple" />
+          {schoolName ? `Latest from ${schoolName}` : 'Latest from your school'}
+        </h2>
+        {/* Search — the archive filters server-side (?q); board items client-side. */}
+        <div className="relative">
+          <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search"
+            aria-label="Search messages"
+            className="w-36 sm:w-52 pl-9 pr-3 py-1.5 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+          />
+        </div>
       </div>
 
       {loading && items.length === 0 ? (
@@ -236,7 +234,7 @@ export default function UnifiedFeed({
             <p className="text-sm text-red-600">{error}</p>
           </div>
         ) : (
-          <div className="text-center py-12">
+          <div className={`${CARD} text-center py-12`}>
             <p className="text-gray-500 font-medium">
               {query ? 'No messages match your search.' : 'No messages yet.'}
             </p>
@@ -283,45 +281,39 @@ export default function UnifiedFeed({
           )}
         </div>
       )}
-    </FeedSection>
+    </section>
   )
 }
 
 /**
- * The next few dates, as a slim strip — not a section a parent has to open.
- * The full calendar is one link away; this is the "don't get surprised
- * Tuesday" glance.
+ * The next few dates, as a slim card for the rail — not a section a parent
+ * has to open. The full calendar is one tab away; this is the "don't get
+ * surprised Tuesday" glance.
  */
 export function ComingUp({ events }) {
   const upcoming = (events || []).slice(0, 5)
   if (upcoming.length === 0) return null
   return (
-    <FeedSection
-      id="coming-up"
-      title="Coming up"
-      Icon={CalendarDaysIcon}
-      collapsible={false}
-      defaultOpen
-      action={
-        <Link
-          to="/school-calendar"
-          className="text-xs font-medium text-optio-purple hover:underline flex items-center gap-1"
-        >
-          View full calendar &rarr;
+    <section id="coming-up" aria-labelledby="coming-up-heading" className={CARD}>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 id="coming-up-heading" className="text-xs font-semibold uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
+          <CalendarDaysIcon className="w-4 h-4" />
+          Coming up
+        </h2>
+        <Link to="/school-calendar" className="text-xs font-medium text-optio-purple hover:underline">
+          Full calendar &rarr;
         </Link>
-      }
-    >
-      <div className="divide-y divide-gray-100">
-        {upcoming.map((e) => (
-          <div key={e.id} className="py-2.5 first:pt-0 last:pb-0 flex items-baseline justify-between gap-3">
-            <div className="min-w-0">
-              <span className="text-sm font-medium text-gray-900">{e.title}</span>
-              {e.location && <span className="text-xs text-gray-500 ml-2">{e.location}</span>}
-            </div>
-            <span className="text-xs text-gray-500 whitespace-nowrap">{fmtWhen(e)}</span>
-          </div>
-        ))}
       </div>
-    </FeedSection>
+      <ul className="divide-y divide-gray-100">
+        {upcoming.map((e) => (
+          <li key={e.id} className="py-2.5 first:pt-0 last:pb-0">
+            <div className="text-sm font-medium text-gray-900">{e.title}</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {fmtWhen(e)}{e.location ? ` · ${e.location}` : ''}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

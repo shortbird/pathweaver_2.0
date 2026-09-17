@@ -377,21 +377,27 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   ]
 
-  // The school's own page — announcements and the community board — named after
-  // the school itself. Gated on `school.homepage`, the per-org opt-in
-  // (feature_flags.sis_settings.school_homepage) that makes /school a school's
-  // front door: belonging to an org is not the same as that org running its
-  // families through this page. Schools that front-door families elsewhere
-  // (Hearthwood sends them to its own program page) would otherwise get a
-  // second, near-empty school item they never asked for. Superadmins are in no
-  // school but get the same door as "School Pages" — /school shows them an org
-  // and role picker to preview each school's page.
-  // (The school's sub-surfaces — schedule, billing, absences, etc. — are cards
-  // on the school page itself since 2026-08-06, not sidebar items.)
-  if (school?.homepage || user?.role === 'superadmin') {
+  // The school, named after itself: one door. Behind it, since 2026-09-16,
+  // is one page with tabs (pages/school/SchoolShell) -- the feed, the
+  // calendar, and for a guardian the family doors (schedule or goals,
+  // absences, billing, forms, prior learning). Between 2026-09-15 and then
+  // those doors were a sidebar section of their own under the school's name;
+  // eight items for once-a-term pages is a list nobody reads.
+  //
+  // Where the door lands: the school's own page when the org front-doors its
+  // families through it (`school.homepage`, feature_flags.sis_settings.
+  // school_homepage -- belonging to an org is not the same as that org
+  // running its families through the page; Hearthwood sends them to its own
+  // program page), else a guardian's first family tab. Superadmins are in no
+  // school but get the same door as "School Pages" -- /school shows them an
+  // org and role picker to preview each school's page.
+  const schoolTabs = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
+  const schoolDoor = schoolTabs[0]?.path
+    || ((school?.homepage || user?.role === 'superadmin') ? '/school' : null)
+  if (schoolDoor) {
     communityItems.push({
       name: school?.name || (user?.role === 'superadmin' ? 'School Pages' : 'My school'),
-      path: '/school',
+      path: schoolDoor,
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
@@ -493,17 +499,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
     }
   }
 
-  // The school's section, named after the school: the family doors (billing,
-  // absences, checklists, requests, schedule or goals, prior learning), the
-  // calendar, and the school's own page when the org front-doors families
-  // through it. One catalog with /school's card rail
-  // (pages/school/schoolCards); the rail keeps the school-life cards and this
-  // takes the family ones. Only for a guardian in an SIS school -- a student
-  // or a teacher who guards nobody gets nothing here and keeps the school
-  // item under Community.
-  const schoolItems = familyNavItemsFor(schoolOrg, { homepage: Boolean(school?.homepage) })
-    .map(({ name, path, Icon }) => ({ name, path, icon: <Icon className="w-5 h-5" /> }))
-
   const adminItems = []
 
   // Organization console for org admins or platform admins with an organization
@@ -545,11 +540,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, isPinned, onTogglePin, isHovere
   let navSections = [
     { key: 'primary', title: null, items: primaryItems },
     { key: 'learning', title: 'Learning', items: learningItems },
-    // Before Community, so its "Announcements" wins the path dedupe below over
-    // the Community copy of /school for a guardian.
-    ...(schoolItems.length > 0
-      ? [{ key: 'school', title: school?.name || 'My school', items: schoolItems }]
-      : []),
     { key: 'teaching', title: 'Teaching', items: teachingItems },
     { key: 'community', title: 'Community', items: communityItems },
     { key: 'admin', title: 'Admin', items: adminItems },

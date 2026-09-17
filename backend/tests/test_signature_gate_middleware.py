@@ -99,11 +99,39 @@ class TestTheWayOut:
         assert r.status_code == 200
 
     def test_an_admin_can_still_leave_a_masquerade_into_a_held_family(self, client):
-        """The hold applies inside a masquerade on purpose — it is what the
-        parent sees. But the EXIT belongs to the admin, and gating it would
-        strand them in an account they can neither use nor leave."""
+        """The exit stays on the allowlist even though a masquerade is exempt
+        below: if that exemption ever regresses, the admin must still be able
+        to get out of an account they can neither use nor leave."""
         r = _get(client, '/api/admin/masquerade/exit', method='post')
         assert r.status_code == 200
+
+
+@pytest.mark.unit
+class TestMasqueradeIsExempt:
+    """An admin must not sign a family's paperwork for them, so the hold
+    cannot be satisfied from inside a masquerade. The web router has exempted
+    masquerade since 2026-08-22; the API caught up 2026-09-16."""
+
+    def test_a_masquerade_into_a_held_family_is_let_through(self, client):
+        who, held = _as_held()
+        with who, held, patch(
+                'middleware.signature_gate.session_manager.is_masquerading',
+                return_value=True):
+            assert client.get('/api/quests').status_code == 200
+
+    def test_the_family_themself_is_still_held(self, client):
+        who, held = _as_held()
+        with who, held, patch(
+                'middleware.signature_gate.session_manager.is_masquerading',
+                return_value=False):
+            assert client.get('/api/quests').status_code == 403
+
+    def test_a_clear_family_never_pays_for_the_masquerade_check(self, client):
+        who, held = _as_held(blocked=False)
+        with who, held, patch(
+                'middleware.signature_gate.session_manager.is_masquerading') as m:
+            assert client.get('/api/quests').status_code == 200
+            m.assert_not_called()
 
 
 @pytest.mark.unit

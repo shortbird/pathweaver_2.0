@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  *
  * 1. Which cards a given person gets. Calendar, Resources and Directory are the
  *    school's own content and belong to everyone in it. Billing, Absences,
- *    Portal, Requests and the Schedule Builder act on a FAMILY, and a student is
+ *    Forms and the Schedule Builder act on a FAMILY, and a student is
  *    a member of the school without being a guardian in it. Erring permissive
  *    here puts a Billing tile in front of a fourteen-year-old.
  *
@@ -50,6 +50,7 @@ const post = vi.fn(() => Promise.resolve({ data: { success: true } }))
 vi.mock('../services/api', () => ({ default: { get: (...a) => get(...a), post: (...a) => post(...a) } }))
 
 import SchoolPage from './SchoolPage'
+import SchoolShell from './school/SchoolShell'
 import { familyNavItemsFor } from './school/schoolCards'
 
 // SchoolPage renders MyClassMaterials, which reads through hooks/api
@@ -69,7 +70,17 @@ const GUARDIAN_ORG = {
 }
 const MEMBER_ORG = { ...GUARDIAN_ORG, is_guardian: false }
 
-const renderPage = () => render(withQuery(<MemoryRouter><SchoolPage /></MemoryRouter>))
+// The letterhead is the school shell's (pages/school/SchoolShell) since
+// 2026-09-16; the page renders inside it here, as it does in the app.
+const renderPage = () => render(withQuery(
+  <MemoryRouter initialEntries={['/school']}>
+    <Routes>
+      <Route element={<SchoolShell />}>
+        <Route path="/school" element={<SchoolPage />} />
+      </Route>
+    </Routes>
+  </MemoryRouter>,
+))
 
 const cardRail = async () => {
   renderPage()
@@ -95,15 +106,18 @@ describe('what a guardian gets', () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
   })
 
-  // The family doors (billing, absences, checklists, requests, schedule) are
+  // The family doors (billing, absences, forms, schedule) are
   // sidebar items under the school's name since 2026-09-15 (see
   // familyNavItemsFor in ./school/schoolCards); the rail here keeps the
   // school-life cards only, so the same door is not offered twice on one screen.
-  it('offers the school-life surfaces as cards, and the family doors in the sidebar instead', async () => {
+  it('offers the school-life doors, and leaves the family doors and the calendar to the tabs', async () => {
     const names = await cardNames()
-    expect(names).toEqual(expect.arrayContaining(['Calendar', 'Resources', 'Directory', 'Carpool']))
+    expect(names).toEqual(expect.arrayContaining(['Resources', 'Directory', 'Carpool']))
+    // A guardian has a Calendar tab above this page (SchoolShell), so the
+    // rail does not offer the same door a second time.
+    expect(names).not.toContain('Calendar')
     expect(names).not.toContain('Billing')
-    expect(names).not.toContain('Portal')
+    expect(names).not.toContain('Forms')
     expect(names).not.toContain('Schedule')
   })
 
@@ -117,7 +131,6 @@ describe('what a guardian gets', () => {
     const rail = await cardRail()
     const href = (name) =>
       within(rail).getByRole('heading', { name }).closest('a').getAttribute('href')
-    expect(href('Calendar')).toBe('/school-calendar')
     expect(href('Resources')).toBe('/resources')
     expect(href('Directory')).toBe('/family-directory')
     expect(href('Carpool')).toBe('/carpool')
@@ -128,13 +141,12 @@ describe('what a guardian gets', () => {
     const items = familyNavItemsFor(GUARDIAN_ORG, { homepage: true })
     const byName = Object.fromEntries(items.map((i) => [i.name, i.path]))
     expect(byName).toEqual({
-      Announcements: '/school',
+      iCreate: '/school',
       Calendar: '/school-calendar',
       Schedule: '/schedule-builder',
       Absences: '/absences',
       Billing: '/family/billing',
-      Checklists: '/family/portal',
-      Requests: '/family/forms',
+      Forms: '/family/forms',
     })
   })
 
@@ -296,16 +308,15 @@ describe('the unified feed', () => {
     expect(names).not.toContain('Messages')
   })
 
-  it('opens on arrival but can be collapsed out of the way', async () => {
+  it('is the column, not a box that collapses', async () => {
+    // Until 2026-09-16 the feed sat inside a "From iCreate" box with a
+    // collapse chevron; a feed that folds away is a widget, and this page is
+    // the feed. The heading names the school and there is nothing to collapse.
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
     renderPage()
     expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Collapse From/i }))
-    await waitFor(() => {
-      expect(screen.queryByText('Picture day is Thursday')).not.toBeInTheDocument()
-    })
-    fireEvent.click(screen.getByRole('button', { name: /Expand From/i }))
-    expect(await screen.findByText('Picture day is Thursday')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Latest from iCreate/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Collapse From/i })).not.toBeInTheDocument()
   })
 })
 

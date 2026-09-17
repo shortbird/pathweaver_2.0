@@ -31,9 +31,9 @@ _ALLOWED_PREFIXES = (
     # (b) The verification flow itself: status (with its phone prefill),
     # send-code, verify.
     '/api/phone-verification/',
-    # Leaving a masquerade. A held adult is held while an admin views as them
-    # -- deliberate, it is what the adult sees -- but the exit is the admin's
-    # own way out (see signature_gate, same entry, same reason).
+    # Leaving a masquerade. A masquerade is exempt from the hold below, but
+    # the exit stays listed so an admin can always get out even if that
+    # exemption ever regresses (see signature_gate, same entry, same reason).
     '/api/admin/masquerade/exit',
 )
 
@@ -84,6 +84,17 @@ class PhoneVerificationGate:
         except Exception as e:
             # Fail open, in step with the check itself (see the hold module).
             logger.warning(f'Phone gate check failed for {user_id}: {e}')
+            return None
+
+        # An admin viewing as a held adult is not held. The hold can only be
+        # lifted by typing a code texted to that adult's phone, which the admin
+        # does not have, so holding the masquerade means every page 403s with
+        # no way to finish. The web router already exempts masquerade for this
+        # reason (usePhoneVerificationGate, 2026-08-22); until 2026-09-16 the
+        # API did not, so a superadmin viewing an unverified iCreate parent saw
+        # an app in which nothing loaded. Checked after the hold so a verified
+        # adult's cached clear result still costs nothing extra.
+        if session_manager.is_masquerading():
             return None
 
         return jsonify({

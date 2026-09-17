@@ -43,11 +43,10 @@ _ALLOWED_PREFIXES = (
     # The org context the signing screen needs to name the school and to pass
     # organization_id on the calls above.
     '/api/sis/parent/context',
-    # Leaving a masquerade. A held parent is held while an admin is viewing as
-    # them -- that is deliberate, it is what the parent sees -- but the exit is
-    # the admin's own way out, and gating it would strand the admin inside an
-    # account they cannot use and cannot leave. The route is already undecorated
-    # for the same reason (routes/admin/masquerade.py).
+    # Leaving a masquerade. A masquerade is exempt from the hold below, but
+    # the exit stays listed so an admin can always get out even if that
+    # exemption ever regresses. The route is already undecorated for the same
+    # reason (routes/admin/masquerade.py).
     '/api/admin/masquerade/exit',
 )
 
@@ -101,6 +100,16 @@ class SignatureGate:
             # exists to hold ONE family for ONE document, and no bug in it
             # should be able to take the platform down for everybody.
             logger.warning(f'Signature gate check failed for {user_id}: {e}')
+            return None
+
+        # An admin viewing as a held guardian is not held. An admin must not
+        # sign a family's paperwork for them, so holding the masquerade means
+        # every page 403s with nothing the admin may do about it. The web
+        # router already exempts masquerade for this reason
+        # (useRequiredDocumentsGate, 2026-08-22); the API caught up 2026-09-16.
+        # Checked after the hold so a clear family's cached result still costs
+        # nothing extra.
+        if session_manager.is_masquerading():
             return None
 
         return jsonify({

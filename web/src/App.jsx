@@ -18,8 +18,6 @@ import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import ConsentBlockedOverlay from './components/consent/ConsentBlockedOverlay'
 import SessionConflictOverlay from './components/SessionConflictOverlay'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
-import { queryKeys } from './utils/queryKeys'
-import logger from './utils/logger'
 import api from './services/api'
 import { activityTracker } from './services/activityTracker'
 import InstallPrompt from './components/common/InstallPrompt'
@@ -146,7 +144,6 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
 const FriendPage = lazy(() => import('./pages/FriendPage'))
 const ConnectionApprovalsPage = lazy(() => import('./pages/ConnectionApprovalsPage'))
 const FamilyFormsPage = lazy(() => import('./pages/FamilyFormsPage'))
-const FamilyPortalPage = lazy(() => import('./pages/FamilyPortalPage'))
 const FamilyPriorLearningPage = lazy(() => import('./pages/FamilyPriorLearningPage'))
 const FamilyResourcesPage = lazy(() => import('./pages/FamilyResourcesPage'))
 const FamilyCalendarPage = lazy(() => import('./pages/FamilyCalendarPage'))
@@ -165,6 +162,7 @@ const MyInvitations = lazy(() => import('./pages/student/MyInvitations'))
 const QuestInvitations = lazy(() => import('./pages/advisor/QuestInvitations'))
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'))
 const SchoolPage = lazy(() => import('./pages/SchoolPage'))
+const SchoolShell = lazy(() => import('./pages/school/SchoolShell'))
 const CarpoolPage = lazy(() => import('./pages/CarpoolPage'))
 const StudentFeedbackPage = lazy(() => import('./pages/StudentFeedbackPage'))
 // Evidence Reports (February 2026 - Shareable evidence reports with PDF download)
@@ -652,37 +650,55 @@ function App() {
                 {/* Parent/guardian self-service: register your own children for SIS
                     classes. Gated behind completing the iCreate registration + fee —
                     including parent+teacher staff, whose teacher surfaces stay open. */}
-                <Route element={<RequireParentRegistration />}>
-                  <Route path="schedule-builder" element={<ScheduleBuilderPage />} />
-                  {/* old bookmarks: Class Registration became the Schedule Builder */}
-                  <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
+                {/* The school, as one page (pages/school/SchoolShell, 2026-09-16):
+                    the letterhead and a tab rail over the feed and the family
+                    pages. Each tab keeps the URL it always had, so emailed
+                    links, notifications and the mobile hand-off still land. */}
+                <Route element={<SchoolShell />}>
+                  {/* The school's own page: announcements + community board. The
+                      old /announcements path still lands here, because emails and
+                      notifications sent before the rename link to it. */}
+                  <Route path="school" element={<SchoolPage />} />
+                  <Route path="announcements" element={<SchoolPage />} />
+                  <Route path="school-calendar" element={<FamilyCalendarPage />} />
+                  {/* Parent/guardian self-service: register your own children for SIS
+                      classes. Gated behind completing the iCreate registration + fee —
+                      including parent+teacher staff, whose teacher surfaces stay open. */}
+                  <Route element={<RequireParentRegistration />}>
+                    <Route path="schedule-builder" element={<ScheduleBuilderPage />} />
+                    {/* old bookmarks: Class Registration became the Schedule Builder */}
+                    <Route path="class-registration" element={<Navigate to="/schedule-builder" replace />} />
+                  </Route>
+                  {/* Parent/guardian self-service: report a child's planned absences */}
+                  <Route path="absences" element={<AbsenceReportingPage />} />
+                  <Route path="family/billing" element={<FamilyBillingPage />} />
+                  {/* Forms: what the school needs signed or completed, and the
+                      family's requests to the office -- one page since
+                      2026-09-16 (pages/FamilyFormsPage). */}
+                  <Route path="family/forms" element={<FamilyFormsPage />} />
+                  {/* The old Checklists page. Notifications sent before 2026-09-16
+                      (onboarding, signatures, secure documents) still link here. */}
+                  <Route path="family/portal" element={<Navigate to="/family/forms" replace />} />
+                  {/* Prior learning: a guardian files evidence of learning done
+                      before/outside Optio, for the school to award credit for. */}
+                  <Route path="family/prior-learning" element={<FamilyPriorLearningPage />} />
+                  {/* Goals-mode SIS orgs: parents set a direction + per-subject goals
+                      for each child (reviewed in a meeting with school staff). */}
+                  <Route path="family/goals" element={<FamilyGoalsPage />} />
                 </Route>
-                {/* Parent/guardian self-service: report a child's planned absences */}
-                <Route path="absences" element={<AbsenceReportingPage />} />
-                {/* Parent/guardian self-service: submit a request to the school */}
-                <Route path="family/forms" element={<FamilyFormsPage />} />
                 {/* The family dashboard: every parent's home (2026-09-15). Open
                     to anyone with children on their account -- the page itself
-                    is empty-state for an account with none. The SIS family
-                    pages below are its siblings, not its children. */}
+                    is empty-state for an account with none. The school tabs
+                    above are its siblings, not its children. */}
                 <Route path="family" element={<FamilyHome />} />
-                {/* Family portal: checklists the school assigns to the guardian */}
-                <Route path="family/portal" element={<FamilyPortalPage />} />
-                {/* Prior learning: a guardian files evidence of learning done
-                    before/outside Optio, for the school to award credit for. */}
-                <Route path="family/prior-learning" element={<FamilyPriorLearningPage />} />
-                {/* School document library + opt-in family directory (SIS orgs) */}
+                {/* School document library + opt-in family directory (SIS orgs):
+                    doors on the feed tab's rail, not tabs. */}
                 <Route path="resources" element={<FamilyResourcesPage />} />
-                <Route path="school-calendar" element={<FamilyCalendarPage />} />
                 <Route path="family-directory" element={<FamilyDirectoryPage />} />
-                {/* Goals-mode SIS orgs: parents set a direction + per-subject goals
-                    for each child (reviewed in a meeting with school staff). */}
-                <Route path="family/goals" element={<FamilyGoalsPage />} />
                 <Route path="family/students/:studentId" element={<FamilyStudentPage />} />
                 {/* Printable class schedule — the paper copy families kept
                     asking the office for. */}
                 <Route path="family/students/:studentId/schedule" element={<FamilyStudentSchedulePage />} />
-                <Route path="family/billing" element={<FamilyBillingPage />} />
                 {/* /credits and /transcript were pages of their own until
                     2026-09-16. Neither was in the nav, and both called
                     endpoints that do not exist (/api/credits/<id> and
@@ -717,11 +733,6 @@ function App() {
                 {/* LMS Features */}
                 <Route path="invitations" element={<MyInvitations />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                {/* The school's own page: announcements + community board. The
-                    old /announcements path still lands here, because emails and
-                    notifications sent before the rename link to it. */}
-                <Route path="school" element={<SchoolPage />} />
-                <Route path="announcements" element={<SchoolPage />} />
                 {/* The carpool board's own door — the same board /school holds. */}
                 <Route path="carpool" element={<CarpoolPage />} />
                 {/* Observer feedback on the student's work: theirs, or the

@@ -308,6 +308,36 @@ def billing_payment_plan_preference(user_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 
+@bp.route('/billing/funding-source', methods=['POST'])
+@require_auth
+@require_module('billing')
+def billing_funding_source(user_id):
+    """The family updates how they pay, in the options of the school's own
+    "Form of Payment" registration question. Body: {household_id,
+    payment_methods: [...], ufa_private?: bool}. Same guard as the payment-plan
+    preference above. The write lands on the registration the office reads
+    and on the field the card-payment gate reads, so the response carries the
+    new pay_through_ufa."""
+    from services import sis_billing_service as billing
+    data = request.get_json(silent=True) or {}
+    household_id = data.get('household_id')
+    if not household_id:
+        return jsonify({'success': False, 'error': 'household_id is required'}), 400
+    methods = data.get('payment_methods')
+    if not isinstance(methods, list):
+        return jsonify({'success': False, 'error': 'payment_methods must be a list'}), 400
+    ufa_private = data.get('ufa_private')
+    if ufa_private is not None and not isinstance(ufa_private, bool):
+        return jsonify({'success': False, 'error': 'ufa_private must be true or false'}), 400
+    try:
+        result = billing.set_stated_payment_methods(user_id, household_id, methods, ufa_private)
+        return jsonify({'success': True, **result})
+    except PermissionError as e:
+        return jsonify({'success': False, 'error': str(e)}), 403
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
 # ── Family photos (self-service) ──────────────────────────────────────────────
 def _photo_file_or_error():
     """Validate the multipart photo upload; returns (file, ext, None) or (None, None, response)."""
@@ -391,26 +421,48 @@ def list_absences(user_id):
 @require_module('attendance')
 def create_absence(user_id):
     """Report an absence for one child (student_user_id) or several at once
-    (student_user_ids). Each child is written independently; the response lists
+    (student_user_ids), all missing the same thing (class_id, or the whole day
+    when null) -- or, with `selections: [{student_user_id, class_ids}]`, each
+    child missing their own classes (web, 2026-09-16; mobile still sends the
+    older shape). Each child is written independently; the response lists
     what was created plus per-student errors, so one duplicate doesn't block a
     sibling."""
     data = request.json or {}
     org_id = _org(request)
-    raw_ids = data.get('student_user_ids')
-    if raw_ids is None:
-        raw_ids = [data.get('student_user_id')]
-    if not isinstance(raw_ids, list):
-        raw_ids = [raw_ids]
-    student_ids = [s for s in dict.fromkeys(raw_ids) if isinstance(s, str) and s]
     absence_date = data.get('absence_date')
-    if not org_id or not student_ids or not absence_date:
-        return jsonify({'success': False,
-                        'error': 'organization_id, student_user_id(s) and absence_date are required'}), 400
-    result = parent.create_absences(
-        user_id, org_id, student_ids, absence_date,
-        class_id=data.get('class_id'), reason=data.get('reason'),
-        end_date=data.get('end_date'),
-    )
+    selections = data.get('selections')
+    if isinstance(selections, list):
+        clean = []
+        for sel in selections:
+            if not isinstance(sel, dict) or not isinstance(sel.get('student_user_id'), str):
+                continue
+            class_ids = sel.get('class_ids')
+            if class_ids is not None and not isinstance(class_ids, list):
+                return jsonify({'success': False, 'error': 'class_ids must be a list'}), 400
+            clean.append({'student_user_id': sel['student_user_id'],
+                          'class_ids': [c for c in (class_ids or []) if isinstance(c, str) and c]})
+        if not org_id or not clean or not absence_date:
+            return jsonify({'success': False,
+                            'error': 'organization_id, selections and absence_date are required'}), 400
+        result = parent.create_absence_selections(
+            user_id, org_id, clean, absence_date,
+            reason=data.get('reason'), end_date=data.get('end_date'),
+        )
+    else:
+        raw_ids = data.get('student_user_ids')
+        if raw_ids is None:
+            raw_ids = [data.get('student_user_id')]
+        if not isinstance(raw_ids, list):
+            raw_ids = [raw_ids]
+        student_ids = [s for s in dict.fromkeys(raw_ids) if isinstance(s, str) and s]
+        if not org_id or not student_ids or not absence_date:
+            return jsonify({'success': False,
+                            'error': 'organization_id, student_user_id(s) and absence_date are required'}), 400
+        result = parent.create_absences(
+            user_id, org_id, student_ids, absence_date,
+            class_id=data.get('class_id'), reason=data.get('reason'),
+            end_date=data.get('end_date'),
+        )
     if not result['absences']:
         error = next(iter(result['errors'].values()))
         code = 403 if error == 'Not authorized for this student' else 400

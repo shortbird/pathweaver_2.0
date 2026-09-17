@@ -179,7 +179,7 @@ describe('the unified school feed', () => {
     renderPage()
     expect(await screen.findByText('Coming up')).toBeInTheDocument()
     expect(screen.getByText('Open house')).toBeInTheDocument()
-    expect(screen.getByText('Main hall')).toBeInTheDocument()
+    expect(screen.getByText(/· Main hall$/)).toBeInTheDocument()  // on the date line
   })
 
   it('keeps an all-day event on its own calendar day, year included across New Year', async () => {

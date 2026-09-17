@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { BuildingLibraryIcon, TableCellsIcon } from '@heroicons/react/24/outline'
+import { TableCellsIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
 import { useOrganization } from '../contexts/OrganizationContext'
 import { useAuth } from '../contexts/AuthContext'
@@ -15,7 +15,7 @@ import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ScheduleByDay from '../components/schedule/ScheduleByDay'
 import UnifiedFeed, { ComingUp } from '../components/announcements/UnifiedFeed'
 import MyClassMaterials from '../components/school/MyClassMaterials'
-import FamilyClassesSection from '../components/school/FamilyClassesSection'
+import SchoolLetterhead from '../components/school/SchoolLetterhead'
 
 const PAGE_SIZE = 20
 
@@ -210,8 +210,15 @@ export default function SchoolPage() {
   // keeps only the school-life cards. The superadmin preview has no such
   // sidebar and keeps the full rail; a family-first school's page exists for
   // its one family card and keeps it too.
-  const cardGroups = cardGroupsFor(schoolOrg).filter(
-    (g) => g.id !== 'family' || isSuperadmin || isFamilyFirstHubOrg(schoolOrg))
+  // Since 2026-09-16 the page is a tab of the school shell, and a guardian
+  // has a Calendar tab -- so the rail does not offer the calendar to them a
+  // second time. A student or a teacher has no tabs and keeps the door.
+  const cardGroups = cardGroupsFor(schoolOrg)
+    .filter((g) => g.id !== 'family' || isSuperadmin || isFamilyFirstHubOrg(schoolOrg))
+    .map((g) => (g.id === 'school-life' && schoolOrg?.is_guardian && !isSuperadmin
+      ? { ...g, cards: g.cards.filter((c) => c.path !== '/school-calendar') }
+      : g))
+    .filter((g) => g.cards.length > 0)
   // A family-first school gets the rail and nothing beside it. The feed is the
   // page for a school that talks to its families here; this school doesn't, so
   // rendering it would put an empty shell next to the one card the page
@@ -246,27 +253,28 @@ export default function SchoolPage() {
     )
   }
 
-  const rail = cardGroups.length > 0 && (
-    <nav aria-label="School surfaces" className="lg:sticky lg:top-24 space-y-5">
+  // The rail: what is coming up, then the doors to the school's other pages
+  // as one list, not a card per door. A card per door with an icon tile and a
+  // description read as four widgets beside the feed (2026-09-16 redesign).
+  const doors = cardGroups.length > 0 && (
+    <nav aria-label="School surfaces" className="space-y-4">
       {cardGroups.map((group) => (
-        <div key={group.id}>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2 px-0.5">
+        <div key={group.id} className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
             {group.title}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
+          <div className="divide-y divide-gray-100">
             {group.cards.map(({ name, path, description, Icon }) => (
               <Link
                 key={path}
                 to={path}
-                className="group flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 hover:border-optio-purple/60 hover:shadow-sm transition-all"
+                className="group flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
               >
-                <span className="w-8 h-8 rounded-lg bg-optio-purple/10 flex items-center justify-center flex-shrink-0 group-hover:bg-gradient-to-br group-hover:from-optio-purple group-hover:to-optio-pink transition-colors">
-                  <Icon className="w-[18px] h-[18px] text-optio-purple group-hover:text-white transition-colors" />
-                </span>
+                <Icon className="w-5 h-5 text-optio-purple flex-shrink-0" />
                 <span className="min-w-0">
-                  <h2 className="text-sm font-semibold text-gray-900 group-hover:text-optio-purple truncate">
+                  <h3 className="text-sm font-medium text-gray-900 group-hover:text-optio-purple">
                     {name}
-                  </h2>
+                  </h3>
                   <span className="block text-xs text-gray-500 truncate">{description}</span>
                 </span>
               </Link>
@@ -276,78 +284,55 @@ export default function SchoolPage() {
       ))}
     </nav>
   )
+  const rail = (!cardsOnly && feed?.events?.length > 0) || doors ? (
+    <div className="space-y-4">
+      {!cardsOnly && <ComingUp events={feed?.events || []} />}
+      {doors}
+    </div>
+  ) : null
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div>
       {/* Superadmin preview controls: which school, seen as which role. Kept
           to two small dropdowns — the page below should look like the page,
-          not like an admin console. */}
+          not like an admin console. The superadmin belongs to no school, so
+          the school shell (pages/school/SchoolShell) renders no letterhead
+          for them; this page renders one for the org being previewed. */}
       {isSuperadmin && (
-        <div className="flex flex-wrap justify-end gap-2 mb-4">
-          <select
-            aria-label="Previewing organization"
-            value={previewOrgId || ''}
-            onChange={(e) => setOrgId(e.target.value)}
-            className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-          >
-            {previewOrgs.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-          <select
-            aria-label="Viewing as"
-            value={viewAs}
-            onChange={(e) => setViewAs(e.target.value)}
-            className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-          >
-            <option value="parent">View as parent</option>
-            <option value="student">View as student</option>
-            <option value="admin">View as admin</option>
-          </select>
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          <div className="flex flex-wrap justify-end gap-2 mb-4">
+            <select
+              aria-label="Previewing organization"
+              value={previewOrgId || ''}
+              onChange={(e) => setOrgId(e.target.value)}
+              className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+            >
+              {previewOrgs.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Viewing as"
+              value={viewAs}
+              onChange={(e) => setViewAs(e.target.value)}
+              className="text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+            >
+              <option value="parent">View as parent</option>
+              <option value="student">View as student</option>
+              <option value="admin">View as admin</option>
+            </select>
+          </div>
+          <SchoolLetterhead
+            name={schoolName}
+            logoUrl={schoolOrg?.logo_url}
+            logoSubtitle={schoolOrg?.logo_subtitle}
+          />
         </div>
       )}
-      {/* Header — the school's own page opens with the school's own mark,
-          centered like a letterhead. The logo comes from the org's branding
-          (branding_config.logo_url via /api/sis/school/context); a school
-          without one gets a neutral tile, never a broken image. */}
-      <header className="flex flex-col items-center text-center">
-        {schoolOrg?.logo_url ? (
-          <>
-            {/* The logo IS the title here — the name rides along for screen
-                readers and the page's accessible heading, not on screen. */}
-            <img
-              src={schoolOrg.logo_url}
-              alt={schoolName || 'School logo'}
-              className="h-[120px] max-w-full object-contain"
-            />
-            {/* Optional sub-brand word under the mark (branding_config.
-                logo_subtitle) — e.g. the Optio wordmark with "academy" below. */}
-            {schoolOrg.logo_subtitle && (
-              <p aria-hidden="true" className="mt-1 text-lg font-semibold uppercase tracking-[0.45em] text-optio-purple">
-                {schoolOrg.logo_subtitle}
-              </p>
-            )}
-            <h1 className="sr-only">{schoolName || 'My school'}</h1>
-          </>
-        ) : (
-          <>
-            <div
-              aria-hidden="true"
-              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-optio-purple to-optio-pink flex items-center justify-center"
-            >
-              <BuildingLibraryIcon className="w-7 h-7 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mt-3">{schoolName || 'My school'}</h1>
-          </>
-        )}
-        <p className="text-sm text-gray-500 mt-1">
-          Everything from {schoolName || 'your school'}, in one place.
-        </p>
-      </header>
 
       {/* The feed leads, the rail follows — side by side on a wide screen,
           stacked feed-first on a narrow one. Optio Academy is rail-only. */}
-      <div className={`mt-8 ${cardsOnly ? '' : 'lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-8'}`}>
+      <div className={`${isSuperadmin ? 'max-w-5xl mx-auto px-4' : ''} ${cardsOnly ? '' : 'lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-8'}`}>
         <div className="min-w-0">
           {/* The student's own week — renders nothing for guardians, staff, and
               the superadmin preview (no real student behind view_as=student). */}
@@ -356,14 +341,11 @@ export default function SchoolPage() {
               a student's own classes, and what those classes have shared. Both
               render nothing for anyone who is not a student, and neither is
               shown in the superadmin preview -- there is no real student behind
-              view_as=student to read enrollments for. */}
+              view_as=student to read enrollments for. (A guardian's children's
+              classes were here too, 2026-09-10 to 2026-09-16; they are on the
+              Schedule tab now, under the week, where a parent looks for a
+              class.) */}
           {!previewOrgId && <MyClassMaterials />}
-          {/* And the guardian's half of the same question. The two sections
-              above are the STUDENT's own week and handouts, which render
-              nothing for a parent -- a parent has no enrollments. This is each
-              of their children's classes, with what each class has shared
-              inside it. */}
-          {!previewOrgId && <FamilyClassesSection />}
 
           {!cardsOnly && (
             <UnifiedFeed
@@ -381,7 +363,6 @@ export default function SchoolPage() {
             />
           )}
 
-          {!cardsOnly && <ComingUp events={feed?.events || []} />}
         </div>
 
         {rail && (

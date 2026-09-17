@@ -28,6 +28,7 @@ vi.mock('../services/api', () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { success: true, announcements: [], total: 0 } })) },
 }))
 import SchoolPage from './SchoolPage'
+import SchoolShell from './school/SchoolShell'
 
 // SchoolPage renders MyClassMaterials, which reads through hooks/api
 // (react-query, the paradigm this codebase decided on -- see
@@ -46,8 +47,10 @@ const renderAt = (path = '/school') => render(withQuery(
   <MemoryRouter initialEntries={[path]}>
     <Routes>
       <Route path="/dashboard" element={<div>Dashboard</div>} />
-      <Route path="/school" element={<SchoolPage />} />
-      <Route path="/announcements" element={<SchoolPage />} />
+      <Route element={<SchoolShell />}>
+        <Route path="/school" element={<SchoolPage />} />
+        <Route path="/announcements" element={<SchoolPage />} />
+      </Route>
     </Routes>
   </MemoryRouter>,
 ))

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import SchoolPage from './SchoolPage'
+import SchoolShell from './school/SchoolShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('../contexts/OrganizationContext', () => ({
@@ -65,10 +66,16 @@ function mockArchiveResponse(overrides = {}) {
   }
 }
 
+// The letterhead is the school shell's (pages/school/SchoolShell) since
+// 2026-09-16; the page renders inside it here, as it does in the app.
 function renderPage() {
   return render(withQuery(
     <MemoryRouter initialEntries={['/announcements']}>
-      <SchoolPage />
+      <Routes>
+        <Route element={<SchoolShell />}>
+          <Route path="*" element={<SchoolPage />} />
+        </Route>
+      </Routes>
     </MemoryRouter>
   ))
 }

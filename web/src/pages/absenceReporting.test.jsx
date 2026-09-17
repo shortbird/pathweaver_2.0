@@ -9,7 +9,7 @@
  * total success.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -108,22 +108,70 @@ describe('AbsenceReportingPage multi-child selection', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
       expect.objectContaining({
         organization_id: 'org-1',
-        student_user_ids: ['kid-1', 'kid-2'],
-        class_id: null,
+        // The whole day for everyone: one selection per child, no classes.
+        selections: [
+          { student_user_id: 'kid-1', class_ids: [] },
+          { student_user_id: 'kid-2', class_ids: [] },
+        ],
       })))
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('2 children'))
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('narrows the class picker to classes every selected child shares', async () => {
+  it('lets each child miss their own classes, in one report', async () => {
     mockPage()
+    api.post.mockResolvedValue({ data: { absences: [
+      { id: 'n1', student_user_id: 'kid-1' }, { id: 'n2', student_user_id: 'kid-2' },
+    ], errors: {} } })
     await selectLinusToo()
+    await userEvent.click(screen.getByRole('radio', { name: 'Some classes' }))
 
-    const picker = screen.getByLabelText(/what are they missing/i)
-    await waitFor(() => {
-      const options = within(picker).getAllByRole('option').map((o) => o.textContent)
-      expect(options).toEqual(['The whole day', 'Choir'])
-    })
+    // Every child gets their own row with their own classes -- Pottery is Ada's alone.
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Ada: Pottery' })).toBeInTheDocument())
+    expect(screen.getByRole('checkbox', { name: 'Linus: Choir' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Linus: Pottery' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ada: Pottery' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Linus: Choir' }))
+    await userEvent.click(screen.getByRole('button', { name: /report absence/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({
+        selections: [
+          { student_user_id: 'kid-1', class_ids: ['cl1'] },
+          { student_user_id: 'kid-2', class_ids: ['cl2'] },
+        ],
+      })))
+  })
+
+  it('offers a shared class once, for everyone, and drops children with nothing ticked', async () => {
+    mockPage()
+    api.post.mockResolvedValue({ data: { absences: [], errors: {} } })
+    await selectLinusToo()
+    await userEvent.click(screen.getByRole('radio', { name: 'Some classes' }))
+
+    // Choir is the one class both take, so it appears under Everyone.
+    const everyone = await screen.findByRole('checkbox', { name: 'Everyone: Choir' })
+    expect(screen.queryByRole('checkbox', { name: 'Everyone: Pottery' })).not.toBeInTheDocument()
+    await userEvent.click(everyone)
+    expect(screen.getByRole('checkbox', { name: 'Ada: Choir' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Linus: Choir' })).toHaveAttribute('aria-checked', 'true')
+
+    // Untick Linus alone: Everyone goes off, Ada stays, Linus is left out of the report.
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Linus: Choir' }))
+    expect(everyone).toHaveAttribute('aria-checked', 'false')
+    await userEvent.click(screen.getByRole('button', { name: /report absence/i }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({ selections: [{ student_user_id: 'kid-1', class_ids: ['cl2'] }] })))
+  })
+
+  it('refuses to send Some classes with nothing ticked', async () => {
+    mockPage()
+    render(<AbsenceReportingPage />)
+    await userEvent.click(await screen.findByRole('radio', { name: 'Some classes' }))
+    await userEvent.click(screen.getByRole('button', { name: /report absence/i }))
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/tick at least one class/i))
+    expect(api.post).not.toHaveBeenCalled()
   })
 
   it('merges both children into the upcoming list, soonest first and named', async () => {

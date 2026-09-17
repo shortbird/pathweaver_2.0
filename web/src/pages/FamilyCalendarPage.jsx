@@ -3,9 +3,9 @@ import { toast } from 'react-hot-toast'
 import api from '../services/api'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import useSchoolContext from '../hooks/useSchoolContext'
-import BackToSchool from '../components/navigation/BackToSchool'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import EventRsvp from '../components/school/EventRsvp'
+import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
@@ -36,6 +36,27 @@ const fmtTime = (hhmmStr) => {
 const fmtDayLong = (dateStr) => {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+}
+const fmtDayShort = (dateStr) => {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+/**
+ * When an event is, as one line: "7:30pm – 9:30pm", "All day", or for an
+ * event that spans days "Sep 14 – Sep 26 · 7:30pm – 9:30pm". The end time is
+ * shown whenever the office set one; before this the modal printed the start
+ * alone, and a day inside a multi-day span said only "Continues".
+ */
+export const fmtWhen = (e) => {
+  const start = splitStamp(e.start_at)
+  const end = e.end_at ? splitStamp(e.end_at) : null
+  const span = end && end.date !== start.date ? `${fmtDayShort(start.date)} – ${fmtDayShort(end.date)}` : ''
+  if (e.all_day) return span ? `${span} · All day` : 'All day'
+  const times = end && end.time && end.time !== start.time
+    ? `${fmtTime(start.time)} – ${fmtTime(end.time)}`
+    : fmtTime(start.time)
+  return span ? `${span} · ${times}` : times
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -129,10 +150,10 @@ const FamilyCalendarPage = () => {
   const org = orgs?.find((o) => o.organization_id === orgId)
   const openDayEvents = openDay ? (byDate[openDay] || []) : []
 
+  // A tab of the school page (pages/school/SchoolShell): the shell carries
+  // the letterhead and the rail, this is the panel.
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Calendar</h1>
+    <div className="max-w-3xl mx-auto">
       <p className="text-sm text-gray-500 mb-6">
         Events at {org?.organization_name || 'your school'} — field trips, showcases, closures, and more.
       </p>
@@ -254,25 +275,46 @@ const FamilyCalendarPage = () => {
 
       {openDay && (
         <ModalOverlay onClose={() => setOpenDay(null)} className="items-end sm:items-center">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 pt-4">
-              <h2 className="text-base font-semibold text-gray-900">{fmtDayLong(openDay)}</h2>
-              <button onClick={() => setOpenDay(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col"
+            role="dialog" aria-modal="true" aria-labelledby="calendar-day-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 id="calendar-day-title" className="text-base font-semibold text-gray-900">{fmtDayLong(openDay)}</h2>
+              <button type="button" onClick={() => setOpenDay(null)} aria-label="Close"
+                className="-mr-1 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
             </div>
-            <div className="p-4 space-y-3">
+            <div className="p-5 space-y-4 overflow-y-auto">
               {openDayEvents.map((e) => {
-                const { time, date: startDate } = splitStamp(e.start_at)
-                const when = e.all_day ? 'All day' : (startDate === openDay ? fmtTime(time) : 'Continues')
+                const categories = (e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)
                 return (
-                  <div key={e.id} className="rounded-lg border border-gray-200 p-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900">{e.title}</span>
+                  <article key={e.id} className="rounded-xl border border-gray-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-base font-semibold text-gray-900 leading-snug">{e.title}</h3>
                       {/* An event can carry several categories — show them all. */}
-                      {((e.categories && e.categories.length ? e.categories : [e.category]).filter(Boolean)).map((c) => (
-                        <span key={c} className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{c}</span>
-                      ))}
+                      {categories.length > 0 && (
+                        <div className="flex flex-wrap justify-end gap-1 flex-shrink-0">
+                          {categories.map((c) => (
+                            <span key={c} className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-optio-purple/10 text-optio-purple">{c}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">{when}{e.location ? ` · ${e.location}` : ''}</p>
+                    <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                      <li className="flex items-center gap-2">
+                        <ClockIcon className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                        <span>{fmtWhen(e)}</span>
+                      </li>
+                      {e.location && (
+                        <li className="flex items-center gap-2">
+                          <MapPinIcon className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                          <span>{e.location}</span>
+                        </li>
+                      )}
+                    </ul>
                     {/* A URL in an event's notes is a live link. Schools put a
                         sign-up form or a ticket page in here and families had to
                         select and paste it (iCreate, 2026-09-04: "we need the
@@ -281,14 +323,17 @@ const FamilyCalendarPage = () => {
                         what already does this for announcements — same rules,
                         one implementation. */}
                     {e.description && (
-                      <AnnouncementBody text={e.description} className="text-sm text-gray-600 mt-1" />
+                      <AnnouncementBody
+                        text={e.description}
+                        className="mt-3 pt-3 border-t border-gray-100 text-sm leading-relaxed text-gray-700"
+                      />
                     )}
                     {/* "The ability to add a form for collecting RSVPs and
                         payments to the calendar events would be good"
                         (iCreate, 2026-08-28 — 9cf78e9a). Renders nothing on an
                         event the office did not open for replies. */}
                     <EventRsvp event={e} orgId={orgId} />
-                  </div>
+                  </article>
                 )
               })}
             </div>

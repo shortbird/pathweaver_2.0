@@ -245,12 +245,13 @@ describe('Sidebar — the school item', () => {
   })
 })
 
-describe('Sidebar — the school section for a guardian', () => {
+describe('Sidebar — the school door for a guardian', () => {
   // From 2026-08-06 to 2026-09-15 the school's family surfaces (billing,
   // absences, checklists, requests, schedule) were cards on /school and
-  // nothing else: a parent looking for "where do I pay" had to know to open
-  // the school's page first. They are a section under the school's name now,
-  // from the same catalog the /school rail reads (pages/school/schoolCards).
+  // nothing else; from 2026-09-15 to 2026-09-16 they were a sidebar section
+  // of their own under the school's name. Now they are tabs of one school
+  // page (pages/school/SchoolShell), and the sidebar has one door to it,
+  // named after the school, under Community.
   const GUARDIAN_ORG = {
     organization_id: 'org-1', organization_name: 'iCreate',
     is_guardian: true, post_registration_flow: 'schedule',
@@ -269,28 +270,27 @@ describe('Sidebar — the school section for a guardian', () => {
     schoolContext = { success: true, orgs: [GUARDIAN_ORG], is_guardian: true }
   })
 
-  it('lists the family doors under the school\'s name', async () => {
+  it('has one door to the school, named after it, and no family doors of its own', async () => {
     renderSidebar()
-    expect(await screen.findByRole('link', { name: /^billing$/i })).toHaveAttribute('href', '/family/billing')
-    expect(screen.getByRole('link', { name: /^absences$/i })).toHaveAttribute('href', '/absences')
-    expect(screen.getByRole('link', { name: /^checklists$/i })).toHaveAttribute('href', '/family/portal')
-    expect(screen.getByRole('link', { name: /^requests$/i })).toHaveAttribute('href', '/family/forms')
-    expect(screen.getByRole('link', { name: /^schedule$/i })).toHaveAttribute('href', '/schedule-builder')
-    expect(screen.getByRole('link', { name: /^calendar$/i })).toHaveAttribute('href', '/school-calendar')
-    expect(screen.getByText('iCreate')).toBeInTheDocument()
-  })
-
-  it('carries the school\'s own page as Announcements, once', async () => {
-    renderSidebar()
-    await screen.findByRole('link', { name: /^billing$/i })
+    expect(await screen.findByRole('link', { name: /^icreate$/i })).toHaveAttribute('href', '/school')
     const schoolLinks = screen.getAllByRole('link').filter((a) => a.getAttribute('href') === '/school')
     expect(schoolLinks).toHaveLength(1)
-    expect(schoolLinks[0]).toHaveAccessibleName(/announcements/i)
+    for (const door of [/^billing$/i, /^absences$/i, /^forms$/i, /^schedule$/i, /^calendar$/i, /announcements/i]) {
+      expect(screen.queryByRole('link', { name: door })).not.toBeInTheDocument()
+    }
+    // No section titled with the school either -- the one door is under Community.
+    expect(screen.getAllByText('iCreate')).toHaveLength(1)
+  })
+
+  it('lands a guardian of a school with no page of its own on their first family tab', async () => {
+    orgState.school = { id: 'org-1', name: 'iCreate', homepage: false }
+    renderSidebar()
+    expect(await screen.findByRole('link', { name: /^icreate$/i })).toHaveAttribute('href', '/school-calendar')
   })
 
   it('leaves resources, directory and carpool to the school page', async () => {
     renderSidebar()
-    await screen.findByRole('link', { name: /^billing$/i })
+    await screen.findByRole('link', { name: /^icreate$/i })
     expect(screen.queryByRole('link', { name: /^resources$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^directory$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^carpool$/i })).not.toBeInTheDocument()

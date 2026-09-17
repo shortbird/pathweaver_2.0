@@ -94,11 +94,42 @@ class TestTheWayOut:
         assert r.status_code == 200
 
     def test_an_admin_can_still_leave_a_masquerade_into_a_held_adult(self, client):
-        """The hold applies inside a masquerade on purpose — it is what the
-        adult sees. But the EXIT belongs to the admin (same entry, same reason
-        as the signature gate)."""
+        """The exit stays on the allowlist even though a masquerade is exempt
+        below: if that exemption ever regresses, the admin must still be able
+        to get out (same entry, same reason as the signature gate)."""
         r = _get(client, '/api/admin/masquerade/exit', method='post')
         assert r.status_code == 200
+
+
+@pytest.mark.unit
+class TestMasqueradeIsExempt:
+    """An admin viewing as a held adult cannot type a code texted to that
+    adult's phone, so the hold cannot be satisfied from inside a masquerade.
+    The web router has exempted masquerade since 2026-08-22; the API held it
+    anyway until 2026-09-16, so a superadmin viewing an unverified parent saw
+    every page fail to load."""
+
+    def test_a_masquerade_into_a_held_adult_is_let_through(self, client):
+        who, held = _as_held()
+        with who, held, patch(
+                'middleware.phone_verification_gate.session_manager.is_masquerading',
+                return_value=True):
+            assert client.get('/api/quests').status_code == 200
+            assert client.get('/api/sis/people').status_code == 200
+
+    def test_the_adult_themself_is_still_held(self, client):
+        who, held = _as_held()
+        with who, held, patch(
+                'middleware.phone_verification_gate.session_manager.is_masquerading',
+                return_value=False):
+            assert client.get('/api/quests').status_code == 403
+
+    def test_a_clear_adult_never_pays_for_the_masquerade_check(self, client):
+        who, held = _as_held(blocked=False)
+        with who, held, patch(
+                'middleware.phone_verification_gate.session_manager.is_masquerading') as m:
+            assert client.get('/api/quests').status_code == 200
+            m.assert_not_called()
 
 
 @pytest.mark.unit

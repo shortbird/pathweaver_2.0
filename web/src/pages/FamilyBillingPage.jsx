@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import BackToSchool from '../components/navigation/BackToSchool'
 import Button from '../components/ui/Button'
+import { ChevronDownIcon, CreditCardIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 
 /**
  * Billing — a family's account balance with their school: invoices (line items
@@ -10,8 +10,18 @@ import Button from '../components/ui/Button'
  * (for scholarship reimbursement) and a printable statement. Optio never
  * processes payments; the school records money collected by Zelle/scholarship.
  */
-const money = (cents) => (cents == null ? '—' : `$${(cents / 100).toFixed(2)}`)
-const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—')
+const money = (cents) => (cents == null ? '—'
+  : `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+// Due dates and installment dates arrive as plain YYYY-MM-DD. `new Date` reads
+// those as UTC midnight, which in every US timezone is the evening before — a
+// September 1 due date printed as August 31. Build them from their parts.
+const shortDate = (iso) => {
+  if (!iso) return '—'
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 const FUNDING_LABELS = {
   ufa: 'UFA', ufa_private: 'UFA – Private School',
   private_pay: 'Private Pay', other: 'Other',
@@ -20,6 +30,114 @@ const STATUS_STYLES = {
   sent: 'bg-blue-100 text-blue-700', partial: 'bg-amber-100 text-amber-700',
   paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700',
   void: 'bg-neutral-100 text-gray-400',
+}
+const STATUS_LABELS = {
+  sent: 'Open', partial: 'Partially paid', paid: 'Paid', overdue: 'Overdue', void: 'Void',
+  scheduled: 'Scheduled', due: 'Due', late: 'Late', processing: 'Processing', failed: 'Failed',
+}
+const statusLabel = (status) => STATUS_LABELS[status] || status
+const StatusPill = ({ status }) => (
+  <span className={`text-xs rounded-full px-2 py-0.5 whitespace-nowrap ${STATUS_STYLES[status] || 'bg-neutral-100 text-gray-500'}`}>
+    {statusLabel(status)}
+  </span>
+)
+
+/** How the family pays, in their own words.
+ *
+ *  Shows what they answered to the school's "Form of Payment" registration
+ *  question, and lets them change it from the same options. The save lands on
+ *  their registration (what the office reads) and on the field the
+ *  card-payment gate reads, so picking Utah Fits All hides card checkout and
+ *  picking Self-Pay shows it. When the school has no such question configured
+ *  the value is read-only. */
+const fundingText = (household) => {
+  const stated = (household.stated_payment_methods || []).filter(Boolean)
+  if (stated.length) return stated.join(', ') + (household.stated_ufa_private ? ' (private school)' : '')
+  return household.funding_label || 'Not on file'
+}
+
+const FundingSourceCard = ({ household, saving, onSave }) => {
+  const question = household.funding_question
+  const [editing, setEditing] = useState(false)
+  const [chosen, setChosen] = useState([])
+  const [ufaPrivate, setUfaPrivate] = useState('')
+  const isUfa = (m) => /utah fits all/i.test(m) || m.toLowerCase() === 'ufa'
+  const askUfa = chosen.some(isUfa)
+
+  const begin = () => {
+    setChosen((household.stated_payment_methods || []).filter((m) => question.options.includes(m)))
+    setUfaPrivate(household.stated_ufa_private == null ? '' : (household.stated_ufa_private ? 'Yes' : 'No'))
+    setEditing(true)
+  }
+  const toggle = (option) => setChosen((prev) => {
+    if (!question.multi) return [option]
+    return prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option]
+  })
+  const save = async () => {
+    const ok = await onSave(household.household_id, chosen, askUfa && ufaPrivate ? ufaPrivate === 'Yes' : null)
+    if (ok) setEditing(false)
+  }
+
+  return (
+    <div className="mb-2 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs uppercase tracking-wide text-gray-400">Funding source</div>
+          {!editing && (
+            <div className="text-lg font-semibold text-gray-900 mt-0.5" data-testid="funding-source">
+              {fundingText(household)}
+            </div>
+          )}
+        </div>
+        {question && !editing && (
+          <button type="button" onClick={begin} className="btn-quiet flex-shrink-0" aria-label="Edit funding source">
+            <PencilSquareIcon className="w-4 h-4" />
+            Edit
+          </button>
+        )}
+      </div>
+      {editing && (
+        <div className="mt-2">
+          {question.help && <p className="text-xs text-gray-500 mb-2">{question.help}</p>}
+          <div className="space-y-1.5">
+            {question.options.map((option) => (
+              <label key={option} className="flex items-center gap-2 text-sm text-gray-800">
+                <input
+                  type={question.multi ? 'checkbox' : 'radio'}
+                  name={`funding-${household.household_id}`}
+                  checked={chosen.includes(option)}
+                  onChange={() => toggle(option)}
+                  className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
+                />
+                {option}
+              </label>
+            ))}
+          </div>
+          {askUfa && (
+            <div className="mt-3">
+              <label htmlFor={`ufa-private-${household.household_id}`} className="block text-sm font-medium text-gray-800 mb-1">
+                Are you enrolling as a UFA (Utah Fits All) Private School?
+              </label>
+              <select
+                id={`ufa-private-${household.household_id}`}
+                value={ufaPrivate}
+                onChange={(e) => setUfaPrivate(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-optio-purple"
+              >
+                <option value="">-- Please select --</option>
+                <option value="No">No, standard Utah Fits All</option>
+                <option value="Yes">Yes, UFA Private School</option>
+              </select>
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <Button size="sm" onClick={save} loading={saving} disabled={!chosen.length}>Save</Button>
+            <Button size="sm" variant="secondary" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const PRINT_STYLES = `
@@ -163,20 +281,38 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
   const amountDue = (invoice.total_cents || 0) - (invoice.amount_paid_cents || 0)
   const payable = canPayOnline && amountDue > 0 && !['paid', 'void', 'draft'].includes(invoice.status)
   const hasPlan = !!(invoice.installments || []).length
+  const title = invoice.student_name || 'Invoice'
+  const meta = [
+    invoice.invoice_number,
+    `Issued ${shortDate(invoice.issued_at)}`,
+    invoice.due_date ? `Due ${shortDate(invoice.due_date)}` : null,
+  ].filter(Boolean).join(' · ')
   return (
   <div className="bg-white rounded-xl border border-gray-200">
-    <button onClick={onToggle} className="w-full text-left p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-gray-900">
-          {money(invoice.total_cents)}{invoice.student_name ? ` · ${invoice.student_name}` : ''}
-        </span>
-        <span className={`text-xs rounded-full px-2 py-0.5 ${STATUS_STYLES[invoice.status] || 'bg-neutral-100 text-gray-500'}`}>
-          {invoice.status}
-        </span>
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={`${title} invoice, ${money(invoice.total_cents)}`}
+      className="w-full text-left p-4 flex items-start gap-3"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-gray-900">{title}</span>
+          <StatusPill status={invoice.status} />
+        </div>
+        <div className="text-xs text-gray-500 mt-0.5">{meta}</div>
       </div>
-      <div className="text-sm text-gray-400 mt-0.5">
-        {invoice.invoice_number ? `${invoice.invoice_number} · ` : ''}Issued {shortDate(invoice.issued_at)}{invoice.due_date ? ` · due ${invoice.due_date}` : ''} · paid {money(invoice.amount_paid_cents)}
+      <div className="text-right flex-shrink-0">
+        <div className="text-xs uppercase tracking-wide text-gray-400">{amountDue > 0 ? 'Amount due' : 'Total'}</div>
+        <div className={`text-lg font-semibold tabular-nums ${amountDue > 0 ? 'text-gray-900' : 'text-green-700'}`}>
+          {money(amountDue > 0 ? amountDue : invoice.total_cents)}
+        </div>
+        {amountDue > 0 && (invoice.amount_paid_cents || 0) > 0 && (
+          <div className="text-xs text-gray-500 tabular-nums">of {money(invoice.total_cents)}</div>
+        )}
       </div>
+      <ChevronDownIcon className={`w-5 h-5 text-gray-400 flex-shrink-0 mt-1 transition-transform ${expanded ? 'rotate-180' : ''}`} />
     </button>
     {payable && (
       <div className="px-4 pb-3 -mt-1 flex flex-wrap items-center gap-2">
@@ -192,28 +328,59 @@ const InvoiceCard = ({ invoice, expanded, onToggle, onPay, paying, canPayOnline,
       </div>
     )}
     {expanded && (
-      <div className="px-4 pb-4 text-sm">
-        <div className="space-y-1 border-t border-gray-100 pt-2">
-          {(invoice.line_items || []).map((li) => (
-            <div key={li.id} className="flex justify-between">
-              <span>{li.description}{li.quantity > 1 ? ` x${li.quantity}` : ''}</span>
-              <span>{money(li.amount_cents)}</span>
-            </div>
-          ))}
-          {(invoice.discount_cents || 0) > 0 && (
-            <div className="flex justify-between text-gray-500"><span>Discount</span><span>-{money(invoice.discount_cents)}</span></div>
-          )}
-          <div className="flex justify-between font-medium border-t border-gray-100 pt-1"><span>Total</span><span>{money(invoice.total_cents)}</span></div>
-        </div>
-        {!!(invoice.installments || []).length && (
-          <div className="border-t border-gray-100 pt-2 mt-2">
-            <div className="text-xs text-gray-500 mb-1">Payment schedule</div>
-            {invoice.installments.map((i) => (
-              <div key={i.id} className="flex justify-between">
-                <span className="text-gray-600">{i.due_date}</span>
-                <span>{money(i.amount_cents)} · {i.status}</span>
-              </div>
+      <div className="px-4 pb-4 text-sm border-t border-gray-100">
+        <table className="w-full mt-3">
+          <thead>
+            <tr className="text-xs uppercase tracking-wide text-gray-400">
+              <th scope="col" className="text-left font-medium pb-1">Item</th>
+              <th scope="col" className="text-right font-medium pb-1 w-16">Qty</th>
+              <th scope="col" className="text-right font-medium pb-1 w-28">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {(invoice.line_items || []).map((li) => (
+              <tr key={li.id}>
+                <td className="py-1.5 pr-2 text-gray-800">{li.description}</td>
+                <td className="py-1.5 text-right text-gray-500 tabular-nums">{li.quantity > 1 ? li.quantity : ''}</td>
+                <td className="py-1.5 text-right text-gray-800 tabular-nums">{money(li.amount_cents)}</td>
+              </tr>
             ))}
+          </tbody>
+          <tfoot className="border-t border-gray-200">
+            {(invoice.discount_cents || 0) > 0 && (
+              <tr className="text-gray-500">
+                <td colSpan={2} className="pt-1.5 text-right">Discount</td>
+                <td className="pt-1.5 text-right tabular-nums">-{money(invoice.discount_cents)}</td>
+              </tr>
+            )}
+            <tr className="text-gray-800">
+              <td colSpan={2} className="pt-1.5 text-right">Total</td>
+              <td className="pt-1.5 text-right tabular-nums">{money(invoice.total_cents)}</td>
+            </tr>
+            <tr className="text-green-700">
+              <td colSpan={2} className="pt-1 text-right">Paid</td>
+              <td className="pt-1 text-right tabular-nums">-{money(invoice.amount_paid_cents || 0)}</td>
+            </tr>
+            <tr className="font-semibold text-gray-900">
+              <td colSpan={2} className="pt-1.5 text-right">Amount due</td>
+              <td className="pt-1.5 text-right tabular-nums">{money(Math.max(amountDue, 0))}</td>
+            </tr>
+          </tfoot>
+        </table>
+        {hasPlan && (
+          <div className="mt-4">
+            <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">Payment schedule</div>
+            <table className="w-full">
+              <tbody className="divide-y divide-gray-100">
+                {invoice.installments.map((i) => (
+                  <tr key={i.id}>
+                    <td className="py-1.5 text-gray-800">{shortDate(i.due_date)}</td>
+                    <td className="py-1.5 text-right text-gray-800 tabular-nums">{money(i.amount_cents)}</td>
+                    <td className="py-1.5 pl-3 text-right w-32"><StatusPill status={i.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -232,6 +399,39 @@ const FamilyBillingPage = () => {
   const [payingFamily, setPayingFamily] = useState(null) // household id mid-checkout
   const [planning, setPlanning] = useState(null) // invoice id mid-plan-setup
   const [updatingPlan, setUpdatingPlan] = useState(null) // household id mid-pref-update
+  const [updatingFunding, setUpdatingFunding] = useState(null) // household id mid-funding-update
+
+  const updateFundingSource = async (householdId, paymentMethods, ufaPrivate) => {
+    setUpdatingFunding(householdId)
+    try {
+      const r = await api.post('/api/sis/parent/billing/funding-source', {
+        household_id: householdId,
+        payment_methods: paymentMethods,
+        ufa_private: ufaPrivate,
+      })
+      // The response carries the family's saved words and the gate's new
+      // answer; apply both so the card buttons and the UFA note switch
+      // without a reload.
+      const next = r.data || {}
+      setHouseholds((prev) => (prev || []).map((h) => (
+        h.household_id === householdId
+          ? { ...h,
+              stated_payment_methods: next.stated_payment_methods || paymentMethods,
+              stated_ufa_private: next.stated_ufa_private ?? null,
+              funding_source: next.funding_source ?? null,
+              funding_label: next.funding_label ?? null,
+              pay_through_ufa: !!next.pay_through_ufa }
+          : h
+      )))
+      toast.success('Funding source updated')
+      return true
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update your funding source')
+      return false
+    } finally {
+      setUpdatingFunding(null)
+    }
+  }
 
   const updatePaymentPlanPreference = async (householdId, preference) => {
     setUpdatingPlan(householdId)
@@ -404,11 +604,11 @@ const FamilyBillingPage = () => {
     setPrintMode('statement')
   }
 
+  // A tab of the school page (pages/school/SchoolShell): the shell carries
+  // the letterhead and the rail, this is the panel.
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto">
       <style>{PRINT_STYLES}</style>
-      <BackToSchool className="mb-3 print:hidden" />
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Billing</h1>
       <p className="text-sm text-gray-500 mb-6">
         Your family's balance, invoices, and payments. Print any payment as a receipt for scholarship reimbursement.
       </p>
@@ -427,46 +627,61 @@ const FamilyBillingPage = () => {
             <Button size="sm" variant="secondary" onClick={() => printStatement(hh)}>Print statement</Button>
           </div>
 
-          {/* Balance summary */}
-          <div className="rounded-xl border border-gray-200 bg-gradient-primary p-[1px] mb-2">
-            <div className="rounded-xl bg-white p-4 grid grid-cols-3 gap-2 text-center">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400">Invoiced</div>
-                <div className="text-lg font-semibold text-gray-900">{money(hh.totals?.invoiced_cents)}</div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400">Paid</div>
-                <div className="text-lg font-semibold text-green-700">{money(hh.totals?.paid_cents)}</div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400">Balance</div>
-                <div className={`text-lg font-semibold ${(hh.totals?.balance_cents || 0) > 0 ? 'text-red-700' : 'text-gray-900'}`}>
-                  {money(hh.totals?.balance_cents)}
+          {/* The balance-due notice. It was a "Needs your attention" card on
+              the family home until 2026-09-16; the home is for the children,
+              and a parent who opens Billing came to see this. It carries the
+              whole-family pay button when the school takes cards, so the
+              notice is the action and not a pointer to one further down. */}
+          {(hh.totals?.balance_cents || 0) > 0 && (
+            <div role="status" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3">
+              <span className="w-9 h-9 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
+                <CreditCardIcon className="w-5 h-5 text-amber-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-gray-900">{money(hh.totals?.balance_cents)} balance due</div>
+                <div className="text-xs text-gray-600">
+                  {hh.pay_through_ufa
+                    ? 'Paid through UFA. The school records it here once it is received.'
+                    : hh.organization?.online_pay_enabled
+                      ? 'Pays every open invoice at once. A card processing fee is added at checkout.'
+                      : 'Pay by Zelle or through your scholarship program; the school records it here.'}
                 </div>
+              </div>
+              {!hh.pay_through_ufa && hh.organization?.online_pay_enabled && (
+                <Button size="sm" onClick={() => payFamily(hh)} loading={payingFamily === hh.household_id}>
+                  Pay whole family · {money(hh.totals?.balance_cents)}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Balance summary */}
+          <div className="rounded-xl border border-gray-200 bg-white p-4 mb-2 grid grid-cols-3 gap-2 text-center">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Invoiced</div>
+              <div className="text-lg font-semibold text-gray-900">{money(hh.totals?.invoiced_cents)}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Paid</div>
+              <div className="text-lg font-semibold text-green-700">{money(hh.totals?.paid_cents)}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Balance</div>
+              <div className={`text-lg font-semibold ${(hh.totals?.balance_cents || 0) > 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                {money(hh.totals?.balance_cents)}
               </div>
             </div>
           </div>
+          <FundingSourceCard household={hh} saving={updatingFunding === hh.household_id} onSave={updateFundingSource} />
           {hh.pay_through_ufa ? (
             <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
               Your family's tuition is funded through UFA{hh.funding_label ? ` (${hh.funding_label})` : ''}.
               Please make your payment through UFA — the school records it here once it's received.
             </div>
           ) : (
-            <>
-              {(hh.totals?.balance_cents || 0) > 0 && hh.organization?.online_pay_enabled && (
-                <div className="mb-3">
-                  <Button size="sm" onClick={() => payFamily(hh)} loading={payingFamily === hh.household_id}>
-                    Pay whole family · {money(hh.totals?.balance_cents)}
-                  </Button>
-                  <span className="ml-2 text-xs text-gray-400">
-                    Pays every open invoice at once. A card processing fee is added at checkout.
-                  </span>
-                </div>
-              )}
-              <p className="text-xs text-gray-500 mb-5">
-                Pay online, by Zelle, or through your scholarship program; the school records each payment here.
-              </p>
-            </>
+            <p className="text-xs text-gray-500 mb-5">
+              Pay online, by Zelle, or through your scholarship program; the school records each payment here.
+            </p>
           )}
 
           {/* Tuition payment plan preference */}

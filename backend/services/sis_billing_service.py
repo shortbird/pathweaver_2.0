@@ -23,6 +23,7 @@ from typing import Dict, List, Any, Optional
 from app_config import Config
 from repositories.sis_billing_repository import (SisInvoiceLineItemRepository,
                                                  SisPaymentRecordRepository)
+from services import sis_payment_profile as payment_profile
 from services import sis_pricing as pricing
 from utils.db_fetch import fetch_all_rows
 from utils.validation import validate_uuid
@@ -44,6 +45,8 @@ OPEN_INVOICE_STATUSES = ('sent', 'partial', 'overdue')
 
 # Household funding sources that pay THROUGH UFA rather than by card in Optio.
 UFA_FUNDING_SOURCES = ('ufa', 'ufa_private')
+_FUNDING_LABELS = {'ufa': 'UFA', 'ufa_private': 'UFA – Private School',
+                   'private_pay': 'Private Pay', 'other': 'Other'}
 
 
 # admin client justified: the SIS console acts for the whole school — this
@@ -1343,7 +1346,7 @@ def _org_branding(org_ids: List[str]) -> Dict[str, Dict[str, Any]]:
     if not ids:
         return {}
     out = {}
-    for o in (_admin().table('organizations').select('id, name, branding_config')
+    for o in (_admin().table('organizations').select('id, name, branding_config, feature_flags')
               .in_('id', ids).execute()).data or []:
         cfg = o.get('branding_config') or {}
         out[o['id']] = {
@@ -1353,6 +1356,9 @@ def _org_branding(org_ids: List[str]) -> Dict[str, Dict[str, Any]]:
             'accent_color': cfg.get('accent_color') or '#0d9488',  # teal default
             'billing_email': cfg.get('billing_email'),
             'billing_phone': cfg.get('billing_phone'),
+            # The registration's "Form of Payment" question, so the family's
+            # billing page edits their funding source in the school's own words.
+            'funding_question': payment_profile.question_from_config(o.get('feature_flags')),
         }
     return out
 
@@ -1435,12 +1441,20 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
         # through UFA, not by card, so the portal shows a "pay through UFA"
         # message instead of the card / payment-plan buttons.
         funding = _household_funding_source(hh['id'])
+        # What the family said at registration ("Form of Payment"), verbatim.
+        # Display only: at iCreate the staff-set funding_source was blank for
+        # every family while 98 of them had answered this question, so the
+        # billing page said nothing about funding (2026-09-16 parent audit).
+        stated = payment_profile.profile_for_household(hh.get('organization_id') or '', hh['id'])
         out.append({
             'household_id': hh['id'],
             'household_name': hh.get('name'),
             'organization': orgs.get(hh.get('organization_id')) or {'id': hh.get('organization_id')},
             'funding_source': funding,
             'funding_label': _FUNDING_LABELS.get(funding) if funding else None,
+            'stated_payment_methods': stated.get('methods') or [],
+            'stated_ufa_private': stated.get('ufa_private'),
+            'funding_question': (orgs.get(hh.get('organization_id')) or {}).get('funding_question'),
             'pay_through_ufa': funding in UFA_FUNDING_SOURCES,
             'payment_plan_preference': hh.get('payment_plan_preference'),
             'invoices': invoices,
@@ -1451,19 +1465,84 @@ def parent_billing_overview(user_id: str) -> Dict[str, Any]:
     return {'households': out}
 
 
+def _update_guarded_household(user_id: str, household_id: str, fields: Dict[str, Any]) -> None:
+    """Write `fields` to a household the user guards, or raise PermissionError."""
+    guarding = [h['id'] for h in _guardian_household_rows(user_id)]
+    if household_id not in guarding:
+        raise PermissionError('Not authorized to update this household')
+    _admin().table('households').update(fields).eq('id', household_id).execute()
+
+
 def set_payment_plan_preference(user_id: str, household_id: str, preference: Optional[str]) -> Dict[str, Any]:
     """Allows a guardian to state whether they plan to pay tuition in full or monthly.
     Updates households.payment_plan_preference if the user guards the household."""
     if preference not in (None, 'in_full', 'monthly'):
         raise ValueError('Invalid payment plan preference')
-    guarding = [h['id'] for h in _guardian_household_rows(user_id)]
-    if household_id not in guarding:
-        raise PermissionError('Not authorized to update this household')
-
-    _admin().table('households').update({
-        'payment_plan_preference': preference
-    }).eq('id', household_id).execute()
+    _update_guarded_household(user_id, household_id, {'payment_plan_preference': preference})
     return {'household_id': household_id, 'payment_plan_preference': preference}
+
+
+def set_stated_payment_methods(user_id: str, household_id: str, methods: List[str],
+                               ufa_private: Optional[bool] = None) -> Dict[str, Any]:
+    """The family edits their funding source in the words of the school's own
+    registration question ("Form of Payment"), from /family/billing.
+
+    Two writes. The answer goes back onto the family's latest registration --
+    the row the office already reads it from, so the Families page and the
+    tuition approver see the change. Then households.funding_source, the field
+    the card-payment gate reads, is set to what those words imply, by the same
+    conservative derivation the funnel uses, with the same mirrored columns the
+    staff editor writes (routes/sis/__init__.py). So a family that picks Utah
+    Fits All stops seeing card checkout, and one that picks Self-Pay sees it.
+
+    Until 2026-09-16 only the office could set the gate, from the Families
+    page, and at iCreate it was blank for every family while 98 of them had
+    answered the question at registration.
+    """
+    from repositories.household_repository import HouseholdRepository
+    from repositories.registration_repository import RegistrationRepository
+
+    households = {h['id']: h for h in _guardian_household_rows(user_id)}
+    hh = households.get(household_id)
+    if not hh:
+        raise PermissionError('Not authorized to update this household')
+    org_id = hh.get('organization_id') or ''
+    question = (_org_branding([org_id]).get(org_id) or {}).get('funding_question')
+    if not question:
+        raise ValueError('Your school has not set up funding options yet')
+    cleaned = [str(m).strip() for m in (methods or []) if str(m).strip()]
+    # Keep the school's spelling and order, drop anything not on the list.
+    chosen = [o for o in question['options'] if o in cleaned]
+    if not chosen:
+        raise ValueError('Choose at least one option')
+    if len(chosen) > 1 and not question.get('multi'):
+        raise ValueError('Choose one option')
+
+    admin = _admin()
+    members = HouseholdRepository(client=admin).members_for_households([household_id])
+    guardian_ids = [m['user_id'] for m in members if m.get('user_id')]
+    regs = RegistrationRepository(client=admin).latest_for_parents(org_id, guardian_ids)
+    # The row the office reads: the newest registration that answered the
+    # question (profile_for_household's rule), else the newest at all.
+    target = next((r for r in regs if payment_profile.read_answers(r.get('answers'))['methods']), None) \
+        or (regs[0] if regs else None)
+    answers = payment_profile.merged_answers(target.get('answers') if target else {}, chosen, ufa_private)
+    if target:
+        RegistrationRepository(client=admin).update_answers(target['id'], answers)
+
+    fs = payment_profile.derive_funding_source(answers)
+    fields: Dict[str, Any] = {'funding_source': fs, 'ufa_private': fs == 'ufa_private'}
+    if fs == 'ufa_private':
+        fields['enrolled_private_school'] = True
+    HouseholdRepository(client=admin).update(household_id, fields)
+
+    read = payment_profile.read_answers(answers)
+    return {'household_id': household_id,
+            'stated_payment_methods': read['methods'],
+            'stated_ufa_private': read['ufa_private'],
+            'funding_source': fs,
+            'funding_label': _FUNDING_LABELS.get(fs) if fs else None,
+            'pay_through_ufa': fs in UFA_FUNDING_SOURCES}
 
 
 def payment_receipt(user_id: str, payment_id: str) -> Dict[str, Any]:
@@ -1546,10 +1625,6 @@ def _household_funding_source(household_id: Optional[str]) -> Optional[str]:
 
 
 # ── Branded invoice document (staff preview + guardian view) ─────────────────
-_FUNDING_LABELS = {'ufa': 'UFA', 'ufa_private': 'UFA – Private School',
-                   'private_pay': 'Private Pay', 'other': 'Other'}
-
-
 def invoice_document(org_id: str, invoice_id: str) -> Dict[str, Any]:
     """A branded, itemized invoice payload for printing/PDF: org identity block,
     invoice number, family + students, line items, discount, processing fee,

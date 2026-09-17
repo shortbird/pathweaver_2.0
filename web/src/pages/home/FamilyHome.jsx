@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import {
   UserGroupIcon, ChevronRightIcon, ClipboardDocumentListIcon,
-  DocumentTextIcon, CreditCardIcon, Cog6ToothIcon, PlusIcon,
+  DocumentTextIcon, Cog6ToothIcon, PlusIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization } from '../../contexts/OrganizationContext'
@@ -24,8 +24,8 @@ import { useFamilyAttention } from './FamilyHomeData'
 /**
  * Family Home — the ONE parent dashboard, at /family (2026-09-15).
  *
- * The question it answers: "how are my kids, what do I owe the school, and
- * how do I get into each child's account." Shared home skeleton: greeting →
+ * The question it answers: "how are my kids, what does the school need from
+ * me, and how do I get into each child's account." Shared home skeleton: greeting →
  * needs-attention → child cards → family quests. Everything
  * here is a digest over existing endpoints (see FamilyHomeData.js and
  * hooks/api) that deep-links into the pages that own each concern: /family/*
@@ -63,23 +63,26 @@ import { useFamilyAttention } from './FamilyHomeData'
 const ATTENTION_ICONS = {
   checklist: ClipboardDocumentListIcon,
   forms: DocumentTextIcon,
-  billing: CreditCardIcon,
 }
 
-/** The strip above everything else — only when something actually needs doing. */
+/** The strip above everything else — only when something actually needs doing.
+ *
+ * One card per item, on the same grid as the child cards below. It was a
+ * single full-width list, which for the usual case (one item) stretched a
+ * one-line row across the whole page (2026-09-16 audit). */
 function AttentionStrip({ items }) {
   if (!items.length) return null
   return (
     <section aria-label="Needs your attention" className="mt-6">
       <h2 className="text-sm font-semibold text-gray-900 mb-2">Needs your attention</h2>
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {items.map((item) => {
           const Icon = ATTENTION_ICONS[item.kind] || DocumentTextIcon
           return (
             <Link
               key={item.id}
               to={item.to}
-              className="group flex items-center gap-3 px-4 py-3 hover:bg-optio-purple/5 transition-colors first:rounded-t-xl last:rounded-b-xl"
+              className="group flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 shadow-sm hover:bg-optio-purple/5 transition-colors"
             >
               <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <Icon className="w-5 h-5 text-amber-600" />

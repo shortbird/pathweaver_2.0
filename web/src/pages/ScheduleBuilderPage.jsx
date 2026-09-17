@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import BackToSchool from '../components/navigation/BackToSchool'
 import WeeklySchedule from '../components/schedule/WeeklySchedule'
 import ClassDetailsModal, { meetingText, money } from '../components/schedule/ClassDetailsModal'
-import { GlassTabBar, Spinner } from '../components/ui'
+import { Spinner } from '../components/ui'
 import { useConfirm } from '../contexts/ConfirmContext'
+import { useFamilyScope } from '../contexts/FamilyScopeContext'
+import StudentClasses from '../components/parent/StudentClasses'
 
 // Family Schedule Builder — the weekly calendar IS the interface:
 //   - enrolled classes show as colored blocks; click one for details / drop
@@ -17,6 +18,12 @@ import { useConfirm } from '../contexts/ConfirmContext'
 // staff-only and this page is read-only. During the school's add/drop window
 // (sis_settings.add_drop_deadline) the read-only page still has one action:
 // "Request an add/drop", which files a task in the office's Task Center.
+//
+// Once the year has started the page is a reference, not a builder: no
+// running tuition total (that is on the billing page now), no "the school
+// year has started" banner, no open-block nags about slots the parent can no
+// longer fill. The waitlist, seat offers and add/drop requests stay
+// (2026-09-16 parent audit).
 //
 // /schedule-builder/preview/:previewCode — staff walkthrough (public route,
 // reached from the registration funnel's ?preview=1 final step): the org's real
@@ -101,6 +108,10 @@ const ScheduleBuilderPage = () => {
   const [addDropOpen, setAddDropOpen] = useState(false) // add/drop request modal
   const [myRequests, setMyRequests] = useState([])      // this family's open form submissions
   const confirm = useConfirm()
+  // Which child: family scope, picked in the school shell's student rail
+  // above this panel (pages/school/SchoolShell). A ?student= link enters
+  // scope for that child; the staff preview has no scope and no shell.
+  const { selectedChildId, enterScope } = useFamilyScope()
 
   // Modals for one child's week don't carry over to another schedule.
   useEffect(() => { setSlotModal(null); setDetail(null); setAddDropOpen(false) }, [orgId, studentId])
@@ -135,15 +146,28 @@ const ScheduleBuilderPage = () => {
         setCtx({ orgs })
         setMyAvatar(r.data?.my_avatar_url || null)
         if (orgs.length) {
-          const asked = wantedStudent
-            && orgs.find((o) => (o.students || []).some((s) => s.student_id === wantedStudent))
-          setOrgId((asked || orgs[0]).organization_id)
-          setStudentId(asked ? wantedStudent : (orgs[0].students?.[0]?.student_id || null))
+          const orgOf = (sid) => sid && orgs.find((o) => (o.students || []).some((s) => s.student_id === sid))
+          const asked = orgOf(wantedStudent)
+          const scoped = orgOf(selectedChildId)
+          const org = asked || scoped || orgs[0]
+          setOrgId(org.organization_id)
+          const sid = asked ? wantedStudent : scoped ? selectedChildId : (orgs[0].students?.[0]?.student_id || null)
+          setStudentId(sid)
+          if (asked) enterScope(wantedStudent)
         }
       })
       .catch(() => toast.error('Could not load your family'))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope is read once, on load; changes arrive below
   }, [previewCode, wantedStudent])
+
+  // The shell's student rail: follow the scoped child when they are in the
+  // org on screen.
+  useEffect(() => {
+    if (previewCode || !selectedChildId || !ctx) return
+    const org = ctx.orgs.find((o) => o.organization_id === orgId)
+    if ((org?.students || []).some((s) => s.student_id === selectedChildId)) setStudentId(selectedChildId)
+  }, [selectedChildId, ctx, orgId, previewCode])
 
   // Soft prompt: the school asks every family member to have a photo. Uploads
   // happen inline; nothing is blocked while photos are missing.
@@ -518,8 +542,7 @@ const ScheduleBuilderPage = () => {
     // Not in preview: that route is public and its viewer has no school page.
     return (
       <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-        {!previewCode && <div className="text-left mb-6"><BackToSchool /></div>}
-        <h1 className="text-xl font-bold text-gray-900 mb-2">Schedule</h1>
+        {previewCode && <h1 className="text-xl font-bold text-gray-900 mb-2">Schedule</h1>}
         <p className="text-gray-500">
           {previewCode
             ? 'Could not load the schedule preview — check that the registration link is still active.'
@@ -530,7 +553,7 @@ const ScheduleBuilderPage = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+    <div className={previewCode ? 'max-w-6xl mx-auto px-4 sm:px-6 py-6' : ''}>
       {previewCode && (
         <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           <span className="font-semibold">Preview mode</span> — this is the Schedule page parents
@@ -538,44 +561,42 @@ const ScheduleBuilderPage = () => {
           drops here aren't saved.
         </div>
       )}
-      {/* Not in preview: that route is public, reached by staff from the
-          registration funnel, and its viewer has no school page to go back to. */}
-      {!previewCode && <BackToSchool className="mb-3" />}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-        <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
-        <div className="flex items-center gap-2">
-          {org?.scheduling_url && (
-            <a href={org.scheduling_url} target="_blank" rel="noreferrer"
-              className="btn-primary">
-              Book appointment
-            </a>
-          )}
-          {ctx.orgs.length > 1 && (
-            <select className={field} value={orgId || ''} onChange={(e) => {
-              setOrgId(e.target.value)
-              const o = ctx.orgs.find((x) => x.organization_id === e.target.value)
-              setStudentId(o?.students?.[0]?.student_id || null)
-            }}>
-              {ctx.orgs.map((o) => <option key={o.organization_id} value={o.organization_id}>{o.organization_name}</option>)}
-            </select>
-          )}
-          {students.length > 1 ? (
-            <GlassTabBar
-              className="!mx-0"
-              tabs={students.map((s) => ({ id: s.student_id, label: s.name }))}
-              active={studentId}
-              onSelect={setStudentId}
-              aria-label="Students"
-            />
-          ) : student && <span className="text-sm text-gray-500">{student.name}</span>}
+      {/* In the school shell (pages/school/SchoolShell) the letterhead, the
+          rail and the student picker are above this panel. The staff preview
+          is a public route with no shell, and keeps its own heading. */}
+      {previewCode && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
+          {student && <span className="text-sm text-gray-500">{student.name}</span>}
         </div>
-      </div>
+      )}
+      {ctx.orgs.length > 1 && (
+        <div className="flex flex-wrap items-center justify-end gap-2 mb-3">
+          <select className={field} value={orgId || ''} onChange={(e) => {
+            setOrgId(e.target.value)
+            const o = ctx.orgs.find((x) => x.organization_id === e.target.value)
+            setStudentId(o?.students?.[0]?.student_id || null)
+          }}>
+            {ctx.orgs.map((o) => <option key={o.organization_id} value={o.organization_id}>{o.organization_name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <p className="text-sm text-gray-500">
-          Build {student ? `${student.name.split(' ')[0]}'s` : 'your student\'s'} week — click an open
-          slot to pick a class, or a scheduled class to see details.
-        </p>
-        {tuitionCount > 0 && (
+        {locked ? (
+          <p className="text-sm text-gray-500">
+            {student ? `${student.name.split(' ')[0]}'s` : 'Your student\'s'} weekly schedule — click a
+            class for details.{' '}
+            {canRequestAddDrop
+              ? 'To add or drop a class, send a request below.'
+              : `Contact ${org?.organization_name || 'your school'} to add or drop classes.`}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500">
+            Build {student ? `${student.name.split(' ')[0]}'s` : 'your student\'s'} week — click an open
+            slot to pick a class, or a scheduled class to see details.
+          </p>
+        )}
+        {tuitionCount > 0 && !locked && (
           <div className="rounded-lg border border-gray-200 bg-white px-4 py-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estimated total</span>
@@ -627,13 +648,13 @@ const ScheduleBuilderPage = () => {
           onSelect={selectLearningDay}
         />
       )}
-      {fullDayGaps.map((g) => (
+      {!locked && fullDayGaps.map((g) => (
         <div key={g.name} className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           {g.name} requires a full day of classes — pick classes for the {g.open} open
           block{g.open === 1 ? '' : 's'} on {g.daysText}.
         </div>
       ))}
-      {gapSlots.length > 0 && (
+      {!locked && gapSlots.length > 0 && (
         <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           There's an open block between classes on {gapDaysText} — students on campus must be
           in a class every block. Click the highlighted slot to pick a class.
@@ -720,19 +741,11 @@ const ScheduleBuilderPage = () => {
           </div>
         </div>
       )}
-      {locked ? (
-        <div className="mb-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          The school year has started{firstDay ? ` (first day was ${fmtDate(firstDay)})` : ''} — schedule changes are now made by
-          the school.{' '}
-          {canRequestAddDrop
-            ? 'Send an add/drop request below and the office will make the change for you.'
-            : `Contact ${org?.organization_name || 'your school'} to add or drop classes.`}
-        </div>
-      ) : firstDay ? (
+      {!locked && firstDay && (
         <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-gray-600">
           You can make schedule changes until the first day of school, <span className="font-medium text-gray-800">{fmtDate(firstDay)}</span>.
         </div>
-      ) : null}
+      )}
 
       {/* The read-only page's one remaining action. iCreate, 2026-09-01: the
           office wants add/drop asks as tasks they can work, not phone calls. */}
@@ -769,7 +782,7 @@ const ScheduleBuilderPage = () => {
           classes={enrolled}
           timeBlocks={schedule?.time_blocks || []}
           selectedSlot={slotModal}
-          flaggedSlots={gapSlots}
+          flaggedSlots={locked ? [] : gapSlots}
           dayFooters={supplyFooters}
           // Browsable in both states. A locked slot still opens its class
           // list -- read-only, no Add button -- because the catalog is where
@@ -815,6 +828,34 @@ const ScheduleBuilderPage = () => {
         )}
 
       </div>
+
+      {/* The appointment comes after the schedule: the office goes over the
+          week with the family at that meeting (registerFunnel/DoneStep says
+          so). Until 2026-09-16 the button was the first thing on the page,
+          above a schedule that was still empty. */}
+      {org?.scheduling_url && (
+        <div className="mb-6 rounded-lg border border-optio-purple/20 bg-optio-purple/5 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-gray-600">
+            <span className="font-medium text-gray-800">Ready to go over this schedule?</span>{' '}
+            Book an appointment with {org.organization_name || 'the school'} and staff will review
+            the week with you.
+          </div>
+          <a href={org.scheduling_url} target="_blank" rel="noreferrer" className="btn-primary shrink-0">
+            Book appointment
+          </a>
+        </div>
+      )}
+
+      {/* The child's classes as a list, each opening to what the teacher has
+          shared with it, with the printable schedule and the school record
+          in its header. This sat on the school's feed page for every child at
+          once (2026-09-10 to 2026-09-16); a parent looks for a class on the
+          Schedule tab, and the feed is for the feed. */}
+      {!previewCode && studentId && (
+        <div className="mb-6">
+          <StudentClasses studentId={studentId} title="Classes and handouts" />
+        </div>
+      )}
 
       {slotModal && (
         <SlotClassesModal

@@ -19,6 +19,15 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
+// The child is family scope now -- picked in the school shell's student rail
+// above the panel, not on the page. Unscoped by default; a test that wants
+// Kid Two sets it.
+let scopeState = { selectedChildId: null, enterScope: vi.fn() }
+vi.mock('../contexts/FamilyScopeContext', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useFamilyScope: () => scopeState,
+}))
+
 import FamilyGoalsPage from './FamilyGoalsPage'
 import { withConfirm, answerConfirm, confirmText } from '../tests/confirmTestUtils'
 
@@ -38,16 +47,17 @@ const STUDENTS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  scopeState = { selectedChildId: null, enterScope: vi.fn() }
   api.get.mockResolvedValue({ data: { students: STUDENTS } })
   api.put.mockResolvedValue({ data: { goal: { status: 'draft' } } })
 })
 
 describe('FamilyGoalsPage', () => {
-  it('renders child tabs, the direction card, and a card per subject', async () => {
+  it('renders the first child\'s direction card and a card per subject, with no picker of its own', async () => {
     render(<FamilyGoalsPage />)
-    expect(await screen.findByText('Goal Setting')).toBeInTheDocument()
-    expect(screen.getByText('Kid One')).toBeInTheDocument()
-    expect(screen.getByText('Kid Two')).toBeInTheDocument()
+    expect(await screen.findByText(/Set a direction and this year/)).toBeInTheDocument()
+    // The student picker is the school shell's (family scope), not the page's.
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(screen.getByText(/What direction is Kid heading\? \(college, trade school, career/)).toBeInTheDocument()
     expect(screen.getByText('Math')).toBeInTheDocument()
     expect(screen.getByText('Science')).toBeInTheDocument()
@@ -56,7 +66,7 @@ describe('FamilyGoalsPage', () => {
 
   it('saves a draft with the entered direction and subject goals', async () => {
     render(<FamilyGoalsPage />)
-    await screen.findByText('Goal Setting')
+    await screen.findByText(/Set a direction and this year/)
     fireEvent.change(screen.getByPlaceholderText('e.g. Trade school for welding'), {
       target: { value: 'Trade school' },
     })
@@ -72,7 +82,7 @@ describe('FamilyGoalsPage', () => {
 
   it('submits for review after confirming the meeting dialog', async () => {
     render(<FamilyGoalsPage />)
-    await screen.findByText('Goal Setting')
+    await screen.findByText(/Set a direction and this year/)
     fireEvent.click(screen.getByText('Submit for review'))
     expect(await confirmText()).toContain('Gryffin Learning Center')
     await answerConfirm()
@@ -84,16 +94,16 @@ describe('FamilyGoalsPage', () => {
 
   it('does not submit when the confirm dialog is declined', async () => {
     render(<FamilyGoalsPage />)
-    await screen.findByText('Goal Setting')
+    await screen.findByText(/Set a direction and this year/)
     fireEvent.click(screen.getByText('Submit for review'))
     await answerConfirm(false)
     expect(api.put).not.toHaveBeenCalled()
   })
 
   it('shows the submitted banner for a child whose goals are in review', async () => {
+    scopeState = { selectedChildId: 's2', enterScope: vi.fn() }
     render(<FamilyGoalsPage />)
-    await screen.findByText('Goal Setting')
-    fireEvent.click(screen.getByText('Kid Two'))
+    await screen.findByText(/Set a direction and this year/)
     expect(await screen.findByText(/Submitted — you'll review these at your meeting with the school/)).toBeInTheDocument()
     // saved values hydrate the form
     expect(screen.getByDisplayValue('College')).toBeInTheDocument()

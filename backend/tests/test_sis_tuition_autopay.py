@@ -164,6 +164,182 @@ class TestPaymentPlanPreference:
 
 
 @pytest.mark.unit
+class TestFundingSource:
+    def test_requires_household_id(self, client, auth_headers, mock_verify_token):
+        resp = client.post('/api/sis/parent/billing/funding-source', headers=auth_headers, json={})
+        assert resp.status_code == 400
+
+    def test_methods_must_be_a_list(self, client, auth_headers, mock_verify_token):
+        resp = client.post('/api/sis/parent/billing/funding-source', headers=auth_headers,
+                           json={'household_id': 'hh1', 'payment_methods': 'Utah Fits All'})
+        assert resp.status_code == 400
+
+    def test_success(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_billing_service.set_stated_payment_methods',
+                   return_value={'household_id': 'hh1', 'stated_payment_methods': ['Utah Fits All'],
+                                 'stated_ufa_private': True, 'funding_source': 'ufa_private',
+                                 'funding_label': 'UFA – Private School', 'pay_through_ufa': True}) as setter:
+            resp = client.post('/api/sis/parent/billing/funding-source', headers=auth_headers,
+                               json={'household_id': 'hh1', 'payment_methods': ['Utah Fits All'],
+                                     'ufa_private': True})
+        assert resp.status_code == 200
+        body = json.loads(resp.data)
+        assert body['stated_payment_methods'] == ['Utah Fits All']
+        assert body['pay_through_ufa'] is True
+        assert setter.call_args.args[1:] == ('hh1', ['Utah Fits All'], True)
+
+    def test_service_validation_is_a_400(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_billing_service.set_stated_payment_methods',
+                   side_effect=ValueError('Choose at least one option')):
+            resp = client.post('/api/sis/parent/billing/funding-source', headers=auth_headers,
+                               json={'household_id': 'hh1', 'payment_methods': []})
+        assert resp.status_code == 400
+        assert 'at least one' in json.loads(resp.data)['error']
+
+    def test_forbidden_if_not_guardian(self, client, auth_headers, mock_verify_token):
+        with patch('services.sis_billing_service.set_stated_payment_methods',
+                   side_effect=PermissionError('Not authorized to update this household')):
+            resp = client.post('/api/sis/parent/billing/funding-source', headers=auth_headers,
+                               json={'household_id': 'hh2', 'payment_methods': ['Self-Pay']})
+        assert resp.status_code == 403
+
+
+@pytest.mark.unit
+class TestSetStatedPaymentMethodsService:
+    """The family's words land on their registration, and the card-payment
+    gate follows them by the funnel's own derivation."""
+
+    QUESTION = {'label': 'Form of Payment', 'help': None, 'multi': True,
+                'options': ['Self-Pay', 'OpenED', 'Utah Fits All', 'Other Funding']}
+
+    def _run(self, methods, ufa_private=None, regs=None, question=QUESTION):
+        from services import sis_billing_service as billing
+        captured = {}
+
+        class _HH:
+            def __init__(self, client=None):
+                pass
+            def members_for_households(self, ids):
+                captured['members_for'] = ids
+                return [{'user_id': 'p1', 'household_id': 'hh1'}, {'user_id': 'kid', 'household_id': 'hh1'}]
+            def update(self, hh_id, fields):
+                captured['household'] = (hh_id, fields)
+
+        class _Reg:
+            def __init__(self, client=None):
+                pass
+            def latest_for_parents(self, org_id, parent_ids):
+                captured['reg_query'] = (org_id, parent_ids)
+                return list(regs if regs is not None else [
+                    {'id': 'reg-new', 'answers': {'media_consent': 'Yes'}},
+                    {'id': 'reg-old', 'answers': {'payment_intent': ['Self-Pay'], 'media_consent': 'No'}},
+                ])
+            def update_answers(self, reg_id, answers):
+                captured['registration'] = (reg_id, answers)
+
+        with patch.object(billing, '_admin', return_value=object()), \
+             patch.object(billing, '_guardian_household_rows',
+                          return_value=[{'id': 'hh1', 'organization_id': 'org1'}]), \
+             patch.object(billing, '_org_branding',
+                          return_value={'org1': {'id': 'org1', 'funding_question': question}}), \
+             patch('repositories.household_repository.HouseholdRepository', _HH), \
+             patch('repositories.registration_repository.RegistrationRepository', _Reg):
+            result = billing.set_stated_payment_methods('p1', 'hh1', methods, ufa_private)
+        return captured, result
+
+    def test_writes_the_answer_on_the_registration_that_answered_it(self):
+        captured, result = self._run(['Utah Fits All'], ufa_private=False)
+        # reg-new never answered the question; reg-old did, and is what the office reads.
+        assert captured['registration'] == ('reg-old', {
+            'payment_intent': ['Utah Fits All'], 'ufa_private': 'No', 'media_consent': 'No'})
+        assert captured['household'] == ('hh1', {'funding_source': 'ufa', 'ufa_private': False})
+        assert result['stated_payment_methods'] == ['Utah Fits All']
+        assert result['pay_through_ufa'] is True
+        assert result['funding_label'] == 'UFA'
+
+    def test_ufa_private_mirrors_the_legacy_flags(self):
+        captured, result = self._run(['Utah Fits All'], ufa_private=True)
+        assert captured['household'][1] == {'funding_source': 'ufa_private', 'ufa_private': True,
+                                            'enrolled_private_school': True}
+        assert result['stated_ufa_private'] is True
+
+    def test_self_pay_opens_card_payment(self):
+        captured, result = self._run(['Self-Pay'])
+        assert captured['household'][1] == {'funding_source': 'private_pay', 'ufa_private': False}
+        assert result['pay_through_ufa'] is False
+
+    def test_keeps_the_schools_order_and_drops_unknown_options(self):
+        captured, result = self._run(['Utah Fits All', 'Bitcoin', 'Self-Pay'])
+        assert result['stated_payment_methods'] == ['Self-Pay', 'Utah Fits All']
+        # Mixed methods are 'other': nobody loses card payment on a multi-select.
+        assert captured['household'][1]['funding_source'] == 'other'
+
+    def test_no_registration_still_sets_the_gate(self):
+        captured, result = self._run(['Utah Fits All'], regs=[])
+        assert 'registration' not in captured
+        assert captured['household'][1]['funding_source'] == 'ufa'
+        assert result['stated_payment_methods'] == ['Utah Fits All']
+
+    def test_nothing_chosen(self):
+        with pytest.raises(ValueError):
+            self._run(['Bitcoin'])
+
+    def test_single_choice_question_refuses_two(self):
+        with pytest.raises(ValueError):
+            self._run(['Self-Pay', 'OpenED'], question={**self.QUESTION, 'multi': False})
+
+    def test_unconfigured_school(self):
+        with pytest.raises(ValueError):
+            self._run(['Self-Pay'], question=None)
+
+    def test_not_a_guardian(self):
+        from services import sis_billing_service as billing
+        with patch.object(billing, '_guardian_household_rows', return_value=[{'id': 'other'}]), \
+             pytest.raises(PermissionError):
+            billing.set_stated_payment_methods('p1', 'hh1', ['Self-Pay'])
+
+
+@pytest.mark.unit
+class TestParentBillingOverview:
+    """The payload /family/billing renders from, end to end with the reads
+    patched. A helper deleted by accident (2026-09-16: _household_funding_source)
+    surfaced as a 500 on the page and nowhere in the suite."""
+
+    def test_household_payload_shape(self):
+        from services import sis_billing_service as billing
+        question = {'label': 'Form of Payment', 'help': None, 'multi': True,
+                    'options': ['Self-Pay', 'Utah Fits All']}
+        with patch.object(billing, '_guardian_household_rows',
+                          return_value=[{'id': 'hh1', 'name': 'Evans Family', 'organization_id': 'org1',
+                                         'payment_plan_preference': None}]), \
+             patch.object(billing, '_org_branding',
+                          return_value={'org1': {'id': 'org1', 'name': 'iCreate', 'funding_question': question}}), \
+             patch.object(billing, '_org_stripe_secret', return_value=None), \
+             patch.object(billing, 'list_invoices', return_value=[
+                 {'id': 'inv1', 'status': 'sent', 'total_cents': 475000, 'amount_paid_cents': 0,
+                  'student_user_id': 'kid1'},
+                 {'id': 'inv2', 'status': 'draft', 'total_cents': 100, 'amount_paid_cents': 0}]), \
+             patch.object(billing, '_hydrate_invoices', side_effect=lambda invs: [
+                 i.update({'line_items': [], 'installments': [], 'payments': []}) for i in invs]), \
+             patch.object(billing, '_users_map', return_value={'kid1': {'first_name': 'Daxton', 'last_name': 'Evans'}}), \
+             patch.object(billing, '_household_funding_source', return_value=None), \
+             patch.object(billing.payment_profile, 'profile_for_household',
+                          return_value={'methods': ['Utah Fits All'], 'ufa_private': None, 'plan': None}):
+            out = billing.parent_billing_overview('p1')
+
+        assert len(out['households']) == 1
+        hh = out['households'][0]
+        assert hh['household_name'] == 'Evans Family'
+        assert hh['organization']['online_pay_enabled'] is False
+        assert [i['id'] for i in hh['invoices']] == ['inv1']  # drafts are staff-only
+        assert hh['invoices'][0]['student_name'] == 'Daxton Evans'
+        assert hh['totals'] == {'invoiced_cents': 475000, 'paid_cents': 0, 'balance_cents': 475000}
+        assert hh['stated_payment_methods'] == ['Utah Fits All']
+        assert hh['funding_question'] == question
+        assert hh['funding_source'] is None and hh['pay_through_ufa'] is False
+
+
+@pytest.mark.unit
 class TestAutopayCron:
     def test_unauthorized_without_secret(self, client):
         resp = client.post('/api/sis/internal/tuition-autopay',

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon, DocumentIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import api from '../services/api'
-import BackToSchool from '../components/navigation/BackToSchool'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 // Shared with the SIS Prior Learning page, which uploads into the same pipeline.
 import {
@@ -218,23 +217,23 @@ const FamilyPriorLearningPage = () => {
   }
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-500">Loading…</div>
+    return <div className="max-w-3xl mx-auto py-10 text-gray-500">Loading…</div>
   }
 
   if (!orgs.length) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-10">
+      <div className="max-w-3xl mx-auto py-10">
         <p className="text-gray-600">Prior learning uploads aren’t available for your account.</p>
       </div>
     )
   }
 
+  // A tab of the school page (pages/school/SchoolShell): the shell carries
+  // the letterhead and the rail, this is the panel.
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-3xl mx-auto space-y-8">
       <div>
-        <BackToSchool />
-        <h1 className="text-2xl font-bold text-gray-900 font-poppins mt-3">Prior Learning</h1>
-        <p className="text-gray-600 mt-1 text-sm">
+        <p className="text-gray-600 text-sm">
           Upload records of learning your child did before joining, or outside of, Optio —
           transcripts, report cards, certificates, course descriptions, samples of their work.
           Send as many as you like at once. {schoolName} reviews them and can award

@@ -35,6 +35,7 @@ vi.mock('../components/announcements/SchoolCommunity', () => ({
 vi.mock('../components/announcements/CarpoolBoard', () => ({ default: () => null }))
 
 import SchoolPage from './SchoolPage'
+import SchoolShell from './school/SchoolShell'
 
 // SchoolPage renders MyClassMaterials, which reads through hooks/api
 // (react-query, the paradigm this codebase decided on -- see
@@ -55,7 +56,9 @@ const ORGS = [
 const renderPage = () => render(withQuery(
   <MemoryRouter initialEntries={['/school']}>
     <Routes>
-      <Route path="/school" element={<SchoolPage />} />
+      <Route element={<SchoolShell />}>
+        <Route path="/school" element={<SchoolPage />} />
+      </Route>
       <Route path="/dashboard" element={<div data-testid="student-dashboard" />} />
     </Routes>
   </MemoryRouter>,

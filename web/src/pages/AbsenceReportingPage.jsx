@@ -1,17 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../services/api'
-import BackToSchool from '../components/navigation/BackToSchool'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
 
 /**
  * Parent/guardian absence reporting (web platform).
  *
  * A guardian tells the school ahead of time that one or more children will be
- * out — for a whole day or just one scheduled class — on today or any future
- * date. Children are multi-selectable so "all three are out Friday" is one
- * report, not three. Distinct from the teacher's attendance roster; the school
- * admin team is notified when one is added.
+ * out — for a whole day, or each child for their own classes — on today or any
+ * future date. Children are multi-selectable so "all three are out Friday" is
+ * one report, not three; and since siblings rarely share a timetable, "Daxton
+ * misses Art, Rivers misses Choir" is one report too (2026-09-16 — before
+ * that, with several children ticked, the class picker offered only the
+ * classes they all shared, which for most families was none). Distinct from
+ * the teacher's attendance roster; the school admin team is notified when one
+ * is added.
  * Backed by /api/sis/parent/absences (authorized by family relationship).
  */
 
@@ -60,6 +63,37 @@ const groupRuns = (list) => {
   return runs.sort((x, y) => x.absence_date.localeCompare(y.absence_date))
 }
 
+/** One row of class chips: a child's classes (or the shared ones), each a
+ *  toggle with the meeting time under the name. */
+const ClassPicks = ({ title, classes, isTicked, onToggle }) => (
+  <div>
+    {title && <div className="text-sm font-medium text-gray-800 mb-1.5">{title}</div>}
+    {classes.length === 0
+      ? <p className="text-xs text-gray-400">No scheduled classes.</p>
+      : (
+        <div className="flex flex-wrap gap-2">
+          {classes.map((c) => {
+            const on = isTicked(c.class_id)
+            const when = meetingText(c.meetings)
+            return (
+              <button key={c.class_id} type="button" role="checkbox" aria-checked={on}
+                aria-label={title ? `${title}: ${c.name}` : c.name}
+                onClick={() => onToggle(c.class_id)}
+                className={`px-3 py-1.5 rounded-lg border text-left text-sm transition-colors ${
+                  on
+                    ? 'bg-optio-purple/10 border-optio-purple text-optio-purple font-medium'
+                    : 'bg-white border-gray-300 text-gray-700 hover:border-optio-purple'
+                }`}>
+                <span className="block">{c.name}</span>
+                {when && <span className={`block text-xs ${on ? 'text-optio-purple/80' : 'text-gray-400'}`}>{when}</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+  </div>
+)
+
 const AbsenceReportingPage = () => {
   // One shared read of where this person is a guardian (hooks/api/
   // useSchoolContext); the child ticked first is the one the parent already
@@ -69,7 +103,11 @@ const AbsenceReportingPage = () => {
   // {student_id: {absences: [], classes: []}} for every child in the org, so
   // toggling children never waits on a fetch.
   const [byStudent, setByStudent] = useState({})
-  const [form, setForm] = useState({ absence_date: today(), end_date: '', class_id: '', reason: '' })
+  const [form, setForm] = useState({ absence_date: today(), end_date: '', reason: '' })
+  // 'day' = every selected child is out all day; 'classes' = each child misses
+  // the classes ticked for them in classesByStudent ({student_id: [class_id]}).
+  const [scope, setScope] = useState('day')
+  const [classesByStudent, setClassesByStudent] = useState({})
   const [busy, setBusy] = useState(false)
 
   const studentName = useCallback(
@@ -112,24 +150,42 @@ const AbsenceReportingPage = () => {
     ))
   }
 
-  // A class is offerable only when every selected child is enrolled in it —
-  // siblings in the same co-op class are the case this exists for.
-  const classes = useMemo(() => {
+  // Classes every selected child is enrolled in — siblings in one co-op class.
+  // Offered as an "Everyone" row so one tick covers all of them.
+  const sharedClasses = useMemo(() => {
     const lists = studentIds.map((sid) => byStudent[sid]?.classes || [])
-    if (!lists.length) return []
+    if (lists.length < 2) return []
     return lists[0].filter((c) => lists.every((l) => l.some((x) => x.class_id === c.class_id)))
   }, [studentIds, byStudent])
 
-  // Deselect a class that stopped being shared by everyone selected.
-  useEffect(() => {
-    if (form.class_id && !classes.some((c) => c.class_id === form.class_id)) {
-      setForm((f) => ({ ...f, class_id: '' }))
-    }
-  }, [classes, form.class_id])
+  const ticked = (sid, classId) => (classesByStudent[sid] || []).includes(classId)
+  const toggleClass = (sid, classId) => setClassesByStudent((prev) => {
+    const current = prev[sid] || []
+    return { ...prev, [sid]: current.includes(classId) ? current.filter((c) => c !== classId) : [...current, classId] }
+  })
+  // The Everyone row: on when every selected child has it ticked; toggling
+  // sets it the same way for all of them.
+  const everyoneTicked = (classId) => studentIds.every((sid) => ticked(sid, classId))
+  const toggleForEveryone = (classId) => {
+    const on = !everyoneTicked(classId)
+    setClassesByStudent((prev) => Object.fromEntries(studentIds.map((sid) => {
+      const current = (prev[sid] || []).filter((c) => c !== classId)
+      return [sid, on ? [...current, classId] : current]
+    }).concat(Object.entries(prev).filter(([sid]) => !studentIds.includes(sid)))))
+  }
+  // What will be sent: only children with something ticked, in the order the
+  // school lists the child's classes.
+  const selections = useMemo(() => studentIds.map((sid) => {
+    const order = (byStudent[sid]?.classes || []).map((c) => c.class_id)
+    const picked = classesByStudent[sid] || []
+    const ids = scope === 'classes' ? order.filter((c) => picked.includes(c)) : []
+    return { student_user_id: sid, class_ids: ids }
+  }).filter((sel) => scope === 'day' || sel.class_ids.length), [studentIds, byStudent, scope, classesByStudent])
 
   const report = async () => {
     if (!form.absence_date) { toast.error('Pick a date'); return }
     if (!studentIds.length) { toast.error('Select at least one child'); return }
+    if (!selections.length) { toast.error('Tick at least one class, or choose the whole day'); return }
     if (form.end_date && form.end_date < form.absence_date) {
       toast.error('The last day cannot be before the first day')
       return
@@ -138,10 +194,9 @@ const AbsenceReportingPage = () => {
     try {
       const r = await api.post('/api/sis/parent/absences', {
         organization_id: orgId,
-        student_user_ids: studentIds,
+        selections,
         absence_date: form.absence_date,
         end_date: form.end_date && form.end_date !== form.absence_date ? form.end_date : null,
-        class_id: form.class_id || null,
         reason: form.reason || null,
       })
       const errors = r.data?.errors || {}
@@ -156,7 +211,9 @@ const AbsenceReportingPage = () => {
       Object.entries(errors).forEach(([sid, msg]) => {
         toast.error(`${studentName(sid)}: ${msg}`)
       })
-      setForm({ absence_date: today(), end_date: '', class_id: '', reason: '' })
+      setForm({ absence_date: today(), end_date: '', reason: '' })
+      setScope('day')
+      setClassesByStudent({})
       loadAbsences()
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not report absence')
@@ -189,16 +246,14 @@ const AbsenceReportingPage = () => {
   ), [studentIds, byStudent, studentName])
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-gray-500">Loading…</div>
+    return <div className="max-w-3xl mx-auto py-10 text-gray-500">Loading…</div>
   }
 
   if (!orgs.length) {
-    // The empty state still needs the way back — a superadmin previewing the
-    // school page, or a member without a family here, lands on this branch.
+    // A superadmin previewing the school page, or a member without a family
+    // here, lands on this branch.
     return (
-      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <div className="text-left mb-6"><BackToSchool /></div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Report an absence</h1>
+      <div className="max-w-2xl mx-auto py-16 text-center">
         <p className="text-gray-500">
           Absence reporting isn’t available for your family yet. If your school uses Optio to
           manage attendance, ask them to add your family.
@@ -207,11 +262,11 @@ const AbsenceReportingPage = () => {
     )
   }
 
+  // A tab of the school page (pages/school/SchoolShell): the shell carries
+  // the letterhead and the rail, this is the panel.
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <BackToSchool className="mb-3" />
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Report an absence</h1>
-      <p className="text-gray-500 mb-6">Let {org?.organization_name || 'your school'} know ahead of time when your children will be out.</p>
+    <div className="max-w-3xl mx-auto">
+      <p className="text-sm text-gray-500 mb-6">Let {org?.organization_name || 'your school'} know ahead of time when your children will be out.</p>
 
       {/* Child / org pickers */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
@@ -261,14 +316,6 @@ const AbsenceReportingPage = () => {
               onChange={(e) => setForm({ ...form, end_date: e.target.value })}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
           </label>
-          <label className="text-sm">
-            <span className="block text-gray-500 mb-1">What are they missing?</span>
-            <select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple">
-              <option value="">The whole day</option>
-              {classes.map((c) => <option key={c.class_id} value={c.class_id}>{c.name}</option>)}
-            </select>
-          </label>
           <label className="text-sm flex-1 min-w-[180px]">
             <span className="block text-gray-500 mb-1">Reason (optional)</span>
             <input type="text" value={form.reason} maxLength={200}
@@ -276,17 +323,56 @@ const AbsenceReportingPage = () => {
               placeholder="e.g. doctor appointment"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
           </label>
+        </div>
+
+        {/* What they are missing: everyone all day, or each child their own classes. */}
+        <fieldset className="mt-4">
+          <legend className="text-sm text-gray-500 mb-2">What are they missing?</legend>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="What are they missing?">
+            {[['day', 'The whole day'], ['classes', 'Some classes']].map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={scope === value}
+                onClick={() => setScope(value)}
+                className={`px-3.5 py-2 rounded-full border text-sm transition-colors ${
+                  scope === value
+                    ? 'bg-optio-purple border-optio-purple text-white font-medium'
+                    : 'bg-white border-gray-300 text-gray-700 hover:border-optio-purple'
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {scope === 'classes' && (
+            <div className="mt-3 space-y-3">
+              {sharedClasses.length > 0 && (
+                <ClassPicks
+                  title="Everyone"
+                  classes={sharedClasses}
+                  isTicked={everyoneTicked}
+                  onToggle={toggleForEveryone}
+                />
+              )}
+              {studentIds.map((sid) => (
+                <ClassPicks
+                  key={sid}
+                  title={studentIds.length > 1 ? studentName(sid) : null}
+                  classes={byStudent[sid]?.classes || []}
+                  isTicked={(classId) => ticked(sid, classId)}
+                  onToggle={(classId) => toggleClass(sid, classId)}
+                />
+              ))}
+            </div>
+          )}
+        </fieldset>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button onClick={report} disabled={busy || !studentIds.length}
             className="btn-primary">
             Report absence
           </button>
+          {studentIds.length > 1 && (
+            <p className="text-xs text-gray-400">Reporting for {studentIds.map(studentName).join(', ')}.</p>
+          )}
         </div>
-        {studentIds.length > 1 && (
-          <p className="text-xs text-gray-400 mt-2">
-            Reporting for {studentIds.map(studentName).join(', ')}.
-            {classes.length === 0 && ' Only whole-day absences can be reported for multiple children unless they share a class.'}
-          </p>
-        )}
       </div>
 
       {/* Upcoming */}

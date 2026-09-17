@@ -1606,6 +1606,38 @@ def create_absences(user_id: str, org_id: str, student_user_ids: List[str], abse
     return {'absences': created, 'errors': errors}
 
 
+def create_absence_selections(user_id: str, org_id: str, selections: List[Dict[str, Any]],
+                              absence_date: str, reason: Optional[str] = None,
+                              end_date: Optional[str] = None) -> Dict[str, Any]:
+    """Report absences where each child misses their own set of classes.
+
+    `selections` is [{student_user_id, class_ids}]: class_ids empty or None
+    means the whole day; otherwise one report per class, in the order given.
+    Siblings rarely share a timetable, so "Daxton misses Art, Rivers misses
+    Choir and Math" is one submit (2026-09-16 parent audit); before this the
+    page could only offer classes every selected child shared, which for most
+    families was none. Each (child, class) is authorized and written
+    independently, as create_absences does; a duplicate on one class does not
+    block the child's other classes. Errors are keyed by child, the last one
+    winning, because that is the shape the page already reports per child.
+    """
+    created: List[Dict[str, Any]] = []
+    errors: Dict[str, str] = {}
+    for sel in selections:
+        sid = sel.get('student_user_id')
+        if not sid:
+            continue
+        class_ids = [c for c in dict.fromkeys(sel.get('class_ids') or []) if c] or [None]
+        for class_id in class_ids:
+            result = create_absence(user_id, org_id, sid, absence_date,
+                                    class_id=class_id, reason=reason, end_date=end_date)
+            if result.get('error'):
+                errors[sid] = result['error']
+            else:
+                created.extend(result.get('absences') or [result['absence']])
+    return {'absences': created, 'errors': errors}
+
+
 def cancel_absence(user_id: str, absence_id: str) -> Dict[str, Any]:
     row = absences.get(absence_id)
     if not row:

@@ -118,6 +118,44 @@ def derive_funding_source(answers: Any) -> Optional[str]:
     return 'other'
 
 
+def question_from_config(feature_flags: Any) -> Optional[Dict[str, Any]]:
+    """The org's "Form of Payment" registration question, as the family's own
+    surfaces need it: label, help, options, and whether more than one option
+    may be picked. None when the org never configured one."""
+    from utils.registration_config import get_registration_config
+    cfg = get_registration_config(feature_flags)
+    for q in cfg.get('questions') or []:
+        if isinstance(q, dict) and q.get('key') == METHOD_KEY:
+            options = [str(o).strip() for o in (q.get('options') or []) if str(o).strip()]
+            if not options:
+                return None
+            return {
+                'label': q.get('label') or 'Form of Payment',
+                'help': q.get('help') or None,
+                'options': options,
+                'multi': (q.get('type') == 'multi'),
+            }
+    return None
+
+
+def is_ufa_method(method: str) -> bool:
+    m = str(method or '').strip().lower()
+    return 'utah fits all' in m or m == 'ufa'
+
+
+def merged_answers(answers: Any, methods: List[str], ufa_private: Optional[bool]) -> Dict[str, Any]:
+    """The registration's answers with the payment facts replaced. The UFA
+    private-school follow-up is kept only while Utah Fits All is among the
+    methods, as the funnel itself does."""
+    out = dict(answers) if isinstance(answers, dict) else {}
+    out[METHOD_KEY] = list(methods)
+    if any(is_ufa_method(m) for m in methods) and ufa_private is not None:
+        out[UFA_PRIVATE_KEY] = 'Yes' if ufa_private else 'No'
+    else:
+        out.pop(UFA_PRIVATE_KEY, None)
+    return out
+
+
 def _guardians_by_household(org_id: str) -> Dict[str, str]:
     """user_id -> household_id for every member of an org's households.
 

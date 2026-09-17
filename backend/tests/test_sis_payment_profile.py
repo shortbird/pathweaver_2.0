@@ -165,3 +165,55 @@ class TestAttachToHouseholds:
             {'h1': {'methods': [], 'ufa_private': None, 'plan': 'in_full'}})
         assert h['payment_plan'] == 'monthly'
         assert h['payment_plan_from_family'] == 'in_full'
+
+
+@pytest.mark.unit
+class TestQuestionFromConfig:
+    """The family's billing page edits their funding source in the school's
+    own registration options, so it needs that question in a fixed shape."""
+
+    FLAGS = {'registration': {'questions': [
+        {'key': 'special_needs', 'label': 'Needs', 'type': 'text'},
+        {'key': 'payment_intent', 'label': 'Form of Payment', 'type': 'multi',
+         'help': 'select all that apply',
+         'options': ['Self-Pay', 'Utah Fits All', ' Other Funding ', '']},
+    ]}}
+
+    def test_reads_the_payment_question(self):
+        q = profile.question_from_config(self.FLAGS)
+        assert q == {'label': 'Form of Payment', 'help': 'select all that apply',
+                     'options': ['Self-Pay', 'Utah Fits All', 'Other Funding'], 'multi': True}
+
+    def test_single_choice_question(self):
+        flags = {'registration': {'questions': [
+            {'key': 'payment_intent', 'label': 'Payment', 'type': 'select', 'options': ['A', 'B']}]}}
+        assert profile.question_from_config(flags)['multi'] is False
+
+    def test_none_when_unconfigured(self):
+        assert profile.question_from_config({}) is None
+        assert profile.question_from_config(None) is None
+        assert profile.question_from_config({'registration': {'questions': [
+            {'key': 'payment_intent', 'label': 'Payment', 'options': []}]}}) is None
+
+
+@pytest.mark.unit
+class TestMergedAnswers:
+    def test_replaces_the_payment_facts_and_keeps_the_rest(self):
+        out = profile.merged_answers({'media_consent': 'Yes', 'payment_intent': ['Self-Pay']},
+                                     ['Utah Fits All'], True)
+        assert out == {'media_consent': 'Yes', 'payment_intent': ['Utah Fits All'], 'ufa_private': 'Yes'}
+
+    def test_drops_the_ufa_follow_up_when_ufa_is_not_chosen(self):
+        out = profile.merged_answers({'payment_intent': ['Utah Fits All'], 'ufa_private': 'Yes'},
+                                     ['Self-Pay'], True)
+        assert out == {'payment_intent': ['Self-Pay']}
+
+    def test_unanswered_follow_up_is_not_invented(self):
+        out = profile.merged_answers({}, ['Utah Fits All'], None)
+        assert out == {'payment_intent': ['Utah Fits All']}
+
+    def test_round_trips_through_derive(self):
+        out = profile.merged_answers({}, ['Utah Fits All'], True)
+        assert profile.derive_funding_source(out) == 'ufa_private'
+        out = profile.merged_answers({}, ['Utah Fits All', 'Self-Pay'], False)
+        assert profile.derive_funding_source(out) == 'other'

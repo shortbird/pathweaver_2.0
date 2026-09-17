@@ -1,7 +1,7 @@
 import {
   CalendarDaysIcon, BookOpenIcon, UsersIcon, CreditCardIcon,
-  ClipboardDocumentListIcon, DocumentTextIcon, CheckCircleIcon, CalendarIcon,
-  TableCellsIcon, AcademicCapIcon, TruckIcon, MegaphoneIcon,
+  DocumentTextIcon, CheckCircleIcon, CalendarIcon,
+  TableCellsIcon, AcademicCapIcon, TruckIcon, BuildingLibraryIcon,
 } from '@heroicons/react/24/outline'
 import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
 
@@ -18,7 +18,7 @@ import { isFamilyFirstHubOrg } from '../../config/optioAcademy'
  * `guardianOnly` is the whole safety property of this file. Calendar, Resources
  * and Directory are the school's own content and belong to everyone in the
  * school. The rest act on a FAMILY — a household's invoices, a child's absence,
- * the checklists assigned to a guardian — and a student is a member of the
+ * the forms a guardian is asked to sign — and a student is a member of the
  * school without being a guardian in it. The backend enforces this too
  * (sis_parent_service authorizes those by family relationship); this list only
  * decides what to offer.
@@ -56,13 +56,15 @@ const FAMILY_CARDS = [
     name: 'Billing', path: '/family/billing', Icon: CreditCardIcon,
     description: 'Your balance, invoices and receipts.', guardianOnly: true, module: 'billing',
   },
+  // One door for the paperwork in both directions: what the school needs
+  // signed or completed (the onboarding block) and what the family asks the
+  // office for (the forms block). Two doors, "Checklists" and "Requests",
+  // until 2026-09-16 -- see pages/FamilyFormsPage for why. Offered while
+  // either block is on; the page shows the half that is.
   {
-    name: 'Portal', path: '/family/portal', Icon: ClipboardDocumentListIcon,
-    description: 'Checklists assigned to your family.', guardianOnly: true, module: 'onboarding',
-  },
-  {
-    name: 'Requests', path: '/family/forms', Icon: DocumentTextIcon,
-    description: 'Ask for records, a meeting or an at-home day.', guardianOnly: true, module: 'forms',
+    name: 'Forms', path: '/family/forms', Icon: DocumentTextIcon,
+    description: 'Sign what the office sends you, and send requests to the office.',
+    guardianOnly: true, modules: ['onboarding', 'forms'],
   },
 ]
 
@@ -112,8 +114,11 @@ export function cardGroupsFor(org) {
   // a group left with no cards goes with it. An older payload without the list,
   // or a card the registry has no key for (Carpool), keeps showing.
   if (!Array.isArray(org.modules)) return groups
+  // `module` names the one block a card needs; `modules` names several, of
+  // which any one is enough (the Forms door serves two blocks).
+  const wanted = (c) => c.modules || (c.module ? [c.module] : [])
   return groups
-    .map((g) => ({ ...g, cards: g.cards.filter((c) => !c.module || org.modules.includes(c.module)) }))
+    .map((g) => ({ ...g, cards: g.cards.filter((c) => !wanted(c).length || wanted(c).some((m) => org.modules.includes(m))) }))
     .filter((g) => g.cards.length > 0)
 }
 
@@ -124,7 +129,7 @@ export function cardsFor(org) {
 
 
 /**
- * The sidebar section for a GUARDIAN in this school: the family doors, plus
+ * The school's tabs for a GUARDIAN (pages/school/SchoolShell): the family doors, plus
  * the calendar, plus the school's own page when the org front-doors families
  * through it. Everything else on /school (resources, directory, carpool)
  * stays a card there; a sidebar that lists every door is a sidebar nobody
@@ -144,10 +149,12 @@ export function familyNavItemsFor(org, { homepage = false } = {}) {
     .filter((c) => c.path === '/school-calendar')
   const items = []
   if (homepage) {
-    items.push({ name: 'Announcements', path: '/school', Icon: MegaphoneIcon })
+    // Named after the school, like the Community item a non-guardian gets:
+    // "Announcements" named the page's feed, not the place (2026-09-16).
+    items.push({ name: org.organization_name || 'My school', tab: 'Feed', path: '/school', Icon: BuildingLibraryIcon })
   }
   for (const card of [...calendar, ...family]) {
-    items.push({ name: card.name === 'Portal' ? 'Checklists' : card.name, path: card.path, Icon: card.Icon })
+    items.push({ name: card.name, path: card.path, Icon: card.Icon })
   }
   return items
 }

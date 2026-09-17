@@ -14,6 +14,11 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../services/api', () => ({ default: api }))
 
+// The child's class list under the week (components/parent/StudentClasses)
+// has its own tests and its own react-query reads; here it is a stub so the
+// builder's own behaviour is what these assert.
+vi.mock('../components/parent/StudentClasses', () => ({ default: () => <div data-testid="student-classes" /> }))
+
 import ScheduleBuilderPage from './ScheduleBuilderPage'
 import { withConfirm } from '../tests/confirmTestUtils'
 
@@ -125,7 +130,11 @@ describe('ScheduleBuilderPage', () => {
       classes: [{ ...POTTERY, id: 'c2', name: 'Woodshop' }],
     }))
     render(<ScheduleBuilderPage />)
-    expect(await screen.findByText(/schedule changes are now made by/i)).toBeInTheDocument()
+    // A reference page now, not a builder: no year-started banner, no running
+    // total (billing has it), the subtitle says where changes go.
+    expect(await screen.findByText(/weekly schedule/i)).toBeInTheDocument()
+    expect(screen.queryByText(/school year has started/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Estimated total')).not.toBeInTheDocument()
     // A locked slot still opens its catalogue -- read-only. It used to open
     // nothing, which took the description, the age range and "full" away from
     // parents for the whole year (iCreate 22c43f7c).
@@ -155,8 +164,8 @@ describe('ScheduleBuilderPage', () => {
     render(<ScheduleBuilderPage />)
     expect(await screen.findByRole('button', { name: 'Request an add/drop' })).toBeInTheDocument()
     expect(screen.getByText(/Add\/drop closes after September 8, 2026/)).toBeInTheDocument()
-    // The locked banner points at the button instead of the front desk.
-    expect(screen.getByText(/Send an add\/drop request below/)).toBeInTheDocument()
+    // The subtitle points at the button instead of the front desk.
+    expect(screen.getByText(/send a request below/i)).toBeInTheDocument()
   })
 
   it('hides the request button once the deadline has passed', async () => {
@@ -164,9 +173,8 @@ describe('ScheduleBuilderPage', () => {
       schedule: { ...LOCKED_IN_WINDOW, add_drop_open: false },
     }))
     render(<ScheduleBuilderPage />)
-    expect(await screen.findByText(/schedule changes are now made by/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Contact Micro School to add or drop classes/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Request an add/drop' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Contact Micro School to add or drop classes/)).toBeInTheDocument()
   })
 
   it('files a request naming the classes to drop and add', async () => {
