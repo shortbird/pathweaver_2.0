@@ -19,7 +19,7 @@ constraint names.
 REGISTRATIONS_TABLE = 'registrations'
 
 
-from typing import Any, Dict, List, Optional  # noqa: E402
+from typing import Any, Dict, List  # noqa: E402
 
 from repositories.base_repository import BaseRepository  # noqa: E402
 
