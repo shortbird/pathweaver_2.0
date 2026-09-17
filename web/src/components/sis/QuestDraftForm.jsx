@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 import TaskSubjectPicker from './TaskSubjectPicker'
@@ -55,6 +55,18 @@ export const blankTask = () => ({
 const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 /**
+ * Has anyone chosen a subject on any of these tasks, or are they all still on
+ * their pillar's default? Decides whether the credit switch starts on.
+ */
+export function tasksCarryChosenSubjects(tasks) {
+  return (tasks || []).some((t) => {
+    const subjects = t.diploma_subjects || []
+    if (subjects.length > 1) return true
+    return subjects.length === 1 && subjects[0] !== defaultSubjectForPillar(t.pillar)
+  })
+}
+
+/**
  * The patch a pillar change makes. The subject follows the pillar ONLY while it
  * is still the pillar's own default -- a teacher who has chosen Social Studies
  * has chosen it, and changing the pillar afterwards must not quietly undo that.
@@ -81,7 +93,7 @@ export function followPillar(task, pillar) {
  * "Find the Absences feature in Optio" among them. Hide it only where the
  * default is genuinely as good as any answer.
  */
-export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, questId = null }) {
+export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', showPillars = true, showSubjects = true, questId = null }) {
   const update = (i, patch) => setTasks((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)))
   const remove = (i) => setTasks((prev) => prev.filter((_, idx) => idx !== i))
   // Order is the order learners see, and the row's order_index is just its
@@ -146,10 +158,12 @@ export function TaskRows({ tasks, setTasks, addLabel = 'Add a preset task', show
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>
-          <TaskSubjectPicker
-            subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
-            xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
-            onChange={(patch) => update(i, patch)} />
+          {showSubjects && (
+            <TaskSubjectPicker
+              subjects={t.diploma_subjects} distribution={t.subject_xp_distribution}
+              xpValue={t.xp_value} pillar={t.pillar} idPrefix={`draft-task-${i}`}
+              onChange={(patch) => update(i, patch)} />
+          )}
           {/* A saved task can carry its own video, link or file. A task typed
               into the form and not saved yet has no id to attach to, so it
               waits for the save. */}
@@ -199,7 +213,22 @@ export default function QuestDraftForm({
   // the training section"). Left null on a brand-new draft: there is nothing
   // to attach to until the first save.
   questId = null,
+  // Whether the "counts toward high school credit" switch starts on when no
+  // task carries a chosen subject yet. Credit lives on tasks, not quests
+  // (CLAUDE.md), so this is a switch over the per-task pickers, not a field:
+  // on, every task shows the subject it earns credit toward; off, the pickers
+  // are out of the way and each task keeps its pillar's default. A quest for
+  // students starts on -- a class quest saved with nobody looking at
+  // subjects is how a US History unit got filed as Electives (Gryffin,
+  // 2026-09-09). Staff training starts off: a teacher's orientation earns no
+  // diploma credit, and a picker on every one of sixteen tasks was the noise
+  // iCreate asked to lose (Molly, 2026-09-17, 1aed3f6c). A quest whose tasks
+  // already carry chosen subjects starts on whatever the caller says.
+  creditDefault = true,
 }) {
+  const [countsForCredit, setCountsForCredit] = useState(
+    () => tasksCarryChosenSubjects(tasks) || creditDefault
+  )
   return (
     <div className="space-y-3">
       <input value={title} onChange={(e) => setTitle(e.target.value)}
@@ -215,9 +244,22 @@ export default function QuestDraftForm({
           <QuestResourcesPanel questId={questId} />
         </div>
       )}
+      <label className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-neutral-700">
+        <input type="checkbox" checked={countsForCredit} className="mt-0.5"
+          onChange={(e) => setCountsForCredit(e.target.checked)} />
+        <span>
+          <span className="font-medium">This quest counts toward high school credit</span>
+          <span className="block text-xs text-neutral-500">
+            {countsForCredit
+              ? 'Each task below shows the subject it earns credit toward. Change it where a task is about something else.'
+              : 'Turn this on to choose the subject each task earns credit toward. Off, each task is credited by its pillar\u2019s usual subject.'}
+          </span>
+        </span>
+      </label>
       <div>
         <p className="text-xs text-neutral-400 mb-2">{taskHint}</p>
-        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars} questId={questId} />
+        <TaskRows tasks={tasks} setTasks={setTasks} addLabel={addLabel} showPillars={showPillars}
+          showSubjects={countsForCredit} questId={questId} />
       </div>
     </div>
   )

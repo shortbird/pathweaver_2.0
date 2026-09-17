@@ -389,6 +389,7 @@ const AddTraining = ({ orgId, audience, onAdded, onCancel, orgLogo = null, editI
             : audience === 'student' ? 'What are students doing?' : 'What are teachers learning?'}
           taskHint={'Preset tasks are copied to each person when they start the quest. '
             + 'Leave it empty and they write their own.'}
+          creditDefault={false}
           />
         </div>
       )}
