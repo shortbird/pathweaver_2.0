@@ -272,12 +272,26 @@ def student_class_progress(user_id, class_id, student_id):
     from utils import person_name
     user = (admin.table('users').select(person_name.USER_NAME_FIELDS)
             .eq('id', student_id).limit(1).execute()).data
+    # The student's guardians, so the panel can offer "Message <parent>" next
+    # to the reminder. A teacher wanting to ask a family whether they need
+    # help had no way from this screen to the parent (Nicole Connole, iCreate,
+    # 2026-09-17, 9c1b49a5: "a tab that would send me to messages with the
+    # parent ... a more personalized message, like seeing if they need help").
+    # Same guardian set the reminder itself notifies; the message goes to the
+    # parent only, by decision.
+    from services.notification_service import NotificationService
+    guardians = [
+        {'id': p['id'], 'name': person_name.full_name(p, 'Parent')}
+        for p in (NotificationService().get_parents_for_student(student_id) or [])
+        if p.get('id')
+    ]
     return jsonify({
         'success': True,
         'student': {
             'id': student_id,
             'name': person_name.full_name(user[0], 'Unnamed') if user else 'Unnamed',
         },
+        'guardians': guardians,
         'quests': _student_work(admin, class_row, student_id),
     })
 

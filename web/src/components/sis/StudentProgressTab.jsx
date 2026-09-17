@@ -254,6 +254,7 @@ const StudentProgressTab = ({ classId, className }) => {
 const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
   const confirm = useConfirm()
   const [work, setWork] = useState(null)
+  const [guardians, setGuardians] = useState([])
   const [loading, setLoading] = useState(true)
   const [reminding, setReminding] = useState(false)
   const [changing, setChanging] = useState(null) // quest_id mid add/remove
@@ -265,7 +266,7 @@ const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
   const loadWork = useCallback(() => {
     setLoading(true)
     return api.get(`/api/sis/classes/${classId}/students/${student.student_id}/progress`)
-      .then((r) => setWork(r.data?.quests || []))
+      .then((r) => { setWork(r.data?.quests || []); setGuardians(r.data?.guardians || []) })
       .catch((e) => toast.error(e?.response?.data?.error || 'Could not load this student'))
       .finally(() => setLoading(false))
   }, [classId, student.student_id])
@@ -423,19 +424,34 @@ const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
           ))}
         </div>
 
-        <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-3 shrink-0">
+        <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-3 flex-wrap shrink-0">
           <span className="text-sm text-neutral-500">
             {outstanding.length
               ? `${outstanding.length} ${outstanding.length === 1 ? 'quest' : 'quests'} outstanding`
               : 'Nothing outstanding'}
           </span>
-          <button
-            onClick={remind}
-            disabled={reminding || !outstanding.length}
-            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm disabled:opacity-40"
-          >
-            {reminding ? 'Sending…' : 'Send reminder'}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* A teacher who wants to ask the family whether they need help,
+                in their own words, goes to their own Messages with that
+                parent -- the reminder is a fixed list of what is open, this
+                is a conversation (Nicole Connole, 2026-09-17). One link per
+                guardian; parent only, not the student. ?to= opens or starts
+                the thread (SchoolInboxPage). */}
+            {guardians.map((g) => (
+              <Link key={g.id} to={`/inbox?tab=mine&to=${g.id}`}
+                className="text-sm font-medium text-optio-purple hover:underline">
+                Message {g.name}
+              </Link>
+            ))}
+            <button
+              onClick={remind}
+              disabled={reminding || !outstanding.length}
+              title={`Sends ${firstName} and their parents a notification listing the quests and tasks still open. It is the same fixed list each time; to write your own words, use Message.`}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm disabled:opacity-40"
+            >
+              {reminding ? 'Sending…' : 'Send reminder'}
+            </button>
+          </div>
         </div>
       </div>
     </ModalOverlay>
