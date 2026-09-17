@@ -130,12 +130,13 @@ def test_icreate_confirm_payment_exempt_with_auth_cookies(client):
     assert 'csrf_required' not in (res.get_json() or {})
 
 
-# The one funnel endpoint that authenticates by SESSION rather than by the
-# per-registration access_token. It is reached from /auth/callback through the
-# api client, which sends X-CSRF-Token, so it keeps the protection every other
-# session-authenticated route has. Exempting it would hand a cross-site page the
-# ability to attach a signed-in parent's account to an arbitrary school.
-CSRF_PROTECTED_REGISTRATION_ENDPOINTS = {'registration.attach'}
+# The funnel endpoints that authenticate by SESSION rather than by the
+# per-registration access_token: /attach (reached from /auth/callback) and the
+# setup tab's /quote-preview (ADMIN_ROLES). Both go through the api client,
+# which sends X-CSRF-Token, so they keep the protection every other
+# session-authenticated route has. Exempting /attach would hand a cross-site
+# page the ability to attach a signed-in parent's account to an arbitrary school.
+CSRF_PROTECTED_REGISTRATION_ENDPOINTS = {'registration.attach', 'registration.quote_preview'}
 
 
 def _registration_post_endpoints(app):

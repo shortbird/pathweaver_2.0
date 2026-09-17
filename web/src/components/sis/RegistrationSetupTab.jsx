@@ -7,7 +7,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from '../../pages/sis/sisRole'
 import { getLearningOrigin } from '../../utils/appSurface'
 import { STEPS, STEP_LABELS, absUrl, feeStepLabel, VerticalStepper } from '../registration/funnelUi'
-import { monthlyPlanFrom } from '../registration/monthlyPricing'
+import { toggleAddOn, studentsForPricing } from '../registration/addOnSelection'
+import useRegistrationQuote, { quotePreview } from '../../hooks/api/useRegistrationQuote'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { Spinner } from '../ui/Spinner'
 
@@ -25,6 +26,9 @@ import { Spinner } from '../ui/Spinner'
  * survive the round-trip (the old settings form dropped paperwork `body` and
  * question `per_student` on save; this one must not).
  */
+
+// The one sample student the money preview is priced for.
+const SAMPLE_KIDS = [{ _key: 'sample-1', first_name: 'Casey' }]
 
 const slugKey = (label) => (label || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `item_${Date.now()}`
 
@@ -256,29 +260,32 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     }
   }
 
-  // The monthly plan under the current draft, normalized the way the funnel
-  // receives it (null when nothing bills monthly).
+  // The money under the current draft, as the funnel config will carry it,
+  // quoted by the server for one sample student (the same quote() a family
+  // gets) so the preview and the live funnel cannot disagree. The sample
+  // student's add-on ticks live here so staff can watch the total move.
   const toCents = (v) => Math.round(parseFloat(v || '0') * 100) || 0
-  const draftMonthlyPlan = () => monthlyPlanFrom({
-    per_student_cents: toCents(monthlyPerStudent),
-    family_cap_cents: toCents(monthlyCap),
-    add_ons: monthlyAddOns.map((a) => ({
-      key: a.key || slugKey(a.label), label: a.label, description: a.description,
-      amount_cents: toCents(a.amount), includes_program_fee: a.includes_program_fee,
-    })),
-  })
-
-  // The fee a family with `n` kids would owe under the current draft.
-  const draftFeeCents = (n = 1) => {
-    const familyC = Math.round(parseFloat(fee || '0') * 100) || 0
-    const perC = Math.round(parseFloat(perStudentFee || '0') * 100) || 0
-    if (feeMode === 'per_student') return perC * n
-    if (feeMode === 'lesser') {
-      const options = [familyC, perC * n].filter((v) => v > 0)
-      return options.length ? Math.min(...options) : 0
-    }
-    return familyC
+  const draftMoney = {
+    fee_mode: feeMode,
+    registration_fee_cents: toCents(fee),
+    per_student_fee_cents: toCents(perStudentFee),
+    payment_url: absUrl(paymentUrl),
+    monthly: {
+      per_student_cents: toCents(monthlyPerStudent),
+      family_cap_cents: toCents(monthlyCap),
+      add_ons: monthlyAddOns.map((a) => ({
+        key: a.key || slugKey(a.label), label: a.label, description: a.description,
+        amount_cents: toCents(a.amount), includes_program_fee: a.includes_program_fee !== false,
+      })),
+    },
   }
+  const [sampleSelection, setSampleSelection] = useState({})
+  const sampleStudents = studentsForPricing(SAMPLE_KIDS, sampleSelection)
+  const draftKey = JSON.stringify([draftMoney, sampleSelection])
+  const { quote: draftQuote } = useRegistrationQuote(
+    () => (seesFinance && orgId ? quotePreview(draftMoney, { num_students: 1, kids: sampleStudents }) : null),
+    `${orgId}|${seesFinance}|${draftKey}`,
+  )
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
@@ -388,8 +395,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
 
   // Age gates currently in waitlist mode (drives the family-step notice).
   const waitlistGates = (sisSettings.enrollment_age_gates || []).filter((g) => g?.mode === 'waitlist')
-  const feeApplies = draftFeeCents(1) > 0 || draftFeeCents(2) > 0
-  const monthlyPlan = draftMonthlyPlan()
+  const feeApplies = draftQuote.fee.amount_cents > 0
+  const monthlyPlan = draftQuote.monthly.plan
 
   // Mirror the funnel exactly: the fee step only exists when the org can
   // actually charge (a fee amount, an external payment link, card payment, or
@@ -403,7 +410,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   const editorLabels = {
     ...STEP_LABELS,
     fee: seesFinance
-      ? feeStepLabel({ monthly: monthlyPlan, registration_fee_cents: draftFeeCents(1), payment_url: absUrl(paymentUrl) })
+      ? feeStepLabel({ monthly: monthlyPlan, registration_fee_cents: draftQuote.fee.amount_cents, payment_url: absUrl(paymentUrl) })
       : STEP_LABELS.fee,
     ...(askContacts ? {} : { details: 'A few questions' }),
   }
@@ -412,7 +419,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
   // One component per funnel step, in ./registrationSetup/. They render the
   // family-facing markup; this component keeps the draft state and the save,
   // which is why the props go one way and every setter comes from here.
-  const sampleFee = draftFeeCents(1)
+  const sampleFee = draftQuote.fee.amount_cents
   const feeEditorProps = {
     fee, setFee, feeMode, setFeeMode, paymentUrl, setPaymentUrl,
     perStudentFee, setPerStudentFee, stripeClear, setStripeClear,
@@ -429,7 +436,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     family: (
       <FamilyStepPreview
         askHealth={askHealth} setAskHealth={setAskHealth}
-        draftFeeCents={draftFeeCents} feeApplies={feeApplies} onUpdate={onUpdate}
+        sampleFee={sampleFee} feeApplies={feeApplies} onUpdate={onUpdate}
         openZones={openZones} toggleZone={toggleZone}
         org={org} orgId={orgId} waitlistGates={waitlistGates}
       />
@@ -454,7 +461,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
     ),
     paperwork: (
       <PaperworkStepPreview
-        draftFeeCents={draftFeeCents} linkedKeys={linkedKeys}
+        linkedKeys={linkedKeys}
         setItem={setItem} setPaperwork={setPaperwork}
         uploadDoc={uploadDoc} uploadingDoc={uploadingDoc}
         paperwork={paperwork} openZones={openZones} toggleZone={toggleZone}
@@ -468,6 +475,8 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
         seesFinance={seesFinance} stripeClear={stripeClear} stripeEnabled={stripeEnabled}
         waitlistGates={waitlistGates} openZones={openZones} toggleZone={toggleZone}
         feeEditorProps={feeEditorProps} monthlyPlan={monthlyPlan}
+        quote={draftQuote} students={sampleStudents}
+        onToggleAddOn={(id, key, on) => setSampleSelection((sel) => toggleAddOn(sel, id, key, on))}
       />
     ),
     done: (

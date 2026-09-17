@@ -44,6 +44,23 @@ const CONFIG = {
   },
 }
 
+// The server's quote for the sample family (services/registration_pricing
+// .quote): the base month, or the teacher's month once ticked. The browser
+// does no arithmetic of its own any more -- it asks POST /api/registration/quote
+// and draws the answer, so the test hands it the two answers.
+const LINE = (key, label, amount_cents, students, cadence = 'month') => ({ key, label, amount_cents, students, capped: false, cadence })
+const BASE_QUOTE = {
+  cadence: 'monthly', lines: [LINE('program_fee', 'Program fee', 5000, ['Casey'])],
+  fee: { amount_cents: 0, deferred: false, waived: false },
+  monthly: { total_cents: 5000, plan: CONFIG.monthly }, due_today_cents: 5000,
+}
+const TEACHER_QUOTE = {
+  ...BASE_QUOTE, lines: [LINE('teacher_support', 'Optio teacher support', 50000, ['Casey'])],
+  monthly: { total_cents: 50000, plan: CONFIG.monthly }, due_today_cents: 50000,
+}
+const quoteFor = (body) => ((body?.kids || []).some((k) => (k.add_ons || []).includes('teacher_support'))
+  ? TEACHER_QUOTE : BASE_QUOTE)
+
 vi.mock('../../../services/api', async (importOriginal) => {
   const actual = await importOriginal()
   return {
@@ -51,7 +68,8 @@ vi.mock('../../../services/api', async (importOriginal) => {
     default: {
       ...actual.default,
       get: vi.fn(() => Promise.resolve({ data: CONFIG })),
-      post: vi.fn(() => Promise.resolve({ data: {} })),
+      post: vi.fn((url, body) => Promise.resolve(
+        url === '/api/registration/quote' ? { data: { success: true, quote: quoteFor(body) } } : { data: {} })),
     },
   }
 })
@@ -92,8 +110,8 @@ describe('monthly payment step', () => {
     expect(screen.getByText('$50/month')).toBeInTheDocument()
     expect(screen.getByText('Add Optio teacher support')).toBeInTheDocument()
     expect(screen.getByText('$500/month')).toBeInTheDocument()
-    expect(screen.getByText('Total each month')).toBeInTheDocument()
-    expect(screen.getByText('Set up $50.00/month')).toBeInTheDocument()
+    expect(await screen.findByText('Total each month')).toBeInTheDocument()
+    expect(await screen.findByText('Set up $50.00/month')).toBeInTheDocument()
   })
 
   it('a teacher replaces the program fee: $500, not $550', async () => {
@@ -102,12 +120,12 @@ describe('monthly payment step', () => {
     await goToStep('Monthly payment')
     await screen.findByText('Add Optio teacher support')
     fireEvent.click(screen.getByRole('checkbox'))
-    expect(screen.getByText('Set up $500.00/month')).toBeInTheDocument()
+    expect(await screen.findByText('Set up $500.00/month')).toBeInTheDocument()
     expect(screen.queryByText('Set up $550.00/month')).not.toBeInTheDocument()
     expect(screen.getByText('Program fee included below')).toBeInTheDocument()
     expect(screen.getByText('Includes the $50 program fee for Casey.')).toBeInTheDocument()
     // Untick: back to the base price.
     fireEvent.click(screen.getByRole('checkbox'))
-    expect(screen.getByText('Set up $50.00/month')).toBeInTheDocument()
+    expect(await screen.findByText('Set up $50.00/month')).toBeInTheDocument()
   })
 })

@@ -15,7 +15,8 @@ import {
 } from '../components/registration/funnelUi'
 // Monthly plan (Optio Academy): the add-on selection lives here with the
 // rest of the wizard state; the arithmetic is the shared mirror of the server's.
-import { studentsForPricing, toggleAddOn } from '../components/registration/monthlyPricing'
+import { studentsForPricing, toggleAddOn, addOnsFromKids } from '../components/registration/addOnSelection'
+import useRegistrationQuote, { quoteRegistration, quoteByCode } from '../hooks/api/useRegistrationQuote'
 
 // Branded multi-step parent registration for the iCreate microschool.
 // Reached only for iCreate parent registration links (AcceptInvitationPage
@@ -136,9 +137,6 @@ const RegisterFunnelPage = () => {
   // Monthly-plan add-ons ticked on the payment step, { kidUserId: [keys] }.
   // Sent with the checkout/finish call; the server prices from what it stored.
   const [addOns, setAddOns] = useState({})
-  const addOnsFromKids = (list) => Object.fromEntries(
-    (list || []).filter((k) => k.user_id).map((k) => [k.user_id, k.add_ons || []]),
-  )
   const [signatures, setSignatures] = useState({})
   const [agreed, setAgreed] = useState({})
   const [scheduling, setScheduling] = useState({ url: '', emailed: false })
@@ -247,13 +245,8 @@ const RegisterFunnelPage = () => {
     setKids([{ ...emptyKid(), first_name: 'Casey', last_name: 'Sample', gender: 'female', date_of_birth: '2018-03-14', dob_text: '03/14/2018' }])
     setContacts([{ name: 'Alex Sample', relationship: 'Grandparent', phone: '(555) 555-0101', email: '' }])
     setReg({ registration_id: 'preview', access_token: 'preview' })
-    // Fee estimate for one sample kid, mirroring the backend fee model.
-    const family_ = config.registration_fee_cents || 0
-    const per = config.per_student_fee_cents || 0
-    const opts = [family_, per].filter((v) => v > 0)
-    setFeeCents(config.fee_mode === 'per_student' ? per
-      : config.fee_mode === 'lesser' ? (opts.length ? Math.min(...opts) : 0)
-      : family_)
+    // The sample family's fee is the server's quote (feeQuote below), not a
+    // copy of the fee rule here.
     // Coming back from the preview Stripe page (full reload): land on the
     // right step instead of restarting at the account step.
     const payment = new URLSearchParams(window.location.search).get('payment')
@@ -275,17 +268,26 @@ const RegisterFunnelPage = () => {
     setStep('done')
   }
 
-  // Mirror the backend fee model so parents see a live estimate as they add kids.
-  const estimateFeeCents = () => {
-    if (!config) return 0
-    const n = kids.filter((k) => k.first_name.trim() && k.date_of_birth).length
-    const family_ = config.registration_fee_cents || 0
-    const per = config.per_student_fee_cents || 0
-    const mode_ = config.fee_mode || 'flat'
-    if (mode_ === 'per_student') return per * n
-    if (mode_ === 'lesser') { const o = [family_, per * n].filter((v) => v > 0); return o.length ? Math.min(...o) : 0 }
-    return family_
-  }
+  // The running estimate on the family step, quoted by the server as kids
+  // are added (only kids with a name and a birthday count). Nothing here
+  // prices anything: the same quote() the fee step and the checkout use.
+  const countedKids = kids.filter((k) => k.first_name.trim() && k.date_of_birth)
+  const familyQuote = useRegistrationQuote(() => {
+    if (!config || !feeApplies || step !== 'family') return null
+    const sample = countedKids.map((k, i) => ({ id: k._key || `kid-${i}`, first_name: k.first_name, add_ons: [] }))
+    if (previewMode) return quoteByCode(code, { num_students: sample.length, kids: sample })
+    if (!reg) return null
+    return quoteRegistration(reg.registration_id, reg.access_token, { num_students: sample.length })
+  }, `${step}|${countedKids.length}|${reg?.registration_id || ''}`)
+  // The payment step's live total as add-ons are ticked: the server's quote
+  // for the selection on screen, stored only when the family commits.
+  const feeStudents = studentsForPricing(serverKids.length ? serverKids : kids, addOns)
+  const feeQuote = useRegistrationQuote(() => {
+    if (!config || step !== 'fee') return null
+    if (previewMode) return quoteByCode(code, { kids: feeStudents })
+    if (!reg) return null
+    return quoteRegistration(reg.registration_id, reg.access_token, { add_ons: addOns })
+  }, `${step}|${reg?.registration_id || ''}|${JSON.stringify(addOns)}|${feeStudents.length}`)
 
   const setKid = (i, patch) => setKids((ks) => ks.map((k, j) => (j === i ? { ...k, ...patch } : k)))
   const setKidByKey = (key, patch) => setKids((ks) => ks.map((k) => (k._key === key ? { ...k, ...patch } : k)))
@@ -724,6 +726,7 @@ const RegisterFunnelPage = () => {
         if (!alive) return
         setFeeCents(Number(data.fee_cents) || 0)
         setFeeDeferred(!!data.fee_deferred)
+        if (data.quote) feeQuote.setQuote(data.quote)
         // The server's copy of the add-on choices wins on landing (a resumed
         // tab, or Stripe's return page after a reload) -- what it stored is
         // what it will charge.
@@ -922,8 +925,7 @@ const RegisterFunnelPage = () => {
             family={family} setFamily={setFamily}
             kids={kids} setKids={setKids} setKid={setKid}
             parentPhoto={parentPhoto} pickParentPhoto={pickParentPhoto}
-            pickKidPhoto={pickKidPhoto} estimateFeeCents={estimateFeeCents}
-            monthlyPlan={monthlyPlan}
+            pickKidPhoto={pickKidPhoto} quote={familyQuote.quote}
             submitFamily={submitFamily} submitting={submitting}
           />
         )}
@@ -955,15 +957,18 @@ const RegisterFunnelPage = () => {
 
         {step === 'fee' && (
           <FeeStep
-            config={config} kids={kids} feeCents={feeCents}
+            config={config} kids={kids}
+            // In preview nothing was ever stored, so the quote is the fee.
+            feeCents={previewMode ? feeQuote.quote.fee.amount_cents : feeCents}
             feeDeferred={feeDeferred} paymentUrl={paymentUrl}
             waitlistAck={waitlistAck} setWaitlistAck={setWaitlistAck}
             startCheckout={startCheckout} confirmPayment={confirmPayment}
             finishFee={finishFee} submitting={submitting}
             monthlyPlan={monthlyPlan}
+            quote={feeQuote.quote}
             // The server's kids once the family step has run; the local cards
             // (keyed by _key) in preview, where nothing is ever submitted.
-            students={studentsForPricing(serverKids.length ? serverKids : kids, addOns)}
+            students={feeStudents}
             onToggleAddOn={(id, key, on) => setAddOns((sel) => toggleAddOn(sel, id, key, on))}
           />
         )}

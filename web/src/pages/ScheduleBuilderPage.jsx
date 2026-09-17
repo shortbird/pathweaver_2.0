@@ -44,35 +44,11 @@ import slotEnd from './scheduleBuilder/slotEnd'
 // (utils/age.js). Unknown age (no DOB on file) never hides classes.
 const ageOn = ageFromDob
 // Only called for classes the age filter hid, so at least one bound is set.
-const classBlocks = (c, timeBlocks) => {
-  if (c.billing_blocks != null) return c.billing_blocks
-  const teaching = (timeBlocks || []).filter((b) => !b.label)
-  let n = 0
-  for (const m of c.meetings || []) {
-    const s = toMin(m.start_time); const e = toMin(m.end_time)
-    if (s == null || e == null) continue
-    for (const b of teaching) {
-      const bs = toMin(b.start); const be = toMin(b.end)
-      if (bs != null && be != null && s < be && bs < e) n += 1
-    }
-  }
-  return n
-}
-
-// Cheapest tier whose block allowance covers the schedule (round up);
-// null when the block count exceeds the top tier.
-const tierFor = (tiers, blocks) => [...(tiers || [])]
-  .sort((a, b) => a.blocks - b.blocks)
-  .find((t) => blocks <= t.blocks) || null
 const meetsAt = (c, f) => (c.meetings || []).some((m) => {
   if (m.day_of_week !== f.day) return false
   const s = toMin(m.start_time); const e = toMin(m.end_time)
   return s != null && e != null && s < slotEnd(f) && f.min < e
 })
-
-// All k-element combinations of arr (k and arr are tiny: ≤5 weekdays).
-const kCombos = (arr, k) => (k === 0 ? [[]]
-  : arr.flatMap((v, i) => kCombos(arr.slice(i + 1), k - 1).map((c) => [v, ...c])))
 
 // The fake student a staff preview builds a week for. avatar_url is truthy so
 // the missing-photo prompt stays hidden; no DOB so age never hides classes.
@@ -122,7 +98,6 @@ const ScheduleBuilderPage = () => {
           setSchedule({
             classes: [], waitlist: [], changes_locked: false,
             time_blocks: r.data?.time_blocks || [],
-            block_pricing: r.data?.block_pricing || null,
             first_day_of_school: r.data?.first_day_of_school || null,
           })
           setCatalog(r.data?.classes || [])
@@ -215,6 +190,18 @@ const ScheduleBuilderPage = () => {
   // The school's add/drop window. Server-computed in the ORG's timezone, so a
   // Sept 8 deadline retires the button at the school's midnight, not the
   // server's. Never in the staff preview: it files a real task.
+  // The preview week lives in memory, so its tuition is quoted on demand:
+  // the same server quote the family builder receives with its schedule.
+  const previewClassKey = previewCode ? (schedule?.classes || []).map((c) => c.id).join(',') : ''
+  useEffect(() => {
+    if (!previewCode || !schedule) return undefined
+    let alive = true
+    api.post(`/api/registration/schedule-preview/${previewCode}/quote`, { class_ids: previewClassKey ? previewClassKey.split(',') : [] })
+      .then((r) => { if (alive) setSchedule((s) => (s ? { ...s, tuition_quote: r.data?.quote || null } : s)) })
+      .catch(() => { /* the preview shows no total rather than a wrong one */ })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewCode, previewClassKey])
   const canRequestAddDrop = !previewCode && !!schedule?.add_drop_open
   const addDropDeadline = schedule?.add_drop_deadline
   const pendingAddDrop = myRequests.find((r) => r.form_type === 'schedule_change'
@@ -234,65 +221,42 @@ const ScheduleBuilderPage = () => {
   const enrolledIds = new Set(enrolled.map((c) => c.id))
   const waitlistIds = new Set(waitlist.map((w) => w.class_id))
 
-  // Running tuition across the schedule (waitlist excluded — those seats aren't
-  // confirmed): lesser of the per-class sum and the covering block tier, or the
-  // student's flat plan (UFA private school). Supplies roll into the financed total.
-  const perClassCents = enrolled.map((c) => c.price_cents).reduce((sum, v) => sum + (v || 0), 0)
-  const totalBlocks = enrolled.reduce((n, c) => n + classBlocks(c, schedule?.time_blocks), 0)
-  const supplyCents = Math.round(enrolled.reduce((s, c) => s + (Number(c.supply_fee) || 0), 0) * 100)
-  const blockPricing = schedule?.block_pricing
-  const tier = totalBlocks > 0 ? tierFor(blockPricing?.tiers, totalBlocks) : null
-  const ufa = schedule?.tuition_plan === 'ufa_academy' ? (blockPricing?.ufa || null) : null
+  // The year's tuition for this week, quoted by the server with the schedule
+  // (sis_tuition_service.schedule_quote): block tiers, the UFA flat plan and
+  // its 4th-day charge, supplies, the payment plan. The office's invoice
+  // records the same lines, so what a family watches here is what they are
+  // billed -- the page used to price the week itself and the two disagreed.
+  const quote = schedule?.tuition_quote || null
+  const totalBlocks = quote?.blocks || 0
+  const supplyCents = quote?.supply_cents || 0
+  const extraPriceCents = quote?.extra_cents || 0
+  const tuitionYearCents = quote?.tuition_cents || 0
+  const tuitionNote = quote?.note || null
+  const totalYearCents = quote?.total_cents || 0
+  const installments = quote?.installments?.count || 0
+  const feePct = quote?.installments?.fee_pct || 0
+  const perPaymentCents = quote?.installments?.per_payment_cents ?? null
+  const ufa = quote?.ufa || null
+  const ufaShortfall = ufa?.shortfall || 0
+  const tuitionCount = enrolled.length
 
-  // ── UFA private school requirements (3 instructional days, 5 in-person
-  // blocks, learning-day choice, 4th-day charge) ─────────────────────────────
-  const campusDays = useMemo(
-    () => [...new Set(enrolled.flatMap((c) => (c.meetings || []).map((m) => m.day_of_week)))]
-      .filter((d) => d != null).sort((a, b) => a - b),
-    [enrolled],
-  )
+  // -- UFA private school requirements (3 instructional days, 5 in-person
+  // blocks, learning-day choice, 4th-day charge) ---------------------------
+  const campusDays = ufa?.campus_days || []
   const learningChoice = schedule?.learning_day?.choice || null
   const programDays = ufa?.program_days || [1, 3]   // Mon/Wed microschool program days
   const includedDays = ufa?.included_days || 3      // instructional days UFA covers
   const hasProgramDay = campusDays.some((d) => programDays.includes(d))
   // The learning day (a recorded choice, not a class) counts toward the 3
   // instructional days but NOT toward the in-person block minimum.
-  const totalDays = campusDays.length + (learningChoice ? 1 : 0)
+  const totalDays = ufa?.total_days || 0
   const learningDayNeeded = !!ufa && enrolled.length > 0 && campusDays.length < includedDays
   const mustChooseElementary = !hasProgramDay
-  // A 4th day isn't covered by the flat tuition: bill its classes a-la-carte.
-  // Pick the extra day(s) minimizing the cost of classes meeting ONLY on them
-  // (classes spanning covered + extra days get the benefit of the doubt).
-  const extraDayCount = ufa ? Math.max(0, totalDays - includedDays) : 0
-  const extraCharge = useMemo(() => {
-    if (!extraDayCount || !campusDays.length) return null
-    let best = null
-    for (const combo of kCombos(campusDays, Math.min(extraDayCount, campusDays.length))) {
-      const set = new Set(combo)
-      const charged = enrolled.filter((c) => {
-        const days = [...new Set((c.meetings || []).map((m) => m.day_of_week))].filter((d) => d != null)
-        return days.length > 0 && days.every((d) => set.has(d))
-      })
-      const cents = charged.reduce((s, c) => s + (c.price_cents || 0), 0)
-      if (!best || cents < best.priceCents) {
-        best = { days: combo, priceCents: cents, classNames: charged.map((c) => c.name) }
-      }
-    }
-    return best
-  }, [enrolled, extraDayCount, campusDays])
-  const extraPriceCents = extraCharge?.priceCents || 0
-
-  const tuitionYearCents = ufa?.year_cents
-    ? ufa.year_cents
-    : tier && tier.year_cents <= perClassCents ? tier.year_cents : perClassCents
-  const tuitionNote = ufa?.year_cents ? 'UFA private school tuition'
-    : tier && tier.year_cents <= perClassCents ? `${totalBlocks}-block plan` : null
-  const totalYearCents = tuitionYearCents + supplyCents + extraPriceCents
-  const installments = blockPricing?.installments || 0
-  const feePct = blockPricing?.convenience_fee_pct || 0
-  const perPaymentCents = installments > 1 ? Math.round((totalYearCents * (1 + feePct / 100)) / installments) : null
-  const ufaShortfall = ufa?.min_blocks && totalBlocks < ufa.min_blocks ? ufa.min_blocks - totalBlocks : 0
-  const tuitionCount = enrolled.length
+  // A 4th day isn't covered by the flat tuition: its classes are billed a la
+  // carte, and the quote names which day(s) and classes.
+  const extraCharge = ufa?.extra
+    ? { days: ufa.extra.days, priceCents: ufa.extra.amount_cents, classNames: ufa.extra.class_names }
+    : null
 
   const interactionLocked = locked || !!enrollmentWaitlist
 

@@ -40,7 +40,15 @@ vi.mock('../../../services/api', async (importOriginal) => {
     default: {
       ...actual.default,
       get: vi.fn(() => Promise.resolve({ data: CONFIG })),
-      post: vi.fn(() => Promise.resolve({ data: {} })),
+      // The fee, quoted by the server (services/registration_pricing.quote);
+      // the page prices nothing itself.
+      post: vi.fn((url) => Promise.resolve(url === '/api/registration/quote'
+        ? { data: { success: true, quote: {
+          cadence: 'once', fee: { amount_cents: 5000, deferred: false, waived: false },
+          monthly: { total_cents: 0, plan: null }, due_today_cents: 5000,
+          lines: [{ key: 'registration_fee', label: 'Registration fee', amount_cents: 5000, cadence: 'once', students: [], capped: false }],
+        } } }
+        : { data: {} })),
     },
   }
 })
@@ -112,8 +120,8 @@ describe('registration funnel steps render after the split', () => {
     await goToStep('Registration fee')
     // The amount is the point of the assertion: it proves feeCents and
     // config.stripe_enabled both reached FeeStep, not just that a shell rendered.
-    expect(await screen.findByText('$50.00')).toBeInTheDocument()
-    expect(screen.getByText('Pay $50.00 securely')).toBeInTheDocument()
+    expect(await screen.findByText('Pay $50.00 securely')).toBeInTheDocument()
+    expect(screen.getAllByText('$50.00').length).toBeGreaterThan(0)
   })
 
   it('renders the finish step', async () => {

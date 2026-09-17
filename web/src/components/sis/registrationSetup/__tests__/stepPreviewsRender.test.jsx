@@ -54,8 +54,18 @@ vi.mock('../../../../services/api', async (importOriginal) => {
   })
   return {
     ...actual,
-    default: { ...actual.default, get, post: vi.fn(() => Promise.resolve({ data: {} })),
-      put: vi.fn(() => Promise.resolve({ data: {} })) },
+    default: {
+      ...actual.default, get,
+      // The draft's fee, quoted by the server (POST /api/registration/quote-preview).
+      post: vi.fn((url) => Promise.resolve(url === '/api/registration/quote-preview'
+        ? { data: { success: true, quote: {
+          cadence: 'once', fee: { amount_cents: 5000, deferred: false, waived: false },
+          monthly: { total_cents: 0, plan: null }, due_today_cents: 5000,
+          lines: [{ key: 'registration_fee', label: 'Registration fee', amount_cents: 5000, cadence: 'once', students: [], capped: false }],
+        } } }
+        : { data: {} })),
+      put: vi.fn(() => Promise.resolve({ data: {} })),
+    },
   }
 })
 
@@ -113,9 +123,11 @@ describe('registration setup step previews render after the split', () => {
   it('renders the fee step with the configured amount', async () => {
     renderTab()
     await screen.findByText('Your account')
+    // The fee step exists once the server's quote says a fee applies.
+    await screen.findByText('Registration fee')
     goToStep('Registration fee')
     expect(await screen.findByText('Edit fees & payment')).toBeInTheDocument()
-    expect(screen.getByText('$50.00')).toBeInTheDocument()
+    expect((await screen.findAllByText('$50.00')).length).toBeGreaterThan(0)
   })
 
   it('renders the finish step and its editor', async () => {

@@ -180,7 +180,12 @@ const COMPONENTS = path.resolve(__dirname, '../components')
 // 927 -> 921 on 2026-09-15 (parent refactor, phase 2): the notifications
 // page moved onto hooks/api/useNotifications with the bell, and the OEA page
 // reads the family through fetchFamilyChildren.
-const CALL_SITE_BASELINE = 786
+// 786 -> 739 on 2026-09-17 (M5): RegisterFunnelPage and RegistrationSetupTab
+// import hooks/api/useRegistrationQuote, so their remaining hand-rolled calls
+// stop counting under this scan's file-level rule. Those calls are still
+// hand-rolled; the funnel's step posts are one-shot mutations that a hook
+// would not improve, and the tab's reads are M13f's.
+const CALL_SITE_BASELINE = 739
 const SLACK = 40
 
 const USES_HOOK = /useQuery|useMutation|hooks\/api/

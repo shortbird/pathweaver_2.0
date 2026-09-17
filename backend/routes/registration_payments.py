@@ -36,7 +36,10 @@ from datetime import datetime
 from flask import request, jsonify
 
 from middleware.rate_limiter import rate_limit
+from utils.auth.decorators import require_role
 from utils.logger import get_logger
+from utils.sis_roles import ADMIN_ROLES
+from services import sis_service
 from services.registration_funnel_support import (
     _admin,
     _valid_email,
@@ -58,6 +61,7 @@ from services.registration_pricing import (
     apply_add_on_selection,
     monthly_total_cents,
     stripe_line_items,
+    quote as price_quote,
 )
 
 logger = get_logger(__name__)
@@ -92,6 +96,48 @@ def _apply_add_ons(admin, reg, cfg, selection):
         'updated_at': datetime.utcnow().isoformat(),
     }).eq('id', reg['id']).execute()
     return {**reg, 'kids': kids, 'monthly_cents': monthly_cents}
+
+
+def _quote_for(reg, cfg, selection=None, num_students=None):
+    """The registration's quote (registration_pricing.quote) from its stored
+    fee and kids, with an unsaved add-on selection applied on top when the
+    family is still deciding. Nothing is written."""
+    plan = monthly_plan(cfg)
+    kids = apply_add_on_selection(plan, reg.get('kids') or [], selection if plan else None)
+    return price_quote(cfg, kids, num_students=num_students,
+                       fee_cents=reg.get('fee_cents'), fee_deferred=bool(reg.get('fee_deferred')))
+
+
+def _quote_body_kids(body):
+    """A hypothetical kids list from a quote request body: [{user_id|id|_key,
+    first_name|name, add_ons: [keys]}]. Names are display-only here; the
+    keys are validated against the plan by apply_add_on_selection."""
+    out = []
+    for k in body.get('kids') or []:
+        if not isinstance(k, dict):
+            continue
+        add_ons = k.get('add_ons') if isinstance(k.get('add_ons'), list) else []
+        out.append({'user_id': k.get('user_id') or k.get('id') or k.get('_key'),
+                    'first_name': str(k.get('first_name') or '')[:80],
+                    'preferred_name': str(k.get('preferred_name') or '')[:80],
+                    'name': str(k.get('name') or '')[:120],
+                    'add_ons': [a for a in add_ons if isinstance(a, str)]})
+    return out
+
+
+def _hypothetical_quote(cfg, body):
+    """quote() for a config and a request body that may name a student count
+    (the family step, before the kids are saved) and/or sample kids with
+    add-on choices (the payment step's live total, the setup preview)."""
+    plan = monthly_plan(cfg)
+    kids = _quote_body_kids(body)
+    kids = apply_add_on_selection(plan, kids, {k['user_id']: k['add_ons'] for k in kids} if plan else None)
+    n = body.get('num_students')
+    try:
+        n = int(n) if n is not None else None
+    except (TypeError, ValueError):
+        n = None
+    return price_quote(cfg, kids, num_students=n)
 
 
 def _paid_recorded_session(reg, secret):
@@ -461,7 +507,65 @@ def register_routes(bp):
             'stripe_enabled': stripe_enabled,
             'requires_card': requires_card,
             'already_completed': completed,
+            # The lines the step draws (registration_pricing.quote): the browser
+            # renders these and prices nothing itself.
+            'quote': _quote_for(reg, cfg),
         }), 200
+
+    @bp.route('/registrations/<reg_id>/quote', methods=['POST'])
+    @rate_limit(max_requests=120, window_seconds=300)
+    def registration_quote(reg_id):
+        """The one quote for a registration, with an unsaved add-on selection
+        (`add_ons`: {kid_user_id: [keys]}) or a student count (`num_students`,
+        the family step's running estimate before the kids are saved) applied
+        on top. Read-only: /checkout and /fee store the selection when the
+        family commits. POST keeps the access token out of URLs."""
+        body = request.get_json(silent=True) or {}
+        reg = _load_registration(reg_id)
+        if not _authz(reg, body.get('access_token')):
+            return jsonify({'error': 'Not authorized'}), 403
+        cfg = _org_config(_admin(), reg['organization_id'])
+        n = body.get('num_students')
+        try:
+            n = int(n) if n is not None else None
+        except (TypeError, ValueError):
+            n = None
+        fee_cents = None if n is not None else reg.get('fee_cents')
+        plan = monthly_plan(cfg)
+        kids = apply_add_on_selection(plan, reg.get('kids') or [], body.get('add_ons') if plan else None)
+        return jsonify({'success': True, 'quote': price_quote(
+            cfg, kids, num_students=n, fee_cents=fee_cents,
+            fee_deferred=bool(reg.get('fee_deferred')))}), 200
+
+    @bp.route('/quote', methods=['POST'])
+    @rate_limit(max_requests=120, window_seconds=300)
+    def public_quote():
+        """What a family of `num_students` would pay under an org's saved
+        funnel config, before any registration exists: the ?preview=1
+        walkthrough and the family step's first estimate. Gated by the public
+        invitation code, same as /config; discloses the config's own prices."""
+        body = request.get_json(silent=True) or {}
+        data, err = _load_registration_invite((body.get('code') or '').strip())
+        if err:
+            return err
+        return jsonify({'success': True, 'quote': _hypothetical_quote(data['config'], body)}), 200
+
+    @bp.route('/quote-preview', methods=['POST'])
+    @require_role(*ADMIN_ROLES)
+    def quote_preview(user_id):
+        """The setup editor's fee preview: a quote from an UNSAVED registration
+        config (`config`: the draft registration block) for `num_students` and
+        optional sample kids with add-on choices, so the tab shows what a new
+        registrant would see before the admin saves. Front-office tier, like
+        the setup tab itself; the draft is priced, never stored."""
+        _org_id, err = sis_service.org_or_error(user_id)
+        if err:
+            return err
+        body = request.get_json(silent=True) or {}
+        cfg = body.get('config')
+        if not isinstance(cfg, dict):
+            return jsonify({'success': False, 'error': 'Send the draft registration config'}), 400
+        return jsonify({'success': True, 'quote': _hypothetical_quote(cfg, body)}), 200
 
     @bp.route('/registrations/<reg_id>/fee', methods=['POST'])
     @rate_limit(max_requests=30, window_seconds=300)

@@ -244,6 +244,12 @@ def schedule_settings(org_id: str) -> Dict[str, Any]:
     }
 
 
+def time_blocks(org_id: str) -> List[Dict[str, Any]]:
+    """The org's school-day blocks alone, for the readers that price a week
+    (sis_tuition_service.schedule_quote) and do not need the rooms."""
+    return schedule_settings(org_id)['time_blocks']
+
+
 def list_course_settings(org_id: str) -> Dict[str, Any]:
     rows = (
         _admin().table('org_course_settings')

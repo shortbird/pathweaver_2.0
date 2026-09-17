@@ -3,17 +3,12 @@
 // reads when a password manager paints values in without firing React events.
 import React from 'react'
 import { field, money, ageFromDob, enrollmentGateFor, gateBandText, PhotoPicker, Section, PrimaryButton } from '../../components/registration/funnelUi'
-import { monthlyTotalCents, studentsForPricing } from '../../components/registration/monthlyPricing'
 import { emptyKid, formatMdy, mdyToIso } from './funnelFields'
 
-// Live monthly estimate as kids are added (base program fee, no add-ons yet --
-// those are chosen on the payment step). Only kids with a name and DOB count,
-// matching estimateFeeCents.
-const estimateMonthlyCents = (plan, kids) => (plan
-  ? monthlyTotalCents(plan, studentsForPricing(kids.filter((k) => k.first_name.trim() && k.date_of_birth), {}))
-  : 0)
-
-const FamilyStep = ({ addressBoxRef, config, estimateFeeCents, family, kids, monthlyPlan = null, org, parentPhoto, pickKidPhoto, pickParentPhoto, setFamily, setKid, setKids, submitFamily, submitting }) => (
+// `quote` is the server's running estimate for the kids entered so far (the
+// fee, and the base program fee for a monthly plan -- add-ons are chosen on
+// the payment step). See hooks/api/useRegistrationQuote.
+const FamilyStep = ({ addressBoxRef, config, quote, family, kids, org, parentPhoto, pickKidPhoto, pickParentPhoto, setFamily, setKid, setKids, submitFamily, submitting }) => (
   <div className="space-y-6">
     <Section title="Contact & address">
       <div ref={addressBoxRef} className="grid grid-cols-1 sm:grid-cols-6 gap-4">
@@ -143,14 +138,14 @@ const FamilyStep = ({ addressBoxRef, config, estimateFeeCents, family, kids, mon
       </div>
     </Section>
 
-    {estimateFeeCents() > 0 && (
+    {quote?.fee?.amount_cents > 0 && (
       <p className="text-center text-sm text-neutral-500">
-        Registration fee: <span className="font-semibold text-neutral-800">{money(estimateFeeCents())}</span>
+        Registration fee: <span className="font-semibold text-neutral-800">{money(quote.fee.amount_cents)}</span>
       </p>
     )}
-    {estimateMonthlyCents(monthlyPlan, kids) > 0 && (
+    {quote?.monthly?.total_cents > 0 && (
       <p className="text-center text-sm text-neutral-500">
-        Monthly program fee: <span className="font-semibold text-neutral-800">{money(estimateMonthlyCents(monthlyPlan, kids))}/month</span>
+        Monthly program fee: <span className="font-semibold text-neutral-800">{money(quote.monthly.total_cents)}/month</span>
       </p>
     )}
 

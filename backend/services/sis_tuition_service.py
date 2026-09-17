@@ -74,6 +74,24 @@ def _org_private_school_name(org_id: str) -> Optional[str]:
     return (cfg.get('private_school_name') or '').strip() or None
 
 
+# The public name: the parent builder's payload labels a flat plan with it.
+private_school_name = _org_private_school_name
+
+
+def quote_classes(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Catalog payloads (a family's `classes`, id + supply_fee in dollars) as
+    the rows schedule_quote() prices (class_id + supply_fee_cents)."""
+    return [{
+        'class_id': c.get('class_id') or c.get('id'),
+        'name': c.get('name'),
+        'price_cents': c.get('price_cents'),
+        'supply_fee_cents': supply_fee_cents(c.get('supply_fee')) if c.get('supply_fee_cents') is None
+        else int(c.get('supply_fee_cents') or 0),
+        'meetings': c.get('meetings') or [],
+        'billing_blocks': c.get('billing_blocks'),
+    } for c in classes or []]
+
+
 def supply_fee_cents(supply_fee: Any) -> int:
     """org_classes.supply_fee (numeric DOLLARS, nullable) as whole cents.
 
@@ -139,10 +157,22 @@ def _enrolled_classes(org_id: str, student_id: str,
             'price_cents': c.get('price_cents'),
             'supply_fee_cents': supply_fee_cents(c.get('supply_fee')),
             'meetings': c.get('meetings') or [],
+            'billing_blocks': c.get('billing_blocks'),
             'primary_instructor': pi.get('name') if isinstance(pi, dict) else None,
         })
     out.sort(key=lambda c: (c['name'] or '').lower())
     return out
+
+
+def _learning_day_choice(org_id: str, student_id: str) -> Optional[str]:
+    """The student's saved learning day, which the UFA quote counts as an
+    instructional day; best-effort, a missing row is simply no choice."""
+    try:
+        from services import sis_learning_day_service as learning_day
+        return (learning_day.get_selection(org_id, student_id) or {}).get('choice')
+    except Exception as e:  # noqa: BLE001 -- pricing must not fail on a decoration
+        logger.warning(f'tuition: learning-day lookup failed for {student_id[:8]}: {e}')
+        return None
 
 
 # How a class's materials fee is described on the invoice. The class name is
@@ -202,36 +232,201 @@ def supply_line_items(classes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+# -- The one tuition quote -------------------------------------------------------
+#
+# The parent's Schedule Builder priced a week in the browser (block tiers, the
+# UFA flat plan and its 4th-day charge, the payment plan) while the office's
+# invoice seeded per class or flat, so the two could disagree and once did:
+# an invoice "billed a number the family was never shown"
+# (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, A3; M5 in
+# docs/sis/CONSOLIDATION_PLAN.md). schedule_quote() is the arithmetic, once;
+# the builder draws it and the invoice records its lines verbatim.
+
+def _to_min(t: Any) -> Optional[int]:
+    if not t:
+        return None
+    try:
+        h, m = str(t).split(':')[:2]
+        return int(h) * 60 + int(m)
+    except (TypeError, ValueError):
+        return None
+
+
+def class_blocks(cls: Dict[str, Any], time_blocks: Optional[List[Dict[str, Any]]]) -> int:
+    """PURE. How many weekly teaching blocks a class occupies: its meetings
+    against the org's unlabeled time blocks (a labeled block is Lunch and never
+    counts), unless the class carries a billing_blocks override (Exceptional
+    Kids bills as 4 for its staffing ratio)."""
+    if cls.get('billing_blocks') is not None:
+        try:
+            return int(cls['billing_blocks'])
+        except (TypeError, ValueError):
+            return 0
+    teaching = [b for b in (time_blocks or []) if isinstance(b, dict) and not b.get('label')]
+    n = 0
+    for m in cls.get('meetings') or []:
+        s, e = _to_min(m.get('start_time')), _to_min(m.get('end_time'))
+        if s is None or e is None:
+            continue
+        for b in teaching:
+            bs, be = _to_min(b.get('start')), _to_min(b.get('end'))
+            if bs is not None and be is not None and s < be and bs < e:
+                n += 1
+    return n
+
+
+def tier_for(tiers: Any, blocks: int) -> Optional[Dict[str, Any]]:
+    """PURE. The cheapest tier whose block allowance covers the schedule
+    (round up); None when the count exceeds the top tier."""
+    rows = [t for t in (tiers or []) if isinstance(t, dict) and isinstance(t.get('blocks'), int)]
+    for t in sorted(rows, key=lambda t: t['blocks']):
+        if blocks <= t['blocks']:
+            return t
+    return None
+
+
+def _k_combos(items: List[int], k: int) -> List[List[int]]:
+    if k == 0:
+        return [[]]
+    out: List[List[int]] = []
+    for i, v in enumerate(items):
+        for rest in _k_combos(items[i + 1:], k - 1):
+            out.append([v] + rest)
+    return out
+
+
+def _class_days(cls: Dict[str, Any]) -> List[int]:
+    return sorted({m.get('day_of_week') for m in (cls.get('meetings') or []) if m.get('day_of_week') is not None})
+
+
+def schedule_quote(classes: List[Dict[str, Any]], *, time_blocks: Optional[List[Dict[str, Any]]],
+                   block_pricing: Optional[Dict[str, Any]], tuition_plan: Optional[str],
+                   learning_day: Optional[str] = None,
+                   private_school_name: Optional[str] = None) -> Dict[str, Any]:
+    """PURE. One student's tuition for the year from their enrolled classes.
+
+    Tuition is the LESSER of the per-class sum and the cheapest block tier
+    covering the week (below-tier schedules stay per-class priced); a flat-plan
+    student (users.sis_tuition_plan, with block_pricing for that plan) pays the
+    plan's price instead, with a minimum block count, and any day beyond the
+    days the plan covers is billed a la carte -- the classes meeting only on
+    the extra day(s), choosing the cheapest such days. Supply fees roll into
+    the financed total; the payment plan splits the total plus the org's
+    convenience fee into equal payments.
+
+    Returns {
+      'lines': invoice lines [{class_id, description, amount_cents, kind}]
+               (kind: tuition | extra_day | supply),
+      'tuition_cents', 'supply_cents', 'extra_cents', 'total_cents',
+      'note': None | 'N-block plan' | '<school> tuition',
+      'blocks': weekly teaching blocks, 'class_count',
+      'tier': the tier applied or None,
+      'installments': None | {'count', 'per_payment_cents', 'fee_pct'},
+      'ufa': None | {'year_cents', 'min_blocks', 'shortfall', 'program_days',
+                     'included_days', 'campus_days', 'total_days',
+                     'extra': None | {'days', 'class_names', 'amount_cents'}},
+    }
+    """
+    classes = list(classes or [])
+    pricing = block_pricing if isinstance(block_pricing, dict) else {}
+    per_class = sum(int(c.get('price_cents') or 0) for c in classes)
+    blocks = sum(class_blocks(c, time_blocks) for c in classes)
+    supply = sum(int(c.get('supply_fee_cents') or 0) for c in classes)
+    tier = tier_for(pricing.get('tiers'), blocks) if blocks > 0 else None
+    tier_cents = int(tier.get('year_cents') or 0) if tier else 0
+
+    plan_key = _PLAN_PRICING_KEY.get(tuition_plan or '', tuition_plan)
+    plan_cfg = pricing.get(plan_key) if plan_key else None
+    plan_cfg = plan_cfg if isinstance(plan_cfg, dict) else None
+    plan_year = int(plan_cfg.get('year_cents') or 0) if plan_cfg else 0
+
+    lines: List[Dict[str, Any]] = []
+    ufa = None
+    extra_cents = 0
+    if tuition_plan and plan_year > 0:
+        label = f"{private_school_name} annual tuition" if private_school_name else 'Annual tuition'
+        tuition_cents = plan_year
+        note = f"{private_school_name} tuition" if private_school_name else 'Flat annual tuition'
+        lines.append({'class_id': None, 'description': label, 'amount_cents': plan_year, 'kind': 'tuition'})
+        campus_days = sorted({d for c in classes for d in _class_days(c)})
+        program_days = plan_cfg.get('program_days') or [1, 3]
+        included_days = int(plan_cfg.get('included_days') or 3)
+        total_days = len(campus_days) + (1 if learning_day else 0)
+        extra: Optional[Dict[str, Any]] = None
+        extra_day_count = max(0, total_days - included_days)
+        if extra_day_count and campus_days:
+            best = None
+            for combo in _k_combos(campus_days, min(extra_day_count, len(campus_days))):
+                chosen = set(combo)
+                charged = [c for c in classes if _class_days(c) and all(d in chosen for d in _class_days(c))]
+                cents = sum(int(c.get('price_cents') or 0) for c in charged)
+                if best is None or cents < best['amount_cents']:
+                    best = {'days': combo, 'class_names': [c.get('name') for c in charged],
+                            'classes': charged, 'amount_cents': cents}
+            if best:
+                extra = {'days': best['days'], 'class_names': best['class_names'],
+                         'amount_cents': best['amount_cents']}
+                extra_cents = best['amount_cents']
+                for c in best['classes']:
+                    if int(c.get('price_cents') or 0) > 0:
+                        lines.append({'class_id': c.get('class_id'),
+                                      'description': f"{class_label(c)} (beyond the {included_days} covered days)",
+                                      'amount_cents': int(c.get('price_cents') or 0), 'kind': 'extra_day'})
+        min_blocks = int(plan_cfg.get('min_blocks') or 0)
+        ufa = {
+            'year_cents': plan_year, 'min_blocks': min_blocks,
+            'shortfall': max(0, min_blocks - blocks) if min_blocks else 0,
+            'program_days': program_days, 'included_days': included_days,
+            'campus_days': campus_days, 'total_days': total_days, 'extra': extra,
+        }
+    elif tier and tier_cents <= per_class:
+        tuition_cents = tier_cents
+        note = f"{blocks}-block plan"
+        lines.append({'class_id': None, 'description': f"{blocks}-block plan ({len(classes)} classes)",
+                      'amount_cents': tier_cents, 'kind': 'tuition'})
+    else:
+        tuition_cents = per_class
+        note = None
+        lines.extend({'class_id': c.get('class_id'), 'description': class_label(c),
+                      'amount_cents': int(c.get('price_cents') or 0), 'kind': 'tuition'} for c in classes)
+    lines.extend(supply_line_items(classes))
+
+    total = tuition_cents + supply + extra_cents
+    installments = None
+    try:
+        count = int(pricing.get('installments') or 0)
+        fee_pct = float(pricing.get('convenience_fee_pct') or 0)
+    except (TypeError, ValueError):
+        count, fee_pct = 0, 0.0
+    if count > 1:
+        installments = {'count': count, 'fee_pct': fee_pct,
+                        'per_payment_cents': int(round(total * (1 + fee_pct / 100) / count))}
+    return {
+        'lines': lines,
+        'tuition_cents': tuition_cents, 'supply_cents': supply, 'extra_cents': extra_cents,
+        'total_cents': total, 'note': note, 'blocks': blocks, 'class_count': len(classes),
+        'tier': tier, 'installments': installments, 'ufa': ufa,
+    }
+
+
 def seed_line_items(classes: List[Dict[str, Any]], tuition_plan: Optional[str],
                     block_pricing: Optional[Dict[str, Any]],
-                    private_school_name: Optional[str]) -> List[Dict[str, Any]]:
-    """PURE. Seed invoice line items from a student's finalized schedule.
+                    private_school_name: Optional[str],
+                    time_blocks: Optional[List[Dict[str, Any]]] = None,
+                    learning_day: Optional[str] = None) -> List[Dict[str, Any]]:
+    """PURE. Seed invoice line items from a student's finalized schedule: the
+    lines of schedule_quote(), verbatim, so the invoice is the number the
+    family watched on the builder. The approver can edit, add, or remove any
+    line before sending.
 
-    A flat-plan student (e.g. sis_tuition_plan='ufa_academy', when the org has
-    block_pricing for that plan) bills a single annual-tuition line; everyone
-    else bills per class from org_classes.price_cents. The approver can edit,
-    add, or remove any line before sending.
-
-    Either way the class supply fees follow as their own lines. They are NOT
-    covered by a flat plan — the parent-facing Schedule Builder has always
-    quoted tuition + supplies (ScheduleBuilderPage `totalYearCents`), so an
-    invoice that left them off billed a number the family was never shown, and
-    the office had to open all 198 classes to find the fees by hand.
+    Supply fees are their own lines and are NOT covered by a flat plan -- the
+    builder has always quoted tuition + supplies, so an invoice that left them
+    off billed a number the family was never shown, and the office had to open
+    all 198 classes to find the fees by hand.
     """
-    plan_key = _PLAN_PRICING_KEY.get(tuition_plan or '', tuition_plan)
-    plan_cfg = (block_pricing or {}).get(plan_key) if plan_key else None
-    year_cents = plan_cfg.get('year_cents') if isinstance(plan_cfg, dict) else None
-    if tuition_plan and isinstance(year_cents, int) and year_cents > 0:
-        label = (f"{private_school_name} annual tuition" if private_school_name
-                 else 'Annual tuition')
-        tuition = [{'class_id': None, 'description': label,
-                    'amount_cents': year_cents, 'kind': 'tuition'}]
-    else:
-        tuition = [{'class_id': c['class_id'],
-                    'description': class_label(c),
-                    'amount_cents': int(c.get('price_cents') or 0),
-                    'kind': 'tuition'} for c in classes]
-    return tuition + supply_line_items(classes)
+    return schedule_quote(classes, time_blocks=time_blocks, block_pricing=block_pricing,
+                          tuition_plan=tuition_plan, learning_day=learning_day,
+                          private_school_name=private_school_name)['lines']
 
 
 def _enrolled_student_ids(org_id: str) -> List[str]:
@@ -316,8 +511,15 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
 
     settings = _sis_settings(org_id)
     block_pricing = settings.get('block_pricing') or {}
+    time_blocks = catalog.time_blocks(org_id)
     school_name = _org_private_school_name(org_id)
     by_id = {c['id']: c for c in catalog.list_classes(org_id)}
+    try:
+        from services import sis_learning_day_service as learning_day
+        learning_days = learning_day.selections_for_org(org_id)
+    except Exception as e:  # noqa: BLE001 -- an estimate, never a blocker
+        logger.warning(f'tuition queue: learning-day lookup failed for org {org_id}: {e}')
+        learning_days = {}
 
     # Paged: one row per enrollment across every pending student is exactly the
     # read that silently truncates at the PostgREST cap. A dropped tail here does
@@ -357,10 +559,13 @@ def tuition_queue(org_id: str) -> Dict[str, Any]:
         cls = [{'class_id': cid,
                 'name': (by_id.get(cid) or {}).get('name'),
                 'price_cents': (by_id.get(cid) or {}).get('price_cents'),
-                'supply_fee_cents': supply_fee_cents((by_id.get(cid) or {}).get('supply_fee'))}
+                'supply_fee_cents': supply_fee_cents((by_id.get(cid) or {}).get('supply_fee')),
+                'meetings': (by_id.get(cid) or {}).get('meetings') or [],
+                'billing_blocks': (by_id.get(cid) or {}).get('billing_blocks')}
                for cid in classes_by_student.get(sid, []) if by_id.get(cid)]
         cls.sort(key=lambda c: (c['name'] or '').lower())
-        seeds = seed_line_items(cls, u.get('sis_tuition_plan'), block_pricing, school_name)
+        seeds = seed_line_items(cls, u.get('sis_tuition_plan'), block_pricing, school_name,
+                                time_blocks=time_blocks, learning_day=learning_days.get(sid))
         hh = hh_map.get(sid) or {}
         hh_id = hh.get('household_id')
         fs = funding.get(hh_id)
@@ -403,7 +608,11 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
     block_pricing = settings.get('block_pricing') or {}
     school_name = _org_private_school_name(org_id)
     classes = _enrolled_classes(org_id, student_id)
-    line_items = seed_line_items(classes, u.get('sis_tuition_plan'), block_pricing, school_name)
+    quote = schedule_quote(classes, time_blocks=catalog.time_blocks(org_id),
+                           block_pricing=block_pricing, tuition_plan=u.get('sis_tuition_plan'),
+                           learning_day=_learning_day_choice(org_id, student_id),
+                           private_school_name=school_name)
+    line_items = quote['lines']
     subtotal = sum(li['amount_cents'] for li in line_items)
     household_id, household_name, funding = _student_household(org_id, student_id)
     profile = payment_profile.profile_for_household(org_id, household_id)
@@ -435,6 +644,9 @@ def tuition_preview(org_id: str, student_id: str) -> Dict[str, Any]:
         'organization': billing._org_branding([org_id]).get(org_id) or {},
         'classes': classes,
         'line_items': line_items,
+        # The same quote the family watched on the builder (note, blocks,
+        # payment plan), so the approver can see why the lines are what they are.
+        'quote': quote,
         'supply_total_cents': sum(li['amount_cents'] for li in line_items
                                   if li.get('kind') == 'supply'),
         'subtotal_cents': subtotal,

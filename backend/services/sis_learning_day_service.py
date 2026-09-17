@@ -44,6 +44,13 @@ def get_selection(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]
     return rows[0] if rows else None
 
 
+def selections_for_org(org_id: str) -> Dict[str, Optional[str]]:
+    """{student_user_id: choice} for every student with a saved learning day,
+    for the tuition queue, which prices a whole school in one pass."""
+    from repositories.sis_learning_day_repository import SisLearningDayRepository
+    return SisLearningDayRepository(client=_admin()).choices_for_org(org_id)
+
+
 def set_selection(org_id: str, student_user_id: str, choice: Optional[str],
                   selected_by: str) -> Dict[str, Any]:
     """Save (or clear, with choice=None) the student's learning-day choice.

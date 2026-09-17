@@ -89,7 +89,7 @@ from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
 # Monthly program pricing (Optio Academy): the plan, and the total it comes
 # to for this family's kids. See the module docstring for the config shape.
-from services.registration_pricing import monthly_plan, monthly_total_cents
+from services.registration_pricing import monthly_plan, monthly_total_cents, registration_fee_cents
 # Identity proof and org attachment live in their own module — see its docstring
 # for why they are separate from the funnel's step handlers. Aliased to the
 # private names this file has always used so every call site reads unchanged.
@@ -136,29 +136,6 @@ bp = Blueprint('registration', __name__, url_prefix='/api/registration')
 
 
 
-
-
-def _compute_fee_cents(cfg, num_students):
-    """Resolve the registration fee for a family of `num_students` kids.
-
-    fee_mode:
-      'flat'         -> registration_fee_cents (per family, ignores count)
-      'per_student'  -> per_student_fee_cents * num_students
-      'lesser'       -> min(per_student_fee_cents * num_students, registration_fee_cents)
-                        i.e. per-student pricing with a per-family cap ("whichever is less")
-    Falls back gracefully when one amount is unset.
-    """
-    family = int(cfg.get('registration_fee_cents') or 0)
-    per_student = int(cfg.get('per_student_fee_cents') or 0)
-    mode = cfg.get('fee_mode') or 'flat'
-    n = max(0, int(num_students or 0))
-
-    if mode == 'per_student':
-        return per_student * n
-    if mode == 'lesser':
-        options = [v for v in (family, per_student * n) if v > 0]
-        return min(options) if options else 0
-    return family
 
 
 def _paperwork_resource_urls(admin, org_id):
@@ -241,8 +218,8 @@ def _public_config(org, cfg, paperwork_urls=None):
         'per_student_fee_cents': int(cfg.get('per_student_fee_cents') or 0),
         'payment_url': cfg.get('payment_url') or '',
         # Monthly program fee + per-student add-ons (None for orgs that bill
-        # nothing monthly). Already normalized, so the page can price from it
-        # directly (components/registration/monthlyPricing.js mirrors the math).
+        # nothing monthly). Already normalized; the page shows the plan's
+        # prices and asks POST /api/registration/quote for the totals.
         'monthly': monthly_plan(cfg),
         # Appointment-booking link — parents receive it after the fee anyway
         # (email + final page); exposing it here lets ?preview=1 render the
@@ -368,6 +345,23 @@ def schedule_preview(invitation_code):
         'scheduling_url': _abs_url(data['config'].get('scheduling_url')),
         **sis_parent_service.schedule_preview(org['id']),
     }), 200
+
+
+@bp.route('/schedule-preview/<invitation_code>/quote', methods=['POST'])
+@rate_limit(max_requests=120, window_seconds=300)
+def schedule_preview_quote(invitation_code):
+    """Public: the tuition quote for a preview week (`class_ids` from the
+    catalog above), priced by the same sis_tuition_service.schedule_quote the
+    family builder and the office's invoice use. Discloses the catalog's own
+    prices and the org's block tiers, which /schedule-preview already does."""
+    data, err = _load_registration_invite(invitation_code)
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    class_ids = [c for c in (body.get('class_ids') or []) if isinstance(c, str)][:100]
+    from services import sis_parent_service
+    return jsonify({'success': True,
+                    'quote': sis_parent_service.schedule_preview_quote(data['organization']['id'], class_ids)}), 200
 
 
 @bp.route('/my-registration', methods=['GET'])
@@ -824,7 +818,7 @@ def submit_family(reg_id):
     # So we no longer defer to first release; every new registration pays now.
     # (Legacy fee_deferred=True registrations still reopen on release.)
     fee_cents = 0 if (directive and directive.get('fee_prepaid')) \
-        else _compute_fee_cents(cfg, len(created_kids))
+        else registration_fee_cents(cfg, len(created_kids))
     fee_deferred = False
     # The monthly plan starts at the base program fee; add-ons are chosen on the
     # payment step and re-price it there. A back-edit rebuilds the kids, so a

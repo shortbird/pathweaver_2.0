@@ -36,7 +36,7 @@ and patterns instead.
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
 | M14a/b Layout header, tab bars | 0 | shipped (`consolidate/M14a-layout-header`, `consolidate/M14b-glass-tab-bar`) | | `org_picker_header` 0, `tab_bar` 0 |
-| M5 One quote | 1 | not started | | |
+| M5 One quote | 1 | shipped | see git log (`consolidate/M5-one-quote`) | `registration_fee_quote` 0/0; new `tuition_quote` 0 |
 | M6 One invoice writer, checkout, verifier | 1 | not started | | |
 | M7 One household billing view, `formatCents` | 1 | not started | | |
 | M2 One family hold | 1 | not started | | |
@@ -669,6 +669,39 @@ the invoice the office generates from the tuition approver, to the cent, includi
 supply fees and the UFA flat plan; as an Optio Academy parent, the funnel's monthly
 total equals the first Stripe invoice in test mode; the setup tab's fee preview
 equals what a new registrant sees. Manifest `registration_fee_quote` → 0/0.
+
+**As shipped (2026-09-17).** Backend: `registration_pricing.registration_fee_cents`
+(the flat / per-student / lesser rule, moved out of the funnel route) and
+`registration_pricing.quote(cfg, kids, num_students=, fee_cents=, fee_deferred=,
+fee_waived=)` returning one list of lines with a cadence (`month` / `once`), the fee,
+the monthly total and what is due today. Three doors: `POST /api/registration/quote`
+(by invitation code, for the ?preview=1 walkthrough and the family step before any
+kids are saved), `POST /registrations/<id>/quote` (the family's own, with an unsaved
+add-on selection or a student count on top; read-only) and `POST /quote-preview`
+(`ADMIN_ROLES`, the setup tab's unsaved draft; session-authenticated, so CSRF stays
+on it), plus `quote` on `fee-status`. Web: `hooks/api/useRegistrationQuote` (debounced,
+keeps the last quote while the next is in flight); `FeeStep` is one rendering of
+`QuoteLines` under "Each month" / "One time" headings whatever the org charges, and
+the setup tab's fee preview renders `FeeStep` itself with the draft's quote instead of
+a hand-written copy (I1's third rendering is gone for this step). `estimateFeeCents`,
+the preview-mode fee copy, `draftFeeCents`, `monthlyPricing.js`'s arithmetic and
+`MonthlySummary` are deleted; `addOnSelection.js` keeps the selection helpers
+(`toggleAddOn`, `studentsForPricing`, `addOnsFromKids`), no money. Tuition:
+`sis_tuition_service.schedule_quote` is the arithmetic the Schedule Builder used to do
+in the browser (block tiers, `billing_blocks`, the UFA flat plan with its minimum
+blocks and 4th-day a-la-carte charge, supplies, the payment plan with its convenience
+fee), ported case for case with the builder's tests moved to
+`tests/unit/test_sis_tuition_quote.py`; `seed_line_items` is now its lines verbatim, so
+the tuition queue, the approver's preview and the invoice carry the block-plan or
+flat-plan line the family saw rather than per-class lines (the queue and preview now
+count blocks and read the learning day; `SisLearningDayRepository.choices_for_org`
+reads the school's choices in one pass). The builder reads `schedule.tuition_quote`
+from its schedule payload; the staff preview posts its class ids to
+`POST /api/registration/schedule-preview/<code>/quote`. No new route under `/api/sis`,
+so `ROLE_CAPABILITIES.md` is unchanged; `sis_catalog_service.time_blocks(org_id)` is
+the reader the new sites use so `time_blocks_read` stays at 8. Not done: the plan's
+`GET /api/sis/parent/students/<id>/tuition-quote` route is unnecessary with the quote
+on the schedule payload, which is refetched after every add and drop.
 
 ### M6 — One invoice writer, one checkout factory, one verifier
 

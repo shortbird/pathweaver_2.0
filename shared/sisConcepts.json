@@ -95,7 +95,7 @@
     },
     {
       "id": "registration_fee_quote",
-      "means": "What the registration funnel charges a family, in cents. Today one backend engine (registration_pricing) and one older one (_compute_fee_cents) disagree about the fee, and three browser copies re-derive it for display.",
+      "means": "What the registration funnel charges a family, in cents. One backend engine (registration_pricing) and an older one in the funnel route disagreed about the fee, and four browser copies re-derived it for display; since M5 (2026-09-17) registration_pricing.quote() is the one number and the browser draws the lines it is given.",
       "owner": { "backend": ["services/registration_pricing.py"] },
       "forbid": {
         "backend": { "pattern": "def _compute_fee_cents\\(", "dirs": ["routes", "services"] },
@@ -104,10 +104,25 @@
           "dirs": ["pages", "components"]
         }
       },
-      "baseline": { "backend": 1, "web": 4 },
+      "baseline": { "backend": 0, "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M5",
-      "use_instead": "GET /api/registration/<id>/quote (M5), served by registration_pricing, is the one number; the browser renders lines it was given and does no cents arithmetic. monthlyPricing.js goes with M5, its tests moving to the backend."
+      "use_instead": "registration_pricing.quote(cfg, kids, ...) on the backend; on the web, hooks/api/useRegistrationQuote (POST /api/registration/quote by invitation code, /registrations/<id>/quote for a family's own, /quote-preview for the setup tab's draft) and <QuoteLines quote={...} /> from components/registration/MonthlyPlan. The browser does no cents arithmetic."
+    },
+    {
+      "id": "tuition_quote",
+      "means": "A student's tuition for the year from their schedule: block tiers, the UFA flat plan and its 4th-day charge, supplies, the payment plan. The parent's Schedule Builder priced the week in the browser while the office's invoice seeded per class, so an invoice once billed a number the family was never shown.",
+      "owner": { "backend": ["services/sis_tuition_service.py"] },
+      "forbid": {
+        "web": {
+          "pattern": "const (tierFor|classBlocks|kCombos) = |year_cents|convenience_fee_pct|block_pricing",
+          "dirs": ["pages", "components"]
+        }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M5",
+      "use_instead": "sis_tuition_service.schedule_quote(classes, time_blocks=..., block_pricing=..., tuition_plan=...) is the arithmetic; the parent builder reads schedule.tuition_quote from /api/sis/parent/students/<id>/schedule (the staff preview posts its class_ids to /api/registration/schedule-preview/<code>/quote) and seed_line_items() records the same lines on the invoice."
     },
     {
       "id": "money_format",
@@ -583,7 +598,7 @@
       "forbid": {
         "web": { "pattern": "bg-gradient-to-r from-optio-purple", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 96 },
+      "baseline": { "web": 94 },
       "measured": "2026-09-17",
       "lowered_by": "M14e",
       "use_instead": "<Button variant=\"primary\"> or the .btn-primary class; see docs/design/DESIGN_SYSTEM.md."

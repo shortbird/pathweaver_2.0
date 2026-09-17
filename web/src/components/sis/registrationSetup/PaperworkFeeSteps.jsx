@@ -8,14 +8,13 @@
  * Both are finance-gated: a campus coordinator sees the steps and not the money
  * (sisRole.canSeeFinance), which is why `seesFinance` reaches this far down.
  *
- * The monthly half of the preview is the same MonthlyPlanPicker/MonthlySummary
- * the live funnel renders (components/registration/MonthlyPlan.jsx), with one
- * sample student, so what staff see is what a family sees.
+ * The money preview is the live FeeStep itself (pages/registerFunnel), fed
+ * the server's quote for the draft and one sample student, so what staff see
+ * is what a family sees -- it used to be a hand-written copy that drifted.
  */
-import React, { useState } from 'react'
-import { Section, PrimaryButton, field, absUrl, money } from '../../registration/funnelUi'
-import { MonthlyPlanPicker, MonthlySummary, planSentence } from '../../registration/MonthlyPlan'
-import { monthlyTotalCents, toggleAddOn, studentsForPricing } from '../../registration/monthlyPricing'
+import React from 'react'
+import { Section, PrimaryButton, field, absUrl } from '../../registration/funnelUi'
+import FeeStep from '../../../pages/registerFunnel/FeeStep'
 import { Editable, mockInput, STRIPE_KEY_RE } from './setupChrome'
 
 // The monthly plan's editor: program fee + family cap, and the add-on rows.
@@ -155,7 +154,7 @@ const FeeEditor = ({
 )
 
 export const PaperworkStepPreview = ({
-  draftFeeCents, linkedKeys, setItem, setPaperwork, uploadDoc, uploadingDoc,
+  linkedKeys, setItem, setPaperwork, uploadDoc, uploadingDoc,
   paperwork, openZones, toggleZone, feeStepVisible, seesFinance, feeEditorProps,
 }) => {
 const paperworkEditor = (it, i) => {
@@ -271,57 +270,10 @@ const paperworkStep = (
   return paperworkStep
 }
 
-// The monthly-plan preview, with one sample student staff can tick add-ons
-// for to watch the total move -- the same picker and summary the funnel uses.
-const SAMPLE_KIDS = [{ _key: 'sample-1', first_name: 'Casey' }]
-
-const MonthlyPreview = ({ monthlyPlan, sampleFee, stripeOn, paymentUrl }) => {
-  const [selection, setSelection] = useState({})
-  const students = studentsForPricing(SAMPLE_KIDS, selection)
-  const monthly = monthlyTotalCents(monthlyPlan, students)
-  return (
-    <Section title={sampleFee > 0 ? 'Payment' : 'Monthly payment'} subtitle={planSentence(monthlyPlan) || undefined}>
-      <MonthlyPlanPicker plan={monthlyPlan} students={students}
-        onToggle={(id, key, on) => setSelection((sel) => toggleAddOn(sel, id, key, on))} />
-      <div className="mt-4">
-        <MonthlySummary plan={monthlyPlan} students={students} oneTimeCents={sampleFee} />
-      </div>
-      <p className="text-[11px] text-neutral-400 mt-2">
-        ↑ Shown for one student — tick the add-on to see how the total changes. Families see one card per child.
-      </p>
-      {stripeOn ? (
-        <p className="text-xs text-neutral-400 mt-4 text-center">
-          You&apos;ll be taken to a secure Stripe checkout to save your card. Your first
-          month is charged today and then on the same day each month, for as long as your
-          student is enrolled. To change or stop the payment, contact the school. Your
-          registration completes automatically once the payment is verified.
-        </p>
-      ) : absUrl(paymentUrl) ? (
-        <div className="text-center mt-4">
-          <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
-            Pay {money(sampleFee + monthly)}
-          </span>
-          <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you&apos;ve paid.</p>
-        </div>
-      ) : (
-        <p className="text-sm text-neutral-400 mt-4 text-center">
-          Your school will set up the monthly payment with you separately.
-        </p>
-      )}
-      <div className="pointer-events-none mt-6">
-        <PrimaryButton>
-          {stripeOn
-            ? (sampleFee > 0 ? `Pay ${money(sampleFee + monthly)} securely` : `Set up ${money(monthly)}/month`)
-            : absUrl(paymentUrl) ? "I've paid — finish registration" : 'Finish registration'}
-        </PrimaryButton>
-      </div>
-    </Section>
-  )
-}
-
 export const FeeStepPreview = ({
   feeMode, paymentUrl, sampleFee, seesFinance, stripeClear, stripeEnabled,
   waitlistGates, openZones, toggleZone, feeEditorProps, monthlyPlan = null,
+  quote, students = [], onToggleAddOn,
 }) => (
   <div className="space-y-6">
     <Editable label="Edit fees & payment" open={openZones.has('fee')} onToggle={() => toggleZone('fee')}
@@ -332,36 +284,24 @@ export const FeeStepPreview = ({
             Whatever families are charged here is set by an organization admin.
           </p>
         </Section>
-      ) : monthlyPlan ? (
-        <MonthlyPreview monthlyPlan={monthlyPlan} sampleFee={sampleFee}
-          stripeOn={stripeEnabled && !stripeClear} paymentUrl={paymentUrl} />
       ) : (
-      <Section title={sampleFee > 0 ? 'Registration fee' : 'Finish your registration'}>
-        <div className="text-center">
-          {sampleFee > 0
-            ? <p className="text-3xl font-bold text-optio-purple my-3">{money(sampleFee)}</p>
-            : <p className="text-sm text-neutral-500 my-3">No payment is due — complete your registration below.</p>}
-          {feeMode !== 'flat' && (
-            <p className="text-[11px] text-neutral-400 -mt-1 mb-2">
-              ↑ Shown for one student — {feeMode === 'per_student' ? 'multiplied by the number of children registered' : 'per student, capped at the per-family amount'}.
-            </p>
-          )}
-          {sampleFee > 0 && (stripeEnabled && !stripeClear ? (
-            <p className="text-xs text-neutral-400">
-              You'll be taken to a secure Stripe checkout. Your registration completes automatically once the payment is verified.
-            </p>
-          ) : absUrl(paymentUrl) ? (
-            <>
-              <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
-                Pay {money(sampleFee)}
-              </span>
-              <p className="text-xs text-neutral-400 mt-3">Payment opens in a new tab. Return here and continue once you've paid.</p>
-            </>
-          ) : (
-            <p className="text-sm text-neutral-400">Your school will collect the fee separately.</p>
-          ))}
-        </div>
-      </Section>
+        <>
+          {/* The live step itself, fed the draft's quote for one sample
+              student: what staff see is what a family sees, because it is the
+              same component (audit I1). The buttons do nothing here. */}
+          <FeeStep
+            config={{ stripe_enabled: stripeEnabled && !stripeClear, payment_url: absUrl(paymentUrl) }}
+            kids={[]} feeCents={sampleFee} feeDeferred={false} paymentUrl={absUrl(paymentUrl)}
+            waitlistAck={false} setWaitlistAck={() => {}}
+            startCheckout={() => {}} confirmPayment={() => {}} finishFee={() => {}} submitting={false}
+            monthlyPlan={monthlyPlan} quote={quote} students={students} onToggleAddOn={onToggleAddOn}
+          />
+          <p className="text-[11px] text-neutral-400 mt-2">
+            ↑ Shown for one student{monthlyPlan ? ' — tick the add-on to see how the total changes. Families see one card per child' : ''}
+            {feeMode === 'per_student' && !monthlyPlan ? ' — multiplied by the number of children registered' : ''}
+            {feeMode === 'lesser' && !monthlyPlan ? ' — per student, capped at the per-family amount' : ''}.
+          </p>
+        </>
       )}
     </Editable>
     {waitlistGates.length > 0 && sampleFee > 0 && (
@@ -382,15 +322,6 @@ export const FeeStepPreview = ({
         <p className="text-[11px] text-amber-700/70 mt-2">
           ↑ Only shown when a registering child falls in a waitlisted age group.
         </p>
-      </div>
-    )}
-    {!monthlyPlan && (
-      <div className="pointer-events-none">
-        <PrimaryButton>
-          {sampleFee > 0 && stripeEnabled && !stripeClear ? `Pay ${money(sampleFee)} securely`
-            : sampleFee > 0 && absUrl(paymentUrl) ? "I've paid — finish registration"
-              : 'Finish registration'}
-        </PrimaryButton>
       </div>
     )}
   </div>

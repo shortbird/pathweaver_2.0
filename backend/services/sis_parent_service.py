@@ -19,6 +19,7 @@ from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
 from services import sis_service
+from services import sis_tuition_service as tuition
 from utils.db_fetch import fetch_all_rows
 from utils import person_name
 from utils.org_features import org_has_feature
@@ -791,6 +792,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     except Exception as _exc:  # noqa: BLE001
         logger.debug("tuition-plan lookup failed: %s", _exc, exc_info=True)
     settings = _sis_settings(org_id)
+    time_blocks = settings.get('time_blocks') or []
     from services import sis_exception_service as exceptions
     from services import sis_enrollment_waitlist_service as enrollment_waitlist
     # Age-gated at registration: the student is queued for enrollment itself —
@@ -822,10 +824,19 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
             'position': ew_entry.get('position'),
             'band_label': enrollment_waitlist.band_label(ew_entry),
         } if ew_entry else None,
-        'time_blocks': settings.get('time_blocks') or [],
+        'time_blocks': time_blocks,
         'block_pricing': settings.get('block_pricing') or None,
         'tuition_plan': tuition_plan,
         'learning_day': learning_day_sel,
+        # The year's tuition for this week, priced once (sis_tuition_service);
+        # the builder draws it and the office's invoice records the same lines.
+        'tuition_quote': tuition.schedule_quote(
+            tuition.quote_classes(classes),
+            time_blocks=time_blocks,
+            block_pricing=settings.get('block_pricing') or None,
+            tuition_plan=tuition_plan,
+            learning_day=(learning_day_sel or {}).get('choice'),
+            private_school_name=tuition.private_school_name(org_id)),
     }
 
 
@@ -844,6 +855,20 @@ def schedule_preview(org_id: str) -> Dict[str, Any]:
         'block_pricing': settings.get('block_pricing') or None,
         'first_day_of_school': _first_day_of_school(org_id),
     }
+
+
+def schedule_preview_quote(org_id: str, class_ids: List[str]) -> Dict[str, Any]:
+    """The staff preview's tuition box: the same quote a family gets, for a
+    week built out of the open catalog with no student behind it (so no flat
+    plan and no learning day)."""
+    wanted = {str(cid) for cid in class_ids or []}
+    settings = _sis_settings(org_id)
+    classes = [c for c in catalog.list_classes(org_id, audience='family') if c['id'] in wanted]
+    return tuition.schedule_quote(
+        tuition.quote_classes(classes),
+        time_blocks=catalog.time_blocks(org_id),
+        block_pricing=settings.get('block_pricing') or None,
+        tuition_plan=None)
 
 
 def _meetings_overlap(a_meetings, b_meetings) -> bool:

@@ -5,14 +5,19 @@
  * staff see exactly the plan families do.
  *
  * Stateless: the page owns the { [studentId]: [addOnKeys] } selection and
- * hands it back through onToggle. Pricing is monthlyPricing.js, which mirrors
- * the server's arithmetic -- nothing here does sums of its own.
+ * hands it back through onToggle. Nothing here does sums: the picker shows
+ * the plan's own prices, and QuoteLines draws the lines the server quoted
+ * (hooks/api/useRegistrationQuote).
  */
 import React from 'react'
 import { money, moneyCompact } from './funnelUi'
-import { monthlyLineItems, monthlyTotalCents, monthlyPlanSentence } from './monthlyPricing'
 
-export const planSentence = (plan) => monthlyPlanSentence(plan, moneyCompact)
+// "$50 per student each month, capped at $150 per family."
+export const planSentence = (plan) => {
+  if (!plan?.per_student_cents) return ''
+  const per = `${moneyCompact(plan.per_student_cents)} per student each month`
+  return plan.family_cap_cents ? `${per}, capped at ${moneyCompact(plan.family_cap_cents)} per family.` : `${per}.`
+}
 
 // One card per student: what they cost each month, and the add-ons on offer.
 // A student on an includes-the-fee add-on shows "included" in place of the
@@ -67,39 +72,52 @@ export const MonthlyPlanPicker = ({ plan, students, onToggle, disabled = false }
   )
 }
 
-// The itemized month, plus the one-time registration fee when the org also
-// charges one, and what that comes to today.
-export const MonthlySummary = ({ plan, students, oneTimeCents = 0 }) => {
-  const items = monthlyLineItems(plan, students)
-  const monthly = monthlyTotalCents(plan, students)
+// The quote, itemized: what recurs each month under one heading, what is
+// paid once under another, then the totals. One rendering for a monthly
+// plan, a one-time fee, or both -- the fee step used to draw the month and
+// the fee as two different screens (audit I2).
+const Line = ({ line }) => (
+  <div className="flex items-start justify-between gap-4 py-1">
+    <span className="text-neutral-700">
+      {line.label}
+      {line.students?.length > 0 && <span className="text-neutral-400"> · {line.students.join(', ')}</span>}
+      {line.capped && <span className="text-neutral-400"> (family cap)</span>}
+    </span>
+    <span className="text-neutral-800 whitespace-nowrap">{money(line.amount_cents)}</span>
+  </div>
+)
+
+export const QuoteLines = ({ quote, feeDeferred = false }) => {
+  const lines = quote?.lines || []
+  const monthly = lines.filter((l) => l.cadence === 'month')
+  const once = lines.filter((l) => l.cadence !== 'month')
+  const monthlyTotal = quote?.monthly?.total_cents || 0
+  const dueToday = quote?.due_today_cents || 0
+  if (!lines.length) return null
   return (
     <div className="rounded-lg bg-neutral-50 border border-gray-200 p-4 text-sm">
-      {items.map((i, idx) => (
-        <div key={`${i.key}-${idx}`} className="flex items-start justify-between gap-4 py-1">
-          <span className="text-neutral-700">
-            {i.label}
-            {i.students.length > 0 && <span className="text-neutral-400"> · {i.students.join(', ')}</span>}
-            {i.capped && <span className="text-neutral-400"> (family cap)</span>}
-          </span>
-          <span className="text-neutral-800 whitespace-nowrap">{money(i.amount_cents)}</span>
-        </div>
-      ))}
-      <div className="flex items-center justify-between gap-4 border-t border-gray-200 mt-2 pt-2 font-semibold text-neutral-900">
-        <span>Total each month</span>
-        <span>{money(monthly)}</span>
-      </div>
-      {oneTimeCents > 0 && (
+      {monthly.length > 0 && (
         <>
-          <div className="flex items-center justify-between gap-4 py-1 mt-2 text-neutral-700">
-            <span>Registration fee <span className="text-neutral-400">(one time)</span></span>
-            <span className="text-neutral-800">{money(oneTimeCents)}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4 font-semibold text-neutral-900">
-            <span>Due today</span>
-            <span>{money(oneTimeCents + monthly)}</span>
+          <div className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1">Each month</div>
+          {monthly.map((l, i) => <Line key={`${l.key}-${i}`} line={l} />)}
+          <div className="flex items-center justify-between gap-4 border-t border-gray-200 mt-2 pt-2 font-semibold text-neutral-900">
+            <span>Total each month</span>
+            <span>{money(monthlyTotal)}</span>
           </div>
         </>
       )}
+      {once.length > 0 && (
+        <>
+          <div className={`text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-1 ${monthly.length ? 'mt-4' : ''}`}>
+            One time{feeDeferred ? ' · due when a spot opens' : ''}
+          </div>
+          {once.map((l, i) => <Line key={`${l.key}-${i}`} line={l} />)}
+        </>
+      )}
+      <div className="flex items-center justify-between gap-4 border-t border-gray-200 mt-2 pt-2 font-semibold text-neutral-900">
+        <span>Due today</span>
+        <span>{money(dueToday)}</span>
+      </div>
     </div>
   )
 }

@@ -466,7 +466,12 @@ BASELINES = {
     # 2026-09-17: 569 -> 570. QuestRepository.set_aside_enrollment, the one
     # write behind ending a quest below its XP finish line (POST /end sets it
     # aside instead of refusing); the route calls it, and writes nothing.
-    'repositories': 570,
+    # 2026-09-17: 570 -> 571. SisLearningDayRepository.choices_for_org, the
+    # school-wide read of UFA learning-day choices the tuition queue needs to
+    # price every pending student's week in one pass (M5, the one tuition
+    # quote). A repository read, where it belongs; routes and services did not
+    # move (the queue's other new read goes through sis_catalog_service).
+    'repositories': 571,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

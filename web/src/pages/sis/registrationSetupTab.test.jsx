@@ -37,11 +37,36 @@ const { api, state } = vi.hoisted(() => {
     }
     return { data: {} }
   }
+  // What POST /api/registration/quote-preview answers for the draft on the
+  // page: a canned quote shaped by the draft's fee and monthly amounts (the
+  // real arithmetic lives in services/registration_pricing and its tests;
+  // the tab only draws what it is given).
+  const fakeQuote = (body) => {
+    const cfg = body?.config || {}
+    const fee = Number(cfg.registration_fee_cents) || 0
+    const per = Number(cfg.monthly?.per_student_cents) || 0
+    const teacher = (cfg.monthly?.add_ons || []).find((a) => a.key === 'teacher_support')
+    const kids = body?.kids || []
+    const withTeacher = teacher && kids.some((k) => (k.add_ons || []).includes('teacher_support'))
+    const plan = per > 0 || (cfg.monthly?.add_ons || []).length
+      ? { per_student_cents: per, family_cap_cents: Number(cfg.monthly?.family_cap_cents) || 0,
+          add_ons: (cfg.monthly?.add_ons || []).filter((a) => a.label && a.amount_cents > 0) }
+      : null
+    const lines = []
+    if (plan && withTeacher) lines.push({ key: 'teacher_support', label: teacher.label, amount_cents: teacher.amount_cents, cadence: 'month', students: ['Casey'], capped: false })
+    else if (plan && per > 0) lines.push({ key: 'program_fee', label: 'Program fee', amount_cents: per, cadence: 'month', students: ['Casey'], capped: false })
+    if (fee > 0) lines.push({ key: 'registration_fee', label: 'Registration fee', amount_cents: fee, cadence: 'once', students: [], capped: false })
+    const monthly = lines.filter((l) => l.cadence === 'month').reduce((n, l) => n + l.amount_cents, 0)
+    return { cadence: plan ? 'monthly' : fee > 0 ? 'once' : 'none', lines,
+      fee: { amount_cents: fee, deferred: false, waived: false },
+      monthly: { total_cents: monthly, plan }, due_today_cents: fee + monthly }
+  }
   return {
     state,
     api: {
       get: vi.fn((url) => Promise.resolve(apiData(url))),
-      post: vi.fn(() => Promise.resolve({ data: {} })),
+      post: vi.fn((url, body) => Promise.resolve(url === '/api/registration/quote-preview'
+        ? { data: { success: true, quote: fakeQuote(body) } } : { data: {} })),
       // The setup tab saves through PATCH /api/sis/settings (M8a): the body
       // names the registration config and the flow, the server merges them.
       patch: vi.fn((url, body) => { state.putBodies.push(body); return Promise.resolve({ data: {} }) }),
@@ -227,7 +252,7 @@ describe('Registration setup tab for a campus coordinator', () => {
     state.flags = { registration: CFG, sis_settings: {} }
     render(<RegistrationPage />)
     await screen.findByText('Your account')
-    fireEvent.click(screen.getByText('Registration fee'))
+    fireEvent.click(await screen.findByText('Registration fee'))
     expect(await screen.findByText('Edit fees & payment')).toBeInTheDocument()
   })
 })
@@ -252,17 +277,17 @@ describe('Registration setup tab with a monthly plan (Optio Academy)', () => {
     render(<RegistrationPage />)
     await screen.findByText('Your account')
     expect(screen.queryByText('Registration fee')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('Monthly payment'))
+    fireEvent.click(await screen.findByText('Monthly payment'))
     expect(await screen.findByText('$50 per student each month, capped at $150 per family.')).toBeInTheDocument()
     expect(screen.getByText('Add Optio teacher support')).toBeInTheDocument()
-    expect(screen.getByText('Total each month')).toBeInTheDocument()
-    expect(screen.getAllByText('$50.00')).toHaveLength(2) // program fee line + total
+    expect(await screen.findByText('Total each month')).toBeInTheDocument()
+    expect(screen.getAllByText('$50.00')).toHaveLength(3) // program fee line, month total, due today
     // No Stripe key in this fixture: the school sets the payment up itself.
     expect(screen.getByText(/set up the monthly payment with you separately/)).toBeInTheDocument()
     // Tick the teacher: $500, which includes the $50 -- not $550.
     fireEvent.click(screen.getByLabelText(/Add Optio teacher support/))
     expect(screen.getByText('Program fee included below')).toBeInTheDocument()
-    expect(screen.getAllByText('$500.00').length).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getAllByText('$500.00').length).toBeGreaterThan(0))
     expect(screen.queryByText('$550.00')).not.toBeInTheDocument()
   })
 
@@ -290,7 +315,7 @@ describe('Registration setup tab with a monthly plan (Optio Academy)', () => {
     }
     render(<RegistrationPage />)
     await screen.findByText('Your account')
-    expect(screen.getByText('Monthly payment')).toBeInTheDocument()
+    expect(await screen.findByText('Monthly payment')).toBeInTheDocument()
   })
 
   it('a coordinator never sends the plan', async () => {

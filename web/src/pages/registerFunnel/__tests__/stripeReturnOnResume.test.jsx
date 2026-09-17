@@ -56,6 +56,14 @@ vi.mock('../../../services/api', async (importOriginal) => {
   }
 })
 
+// The fee, itemized by the server (registration_pricing.quote); the page
+// draws these lines and prices nothing itself.
+const QUOTE = {
+  cadence: 'once', fee: { amount_cents: 12500, deferred: false, waived: false },
+  monthly: { total_cents: 0, plan: null }, due_today_cents: 12500,
+  lines: [{ key: 'registration_fee', label: 'Registration fee', amount_cents: 12500, cadence: 'once', students: [], capped: false }],
+}
+
 const FEE_STATUS = {
   success: true, status: 'fee', fee_cents: 12500, monthly_cents: 0, kids: [],
   fee_deferred: false, stripe_enabled: true, requires_card: true, already_completed: false,
@@ -88,6 +96,7 @@ describe('returning from Stripe on /enroll/resume', () => {
     api.post.mockImplementation((url) => {
       if (url.endsWith('/fee-status')) return Promise.resolve({ data: FEE_STATUS })
       if (url.endsWith('/confirm-payment')) return Promise.resolve({ data: CONFIRMED })
+      if (url.endsWith('/quote')) return Promise.resolve({ data: { success: true, quote: QUOTE } })
       return Promise.resolve({ data: {} })
     })
   })
@@ -124,6 +133,7 @@ describe('returning from Stripe on /enroll/resume', () => {
       if (url.endsWith('/checkout')) {
         return Promise.reject({ response: { status: 409, data: { already_paid: true, error: 'already paid' } } })
       }
+      if (url.endsWith('/quote')) return Promise.resolve({ data: { success: true, quote: QUOTE } })
       return Promise.resolve({ data: {} })
     })
     renderResume('')

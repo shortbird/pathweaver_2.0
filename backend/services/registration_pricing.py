@@ -1,12 +1,12 @@
 """
-Monthly program pricing for the parent registration funnel.
+What the registration funnel charges a family: the one quote.
 
 The funnel's original money was a one-time registration fee (fee_mode /
-registration_fee_cents / per_student_fee_cents, resolved by
-routes.registration_funnel._compute_fee_cents). Optio Academy charges nothing
-up front and instead bills every month, so the funnel's last step became
-"set up your monthly payment" for orgs that carry a `monthly` block in their
-registration config:
+registration_fee_cents / per_student_fee_cents, `registration_fee_cents`
+below; it lived in routes.registration_funnel._compute_fee_cents until M5).
+Optio Academy charges nothing up front and instead bills every month, so the
+funnel's last step became "set up your monthly payment" for orgs that carry a
+`monthly` block in their registration config:
 
     registration.monthly = {
         'per_student_cents':  5000,     # each registered student, every month
@@ -34,14 +34,20 @@ deploy carrying it does not change what an older build charges -- the old
 funnel reads the old keys, sees $0, and behaves as it always did.
 
 Pure functions, no I/O: the funnel routes, the Stripe line items and the SIS
-family view all price from here, and web mirrors the same arithmetic in
-components/registration/monthlyPlan.js for the live total on the page.
+family view all price from here, and the browser prices nothing -- it asks
+for `quote()` (POST /api/registration/quote, /registrations/<id>/quote,
+/quote-preview) and draws the lines it is given. It used to mirror the
+arithmetic in components/registration/monthlyPricing.js and a second engine
+in the funnel route; the two disagreed about the fee, and the mirror drifted
+(docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, A2/A3; M5 in
+docs/sis/CONSOLIDATION_PLAN.md).
 """
 
 from typing import Any, Dict, List, Optional
 
 MONTHLY_INTERVAL = 'month'
 PROGRAM_FEE_KEY = 'program_fee'
+REGISTRATION_FEE_KEY = 'registration_fee'
 
 
 def _cents(v) -> int:
@@ -49,6 +55,71 @@ def _cents(v) -> int:
         return max(0, int(v or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def registration_fee_cents(cfg: Any, num_students: int) -> int:
+    """The one-time registration fee for a family of `num_students` kids.
+
+    fee_mode:
+      'flat'         -> registration_fee_cents (per family, ignores count)
+      'per_student'  -> per_student_fee_cents * num_students
+      'lesser'       -> min(per_student_fee_cents * num_students, registration_fee_cents)
+                        i.e. per-student pricing with a per-family cap ("whichever is less")
+    Falls back gracefully when one amount is unset.
+    """
+    cfg = cfg if isinstance(cfg, dict) else {}
+    family = _cents(cfg.get('registration_fee_cents'))
+    per_student = _cents(cfg.get('per_student_fee_cents'))
+    mode = cfg.get('fee_mode') or 'flat'
+    n = max(0, int(num_students or 0))
+
+    if mode == 'per_student':
+        return per_student * n
+    if mode == 'lesser':
+        options = [v for v in (family, per_student * n) if v > 0]
+        return min(options) if options else 0
+    return family
+
+
+def quote(cfg: Any, kids: List[Dict[str, Any]], *, num_students: Optional[int] = None,
+          fee_cents: Optional[int] = None, fee_deferred: bool = False,
+          fee_waived: bool = False) -> Dict[str, Any]:
+    """Everything the funnel's money step needs to draw, from one place.
+
+    `kids` carry the add-on choices (kids[i]['add_ons']); `num_students`
+    overrides their count for a quote before the kids are saved (the family
+    step's running estimate). `fee_cents` is the fee already stored on the
+    registration -- stored, because a prepaid credit or a mid-funnel config
+    change is applied to the row, not re-derived here -- and is computed from
+    the config when None. `fee_waived` marks a prepaid family's fee as $0.
+
+    Returns {
+      'cadence': 'monthly' | 'once' | 'none',   # what the step is about
+      'lines': [{key, label, amount_cents, cadence: 'month' | 'once',
+                 students: [names], capped}],
+      'fee': {'amount_cents', 'deferred', 'waived'},
+      'monthly': {'total_cents', 'plan'},        # plan is the normalized block or None
+      'due_today_cents': int,                    # the fee (unless deferred) + the first month
+    }
+    """
+    kids = list(kids or [])
+    plan = monthly_plan(cfg)
+    n = len(kids) if num_students is None else max(0, int(num_students or 0))
+    fee = 0 if fee_waived else (registration_fee_cents(cfg, n) if fee_cents is None else _cents(fee_cents))
+    monthly_lines = [{**item, 'cadence': MONTHLY_INTERVAL} for item in monthly_line_items(plan, kids)]
+    monthly_total = sum(i['amount_cents'] for i in monthly_lines)
+    lines = list(monthly_lines)
+    if fee > 0:
+        lines.append({'key': REGISTRATION_FEE_KEY, 'label': 'Registration fee', 'amount_cents': fee,
+                      'cadence': 'once', 'students': [], 'capped': False})
+    cadence = 'monthly' if plan else ('once' if fee > 0 else 'none')
+    return {
+        'cadence': cadence,
+        'lines': lines,
+        'fee': {'amount_cents': fee, 'deferred': bool(fee_deferred), 'waived': bool(fee_waived)},
+        'monthly': {'total_cents': monthly_total, 'plan': plan},
+        'due_today_cents': (0 if fee_deferred else fee) + monthly_total,
+    }
 
 
 def monthly_plan(cfg: Any) -> Optional[Dict[str, Any]]:

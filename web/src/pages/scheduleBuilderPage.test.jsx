@@ -267,14 +267,22 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText('Casey Sample')).toBeInTheDocument()
     await openTue9am()
     fireEvent.click(await screen.findByRole('button', { name: 'Add' }))
-    // added to the calendar locally — no write hits the API
+    // added to the calendar locally: the only POST is the read-only quote of
+    // the preview week, never an enrollment
     expect(await screen.findByText('Pottery')).toBeInTheDocument()
-    expect(api.post).not.toHaveBeenCalled()
+    const posted = api.post.mock.calls.map(([url]) => url)
+    expect(posted.filter((u) => !u.endsWith('/quote'))).toEqual([])
+    await waitFor(() => expect(posted.length ? posted : api.post.mock.calls.map(([url]) => url))
+      .toContain('/api/registration/schedule-preview/abc123/quote'))
   })
 
-  it('totals estimated tuition across the selected classes', async () => {
+  it('shows the quoted total across the selected classes', async () => {
     api.get.mockImplementation(mockApi({
-      schedule: { classes: [POTTERY, { ...POTTERY, id: 'c2', name: 'Woodshop', price_cents: 2550 }] },
+      schedule: {
+        classes: [POTTERY, { ...POTTERY, id: 'c2', name: 'Woodshop', price_cents: 2550 }],
+        tuition_quote: { lines: [], tuition_cents: 7550, supply_cents: 0, extra_cents: 0, total_cents: 7550,
+          note: null, blocks: 0, class_count: 2, tier: null, installments: null, ufa: null },
+      },
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated total')).toBeInTheDocument()
@@ -282,32 +290,32 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText(/2 classes/)).toBeInTheDocument()
   })
 
-  // ── Block-based tuition (sis_settings.block_pricing) ────────────────────────
+  // ── Tuition, as the server quotes it ─────────────────────────────────────
+  // The page draws `schedule.tuition_quote` (sis_tuition_service.schedule_quote;
+  // the arithmetic -- block tiers, the UFA plan, the 4th-day charge, the
+  // payment plan -- is pinned in backend/tests/unit/test_sis_tuition_quote.py).
+  // These check that every part of the quote reaches the screen.
   const BLOCKS = [
     { start: '09:30', end: '10:30' }, { start: '10:30', end: '11:30' }, { start: '11:30', end: '12:30' },
     { start: '12:30', end: '13:00', label: 'Lunch' }, { start: '13:00', end: '14:00' }, { start: '14:00', end: '15:00' },
   ]
-  const PRICING = {
-    tiers: [
-      { blocks: 5, year_cents: 150000 },
-      { blocks: 10, year_cents: 280000 },
-    ],
-    installments: 10,
-    convenience_fee_pct: 6,
-    ufa: { year_cents: 475000, min_blocks: 5 },
-  }
   // A one-block class aligned to the 9:30 block on a given day.
   const oneBlock = (id, day) => ({
     ...POTTERY, id, name: `Class ${id}`, price_cents: 36500,
     meetings: [{ day_of_week: day, start_time: '09:30', end_time: '10:30' }],
   })
+  const quoteOf = (over = {}) => ({
+    lines: [], tuition_cents: 0, supply_cents: 0, extra_cents: 0, total_cents: 0, note: null,
+    blocks: 0, class_count: 0, tier: null, installments: null, ufa: null, ...over,
+  })
+  const UFA = { year_cents: 475000, min_blocks: 5, program_days: [1, 3], included_days: 3 }
 
   // The path an iCreate family actually takes on a phone: with time blocks
   // configured, tapping an enrolled block opens the slot picker, and the drop
   // lives there rather than in the details modal.
   it('drops an enrolled class from the slot picker', async () => {
     api.get.mockImplementation(mockApi({
-      schedule: { classes: [oneBlock('c1', 2)], time_blocks: BLOCKS, block_pricing: PRICING },
+      schedule: { classes: [oneBlock('c1', 2)], time_blocks: BLOCKS },
     }))
     api.delete.mockResolvedValue({ data: { success: true } })
     render(<ScheduleBuilderPage />)
@@ -319,13 +327,13 @@ describe('ScheduleBuilderPage', () => {
     )
   })
 
-  it('block tier wins when cheaper than the per-class sum, with the payment plan', async () => {
-    // 5 one-block classes = $1825 per-class vs the 5-block tier at $1500;
-    // payment plan = $1500 × 1.06 / 10 = $159.00.
+  it('shows the quoted block plan, payment plan and convenience fee', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
         classes: [1, 2, 3, 4, 5].map((i) => oneBlock(`c${i}`, (i % 4) + 1)),
-        time_blocks: BLOCKS, block_pricing: PRICING,
+        time_blocks: BLOCKS,
+        tuition_quote: quoteOf({ tuition_cents: 150000, total_cents: 150000, note: '5-block plan', blocks: 5,
+          class_count: 5, installments: { count: 10, fee_pct: 6, per_payment_cents: 15900 } }),
       },
     }))
     render(<ScheduleBuilderPage />)
@@ -336,12 +344,13 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText(/6% convenience fee/)).toBeInTheDocument()
   })
 
-  it('stays per-class priced below the tiers and rolls supply fees into the total', async () => {
-    // 2 blocks = $730 per-class + $35 supplies = $765; 10 payments of $81.09.
+  it('names the supply fees rolled into the total', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
         classes: [{ ...oneBlock('c1', 2), supply_fee: 35 }, oneBlock('c2', 4)],
-        time_blocks: BLOCKS, block_pricing: PRICING,
+        time_blocks: BLOCKS,
+        tuition_quote: quoteOf({ tuition_cents: 73000, supply_cents: 3500, total_cents: 76500, blocks: 2,
+          class_count: 2, installments: { count: 10, fee_pct: 6, per_payment_cents: 8109 } }),
       },
     }))
     render(<ScheduleBuilderPage />)
@@ -349,22 +358,6 @@ describe('ScheduleBuilderPage', () => {
     expect(screen.getByText('$765.00')).toBeInTheDocument()
     expect(screen.getByText('or 10 payments of $81.09')).toBeInTheDocument()
     expect(screen.getByText(/Includes \$35\.00 in supply fees/)).toBeInTheDocument()
-  })
-
-  it('billing_blocks overrides the hourly block count (Exceptional Kids bills as 4)', async () => {
-    // 2 hourly blocks billing as 4, plus a 1-block class = 5 billing blocks:
-    // per-class $1225 + $365 = $1590 vs the 5-block tier $1500 — tier wins.
-    const exceptional = {
-      ...POTTERY, id: 'ek', name: 'Exceptional Kids (Tuesday)', price_cents: 122500, billing_blocks: 4,
-      meetings: [{ day_of_week: 2, start_time: '13:00', end_time: '15:00' }],
-    }
-    api.get.mockImplementation(mockApi({
-      schedule: { classes: [exceptional, oneBlock('c1', 4)], time_blocks: BLOCKS, block_pricing: PRICING },
-    }))
-    render(<ScheduleBuilderPage />)
-    expect(await screen.findByText('Estimated total')).toBeInTheDocument()
-    expect(screen.getByText('$1500.00')).toBeInTheDocument()
-    expect(screen.getByText(/5 blocks\/wk · 5-block plan/)).toBeInTheDocument()
   })
 
   it('requires-full-day programs prompt until every block on their days is filled', async () => {
@@ -380,26 +373,28 @@ describe('ScheduleBuilderPage', () => {
     }
     const filler = { ...POTTERY, id: 'f1', name: 'Pre-Algebra', meetings: [{ day_of_week: 1, start_time: '10:30', end_time: '11:30' }] }
     api.get.mockImplementation(mockApi({
-      schedule: { classes: [program, filler], time_blocks: BLOCKS, block_pricing: PRICING },
+      schedule: { classes: [program, filler], time_blocks: BLOCKS },
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText(/requires a full day of classes/)).toBeInTheDocument()
     expect(screen.getByText(/5 open blocks on Monday and Wednesday/)).toBeInTheDocument()
   })
 
-  it('UFA students pay the flat plan price with a requirements checklist', async () => {
+  it('UFA students see the flat plan price with a requirements checklist', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
-        classes: [oneBlock('c1', 2)],
-        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        classes: [oneBlock('c1', 2)], time_blocks: BLOCKS, tuition_plan: 'ufa_academy',
+        tuition_quote: quoteOf({ tuition_cents: 475000, total_cents: 475000, note: 'UFA Private School tuition',
+          blocks: 1, class_count: 1,
+          ufa: { ...UFA, shortfall: 4, campus_days: [2], total_days: 1, extra: null } }),
       },
     }))
     render(<ScheduleBuilderPage />)
     expect(await screen.findByText('Estimated total')).toBeInTheDocument()
     expect(screen.getByText('$4750.00')).toBeInTheDocument()
-    expect(screen.getByText(/UFA private school tuition/)).toBeInTheDocument()
+    expect(screen.getByText(/UFA Private School tuition/)).toBeInTheDocument()
     expect(screen.getByText('UFA Private School requirements')).toBeInTheDocument()
-    // 1 of 5 blocks scheduled → the checklist says how many more to add.
+    // 1 of 5 blocks scheduled: the checklist says how many more to add.
     expect(screen.getByText(/add 4 more blocks/)).toBeInTheDocument()
     // 1 campus day (Tue) + no learning day yet = 1 of 3 instructional days.
     expect(screen.getByText(/1 of 3/)).toBeInTheDocument()
@@ -409,8 +404,9 @@ describe('ScheduleBuilderPage', () => {
   it('UFA families without Mon/Wed classes must pick the elementary at-home day', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
-        classes: [oneBlock('c1', 2)], // Tuesday only — no program (Mon/Wed) day
-        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        classes: [oneBlock('c1', 2)], time_blocks: BLOCKS, tuition_plan: 'ufa_academy', // Tuesday only
+        tuition_quote: quoteOf({ tuition_cents: 475000, total_cents: 475000, blocks: 1, class_count: 1,
+          ufa: { ...UFA, shortfall: 4, campus_days: [2], total_days: 1, extra: null } }),
       },
     }))
     api.put.mockResolvedValue({ data: { success: true } })
@@ -428,8 +424,9 @@ describe('ScheduleBuilderPage', () => {
   it('UFA families with Mon/Wed classes may choose the Quest Learning Day', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
-        classes: [oneBlock('c1', 1), oneBlock('c2', 3)], // Mon + Wed program days
-        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        classes: [oneBlock('c1', 1), oneBlock('c2', 3)], time_blocks: BLOCKS, tuition_plan: 'ufa_academy',
+        tuition_quote: quoteOf({ tuition_cents: 475000, total_cents: 475000, blocks: 2, class_count: 2,
+          ufa: { ...UFA, shortfall: 3, campus_days: [1, 3], total_days: 2, extra: null } }),
       },
     }))
     render(<ScheduleBuilderPage />)
@@ -440,9 +437,10 @@ describe('ScheduleBuilderPage', () => {
   it('a saved learning day completes the 3 instructional days', async () => {
     api.get.mockImplementation(mockApi({
       schedule: {
-        classes: [oneBlock('c1', 1), oneBlock('c2', 3)],
-        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        classes: [oneBlock('c1', 1), oneBlock('c2', 3)], time_blocks: BLOCKS, tuition_plan: 'ufa_academy',
         learning_day: { choice: 'quest_learning_day' },
+        tuition_quote: quoteOf({ tuition_cents: 475000, total_cents: 475000, blocks: 2, class_count: 2,
+          ufa: { ...UFA, shortfall: 3, campus_days: [1, 3], total_days: 3, extra: null } }),
       },
     }))
     render(<ScheduleBuilderPage />)
@@ -452,12 +450,16 @@ describe('ScheduleBuilderPage', () => {
   })
 
   it('a 4th day shows the classes billed personally at a-la-carte prices', async () => {
-    // Mon/Tue/Wed + a cheap Thursday class: Thursday is the extra (cheapest) day.
+    // Mon/Tue/Wed + a cheap Thursday class: the quote names Thursday as the extra day.
     const thursday = { ...oneBlock('c4', 4), price_cents: 10000, name: 'Chess Club' }
     api.get.mockImplementation(mockApi({
       schedule: {
         classes: [oneBlock('c1', 1), oneBlock('c2', 2), oneBlock('c3', 3), thursday],
-        time_blocks: BLOCKS, block_pricing: PRICING, tuition_plan: 'ufa_academy',
+        time_blocks: BLOCKS, tuition_plan: 'ufa_academy',
+        tuition_quote: quoteOf({ tuition_cents: 475000, extra_cents: 10000, total_cents: 485000, blocks: 4,
+          class_count: 4,
+          ufa: { ...UFA, shortfall: 1, campus_days: [1, 2, 3, 4], total_days: 4,
+            extra: { days: [4], class_names: ['Chess Club'], amount_cents: 10000 } } }),
       },
     }))
     render(<ScheduleBuilderPage />)

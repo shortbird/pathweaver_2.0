@@ -8,7 +8,7 @@ import EnrollmentAgeGatesCard from '../EnrollmentAgeGatesCard'
 import { Editable, FixedNote, mockInput } from './setupChrome'
 
 const FamilyStepPreview = ({
-  askHealth, setAskHealth, draftFeeCents, feeApplies, onUpdate,
+  askHealth, setAskHealth, sampleFee, feeApplies, onUpdate,
   openZones, toggleZone, org, orgId, waitlistGates,
 }) => (
   <div className="space-y-6">
@@ -101,7 +101,7 @@ const FamilyStepPreview = ({
 
     {feeApplies && (
       <p className="text-center text-sm text-neutral-500">
-        Registration fee: <span className="font-semibold text-neutral-800">{money(draftFeeCents(1))}</span>
+        Registration fee: <span className="font-semibold text-neutral-800">{money(sampleFee)}</span>
       </p>
     )}
     <div className="pointer-events-none"><PrimaryButton>Continue</PrimaryButton></div>

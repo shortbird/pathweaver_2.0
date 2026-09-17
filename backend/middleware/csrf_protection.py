@@ -122,6 +122,13 @@ CSRF_EXEMPT_ENDPOINTS = frozenset({
     'registration.upload_photo',
     'registration.schedule_done',
     'registration.appointment_done',
+    # The quotes (M5, 2026-09-17): read-only POSTs that price a registration
+    # (access_token), or a hypothetical family and a preview week by the public
+    # invitation code -- nothing is written. quote_preview is NOT here: it is
+    # session-authenticated (ADMIN_ROLES) and keeps the token like /attach.
+    'registration.registration_quote',
+    'registration.public_quote',
+    'registration.schedule_preview_quote',
     # CRM public/internal endpoints, each with its own proof: unsubscribe is
     # gated by the opaque per-lead token (and must work for a recipient whose
     # browser happens to carry auth cookies — same trap as the iCreate funnel

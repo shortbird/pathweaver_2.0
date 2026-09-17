@@ -178,6 +178,8 @@ class TestQueueShowsEveryone:
              patch.object(svc, '_sis_settings', return_value={}), \
              patch.object(svc, '_org_private_school_name', return_value=None), \
              patch.object(svc.catalog, 'list_classes', return_value=[]), \
+             patch.object(svc.catalog, 'time_blocks', return_value=[]), \
+             patch('services.sis_learning_day_service.selections_for_org', return_value={}), \
              patch.object(svc, '_admin') as admin, \
              patch.object(svc.sis_service, '_household_by_user', return_value={}), \
              patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
@@ -201,6 +203,8 @@ class TestQueueShowsEveryone:
              patch('services.sis_clp_service.finished_student_ids', return_value=set()), \
              patch.object(svc, '_org_private_school_name', return_value=None), \
              patch.object(svc.catalog, 'list_classes', return_value=[]), \
+             patch.object(svc.catalog, 'time_blocks', return_value=[]), \
+             patch('services.sis_learning_day_service.selections_for_org', return_value={}), \
              patch.object(svc, '_admin') as admin, \
              patch.object(svc.sis_service, '_household_by_user', return_value={}), \
              patch.object(svc.payment_profile, 'profiles_for_org', return_value={}):
