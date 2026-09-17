@@ -107,3 +107,42 @@ def test_exit_masquerade_clears_role_view_cookie(app):
                for h in role_view)
     assert any(h.startswith('masquerade_token=;') or h.startswith('masquerade_token="";')
                for h in cookies)
+
+
+def test_exit_with_no_active_masquerade_is_already_out_not_an_error(app):
+    """The masquerade cookie is shared across tabs, so an exit in one tab ends
+    it for all; a click on "exit" in another used to get 400 "Not currently
+    masquerading" and stay on the target's screens (ticket 7e0a06dd). Exiting
+    is idempotent: 200, the caller's own identity, and the stale cookies
+    cleared so the client can reload as them."""
+    from unittest.mock import Mock
+
+    db = Mock()
+    table = Mock()
+    db.table.return_value = table
+    for chained in ('select', 'eq', 'limit'):
+        getattr(table, chained).return_value = table
+    table.execute.return_value = Mock(data=[{
+        'id': 'admin-1', 'display_name': 'Molly', 'email': 'm@example.com',
+        'role': 'org_managed', 'avatar_url': None,
+    }])
+
+    with patch.object(session_manager, 'get_masquerade_info', return_value=None), \
+         patch.object(session_manager, 'get_current_user_id', return_value='admin-1'), \
+         patch('routes.admin.masquerade.get_supabase_admin_client', return_value=db):
+        resp = app.test_client().post('/api/admin/masquerade/exit', json={})
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['already_exited'] is True
+    assert body['user']['id'] == 'admin-1'
+    cookies = resp.headers.getlist('Set-Cookie')
+    assert any(h.startswith('masquerade_token=;') or h.startswith('masquerade_token="";') for h in cookies)
+    assert any(h.startswith('role_view_token=;') or h.startswith('role_view_token="";') for h in cookies)
+
+
+def test_exit_with_no_masquerade_and_no_session_is_401(app):
+    with patch.object(session_manager, 'get_masquerade_info', return_value=None), \
+         patch.object(session_manager, 'get_current_user_id', return_value=None):
+        resp = app.test_client().post('/api/admin/masquerade/exit', json={})
+    assert resp.status_code == 401

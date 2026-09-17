@@ -319,7 +319,9 @@ function AppContent() {
 
       if (result.success) {
         setMasqueradeState(null);
-        toast.success('Exited masquerade session');
+        toast.success(result.alreadyExited
+          ? 'That view had already ended. You are back as yourself.'
+          : 'Exited masquerade session');
         // Full page load required to reinitialize AuthContext with admin token.
         // Org admins (who can now view as their own members) have no
         // /admin/users; they go back to their console home.

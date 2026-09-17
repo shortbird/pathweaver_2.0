@@ -101,7 +101,7 @@ export const exitMasquerade = async (apiCall) => {
   try {
     const response = await apiCall.post('/api/admin/masquerade/exit', {});
 
-    const { access_token, refresh_token, user: adminUser } = response.data;
+    const { access_token, refresh_token, user: adminUser, already_exited } = response.data;
 
     // No body tokens for cookie clients. The response restored the admin's
     // httpOnly cookies, so clear memory instead of leaving the masquerade JWT
@@ -113,19 +113,26 @@ export const exitMasquerade = async (apiCall) => {
       tokenStore.clearTokens();
     }
     localStorage.removeItem(MASQUERADE_STORAGE_KEY);
-    logger.debug('[Masquerade] Exited masquerade session, returned to admin identity');
+    logger.debug(already_exited
+      ? '[Masquerade] No server session to exit (ended in another tab); local state cleared'
+      : '[Masquerade] Exited masquerade session, returned to admin identity');
 
     return {
       success: true,
-      adminUser: adminUser
+      adminUser: adminUser,
+      alreadyExited: !!already_exited
     };
   } catch (error) {
     console.error('[Masquerade] Error exiting masquerade:', error);
-    // Backend says we're not masquerading server-side — local state is stale.
-    // Clear it so the banner disappears and the user lands back as themselves.
+    // A backend from before exits were idempotent answers 400 when the
+    // masquerade already ended in another tab. Local state is stale either
+    // way: clear it and treat it as an exit, so the person lands back as
+    // themselves instead of on the target's screens with an error toast.
     if (error.response?.status === 400) {
       localStorage.removeItem(MASQUERADE_STORAGE_KEY);
+      tokenStore.clearTokens();
       logger.debug('[Masquerade] Cleared stale local masquerade state (no active server session)');
+      return { success: true, adminUser: null, alreadyExited: true };
     }
     return {
       success: false,

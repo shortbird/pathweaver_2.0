@@ -132,7 +132,35 @@ def exit_masquerade():
         masquerade_info = session_manager.get_masquerade_info()
 
         if not masquerade_info:
-            return jsonify({'error': 'Not currently masquerading'}), 400
+            # Already out. The masquerade cookie is shared by every tab on the
+            # domain, so an exit in one tab ends it for all of them while the
+            # others keep their banner until the next status poll; a click on
+            # "exit" in one of those used to be answered 400 "Not currently
+            # masquerading" and left the person on the target's screens with
+            # an error toast (Molly, ticket 7e0a06dd, 2026-09-17). Exiting is
+            # idempotent: whoever is signed in is already themselves, so say
+            # so, drop the stale cookies, and let the client reload as them.
+            caller_id = session_manager.get_current_user_id()
+            if not caller_id:
+                return jsonify({'error': 'Not signed in'}), 401
+            # admin client justified: reads the signed-in caller's own row to
+            # return their identity after an exit that had nothing to end
+            me = get_supabase_admin_client().table('users').select(
+                'id, display_name, email, role, avatar_url').eq('id', caller_id).limit(1).execute()
+            me_data = me.data[0] if me.data else {'id': caller_id}
+            response = make_response(jsonify({
+                'already_exited': True,
+                'user': {
+                    'id': me_data.get('id'),
+                    'display_name': me_data.get('display_name'),
+                    'email': me_data.get('email'),
+                    'role': me_data.get('role'),
+                    'avatar_url': sign_stored_url(me_data.get('avatar_url')),
+                },
+            }), 200)
+            session_manager.clear_masquerade_cookie(response)
+            session_manager.clear_role_view_cookie(response)
+            return response
 
         admin_id = masquerade_info['admin_id']
         target_user_id = masquerade_info['target_user_id']
