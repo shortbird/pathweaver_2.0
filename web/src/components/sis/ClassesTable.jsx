@@ -18,8 +18,6 @@ import { toDraft, draftToPayload, meetingsToForm, hhmm, fmt12ap, DAY_LETTER } fr
 //   onToggleRegistration (cls)
 //   onOpen     (cls) — open the full card editor (image, waitlist, archive, preview)
 
-const cell = 'w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
-
 const daysText = (meetings = []) => {
   const dows = [...new Set(meetings.map((m) => m.day_of_week).filter((d) => d != null))].sort()
   return dows.map((d) => DAY_LETTER[d]).join(' ') || '—'

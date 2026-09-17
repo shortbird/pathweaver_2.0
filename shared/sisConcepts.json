@@ -541,7 +541,7 @@
           "dirs": ["pages/sis", "components/sis"]
         }
       },
-      "baseline": { "web": 37 },
+      "baseline": { "web": 36 },
       "measured": "2026-09-17",
       "lowered_by": "M14e",
       "use_instead": "<Input> / <FormField> from components/ui. A page that needs a variant adds it there, once."
@@ -698,29 +698,29 @@
     },
     {
       "id": "staff_phone_edit",
-      "means": "A staff member's phone number, editable on four surfaces (TeacherModal, StaffProfileModal, MyProfilePage, the TeacherDashboard prompt).",
+      "means": "A staff member's phone number being edited. Four screens edited it (the teacher form, the employment profile, the teacher dashboard's prompt, My Profile); since M13c (2026-09-17) it is the staff record for anybody else and My Profile for yourself, and the dashboard's prompt is a door to My Profile.",
       "owner": { "web": ["components/sis/StaffDetailModal.jsx", "pages/sis/MyProfilePage.jsx"] },
       "forbid": {
         "web": {
           "pattern": "(value=\\{(form|formData)\\.phone_number\\}|setPhone\\(e\\.target\\.value\\))",
           "dirs": ["pages/sis", "components/sis"],
-          "exempt": ["pages/sis/StudentDetailModal.jsx", "pages/sis/FamilyDetailModal.jsx"],
+          "exempt": ["pages/sis/StudentDetailModal.jsx", "pages/sis/FamilyDetailModal.jsx", "components/sis/StaffDetailModal.jsx", "pages/sis/MyProfilePage.jsx"],
           "unit": "files"
         }
       },
-      "baseline": { "web": 4 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M13c",
       "use_instead": "MyProfilePage edits your own phone; StaffDetailModal edits anyone else's (M13c). StudentDetailModal and FamilyDetailModal are exempt because a student's or guardian's phone is a different concept (M13a, M13b)."
     },
     {
       "id": "class_form_mount",
-      "means": "The create-or-edit class form, mounted by the Classes page and again inside the class detail modal.",
+      "means": "Where the class form is mounted. CreateClassModal used to be mounted twice, once as the create dialog and once EMBEDDED inside the class record's Details tab; since M13d (2026-09-17) components/sis/ClassForm.jsx is the one form, the create dialog wraps it and the record renders it in place. The count of 1 is the create dialog's mount on ClassesPage.",
       "owner": { "web": ["components/sis/ClassFieldsEditor.jsx"] },
       "forbid": {
         "web": { "pattern": "<CreateClassModal\\b", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 2 },
+      "baseline": { "web": 1 },
       "measured": "2026-09-17",
       "lowered_by": "M13d",
       "use_instead": "ClassFieldsEditor is the one form; CreateClassModal mounts once from ClassesPage and the detail modal edits in place (M13d). Baseline after M13d: 1."

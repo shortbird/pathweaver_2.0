@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -62,22 +62,15 @@ describe('TeacherDashboard — phone prompt', () => {
     expect(screen.queryByText('Add your phone number')).not.toBeInTheDocument()
   })
 
-  it('saves the number from the dashboard itself', async () => {
+  it('sends the teacher to My Profile, focused on the phone field', async () => {
+    // The dashboard used to save the number itself, a fourth place a phone
+    // could be edited; the field lives on My Profile now (M13c).
     render(<TeacherDashboard orgId="org-1" userName="Nicole" />)
-    fireEvent.change(await screen.findByLabelText('Your phone number'),
-      { target: { value: '801-555-0134' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
-      '/api/sis/teacher/profile?organization_id=org-1',
-      { organization_id: 'org-1', phone_number: '801-555-0134' }))
+    expect(await screen.findByRole('link', { name: 'Add it on My Profile' }))
+      .toHaveAttribute('href', '/my-profile?focus=phone')
+    expect(screen.queryByLabelText('Your phone number')).not.toBeInTheDocument()
   })
 
-  it('refuses an empty number rather than saving a blank', async () => {
-    render(<TeacherDashboard orgId="org-1" userName="Nicole" />)
-    await screen.findByText('Add your phone number')
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(api.patch).not.toHaveBeenCalled())
-  })
 
   // An admin previewing a teacher would save the number onto their own record.
   it('never asks while previewing another teacher', async () => {

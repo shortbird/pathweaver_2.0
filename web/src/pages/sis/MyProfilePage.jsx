@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import { ArrowUpTrayIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
+import { useSearchParams } from 'react-router-dom'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
@@ -45,6 +46,9 @@ const MyProfilePage = () => {
   // The backend already accepted it: phone_number is in SELF_PROFILE_FIELDS and
   // is written through to users.phone_number.
   const [myPhone, setMyPhone] = useState('')
+  // The teacher dashboard's prompt lands here with ?focus=phone (M13c).
+  const [searchParams] = useSearchParams()
+  const focusPhone = searchParams.get('focus') === 'phone'
   const [saving, setSaving] = useState(false)
   // Public profile (photo + bio). In preview, an admin sees the previewed
   // teacher's values read-only; otherwise it's the signed-in user's own.
@@ -222,7 +226,8 @@ const MyProfilePage = () => {
         ) : (
           <>
             <label className="block text-xs font-medium text-neutral-500 mb-1">Your phone number</label>
-            <input value={myPhone} onChange={(e) => setMyPhone(e.target.value)} className={`${field} mb-5`} placeholder="e.g. (555) 123-4567" />
+            <input value={myPhone} onChange={(e) => setMyPhone(e.target.value)} className={`${field} mb-5`} placeholder="e.g. (555) 123-4567"
+              autoFocus={focusPhone} />
 
             <p className="text-xs font-medium text-neutral-500 mb-2 border-t border-gray-100 pt-4">Emergency contact</p>
 

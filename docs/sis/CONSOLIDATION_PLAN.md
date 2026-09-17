@@ -43,7 +43,7 @@ and patterns instead.
 | M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not; enrollment backfill written, not run) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | not started | | |
 | M9 One portal, one signature capture | 2 | not started | | |
-| M13a-d, f One detail surface per entity | 2 | not started | | |
+| M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
 | M14c-e Pickers, modals, inputs, tables | 2 | not started | | |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | not started | | |
@@ -988,6 +988,28 @@ Verify per sub-move at :3000 as iCreate admin: open the entity from every place 
 appears; the same modal with the same tabs opens; edits made in one place show in
 all. Manifest `staff_phone_edit` → 0 (13c), `class_form_mount` → 1 (13d, the one
 `CreateClassModal` mount).
+
+**As shipped (2026-09-17).** 13d: `components/sis/ClassForm.jsx` is the one class
+form (fields, validation, the create-time registration choice, the submit);
+`CreateClassModal` is the dialog around it, mounted once from ClassesPage, and the
+class record's Details tab renders `ClassForm inline` instead of a modal inside a
+modal; `ClassesTable`'s unused two-pixel `cell` copy is gone with its comment. The
+parent's catalog card (`schedule/ClassDetailsModal`, aliased `ParentClassPreview`)
+and `CoursePreviewModal` (the real student course page opened for staff) are left
+as two things: one is a card, the other a page. 13c: a staff member's phone number
+is edited in two places and no more -- their record (an inline editor on
+`StaffDetailModal`, saved through `PATCH /api/sis/staff/<id>`) and their own My
+Profile; the teacher form, the employment profile and the teacher dashboard's
+prompt lost their fields, and the prompt is a door to `/my-profile?focus=phone`,
+which focuses the field (the prompt's own comment warned that sending someone to a
+page for one field gets ignored; one tap into a focused field is the compromise).
+The tabbed absorb of `TeacherModal` / `StaffProfileModal` / `LinkStaffAccountModal`
+into `StaffDetailModal` is NOT done: `TeacherModal` carries three dialog states of
+its own (the form and two duplicate-match prompts), and hosting it as a tab means
+three nested panels; PeoplePage still mounts the stack. 13f: confirmed, M8a's
+`useRegistrationConfig` is the one fetch (`org_payload_fetch` 0). 13a: ticket
+`7962081e` (rename without an email) was fixed upstream in `a036e9b2`; the
+`StudentRow` and the CLP panel opening the modal are not started. 13b: not started.
 
 ### M14c/d/e — Pickers, modals, inputs, tables
 

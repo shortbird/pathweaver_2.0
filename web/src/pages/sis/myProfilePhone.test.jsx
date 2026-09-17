@@ -12,7 +12,8 @@
  * SELF_PROFILE_FIELDS and is written through to users.phone_number.
  */
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -42,6 +43,10 @@ vi.mock('../../components/sis/BackToDashboard', () => ({ default: () => null }))
 
 import api from '../../services/api'
 import MyProfilePage from './MyProfilePage'
+
+// The page reads ?focus=phone (the teacher dashboard's prompt lands here), so it
+// renders inside a router.
+const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
 
 const profile = (overrides = {}) => ({
   data: {

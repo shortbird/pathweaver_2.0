@@ -55,6 +55,11 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
   const confirm = useConfirm()
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
+  // The phone number is edited HERE for anybody else, and on My Profile for
+  // yourself; it used to be editable in four places (M13c).
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [phone, setPhone] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
   const [resending, setResending] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [roles, setRoles] = useState(staff.roles || [])
@@ -153,6 +158,22 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
       .catch(() => setProfile({}))
   }, [orgId, staff.id])
 
+  const savePhone = async (e) => {
+    e.preventDefault()
+    setSavingPhone(true)
+    try {
+      await api.patch(`/api/sis/staff/${staff.id}?organization_id=${orgId}`, { phone_number: phone.trim() || null })
+      setProfile((p) => ({ ...(p || {}), phone_number: phone.trim() || null }))
+      setEditingPhone(false)
+      toast.success('Phone number saved')
+      onRolesChanged?.()
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save the phone number')
+    } finally {
+      setSavingPhone(false)
+    }
+  }
+
   const seesFinance = canSeeFinance(user)
   // staff_type and the dates are employment terms, not campus operations: the
   // front office runs the campus without needing to know who is a contractor or
@@ -201,7 +222,28 @@ export default function StaffDetailModal({ orgId, staff, onClose, onEdit, onEmpl
         {/* Body */}
         <div className="p-4 space-y-2 overflow-y-auto">
           {!staff.is_placeholder && <Row label="Email" value={staff.email} />}
-          <Row label="Phone" value={profile?.phone_number || staff.phone_number} />
+          {!editingPhone ? (
+            <div className="flex gap-2 text-sm items-center">
+              <span className="w-32 shrink-0 text-neutral-400">Phone</span>
+              <span className="text-neutral-800">{profile?.phone_number || staff.phone_number || <span className="text-neutral-400">No phone number on file</span>}</span>
+              <button type="button"
+                onClick={() => { setPhone(profile?.phone_number || staff.phone_number || ''); setEditingPhone(true) }}
+                className="text-sm font-medium text-optio-purple hover:underline ml-1">
+                {profile?.phone_number || staff.phone_number ? 'Change' : 'Add'}
+              </button>
+            </div>
+          ) : (
+            <form className="flex gap-2 text-sm items-center" onSubmit={savePhone}>
+              <span className="w-32 shrink-0 text-neutral-400">Phone</span>
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} aria-label="Phone number"
+                placeholder="801-555-0100"
+                className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple" />
+              <button type="submit" disabled={savingPhone} className="text-sm font-medium text-optio-purple hover:underline disabled:opacity-50">
+                {savingPhone ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" onClick={() => setEditingPhone(false)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
+            </form>
+          )}
           <Row label="Employment" value={employment} />
           <Row label="Schedule" value={profile?.work_schedule} />
           {/* The API drops pay fields for a campus coordinator; an empty row

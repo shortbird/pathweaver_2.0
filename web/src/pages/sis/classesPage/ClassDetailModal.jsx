@@ -3,7 +3,7 @@
  * Moved verbatim -- no behaviour changed, only the address.
  */
 
-import CreateClassModal from '../../../components/sis/CreateClassModal'
+import ClassForm from '../../../components/sis/ClassForm'
 import { ModalOverlay } from '../../../components/ui'
 import ParentClassPreview from '../../../components/schedule/ClassDetailsModal'
 import React, { useState } from 'react'
@@ -77,8 +77,8 @@ const ClassDetailModal = ({ cls, staff, timeBlocks = [], rooms = [], roomOccupan
                 </button>
               </div>
 
-              <CreateClassModal embedded initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms}
-                roomOccupancy={roomOccupancy} onClose={onClose} onSubmit={onSubmit} />
+              <ClassForm inline initial={cls} staff={staff} timeBlocks={timeBlocks} rooms={rooms}
+                roomOccupancy={roomOccupancy} onSubmit={onSubmit} />
 
               <div className="pt-1">
                 {isArchived ? (
