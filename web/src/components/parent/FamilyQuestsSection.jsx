@@ -6,6 +6,7 @@ import { useFamilyScope } from '../../contexts/FamilyScopeContext'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useEndMemberQuest, useEnrollChildrenInQuest, useFamilyQuests } from '../../hooks/api/useFamilyQuests'
 import CreateQuestModal from '../CreateQuestModal'
+import QuestListItem from '../quest/QuestListItem'
 import RhythmBadge from '../quest/RhythmBadge'
 import EmptyState from '../ui/EmptyState'
 
@@ -87,23 +88,7 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) 
   const onIt = new Set(quest.members.map((m) => m.user_id))
   const notYet = kids.filter((c) => !onIt.has(c.id))
   return (
-    <article className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-      <div className="flex items-start gap-3">
-        {quest.image_url ? (
-          <img src={quest.image_url} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
-        ) : (
-          <span aria-hidden="true" className="w-14 h-14 rounded-lg bg-optio-purple/10 text-optio-purple flex items-center justify-center flex-shrink-0">
-            <AcademicCapIcon className="w-6 h-6" />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">{quest.title}</h3>
-          {quest.description && (
-            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{quest.description}</p>
-          )}
-        </div>
-      </div>
-
+    <QuestListItem as="article" quest={quest} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <div className="mt-3 space-y-0.5">
         {quest.members.map((m) => (
           <MemberRow
@@ -132,7 +117,7 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) 
           ))}
         </div>
       )}
-    </article>
+    </QuestListItem>
   )
 }
 
@@ -185,11 +170,11 @@ export default function FamilyQuestsSection({ className = '' }) {
   const list = quests || []
 
   return (
-    <section aria-label="Family quests" className={className}>
+    <section aria-label="Your family's quests" className={className}>
       <div className="flex items-center justify-between gap-3 mb-2">
         <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
           <AcademicCapIcon className="w-4 h-4 text-optio-purple" />
-          Family quests
+          Your family&apos;s quests
         </h2>
         {children.length > 0 && list.length > 0 && (
           <button

@@ -771,10 +771,10 @@
     },
     {
       "id": "route_rule_unique",
-      "means": "Two <Route path> rules for one path in App.jsx; the second is unreachable. One today (/connections).",
+      "means": "Two <Route path> rules for one path in App.jsx; the second is unreachable. The one there was (/connections, a stale redirect beside the live page) went with M19 on 2026-09-17.",
       "owner": { "web": ["App.jsx"] },
       "enforced_by": "web/src/__tests__/routeRulesAreUnique.test.js",
-      "baseline": { "web": 1 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M19",
       "use_instead": "One rule per path. A redirect for a retired path replaces the old rule; it does not sit beside it."

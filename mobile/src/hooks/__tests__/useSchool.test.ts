@@ -447,3 +447,41 @@ describe('useSchoolAbsences', () => {
     expect(result.current.classes).toEqual([{ class_id: 'cl2', name: 'Choir' }]);
   });
 });
+
+describe('familyDoorsFor (the web shell\'s family doors, in its order)', () => {
+  const { familyDoorsFor } = require('../useSchool');
+  const org = (over: Record<string, unknown> = {}) => ({
+    organization_id: 'org-1', organization_name: 'iCreate', is_guardian: true,
+    post_registration_flow: 'schedule', logo_url: null, ...over,
+  });
+
+  it('lists schedule, absence, billing, forms for a schedule-flow school', () => {
+    expect(familyDoorsFor(org()).map((d: { key: string }) => d.key))
+      .toEqual(['schedule', 'absences', 'billing', 'forms']);
+  });
+
+  it('swaps schedule for goal setting and adds prior learning when the school has it', () => {
+    expect(familyDoorsFor(org({ post_registration_flow: 'goals', prior_learning_enabled: true })).map((d: { key: string }) => d.key))
+      .toEqual(['goals', 'absences', 'billing', 'forms', 'prior_learning']);
+  });
+
+  it('drops a door whose module the school does not run', () => {
+    expect(familyDoorsFor(org({ modules: ['classes', 'attendance'] })).map((d: { key: string }) => d.key))
+      .toEqual(['schedule', 'absences']);
+    expect(familyDoorsFor(org({ modules: ['forms'] })).map((d: { key: string }) => d.key)).toEqual(['forms']);
+  });
+
+  it('a family-first school gets only prior learning, and a non-guardian nothing', () => {
+    expect(familyDoorsFor(org({ family_first_home: true, prior_learning_enabled: true })).map((d: { key: string }) => d.key))
+      .toEqual(['prior_learning']);
+    expect(familyDoorsFor(org({ family_first_home: true }))).toEqual([]);
+    expect(familyDoorsFor(org({ is_guardian: false }))).toEqual([]);
+    expect(familyDoorsFor(null)).toEqual([]);
+  });
+
+  it('absence is native and the rest open on the web inside the hub', () => {
+    const doors = familyDoorsFor(org());
+    expect(doors.find((d: { key: string }) => d.key === 'absences')).toMatchObject({ native: '/(app)/school/absences' });
+    expect(doors.find((d: { key: string }) => d.key === 'billing')).toMatchObject({ web: '/family/billing' });
+  });
+});

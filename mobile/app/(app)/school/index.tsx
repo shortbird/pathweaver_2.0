@@ -27,7 +27,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Heading, HStack, UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
-import { useSchool, useSchoolHub, hasSchoolContent } from '@/src/hooks/useSchool';
+import { useSchool, useSchoolHub, hasSchoolContent, familyDoorsFor } from '@/src/hooks/useSchool';
 import { useSchoolResources } from '@/src/hooks/useSchoolResources';
 import SchoolFeed, { ComingUp, LostFoundItem } from '@/src/components/school/SchoolFeed';
 import ClassSchedule from '@/src/components/school/ClassSchedule';
@@ -60,7 +60,7 @@ function ActionChip({ icon, label, onPress, testID }: {
 export default function SchoolScreen() {
   const c = useThemeColors();
   const school = useSchool();
-  const { org, feed, messages, loading, refreshing, refresh, schoolName, isGuardian } = useSchoolHub({ markRead: true });
+  const { org, feed, messages, loading, refreshing, refresh, schoolName } = useSchoolHub({ markRead: true });
   const { resources } = useSchoolResources(org?.organization_id);
   const [showLostFound, setShowLostFound] = useState(false);
 
@@ -73,6 +73,7 @@ export default function SchoolScreen() {
   // The org rides along for the superadmin preview — the deeper screens
   // resolve the org from membership, which a superadmin lacks.
   const orgParams = org ? { org: org.organization_id } : undefined;
+  const familyDoors = familyDoorsFor(org);
   const push = (pathname: string) =>
     router.push({ pathname, ...(orgParams ? { params: orgParams } : {}) } as any);
 
@@ -114,23 +115,36 @@ export default function SchoolScreen() {
             Everything from {name}, in one place.
           </UIText>
 
-          {/* The action chips. Absences act on a FAMILY — a student is a
-              member without being a guardian, so no chip for them (the
-              backend enforces the same by family relationship). Carpool and
-              Lost & found wait for a board (feed === null means no board for
-              this user) — Lost & found deliberately NOT gated on item count,
-              or with zero items nothing on the page says the feature exists
-              (iCreate report); Documents waits for the school to have any. */}
-          {(isGuardian || feed !== null || resources.length > 0) && (
-            <View className="flex-row gap-2 mb-4">
-              {isGuardian && (
+          {/* The family doors, in the same order the web's school shell lists
+              them (familyDoorsFor): Schedule or Goal Setting, Absence, Billing,
+              Forms, Prior Learning. Absence is a native screen; the others
+              open on the web inside the hub rather than being missing from
+              the phone (M19). Absences act on a FAMILY -- a student is a
+              member without being a guardian, so no doors for them (the
+              backend enforces the same by family relationship). */}
+          {familyDoors.length > 0 && (
+            <View className="flex-row flex-wrap gap-2 mb-2">
+              {familyDoors.map((door) => (
                 <ActionChip
-                  icon="calendar-outline"
-                  label="Absence"
-                  onPress={() => push('/(app)/school/absences')}
-                  testID="school-chip-absences"
+                  key={door.key}
+                  icon={door.icon as keyof typeof Ionicons.glyphMap}
+                  label={door.label}
+                  onPress={() => (door.native
+                    ? push(door.native)
+                    : router.push({ pathname: '/(app)/view-on-web', params: { path: door.web, label: door.label } } as any))}
+                  testID={`school-chip-${door.key}`}
                 />
-              )}
+              ))}
+            </View>
+          )}
+
+          {/* The school-life chips. Carpool and Lost & found wait for a board
+              (feed === null means no board for this user) -- Lost & found
+              deliberately NOT gated on item count, or with zero items nothing
+              on the page says the feature exists (iCreate report); Documents
+              waits for the school to have any. */}
+          {(feed !== null || resources.length > 0) && (
+            <View className="flex-row gap-2 mb-4">
               {feed !== null && (
                 <ActionChip
                   icon="calendar-number-outline"

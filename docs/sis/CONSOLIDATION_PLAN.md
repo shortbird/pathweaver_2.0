@@ -45,7 +45,7 @@ and patterns instead.
 | M9 One portal, one signature capture | 2 | not started | | |
 | M13a-d, f One detail surface per entity | 2 | not started | | |
 | M14c-e Pickers, modals, inputs, tables | 2 | not started | | |
-| M19 Parent surface parity | 2 | not started | | |
+| M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | not started | | |
 | M8b Time-block table | 3 | not started | | |
 
@@ -1023,6 +1023,27 @@ Verify: as an iCreate parent on web and phone, the school hub has the same tabs 
 the same order; approvals live on the child card only; one absence report for two
 children with different classes works from both clients. Manifest
 `route_rule_unique` → 0, `absence_request_shape` → 0.
+
+**As shipped (2026-09-17).** (a) The stale `/connections` redirect beside the live
+Friends page is gone (`routeRulesAreUnique` now expects no duplicates);
+`ConnectionApprovalsPage` already sent parents to `/family`. (b)
+`components/quest/QuestListItem.jsx` draws a quest row (picture or cap, title,
+description, badges, a body slot) for both the family's own quests on `/family` and
+the school's quests on `/family/forms`; the headings say whose they are ("Your
+family's quests" and "Quests from <the school>"). (d) The phone's school hub shows
+the same family doors in the same order as the web shell (`familyDoorsFor` in
+`mobile/src/hooks/useSchool.ts`, gated on the server's `modules` list like
+`schoolCards.js`): Schedule or Goal Setting, Absence (native), Billing, Forms, Prior
+Learning, with the web-only ones opening on the web inside the hub instead of being
+missing; the school-life chips (calendar, carpool, lost & found, documents) stay.
+This ships with the next mobile OTA. (c) Not done: the two legacy absence shapes
+stay in `routes/sis/parent.py` until a build that sends `selections` is on every
+phone (the plan's order); `absence_request_shape` stays at 1. (e) Not done, on
+purpose: `/api/parent/child-overview/<id>` (the whole overview page, 850 lines) and
+`/api/parent/dashboard/<id>` (the child card's summary) answer different questions
+for different screens and share only the student read; an adapter would be a
+read-model refactor of 1,200 lines with nothing a parent could see. Recorded under
+the audit's N8 as a known pair, not a duplicate to merge.
 
 ---
 

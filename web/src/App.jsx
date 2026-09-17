@@ -720,7 +720,6 @@ function App() {
                 {/* Legacy routes - redirect to overview with hash anchors */}
                 <Route path="profile" element={<Navigate to="/overview" replace />} />
                 <Route path="friends" element={<Navigate to="/dashboard" replace />} />
-                <Route path="connections" element={<Navigate to="/dashboard" replace />} />
                 <Route path="messages" element={<CommunicationPage />} />
                 {/* Old /communication URL retired — redirect to /messages,
                     carrying the query string: DM notifications link

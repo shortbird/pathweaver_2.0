@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { AcademicCapIcon } from '@heroicons/react/24/outline'
+import QuestListItem from '../components/quest/QuestListItem'
 import api from '../services/api'
 import ChecklistAssignments from '../components/sis/ChecklistAssignments'
 import { useFamilyOrgSelection } from '../hooks/api/useSchoolContext'
@@ -108,11 +108,9 @@ function FamilyQuests({ quests, orgName, onEnd, ending }) {
       </p>
       <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
         {open.map((q) => (
-          <div key={q.quest_id} className="p-4 flex items-start gap-3">
-            <AcademicCapIcon className="w-5 h-5 text-optio-purple shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-gray-900">{q.title}</span>
+          <QuestListItem key={q.quest_id} quest={q} className="p-4" imageSize="sm"
+            badges={(
+              <>
                 {q.is_required && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-optio-purple/10 text-optio-purple">
                     Required
@@ -121,21 +119,20 @@ function FamilyQuests({ quests, orgName, onEnd, ending }) {
                 <span className={`text-[11px] px-2 py-0.5 rounded-full ${questProgressStyle(q.progress)}`}>
                   {questProgressLabel(q.progress)}
                 </span>
-              </div>
-              {q.description && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{q.description}</p>}
-              <div className="flex items-center gap-4 mt-1">
-                <Link to={`/quests/${q.quest_id}`} className="text-sm text-optio-purple hover:underline">
-                  {q.progress?.started ? 'Continue' : 'Start this quest'}
-                </Link>
-                {q.progress?.started && (
-                  <button type="button" onClick={() => onEnd(q)} disabled={ending}
-                    className="text-sm text-gray-500 hover:text-gray-700 hover:underline disabled:opacity-50">
-                    End quest
-                  </button>
-                )}
-              </div>
+              </>
+            )}>
+            <div className="flex items-center gap-4 mt-1">
+              <Link to={`/quests/${q.quest_id}`} className="text-sm text-optio-purple hover:underline">
+                {q.progress?.started ? 'Continue' : 'Start this quest'}
+              </Link>
+              {q.progress?.started && (
+                <button type="button" onClick={() => onEnd(q)} disabled={ending}
+                  className="text-sm text-gray-500 hover:text-gray-700 hover:underline disabled:opacity-50">
+                  End quest
+                </button>
+              )}
             </div>
-          </div>
+          </QuestListItem>
         ))}
       </div>
     </div>

@@ -29,8 +29,8 @@ import { codeLines } from '../tests/sourceScan.js'
 const APP = path.resolve(__dirname, '../App.jsx')
 const IGNORE = new Set(['/', '*'])
 
-/** Baseline. Lower to [] in the commit that removes the second rule. */
-const KNOWN_DUPLICATES = ['/connections']
+/** Baseline: none. The second /connections rule went with M19 (2026-09-17). */
+const KNOWN_DUPLICATES = []
 
 function joinPath(parent, child) {
   if (child.startsWith('/') || !parent) return child
