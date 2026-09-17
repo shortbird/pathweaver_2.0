@@ -26,7 +26,6 @@ on mobile for the reading rule). This module does not convert them.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from services import sis_audiences
 from utils.logger import get_logger
 from utils.validation.sanitizers import pgrst_timestamp
 
