@@ -188,6 +188,28 @@ class QuestRepository(BaseRepository):
             logger.error(f"Unexpected error enrolling user {user_id[:8]} in quest {quest_id[:8]}: {e}", exc_info=True)
             raise DatabaseError(f"Failed to enroll in quest: {str(e)}") from e
 
+    def set_aside_enrollment(self, user_quest_id: str) -> bool:
+        """End an enrollment WITHOUT finishing it: inactive, status set_down,
+        no completed_at, so it leaves the dashboard, no report counts it done,
+        and pick-up reactivates it. The lifecycle service's own set-down
+        write, keyed by enrollment id, for POST /api/quests/<id>/end when a
+        quest's XP finish line has not been reached (2026-09-17).
+        """
+        from utils.timestamps import now_iso
+        try:
+            response = (
+                self.client.table('user_quests')
+                .update({'status': 'set_down', 'is_active': False, 'last_set_down_at': now_iso()})
+                .eq('id', user_quest_id)
+                .execute()
+            )
+            if not response.data:
+                raise NotFoundError("Quest enrollment not found")
+            return True
+        except APIError as e:
+            logger.error(f"Error setting aside enrollment {user_quest_id}: {e}")
+            raise DatabaseError("Failed to set the quest aside") from e
+
     def abandon_quest(self, user_id: str, quest_id: str) -> bool:
         """
         Mark a quest as abandoned for a user.

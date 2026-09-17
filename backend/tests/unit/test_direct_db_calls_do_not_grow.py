@@ -463,7 +463,10 @@ BASELINES = {
     # one write behind the Training page's creator-set order (PUT
     # /api/sis/training/order); the links half of that order goes through
     # TrainingLinkRepository.update_link, which already existed.
-    'repositories': 569,
+    # 2026-09-17: 569 -> 570. QuestRepository.set_aside_enrollment, the one
+    # write behind ending a quest below its XP finish line (POST /end sets it
+    # aside instead of refusing); the route calls it, and writes nothing.
+    'repositories': 570,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

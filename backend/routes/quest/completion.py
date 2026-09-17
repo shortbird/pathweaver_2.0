@@ -691,11 +691,8 @@ def _set_aside(supabase, user_quest_id, earned_xp, xp_threshold):
     set-down (status set_down, is_active false, no completed_at), so
     "Pick Up Quest" reactivates it. No completion webhook and no LTI grade
     sync, because nothing was completed."""
-    now = datetime.utcnow().isoformat()
-    supabase.table('user_quests')\
-        .update({'status': 'set_down', 'is_active': False, 'last_set_down_at': now})\
-        .eq('id', user_quest_id)\
-        .execute()
+    from repositories.quest_repository import QuestRepository
+    QuestRepository(client=supabase).set_aside_enrollment(user_quest_id)
     return jsonify({
         'success': True,
         'completed': False,
