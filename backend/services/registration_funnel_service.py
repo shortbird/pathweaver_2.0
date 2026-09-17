@@ -128,12 +128,9 @@ def finish_fee_step(admin, reg, cfg, extra_fields=None):
     # the funnel unpaid — no hold exists yet).
     if not reg.get('fee_deferred'):
         try:
-            from services.sis_enrollment_waitlist_service import FEE_HOLD_REASON
-            admin.table('households').update({
-                'registration_hold': False, 'registration_hold_reason': None,
-            }).eq('organization_id', reg['organization_id']) \
-                .eq('primary_contact_user_id', reg['parent_user_id']) \
-                .eq('registration_hold_reason', FEE_HOLD_REASON).execute()
+            from services import sis_holds
+            sis_holds.clear_hold_for_guardian(reg['organization_id'], reg['parent_user_id'],
+                                              sis_holds.UNPAID_FEE)
         except Exception as e:  # noqa: BLE001
             logger.warning(f'registration fee: hold clear failed for {reg["id"]}: {e}')
 

@@ -32,6 +32,7 @@ INACTIVE_ENROLLMENT_STATUSES = ('withdrawn', 'graduated')
 #   caller can see under RLS; the route's role+org gate is the authorization
 from utils.admin_client import admin_client as _admin
 from services import sis_age
+from services import sis_holds
 
 
 def is_student(user: Dict[str, Any]) -> bool:
@@ -273,7 +274,7 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
     """Map user_id -> {household_id, household_name, relationship} for an org."""
     households = fetch_all_rows(lambda: (
         _admin().table('households')
-        .select('id, name, registration_hold, registration_hold_reason')
+        .select('id, name, registration_hold, registration_hold_code, registration_hold_reason')
         .eq('organization_id', org_id)
     ))
     if not households:
@@ -294,8 +295,7 @@ def _household_by_user(org_id: str) -> Dict[str, Dict[str, Any]]:
             'household_name': hh['name'],
             'relationship': m.get('relationship'),
             'is_primary_guardian': m.get('is_primary_guardian'),
-            'registration_hold': hh.get('registration_hold'),
-            'registration_hold_reason': hh.get('registration_hold_reason'),
+            **sis_holds.hold_payload(hh),
         }
     return out
 
@@ -467,8 +467,7 @@ def get_roster(org_id: str) -> List[Dict[str, Any]]:
             # a second time (sis_reports_service.emergency_contacts_report).
             'household_relationship': (hh or {}).get('relationship'),
             'is_primary_guardian': bool((hh or {}).get('is_primary_guardian')),
-            'registration_hold': bool((hh or {}).get('registration_hold')),
-            'registration_hold_reason': (hh or {}).get('registration_hold_reason'),
+            **sis_holds.hold_payload(hh),
         })
     roster.sort(key=lambda r: r['name'].lower())
     _annotate_roster_staff(org_id, roster)
@@ -2327,7 +2326,7 @@ def waive_registration_fee(org_id: str, household_id: str,
     admin = _admin()
     hh = (admin.table('households')
           .select('id, organization_id, name, primary_contact_user_id, '
-                  'registration_hold, registration_hold_reason')
+                  'registration_hold, registration_hold_code, registration_hold_reason')
           .eq('id', household_id).limit(1).execute()).data
     if not hh or hh[0].get('organization_id') != org_id:
         return {'error': 'Family not found'}
@@ -2353,13 +2352,9 @@ def waive_registration_fee(org_id: str, household_id: str,
 
     # 1. Stage the directive so the funnel never charges this family again.
     now = _dt.utcnow().isoformat()
-    if emails:
-        admin.table('sis_family_directives').upsert(
-            [{'organization_id': org_id, 'email': e.strip().lower(),
-              'fee_prepaid': True, 'registration_hold': False,
-              'notes': f'Registration fee waived by the school on {now[:10]}',
-              'updated_at': now} for e in emails],
-            on_conflict='organization_id,email').execute()
+    for e in emails:
+        sis_holds.stage_directive(org_id, e, fee_prepaid=True, registration_hold=False,
+                                  notes=f'Registration fee waived by the school on {now[:10]}')
 
     # 2. Finish the fee step at $0 on whatever registration is still open.
     registration_completed, waived_cents = False, 0
@@ -2385,13 +2380,7 @@ def waive_registration_fee(org_id: str, household_id: str,
     #    is somebody's deliberate decision and stays put.
     hold_cleared = False
     try:
-        from services.sis_enrollment_waitlist_service import FEE_HOLD_REASON
-        if (household.get('registration_hold')
-                and household.get('registration_hold_reason') == FEE_HOLD_REASON):
-            admin.table('households').update({
-                'registration_hold': False, 'registration_hold_reason': None,
-            }).eq('id', household_id).execute()
-            hold_cleared = True
+        hold_cleared = sis_holds.clear_hold_if(household, sis_holds.UNPAID_FEE)
     except Exception as e:  # noqa: BLE001
         logger.error(f'waive_registration_fee: hold clear failed for {household_id[:8]}: {e}')
 

@@ -41,11 +41,14 @@ def _admin_with(responses):
 
 def _waive(responses):
     """Run the waiver against a scripted admin client. `finish_registration` is
-    the funnel step the route injects (a service must not import routes)."""
+    the funnel step the route injects (a service must not import routes). The
+    directive staging and the hold clear go through services/sis_holds (M2),
+    which shares the same scripted client here."""
     from services import sis_service
     client, table = _admin_with(responses)
     finish = Mock(return_value={'success': True})
-    with patch('services.sis_service._admin', return_value=client):
+    with patch('services.sis_service._admin', return_value=client), \
+         patch('services.sis_holds._admin', return_value=client):
         result = sis_service.waive_registration_fee(ORG, 'hh-1', actor_id='admin-1',
                                                     finish_registration=finish)
     return result, table, finish
@@ -61,10 +64,11 @@ class TestWaiveRegistrationFee:
         assert result['hold_cleared'] is True
 
         # 1. A prepaid directive on the guardian's email, lower-cased so the
-        #    funnel's own lookup matches it.
-        directives = table.upsert.call_args[0][0]
-        assert directives[0]['email'] == 'katrine@example.com'
-        assert directives[0]['fee_prepaid'] is True
+        #    funnel's own lookup matches it (one row per email: sis_holds
+        #    .stage_directive upserts each on its own).
+        directive = table.upsert.call_args[0][0]
+        assert directive['email'] == 'katrine@example.com'
+        assert directive['fee_prepaid'] is True
 
         # 2. The open registration is zeroed and finished.
         assert any(c[0][0].get('fee_cents') == 0 for c in table.update.call_args_list)
@@ -77,7 +81,8 @@ class TestWaiveRegistrationFee:
     def test_leaves_a_hold_placed_for_another_reason_alone(self):
         """A hold the office set on purpose ("paperwork missing") is somebody's
         decision. Waiving a fee must not quietly undo it."""
-        household = {**HOUSEHOLD, 'registration_hold_reason': 'Paperwork missing'}
+        household = {**HOUSEHOLD, 'registration_hold_code': 'manual',
+                     'registration_hold_reason': 'Paperwork missing'}
         result, table, _ = _waive([[household], MEMBERS, USERS, [], [REG], [], []])
         assert result['hold_cleared'] is False
         assert not any(c[0][0].get('registration_hold') is False
@@ -90,7 +95,7 @@ class TestWaiveRegistrationFee:
         assert result['waived_cents'] == 0
         assert result['registration_completed'] is False
         finish.assert_not_called()
-        assert table.upsert.call_args[0][0][0]['fee_prepaid'] is True
+        assert table.upsert.call_args[0][0]['fee_prepaid'] is True
 
     def test_rejects_a_household_from_another_org(self):
         from services import sis_service

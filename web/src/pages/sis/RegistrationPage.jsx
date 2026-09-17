@@ -499,7 +499,10 @@ const FamilyDirectivesCard = ({ orgId }) => {
                     <td className="py-2">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">
                         {d.matched_household_id
-                          ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700">Registered</span>
+                          ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700"
+                              title={d.applied_at ? `Applied to the family ${String(d.applied_at).slice(0, 10)}` : 'Registered'}>
+                              {d.applied_at ? `Applied ${String(d.applied_at).slice(0, 10)}` : 'Registered'}
+                            </span>
                           : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-neutral-100 text-neutral-500">Not registered</span>}
                         {d.registration_hold && (
                           <span className="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700" title={d.hold_reason || ''}>Hold</span>

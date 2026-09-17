@@ -24,6 +24,7 @@ from utils import person_name
 from services import sis_service
 from services import sis_staff_service
 from services import sis_payment_profile
+from services import sis_holds
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
 from utils.sis_roles import STAFF_ROLES, ADMIN_ROLES, FINANCE_ROLES
@@ -449,15 +450,24 @@ def update_household(user_id, household_id):
     fields = {k: data.get(k) for k in (
         'name', 'primary_contact_user_id', 'address_line1', 'address_line2',
         'city', 'state', 'postal_code', 'phone', 'notes', 'image_url',
-        'registration_hold', 'registration_hold_reason', 'registration_tier',
         'directory_opt_in', 'directory_opted_out', 'carpool_interest',
         'ufa_private', 'funding_source', 'enrolled_private_school',
         'payment_plan_preference'
     ) if k in data}
-    for flag in ('registration_hold', 'directory_opt_in', 'directory_opted_out',
+    for flag in ('directory_opt_in', 'directory_opted_out',
                  'carpool_interest', 'ufa_private', 'enrolled_private_school'):
         if flag in fields:
             fields[flag] = bool(fields[flag])
+    # The hold is one decision with three columns (sis_holds): staff setting it
+    # here write a manual hold with the reason the family will read, or clear
+    # it; a hold's kind is never edited by hand, and editing the reason text
+    # does not change what kind of hold it is. registration_tier had three
+    # writers and no reader anywhere (audit G4) and is not accepted any more.
+    if 'registration_hold' in data or 'registration_hold_reason' in data:
+        held = bool(data.get('registration_hold', existing.get('registration_hold')))
+        reason = data.get('registration_hold_reason', existing.get('registration_hold_reason'))
+        code = existing.get('registration_hold_code') if existing.get('registration_hold') else None
+        fields.update(sis_holds.hold_fields(held, code, reason))
     # Directory membership is one decision with two columns (an explicit opt-out
     # has to outlive the school switching its default on), so staff setting it
     # on a family's behalf writes both sides — the same as the family's own toggle.
@@ -479,11 +489,6 @@ def update_household(user_id, household_id):
         if plan not in (None,) + sis_payment_profile.PLAN_VALUES:
             return jsonify({'success': False, 'error': 'invalid payment_plan_preference'}), 400
         fields['payment_plan_preference'] = plan
-    if 'registration_tier' in fields and fields['registration_tier'] is not None:
-        try:
-            fields['registration_tier'] = int(fields['registration_tier'])
-        except (TypeError, ValueError):
-            return jsonify({'success': False, 'error': 'registration_tier must be a number'}), 400
     return jsonify({'success': True, 'household': repo.update(household_id, fields)})
 
 
@@ -983,9 +988,11 @@ def list_family_directives(user_id):
 @bp.route('/family-directives', methods=['POST'])
 @require_role(*ADMIN_ROLES)
 def upsert_family_directives(user_id):
-    """Bulk upsert directives by email: {directives: [{email, registration_tier,
-    registration_hold, hold_reason, fee_prepaid, notes}]}."""
-    from datetime import datetime
+    """Bulk upsert directives by email: {directives: [{email, registration_hold,
+    hold_reason, fee_prepaid, notes}]}. A directive is staged for a family that
+    has no household yet and applied once when the funnel attaches one
+    (sis_holds.apply_directives). registration_tier is ignored: it never had a
+    reader."""
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
@@ -993,34 +1000,22 @@ def upsert_family_directives(user_id):
     if not isinstance(rows, list) or not rows:
         return jsonify({'success': False, 'error': 'directives must be a non-empty list'}), 400
 
-    payload, skipped = [], []
+    saved, skipped = 0, []
     for r in rows:
         email = str(r.get('email') or '').strip().lower()
         if '@' not in email:
             skipped.append(r.get('email'))
             continue
-        tier = r.get('registration_tier')
-        if tier is not None:
-            try:
-                tier = int(tier)
-            except (TypeError, ValueError):
-                return jsonify({'success': False, 'error': f'Bad registration_tier for {email}'}), 400
-        payload.append({
-            'organization_id': org_id,
-            'email': email,
-            'registration_tier': tier,
-            'registration_hold': bool(r.get('registration_hold')),
-            'hold_reason': (r.get('hold_reason') or '').strip() or None,
-            'fee_prepaid': bool(r.get('fee_prepaid')),
-            'notes': (r.get('notes') or '').strip() or None,
-            'updated_at': datetime.utcnow().isoformat(),
-        })
-    if not payload:
+        sis_holds.stage_directive(
+            org_id, email,
+            registration_hold=bool(r.get('registration_hold')),
+            hold_reason=r.get('hold_reason'),
+            fee_prepaid=bool(r.get('fee_prepaid')),
+            notes=r.get('notes'))
+        saved += 1
+    if not saved:
         return jsonify({'success': False, 'error': 'No rows had a valid email'}), 400
-    # admin client justified: bulk upsert of staff-managed sis_family_directives (no owning user); gated by @require_role(ADMIN_ROLES), rows pinned to resolved org
-    saved = (get_supabase_admin_client().table('sis_family_directives')
-             .upsert(payload, on_conflict='organization_id,email').execute()).data or []
-    return jsonify({'success': True, 'saved': len(saved), 'skipped': skipped}), 200
+    return jsonify({'success': True, 'saved': saved, 'skipped': skipped}), 200
 
 
 @bp.route('/family-directives/<directive_id>', methods=['DELETE'])

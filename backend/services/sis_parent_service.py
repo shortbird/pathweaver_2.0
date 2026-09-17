@@ -19,6 +19,7 @@ from services import sis_catalog_service as catalog
 from services import sis_billing_service as billing
 from services import sis_planned_absence_service as absences
 from services import sis_service
+from services import sis_holds
 from services import sis_tuition_service as tuition
 from utils.db_fetch import fetch_all_rows
 from utils import person_name
@@ -572,45 +573,10 @@ def _sis_settings(org_id: str) -> Dict[str, Any]:
     return flags.get('sis_settings') or {}
 
 
-def _student_household(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
-    """The student's household in this org (hold fields), or None."""
-    memberships = (
-        _admin().table('household_members').select('household_id')
-        .eq('user_id', student_user_id).execute()
-    ).data or []
-    hh_ids = [m['household_id'] for m in memberships if m.get('household_id')]
-    if not hh_ids:
-        return None
-    rows = (
-        _admin().table('households')
-        .select('id, organization_id, registration_hold, registration_hold_reason')
-        .in_('id', hh_ids).eq('organization_id', org_id).limit(1).execute()
-    ).data or []
-    return rows[0] if rows else None
-
-
-def _family_gate(org_id: str, student_user_id: str) -> Optional[Dict[str, Any]]:
-    """The error blocking this family from class signup, or None if clear.
-
-    A registration hold (unresolved fee/question from the school) blocks all
-    self-service adds, and a student on the enrollment age-group waitlist can't
-    pick classes until the school releases them. Access to registration itself
-    is controlled by who has the registration link — there are no
-    date-staggered tiers. Families with no household are not gated —
-    staff-created edge cases shouldn't lock parents out.
-    """
-    household = _student_household(org_id, student_user_id)
-    if household and household.get('registration_hold'):
-        return {'error': "Your family's registration is on hold — please contact the school "
-                         'to resolve it before signing up for classes.',
-                'registration_hold': True}
-    from services import sis_enrollment_waitlist_service as enrollment_waitlist
-    entry = enrollment_waitlist.waiting_entry(org_id, student_user_id)
-    if entry:
-        return {'error': 'This student is on the enrollment waitlist — the school will let '
-                         'you know when they can choose classes.',
-                'enrollment_waitlisted': True}
-    return None
+# The family gate and the hold columns live in services/sis_holds (M2); these
+# names stay for the callers and the tests that patch them here.
+from services.sis_holds import student_household as _student_household  # noqa: E402
+from services.sis_holds import family_gate as _family_gate  # noqa: E402
 
 
 # ── At-home learning: Optio courses (untimed) selectable in the builder ───────
@@ -818,8 +784,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
         # the change. Only inside the school's add/drop window.
         'add_drop_deadline': settings.get('add_drop_deadline') or None,
         'add_drop_open': add_drop_open(org_id),
-        'registration_hold': bool((household or {}).get('registration_hold')),
-        'registration_hold_reason': (household or {}).get('registration_hold_reason'),
+        **sis_holds.hold_payload(household),
         'enrollment_waitlist': {
             'position': ew_entry.get('position'),
             'band_label': enrollment_waitlist.band_label(ew_entry),

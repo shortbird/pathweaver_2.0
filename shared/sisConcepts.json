@@ -139,32 +139,30 @@
     },
     {
       "id": "family_hold_write",
-      "means": "A family put on hold (households.registration_hold, or the pre-household directive that becomes it). Seven files write the flag; each has its own idea of when it clears.",
+      "means": "A family put on hold (households.registration_hold, or the pre-household directive that becomes it). Seven files wrote the flag, each with its own idea of when it clears; services/sis_holds.py is the one writer and the one payload (M2, 2026-09-17), and a directive is applied to the household exactly once at attach.",
       "owner": { "backend": ["services/sis_holds.py"] },
-      "proposed": true,
       "forbid": {
         "backend": { "pattern": "['\"]registration_hold['\"]\\s*:", "dirs": ["routes", "services", "scripts"], "unit": "files" }
       },
-      "baseline": { "backend": 7 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M2",
-      "use_instead": "sis_holds.set_hold(household, code, reason) / clear_hold_if(household, code) / family_gate(household). Directives are staged for a family that has no household yet and applied once at attach."
+      "use_instead": "sis_holds.set_hold(household_id, code, reason) / clear_hold_if(household, code) / clear_hold_for_guardian(org, guardian, code); hold_fields(held, code, reason) when a write carries other columns; hold_payload(household) to serialise; stage_directive(org, email, ...) and apply_directives(household_id, directive) for the pre-household staging; family_gate(org, student) for the class-signup check."
     },
     {
       "id": "fee_hold_sentinel",
-      "means": "The unpaid-fee hold is recognised by comparing the hold's free-text reason to the sentence FEE_HOLD_REASON. Editing that text on the Families page makes the hold un-clearable.",
+      "means": "The unpaid-fee hold used to be recognised by comparing the hold's free-text reason to the sentence FEE_HOLD_REASON, so editing that text on the Families page made the hold un-clearable. households.registration_hold_code names the kind now (M2, 2026-09-17).",
       "owner": { "backend": ["services/sis_holds.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "(==\\s*FEE_HOLD_REASON|['\"]registration_hold_reason['\"]\\s*,\\s*FEE_HOLD_REASON)",
           "dirs": ["routes", "services"]
         }
       },
-      "baseline": { "backend": 2 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M2",
-      "use_instead": "households.registration_hold_code (M2) names the hold kind; sis_holds.clear_hold_if(household, 'unpaid_fee') clears it. Never compare the reason text."
+      "use_instead": "sis_holds.is_held_for(household, sis_holds.UNPAID_FEE) / clear_hold_if(household, UNPAID_FEE). The reason is what the family reads; never compare it."
     },
     {
       "id": "hold_middleware",

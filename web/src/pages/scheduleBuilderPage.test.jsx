@@ -598,8 +598,11 @@ describe('ScheduleBuilderPage', () => {
   it('shows the fee-due hold with a link back to the registration page', async () => {
     api.get.mockImplementation(mockApi({
       orgs: [ORG_AGE8],
+      // The link keys on the hold's kind (sis_holds), not on the words of the
+      // reason, which the office may edit.
       schedule: {
         registration_hold: true,
+        registration_hold_code: 'unpaid_fee',
         registration_hold_reason: 'Registration fee due — finish it from your registration page.',
       },
       classes: [POTTERY],

@@ -39,7 +39,7 @@ and patterns instead.
 | M5 One quote | 1 | shipped | see git log (`consolidate/M5-one-quote`) | `registration_fee_quote` 0/0; new `tuition_quote` 0 |
 | M6 One invoice writer, one checkout factory, one verifier | 1 | shipped (code + tests; no Stripe test-mode run) | see git log (`consolidate/M6-one-invoice-writer`) | `invoice_row` 1, `stripe_checkout` 1, `stripe_verify` 2, `pay_link_signing` 0 |
 | M7 One household billing view, formatCents | 1 | shipped | see git log (`consolidate/M7-household-billing`) | `money_format` 0/0 |
-| M2 One family hold | 1 | not started | | |
+| M2 One family hold | 1 | shipped (migration applied to prod + staging) | see git log (`consolidate/M2-one-family-hold`) | `family_hold_write` 0, `fee_hold_sentinel` 0 |
 | M4 Funnel lands in SIS stores | 1 | not started | | |
 | M18 One training system | 1 | not started | | |
 | M9 One portal, one signature capture | 2 | not started | | |
@@ -821,6 +821,34 @@ a `fee_prepaid` directive registers → fee $0 and the directive shows applied; 
 Gryffin registrant with no directive → no hold. Run
 `backend/tests/test_sis_enrollment_waitlist.py`. Manifest `family_hold_write` → 0
 (directive staging goes through `sis_holds` too), `fee_hold_sentinel` → 0.
+
+**As shipped (2026-09-17).** Migration `20260918190000_households_registration_hold_code`
+(applied to prod and staging): `households.registration_hold_code` with a CHECK on the
+three codes and a backfill from the sentence, `sis_family_directives.applied_at` stamped
+from `updated_at` for the 51 already-matched directives. `services/sis_holds.py`: the
+codes (`UNPAID_FEE`, `MANUAL`, `ENROLLMENT_WAITLIST`), `FEE_HOLD_REASON` (copy, not a
+key; the waitlist service re-exports it), pure `hold_fields` / `hold_payload` /
+`is_held_for` (a held row written before the column is judged by its sentence once),
+`set_hold`, `clear_hold`, `clear_hold_if(household, code)`,
+`clear_hold_for_guardian(org, guardian, code)`, `stage_directive`, `apply_directives`
+(idempotent on `applied_at`, so a re-registration cannot put a cleared hold back) and
+the moved `family_gate` / `student_household` (aliased in `sis_parent_service` for the
+tests that patch them there). The Families PATCH writes a manual hold or clears one and
+never edits a hold's kind; the bulk directives paste, the fee waiver's staging and the
+legacy import script all go through `stage_directive`; the funnel's household attach
+applies the directive once instead of copying its hold into the row; the waitlist
+release sets an `unpaid_fee` hold; the fee step and the waiver clear only that kind.
+Every payload (roster, households, the parent's builder, the gate) carries the flag,
+the code and the reason through `hold_payload`. `registration_tier`'s three writers
+are gone (the PATCH ignores it, the paste and the import script read the tier column
+for their report only); the columns stay. Web: the family record's hold shows a chip
+naming the kind, the reason field says "What the family reads", the builder's
+"Finish your registration fee" link keys on the code rather than on the words of the
+reason, and the directives card shows when a directive was applied. Not done, and
+why: the four `_apply_prepaid_directive` call sites stay. They are the fee waiver
+(`fee_prepaid`), not the hold, and they exist for the directive the school stages
+AFTER a family has already computed its fee; apply-once cannot cover that, so the
+re-check on resume, fee-status, checkout and fee stands.
 
 ### M4 — The funnel lands the family in the SIS's own stores
 

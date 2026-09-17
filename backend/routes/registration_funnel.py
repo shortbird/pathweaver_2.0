@@ -87,6 +87,7 @@ from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
+from services import sis_holds
 # Monthly program pricing (Optio Academy): the plan, and the total it comes
 # to for this family's kids. See the module docstring for the config shape.
 from services.registration_pricing import monthly_plan, monthly_total_cents, registration_fee_cents
@@ -758,8 +759,6 @@ def submit_family(reg_id):
             'state': address['state'] or None,
             'postal_code': address['postal_code'] or None,
             'phone': phone or None,
-            'registration_hold': bool(directive and directive.get('registration_hold')),
-            'registration_hold_reason': (directive or {}).get('hold_reason'),
         }
         # UFA Private School: set from the family's answers (an explicit
         # `ufa_private` yes/no question, or a payment option naming "private
@@ -784,11 +783,10 @@ def submit_family(reg_id):
         # Upsert so reusing a household never collides on an existing membership.
         admin.table('household_members').upsert(
             members, on_conflict='household_id,user_id').execute()
-        if directive:
-            admin.table('sis_family_directives').update({
-                'matched_household_id': household_id,
-                'updated_at': datetime.utcnow().isoformat(),
-            }).eq('id', directive['id']).execute()
+        # The staged directive lands on the household exactly once (a hold the
+        # office staged by email, marked applied); nothing reconciles the two
+        # afterwards (sis_holds).
+        sis_holds.apply_directives(household_id, directive)
     except Exception as e:  # noqa: BLE001
         logger.error(f'registration family: household creation failed: {e}')
 

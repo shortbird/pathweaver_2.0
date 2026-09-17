@@ -16,7 +16,7 @@ from services import sis_parent_service as parent
 
 def _household(row, waitlist_entry=None):
     return (
-        patch('services.sis_parent_service._student_household', return_value=row),
+        patch('services.sis_holds.student_household', return_value=row),
         patch('services.sis_enrollment_waitlist_service.waiting_entry',
               return_value=waitlist_entry),
     )

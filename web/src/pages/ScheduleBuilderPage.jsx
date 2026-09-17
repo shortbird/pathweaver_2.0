@@ -640,7 +640,7 @@ const ScheduleBuilderPage = () => {
           Your family's registration is on hold — {schedule?.registration_hold_reason
             ? schedule.registration_hold_reason
             : `please contact ${org?.organization_name || 'your school'} to resolve it before signing up for classes.`}
-          {schedule?.registration_hold_reason?.toLowerCase().includes('registration fee') && (
+          {schedule?.registration_hold_code === 'unpaid_fee' && (
             <> <a href="/enroll/resume" className="font-semibold underline">Finish your registration fee</a>.</>
           )}
         </div>

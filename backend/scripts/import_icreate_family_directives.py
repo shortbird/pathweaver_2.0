@@ -28,7 +28,6 @@ import csv
 import os
 import re
 import sys
-from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -103,10 +102,12 @@ def parse_rows(csv_path):
 
             fee_flag = row.get('fee_flag', '')
             hold = bool(fee_flag)  # any mark (their yellow cell) = unpaid/discrepancy
+            # The tier column is read for the report only: registration_tier
+            # never had a reader in the app (audit G4) and is not written.
             directives.append({
                 'email': email,
-                'registration_tier': _parse_tier(row.get('tier')),
-                'registration_hold': hold,
+                'tier': _parse_tier(row.get('tier')),
+                'hold': hold,
                 'hold_reason': f'Legacy form: {fee_flag}' if hold else None,
                 'fee_prepaid': not hold,
                 'notes': ' | '.join(x for x in (
@@ -135,10 +136,10 @@ def main():
 
     directives, problems = parse_rows(args.csv_path)
 
-    holds = [d for d in directives if d['registration_hold']]
+    holds = [d for d in directives if d['hold']]
     tiers = {}
     for d in directives:
-        tiers[d['registration_tier']] = tiers.get(d['registration_tier'], 0) + 1
+        tiers[d['tier']] = tiers.get(d['tier'], 0) + 1
     print(f'Parsed {len(directives)} families: {len(directives) - len(holds)} fee-prepaid, '
           f'{len(holds)} on hold (discrepancy)')
     print('Tiers: ' + ', '.join(f'{"untiered" if t is None else f"tier {t}"}={n}'
@@ -157,11 +158,14 @@ def main():
     if not org_rows:
         sys.exit(f'No organization with slug "{args.org_slug}"')
     org = org_rows[0]
-    now = datetime.utcnow().isoformat()
-    payload = [{**d, 'organization_id': org['id'], 'updated_at': now} for d in directives]
-    saved = admin.table('sis_family_directives') \
-        .upsert(payload, on_conflict='organization_id,email').execute().data or []
-    print(f'\nUpserted {len(saved)} directives for {org["name"]} ({org["id"]})')
+    # One staging write for a directive (services/sis_holds): the same one the
+    # Registration page's bulk paste uses.
+    from services import sis_holds
+    for d in directives:
+        sis_holds.stage_directive(org['id'], d['email'], registration_hold=d['hold'],
+                                  hold_reason=d['hold_reason'], fee_prepaid=d['fee_prepaid'],
+                                  notes=d['notes'])
+    print(f'\nUpserted {len(directives)} directives for {org["name"]} ({org["id"]})')
 
 
 if __name__ == '__main__':

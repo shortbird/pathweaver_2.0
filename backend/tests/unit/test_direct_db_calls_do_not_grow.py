@@ -220,7 +220,10 @@ BASELINES = {
     # "this quest is on this curriculum" moved out of routes/sis/curriculum.py's
     # add_quest_to_curriculum into sis_curriculum_sync.attach_quest_to_curriculum,
     # which uses the same repository. Lowered in the same commit, per rule 2.
-    'routes': 2268,
+    # 2026-09-17 (M2): 2268 -> 2266. The Families PATCH and the bulk directive
+    # paste stopped writing sis_family_directives / households themselves; the
+    # calls moved down into services/sis_holds.py (+2 there), a lateral move.
+    'routes': 2266,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -283,7 +286,12 @@ BASELINES = {
     # (-2), and the UFA learning-day bulk read went to a repository while the
     # tuition queue's time-block read goes through sis_catalog_service (-2).
     # Measured on the tree; lowered per rule 2 of RATCHETS.md.
-    'services': 1833,
+    # 2026-09-17 (M2): 1833 -> 1835. services/sis_holds.py holds every write of
+    # a family hold and the directive staging (set, clear, stage, apply, the
+    # gate's household read); the funnel route, the Families PATCH, the bulk
+    # paste, the fee step, the waitlist release and the waiver gave up theirs
+    # (-6 in services, -2 in routes). A move down a layer, not new querying.
+    'services': 1835,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -556,7 +564,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2268 + 1833
+UPPER_TOTAL_BASELINE = 2266 + 1835
 
 
 def test_the_upper_layers_do_not_grow_in_total():

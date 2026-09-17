@@ -29,7 +29,9 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 TABLE = 'sis_enrollment_waitlist'
-FEE_HOLD_REASON = 'Registration fee due — finish it from your registration page.'
+# The unpaid-fee hold's copy lives with the hold (sis_holds); this name stays
+# for the readers that learned it here.
+from services.sis_holds import FEE_HOLD_REASON  # noqa: E402,F401
 
 
 # admin client justified: the SIS console acts for the whole school — this
@@ -690,10 +692,8 @@ def _reopen_deferred_fee(entry: Dict[str, Any]) -> int:
         'fee_recorded_at': None, 'updated_at': now,
     }).eq('id', reg['id']).execute()
     if entry.get('household_id') and fee_cents > 0:
-        admin.table('households').update({
-            'registration_hold': True,
-            'registration_hold_reason': FEE_HOLD_REASON,
-        }).eq('id', entry['household_id']).execute()
+        from services import sis_holds
+        sis_holds.set_hold(entry['household_id'], sis_holds.UNPAID_FEE)
     return fee_cents
 
 

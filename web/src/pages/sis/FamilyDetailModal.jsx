@@ -450,8 +450,17 @@ const DetailsPanel = ({ household, orgId, onSaved }) => {
   )
 }
 
-// Class-signup access: a hold blocks the family entirely; the tier controls when
-// their registration window opens (dates configured in Settings).
+// The kind of hold, for the chip. The reason is what the family reads; the
+// code is what clears it (an unpaid-fee hold lifts itself when the fee is
+// paid or waived; a manual one is the office's to lift).
+const HOLD_LABELS = {
+  unpaid_fee: 'Unpaid fee',
+  manual: 'Set by the office',
+  enrollment_waitlist: 'Enrollment waitlist',
+}
+
+// Class-signup access: a hold blocks the family entirely. Access to
+// registration itself is by who has the link; there are no tiers.
 const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
   const { activeOrg } = useSisOrg()
   const schoolName = activeOrg?.branding_config?.private_school_name || 'Private School'
@@ -486,8 +495,19 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Class registration access</h4>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-neutral-900">Registration hold</div>
-          <div className="text-xs text-neutral-500">Blocks this family from signing up for classes until cleared.</div>
+          <div className="text-sm font-medium text-neutral-900 flex items-center gap-2">
+            Registration hold
+            {hold && (
+              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700">
+                {HOLD_LABELS[household.registration_hold_code] || HOLD_LABELS.manual}
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-neutral-500">
+            {hold && household.registration_hold_code === 'unpaid_fee'
+              ? 'Lifts itself when the registration fee is paid or waived.'
+              : 'Blocks this family from signing up for classes until cleared.'}
+          </div>
         </div>
         <button
           type="button" role="switch" aria-checked={hold} aria-label="Registration hold" onClick={toggleHold} disabled={busy}
@@ -497,9 +517,9 @@ const RegistrationAccessSection = ({ household, orgId, onSaved }) => {
         </button>
       </div>
       {hold && (
-        <label className="text-xs text-neutral-500 block">Hold reason (internal)
+        <label className="text-xs text-neutral-500 block">What the family reads
           <input value={reason} onChange={(e) => setReason(e.target.value)} onBlur={saveReason} disabled={busy}
-            className={field} placeholder="e.g. registration fee unpaid" />
+            className={field} placeholder="e.g. Please call the office about your paperwork" />
         </label>
       )}
       <FundingRow household={household} orgId={orgId} schoolName={schoolName} onSaved={onSaved} />

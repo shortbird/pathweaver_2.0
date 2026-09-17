@@ -128,6 +128,7 @@ class TestRelease:
         sent = MagicMock(return_value=True)
         with patch('services.sis_enrollment_waitlist_service._admin',
                    return_value=_client(tables)), \
+             patch('services.sis_holds._admin', return_value=_client(tables)), \
              patch('services.email_service.email_service.send_email', sent):
             result = ewl.release('org1', 'w1', released_by='staff1')
         assert result == {'released': True, 'fee_due_cents': 7500, 'emailed': True}
@@ -136,9 +137,11 @@ class TestRelease:
         # registration reopened at the fee step, deferral consumed
         reopened = tables['registrations'].update.call_args[0][0]
         assert reopened['status'] == 'fee' and reopened['fee_deferred'] is False
-        # household held until the fee is settled
+        # household held until the fee is settled: the unpaid-fee kind, with
+        # the family-facing sentence (sis_holds)
         hold = tables['households'].update.call_args[0][0]
         assert hold['registration_hold'] is True
+        assert hold['registration_hold_code'] == 'unpaid_fee'
         assert hold['registration_hold_reason'] == ewl.FEE_HOLD_REASON
         # the guardian's email mentions the fee
         assert '75.00' in sent.call_args[0][2]
