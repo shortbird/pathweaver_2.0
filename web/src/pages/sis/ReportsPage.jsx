@@ -7,7 +7,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { canSeeFinance } from './sisRole'
 import SisOrgPicker from './SisOrgPicker'
 import shapeReport from './reportsPage/shapeReport'
-import printSection from './reportsPage/printSection'
+import { printElement } from '../../utils/printView'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { downloadBlob } from '../../utils/csv'
 import { BlockRosters } from './reportsPage/BlockRosters'
 import { EMPTY_FILTER } from './reportsPage/rosterClassFilter'
 import { reportByKey, visibleReports } from './reportsPage/catalog'
@@ -29,37 +31,13 @@ import OverviewStats from './reportsPage/OverviewStats'
  * report can be bookmarked. A report with nothing to choose runs when picked.
  */
 
-// Hide everything except the results table when printing.
-const PRINT_CSS = `
-@media print {
-  body * { visibility: hidden; }
-  .sis-report-print, .sis-report-print * { visibility: visible; }
-  .sis-report-print { position: absolute; left: 0; top: 0; width: 100%; }
-  .sis-report-print .no-print { display: none; }
-}
-/* Printing ONE day (or one block): the office wants a sheet per day on a
-   clipboard, not a seven-day booklet, so the section being printed hides its
-   siblings. sis-day-printing marks whichever section that is. */
-@media print {
-  body.printing-one-day * { visibility: hidden; }
-  body.printing-one-day .sis-day-printing,
-  body.printing-one-day .sis-day-printing * { visibility: visible; }
-  body.printing-one-day .sis-day-printing { position: absolute; left: 0; top: 0; width: 100%; }
-  body.printing-one-day .no-print { display: none; }
-}
-/* Printing every block at once: one block per page, the way they are read. */
-@media print {
-  .sis-block + .sis-block { break-before: page; }
-  .sis-day-section + .sis-day-section { break-before: page; }
-}
-`
 /**
  * Day rosters: day -> block -> class -> who is in it. Not a table like the
  * other reports — the person reading it is standing in a corridor at 10:30
  * looking for one child, so the shape on the page is the shape of the question.
  */
 export const DayRosters = ({ days }) => {
-  const printDay = (key) => printSection(`sis-day-${key}`)
+  const printDay = (key) => printElement(`sis-day-${key}`)
 
   if (!days?.length) return <p className="text-neutral-500">No classes are scheduled yet.</p>
 
@@ -140,39 +118,13 @@ export const DayRosters = ({ days }) => {
 // any caller import BlockRosters from here, not from the file it now lives in.
 export { BlockRosters }
 
-const downloadBlob = (blob, filename) => {
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  window.URL.revokeObjectURL(url)
-}
 
 // Turn each report's JSON payload into a generic {title, columns, rows} table.
 const CLASS_COLS_KEY = 'sis_class_report_cols'
 const ROSTER_COLS_KEY = 'sis_roster_report_cols'
 
-const loadClassCols = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(CLASS_COLS_KEY))
-    return Array.isArray(saved) && saved.length ? saved : null
-  } catch { return null }
-}
-
-const saveCols = (key, cols) => {
-  try { localStorage.setItem(key, JSON.stringify(cols)) } catch { /* ignore */ }
-}
-const saveClassCols = (cols) => saveCols(CLASS_COLS_KEY, cols)
-
-const loadRosterCols = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(ROSTER_COLS_KEY))
-    return Array.isArray(saved) && saved.length ? saved : null
-  } catch { return null }
-}
+// A saved column choice, or null until the first run adopts the API's defaults.
+const savedCols = (saved) => (Array.isArray(saved) && saved.length ? saved : null)
 
 // Shape a field-picker report (classes, rosters) for the shared table, using
 // the caller's column choice.
@@ -287,7 +239,7 @@ const ReportsPage = () => {
   // ClassesTable). Starts on the first column ascending, as it always has.
   const [sort, setSort] = useState([{ col: 0, dir: 'asc' }])
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [classCols, setClassCols] = useState(loadClassCols)      // null until first run
+  const [classCols, setClassCols] = usePersistedChoice(CLASS_COLS_KEY, null, { validate: savedCols })
   const [includeArchived, setIncludeArchived] = useState(false)
   // Roster report: which classes, and whether waitlisted students come too.
   const [classList, setClassList] = useState([])
@@ -298,7 +250,7 @@ const ReportsPage = () => {
   // absence here read as an inconsistency (2026-08-20).
   const [rosterArchived, setRosterArchived] = useState(false)
   const [rosterFilter, setRosterFilter] = useState(EMPTY_FILTER)
-  const [rosterCols, setRosterCols] = useState(loadRosterCols)
+  const [rosterCols, setRosterCols] = usePersistedChoice(ROSTER_COLS_KEY, null, { validate: savedCols })
   // What the roster report on screen was actually run with, so changing the
   // inputs afterwards can say so rather than silently disagreeing with it.
   const [rosterRunWith, setRosterRunWith] = useState(null)
@@ -490,8 +442,8 @@ const ReportsPage = () => {
       .filter((k) => (k === fieldKey ? !report.selected.includes(k) : report.selected.includes(k)))
     if (!next.length) return   // never leave the table with no columns
     const isRoster = report.kind === 'rosters'
-    if (isRoster) { setRosterCols(next); saveCols(ROSTER_COLS_KEY, next) }
-    else { setClassCols(next); saveClassCols(next) }
+    if (isRoster) setRosterCols(next)
+    else setClassCols(next)
     setSort([{ col: 0, dir: 'asc' }])
     setReport({
       ...report,
@@ -589,7 +541,6 @@ const ReportsPage = () => {
 
   return (
     <div>
-      <style>{PRINT_CSS}</style>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Reports</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
@@ -634,7 +585,7 @@ const ReportsPage = () => {
                     <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                       <h3 className="font-semibold text-neutral-900">{report.title}</h3>
                       <div className="no-print flex items-center gap-2">
-                        <button type="button" onClick={() => window.print()}
+                        <button type="button" onClick={() => printElement('.sis-report-print')}
                           className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
                           Print
                         </button>

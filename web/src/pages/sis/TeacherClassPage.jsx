@@ -194,7 +194,7 @@ const TeacherClassPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 sis-no-print">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <Link to="/my-classes" className="text-sm text-optio-purple hover:underline">← My Classes</Link>
           <h1 className="text-2xl font-bold text-neutral-900">{cls?.name || 'Class'}</h1>
@@ -238,7 +238,7 @@ const TeacherClassPage = () => {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 sis-no-print">
+      <div className="flex gap-1 border-b border-gray-200 mb-6">
         {/* Order is iCreate's (2026-08-24): the three every teacher needs first,
             then the ones only some classes use. */}
         {[['roster', 'Roster & Attendance'], ['messages', 'Messages'], ['curriculum', 'Curriculum'], ['quests', 'Quests'], ['progress', 'Student Progress'], ['activity', 'This Week']].map(([key, label]) => (
@@ -288,7 +288,7 @@ const TeacherClassPage = () => {
           "up to" is what the school asked for, so teachers don't read it as
           money they're expected to spend. */}
       {budget && budget.total > 0 && tab === 'roster' && (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6 sis-no-print">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 mb-6">
           <p className="text-sm text-neutral-600">
             Supply budget: spend <span className="font-semibold text-neutral-900">up to ${budget.total.toLocaleString()}</span> on
             materials for this class this year.
@@ -353,17 +353,17 @@ const TeacherClassPage = () => {
         }
         return (<>
           {/* Controls — same shell as the admin attendance page */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3 sis-no-print">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
               aria-label="Attendance date" />
             <button onClick={markAllPresent} className="text-sm text-optio-purple hover:underline">Reset to all present</button>
           </div>
 
-          {!students.length && <p className="text-neutral-500 sis-no-print">No students enrolled yet.</p>}
+          {!students.length && <p className="text-neutral-500">No students enrolled yet.</p>}
 
           {students.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sis-no-print">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-gray-100">
                 <div className="text-sm text-neutral-600">
                   <span className="font-semibold text-neutral-900">{cls?.name}</span>

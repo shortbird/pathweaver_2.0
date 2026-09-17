@@ -566,43 +566,44 @@
       "use_instead": "<Button variant=\"primary\"> or the .btn-primary class; see docs/design/DESIGN_SYSTEM.md."
     },
     {
-      "id": "export_columns",
-      "means": "A column picker for an export, each with its own localStorage key. Five keys across four modals and the reports page.",
-      "owner": { "web": ["components/sis/ExportColumnsModal.jsx"] },
-      "proposed": true,
+      "id": "persisted_choice",
+      "means": "A UI choice remembered per browser: export columns, cards or table, a sort. Seven SIS pages hand-wrote the try/JSON.parse/JSON.stringify against localStorage until M17, each with its own key and its own idea of a stale value.",
+      "owner": { "web": ["hooks/usePersistedChoice.js"] },
       "forbid": {
-        "web": { "pattern": "= '(sis_\\w*(export|cols))'", "dirs": ["pages/sis", "components/sis"] }
+        "web": {
+          "pattern": "localStorage\\.(getItem|setItem|removeItem)\\(",
+          "dirs": ["pages/sis", "components/sis"],
+          "exempt": ["hooks/usePersistedChoice.js", "pages/sis/sisOrgStore.js"]
+        }
       },
-      "baseline": { "web": 5 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M17",
-      "use_instead": "<ExportColumnsModal columns={...} storageKey=\"...\" /> (M17); the key is a prop, the picker is one component."
+      "use_instead": "const [value, setValue] = usePersistedChoice('sis_<what>', initial, { validate }) from hooks/usePersistedChoice.js. sisOrgStore.js is exempt: it is a store read outside React (which org is in view), not a page's UI choice."
     },
     {
       "id": "print_path",
-      "means": "Printing from an SIS page. Five window.print() sites and five @media print blocks, each styling the page for paper its own way.",
-      "owner": { "web": ["components/sis/PrintView.jsx"] },
-      "proposed": true,
+      "means": "Printing from an SIS page. Five window.print() sites and four private @media print blocks until M17; the substitute sheet referenced a print class no stylesheet defined and printed the whole app behind the modal.",
+      "owner": { "web": ["utils/printView.js"] },
       "forbid": {
-        "web": { "pattern": "window\\.print\\(", "dirs": ["pages/sis", "components/sis"] }
+        "web": { "pattern": "(window\\.print\\(|@media print|\\.print\\(\\))", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 5 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M17",
-      "use_instead": "<PrintView> (M17) with one stylesheet; a page renders its printable body inside it."
+      "use_instead": "printElement(target) from utils/printView.js for a part of the page (mark chrome no-print), printHtml(title, body) for a sheet built from scratch. The one @media print block is in index.css."
     },
     {
       "id": "roster_csv",
-      "means": "A CSV download of SIS rows. Five routes each build the response by hand; one of them says in a comment that it copies another.",
-      "owner": { "backend": ["services/roster_export_service.py"] },
-      "proposed": true,
+      "means": "A CSV download of SIS rows. Five routes each built the response by hand until M17; one said in a comment that it copied another.",
+      "owner": { "backend": ["utils/csv_response.py"] },
       "forbid": {
         "backend": { "pattern": "text/csv", "dirs": ["routes/sis"] }
       },
-      "baseline": { "backend": 5 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M17",
-      "use_instead": "roster_export_service.rows(org_id, scope, columns) on fetch_all_rows, and one csv_response(rows, filename) helper, behind every CSV route (M17)."
+      "use_instead": "csv_response(filename, header, rows) from utils/csv_response.py; the route's job is the rows."
     },
     {
       "id": "training_system",
@@ -743,6 +744,30 @@
       "measured": "2026-09-17",
       "lowered_by": "M19",
       "use_instead": "One rule per path. A redirect for a retired path replaces the old rule; it does not sit beside it."
+    },
+    {
+      "id": "csv_download",
+      "means": "Turning rows into a file the browser saves. Five SIS exports each quoted cells, joined lines and built a blob and an anchor by hand until M17; two used CRLF, one LF, and the byte-order mark Excel needs was easy to forget.",
+      "owner": { "web": ["utils/csv.js"] },
+      "forbid": {
+        "web": { "pattern": "(a\\.download\\s*=|text/csv)", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M17",
+      "use_instead": "toCsv(header, rows) and downloadCsv(text, filename) from utils/csv.js (downloadBlob for a file the server built). One quoting rule, CRLF, BOM."
+    },
+    {
+      "id": "column_picker",
+      "means": "The checkbox list behind a 'which columns' choice. Four pickers were hand-rolled with the same checkbox and different layouts until M17.",
+      "owner": { "web": ["components/sis/ColumnPicker.jsx"] },
+      "forbid": {
+        "web": { "pattern": "aria-label=\\{(c|f|col|column)\\.label\\}", "dirs": ["pages/sis", "components/sis"] }
+      },
+      "baseline": { "web": 0 },
+      "measured": "2026-09-17",
+      "lowered_by": "M17",
+      "use_instead": "<ColumnPicker columns selected onToggle groups? onSetGroup? /> from components/sis/ColumnPicker.jsx; the caller owns the selection (usePersistedChoice)."
     }
   ]
 }

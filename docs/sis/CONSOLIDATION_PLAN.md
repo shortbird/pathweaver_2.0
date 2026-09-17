@@ -34,7 +34,7 @@ and patterns instead.
 | M11 One schedule toolkit | 0 | not started | | |
 | M12 One today, one events feed, one event clock | 0 | not started | | |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
-| M17 One export, one print | 0 | not started | | |
+| M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
 | M14a/b Layout header, tab bars | 0 | not started | | |
 | M5 One quote | 1 | not started | | |
 | M6 One invoice writer, checkout, verifier | 1 | not started | | |
@@ -495,11 +495,21 @@ returns the same summary shape. Manifest `org_resolution` → 0, `cron_route` �
 
 **Audit**: K5, NW4. **Size S/M.**
 
-Canonical, web: `components/sis/ExportColumnsModal.jsx` with `columns`,
-`storageKey`, `onExport`; used by People, Classes, class rosters and the Reports
-table. One `utils/printView.js` (opens the print stylesheet route) replacing the
-five print paths. Backend: `services/roster_export_service.rows(org, scope, columns)`
-on `fetch_all_rows` behind the six CSV routes, which keep their URLs and owners.
+Canonical, as shipped. The four pickers fetch different things and lay out
+differently, so the shared pieces are one level down from the plan's single modal:
+`components/sis/ColumnPicker.jsx` (the checkbox list, grouped or flat, with
+always-on and locked columns) inside each export; `hooks/usePersistedChoice.js` for
+every choice a browser remembers (export columns, the two cards-or-table toggles,
+the Billing sort — seven hand-written localStorage sites); `utils/csv.js`
+(`toCsv`, `downloadCsv`, `downloadBlob`: one quoting rule, CRLF, the byte-order
+mark) behind the five CSV builders and the three server-file downloads; and
+`utils/printView.js` (`printElement`, `printHtml`) with the one `@media print` block
+in `index.css`, replacing five `window.print` sites and four private stylesheets — the
+substitute sheet's Print button had referenced a class no stylesheet defined and
+printed the whole app. Backend: `utils/csv_response.py` behind the five CSV routes
+(the `reports.py` copy, promoted); the plan's `roster_export_service.rows(org,
+scope, columns)` was not built — the five routes query five different things and
+share only the response.
 
 Verify: export People, a class roster and a Reports roster as CSV; the column
 picker looks the same and remembers per context; print a class roster and the

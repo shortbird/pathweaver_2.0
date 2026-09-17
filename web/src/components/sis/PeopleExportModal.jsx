@@ -4,6 +4,9 @@ import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
 import Button from '../ui/Button'
 import { withOrg } from '../../pages/sis/useSisOrg'
+import ColumnPicker from './ColumnPicker'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
 
 /**
  * Download people from the People page as a CSV, choosing the columns.
@@ -111,18 +114,9 @@ const GROUPS = [
   { title: 'Enrollment', keys: ['enrollment_status', 'grade_level', 'start_date', 'total_xp', 'last_active'] },
 ]
 
-const cell = (v) => {
-  const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
 export default function PeopleExportModal({ rows = [], orgId, studentsOnly = false, onClose }) {
-  const [keys, setKeys] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
-      if (Array.isArray(saved) && saved.length) return saved
-    } catch { /* first run, or a browser that refuses storage */ }
-    return DEFAULT_KEYS
+  const [keys, setKeys] = usePersistedChoice(STORE_KEY, DEFAULT_KEYS, {
+    validate: (saved) => (Array.isArray(saved) && saved.length ? saved : null),
   })
   const [details, setDetails] = useState(null)   // null = still loading
 
@@ -140,19 +134,14 @@ export default function PeopleExportModal({ rows = [], orgId, studentsOnly = fal
     () => COLUMNS.filter((c) => c.always || keys.includes(c.key)), [keys])
   const needsDetails = chosen.some((c) => c.needsDetails)
 
-  const toggle = (key) => setKeys((prev) => {
-    const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-    return next
-  })
+  const toggle = (key) => setKeys((prev) => (
+    prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
 
   const setGroup = (group, on) => setKeys((prev) => {
     const optional = group.keys.filter((k) => !COLUMNS.find((c) => c.key === k)?.always)
-    const next = on
+    return on
       ? [...new Set([...prev, ...optional])]
       : prev.filter((k) => !optional.includes(k))
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-    return next
   })
 
   // Waiting only matters when a chosen column actually comes from the lookup;
@@ -162,18 +151,9 @@ export default function PeopleExportModal({ rows = [], orgId, studentsOnly = fal
   const download = () => {
     if (!rows.length) { toast.error('Nothing to export'); return }
     const byUser = details || {}
-    const csv = [
-      chosen.map((c) => cell(c.label)).join(','),
-      ...rows.map((p) => chosen
-        .map((c) => cell(c.get(p, byUser[p.student_id]))).join(',')),
-    ].join('\r\n')
-    // The BOM keeps Excel from mangling accented names in a UTF-8 CSV.
-    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `people${studentsOnly ? '-students' : ''}-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const csv = toCsv(chosen.map((c) => c.label),
+      rows.map((p) => chosen.map((c) => c.get(p, byUser[p.student_id]))))
+    downloadCsv(csv, `people${studentsOnly ? '-students' : ''}-${dateStamp()}.csv`)
     toast.success(`Exported ${rows.length} ${rows.length === 1 ? 'person' : 'people'}`)
     onClose()
   }
@@ -192,36 +172,8 @@ export default function PeopleExportModal({ rows = [], orgId, studentsOnly = fal
           showing, with your filters and sort applied.
         </p>
 
-        <div className="space-y-3">
-          {GROUPS.map((g) => {
-            const cols = g.keys.map((k) => COLUMNS.find((c) => c.key === k)).filter(Boolean)
-            const allOn = cols.every((c) => c.always || keys.includes(c.key))
-            return (
-              <div key={g.title} className="rounded-lg border border-gray-200 p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
-                    {g.title}
-                  </span>
-                  <button onClick={() => setGroup(g, !allOn)}
-                    className="text-xs text-optio-purple hover:underline">
-                    {allOn ? 'Clear' : 'Select all'}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                  {cols.map((c) => (
-                    <label key={c.key}
-                      className={`flex items-center gap-1.5 text-sm ${c.always ? 'text-neutral-400' : 'text-neutral-700 cursor-pointer'}`}>
-                      <input type="checkbox" checked={c.always || keys.includes(c.key)}
-                        disabled={c.always} onChange={() => toggle(c.key)}
-                        className="h-4 w-4 rounded border-gray-300 accent-purple-700" />
-                      {c.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <ColumnPicker columns={COLUMNS} selected={keys} onToggle={toggle}
+          groups={GROUPS} onSetGroup={setGroup} />
 
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-neutral-500">{chosen.length} columns</span>

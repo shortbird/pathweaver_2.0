@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
+import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -521,10 +522,6 @@ const EventModal = ({ orgId, event, copyFrom, defaultDate, categories, onDuplica
   )
 }
 
-const csvCell = (v) => {
-  const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
 const slug = (s) => (s || 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 // What the fee did for one family. No invoice on a yes to a paid event means the
@@ -559,27 +556,17 @@ const EventRsvpList = ({ orgId, event }) => {
   const download = () => {
     const header = ['Family', 'Coming', 'People', 'Note']
     if (fee) header.push('Payment')
-    const csv = [
-      header.map(csvCell).join(','),
-      ...rows.map((r) => {
-        const line = [
-          r.household_name || 'Unnamed family',
-          r.attending ? 'Yes' : 'No',
-          r.attending ? (r.party_size || 1) : 0,
-          r.note || '',
-        ]
-        if (fee) line.push(payLabel(r, fee))
-        return line.map(csvCell).join(',')
-      }),
-    ].join('\r\n')
-    // The BOM is what makes Excel open a UTF-8 CSV without mangling accented
-    // names — same as the roster exports.
-    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `rsvps-${slug(event.title)}-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const csv = toCsv(header, rows.map((r) => {
+      const line = [
+        r.household_name || 'Unnamed family',
+        r.attending ? 'Yes' : 'No',
+        r.attending ? (r.party_size || 1) : 0,
+        r.note || '',
+      ]
+      if (fee) line.push(payLabel(r, fee))
+      return line
+    }))
+    downloadCsv(csv, `rsvps-${slug(event.title)}-${dateStamp()}.csv`)
   }
 
   return (

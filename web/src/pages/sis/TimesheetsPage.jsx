@@ -5,6 +5,7 @@ import api from '../../services/api'
 import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import StatusPill from '../../components/sis/ui/StatusPill'
+import { downloadBlob } from '../../utils/csv'
 
 /**
  * TimesheetsPage (admin) — per-staff hour totals for a pay period, entry-level
@@ -197,12 +198,7 @@ const TimesheetsPage = () => {
 
   const download = (path, name) => {
     api.get(withOrg(`${path}?start=${start}&end=${end}`, orgId), { responseType: 'blob' })
-      .then((r) => {
-        const url = URL.createObjectURL(new Blob([r.data]))
-        const a = document.createElement('a')
-        a.href = url; a.download = name; a.click()
-        URL.revokeObjectURL(url)
-      })
+      .then((r) => downloadBlob(new Blob([r.data]), name))
       .catch(() => toast.error('Export failed'))
   }
 

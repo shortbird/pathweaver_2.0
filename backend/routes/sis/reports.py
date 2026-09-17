@@ -12,10 +12,8 @@ scalar / list (family-level answer) OR an object mapping kid user_id -> value
 (per-student answer). Every report here handles both shapes defensively.
 """
 
-import csv
-import io
 
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify
 
 from utils.registration_config import get_registration_config
 from utils.auth.decorators import require_role
@@ -87,7 +85,7 @@ def payments(user_id):
                   'Reference', 'Note', 'Recorded by']
         keys = ['recorded_at', 'family', 'student', 'invoice', 'method', 'amount',
                 'reference', 'note', 'recorded_by']
-        return _csv_response('payments.csv', header,
+        return csv_response('payments.csv', header,
                              [[r.get(k, '') for k in keys] for r in report['rows']])
     return jsonify({'success': True, 'report': report})
 
@@ -128,7 +126,7 @@ def classes_report(user_id):
     keys = [k for k in keys if k in labels] or [f['key'] for f in report['fields'] if f['default']]
 
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             'classes.csv',
             [labels[k] for k in keys],
             [[r.get(k, '') for k in keys] for r in report['rows']])
@@ -173,7 +171,7 @@ def rosters_report(user_id):
     labels = {f['key']: f['label'] for f in report['fields']}
 
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             'rosters.csv',
             [labels[k] for k in keys],
             [[r.get(k, '') for k in keys] for r in report['rows']])
@@ -201,7 +199,7 @@ def student_schedule(user_id):
         if report.get('has_unscheduled'):
             header.append('Unscheduled classes')
             rows = [row + [r['unscheduled']] for row, r in zip(rows, report['rows'], strict=False)]
-        return _csv_response('student-schedule.csv', header, rows)
+        return csv_response('student-schedule.csv', header, rows)
     return jsonify({'success': True, 'report': report})
 
 
@@ -220,7 +218,7 @@ def day_rosters(user_id):
         return err
     report = reports.day_rosters_report(org_id, day=_day_arg())
     if request.args.get('format') == 'csv':
-        return _csv_response('day-rosters.csv', reports.DAY_ROSTERS_CSV_HEADER,
+        return csv_response('day-rosters.csv', reports.DAY_ROSTERS_CSV_HEADER,
                              reports.day_rosters_csv_rows(report))
     return jsonify({'success': True, 'report': report})
 
@@ -243,7 +241,7 @@ def block_rosters(user_id):
     day = _day_arg()
     report = reports.block_rosters_report(org_id, day=day)
     if request.args.get('format') == 'csv':
-        return _csv_response('block-rosters.csv', [],
+        return csv_response('block-rosters.csv', [],
                              reports.block_rosters_csv_rows(report))
     return jsonify({'success': True, 'report': report})
 
@@ -256,23 +254,6 @@ def block_rosters(user_id):
 from utils.admin_client import admin_client as _admin
 
 
-def _csv_response(filename, header, rows):
-    """Same CSV response pattern as roster.csv in routes/sis/__init__.py.
-
-    An empty `header` writes no header row — the grid reports carry their own
-    headings inside the rows, and a blank first line reads as a broken file.
-    """
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    if header:
-        writer.writerow(header)
-    for r in rows:
-        writer.writerow(r)
-    return Response(
-        buf.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename={filename}'},
-    )
 
 
 def _org_flags(org_id):
@@ -450,6 +431,7 @@ def registration_questions(user_id):
 # student whose parent typed "None" isn't flagged in one place and skipped in
 # the other.
 from utils.blank_values import has_value as _has_value  # noqa: E402
+from utils.csv_response import csv_response
 
 
 @bp.route('/reports/registration-answers', methods=['GET'])
@@ -504,7 +486,7 @@ def registration_answers(user_id):
     rows.sort(key=lambda r: (r['student'] or '').lower())
 
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             f'registration-answers-{question_key}.csv',
             ['Student', 'Family', 'Parent', 'Parent Email', 'Answer', 'Registration Status'],
             [[r['student'], r['family'], r['parent'], r['parent_email'],
@@ -597,7 +579,7 @@ def medications(user_id):
 
     rows.sort(key=lambda r: (r['student'] or '').lower())
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             'medications.csv',
             ['Student', 'Medications', 'Schedule / Notes', 'Parent',
              'Parent Phone', 'Emergency Contact 1'],
@@ -676,7 +658,7 @@ def allergies(user_id):
 
     rows.sort(key=lambda r: (r['student'] or '').lower())
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             'allergies.csv',
             ['Student', 'Allergies', 'Notes', 'Parent', 'Parent Phone', 'Emergency Contact 1'],
             [[r['student'], r['allergies'], r['notes'], r['parent'],
@@ -699,7 +681,7 @@ def daily_attendance(user_id):
     from services import sis_attendance_service as attendance
     rows = attendance.daily_report(org_id, on_date)
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             f'daily-attendance-{on_date}.csv',
             ['Student', 'Class', 'Status', 'Excused?', 'Reason'],
             [[r['student'], r['class'], r['status'], r['excused'], r['reason']] for r in rows])
@@ -724,7 +706,7 @@ def emergency_contacts(user_id):
     report = reports.emergency_contacts_report(org_id)
     if request.args.get('format') == 'csv':
         header, rows = reports.emergency_contacts_csv(report)
-        return _csv_response('emergency-contacts.csv', header, rows)
+        return csv_response('emergency-contacts.csv', header, rows)
     return jsonify({'success': True, 'report': report})
 
 
@@ -749,7 +731,7 @@ def checklist_completion(user_id):
         outstanding_only=request.args.get('all') != '1')
     if request.args.get('format') == 'csv':
         header, rows = onboarding.completion_csv(report)
-        return _csv_response('checklist-completion.csv', header, rows)
+        return csv_response('checklist-completion.csv', header, rows)
     # {'report': {'rows': [...]}} like every other report here, so the page's
     # generic shaper can read it.
     return jsonify({'success': True, 'report': {'rows': report}})
@@ -815,7 +797,7 @@ def media_release(user_id):
     rows.sort(key=lambda r: (r['student'] or '').lower())
 
     if request.args.get('format') == 'csv':
-        return _csv_response(
+        return csv_response(
             'media-release.csv',
             ['Student', 'Family'] + [q['label'] for q in matched] + ['Parent'],
             [[r['student'], r['family']] + [r['answers'][q['key']] for q in matched]

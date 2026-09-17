@@ -85,7 +85,9 @@ describe('ClassesExportModal — class list', () => {
   it('default export matches the old fixed CSV exactly', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="iCreate Co" onClose={vi.fn()} />)
     openAndExport()
-    const lines = downloaded.replace('﻿', '').split('\n')
+    // CRLF since M17: every SIS export is written by utils/csv.js, the way
+    // the People and roster exports always were (RFC 4180, and Excel's own).
+    const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines[0]).toBe(LEGACY_HEADER)
     expect(lines[1]).toBe('Pottery,Jane Doe,Tue,9:30am-10:25am,8-12,Clay,$15,$120.00,Art Studio,2,10,3')
     expect(lines[2]).toBe('Guitar Jam,Jay,Tue Thu,9:30am-10:25am,10+,,,,Music Studio,0,,0')
@@ -100,13 +102,13 @@ describe('ClassesExportModal — class list', () => {
     // Registration column SAYS for one, so put it back.
     fireEvent.click(screen.getByLabelText('Exclude archived classes'))
     openAndExport()
-    const header = downloaded.replace('﻿', '').split('\n')[0]
+    const header = downloaded.replace('﻿', '').split(/\r?\n/)[0]
     expect(header).not.toContain('Description')
     expect(header).toContain('Registration')
     expect(downloaded).not.toContain('Clay')
     expect(downloaded).toContain('Pottery,Jane Doe')   // column order is stable
-    expect(downloaded.split('\n')[1]).toMatch(/Closed$/)  // Pottery is closed
-    expect(downloaded.split('\n')[3]).toMatch(/Archived$/) // archived says so
+    expect(downloaded.split(/\r?\n/)[1]).toMatch(/Closed$/)  // Pottery is closed
+    expect(downloaded.split(/\r?\n/)[3]).toMatch(/Archived$/) // archived says so
   })
 
   it('remembers the chosen columns for the next export', () => {
@@ -118,7 +120,7 @@ describe('ClassesExportModal — class list', () => {
     fireEvent.click(screen.getByText('Reset to default'))
     expect(screen.getByLabelText('Description')).toBeChecked()
     openAndExport()
-    expect(downloaded.replace('﻿', '').split('\n')[0]).toBe(LEGACY_HEADER)
+    expect(downloaded.replace('﻿', '').split(/\r?\n/)[0]).toBe(LEGACY_HEADER)
   })
 
   it('cannot export a list with zero columns', () => {
@@ -136,7 +138,7 @@ describe('ClassesExportModal — schedule grids', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
     fireEvent.click(screen.getByLabelText(/Schedule grid by teacher/))
     openAndExport()
-    const lines = downloaded.replace('﻿', '').split('\n')
+    const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines[0]).toBe(',Jane Doe,Jay')
     expect(lines[1]).toBe('TUESDAY,,')
     expect(lines[2]).toBe('9:30am - Class,Pottery,Guitar Jam')
@@ -152,7 +154,7 @@ describe('ClassesExportModal — schedule grids', () => {
     render(<ClassesExportModal classes={CLASSES} orgName="Org" onClose={vi.fn()} />)
     fireEvent.click(screen.getByLabelText(/Schedule grid by room/))
     openAndExport()
-    const lines = downloaded.replace('﻿', '').split('\n')
+    const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines[0]).toBe(',Art Studio,Music Studio')
     expect(lines[2]).toBe('9:30am - Class,Pottery,Guitar Jam')
     expect(lines[4]).toBe('9:30am - Teacher,Jane Doe,Jay')
@@ -182,7 +184,7 @@ describe('ClassesExportModal — filtering', () => {
     // Jane teaches Pottery and the archived Old Thing; archived is excluded.
     expect(screen.getByText('Exporting 1 of 3 classes')).toBeInTheDocument()
     openAndExport()
-    const lines = downloaded.replace('﻿', '').split('\n')
+    const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines).toHaveLength(2) // header + Pottery
     expect(downloaded).toContain('Pottery')
     expect(downloaded).not.toContain('Guitar Jam')
@@ -228,7 +230,7 @@ describe('ClassesExportModal — filtering', () => {
     fireEvent.change(screen.getByLabelText('Filter by day'), { target: { value: '4' } }) // Thursday
     expect(screen.getByText('Exporting 1 of 3 classes')).toBeInTheDocument()
     openAndExport()
-    const lines = downloaded.replace('﻿', '').split('\n')
+    const lines = downloaded.replace('﻿', '').split(/\r?\n/)
     expect(lines).toHaveLength(2) // header + 1 class (Guitar Jam)
     expect(downloaded).toContain('Guitar Jam')
     expect(downloaded).not.toContain('Pottery')

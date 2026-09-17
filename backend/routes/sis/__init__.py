@@ -33,6 +33,7 @@ from utils.storage_urls import (
     sign_in_place,
     sign_stored_url,
 )
+from utils.csv_response import csv_response
 
 logger = get_logger(__name__)
 
@@ -1046,22 +1047,15 @@ def roster_csv(user_id):
     if err:
         return err
     roster = sis_service.get_roster(org_id)
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['Name', 'Role', 'Email', 'Username', 'Enrollment Status',
-                     'Grade Level', 'Household', 'Total XP', 'Last Active'])
-    for r in roster:
-        writer.writerow([
-            r['name'], r.get('role') or '', r.get('email') or '', r.get('username') or '',
-            r.get('enrollment_status') or '', r.get('grade_level') or '',
-            r.get('household_name') or '', r.get('total_xp') or 0,
-            r.get('last_active') or '',
-        ])
-    return Response(
-        buf.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=roster.csv'},
-    )
+    return csv_response(
+        'roster.csv',
+        ['Name', 'Role', 'Email', 'Username', 'Enrollment Status',
+         'Grade Level', 'Household', 'Total XP', 'Last Active'],
+        ([r['name'], r.get('role') or '', r.get('email') or '', r.get('username') or '',
+          r.get('enrollment_status') or '', r.get('grade_level') or '',
+          r.get('household_name') or '', r.get('total_xp') or 0,
+          r.get('last_active') or '']
+         for r in roster))
 
 
 def register_sis_routes(app):

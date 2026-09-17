@@ -6,7 +6,7 @@ registration, generating invoices, payment plans, recording payments (collected 
 SBS), late-fee sweep, and a household billing summary for the parent portal.
 """
 
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify
 
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
@@ -15,6 +15,7 @@ from services import sis_billing_service as billing
 # Finance tier: this module IS the money (tuition, invoices, Stripe), so it
 # is the one place campus coordinators are kept out of entirely.
 from utils.sis_roles import FINANCE_ROLES
+from utils.csv_response import csv_response
 
 logger = get_logger(__name__)
 
@@ -206,8 +207,6 @@ def billing_detail(user_id):
         household_id=request.args.get('household_id'),
         kind=request.args.get('kind'))
     if request.args.get('format') == 'csv':
-        import csv
-        import io
         rows = report['rows']
         terms = (request.args.get('q') or '').lower().split()
         if terms:
@@ -219,23 +218,19 @@ def billing_detail(user_id):
                     f"${abs(r['invoice_balance_cents'] or 0) / 100:.2f}",
                 )).lower()
             rows = [r for r in rows if all(t in _haystack(r) for t in terms)]
-        buf = io.StringIO()
-        w = csv.writer(buf)
-        w.writerow(['Family', 'Student', 'Invoice', 'Status', 'Issued', 'Due',
-                    'Charge', 'Type', 'Amount', 'Invoice total', 'Paid', 'Balance'])
-        for r in rows:
-            w.writerow([
-                r['family_name'] or '', r['student_name'] or '',
-                r['invoice_number'] or '', r['status'] or '',
-                str(r['issued_at'] or '')[:10], str(r['due_date'] or '')[:10],
-                r['description'] or '', r['kind'],
-                f"{(r['amount_cents'] or 0) / 100:.2f}",
-                f"{(r['invoice_total_cents'] or 0) / 100:.2f}",
-                f"{(r['invoice_paid_cents'] or 0) / 100:.2f}",
-                f"{(r['invoice_balance_cents'] or 0) / 100:.2f}",
-            ])
-        return Response(buf.getvalue(), mimetype='text/csv', headers={
-            'Content-Disposition': 'attachment; filename=billing-detail.csv'})
+        return csv_response(
+            'billing-detail.csv',
+            ['Family', 'Student', 'Invoice', 'Status', 'Issued', 'Due',
+             'Charge', 'Type', 'Amount', 'Invoice total', 'Paid', 'Balance'],
+            ([r['family_name'] or '', r['student_name'] or '',
+              r['invoice_number'] or '', r['status'] or '',
+              str(r['issued_at'] or '')[:10], str(r['due_date'] or '')[:10],
+              r['description'] or '', r['kind'],
+              f"{(r['amount_cents'] or 0) / 100:.2f}",
+              f"{(r['invoice_total_cents'] or 0) / 100:.2f}",
+              f"{(r['invoice_paid_cents'] or 0) / 100:.2f}",
+              f"{(r['invoice_balance_cents'] or 0) / 100:.2f}"]
+             for r in rows))
     return jsonify({'success': True, 'report': report})
 
 

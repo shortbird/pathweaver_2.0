@@ -21,6 +21,9 @@ import payLabel from './billingPage/payLabel'
 import payAmountCls from './billingPage/payAmountCls'
 import StatusPill from '../../components/sis/ui/StatusPill'
 import { statusLabel } from '../../components/sis/ui/statusMaps'
+import { printElement } from '../../utils/printView'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { downloadBlob } from '../../utils/csv'
 
 // Build the last 12 months (YYYY-MM) plus an "All open" option.
 const monthOptions = () => {
@@ -107,19 +110,10 @@ const SearchBox = ({ value, onChange, label }) => (
 const SORT_KEY = 'sis.billing.sort'
 const SORT_DEFAULTS = { charges: 'default', outstanding: 'family', detail: 'default' }
 
-const readSortPrefs = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(SORT_KEY) || '{}')
-    // Only keep values this page still understands; a stale key must not wedge
-    // the table into an order with no matching option in the dropdown.
-    return Object.fromEntries(Object.entries(raw)
-      .filter(([k, v]) => k in SORT_DEFAULTS && (v === 'default' || v === 'family')))
-  } catch { return {} }
-}
-
-const writeSortPrefs = (prefs) => {
-  try { localStorage.setItem(SORT_KEY, JSON.stringify(prefs)) } catch { /* private mode */ }
-}
+// Only keep values this page still understands; a stale key must not wedge
+// the table into an order with no matching option in the dropdown.
+const checkSortPrefs = (raw) => Object.fromEntries(Object.entries(raw || {})
+  .filter(([k, v]) => k in SORT_DEFAULTS && (v === 'default' || v === 'family')))
 
 const BillingPage = () => {
   const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
@@ -138,13 +132,9 @@ const BillingPage = () => {
   // and the office looks people up by name — asked for twice now, the second
   // time after the dropdown already existed but reset to "most overdue" on
   // every visit (iCreate, 2026-08-25).
-  const [sortByView, setSortByView] = useState(readSortPrefs)
+  const [sortByView, setSortByView] = usePersistedChoice(SORT_KEY, {}, { validate: checkSortPrefs })
   const sortBy = sortByView[view] ?? SORT_DEFAULTS[view] ?? 'default'
-  const setSortBy = (next) => setSortByView((prev) => {
-    const merged = { ...prev, [view]: next }
-    writeSortPrefs(merged)
-    return merged
-  })
+  const setSortBy = (next) => setSortByView((prev) => ({ ...prev, [view]: next }))
   // One query, kept across tabs: looking a family up on Charges and then
   // flipping to Outstanding is the same question asked twice.
   const [search, setSearch] = useState('')
@@ -271,14 +261,7 @@ const BillingPage = () => {
       const q = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ''
       const res = await api.get(withOrg(`${path}${path.includes('?') ? '&' : '?'}format=csv${q}`, orgId),
         { responseType: 'blob' })
-      const url = window.URL.createObjectURL(res.data)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'billing-detail.csv'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
+      downloadBlob(res.data, 'billing-detail.csv')
     } catch { toast.error('Failed to download CSV') }
   }, [orgId, detailPath, search])
 
@@ -292,22 +275,10 @@ const BillingPage = () => {
     finally { setSendingReminders(false) }
   }
 
-  const printArea = () => { try { window.print() } catch { /* jsdom */ } }
+  const printArea = () => printElement('.print-area')
 
   return (
     <div>
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .print-area, .print-area * { visibility: visible; }
-          .print-area { position: absolute; left: 0; top: 0; width: 100%; }
-          .no-print { display: none !important; }
-          /* Print the whole invoice, not the slice that happens to be
-             scrolled into view. */
-          .modal-scroll { overflow: visible !important; max-height: none !important; }
-        }
-      `}</style>
-
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-neutral-900">Billing</h1>
         <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />

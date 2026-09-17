@@ -3,6 +3,7 @@ import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
 import { withOrg } from '../../pages/sis/useSisOrg'
 import { meetingText } from './classLabel'
+import { printElement } from '../../utils/printView'
 
 /**
  * One page a substitute can be handed.
@@ -36,10 +37,10 @@ export default function SubstituteSheet({ classId, cls, students = [], orgId, on
     <ModalOverlay onClose={onClose}>
       <div className="w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col rounded-2xl bg-white shadow-xl"
         role="dialog" aria-modal="true" aria-label="Substitute sheet">
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-200 shrink-0 sis-no-print">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-200 shrink-0 no-print">
           <h2 className="font-semibold text-neutral-900">Substitute sheet</h2>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.print()}
+            <button onClick={() => printElement('.sis-substitute-sheet')}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50">
               Print
             </button>
@@ -48,7 +49,7 @@ export default function SubstituteSheet({ classId, cls, students = [], orgId, on
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-5 sis-substitute-sheet">
           <div>
             <h3 className="text-lg font-bold text-neutral-900">{cls?.name}</h3>
             <p className="text-sm text-neutral-600">

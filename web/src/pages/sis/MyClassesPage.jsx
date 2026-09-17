@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import SisOrgPicker from './SisOrgPicker'
 import { getPreviewTeacher, withPreview } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 
 /**
  * MyClassesPage — the teacher's classes with meeting times and roster counts.
@@ -40,13 +41,9 @@ const MyClassesPage = () => {
   const navigate = useNavigate()
   const [classes, setClasses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState(() => {
-    try { return localStorage.getItem('sis_my_classes_view') || 'cards' } catch { return 'cards' }
+  const [view, setViewPersist] = usePersistedChoice('sis_my_classes_view', 'cards', {
+    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
   })
-  const setViewPersist = (v) => {
-    setView(v)
-    try { localStorage.setItem('sis_my_classes_view', v) } catch { /* ignore */ }
-  }
 
   useEffect(() => {
     if (!orgId) { setLoading(false); return }

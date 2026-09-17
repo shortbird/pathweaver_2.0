@@ -467,7 +467,7 @@ describe('ClassesPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
       // The chooser is open — pick nothing, keep the defaults, export.
       fireEvent.click(await screen.findByRole('button', { name: 'Export' }))
-      const [header, row] = downloaded.replace('﻿', '').split('\n')
+      const [header, row] = downloaded.replace('﻿', '').split(/\r?\n/)
       expect(header).toBe('Class name,Teacher,Days,Time,Ages,Description,Supply fee,Tuition,Classroom,Enrolled,Capacity,Waitlist')
       expect(row).toBe('Pottery,Jane Doe,,,8-12,Clay,$15,$120.00,,2,10,3')
     } finally {

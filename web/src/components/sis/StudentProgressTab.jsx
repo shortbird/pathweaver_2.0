@@ -5,6 +5,7 @@ import { PrinterIcon, InboxIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { printHtml } from '../../utils/printView'
 
 /**
  * StudentProgressTab — how each student in a class is doing on the quests
@@ -55,25 +56,11 @@ const printProgress = (className, quests, students) => {
       ${s.cells.map((c) => `<td>${cellLabel(c)}</td>`).join('')}
       <td>${s.tasks_done}/${s.tasks_total || 0}</td>
     </tr>`).join('')
-  const html = `<!doctype html><html><head><title>${className} — student progress</title>
-    <style>
-      body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 24px; }
-      h1 { font-size: 18px; margin-bottom: 4px; }
-      p { color: #6b7280; font-size: 12px; margin-top: 0; }
-      table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 16px; }
-      th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: center; }
-      th { background: #f9fafb; text-align: center; }
-      td.name, th:first-child { text-align: left; }
-    </style></head><body>
+  printHtml(`${className} — student progress`, `
     <h1>${className || 'Class'} — student progress</h1>
     <p>Generated ${new Date().toLocaleDateString()}</p>
     <table><thead><tr><th>Student</th>${head}<th>Tasks done</th></tr></thead>
-    <tbody>${rows}</tbody></table></body></html>`
-  const w = window.open('', '_blank')
-  if (!w) return
-  w.document.write(html)
-  w.document.close()
-  w.print()
+    <tbody>${rows}</tbody></table>`)
 }
 
 const StudentProgressTab = ({ classId, className }) => {

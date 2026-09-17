@@ -8,7 +8,7 @@
 
 import React from 'react'
 
-import printSection from './printSection'
+import { printElement } from '../../../utils/printView'
 
 
 /**
@@ -40,7 +40,7 @@ export const BlockRosters = ({ days, day, onDayChange }) => {
         {/* "Can we have an option to print an entire day instead of just a
             block?" (iCreate, 2026-09-01 — 48da8820). Every block was its own
             button, so a Tuesday meant five trips to the printer dialog. */}
-        <button type="button" onClick={() => printSection(`sis-blocks-${current.key}`)}
+        <button type="button" onClick={() => printElement(`sis-blocks-${current.key}`)}
           className="ml-auto px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50">
           Print all of {current.label}
         </button>
@@ -61,7 +61,7 @@ export const BlockRosters = ({ days, day, onDayChange }) => {
                 </span>
               </h4>
               <button type="button"
-                onClick={() => printSection(`sis-block-${current.key}-${b.key}`)}
+                onClick={() => printElement(`sis-block-${current.key}-${b.key}`)}
                 className="no-print px-2.5 py-1 rounded-lg border border-gray-300 text-xs text-neutral-700 hover:bg-gray-50">
                 Print {b.label}
               </button>

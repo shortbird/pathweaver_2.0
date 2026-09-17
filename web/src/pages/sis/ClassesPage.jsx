@@ -32,6 +32,7 @@ import CourseCard from './classesPage/CourseCard'
 import CourseDetailModal from './classesPage/CourseDetailModal'
 import ClassDetailModal from './classesPage/ClassDetailModal'
 import OPTIO_COURSE_FEE from './classesPage/OPTIO_COURSE_FEE'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
 
 // "HH:MM" + minutes -> "HH:MM:00" for the meetings API.
@@ -203,13 +204,9 @@ const ClassesPage = () => {
   // on the page, so it asked staff to bulk-publish a set they could not see.
   const [closedOnly, setClosedOnly] = useState(false)
   // cards | table — table is the spreadsheet view of the org's classes.
-  const [view, setViewState] = useState(() => {
-    try { return localStorage.getItem('sis_classes_view') || 'table' } catch { return 'table' }
+  const [view, setView] = usePersistedChoice('sis_classes_view', 'table', {
+    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
   })
-  const setView = (v) => {
-    setViewState(v)
-    try { localStorage.setItem('sis_classes_view', v) } catch { /* ignore */ }
-  }
 
   const catalog = useSisClassCatalog(orgId, { showArchived, isAdmin })
   const conflicts = useSisScheduleConflicts(orgId)

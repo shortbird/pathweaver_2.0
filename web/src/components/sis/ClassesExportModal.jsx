@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { ModalOverlay } from '../ui'
 import Button from '../ui/Button'
 import { hhmm } from './classFields'
+import ColumnPicker from './ColumnPicker'
+import usePersistedChoice from '../../hooks/usePersistedChoice'
+import { toCsv, downloadCsv as saveCsv } from '../../utils/csv'
 
 /**
  * Export the org's classes as a CSV, in the shapes the front office actually
@@ -140,21 +143,7 @@ export const buildGridRows = (classes, axis, dayFilter = 'all') => {
   return rows
 }
 
-const esc = (v) => {
-  const s = String(v ?? '')
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-}
-
-const downloadCsv = (rows, filename) => {
-  const csv = rows.map((r) => r.map(esc).join(',')).join('\n')
-  const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+const downloadCsv = (rows, filename) => saveCsv(toCsv(null, rows), filename)
 
 const FORMATS = [
   { key: 'list', label: 'Class list', hint: 'One row per class — pick the columns below' },
@@ -176,21 +165,18 @@ const DAY_OPTIONS = [
 // `allowedIds` is what this caller may export — a coordinator's list has the
 // price columns taken out, and a pref saved before their role changed (or by an
 // admin on a shared browser) must not smuggle one back in.
-const loadPrefs = (allowedIds) => {
+const checkPrefs = (allowedIds) => (saved) => {
   const allow = (ids) => ids.filter((id) => allowedIds.includes(id))
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORE_KEY))
-    return {
-      format: FORMATS.some((f) => f.key === saved?.format) ? saved.format : 'list',
-      cols: Array.isArray(saved?.cols) && saved.cols.length
-        ? allow(saved.cols)
-        : allow(DEFAULT_COLS),
-      // Default ON, and `!== false` so the browsers that already hold a saved
-      // pref object without this key get the new default rather than archived
-      // classes back.
-      excludeArchived: saved?.excludeArchived !== false,
-    }
-  } catch { return { format: 'list', cols: allow(DEFAULT_COLS), excludeArchived: true } }
+  return {
+    format: FORMATS.some((f) => f.key === saved?.format) ? saved.format : 'list',
+    cols: Array.isArray(saved?.cols) && saved.cols.length
+      ? allow(saved.cols)
+      : allow(DEFAULT_COLS),
+    // Default ON, and `!== false` so the browsers that already hold a saved
+    // pref object without this key get the new default rather than archived
+    // classes back.
+    excludeArchived: saved?.excludeArchived !== false,
+  }
 }
 
 // seesMoney comes from the page (canSeeFinance) rather than being read here, so
@@ -198,7 +184,8 @@ const loadPrefs = (allowedIds) => {
 const ClassesExportModal = ({ classes = [], orgName, onClose, seesMoney = true }) => {
   const availableColumns = columnsFor(seesMoney)
   const allowedIds = availableColumns.map((c) => c.id)
-  const [prefs, setPrefs] = useState(() => loadPrefs(allowedIds))
+  const [prefs, save] = usePersistedChoice(STORE_KEY, checkPrefs(allowedIds)(null),
+    { validate: checkPrefs(allowedIds) })
   const { format, cols, excludeArchived } = prefs
   const [selectedTeacher, setSelectedTeacher] = useState('all')
   const [selectedDay, setSelectedDay] = useState('all')
@@ -241,10 +228,6 @@ const ClassesExportModal = ({ classes = [], orgName, onClose, seesMoney = true }
     })
   }, [classes, selectedTeacher, selectedDay, excludeArchived])
 
-  const save = (next) => {
-    setPrefs(next)
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-  }
   const toggleCol = (id) => save({
     ...prefs,
     // Keep LIST_COLUMNS order regardless of click order.
@@ -354,18 +337,8 @@ const ClassesExportModal = ({ classes = [], orgName, onClose, seesMoney = true }
                   Reset to default
                 </button>
               </legend>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                {availableColumns.map((c) => (
-                  <label key={c.id} className="flex items-start gap-2 text-sm text-neutral-700 cursor-pointer">
-                    <input type="checkbox" aria-label={c.label} className="mt-0.5 accent-optio-purple shrink-0"
-                      checked={cols.includes(c.id)} onChange={() => toggleCol(c.id)} />
-                    <span className="leading-tight">
-                      <span className="block font-medium text-neutral-800">{c.label}</span>
-                      {c.hint && <span className="block text-[11px] text-neutral-500 font-normal">{c.hint}</span>}
-                    </span>
-                  </label>
-                ))}
-              </div>
+              <ColumnPicker columns={availableColumns.map((c) => ({ ...c, key: c.id }))}
+                selected={cols} onToggle={toggleCol} columnsClass="grid grid-cols-2 gap-x-3 gap-y-2" />
             </fieldset>
           )}
         </div>
