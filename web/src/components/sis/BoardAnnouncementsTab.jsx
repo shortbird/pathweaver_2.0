@@ -9,6 +9,7 @@ import { useSisOrg } from '../../pages/sis/useSisOrg'
 import RichTextEditor from '../course/outline/RichTextEditor'
 import AnnouncementBody from '../announcements/AnnouncementBody'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { fmtDateOnly, fmtShortDate, fmtInstant, isDateOnly } from '../../utils/timeFormat'
 
 /**
  * Posting an announcement. One composer, mounted in two places.
@@ -58,23 +59,11 @@ const audienceChip = (value) => {
   return AUDIENCES.find((a) => a.value === v)?.label || v
 }
 
-const isDateOnly = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
-
-const fmtDate = (v, { utc = false } = {}) => {
-  if (!v) return ''
-  const d = new Date(isDateOnly(v) ? `${v}T12:00:00` : v)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, {
-    month: 'short', day: 'numeric', ...(utc ? { timeZone: 'UTC' } : {}),
-  })
-}
-
-const fmtDateTime = (v) => {
-  if (!v) return ''
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, {
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  })
-}
+// Posted / scheduled / expires stamps: a day-only value is a day, an instant
+// is an instant, both from utils/timeFormat.js (this file and CommunityPage
+// each had their own pair with the same names and different algorithms, M12).
+const fmtDate = (v) => (isDateOnly(v) ? fmtDateOnly(v, 'short').replace(/, \d{4}$/, '') : fmtShortDate(v))
+const fmtDateTime = fmtInstant
 
 const BoardAnnouncementsTab = ({ orgId, admin }) => {
   const confirm = useConfirm()

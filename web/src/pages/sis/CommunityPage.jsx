@@ -16,6 +16,7 @@ import { isSisAdmin } from './sisRole'
 import BoardAnnouncementsTab from '../../components/sis/BoardAnnouncementsTab'
 import { htmlToText } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { fmtEventWhen, fmtDateOnly, fmtLongDate, isDateOnly } from '../../utils/timeFormat'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
@@ -41,23 +42,13 @@ const recTypeLabel = (v) => REC_TYPES.find((t) => t.value === v)?.label || 'Shou
 // stamp both name a CALENDAR DATE rather than an instant. Read back in local
 // time, either becomes the previous evening anywhere west of Greenwich:
 // "NO CLASS - LABOR DAY" on the 7th rendered as Sep 6 (iCreate, 2026-08-31).
-// Pass utc for an all-day stamp; date-only strings are detected here, since
-// this formatter also receives real timestamps (created_at) that must stay local.
-const isDateOnly = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
-
-const fmtDate = (v, { utc = false } = {}) => {
-  if (!v) return ''
-  const d = new Date(v)
-  if (Number.isNaN(d.getTime())) return ''
-  const opts = { month: 'short', day: 'numeric', year: 'numeric' }
-  if (utc || isDateOnly(v)) opts.timeZone = 'UTC'
-  return d.toLocaleDateString(undefined, opts)
-}
-const fmtDateTime = (v) => {
-  if (!v) return ''
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+// Three kinds of stamp reach this page and each reads its own way, all from
+// utils/timeFormat.js (M12): a day (a birthday, a date found) is built from
+// its parts; a real instant (posted, given) reads in the viewer's zone; and an
+// event stamp reads as the wall clock the office typed. Until M12 this page
+// formatted a timed event in local time -- the admin's own event list had the
+// 12:30 bug the parents had reported.
+const fmtDate = (v) => (isDateOnly(v) ? fmtDateOnly(v) : fmtLongDate(v))
 
 /**
  * SIS Community Hub — a curated community section for the org: a Highlights landing
@@ -185,7 +176,7 @@ const HighlightsTab = ({ orgId, onNavigate }) => {
               <li key={e.id} className="text-sm">
                 <div className="font-medium text-neutral-900">{e.title}</div>
                 <div className="text-xs text-neutral-500">
-                  {e.all_day ? fmtDate(e.start_at, { utc: true }) : fmtDateTime(e.start_at)}{e.location ? ` · ${e.location}` : ''}
+                  {fmtEventWhen(e)}{e.location ? ` · ${e.location}` : ''}
                 </div>
               </li>
             ))}
@@ -656,7 +647,7 @@ const EventsTab = ({ orgId }) => {
               {e.description && <div className="text-xs text-neutral-500 line-clamp-1">{e.description}</div>}
             </div>
             <div className="text-xs text-neutral-500 text-right flex-shrink-0">
-              <div>{e.all_day ? fmtDate(e.start_at, { utc: true }) : fmtDateTime(e.start_at)}</div>
+              <div>{fmtEventWhen(e)}</div>
               {e.location && <div>{e.location}</div>}
             </div>
           </div>

@@ -209,7 +209,12 @@ BASELINES = {
     # SIS cron endpoints each carried a private users read for the superadmin
     # fallback; routes/sis/internal.py declares them once and asks
     # sis_service.get_user_org_context instead, which already reads that row.
-    'routes': 2278,
+    # 2026-09-17 (M12, docs/sis/CONSOLIDATION_PLAN.md): 2278 -> 2271. The
+    # calendar route's six sis_events reads and writes moved down into
+    # services/sis_events_service.py, the one reader of that table; the route
+    # keeps its validation and answers. Plus one from M12's rename in
+    # routes/sis/events.py of the ownership check into the service.
+    'routes': 2271,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -262,7 +267,12 @@ BASELINES = {
     # copies of "who is this child's parent" (utils.class_membership answers
     # now); family_children_service is new but reads through
     # repositories/family_repository.
-    'services': 1836,
+    # 2026-09-17 (M12): 1836 -> 1837. services/sis_events_service.py holds the
+    # five calls that read and write sis_events (list, get, insert, update,
+    # delete); four other services gave up their own read of the table for it
+    # and the route gave up six, so this is a move down a layer (+5 here, -4
+    # here, -6 in routes/), not new querying. The combined total fell by five.
+    'services': 1837,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -516,7 +526,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2278 + 1836
+UPPER_TOTAL_BASELINE = 2271 + 1837
 
 
 def test_the_upper_layers_do_not_grow_in_total():

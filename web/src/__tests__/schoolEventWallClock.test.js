@@ -19,10 +19,11 @@ import { codeLines, filesUnder } from '../tests/sourceScan.js'
  * Moms' Group Night that reached every Denver parent as 12:30 (Marika,
  * 2026-09-15: "this would likely explain our low turnout"). Mobile fixed its
  * side by centralising the rule in components/school/format.ts with this
- * test's twin (c88c70c0). The web still has five readers with their own
- * formatting, two of which share function names and disagree, and one of
- * which (CommunityPage's fmtDateTime, the admin's own event list) formats a
- * timed event in local time today.
+ * test's twin (c88c70c0). The web had five readers with their own formatting,
+ * two of which shared function names and disagreed, and one of which
+ * (CommunityPage's fmtDateTime, the admin's own event list) formatted a timed
+ * event in local time; M12 (docs/sis/CONSOLIDATION_PLAN.md) moved every one
+ * onto utils/timeFormat.js and emptied BASELINE.
  *
  * The rule enforced: a source file that reads a school event's stamps may not
  * format a Date itself. It imports the label from utils/timeFormat.js, the one
@@ -31,8 +32,8 @@ import { codeLines, filesUnder } from '../tests/sourceScan.js'
  * a month grid built from `new Date(year, month, 1)`, which is legitimately
  * local; the stamp itself they read by slicing the string.
  *
- * BASELINE is per file, measured 2026-09-17, and is exact both ways: M12 in
- * docs/sis/CONSOLIDATION_PLAN.md lowers each entry to zero and removes it.
+ * BASELINE is per file and exact both ways. It is empty since M12; an entry
+ * added here is a reader that formats a stamp itself, which is the bug.
  */
 
 const SRC = path.resolve(__dirname, '..')
@@ -50,13 +51,8 @@ const SCHOOL_RE = /all_day|sis\/events|sis\/parent\/events|sis\/community|School
 const LOCAL_TIME_RE = /\.(toLocaleTimeString|toLocaleDateString|toLocaleString|getHours|getMinutes)\s*\(([^)]*)\)/g
 const DATE_PART_RE = /hour|minute|weekday|month|day/
 
-/** Baseline: offending calls per reader, measured 2026-09-17. Lowered by M12. */
-const BASELINE = {
-  'components/announcements/SchoolCommunity.jsx': 3,
-  'pages/FamilyCalendarPage.jsx': 2,
-  'pages/sis/CommunityPage.jsx': 2,
-  'pages/sis/SisDashboard.jsx': 2,
-}
+/** Baseline: offending calls per reader. Empty since M12 (2026-09-17). */
+const BASELINE = {}
 
 function readers() {
   return filesUnder(SRC, '.').filter((rel) => {
@@ -80,10 +76,13 @@ describe('school event stamps are formatted only in utils/timeFormat.js', () => 
   const files = readers()
 
   it('finds the known readers, so an empty sweep cannot pass silently', () => {
+    // The two month grids read the stamps by slicing them (splitEventStamp)
+    // and key their days by the date part; every other page hands the whole
+    // event to a timeFormat helper and never touches the stamp.
     expect(files).toEqual(expect.arrayContaining([
       'pages/sis/CalendarPage.jsx',
       'pages/FamilyCalendarPage.jsx',
-      'pages/sis/SisDashboard.jsx',
+      FORMATTER,
     ]))
   })
 
@@ -100,8 +99,8 @@ describe('school event stamps are formatted only in utils/timeFormat.js', () => 
     expect(
       added,
       'A reader of school event stamps formats a Date itself. Import the label from '
-      + 'utils/timeFormat.js instead (fmtEventWhen / fmtEventTimeRange / fmtDayHeading after '
-      + 'M12; until then, add nothing here -- the four files in BASELINE are the whole debt).',
+      + 'utils/timeFormat.js instead (fmtEventWhen, fmtEventDay, fmtEventTimeRange, '
+      + 'splitEventStamp, fmtDayHeading). BASELINE is empty and stays empty.',
     ).toEqual([])
   })
 

@@ -220,7 +220,7 @@
     },
     {
       "id": "audience_vocabulary",
-      "means": "Who a message is for. Announcements said students/parents/advisors, the community board school/families/teachers, events school/teachers/admins, the archive had its own tuple. services/sis_audiences.py is the one vocabulary since M1; the calendar's AUDIENCES adopts it in M12.",
+      "means": "Who a message is for. Announcements said students/parents/advisors, the community board school/families/teachers, events school/teachers/admins, the archive had its own tuple. services/sis_audiences.py is the one vocabulary since M1; the calendar adopted it in M12.",
       "owner": { "backend": ["services/sis_audiences.py"] },
       "forbid": {
         "backend": {
@@ -228,7 +228,7 @@
           "dirs": ["routes/announcements.py", "routes/sis/events.py", "services/announcement_service.py", "services/sis_community_service.py"]
         }
       },
-      "baseline": { "backend": 1 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M1",
       "use_instead": "services/sis_audiences.py: BOARD_AUDIENCES, RECIPIENT_ROLES, EVENT_AUDIENCES, recipient_roles_for(board_audience), board_audience(value), normalize_recipient_roles(...). Import the words; never spell a vocabulary in a route or service."
@@ -283,23 +283,22 @@
     },
     {
       "id": "events_read",
-      "means": "Reading sis_events. Ten reads with four different audience filters: the SIS calendar, the parent feed, the community feed (which re-reads the table), the ICS export, the dashboard, RSVPs.",
+      "means": "Reading sis_events. Ten reads with four different audience filters until M12: the SIS calendar, the parent feed, the community feed, the ICS export, the dashboard, RSVPs.",
       "owner": { "backend": ["services/sis_events_service.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "\\.table\\(\\s*['\"]sis_events['\"]",
           "dirs": ["routes", "services", "repositories", "utils", "jobs"]
         }
       },
-      "baseline": { "backend": 10 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "sis_events_service.feed(org_id, viewer, window) (M12) applies the audience filter from the viewer's role; every reader, ICS included, calls it."
+      "use_instead": "sis_events_service.list_events(org_id, viewer, from_iso=..., to_iso=..., limit=..., columns=...) with viewer 'admin' | 'staff' | 'family' | 'shared' (viewer_for_user(user_id) picks it from the roles); get_event / create_event / update_event / delete_event for the rest. The audience rule lives there and nowhere else."
     },
     {
       "id": "today_schedule",
-      "means": "What is happening at the school today. sis_coordinator_service._today_org_schedule assembles it; the admin dashboard also calls the legacy sis_service.get_dashboard for a second copy of the same slice, and the teacher dashboard has a third.",
+      "means": "What is happening at the school today. sis_coordinator_service.today_schedule(org_id, date, dow=..., class_scope=...) assembles it for both dashboards; the admin dashboard's second source was sis_service.get_dashboard, which is the census and is named so since M12.",
       "owner": { "backend": ["services/sis_coordinator_service.py"] },
       "forbid": {
         "backend": {
@@ -307,14 +306,14 @@
           "dirs": ["routes", "services"]
         }
       },
-      "baseline": { "backend": 1 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "sis_coordinator_service.today_schedule(org_id, date, class_scope=None) (M12): the admin route passes no scope, the teacher route passes class_scope(). get_dashboard's schedule slice goes."
+      "use_instead": "sis_coordinator_service.today_schedule(org_id, today, dow=..., class_scope=...). The school's headline counts are sis_service.census(org_id); there is no second dashboard assembler."
     },
     {
       "id": "event_wall_clock",
-      "means": "A school event's start_at is a wall clock wearing a UTC label (the office typed 18:30; Postgres stored 18:30+00). Every renderer must read it in UTC, and six web sites each spell that rule themselves. The rule shipped wrong three times.",
+      "means": "A school event's start_at is a wall clock wearing a UTC label (the office typed 18:30; Postgres stored 18:30+00). Every renderer must read it in UTC; until M12 six web sites each spelled that rule themselves, and the SIS admin's own Community page did not.",
       "owner": { "web": ["utils/timeFormat.js"] },
       "forbid": {
         "web": {
@@ -322,10 +321,10 @@
           "dirs": ["pages/sis", "components/sis", "components/announcements"]
         }
       },
-      "baseline": { "web": 6 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M12",
-      "use_instead": "fmtEventWhen(event) / fmtEventTimeRange(event) / fmtDayHeading(ymd) from utils/timeFormat.js (M12, ported from mobile's components/school/format.ts). schoolEventWallClock.test.js refuses a reader that formats the stamps anywhere else."
+      "use_instead": "fmtEventWhen(event), fmtEventDay(event), fmtEventTimeRange(event), splitEventStamp(iso) and fmtDayHeading(ymd) from utils/timeFormat.js (EVENT_STAMPS_ARE_WALL_CLOCK). schoolEventWallClock.test.js refuses a reader that formats the stamps anywhere else."
     },
     {
       "id": "time_blocks_read",

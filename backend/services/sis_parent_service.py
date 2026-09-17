@@ -25,7 +25,6 @@ from utils.org_features import org_has_feature
 from modules.enabled import effective_modules_for_row
 from modules.registry import surface_keys
 from utils.logger import get_logger
-from utils.validation.sanitizers import pgrst_timestamp
 from services.class_quest_enrollment import enroll_in_class_quests as _enroll_in_class_quests
 
 logger = get_logger(__name__)
@@ -1349,20 +1348,10 @@ def org_events(user_id: str, org_id: str, from_iso: Optional[str] = None,
     # page (9cf78e9a, found 2026-09-08). `categories` is here for the same
     # reason: the family calendar draws a chip per category and could only ever
     # see the first one.
-    q = (
-        _admin().table('sis_events')
-        .select('id, title, description, location, start_at, end_at, all_day, '
-                'category, categories, audience, '
-                'rsvp_enabled, rsvp_fee_cents, rsvp_closes_at')
-        .eq('organization_id', org_id)
-        .eq('audience', 'school')  # families only ever see school-wide events
-    )
-    if from_iso:
-        _from = pgrst_timestamp(from_iso, 'from')
-        q = q.or_(f'start_at.gte.{_from},end_at.gte.{_from}')
-    if to_iso:
-        q = q.lt('start_at', to_iso)
-    return q.order('start_at').execute().data or []
+    from services import sis_events_service as events
+    # Families only ever see school-wide events: the 'family' viewer.
+    return events.list_events(org_id, 'family', from_iso=from_iso, to_iso=to_iso,
+                              columns=events.FAMILY_COLUMNS)
 
 
 def calendar_feed_url(user_id: str, org_id: str, base_url: str) -> Optional[str]:

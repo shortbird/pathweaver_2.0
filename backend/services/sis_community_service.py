@@ -677,17 +677,8 @@ def delete_carpool_post(org_id: str, user_id: str, post_id: str,
 def upcoming_events(org_id: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Upcoming org events from the existing sis_events table (school + teacher
     audience only — never admin-only), soonest first. Read-only for Highlights."""
-    now_iso = datetime.utcnow().isoformat()
-    rows = (
-        _admin().table('sis_events').select('*')
-        .eq('organization_id', org_id)
-        .neq('audience', 'admins')
-        .gte('start_at', now_iso)
-        .order('start_at')
-        .limit(limit)
-        .execute()
-    ).data or []
-    return rows
+    from services import sis_events_service as events
+    return events.list_events(org_id, 'staff', upcoming_only=True, limit=limit)
 
 
 # ── Highlights (read-only aggregation) ────────────────────────────────────────

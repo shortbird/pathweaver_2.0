@@ -56,6 +56,7 @@ def _run(event, existing=None, **kw):
     admin.table.side_effect = _table
     charge = Mock(return_value={'invoice': {'id': 'inv-1'}})
     with patch.object(rsvps, '_admin', return_value=admin), \
+         patch('services.sis_events_service._admin', return_value=admin), \
          patch('services.sis_billing_service.create_charge', charge):
         out = rsvps.respond(ORG, EVENT, PARENT, HOUSE,
                             attending=kw.get('attending', True),
@@ -143,6 +144,7 @@ class TestTheMoney:
         admin = Mock()
         admin.table.side_effect = _table
         with patch.object(rsvps, '_admin', return_value=admin), \
+         patch('services.sis_events_service._admin', return_value=admin), \
              patch('services.sis_billing_service.create_charge',
                    side_effect=RuntimeError('billing is down')):
             out = rsvps.respond(ORG, EVENT, PARENT, HOUSE, attending=True)
@@ -156,6 +158,7 @@ class TestCounting:
     def _summary(self, rows):
         admin = Mock()
         with patch.object(rsvps, '_admin', return_value=admin), \
+         patch('services.sis_events_service._admin', return_value=admin), \
              patch.object(rsvps, 'fetch_all_rows', return_value=rows):
             return rsvps.summary_for(ORG, [EVENT])
 
@@ -175,7 +178,8 @@ class TestCounting:
 
     def test_nothing_is_asked_for_an_empty_calendar(self):
         admin = Mock()
-        with patch.object(rsvps, '_admin', return_value=admin):
+        with patch.object(rsvps, '_admin', return_value=admin), \
+         patch('services.sis_events_service._admin', return_value=admin):
             assert rsvps.summary_for(ORG, []) == {}
         admin.table.assert_not_called()
 
@@ -197,6 +201,7 @@ class TestTheList:
                    patch('services.sis_billing_service.invoice_statuses',
                          return_value=statuses or {}))
         with patch.object(rsvps, '_admin', return_value=admin), \
+         patch('services.sis_events_service._admin', return_value=admin), \
              patch.object(rsvps, 'fetch_all_rows', return_value=rows), \
              billing:
             return rsvps.rsvps_for(ORG, EVENT)

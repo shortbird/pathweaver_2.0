@@ -38,10 +38,8 @@ from utils.admin_client import admin_client as _admin
 
 
 def get_event(org_id: str, event_id: str) -> Optional[Dict[str, Any]]:
-    rows = (_admin().table('sis_events').select('*')
-            .eq('id', event_id).eq('organization_id', org_id)
-            .limit(1).execute()).data
-    return rows[0] if rows else None
+    from services import sis_events_service as events
+    return events.get_event(org_id, event_id)
 
 
 def _clean_party_size(value: Any) -> int:

@@ -39,7 +39,7 @@ Four rules, learned the hard way:
 
 | Ceiling | Where | Protects |
 |---|---|---|
-| Direct `.table()` calls per layer: routes 2,278, services 1,836, repositories 522, utils 145, jobs 7, middleware 2, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
+| Direct `.table()` calls per layer: routes 2,271, services 1,837, repositories 522, utils 145, jobs 7, middleware 2, modules 1 — plus routes+services as a combined total | `backend/tests/unit/test_direct_db_calls_do_not_grow.py` | CI-02, layering. The combined total is asserted separately so moving a call down a layer cannot pass as a fix. This file's baselines change most often; read them there, not here |
 | 415 `datetime.utcnow()` calls | `backend/tests/unit/test_one_definition_of_now.py` | QB-02. Naive-vs-aware comparison raises `TypeError`; three of 35 `_now` copies were naive |
 | 10 cross-layer import violations | `backend/tests/unit/test_import_layers.py` | Layering: repositories importing routes, and similar |
 | 22 direct storage uploads outside the service | `backend/tests/unit/test_storage_upload_goes_through_service.py` | Uploads that skip validation and virus scanning |

@@ -38,7 +38,7 @@ def _table_mock(counts, rows):
     the row list and exact count configured for that table name."""
     def _table(name):
         t = Mock()
-        for chained in ('select', 'eq', 'in_', 'gte', 'lt', 'order', 'limit', 'not_', 'is_'):
+        for chained in ('select', 'eq', 'in_', 'gte', 'lt', 'or_', 'order', 'limit', 'not_', 'is_'):
             getattr(t, chained).return_value = t
         t.execute.return_value = Mock(data=rows.get(name, []), count=counts.get(name, 0))
         return t
@@ -66,9 +66,11 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
 
     patches = {
         '_admin': patch.object(dash, '_admin', return_value=admin),
+        # The events row comes through sis_events_service since M12.
+        '_events_admin': patch('services.sis_events_service._admin', return_value=admin),
         '_org_now': patch.object(dash, '_org_now',
                                  return_value=datetime(2026, 8, 14, 9, 0, tzinfo=timezone.utc)),
-        'get_dashboard': patch.object(dash.sis_service, 'get_dashboard', return_value=SNAPSHOT),
+        'census': patch.object(dash.sis_service, 'census', return_value=SNAPSHOT),
         'roles': patch.object(dash.sis_service, 'caller_org_roles', return_value=list(roles)),
         'sees_pay': patch.object(dash.sis_service, 'caller_sees_pay', return_value=sees_pay),
         'unassigned': patch.object(dash.sis_service, 'unassigned_students',
@@ -79,7 +81,7 @@ def _run(*, roles=('org_admin',), sees_pay=True, settings=None, counts=None, row
                                 return_value=batches or []),
         'assignments': patch.object(dash.onboarding, 'list_assignments',
                                     return_value=assignments or []),
-        'schedule': patch.object(dash.coordinator, '_today_org_schedule', return_value=[]),
+        'schedule': patch.object(dash.coordinator, 'today_schedule', return_value=[]),
     }
     patches.update(overrides or {})
 
@@ -246,10 +248,10 @@ class TestOneBrokenSubsystemCostsOneTile:
         assert data['finance']['tuition_queue'] == 2
 
     def test_a_failing_snapshot_leaves_the_queues_standing(self):
-        broken = patch.object(dash.sis_service, 'get_dashboard',
+        broken = patch.object(dash.sis_service, 'census',
                               side_effect=RuntimeError('roster is down'))
         data = _run(counts={'sis_enrollment_waitlist': 4},
-                    overrides={'get_dashboard': broken})
+                    overrides={'census': broken})
         assert data['snapshot'] is None
         assert data['attention']['waitlist_waiting'] == 4
 

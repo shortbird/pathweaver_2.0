@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
+import { fmtShortDate, fmtEventWhen } from '../../utils/timeFormat'
 
 /**
  * Shared building blocks of the school feed.
@@ -21,44 +22,12 @@ export const RECOGNITION_LABEL = {
   thank_you: 'Thank you',
 }
 
-export const fmtDate = (iso) => {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  } catch { return '' }
-}
-
-/** When an event happens, as the school wrote it.
- *
- * Read in UTC throughout — timed events as well as all-day ones. `start_at`
- * does not name an instant: the office types "10:00" and routes/sis/events.py
- * stores that string into a timestamptz, so Postgres tags it +00 without
- * converting. The stamp is a wall clock wearing a UTC label, and UTC is the
- * only zone where it reads back as what the office meant.
- *
- * Formatting a timed event in local time instead is how the 10am Hang Time
- * reached a parent as 4am (Perch 1d0d41a9). The all-day half of this rule was
- * already here for the same reason one layer up — Labor Day on the 7th showed
- * as "Sun, Sep 6 · all day" — but it had never been carried to events with a
- * time on them. /school-calendar avoided the bug by accident: it slices the ISO
- * string rather than parsing it.
- */
-export const fmtWhen = (e) => {
-  if (!e.start_at) return ''
-  try {
-    const d = new Date(e.start_at)
-    const opts = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }
-    // A school calendar runs across New Year. Without the year, "Mon, Jan 11"
-    // under "Mon, Dec 14" reads as out of order instead of as next year.
-    if (d.getUTCFullYear() !== new Date().getFullYear()) opts.year = 'numeric'
-    const day = d.toLocaleDateString(undefined, opts)
-    if (e.all_day) return `${day} · all day`
-    const time = d.toLocaleTimeString(undefined, {
-      hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
-    })
-    return `${day} · ${time}`
-  } catch { return '' }
-}
+// A feed item's own stamp (posted, found, given) is a real instant and reads
+// in the viewer's zone; an event's stamp is the wall clock the office typed
+// and reads in UTC. Both rules live in utils/timeFormat.js
+// (EVENT_STAMPS_ARE_WALL_CLOCK); this file used to carry its own copy (M12).
+export const fmtDate = fmtShortDate
+export const fmtWhen = fmtEventWhen
 
 /** A feed block: white card, icon-tile header — the rail cards' language,
  * reused. `id` is the jump anchor; scroll-mt keeps the navbar off the title. */

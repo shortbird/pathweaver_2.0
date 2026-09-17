@@ -6,6 +6,7 @@ import useSchoolContext from '../hooks/useSchoolContext'
 import AnnouncementBody from '../components/announcements/AnnouncementBody'
 import EventRsvp from '../components/school/EventRsvp'
 import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
+import { splitEventStamp, compact12h, fmtDateOnly } from '../utils/timeFormat'
 
 /**
  * School Calendar — the school's events (field trips, showcases, closures).
@@ -21,26 +22,16 @@ import { XMarkIcon, ClockIcon, MapPinIcon } from '@heroicons/react/24/outline'
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-const splitStamp = (iso) => ({ date: String(iso || '').slice(0, 10), time: String(iso || '').slice(11, 16) })
 const addDays = (dateStr, n) => {
   const [y, m, d] = dateStr.split('-').map(Number)
   return ymd(new Date(y, m - 1, d + n))
 }
-const fmtTime = (hhmmStr) => {
-  if (!hhmmStr) return ''
-  const [h, m] = hhmmStr.split(':').map(Number)
-  const ampm = h >= 12 ? 'pm' : 'am'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}${m ? `:${String(m).padStart(2, '0')}` : ''}${ampm}`
-}
-const fmtDayLong = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
-}
-const fmtDayShort = (dateStr) => {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+// The stamp parts, the compact time and the day headings come from
+// utils/timeFormat.js, the one place an event stamp becomes text (M12).
+const splitStamp = splitEventStamp
+const fmtTime = compact12h
+const fmtDayLong = (dateStr) => fmtDateOnly(dateStr, 'long')
+const fmtDayShort = (dateStr) => fmtDateOnly(dateStr, 'short').replace(/, \d{4}$/, '')
 
 /**
  * When an event is, as one line: "7:30pm – 9:30pm", "All day", or for an

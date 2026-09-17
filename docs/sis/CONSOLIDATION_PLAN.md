@@ -32,7 +32,7 @@ and patterns instead.
 | M8a One settings writer | 0 | shipped | see git log (`consolidate/M8a-settings-writer`) | `settings_write` 0, `registration_config_mirror` 0, `org_payload_fetch` 0 |
 | M10 One status pill, one door | 0 | shipped | see git log (`consolidate/M10-status-pill`) | `status_map` 0, `legacy_tab_remap` 0, `queue_double_mount` 0, `dashboard_card` 0; `org_picker_header` 29 → 28 |
 | M11 One schedule toolkit | 0 | not started | | |
-| M12 One today, one events feed, one event clock | 0 | not started | | |
+| M12 One today, one events feed, one event clock | 0 | shipped | see git log (`consolidate/M12-today-events`) | `events_read` 0, `today_schedule` 0, `event_wall_clock` 0, `audience_vocabulary` 0 |
 | M15 Backend route hygiene | 0 | shipped | see git log (`consolidate/M15-route-hygiene`) | `org_resolution` 0, `cron_route` 0 |
 | M17 One export, one print | 0 | shipped | see git log (`consolidate/M17-export-print`) | `persisted_choice` 0, `print_path` 0, `roster_csv` 0, new `csv_download` 0, `column_picker` 0 |
 | M14a/b Layout header, tab bars | 0 | M14a shipped (`consolidate/M14a-layout-header`); M14b pending | | `org_picker_header` 0 |
@@ -488,6 +488,28 @@ them; one `components/sis/EventCard.jsx`. The bespoke
 
 Migration: none. Stored audience values on `sis_events` unchanged; labels map through
 `sis_audiences`.
+
+**As shipped (2026-09-17).** Backend: `services/sis_events_service.py` is the one
+reader — `list_events(org_id, viewer, from_iso, to_iso, limit, columns)` with a viewer
+kind (`admin` / `staff` / `family` / `shared`, `viewer_for_user` picks it from the
+roles) and the audience rule in one place, plus `get_event` / `create_event` /
+`update_event` / `delete_event`; the calendar route, the parent feed, the dashboard,
+the community feed, the RSVP service and the ICS feed all call it, and the calendar's
+`AUDIENCES` is `sis_audiences.EVENT_AUDIENCES`. `sis_coordinator_service.today_schedule`
+is public, takes the date and an optional `class_scope`, and is what both dashboards
+read; the admin dashboard's other source, `sis_service.get_dashboard`, was the census
+and is now named `census` — it was never a second schedule, and the teacher dashboard
+has had no "today" card since 2026-08-31 (iCreate asked for it to go), so the plan's
+third assembler did not exist to merge. Web: `utils/timeFormat.js` gained the
+wall-clock helpers (`fmtEventWhen`, `fmtEventDay`, `fmtEventTimeRange`,
+`splitEventStamp`) and the day/instant helpers (`fmtDateOnly`, `fmtDayHeading`,
+`fmtShortDate`, `fmtLongDate`, `fmtInstant`, `compact12h`, `isDateOnly`); the two
+calendars, the dashboard, `SchoolCommunity`, `CommunityPage` and
+`BoardAnnouncementsTab` use them and hold no formatting of their own, which fixes
+the admin Community page's timed events (they read in local time). The
+`schoolEventWallClock` guard's baseline is empty. Not built: `EventCard` — the three
+event surfaces are a dashboard row, a community card with an RSVP count and a grid
+cell, and they share the label, not the markup.
 
 Verify at :3000 as iCreate admin, coordinator and a teacher: today's list is
 identical on the three dashboards; a 6:30 PM event typed on the calendar reads

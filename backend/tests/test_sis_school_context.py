@@ -223,7 +223,8 @@ class TestSchoolWideReadsOpenToEveryMember:
         client = Mock()
         client.table.side_effect = lambda name: _table_returning(rows.get(name, []))
         with patch.object(parent, '_is_org_member', return_value=is_member), \
-             patch.object(parent, '_admin', return_value=client):
+             patch.object(parent, '_admin', return_value=client), \
+             patch('services.sis_events_service._admin', return_value=client):
             return fn('viewer-1', 'org-1')
 
     def test_resources_open_to_a_non_guardian_member(self):

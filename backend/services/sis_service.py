@@ -639,7 +639,12 @@ def roster_export_details(org_id: str) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def get_dashboard(org_id: str) -> Dict[str, Any]:
+def census(org_id: str) -> Dict[str, Any]:
+    """The school's headline counts: students by enrollment status, households,
+    active in the last week. Read by the admin dashboard. Named get_dashboard
+    until M12 (docs/sis/CONSOLIDATION_PLAN.md), which made it read as a second
+    dashboard assembler beside sis_dashboard_service; it is the census the
+    dashboard's first row shows."""
     students = _org_students(org_id)
     enrollments = _enrollments_by_student(org_id)
 
