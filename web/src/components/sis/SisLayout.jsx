@@ -60,6 +60,14 @@ const SisLayout = () => {
   // Close the drawer on navigation — otherwise it stays over the page you just
   // opened. (Hooks run before the auth guards below, which is why they're here.)
   useEffect(() => { setNavOpen(false) }, [location.pathname])
+  // The org picker is chrome, mounted once here: a superadmin switches the
+  // school in view from the header on every page. Twenty-eight pages used to
+  // mount it in their own title row (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, L6).
+  // Called up here with the other hooks, not after the guards: the first
+  // render returns a Spinner while auth loads, and a hook that only runs on
+  // the second render is "Rendered more hooks than during the previous
+  // render" -- which took the whole console down (2026-09-17).
+  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
 
   if (loading) return <Spinner />
 
@@ -86,10 +94,6 @@ const SisLayout = () => {
 
   const admin = isSisAdmin(user)
   const previewing = Boolean(getPreviewTeacher())
-  // The org picker is chrome, mounted once here: a superadmin switches the
-  // school in view from the header on every page. Twenty-eight pages used to
-  // mount it in their own title row (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, L6).
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
 
   return (
     <div className="min-h-screen bg-neutral-50">
