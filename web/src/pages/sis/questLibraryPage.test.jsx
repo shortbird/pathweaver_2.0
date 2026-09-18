@@ -11,6 +11,10 @@
  * through the quest-scoped route and on a class through the class page's own
  * route, with the optional due date; and the pickers hide what the quest is
  * already on.
+ *
+ * Added 2026-09-18 (Molly, 5a20862f and 4579be68): a new quest opens on its
+ * attachments the moment it exists, every row can open them, and the office's
+ * library and teacher-made quests read as two lists with a filter.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -40,20 +44,29 @@ const render = (ui) => rtlRender(
 const LIBRARY = {
   quests: [
     { id: 'q1', title: 'Watercolor Basics', description: 'Paint a season.', task_count: 3,
+      tasks: [{ id: 't1', title: 'Stretch the paper' }, { id: 't2', title: 'Mix a wash' }, { id: 't3', title: 'Paint a sky' }],
+      made_by: { id: 'u-molly', name: 'Molly Christensen', teacher: false },
       curricula: [{ id: 'cur-art', title: 'Art' }],
       classes: [{ id: 'cl-1', name: 'Art Expeditions', due_date: '2026-10-01' }],
       updated_at: '2026-09-10T12:00:00Z' },
-    { id: 'q2', title: 'Bridge Building', description: '', task_count: 0,
+    { id: 'q2', title: 'Bridge Building', description: '', task_count: 0, tasks: [],
+      made_by: { id: 'u-sam', name: 'Sam Teacher', teacher: true },
       curricula: [], classes: [], updated_at: '2026-09-09T12:00:00Z' },
   ],
   curricula: [{ id: 'cur-art', title: 'Art' }, { id: 'cur-stem', title: 'STEM' }],
   classes: [{ id: 'cl-1', name: 'Art Expeditions' }, { id: 'cl-2', name: 'Robotics' }],
 }
 
+const RESOURCES = { quest: [], by_task: {} }
+
 beforeEach(() => {
   vi.clearAllMocks()
-  api.get.mockResolvedValue({ data: LIBRARY })
+  api.get.mockImplementation((url) => Promise.resolve({
+    data: url.includes('/resources') ? RESOURCES : LIBRARY,
+  }))
 })
+
+const libraryLoads = () => api.get.mock.calls.filter(([url]) => !url.includes('/resources'))
 
 describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('lists the school\'s quests from the library endpoint, with where each is in use', async () => {
@@ -66,7 +79,8 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     // A quest nowhere yet says so, rather than showing blanks.
     expect(screen.getByText('Not on a curriculum')).toBeInTheDocument()
     expect(screen.getByText('No class yet')).toBeInTheDocument()
-    expect(screen.getByText('2 quests')).toBeInTheDocument()
+    // One of each kind here, so each library counts its own.
+    expect(screen.getAllByText('1 quest')).toHaveLength(2)
   })
 
   it('filters by title, curriculum or class as you type, without another request', async () => {
@@ -135,7 +149,8 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
   })
 
   it('builds a new quest from the top of the page and lands it in the list', async () => {
-    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1 } })
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1,
+      tasks: [{ id: 't-new', title: 'Plant a seed' }] } })
     render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
@@ -154,8 +169,69 @@ describe('QuestsPanel (was QuestLibraryPage)', () => {
     ))
     // No curriculum was chosen: none is sent, and the list is refetched.
     expect(api.post.mock.calls[0][1]).not.toHaveProperty('curriculum_id')
-    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(libraryLoads()).toHaveLength(2))
     expect(screen.queryByRole('button', { name: 'Create quest' })).toBeNull()
+  })
+
+  it('opens the new quest on its attachments, quest and each task, before closing', async () => {
+    api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1,
+      tasks: [{ id: 't-new', title: 'Plant a seed' }] } })
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
+    fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
+    fireEvent.change(screen.getByPlaceholderText(/Task 1 /), { target: { value: 'Plant a seed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create quest' }))
+
+    expect(await screen.findByText('“Robot Garden” is in the library')).toBeInTheDocument()
+    // The quest's own attachments and the task's are both loaded from the
+    // resources route, which is the panel the curriculum editor uses.
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q-new/resources'))
+    expect(screen.getByText('Plant a seed')).toBeInTheDocument()
+    // One add control for the quest, one per task.
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Add a resource/ })).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByText('“Robot Garden” is in the library')).toBeNull()
+  })
+
+  it('opens any quest\'s attachments from its row, task by task', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    const row = screen.getByText('Watercolor Basics').closest('tr')
+    fireEvent.click(within(row).getByRole('button', { name: 'Attachments' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Attachments for “Watercolor Basics”')).toBeInTheDocument()
+    expect(within(dialog).getByText('Stretch the paper')).toBeInTheDocument()
+    expect(within(dialog).getByText('Paint a sky')).toBeInTheDocument()
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/sis/quests/q1/resources'))
+  })
+
+  it('names who made each quest and splits the office\'s library from teacher-made', async () => {
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    expect(screen.getByRole('heading', { name: /School library/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Teacher-made/ })).toBeInTheDocument()
+    expect(screen.getByText('Molly Christensen')).toBeInTheDocument()
+    expect(screen.getByText('Sam Teacher')).toBeInTheDocument()
+    const teacherSection = screen.getByRole('heading', { name: /Teacher-made/ }).closest('section')
+    expect(within(teacherSection).getByText('Bridge Building')).toBeInTheDocument()
+    expect(within(teacherSection).queryByText('Watercolor Basics')).toBeNull()
+
+    // The filter shows one half on its own.
+    fireEvent.click(screen.getByRole('button', { name: 'Teacher-made' }))
+    expect(screen.queryByText('Watercolor Basics')).toBeNull()
+    expect(screen.getByText('Bridge Building')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'School library' }))
+    expect(screen.getByText('Watercolor Basics')).toBeInTheDocument()
+    expect(screen.queryByText('Bridge Building')).toBeNull()
+  })
+
+  it('shows one plain list when no teacher has made a quest yet', async () => {
+    api.get.mockResolvedValue({ data: { ...LIBRARY, quests: [LIBRARY.quests[0]] } })
+    render(<QuestsPanel />)
+    await screen.findByText('Watercolor Basics')
+    expect(screen.queryByRole('heading', { name: /School library/ })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Teacher-made/ })).toBeNull()
   })
 
   it('can put the new quest straight onto a curriculum', async () => {

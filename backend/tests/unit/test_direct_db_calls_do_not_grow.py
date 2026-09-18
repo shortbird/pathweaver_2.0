@@ -523,7 +523,10 @@ BASELINES = {
     # funnel's and the admin path's copies of that lookup left routes/.
     # 2026-09-18: 584 -> 585. OrganizationRepository.names_for, the school
     # names beside a superadmin's cross-org credit queue.
-    'repositories': 585,
+    # 2026-09-18: 585 -> 586. SisQuestLibraryRepository.creators, who wrote
+    # each library quest, so the office's library and teacher-made quests read
+    # as two lists (ticket 4579be68).
+    'repositories': 586,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -30,6 +30,7 @@ Q2 = '33333333-3333-4333-8333-333333333332'
 CLASS = '66666666-6666-4666-8666-666666666666'
 DEAD_CLASS = '66666666-6666-4666-8666-666666666667'
 USER = '55555555-5555-4555-8555-555555555555'
+TEACHER = '77777777-7777-4777-8777-777777777777'
 
 
 class _FakeTable:
@@ -79,12 +80,22 @@ def _tables():
     return {
         'quests': [
             {'id': Q1, 'title': 'Watercolor Basics', 'description': 'Paint.', 'quest_type': 'project',
-             'is_public': False, 'created_at': '2026-09-01', 'updated_at': '2026-09-10'},
+             'is_public': False, 'created_at': '2026-09-01', 'updated_at': '2026-09-10',
+             'created_by': USER},
             {'id': Q2, 'title': 'Bridge Building', 'description': '', 'quest_type': 'project',
-             'is_public': False, 'created_at': '2026-09-02', 'updated_at': '2026-09-09'},
+             'is_public': False, 'created_at': '2026-09-02', 'updated_at': '2026-09-09',
+             'created_by': TEACHER},
         ],
         'quest_template_tasks': [
-            {'id': 't1', 'quest_id': Q1}, {'id': 't2', 'quest_id': Q1}, {'id': 't3', 'quest_id': Q1},
+            {'id': 't2', 'quest_id': Q1, 'title': 'Mix a wash', 'order_index': 1},
+            {'id': 't1', 'quest_id': Q1, 'title': 'Stretch the paper', 'order_index': 0},
+            {'id': 't3', 'quest_id': Q1, 'title': 'Paint a sky', 'order_index': 2},
+        ],
+        'users': [
+            {'id': USER, 'org_role': 'org_admin', 'role': 'org_managed',
+             'first_name': 'Molly', 'last_name': 'Christensen'},
+            {'id': TEACHER, 'org_role': 'advisor', 'role': 'org_managed',
+             'first_name': 'Sam', 'last_name': 'Teacher', 'preferred_name': ''},
         ],
         'sis_curriculum_quests': [
             {'id': 'l1', 'quest_id': Q1, 'curriculum_id': CURR},
@@ -115,6 +126,29 @@ class TestTheList:
         assert [c['name'] for c in by_id[Q1]['classes']] == ['Art Expeditions']
         assert by_id[Q1]['classes'][0]['due_date'] == '2026-10-01'
         assert by_id[Q2]['curricula'] == [] and by_id[Q2]['classes'] == []
+
+    def test_each_quest_carries_its_tasks_in_order_for_the_attachments_panel(self):
+        """Ticket 5a20862f: the library opens a quest's attachments per task
+        without a second request, so the tasks ride along, in order."""
+        body, _, _ = _run(library.list_org_quests, (), tables=_tables())
+        by_id = {q['id']: q for q in body['quests']}
+        assert [t['title'] for t in by_id[Q1]['tasks']] == ['Stretch the paper', 'Mix a wash', 'Paint a sky']
+        assert by_id[Q1]['tasks'][0]['id'] == 't1'
+        assert by_id[Q2]['tasks'] == []
+
+    def test_each_quest_names_its_author_and_says_whether_a_teacher_wrote_it(self):
+        """Ticket 4579be68: the school library and what teachers made are one
+        table told apart by the author's org role."""
+        body, _, _ = _run(library.list_org_quests, (), tables=_tables())
+        by_id = {q['id']: q for q in body['quests']}
+        assert by_id[Q1]['made_by'] == {'id': USER, 'name': 'Molly Christensen', 'teacher': False}
+        assert by_id[Q2]['made_by'] == {'id': TEACHER, 'name': 'Sam Teacher', 'teacher': True}
+
+    def test_a_quest_whose_author_is_gone_is_the_schools(self):
+        tables = _tables()
+        tables['users'] = []
+        body, _, _ = _run(library.list_org_quests, (), tables=tables)
+        assert body['quests'][0]['made_by'] == {'id': None, 'name': None, 'teacher': False}
 
     def test_the_pickers_ride_along_so_the_page_is_one_request(self):
         body, _, _ = _run(library.list_org_quests, (), tables=_tables())

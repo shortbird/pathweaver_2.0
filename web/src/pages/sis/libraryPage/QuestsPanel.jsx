@@ -8,6 +8,7 @@ import {
 } from '../../../hooks/api/useSisQuestLibrary'
 import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
 import QuestAiDraftPanel from '../../../components/sis/QuestAiDraftPanel'
+import QuestResourcesPanel from '../../../components/sis/QuestResourcesPanel'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
 import SearchSelect from '../../../components/ui/SearchSelect'
@@ -32,6 +33,18 @@ import Button from '../../../components/ui/Button'
  * /api/sis/classes/<id>/quests, so the class is enrolled the same way, with
  * the same optional due date). Editing stays where the quest lives: a row
  * links to its curriculum, which opens on it.
+ *
+ * Attachments (a video, a link, a file, on the quest or on one task) are the
+ * same QuestResourcesPanel the curriculum editor shows. They were reachable
+ * only there, and a quest written here and not yet on a curriculum had no
+ * editor at all, so Molly asked for the feature that already existed
+ * (iCreate, 2026-09-18, 5a20862f). A new quest opens on its attachments the
+ * moment it is created, and every row has an Attachments action.
+ *
+ * The list is two lists to the school: the office's own library and what
+ * teachers build for their classes ("the master library and another teacher
+ * created library", 2026-09-18, 4579be68). Same table, told apart by who
+ * wrote the quest, with a filter for either half.
  *
  * Admin only, like Curriculum. No org picker here: SisLayout is becoming the
  * one place that renders it (sisConcepts.json, org_picker_header), and a
@@ -168,6 +181,46 @@ export function AssignQuestModal({ quest, curricula, classes, orgId, onClose }) 
 }
 
 /**
+ * The quest's attachments and each task's, one under the other. Shared by the
+ * post-create step and the row action so they cannot drift.
+ */
+export function QuestAttachments({ questId, tasks }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="text-xs text-neutral-500 mb-1">
+          Videos, links and files for the whole quest. Anything that belongs to one step goes on that task below.
+        </p>
+        <QuestResourcesPanel questId={questId} />
+      </div>
+      {(tasks || []).length > 0 && (
+        <div className="space-y-3">
+          {tasks.map((t, i) => (
+            <div key={t.id} className="rounded-lg border border-gray-200 p-3">
+              <p className="text-sm font-medium text-neutral-800">
+                <span className="text-neutral-400 mr-1.5">{i + 1}.</span>{t.title}
+              </p>
+              <QuestResourcesPanel questId={questId} taskId={t.id} compact />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function QuestAttachmentsModal({ quest, onClose }) {
+  return (
+    <Modal isOpen onClose={onClose} title={`Attachments for “${quest.title}”`} size="md">
+      <QuestAttachments questId={quest.id} tasks={quest.tasks} />
+      <div className="mt-6 flex justify-end">
+        <Button size="xs" onClick={onClose}>Done</Button>
+      </div>
+    </Modal>
+  )
+}
+
+/**
  * Building a quest from the library. The same form as the curriculum and
  * class builders (QuestDraftForm) and the same document-to-draft panel, so a
  * quest reads the same wherever it was written; the one difference is that
@@ -179,6 +232,10 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
   const [description, setDescription] = useState('')
   const [tasks, setTasks] = useState([blankTask()])
   const [curriculumId, setCurriculumId] = useState('')
+  // The quest once it exists: the form gives way to its attachments, because
+  // nothing can be attached to a quest that has no id yet, and closing the
+  // panel on save left no way back to it (5a20862f).
+  const [created, setCreated] = useState(null) // { id, title, tasks: [{id, title}] }
   const create = useCreateLibraryQuest(orgId)
   const hasDraft = Boolean(title.trim() || tasks.some((t) => t.title.trim()))
 
@@ -193,10 +250,31 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
       toast.success(where
         ? `Quest created and added to ${where}${data.pushed_to_classes ? ` and ${data.pushed_to_classes} of its classes` : ''}`
         : 'Quest created. Assign it from its row when you are ready.')
-      onDone?.()
+      if (data?.quest_id) {
+        setCreated({ id: data.quest_id, title: title.trim(), tasks: data.tasks || [] })
+      } else {
+        onDone?.()
+      }
     } catch (e) {
       toast.error(e?.response?.data?.error || 'Could not create the quest')
     }
+  }
+
+  if (created) {
+    return (
+      <div className="border border-optio-purple/30 rounded-xl p-4 space-y-4 bg-optio-purple/5 mb-6">
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-900">“{created.title}” is in the library</h2>
+          <p className="text-xs text-neutral-500">
+            Add videos, links and files now, or later from Attachments on its row.
+          </p>
+        </div>
+        <QuestAttachments questId={created.id} tasks={created.tasks} />
+        <div className="flex justify-end">
+          <Button size="xs" onClick={() => onDone?.()}>Done</Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -235,6 +313,77 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
   )
 }
 
+const SCOPES = [
+  ['all', 'All'],
+  ['school', 'School library'],
+  ['teacher', 'Teacher-made'],
+]
+
+const isTeacherMade = (q) => Boolean(q.made_by?.teacher)
+
+function QuestTable({ rows, onAssign, onAttach }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-neutral-50 text-neutral-500 text-left">
+          <tr>
+            <th className="px-4 py-3 font-medium">Quest</th>
+            <th className="px-3 py-3 font-medium whitespace-nowrap">Made by</th>
+            <th className="px-3 py-3 font-medium whitespace-nowrap">Tasks</th>
+            <th className="px-3 py-3 font-medium">On curriculum</th>
+            <th className="px-3 py-3 font-medium">Assigned to</th>
+            <th className="px-3 py-3 font-medium whitespace-nowrap">Updated</th>
+            <th className="px-3 py-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {rows.map((q) => (
+            <tr key={q.id} className="align-top">
+              <td className="px-4 py-3">
+                <div className="font-medium text-neutral-900">{q.title}</div>
+                {q.description && (
+                  <div className="text-xs text-neutral-500 line-clamp-2 mt-0.5">{q.description}</div>
+                )}
+              </td>
+              <td className="px-3 py-3 text-neutral-700 whitespace-nowrap">
+                {q.made_by?.name || <span className="text-neutral-400">The school</span>}
+                {isTeacherMade(q) && (
+                  <span className="ml-1.5 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                    Teacher
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-3 text-neutral-700">{q.task_count}</td>
+              <td className="px-3 py-3">
+                <Chips items={q.curricula} labelOf={(c) => c.title}
+                  hrefOf={(c) => `/library?tab=curriculum&curriculum=${c.id}`}
+                  empty="Not on a curriculum" />
+              </td>
+              <td className="px-3 py-3">
+                <Chips items={q.classes} labelOf={(c) => c.name} empty="No class yet" />
+              </td>
+              <td className="px-3 py-3 text-neutral-500 whitespace-nowrap">{when(q.updated_at)}</td>
+              <td className="px-3 py-3 text-right whitespace-nowrap space-x-3">
+                <button type="button" onClick={() => onAttach(q.id)}
+                  className="text-sm font-medium text-optio-purple hover:underline">
+                  Attachments
+                </button>
+                <button type="button" onClick={() => onAssign(q.id)}
+                  className="text-sm font-medium text-optio-purple hover:underline">
+                  Assign
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="px-4 py-3 border-t border-gray-100 text-xs text-neutral-500">
+        {rows.length} {rows.length === 1 ? 'quest' : 'quests'}
+      </div>
+    </div>
+  )
+}
+
 export default function QuestsPanel() {
   const { orgId } = useSisOrg()
   const { data, isLoading, isError, error } = useSisQuestLibrary(orgId)
@@ -243,34 +392,64 @@ export default function QuestsPanel() {
   const classes = data?.classes || []
   const loading = !!orgId && isLoading
   const [search, setSearch] = useState('')
+  const [scope, setScope] = useState('all')
   const [assigning, setAssigning] = useState(null) // quest id
+  const [attaching, setAttaching] = useState(null) // quest id
   const [adding, setAdding] = useState(false)
 
   // Filtered here rather than by ?search= so typing does not fire a request
   // per keystroke over a list that fits in one response.
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return quests
-    return quests.filter((qu) => (
-      `${qu.title} ${qu.description || ''} ${(qu.curricula || []).map((c) => c.title).join(' ')} `
+    const inScope = quests.filter((qu) => (
+      scope === 'all' || (scope === 'teacher') === isTeacherMade(qu)
+    ))
+    if (!q) return inScope
+    return inScope.filter((qu) => (
+      `${qu.title} ${qu.description || ''} ${qu.made_by?.name || ''} `
+      + `${(qu.curricula || []).map((c) => c.title).join(' ')} `
       + `${(qu.classes || []).map((c) => c.name).join(' ')}`
     ).toLowerCase().includes(q))
-  }, [quests, search])
+  }, [quests, search, scope])
+
+  // With no filter the two libraries read as two lists, the office's first.
+  // A school with no teacher-made quests yet sees one list and no empty
+  // heading; the filter is how to ask for the other half on purpose.
+  const sections = useMemo(() => {
+    if (scope !== 'all') return [[SCOPES.find(([k]) => k === scope)[1], rows]]
+    const school = rows.filter((q) => !isTeacherMade(q))
+    const teacher = rows.filter(isTeacherMade)
+    if (!teacher.length) return [[null, school]]
+    return [['School library', school], ['Teacher-made', teacher]].filter(([, r]) => r.length)
+  }, [rows, scope])
 
   const assigningQuest = assigning ? quests.find((q) => q.id === assigning) : null
+  const attachingQuest = attaching ? quests.find((q) => q.id === attaching) : null
 
   return (
     <div>
       <p className="text-sm text-neutral-500 mb-6">
         Every quest your school has made, wherever it was made. Put one on a curriculum to keep it
-        for next term, or assign it straight to a class. To edit a quest, open the curriculum it is on
+        for next term, or assign it straight to a class. Attachments adds videos, links and files to a
+        quest or to one of its tasks. To change a quest&apos;s tasks, open the curriculum it is on
         (the Curriculum tab).
       </p>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex-1 min-w-[14rem] max-w-md">
           <Input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search quests, curricula or classes…" aria-label="Search quests" />
+            placeholder="Search quests, authors, curricula or classes…" aria-label="Search quests" />
+        </div>
+        <div role="group" aria-label="Which library" className="flex rounded-lg border border-gray-200 bg-white p-0.5">
+          {SCOPES.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setScope(key)}
+              aria-pressed={scope === key}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                scope === key ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-gray-50'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
         {!adding && (
           <Button size="xs" onClick={() => setAdding(true)} className="shrink-0">
@@ -298,60 +477,30 @@ export default function QuestsPanel() {
       )}
 
       {!loading && quests.length > 0 && rows.length === 0 && (
-        <EmptyState plain title="Nothing matches that search" />
+        <EmptyState plain title={search.trim() ? 'Nothing matches that search' : 'Nothing in this library yet'} />
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-neutral-500 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium">Quest</th>
-                <th className="px-3 py-3 font-medium whitespace-nowrap">Tasks</th>
-                <th className="px-3 py-3 font-medium">On curriculum</th>
-                <th className="px-3 py-3 font-medium">Assigned to</th>
-                <th className="px-3 py-3 font-medium whitespace-nowrap">Updated</th>
-                <th className="px-3 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((q) => (
-                <tr key={q.id} className="align-top">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-neutral-900">{q.title}</div>
-                    {q.description && (
-                      <div className="text-xs text-neutral-500 line-clamp-2 mt-0.5">{q.description}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-neutral-700">{q.task_count}</td>
-                  <td className="px-3 py-3">
-                    <Chips items={q.curricula} labelOf={(c) => c.title}
-                      hrefOf={(c) => `/library?tab=curriculum&curriculum=${c.id}`}
-                      empty="Not on a curriculum" />
-                  </td>
-                  <td className="px-3 py-3">
-                    <Chips items={q.classes} labelOf={(c) => c.name} empty="No class yet" />
-                  </td>
-                  <td className="px-3 py-3 text-neutral-500 whitespace-nowrap">{when(q.updated_at)}</td>
-                  <td className="px-3 py-3 text-right whitespace-nowrap">
-                    <button type="button" onClick={() => setAssigning(q.id)}
-                      className="text-sm font-medium text-optio-purple hover:underline">
-                      Assign
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="px-4 py-3 border-t border-gray-100 text-xs text-neutral-500">
-            {rows.length} {rows.length === 1 ? 'quest' : 'quests'}
-          </div>
+        <div className="space-y-6">
+          {sections.map(([heading, sectionRows]) => (
+            <section key={heading || 'all'}>
+              {heading && (
+                <h2 className="text-sm font-semibold text-neutral-900 mb-2">
+                  {heading} <span className="font-normal text-neutral-400">({sectionRows.length})</span>
+                </h2>
+              )}
+              <QuestTable rows={sectionRows} onAssign={setAssigning} onAttach={setAttaching} />
+            </section>
+          ))}
         </div>
       )}
 
       {assigningQuest && (
         <AssignQuestModal quest={assigningQuest} curricula={curricula} classes={classes} orgId={orgId}
           onClose={() => setAssigning(null)} />
+      )}
+      {attachingQuest && (
+        <QuestAttachmentsModal quest={attachingQuest} onClose={() => setAttaching(null)} />
       )}
     </div>
   )

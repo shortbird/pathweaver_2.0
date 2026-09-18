@@ -38,6 +38,7 @@ from services.sis_curriculum_sync import attach_quest_to_curriculum
 from services.sis_quest_authoring import QuestAuthoringError, create_org_quest
 from utils.auth.decorators import require_role
 from utils.logger import get_logger
+from utils.person_name import full_name
 from utils.sis_roles import ADMIN_ROLES
 from utils.validation import validate_uuid
 
@@ -58,6 +59,19 @@ def _repo() -> SisQuestLibraryRepository:
 def _bad_uuid(value):
     ok, _ = validate_uuid(value or '')
     return not ok
+
+
+def _made_by(creator):
+    """{name, teacher} for a quest's author; the school itself when unknown.
+
+    Teacher-made means an advisor wrote it. An org admin, a coordinator or a
+    superadmin working in the console is the office, and so is a quest whose
+    author is gone: the school owns it either way.
+    """
+    if not creator:
+        return {'id': None, 'name': None, 'teacher': False}
+    return {'id': creator['id'], 'name': full_name(creator, fallback='Staff'),
+            'teacher': creator.get('org_role') == 'advisor'}
 
 
 @bp.route('/quests', methods=['GET'])
@@ -86,8 +100,15 @@ def list_org_quests(user_id):
     class_by_id = {c['id']: c for c in classes}
 
     tasks_per_quest = {}
-    for t in repo.task_rows(ids):
-        tasks_per_quest[t['quest_id']] = tasks_per_quest.get(t['quest_id'], 0) + 1
+    for t in sorted(repo.task_rows(ids), key=lambda t: (t.get('order_index') or 0, t.get('title') or '')):
+        tasks_per_quest.setdefault(t['quest_id'], []).append(
+            {'id': t['id'], 'title': t.get('title') or 'Untitled task'})
+    # Who wrote each quest, and whether that was a teacher. The office's
+    # curated library and what teachers build for their own classes are two
+    # lists to the school (Molly, iCreate, 2026-09-18, ticket 4579be68); they
+    # are one table here, told apart by the author's org role.
+    creator_by_id = {u['id']: u for u in repo.creators(
+        sorted({q['created_by'] for q in quests if q.get('created_by')}))}
     curricula_per_quest = {}
     for link in repo.curriculum_links(ids):
         c = curriculum_by_id.get(link['curriculum_id'])
@@ -111,7 +132,9 @@ def list_org_quests(user_id):
             'is_public': bool(q.get('is_public')),
             'created_at': q.get('created_at'),
             'updated_at': q.get('updated_at'),
-            'task_count': tasks_per_quest.get(q['id'], 0),
+            'task_count': len(tasks_per_quest.get(q['id'], [])),
+            'tasks': tasks_per_quest.get(q['id'], []),
+            'made_by': _made_by(creator_by_id.get(q.get('created_by'))),
             'curricula': sorted(curricula_per_quest.get(q['id'], []), key=lambda c: c['title'].lower()),
             'classes': sorted(classes_per_quest.get(q['id'], []), key=lambda c: c['name'].lower()),
         })
@@ -156,7 +179,8 @@ def create_library_quest(user_id):
         )
     except QuestAuthoringError as e:
         return jsonify({'success': False, 'error': e.message}), e.status
-    out = {'success': True, 'quest_id': created['quest_id'], 'task_count': created['task_count']}
+    out = {'success': True, 'quest_id': created['quest_id'], 'task_count': created['task_count'],
+           'tasks': created.get('tasks') or []}
     if curriculum:
         out['curriculum'] = {'id': curriculum['id'], 'title': curriculum['title']}
         out.update(attach_quest_to_curriculum(_admin(), org_id, curriculum_id, created['quest_id'], user_id))

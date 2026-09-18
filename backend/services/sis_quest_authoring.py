@@ -206,8 +206,10 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
     is what keeps a school's own material out of the shared Optio library and out
     of every other school's picker.
 
-    Returns {'quest_id', 'task_count'}. Raises QuestAuthoringError on a bad draft
-    or a failed insert; the caller decides what the quest gets attached to.
+    Returns {'quest_id', 'task_count', 'tasks': [{'id', 'title'}]}. Raises
+    QuestAuthoringError on a bad draft or a failed insert; the caller decides
+    what the quest gets attached to. The task ids come back so a form can open
+    each task's attachments the moment the quest exists (ticket 5a20862f).
     """
     title = (title or '').strip()
     description = (description or '').strip()
@@ -240,12 +242,17 @@ def create_org_quest(admin, *, org_id, user_id, title, description, raw_tasks=No
     quest_id = quest_row[0]['id']
 
     cleaned = [t for t in (clean_task(r, i) for i, r in enumerate(raw_tasks)) if t]
+    task_rows = []
     if cleaned:
         for t in cleaned:
             t['quest_id'] = quest_id
-        admin.table('quest_template_tasks').insert(cleaned).execute()
+        task_rows = admin.table('quest_template_tasks').insert(cleaned).execute().data or []
 
-    return {'quest_id': quest_id, 'task_count': len(cleaned)}
+    return {
+        'quest_id': quest_id,
+        'task_count': len(cleaned),
+        'tasks': [{'id': r.get('id'), 'title': r.get('title') or ''} for r in task_rows if r.get('id')],
+    }
 
 
 # ── Duplicating an existing quest ─────────────────────────────────────────────

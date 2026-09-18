@@ -20,6 +20,7 @@ from postgrest.exceptions import APIError
 from repositories.base_repository import BaseRepository, DatabaseError
 from utils.db_fetch import fetch_all_rows
 from utils.logger import get_logger
+from utils.person_name import USER_NAME_FIELDS
 
 logger = get_logger(__name__)
 
@@ -50,9 +51,25 @@ class SisQuestLibraryRepository(BaseRepository):
             raise DatabaseError("Failed to list quests") from e
 
     def task_rows(self, quest_ids: List[str]) -> List[Dict[str, Any]]:
-        """Every template task row (id, quest_id) for these quests."""
+        """Every template task (id, quest_id, title, order_index) for these quests.
+
+        The title and order ride along so the library can open a quest's
+        attachments per task without a second request (ticket 5a20862f).
+        """
         return fetch_all_rows(lambda: self.client.table('quest_template_tasks')
-                              .select('id, quest_id').in_('quest_id', quest_ids))
+                              .select('id, quest_id, title, order_index').in_('quest_id', quest_ids))
+
+    def creators(self, user_ids: List[str]) -> List[Dict[str, Any]]:
+        """Name and org role for the people who wrote these quests.
+
+        `org_role` is what separates the office's library from a teacher's
+        own work (ticket 4579be68): an advisor's quest is teacher-made,
+        anyone else's is the school's.
+        """
+        if not user_ids:
+            return []
+        return fetch_all_rows(lambda: self.client.table('users')
+                              .select(f'id, org_role, role, {USER_NAME_FIELDS}').in_('id', user_ids))
 
     def curriculum_links(self, quest_ids: List[str]) -> List[Dict[str, Any]]:
         return fetch_all_rows(lambda: self.client.table('sis_curriculum_quests')
