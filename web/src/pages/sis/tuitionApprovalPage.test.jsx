@@ -55,7 +55,7 @@ const { api } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import TuitionApprovalPage from './TuitionApprovalPage'
+import InvoicePanel from './billingPage/InvoicePanel'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -65,7 +65,7 @@ beforeEach(() => {
 
 describe('TuitionApprovalPage', () => {
   it('lists CLP-finished students awaiting an invoice, flagging UFA families', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
     expect(screen.getByText('Uma Ford')).toBeInTheDocument()
     expect(screen.getByText('$150.00')).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('TuitionApprovalPage', () => {
   })
 
   it('filters students by search query and allows clearing search', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
     expect(screen.getByText('Uma Ford')).toBeInTheDocument()
 
@@ -97,7 +97,7 @@ describe('TuitionApprovalPage', () => {
   // 2026-08-21 (Marika/Molly): "I need to be able to know if they are UFA or
   // not because that helps determine what I am sending when."
   it('narrows the queue to one form of payment', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     expect(await screen.findByText('Uma Ford')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Filter by form of payment'),
       { target: { value: 'Utah Fits All' } })
@@ -107,13 +107,13 @@ describe('TuitionApprovalPage', () => {
   })
 
   it('shows a family that chose monthly payments before the invoice goes out', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     await screen.findByText('Robin Bowman')
     expect(screen.getByText('Monthly')).toBeInTheDocument()
   })
 
   it('sorts students by name (A-Z) and amount (High-Low)', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     expect(await screen.findByText('Robin Bowman')).toBeInTheDocument()
 
     const sortSelect = screen.getByLabelText('Sort queue')
@@ -134,7 +134,7 @@ describe('TuitionApprovalPage', () => {
   })
 
   it('loads the invoice preview with editable line items when a student is picked', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Robin Bowman'))
     // The two seeded lines show as editable description inputs.
     expect(await screen.findByDisplayValue('Piano')).toBeInTheDocument()
@@ -145,7 +145,7 @@ describe('TuitionApprovalPage', () => {
   })
 
   it('sends the invoice with the (adjusted) line items', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Robin Bowman'))
     await screen.findByDisplayValue('Piano')
     // Adjust the Art line down to $40.
@@ -167,7 +167,7 @@ describe('TuitionApprovalPage', () => {
   // family the wrong amount and only found out afterwards.
   it('refuses to send a line that has money on it but no description', async () => {
     const { toast } = await import('react-hot-toast')
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Robin Bowman'))
     await screen.findByDisplayValue('Piano')
     fireEvent.click(screen.getByRole('button', { name: '+ Add line' }))
@@ -180,7 +180,7 @@ describe('TuitionApprovalPage', () => {
   })
 
   it('still ignores a line nobody has typed anything into', async () => {
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Robin Bowman'))
     await screen.findByDisplayValue('Piano')
     fireEvent.click(screen.getByRole('button', { name: '+ Add line' }))
@@ -210,7 +210,7 @@ describe('TuitionApprovalPage', () => {
           class_count: 1, estimated_total_cents: 14500, supply_total_cents: 4500 },
       ], count: 1 } })
     })
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Robin Bowman'))
     expect(await screen.findByDisplayValue('Piano — supplies')).toBeInTheDocument()
     expect(screen.getByText('of which class supply fees')).toBeInTheDocument()
@@ -233,7 +233,7 @@ describe('TuitionApprovalPage', () => {
           class_count: 1, estimated_total_cents: 475000, pay_through_ufa: true },
       ], count: 1 } })
     })
-    render(<TuitionApprovalPage />)
+    render(<InvoicePanel />)
     fireEvent.click(await screen.findByText('Uma Ford'))
     expect(await screen.findByText(/pays through UFA/i)).toBeInTheDocument()
   })

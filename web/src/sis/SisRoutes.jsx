@@ -44,6 +44,16 @@ const LibraryRedirect = ({ tab }) => {
   return <Navigate to={`/library?${params.toString()}`} replace />
 }
 
+// Tuition became the first tab of Billing on 2026-09-18 (M23): the queue of
+// students waiting on their first invoice. The dashboard's "awaiting
+// tuition" tile points at the tab; old links land there too.
+const TuitionRedirect = () => {
+  const { search } = useLocation()
+  const params = new URLSearchParams(search)
+  params.set('tab', 'invoice')
+  return <Navigate to={`/billing?${params.toString()}`} replace />
+}
+
 const TasksRedirect = ({ view = null }) => {
   const { search } = useLocation()
   const params = new URLSearchParams(search)
@@ -129,7 +139,6 @@ const PeoplePage = lazy(() => import('../pages/sis/PeoplePage'))
 const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
 const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
-const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'))
 const SchoolInboxPage = lazy(() => import('../pages/sis/SchoolInboxPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
@@ -188,7 +197,7 @@ const SisRoutes = () => (
       <Route path="classes" element={<ModuleGate path="/classes"><ClassesPage /></ModuleGate>} />
       <Route path="clp" element={<AdminRoute><ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute></AdminRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
-      <Route path="tuition" element={<FinanceRoute><ModuleGate path="/tuition"><TuitionApprovalPage /></ModuleGate></FinanceRoute>} />
+      <Route path="tuition" element={<TuitionRedirect />} />
       <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
       <Route path="submissions" element={<ClassesRedirect tab="submissions" />} />

@@ -51,6 +51,7 @@ and patterns instead.
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 | M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
 | R1 Time clock and timesheets removed (added 2026-09-18) | 2 | shipped; the DROP migration (20260918230000) runs after deploy | see git log (`remove/time-tracking`) | `timesheets` module key gone; three orgs' stale `hidden_modules` entry is ignored |
+| M23 One billing page (added 2026-09-18) | 2 | shipped | see git log (`consolidate/M23-one-billing-page`) | no manifest row; Tuition became a tab; the Money section is gone |
 | M22 One library page (added 2026-09-18) | 2 | shipped | see git log (`consolidate/M22-one-library-page`) | no manifest row; four pages became tabs; `training_system` owner moved to `pages/sis/libraryPage/TrainingPanel.jsx` |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
@@ -1171,6 +1172,37 @@ audience switch unchanged; `/resources`, `/training`, `/curriculum?curriculum=<i
 and `/quest-library` land on their tabs; a quest's curriculum chip opens the
 Curriculum tab on that entry; the dashboard's "All resources" lands on
 Documents; type "handbook", "training" and "quests" in the header search.
+
+### M23 — One billing page (added 2026-09-18, after M22)
+
+Tanner, the same afternoon: "can tuition and billing be merged? then billing
+can be inside operations sidebar section?" Tuition was the step where a
+family's first invoice gets made -- the queue of CLP-done students, the
+seeded lines, send -- and Billing was everything after it: charges,
+outstanding, monthly schedules, charge detail. Same finance gate, same
+`billing` module, and already leaking into each other: both pages mounted
+the recurring-tuition list, the Add button was only on Tuition, and
+Billing's Monthly tab said "add and edit these on the Tuition page".
+Billing's four views were local state, so the dashboard's "awaiting tuition"
+tile could reach the page but never the view.
+
+**As shipped (2026-09-18).** `pages/sis/BillingPage.jsx` is a shell at
+`/billing` with five URL tabs in the order the money happens: To invoice
+(`billingPage/InvoicePanel.jsx`, was `TuitionApprovalPage`), then Charges,
+Outstanding, Monthly tuition and Charge detail (`billingPage/LedgerPanel.jsx`,
+the old Billing body driven by a `view` prop -- the four views share their
+modals, search and household list, so they stay one component). Monthly
+tuition is on the page once, with its Add button; the shell fetches the
+schedules once and the tab wears the count. Lands on Charges as Billing
+always did. `/tuition` redirects to `?tab=invoice`, as does the dashboard
+tile. The sidebar's Money section is gone: with one item, `financeOnly` on
+the item does what the section did for a campus coordinator. Operations:
+Tasks, Registration, Reports, Library, Billing, Messaging. The header search
+gets the five tabs. Verify at :3000 as an admin: five tabs, "19 awaiting
+tuition" on the dashboard opens To invoice with the queue, Monthly tuition
+has "+ Add student" and the count badge, Charges/Outstanding/Charge detail
+unchanged (record a payment, refund, reminders, CSV); as a coordinator:
+no Billing entry, `/billing` bounces to the dashboard.
 
 ### M13 — One detail surface per entity
 

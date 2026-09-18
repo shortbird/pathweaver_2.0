@@ -125,20 +125,14 @@ export const NAV_SECTIONS = [
       // wide announcement, a class message but only for half the class 14+, or
       // a message to an individual" (ce12a041, 2026-09-02). The path stays
       // /inbox so existing links and notifications keep working.
+      // The money, one entry (2026-09-18, M23): the tuition queue is the
+      // first tab of Billing, then charges, outstanding, monthly tuition and
+      // the charge detail. It was two entries in a section of their own
+      // ("Time & Money", then "Money") that existed so a campus coordinator
+      // -- an admin minus the finance tier -- would see the money vanish as
+      // one block; with one item, financeOnly on the item does the same.
+      { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card, keywords: ['tuition', 'payments', 'invoices', 'charges', 'refunds', 'receipts', 'money'] },
       { name: 'Messaging', path: '/inbox', d: ICONS.inbox, keywords: ['inbox', 'messages', 'email', 'communication'] },
-    ],
-  },
-  {
-    // The money. Its own section because it maps exactly onto the finance
-    // tier (utils/sis_roles.FINANCE_ROLES): for a campus coordinator the whole
-    // section disappears rather than leaving money links scattered through
-    // Operations, and a teacher never sees it. It was "Time & Money" with a
-    // time clock and timesheets until 2026-09-18 -- removed after zero
-    // clock-ins, ever, at any school.
-    label: 'Money',
-    items: [
-      { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check, keywords: ['approval', 'quotes', 'pricing'] },
-      { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card, keywords: ['payments', 'invoices', 'charges', 'refunds', 'receipts', 'money'] },
     ],
   },
   {

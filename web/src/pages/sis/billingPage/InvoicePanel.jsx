@@ -1,17 +1,16 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import Button from '../../components/ui/Button'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from './PaymentMethodPills'
-import RecurringTuitionModal from './RecurringTuitionModal'
-import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
-import { isClpEnabled } from './sisModules'
-import { formatCents as money } from '../../utils/money'
-import { INLINE_INPUT_CLASS as field } from '../../components/ui/Input'
+import api from '../../../services/api'
+import Button from '../../../components/ui/Button'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { PaymentMethodPills, PaymentFilterSelect, matchesPaymentFilter } from '../PaymentMethodPills'
+import { isClpEnabled } from '../sisModules'
+import { formatCents as money } from '../../../utils/money'
+import { INLINE_INPUT_CLASS as field } from '../../../components/ui/Input'
 
 /**
- * Tuition Approver — the step after a CLP meeting.
+ * To invoice — the step after a CLP meeting. The first tab of Billing
+ * (BillingPage) since M23; it was the Tuition page.
  *
  * The left pane lists every student whose CLP is marked done but who hasn't been
  * invoiced yet. Selecting one loads the invoice that WILL be sent — seeded from
@@ -21,6 +20,9 @@ import { INLINE_INPUT_CLASS as field } from '../../components/ui/Input'
  * family a link to pay on the /family/billing portal. UFA-funded families are
  * flagged: they pay through UFA, so the invoice is a record rather than a card
  * charge.
+ *
+ * Monthly tuition used to be a section at the top of this page as well as a
+ * tab on Billing; it is the Monthly tuition tab now, once, with its Add button.
  */
 
 // No width here on purpose. It used to carry w-full, which collides with the
@@ -34,7 +36,7 @@ const toCents = (str) => {
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
-const TuitionApprovalPage = () => {
+const InvoicePanel = () => {
   const { orgId, activeOrg } = useSisOrg()
   // CLPs are iCreate's. Every other school shares this page but runs no CLP
   // meeting, so its wording — filters, empty state, badges — was telling them
@@ -56,17 +58,6 @@ const TuitionApprovalPage = () => {
   // The CLP used to keep a family off this page entirely. iCreate asked to see
   // everyone (87d32ab1), so it is a filter the office chooses, not a gate.
   const [clpFilter, setClpFilter] = useState('')
-  // Schools that bill a monthly rate have no priced schedule to seed the queue
-  // from, so their route to an invoice cannot run through it.
-  const [monthlyOpen, setMonthlyOpen] = useState(false)
-  // Rendered on the page below, not inside the dialog that creates it: for a
-  // school that bills a monthly rate the invoice queue is permanently empty, so
-  // hiding this behind a button left the whole page looking like the school had
-  // nothing set up at all.
-  const { schedules: recurring, load: loadRecurring } = useRecurringTuition(orgId)
-  const monthlyTotal = (recurring || [])
-    .filter((s) => s.status === 'active')
-    .reduce((sum, s) => sum + (s.monthly_cents || 0), 0)
   const previewRef = useRef(null)
 
   const loadQueue = useCallback(() => {
@@ -232,50 +223,6 @@ const TuitionApprovalPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <h1 className="text-2xl font-bold text-neutral-900">Tuition</h1>
-        <div className="flex items-center gap-2">
-        </div>
-      </div>
-      <RecurringTuitionModal
-        isOpen={monthlyOpen}
-        onClose={() => setMonthlyOpen(false)}
-        onAdded={loadRecurring}
-        orgId={orgId}
-      />
-
-      {/* ── Monthly tuition ───────────────────────────────────────────────
-          On the page, not behind the button that creates it. A school billing
-          a monthly rate has no invoice until the first month is charged, so the
-          queue below is permanently empty for them and this IS their tuition. */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-900">Monthly tuition</h2>
-            <p className="text-sm text-neutral-500">
-              A set amount per student, charged automatically every month until you stop it.
-              Billing starts once the family saves a card — one card and one setup link per
-              family, however many children they have.
-              {!!monthlyTotal && <>
-                {' '}Billing{' '}
-                <strong className="text-neutral-800">{monthlyMoney(monthlyTotal)}</strong>
-                {' '}a month across this school.
-              </>}
-            </p>
-          </div>
-          <Button variant="secondary" onClick={() => setMonthlyOpen(true)} disabled={!orgId}>
-            + Add student
-          </Button>
-        </div>
-        <RecurringTuitionList
-          orgId={orgId}
-          schedules={recurring}
-          onChanged={loadRecurring}
-          emptyHint="No student is on a monthly rate yet. Add one to get started."
-        />
-      </section>
-
-      <h2 className="text-lg font-semibold text-neutral-900">Invoices</h2>
       <p className="text-sm text-neutral-500 mb-4 max-w-2xl">
         {showClp
           ? <>Students whose CLP is done, waiting on a tuition invoice. Open one to verify the
@@ -357,6 +304,7 @@ const TuitionApprovalPage = () => {
             {queue?.length === 0 && (
               <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-neutral-500">
                 No students are waiting for a tuition invoice.{showClp ? ' Mark a CLP done and the student appears here.' : ''}
+                {' '}A school on a monthly rate sets it up on the Monthly tuition tab instead.
               </div>
             )}
             {!!queue?.length && filteredQueue?.length === 0 && (
@@ -556,4 +504,4 @@ const TuitionApprovalPage = () => {
   )
 }
 
-export default TuitionApprovalPage
+export default InvoicePanel

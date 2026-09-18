@@ -63,6 +63,13 @@ export const SUB_ENTRIES = [
   { under: '/registration', name: 'Registration form', to: '/registration', keywords: ['funnel', 'questions', 'setup', 'registration link', 'edit registration'] },
   { under: '/registration', name: 'Enrollment queues', to: '/registration?tab=queues', keywords: ['pending', 'approve', 'waitlist', 'new families', 'applications'] },
 
+  // Billing (M23). The tab keys are BillingPage's; Charges is the page itself.
+  { under: '/billing', name: 'To invoice', to: '/billing?tab=invoice', keywords: ['tuition', 'tuition queue', 'approve tuition', 'send invoice', 'clp done', 'waiting on invoice'] },
+  { under: '/billing', name: 'Charges', to: '/billing', keywords: ['ledger', 'add charge', 'record payment', 'paid'] },
+  { under: '/billing', name: 'Outstanding', to: '/billing?tab=outstanding', keywords: ['overdue', 'who owes', 'balances', 'reminders', 'unpaid'] },
+  { under: '/billing', name: 'Monthly tuition', to: '/billing?tab=monthly', keywords: ['recurring', 'monthly rate', 'subscription', 'card on file'] },
+  { under: '/billing', name: 'Charge detail', to: '/billing?tab=detail', keywords: ['reconciliation', 'reconcile', 'ufa remittance', 'charge lines', 'csv'] },
+
   // Library (M22). The tab keys are LibraryPage's; each tab carries its old
   // path's module so an org that hid one stays hidden.
   { under: '/library', name: 'Documents', to: '/library', path: '/resources', keywords: ['resources', 'handbook', 'policies', 'readings', 'acknowledgments', 'family guidebook', 'contract'] },

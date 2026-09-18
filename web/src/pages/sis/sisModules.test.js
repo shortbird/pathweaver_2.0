@@ -36,11 +36,11 @@ describe('sisModules', () => {
   })
 
   it('hides a path whose module is in the org list', () => {
-    const org = orgWith(['clp', 'billing'])
+    const org = orgWith(['clp', 'curriculum'])
     expect(isPathHidden('/clp', org)).toBe(true)
-    // '/tuition' maps to the same 'billing' module as '/billing'
-    expect(isPathHidden('/tuition', org)).toBe(true)
-    expect(isPathHidden('/billing', org)).toBe(true)
+    // '/quest-library' maps to the same 'curriculum' module as '/curriculum'
+    expect(isPathHidden('/quest-library', org)).toBe(true)
+    expect(isPathHidden('/curriculum', org)).toBe(true)
   })
 
   it('keeps paths whose module is not hidden (e.g. billing stays for Gryffin)', () => {

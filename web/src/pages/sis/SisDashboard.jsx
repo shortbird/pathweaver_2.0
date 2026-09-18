@@ -330,7 +330,7 @@ const SisDashboard = () => {
                     Billing →
                   </Link>
                   {finance.tuition_queue > 0 && (
-                    <Link to="/tuition" className="text-sm font-semibold text-optio-purple hover:underline">
+                    <Link to="/billing?tab=invoice" className="text-sm font-semibold text-optio-purple hover:underline">
                       {finance.tuition_queue} awaiting tuition →
                     </Link>
                   )}

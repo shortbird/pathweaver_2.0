@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const render = (ui) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>)
@@ -279,7 +279,7 @@ describe('opening the invoice a family was sent', () => {
 
   it('opens from the outstanding report too', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: /Outstanding/i }))
+    fireEvent.click(await screen.findByRole('tab', { name: /Outstanding/i }))
     const rows = await screen.findAllByText('Bowman Family')
     fireEvent.click(rows[rows.length - 1])
     expect(await screen.findByText('INV-2026-3B3796')).toBeInTheDocument()
@@ -412,7 +412,7 @@ describe('correcting billing mistakes', () => {
 describe('charge detail', () => {
   it('lists each charge with what kind of charge it is', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     expect(await screen.findByText('Piano — supplies')).toBeInTheDocument()
     // getAllBy: the same words label the filter's options as well as the pills.
     expect(screen.getAllByText('Supplies').length).toBeGreaterThan(0)
@@ -422,7 +422,7 @@ describe('charge detail', () => {
 
   it('lists the payments recorded against those charges', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     expect(await screen.findByText('Payments recorded')).toBeInTheDocument()
     expect(screen.getByText('UFA Ven')).toBeInTheDocument()
     expect(screen.getByText('Scholarship')).toBeInTheDocument()
@@ -430,7 +430,7 @@ describe('charge detail', () => {
 
   it('narrows to one kind of charge', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     await screen.findByText('Piano — supplies')
     fireEvent.change(screen.getByLabelText('Charge type'), { target: { value: 'supply' } })
     await waitFor(() =>
@@ -439,7 +439,7 @@ describe('charge detail', () => {
 
   it('opens the invoice a charge sits on', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     fireEvent.click(await screen.findByText('Piano — supplies'))
     expect(await screen.findByText('Reading Workshop (Tues Block 1)')).toBeInTheDocument()
   })
@@ -451,7 +451,7 @@ describe('charge detail', () => {
    */
   it('corrects the method on a recorded payment', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     fireEvent.click(await screen.findByRole('button', { name: /Correct payment for Bowman Family/ }))
 
     expect(await screen.findByText('Correct payment')).toBeInTheDocument()
@@ -464,7 +464,7 @@ describe('charge detail', () => {
 
   it('does not offer to change the amount', async () => {
     render(<BillingPage />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Charge detail' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Charge detail' }))
     fireEvent.click(await screen.findByRole('button', { name: /Correct payment for Bowman Family/ }))
     await screen.findByText('Correct payment')
     expect(screen.queryByLabelText('Amount ($)')).not.toBeInTheDocument()
@@ -521,12 +521,16 @@ describe('charge detail', () => {
   describe('monthly tuition', () => {
     it('counts the schedules on the tab', async () => {
       render(<BillingPage />)
-      expect(await screen.findByRole('button', { name: /Monthly tuition \(1\)/ })).toBeInTheDocument()
+      const tab = await screen.findByRole('tab', { name: /Monthly tuition/ })
+      await waitFor(() => expect(within(tab).getByText('1')).toBeInTheDocument())
     })
 
-    it('shows the schedule and why it is not billing yet', async () => {
+    it('shows the schedule and why it is not billing yet, and can add one here', async () => {
+      // The Add button lived on the Tuition page until M23, and this tab
+      // told people to go there for it.
       render(<BillingPage />)
-      fireEvent.click(await screen.findByRole('button', { name: /Monthly tuition/ }))
+      fireEvent.click(await screen.findByRole('tab', { name: /Monthly tuition/ }))
+      expect(await screen.findByRole('button', { name: '+ Add student' })).toBeInTheDocument()
       expect(await screen.findByText('Banks Hanna')).toBeInTheDocument()
       expect(screen.getAllByText(/\$1,000\.00\/month/).length).toBeGreaterThan(0)
       expect(screen.getByText(/setup link not sent yet/)).toBeInTheDocument()
