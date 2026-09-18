@@ -45,10 +45,17 @@ export function topShare(rows, valueKey, total) {
   return { name: top.name ?? top.host ?? top.path, pct: Math.round((Number(top[valueKey]) / total) * 100) }
 }
 
-/** Y-axis labels for paths and hosts: keep the tail, it is the distinctive part. */
+/**
+ * Y-axis labels for paths and hosts, shortened in the middle: the head names
+ * the surface (/courses/, /quests/) and the tail is the distinctive part
+ * (…/curriculum, the end of an id). Keeping only one of them turned
+ * /courses/<uuid> into a bare uuid fragment on the real data.
+ */
 export function truncateLabel(value, max = 24) {
   const s = String(value ?? '')
-  return s.length > max ? `…${s.slice(-(max - 1))}` : s
+  if (s.length <= max) return s
+  const tail = Math.min(10, Math.floor((max - 1) / 2))
+  return `${s.slice(0, max - 1 - tail)}…${s.slice(-tail)}`
 }
 
 function VisitorsChart({ rows }) {
@@ -187,7 +194,7 @@ export default function WebTrafficSection() {
           height={CARD_HEIGHT}
         >
           {pages.length > 0 ? (
-            <RankedBarChart rows={pages} nameKey="path" valueKey="views" valueLabel="Views" labelWidth={150} />
+            <RankedBarChart rows={pages} nameKey="path" valueKey="views" valueLabel="Views" labelWidth={168} />
           ) : (
             <p className="text-xs text-gray-400">No page views in this window.</p>
           )}

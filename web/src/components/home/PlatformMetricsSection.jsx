@@ -145,7 +145,13 @@ export const INK = {
   value: '#6B7280',   // gray-500: direct value labels
   surface: '#FFFFFF', // the card: rings and gaps between marks
 }
-export const AXIS_TICK = { fontSize: 11, fill: INK.muted }
+/* `fontSize` draws the tick; `style.fontSize` is what recharts' Text measures
+   with when deciding whether a category label wraps within the axis width.
+   Without it the measurement runs at the page's 16px default, so an 11px
+   label that fits ("Organic Shopping", 100px of 128) was split in two. It
+   must be the px STRING: recharts assigns it to the measuring span through
+   CSSOM, which silently drops a unitless number. */
+export const AXIS_TICK = { fontSize: 11, fill: INK.muted, style: { fontSize: '11px' } }
 export const CURSOR = { stroke: '#D1D5DB', strokeWidth: 1 }
 export const ACTIVE_DOT = { r: 4, strokeWidth: 2, stroke: INK.surface }
 const COMMENTS = { platform: INK.muted } // gray: context, not the signal

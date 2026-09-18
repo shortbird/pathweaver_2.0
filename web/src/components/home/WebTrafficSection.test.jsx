@@ -141,9 +141,11 @@ describe('topShare', () => {
 })
 
 describe('truncateLabel', () => {
-  it('keeps short labels whole and the tail of long ones', () => {
+  it('keeps short labels whole and shortens long ones in the middle', () => {
     expect(truncateLabel('/classes')).toBe('/classes')
-    expect(truncateLabel('/quests/abcdef0123456789/curriculum', 16)).toBe('…6789/curriculum')
+    // The surface survives at the head, the distinctive part at the tail.
+    expect(truncateLabel('/courses/6c963eb3-0b5f-4660-9b26-cb935db44a84')).toBe('/courses/6c96…935db44a84')
+    expect(truncateLabel('/quests/abcdef0123456789/curriculum', 16)).toBe('/quests/…riculum')
     expect(truncateLabel(undefined)).toBe('')
   })
 })
