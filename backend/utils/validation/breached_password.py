@@ -69,3 +69,21 @@ def validate_password_not_breached(password: str):
     if is_breached_password(password):
         return False, BREACHED_PASSWORD_MESSAGE
     return True, None
+
+
+def is_weak_password_error(exc: Exception) -> bool:
+    """True when GoTrue refused a password write for being weak or breached.
+
+    The pre-check above fails open, so a breached password can still reach
+    Supabase and be refused there; every route that writes a password has to
+    recognise that refusal from the exception, or it reaches the person as a
+    generic failure and Sentry as an error (OPTIO-BACKEND, 2026-09-18, a parent
+    adding a login for their child). Supabase names the code `weak_password`,
+    answers 422, and words it "Password is known to be weak and easy to guess".
+    """
+    if getattr(exc, 'code', None) == 'weak_password':
+        return True
+    if getattr(exc, 'status', None) == 422:
+        return True
+    text = str(getattr(exc, 'message', '') or exc).lower()
+    return 'password' in text and ('weak' in text or 'pwned' in text or 'easy to guess' in text)

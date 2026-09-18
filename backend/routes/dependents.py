@@ -24,6 +24,9 @@ from utils.auth.relationships import require_relationship_to
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError as RouteNotFoundError
 from utils.roles import UserRole
 from utils.validation.password_validator import validate_password_strength
+from utils.validation.breached_password import (
+    BREACHED_PASSWORD_MESSAGE, is_weak_password_error, validate_password_not_breached,
+)
 import json
 import csv
 import io
@@ -715,6 +718,9 @@ def promote_dependent(user_id, dependent_id):
         if not is_valid:
             # Return first error message for user-friendly feedback
             raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
+        is_valid, error_message = validate_password_not_breached(password)
+        if not is_valid:
+            raise ValidationError(error_message)
 
         # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
@@ -796,6 +802,14 @@ def add_dependent_login(user_id, dependent_id):
         is_valid, error_messages = validate_password_strength(password)
         if not is_valid:
             raise ValidationError(error_messages[0] if error_messages else "Password does not meet security requirements")
+        # Supabase runs its own breach check and refuses the write. Until this
+        # pre-check, that refusal reached the parent as "Failed to add login
+        # credentials" and Sentry as an error, for a password the parent could
+        # simply have changed (ticket 132cd11c, 2026-09-18). Registration and
+        # password reset ask first for the same reason.
+        is_valid, error_message = validate_password_not_breached(password)
+        if not is_valid:
+            raise ValidationError(error_message)
 
         # admin client justified: see file docstring; verify_parent_role + dependent ownership check gate access
         supabase = get_supabase_admin_client()
@@ -851,6 +865,11 @@ def add_dependent_login(user_id, dependent_id):
             if 'already been registered' in message or 'already exists' in message:
                 # Held by another auth account the profile-table check can't see.
                 raise ValidationError("This email is already in use") from e
+            if is_weak_password_error(e):
+                # The pre-check fails open, so GoTrue's own refusal can still
+                # arrive. The parent's fix is a different password; say so.
+                logger.info(f"Rejected breached password for dependent {dependent_id}")
+                raise ValidationError(BREACHED_PASSWORD_MESSAGE) from e
             logger.error(f"Failed to set login credentials for dependent {dependent_id}: {e}")
             raise ValidationError("Failed to add login credentials") from e
 

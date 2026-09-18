@@ -10,6 +10,7 @@ from .input_validation import (
 from .breached_password import (
     BREACHED_PASSWORD_MESSAGE,
     is_breached_password,
+    is_weak_password_error,
     validate_password_not_breached
 )
 from .sanitization import sanitize_input, sanitize_html, sanitize_text

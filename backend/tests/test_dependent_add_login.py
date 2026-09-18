@@ -51,7 +51,7 @@ def admin():
 def call(admin):
     """Invoke add_dependent_login with everything around it stubbed out."""
 
-    def _call(payload=None, dependent=None, update_side_effect=None):
+    def _call(payload=None, dependent=None, update_side_effect=None, breached=False):
         dependent = dependent or {
             'id': DEPENDENT_ID,
             'display_name': 'Rocky',
@@ -72,7 +72,9 @@ def call(admin):
              patch.object(dependents, 'get_supabase_admin_client', return_value=admin), \
              patch.object(dependents, 'DependentRepository', return_value=repo), \
              patch.object(dependents, 'verify_parent_role', return_value=True), \
-             patch.object(dependents, 'validate_password_strength', return_value=(True, [])):
+             patch.object(dependents, 'validate_password_strength', return_value=(True, [])), \
+             patch.object(dependents, 'validate_password_not_breached',
+                          return_value=(False, dependents.BREACHED_PASSWORD_MESSAGE) if breached else (True, None)):
             # This test is about the view's logic, not its gates, so unwrap
             # down to the bare function. Unwrap in a LOOP rather than naming a
             # fixed number of __wrapped__ hops: the decorator stack grew from
@@ -129,6 +131,28 @@ class TestEmailCollisions:
         body, status = call(update_side_effect=Exception('network unreachable'))
         assert status == 400
         assert 'already in use' not in body.json['error'].lower()
+
+
+class TestABreachedPasswordIsNamedAsTheProblem:
+    """Ticket 132cd11c, 2026-09-18: GoTrue's HIBP check refused a parent's
+    password; the parent read "Failed to add login credentials" and Sentry
+    got an error. The parent's fix is a different password, so that is what
+    the answer has to say, whichever side of the write catches it."""
+
+    def test_the_pre_check_refuses_before_auth_is_touched(self, call, admin):
+        body, status = call(breached=True)
+        assert status == 400
+        assert 'data breach' in body.json['error']
+        admin.auth.admin.update_user_by_id.assert_not_called()
+
+    def test_gotrues_own_refusal_is_translated_not_logged_as_an_error(self, call):
+        error = Exception('Password is known to be weak and easy to guess, please choose a different one.')
+        with patch.object(dependents.logger, 'error') as log_error:
+            body, status = call(update_side_effect=error)
+        assert status == 400
+        assert 'data breach' in body.json['error']
+        assert 'Failed to add login credentials' not in body.json['error']
+        log_error.assert_not_called()
 
 
 class TestGuards:

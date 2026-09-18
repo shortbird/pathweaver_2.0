@@ -12,6 +12,7 @@ from flask import Blueprint, request, jsonify
 from app_config import Config
 from database import get_supabase_admin_client, get_throwaway_auth_client
 from utils.validation import (
+    is_weak_password_error,
     sanitize_input,
     validate_password,
     validate_password_not_breached
@@ -509,15 +510,6 @@ _WEAK_PASSWORD_MESSAGE = (
 )
 
 
-def _is_weak_password_error(exc: Exception) -> bool:
-    if getattr(exc, 'code', None) == 'weak_password':
-        return True
-    if getattr(exc, 'status', None) == 422:
-        return True
-    text = str(getattr(exc, 'message', '') or exc).lower()
-    return 'password' in text and ('weak' in text or 'pwned' in text)
-
-
 @bp.route('/reset-password', methods=['POST'])
 @rate_limit(max_requests=10, window_seconds=600)  # AUTH-H6: throttle reset-token consumption (10 / 10 min per IP)
 def reset_password():
@@ -542,7 +534,7 @@ def reset_password():
             return jsonify({'error': error_message}), 400
 
         # Before the token is claimed, so a breached password costs her nothing
-        # but a retype. The _is_weak_password_error path below stays as the
+        # but a retype. The is_weak_password_error path below stays as the
         # backstop for whatever HIBP knows and this lookup missed.
         is_valid, error_message = validate_password_not_breached(new_password)
         if not is_valid:
@@ -606,7 +598,7 @@ def reset_password():
             except Exception as update_error:
                 # The password never changed, so the link must survive.
                 _release_reset_token(admin_client, stored_token)
-                if _is_weak_password_error(update_error):
+                if is_weak_password_error(update_error):
                     logger.info(
                         f"[RESET_PASSWORD] Rejected breached password for "
                         f"{mask_email(auth_email)}; token released"
