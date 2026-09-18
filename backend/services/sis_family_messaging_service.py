@@ -133,7 +133,7 @@ def family_audience(org_id: str, *, class_id: Optional[str] = None,
 
     rows = _guardian_rows(list(students_by_guardian))
     from utils.person_name import full_name
-    people = []
+    people: List[Dict[str, Any]] = []
     for gid, kids in students_by_guardian.items():
         row = rows.get(gid) or {'id': gid}
         people.append({
@@ -190,7 +190,8 @@ def compose(org_id: str, actor_id: str, *, body: str,
     content = f'{subject}\n\n{body}' if (subject or '').strip() else body
 
     from services import school_inbox_service
-    conversations, skipped = [], []
+    conversations: List[Dict[str, Any]] = []
+    skipped: List[str] = []
     for gid in wanted:
         try:
             msg = school_inbox_service.send_as_school(
