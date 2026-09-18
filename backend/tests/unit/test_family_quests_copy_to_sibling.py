@@ -27,11 +27,11 @@ UQ_ROMNEY = 'uq-romney'
 UQ_BUBBA = 'uq-bubba'
 
 ROMNEYS_TASKS = [
-    {'id': 't-2', 'user_quest_id': UQ_ROMNEY, 'title': 'Plan the route', 'description': 'Map it', 'pillar': 'stem',
+    {'id': 't-2', 'user_id': ROMNEY, 'user_quest_id': UQ_ROMNEY, 'title': 'Plan the route', 'description': 'Map it', 'pillar': 'stem',
      'xp_value': 50, 'order_index': 1, 'is_required': False, 'is_manual': True,
      'diploma_subjects': ['Social Studies'], 'subject_xp_distribution': {'Social Studies': 50},
      'success_criteria': {'constraint': 'three stops'}, 'source_template_task_id': None, 'created_at': '2026-09-02T00:00:00+00:00'},
-    {'id': 't-1', 'user_quest_id': UQ_ROMNEY, 'title': 'Pick the cities', 'description': '', 'pillar': 'society',
+    {'id': 't-1', 'user_id': ROMNEY, 'user_quest_id': UQ_ROMNEY, 'title': 'Pick the cities', 'description': '', 'pillar': 'society',
      'xp_value': 25, 'order_index': 0, 'is_required': True, 'is_manual': False,
      'diploma_subjects': ['Electives'], 'subject_xp_distribution': None,
      'success_criteria': None, 'source_template_task_id': None, 'created_at': '2026-09-01T00:00:00+00:00'},
@@ -85,18 +85,15 @@ def app():
 
 
 def _answers(created_by=PARENT, romneys_tasks=ROMNEYS_TASKS, bubbas_tasks=()):
-    def user_quests(filters):
-        return [{'id': UQ_ROMNEY, 'user_id': ROMNEY, 'quest_id': QUEST}]
-
     def user_quest_tasks(filters):
         if filters.get('user_quest_id') == UQ_BUBBA:
             return list(bubbas_tasks)                    # the "already has a list?" check
-        return [t for t in romneys_tasks if t['user_quest_id'] in filters.get('user_quest_id', [])]
+        # The family's lists on the quest (TaskRepository.find_approved_on_quest_for_users).
+        return [t for t in romneys_tasks if t['user_id'] in filters.get('user_id', [])]
 
     return {
         'quests': [{'id': QUEST, 'created_by': created_by, 'is_public': False}],
         'users': [{'role': 'parent'}],
-        'user_quests': user_quests,
         'user_quest_tasks': user_quest_tasks,
     }
 

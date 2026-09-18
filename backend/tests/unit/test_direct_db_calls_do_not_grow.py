@@ -526,7 +526,10 @@ BASELINES = {
     # 2026-09-18: 585 -> 586. SisQuestLibraryRepository.creators, who wrote
     # each library quest, so the office's library and teacher-made quests read
     # as two lists (ticket 4579be68).
-    'repositories': 586,
+    # 2026-09-18: 586 -> 587. TaskRepository.find_approved_on_quest_for_users,
+    # every family member's list on one quest, so a child added to a
+    # parent-made quest gets a copy of a sibling's tasks.
+    'repositories': 587,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

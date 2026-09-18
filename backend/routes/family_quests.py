@@ -305,20 +305,9 @@ def _family_task_list(supabase, quest_id, family_ids):
     of user_quest_tasks in order -- what a newly added child gets when the
     quest has no authored template. Ended runs count: a sibling who finished
     the quest still holds the list. Empty when nobody in the family has one.
-    Bounded by the family on one quest, so no paging.
     """
-    enrollments = supabase.table('user_quests') \
-        .select('id') \
-        .eq('quest_id', quest_id).in_('user_id', family_ids) \
-        .execute().data or []
-    if not enrollments:
-        return []
-    tasks = supabase.table('user_quest_tasks') \
-        .select('id, user_quest_id, title, description, pillar, xp_value, order_index, is_required, '
-                'is_manual, diploma_subjects, subject_xp_distribution, success_criteria, '
-                'source_template_task_id, created_at') \
-        .in_('user_quest_id', [e['id'] for e in enrollments]).eq('approval_status', 'approved') \
-        .execute().data or []
+    from repositories.task_repository import TaskRepository
+    tasks = TaskRepository(client=supabase).find_approved_on_quest_for_users(quest_id, family_ids)
     by_enrollment = {}
     for t in tasks:
         by_enrollment.setdefault(t['user_quest_id'], []).append(t)
@@ -433,8 +422,8 @@ def enroll_children_in_family_quest(user_id, quest_id):
 
                 enrollment_id = enrollment['id']
 
-                already = supabase.table('user_quest_tasks').select('id') \
-                    .eq('user_quest_id', enrollment_id).limit(1).execute().data
+                from repositories.task_repository import TaskRepository
+                already = TaskRepository(client=supabase).find_by_user_quest(enrollment_id)
                 tasks_to_insert = []
                 if already:
                     pass  # picked back up: the list is theirs already

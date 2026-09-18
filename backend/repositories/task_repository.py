@@ -44,6 +44,27 @@ class TaskRepository(BaseRepository):
             logger.error(f"Error fetching tasks for quest {quest_id}: {e}")
             return []
 
+    def find_approved_on_quest_for_users(self, quest_id: str, user_ids: List[str]) -> List[Dict[str, Any]]:
+        """The approved tasks on a quest held by any of these users -- every
+        family member's list on one quest, for the family enroll route to
+        copy a sibling's list from (2026-09-18). Ended runs count: the rows
+        stay on the enrollment. Bounded by the users on one quest."""
+        if not user_ids:
+            return []
+        try:
+            result = self.client.table(self.table_name)\
+                .select('id, user_id, user_quest_id, title, description, pillar, xp_value, order_index, '
+                        'is_required, is_manual, diploma_subjects, subject_xp_distribution, success_criteria, '
+                        'source_template_task_id, created_at')\
+                .eq('quest_id', quest_id)\
+                .in_('user_id', user_ids)\
+                .eq('approval_status', 'approved')\
+                .execute()
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error fetching the family's tasks on quest {quest_id}: {e}")
+            return []
+
     def find_by_user_quest(self, user_quest_id: str) -> List[Dict[str, Any]]:
         """
         Get all tasks for a specific user quest enrollment.
