@@ -132,9 +132,11 @@ def attach_family(org_id: str, guardian_id: str, student_ids: Iterable[str], *,
     db = _client(client)
     households = _households(db)
     fields = dict(household_fields or {})
-    household_id = household_for_guardian(org_id, guardian_id, client=db)
+    existing = household_for_guardian(org_id, guardian_id, client=db)
     created = False
-    if household_id:
+    household_id: str
+    if existing:
+        household_id = existing
         fill = {k: v for k, v in fields.items() if k not in ('name', 'organization_id')}
         if fill:
             households.update(household_id, fill)
