@@ -4,6 +4,7 @@ import { SparklesIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import { blankTask } from './QuestDraftForm'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * Start a quest from material the school already has.
@@ -22,8 +23,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
  * there is something to lose.
  */
 
-const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const inputCls = INPUT_CLASS
 export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = false }) {
   // Collapsed by default where it sits above a form somebody may already be
   // typing into; always open where it IS the container (the curriculum page).
@@ -176,7 +176,7 @@ export default function QuestAiDraftPanel({ onDrafted, hasDraft, alwaysOpen = fa
         </button>
 
         <button type="button" disabled={busy || !(file || context.trim())} onClick={generate}
-          className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+          className="ml-auto px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
           {busy ? 'Reading it…' : 'Generate draft'}
         </button>
       </div>

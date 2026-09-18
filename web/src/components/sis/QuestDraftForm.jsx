@@ -4,6 +4,7 @@ import { PILLARS as PILLAR_CONFIG } from '../../config/pillars'
 import TaskSubjectPicker from './TaskSubjectPicker'
 import QuestResourcesPanel from './QuestResourcesPanel'
 import { defaultSubjectForPillar, evenSplit } from '../../constants/diplomaSubjects'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * The form for building a school quest: a title, a description, and the preset
@@ -52,8 +53,7 @@ export const blankTask = () => ({
   subject_xp_distribution: evenSplit([defaultSubjectForPillar('art')], 100)
 })
 
-const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const inputCls = INPUT_CLASS
 /**
  * Has anyone chosen a subject on any of these tasks, or are they all still on
  * their pillar's default? Decides whether the credit switch starts on.

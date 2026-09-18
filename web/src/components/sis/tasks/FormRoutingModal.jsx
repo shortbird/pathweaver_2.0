@@ -99,7 +99,7 @@ const FormRoutingModal = ({ orgId, staff = [], onClose }) => {
               : 'Everything comes to the office first.'}
           </span>
           <button onClick={save} disabled={saving || loading}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

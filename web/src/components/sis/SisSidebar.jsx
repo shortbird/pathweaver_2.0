@@ -190,7 +190,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
             bounce to /family anyway. */}
         <button
           onClick={() => switchSurfaceInApp('learning', userHasFamily(user) ? '/family' : '/dashboard')}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-2 text-sm font-semibold text-white"
+          className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-primary px-3 py-2 text-sm font-semibold text-white"
         >
           {icon('M11 19l-7-7 7-7m-7 7h18')}
           Switch to Learning app

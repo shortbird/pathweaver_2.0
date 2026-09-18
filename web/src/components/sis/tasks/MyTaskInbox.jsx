@@ -226,7 +226,7 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
             <div className="mt-1.5 flex items-center gap-3">
               <Link to={task.link} className="text-sm text-optio-purple hover:underline">Read it</Link>
               <button onClick={acknowledge} disabled={busy}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                 {busy ? 'Saving…' : 'I have read this'}
               </button>
             </div>

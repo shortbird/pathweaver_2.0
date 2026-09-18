@@ -201,7 +201,7 @@ export default function CurriculumMaterials({ orgId, curriculumId }) {
               Cancel
             </button>
             <button type="submit" disabled={saving || !linkTitle.trim() || !linkUrl.trim()}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {saving ? 'Saving…' : 'Add'}
             </button>
           </div>

@@ -129,7 +129,7 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent }) {
               Cancel
             </button>
             <button type="button" onClick={send} disabled={busy || !chosen.size || !body.trim()}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {busy ? 'Sending…' : 'Send'}
             </button>
           </div>

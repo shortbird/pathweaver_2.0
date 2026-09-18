@@ -22,7 +22,7 @@ const PreviewBanner = () => {
   return (
     // top-14, not top-0: the header above it is sticky at every width now, so
     // a banner pinned to 0 scrolls up underneath it and disappears.
-    <div className="sticky top-14 z-20 bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 flex items-center gap-3 text-sm">
+    <div className="sticky top-14 z-20 bg-gradient-primary text-white px-4 py-2 flex items-center gap-3 text-sm">
       <span className="font-medium">
         Previewing the teacher portal as {preview.name} (read-only)
       </span>

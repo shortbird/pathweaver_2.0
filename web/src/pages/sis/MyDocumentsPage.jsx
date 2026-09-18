@@ -153,7 +153,7 @@ export const MyDocumentsPanel = ({ orgId, preview = null }) => {
             placeholder="What is it? (optional — e.g. signed contract)"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-3 focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
           <button onClick={() => fileRef.current?.click()} disabled={uploading || !orgId}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             <ArrowUpTrayIcon className="w-4 h-4" />
             {uploading ? 'Uploading…' : 'Choose a file'}
           </button>

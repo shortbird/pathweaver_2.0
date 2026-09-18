@@ -206,7 +206,7 @@ const RunButton = ({ onClick, disabled, ariaLabel, children = 'Run report' }) =>
     onClick={onClick}
     disabled={disabled}
     aria-label={ariaLabel}
-    className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink hover:opacity-90 disabled:opacity-50"
+    className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-gradient-primary hover:opacity-90 disabled:opacity-50"
   >
     {children}
   </button>

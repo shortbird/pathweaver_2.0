@@ -41,7 +41,7 @@ const PhonePrompt = () => (
       staff, not to families.
     </p>
     <Link to="/my-profile?focus=phone"
-      className="inline-block px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90">
+      className="inline-block px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-primary text-white hover:opacity-90">
       Add it on My Profile
     </Link>
   </div>
@@ -282,7 +282,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
                 </div>
               ) : (
                 <button onClick={() => clock('clock-in')} disabled={clockBusy}
-                  className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                  className="w-full px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                   Clock in
                 </button>
               )}

@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
 import ModalOverlay from '../../ui/ModalOverlay'
 import { withOrg } from '../../../pages/sis/useSisOrg'
+import { INPUT_CLASS } from '../../ui/Input'
 
 /**
  * Assign a checklist to people.
@@ -18,8 +19,7 @@ import { withOrg } from '../../../pages/sis/useSisOrg'
  * is what makes that unambiguous, so the list stays hidden until one is chosen.
  */
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
+const inputClass = INPUT_CLASS
 export default function AssignChecklistModal({ orgId, onClose, onAssigned, templateId = '' }) {
   const [templates, setTemplates] = useState([])
   const [assignTemplate, setAssignTemplate] = useState(templateId)
@@ -146,7 +146,7 @@ export default function AssignChecklistModal({ orgId, onClose, onAssigned, templ
           <div className="flex gap-2">
             <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
             <button onClick={assign} disabled={assigning || !userIds.length}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {assigning ? 'Assigning…' : 'Assign checklist'}
             </button>
           </div>

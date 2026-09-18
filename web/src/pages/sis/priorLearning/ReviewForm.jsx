@@ -56,7 +56,7 @@ const ReviewForm = ({ record, subjects, busy, prefill, onSubmit }) => {
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy}
                 onClick={() => onSubmit({ status: 'accepted', review_notes: notes, awarded_credits: awarded() })}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink disabled:opacity-50">
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
           Accept &amp; award
         </button>
         {record.status === 'submitted' && (

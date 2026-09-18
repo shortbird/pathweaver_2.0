@@ -4,6 +4,7 @@ import SearchSelect from '../ui/SearchSelect'
 import {
   DAY_OPTIONS, hhmm, fmt12ap, blockMinutes, blockEndOptions, addMin, minutesBetween,
 } from './classFields'
+import { CELL_INPUT_CLASS as cell } from '../ui/Input'
 
 /**
  * Every editable attribute of a class, in one grid.
@@ -30,7 +31,6 @@ import {
 // py-2 so a plain input is the same height as a SearchSelect (which sets its
 // own padding) and as the image tile. Packing the fields four-across made the
 // old 34px-vs-38px mismatch visible on every row.
-const cell = 'w-full rounded-md border border-gray-200 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple bg-white'
 
 // A column stretches to its row's height, so a tall neighbour (the description)
 // pulls the short one (the image tile) up to match instead of leaving a gap.

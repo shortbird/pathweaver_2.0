@@ -533,7 +533,7 @@
     },
     {
       "id": "input_recipe",
-      "means": "The Tailwind string for a text input, spelled as a local constant in four incompatible recipes across thirty-odd SIS files. components/ui/Input.jsx and FormField.jsx were used by no SIS file until M18 (2026-09-17): the training form and page draw their inputs from ui/Input.",
+      "means": "The Tailwind string for a text input. Thirty-three SIS files each spelled it as a local constant, in four recipes that had drifted apart. Since M14e (2026-09-18) the spelling lives once in components/ui/Input.jsx (INPUT_CLASS, INLINE_INPUT_CLASS for a field inside a flex row, CELL_INPUT_CLASS for an editable table cell) and every file imports it under the local name it already used; <Input> and <FormField> draw from the same string.",
       "owner": { "web": ["components/ui/Input.jsx", "components/ui/FormField.jsx"] },
       "forbid": {
         "web": {
@@ -541,10 +541,10 @@
           "dirs": ["pages/sis", "components/sis"]
         }
       },
-      "baseline": { "web": 33 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-18",
-      "lowered_by": "M13c",
-      "use_instead": "<Input> / <FormField> from components/ui. A page that needs a variant adds it there, once."
+      "lowered_by": "M14e",
+      "use_instead": "import { INPUT_CLASS } from 'components/ui/Input' (or INLINE_INPUT_CLASS / CELL_INPUT_CLASS), or render <Input> / <FormField>. Never spell the class string in a file."
     },
     {
       "id": "modal_shell",
@@ -589,14 +589,14 @@
     },
     {
       "id": "brand_gradient",
-      "means": "The brand gradient spelled by hand (bg-gradient-to-r from-optio-purple ...) ninety-six times in SIS files, the spelling the design system forbids.",
+      "means": "The brand gradient spelled by hand (bg-gradient-to-r from-optio-purple to-optio-pink), the spelling docs/design/DESIGN_SYSTEM.md forbids; ninety-six SIS sites until M14e (2026-09-18), now bg-gradient-primary everywhere.",
       "owner": { "web": ["components/ui/Button.jsx"] },
       "forbid": {
         "web": { "pattern": "bg-gradient-to-r from-optio-purple", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 88 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-18",
-      "lowered_by": "M13c",
+      "lowered_by": "M14e",
       "use_instead": "<Button variant=\"primary\"> or the .btn-primary class; see docs/design/DESIGN_SYSTEM.md."
     },
     {

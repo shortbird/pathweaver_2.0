@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { readTimeBlocks, saveTimeBlocks } from '../../hooks/api/useSisSettings'
+import { INLINE_INPUT_CLASS } from '../ui/Input'
 
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INLINE_INPUT_CLASS
 /**
  * Class time blocks — the school day's standard periods (e.g. 9:30–10:30,
  * 12:30–1:00 lunch). Rows in sis_time_blocks with ids since M8b (2026-09-18);
@@ -79,7 +79,7 @@ const TimeBlocksCard = ({ orgId, onUpdate }) => {
         ))}
       </div>
       <button onClick={save} disabled={saving || blocks === null}
-        className="px-5 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90 disabled:opacity-50">
+        className="px-5 py-2 rounded-lg bg-gradient-primary text-white font-medium hover:opacity-90 disabled:opacity-50">
         {saving ? 'Saving…' : 'Save time blocks'}
       </button>
     </div>

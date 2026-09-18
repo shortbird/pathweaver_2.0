@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { patchSisSettings } from '../../hooks/api/useSisSettings'
+import { INLINE_INPUT_CLASS } from '../ui/Input'
 
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INLINE_INPUT_CLASS
 // Preview swatches mirror CATEGORY_COLORS on the Calendar page (by index).
 const SWATCHES = ['bg-blue-400', 'bg-green-400', 'bg-amber-400',
   'bg-rose-400', 'bg-teal-400', 'bg-indigo-400']
@@ -60,7 +60,7 @@ const CalendarCategoriesCard = ({ orgId, org, onUpdate }) => {
         <button onClick={() => setCategories((cs) => [...cs, ''])}
           className="text-sm font-medium text-optio-purple hover:underline">+ Add category</button>
         <button onClick={save} disabled={saving}
-          className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+          className="ml-auto px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
           {saving ? 'Saving…' : 'Save'}
         </button>
       </div>

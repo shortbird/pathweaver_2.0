@@ -141,7 +141,7 @@ const QuestResourcesPanel = ({ questId, taskId = null, compact = false }) => {
               placeholder="Paste a link or video URL" aria-label="Resource URL"
               className="flex-1 min-w-[180px] px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm" />
             <button type="button" onClick={addLink} disabled={busy}
-              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               Attach
             </button>
           </div>

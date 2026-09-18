@@ -199,7 +199,7 @@ const TasksPage = () => {
             <PopMenu open={menuOpen} onClose={() => setMenuOpen(false)} width="w-64" className="flex"
               trigger={(<>
                 <button onClick={() => startCreating(primaryAction)}
-                  className="px-4 py-2 rounded-l-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+                  className="px-4 py-2 rounded-l-lg bg-gradient-primary text-white text-sm font-semibold">
                   {primaryLabel}
                 </button>
                 <button onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"

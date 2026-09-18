@@ -212,7 +212,7 @@ const TimesheetsPage = () => {
           <input type="date" value={end} onChange={(e) => setPeriod((p) => ({ ...p, end: e.target.value }))}
             className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm" />
           <button onClick={() => download('/api/sis/staff-admin/payroll.csv', `payroll_${start}_${end}.csv`)}
-            className="px-3 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+            className="px-3 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
             Export payroll CSV
           </button>
         </div>

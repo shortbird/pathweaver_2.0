@@ -128,7 +128,7 @@ const TranscriptStep = ({ record, suggestion, busy, onSubmit }) => {
                 subject_credits: awarded,
                 course_names: parsed,
               })}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink disabled:opacity-50">
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
         Add to transcript
       </button>
     </div>

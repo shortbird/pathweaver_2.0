@@ -18,9 +18,9 @@ import { htmlToText } from '../../utils/richText'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { fmtEventWhen, fmtDateOnly, fmtLongDate, isDateOnly } from '../../utils/timeFormat'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 const TABS = [
   { key: 'highlights', label: 'Highlights' },
   { key: 'announcements', label: 'Announcements' },

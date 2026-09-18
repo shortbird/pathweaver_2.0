@@ -193,7 +193,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
           paperwork, and pay a registration fee — all configured right here.
         </p>
         <button onClick={enableFunnel} disabled={enabling}
-          className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold hover:opacity-90 disabled:opacity-50">
+          className="px-5 py-2.5 rounded-lg bg-gradient-primary text-white font-semibold hover:opacity-90 disabled:opacity-50">
           {enabling ? 'Setting up…' : 'Set up family registration'}
         </button>
       </div>
@@ -510,7 +510,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
             <button
               onClick={() => copyText(regLinkUrl, setCopied)}
               className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                copied ? 'bg-green-100 text-green-700' : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
+                copied ? 'bg-green-100 text-green-700' : 'bg-gradient-primary text-white hover:opacity-90'
               }`}
             >
               {copied ? <CheckIcon className="w-4 h-4" /> : <ClipboardIcon className="w-4 h-4" />}
@@ -587,7 +587,7 @@ const RegistrationSetupTab = ({ orgId, orgData, onUpdate }) => {
             save together. Waitlist ages and first day of school save on their own.
           </p>
           <button onClick={save} disabled={saving}
-            className="shrink-0 px-5 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90 disabled:opacity-50">
+            className="shrink-0 px-5 py-2 rounded-lg bg-gradient-primary text-white font-medium hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Save registration settings'}
           </button>
         </div>

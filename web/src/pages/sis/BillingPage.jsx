@@ -296,7 +296,7 @@ const BillingPage = () => {
           <button
             key={v} onClick={() => setView(v)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium ${view === v
-              ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+              ? 'bg-gradient-primary text-white'
               : 'bg-white border border-gray-200 text-neutral-600 hover:border-gray-300'}`}
           >
             {label}

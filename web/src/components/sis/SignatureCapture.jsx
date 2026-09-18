@@ -80,7 +80,7 @@ export default function SignatureCapture({
           type="button"
           disabled={!ready || busy || preview}
           onClick={() => onSign({ signature_name: state.name.trim(), signature_agreed: true })}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50"
         >
           {busy ? 'Signing…' : 'Sign'}
         </button>

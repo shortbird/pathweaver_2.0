@@ -49,7 +49,7 @@ export default function QuestPreviewModal({
       footer={(
         <div className="flex justify-end">
           <button onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+            className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
             Back to editing
           </button>
         </div>
@@ -65,7 +65,7 @@ export default function QuestPreviewModal({
             ? 'w-full h-48 object-contain bg-white border-b border-gray-200 p-4'
             : 'w-full h-48 object-cover'} />
       ) : (
-        <div className="w-full h-48 bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+        <div className="w-full h-48 bg-gradient-primary flex items-center justify-center">
           <div className="text-center text-white/80">
             <PhotoIcon className="w-8 h-8 mx-auto mb-1" />
             <p className="text-xs">No image yet — this gradient is what they will see</p>

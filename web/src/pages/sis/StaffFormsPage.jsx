@@ -11,6 +11,7 @@ import SearchSelect from '../../components/ui/SearchSelect'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import AnnouncementBody from '../../components/announcements/AnnouncementBody'
 import StatusPill from '../../components/sis/ui/StatusPill'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
 /**
  * StaffFormsPage — staff forms and the internal task system (iCreate Phase 2).
@@ -35,8 +36,7 @@ const PRIORITY_STYLES = {
   urgent: 'bg-red-100 text-red-700',
 }
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
+const inputClass = INPUT_CLASS
 const FormStatus = ({ status }) => <StatusPill domain="form_submission" status={status} fallback="submitted" />
 
 // Exported: the Task Center opens this in a dialog from its "Assign or send"
@@ -314,7 +314,7 @@ export const SubmitForm = ({ orgId, formTypes, forms = [], onSubmitted, disabled
           <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location (optional)" className={inputClass} />
         )}
         <button type="submit" disabled={busy || disabled}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50 shrink-0">
+          className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50 shrink-0">
           {busy ? 'Submitting…' : 'Submit'}
         </button>
       </div>
@@ -636,7 +636,7 @@ export const AdminQueue = ({ orgId, staff, openSubmissionId = null, onCount = nu
                               setEditing(null)
                             }
                           }}
-                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90">
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-primary text-white hover:opacity-90">
                           Save changes
                         </button>
                         <button onClick={() => setEditing(null)}

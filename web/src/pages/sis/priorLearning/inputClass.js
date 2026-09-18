@@ -1,8 +1,9 @@
 /**
- * Extracted from sis/PriorLearningPage.jsx on 2026-09-04 (QF-02).
- * Moved verbatim -- no behaviour changed, only the address.
+ * Extracted from sis/PriorLearningPage.jsx on 2026-09-04 (QF-02). The
+ * spelling itself is ui/Input's since M14e (2026-09-18); this keeps the
+ * address the prior-learning panels import.
  */
 
-const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+import { INPUT_CLASS } from '../../../components/ui/Input'
 
-export default inputClass
+export default INPUT_CLASS

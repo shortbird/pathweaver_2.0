@@ -91,7 +91,7 @@ const MyTimePage = () => {
             <>
               <p className="text-sm text-neutral-600">You are not clocked in.</p>
               <button onClick={() => clock('clock-in')} disabled={busy}
-                className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                className="ml-auto px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                 Clock in
               </button>
             </>

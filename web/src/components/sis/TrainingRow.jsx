@@ -140,7 +140,7 @@ const QuestRow = ({
         </button>
         {t.is_draft ? (
           <button onClick={onPublish}
-            className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold">
+            className="px-2.5 py-1 rounded-lg bg-gradient-primary text-white text-xs font-semibold">
             Publish
           </button>
         ) : (

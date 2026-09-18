@@ -24,6 +24,7 @@ import GlassTabBar from '../../components/ui/GlassTabBar'
 import { formatCents as money } from '../../utils/money'
 import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
 import AddChildForm from './familyDetail/AddChildForm'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
@@ -63,8 +64,7 @@ const Avatar = ({ name, src }) => (
   <PersonPhoto src={src} name={name} size="w-8 h-8" textSize="text-[11px]" />
 )
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 const TABS = [
   { key: 'family', label: 'Family' },
   { key: 'details', label: 'Details' },

@@ -21,6 +21,7 @@ import { queryKeys } from '../../utils/queryKeys'
 import { ageFromDob, fitsAge, conflictsWith } from '../../utils/schedule'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import { useRecordDoors } from '../../components/sis/recordDoorsContext'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
 /**
  * Tabbed per-student management modal.
@@ -30,8 +31,7 @@ import { useRecordDoors } from '../../components/sis/recordDoorsContext'
  * The Profile "Save" lives in the header so the modal doesn't grow taller.
  */
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'record', label: 'Record' },

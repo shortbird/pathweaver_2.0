@@ -27,7 +27,7 @@ export default function CreateClassModal({ onClose, onSubmit, initial = null, st
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
               <AcademicCapIcon className="w-6 h-6 text-white" />
             </div>
             <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Class' : 'Create Class'}</h2>

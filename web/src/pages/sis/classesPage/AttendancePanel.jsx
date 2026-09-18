@@ -10,6 +10,7 @@ import { classLabel, meetingText } from '../../../components/sis/classLabel'
 import AttendanceAlerts from '../../../components/sis/AttendanceAlerts'
 import { isSisAdmin } from '../sisRole'
 import { statusTone } from '../../../components/sis/ui/statusMaps'
+import { INLINE_INPUT_CLASS } from '../../../components/ui/Input'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -28,7 +29,7 @@ const CARD = {
   excused: 'border-blue-300 bg-blue-50',
 }
 
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+const field = INLINE_INPUT_CLASS
 // Local date, not UTC: toISOString() rolls over at 6pm Mountain, so an evening
 // visit opened TOMORROW's roster (iCreate, 2026-09-02).
 const today = () => {

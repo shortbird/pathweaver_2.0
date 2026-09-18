@@ -374,7 +374,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
             ) : orgLogo ? (
               <img src={orgLogo} alt="" className="w-24 h-16 rounded-lg object-contain bg-white border border-gray-200 p-1" />
             ) : (
-              <div className="w-24 h-16 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+              <div className="w-24 h-16 rounded-lg bg-gradient-primary flex items-center justify-center">
                 <PhotoIcon className="w-5 h-5 text-white/80" />
               </div>
             )}
@@ -563,17 +563,17 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
         )}
         {isLink ? (
           <button type="button" onClick={addLink} disabled={saveLink.isPending || !title.trim() || !url.trim()}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             {saveLink.isPending ? 'Saving…' : editingLink ? 'Save changes' : 'Add link'}
           </button>
         ) : tab === 'existing' ? (
           <button onClick={add} disabled={busy || !questId}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             {busy ? 'Adding…' : 'Add training'}
           </button>
         ) : editItem ? (
           <button onClick={saveEdits} disabled={busy || loadingEdit || !title.trim()}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             {busy ? 'Saving…' : 'Save changes'}
           </button>
         ) : (
@@ -584,7 +584,7 @@ export default function TrainingForm({ orgId, audience, onAdded, onCancel, orgLo
               {busy ? 'Saving…' : 'Save as draft'}
             </button>
             <button onClick={() => createAndAdd(false)} disabled={busy || !title.trim()}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {busy ? 'Building…' : 'Build and add'}
             </button>
           </>

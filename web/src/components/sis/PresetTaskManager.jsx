@@ -6,9 +6,9 @@ import { PILLARS, PILLAR_LABEL, blankTask, followPillar } from './QuestDraftForm
 import TaskSubjectPicker from './TaskSubjectPicker'
 import { SUBJECT_LABEL } from '../../constants/diplomaSubjects'
 import QuestResourcesPanel from './QuestResourcesPanel'
+import { INPUT_CLASS } from '../ui/Input'
 
-const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const inputCls = INPUT_CLASS
 /**
  * PresetTaskManager — the preset ("template") tasks on one quest, with full
  * add/edit/delete. Lived inside ClassQuestsManager until 2026-08-31, when the
@@ -175,7 +175,7 @@ export default function PresetTaskManager({ base, orgId, questId = null }) {
                       onChange={(e) => setEditDraft({ ...editDraft, xp_value: e.target.value })} />
                     <span className="text-xs text-neutral-500">XP</span>
                     <button onClick={() => saveEdit(t.id)} disabled={saving}
-                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm disabled:opacity-50">
+                      className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm disabled:opacity-50">
                       Save
                     </button>
                     <button onClick={() => setEditingId(null)}

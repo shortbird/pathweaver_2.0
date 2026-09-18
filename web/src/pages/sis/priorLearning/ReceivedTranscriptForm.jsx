@@ -217,7 +217,7 @@ const ReceivedTranscriptForm = ({ orgId, onClose, onFiled }) => {
       )}
 
       <button type="button" disabled={saving || !studentId || !staged.length} onClick={save}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink disabled:opacity-50">
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary disabled:opacity-50">
         {saving ? 'Uploading…' : 'File for review'}
       </button>
     </div>

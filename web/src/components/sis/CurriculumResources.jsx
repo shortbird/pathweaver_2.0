@@ -20,6 +20,7 @@ import QuestAiDraftPanel from './QuestAiDraftPanel'
 import QuestResourcesPanel from './QuestResourcesPanel'
 import PresetTaskManager from './PresetTaskManager'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * The teaching material a curriculum carries: its quests.
@@ -67,8 +68,7 @@ const Empty = ({ children }) => <p className="text-sm text-neutral-400">{childre
 // school-only, which means the mix wasn't visible.
 const optionLabel = (o) => (o.source === 'library' ? `${o.title} · Optio library` : o.title)
 
-const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const inputCls = INPUT_CLASS
 /**
  * One quest opened inside the curriculum: its description, its preset tasks,
  * and — for the school's own quests — the full set of controls (rename, edit
@@ -299,7 +299,7 @@ function QuestDetail({ orgId, curriculumId, quest, onRenamed, onDeleted, onChang
               Cancel
             </button>
             <button onClick={saveInfo} disabled={busy}
-              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               Save
             </button>
           </div>
@@ -627,7 +627,7 @@ export default function CurriculumResources({ orgId, curriculumId, canManage, on
                     Cancel
                   </button>
                   <button type="button" onClick={createQuest} disabled={creating || !newTitle.trim()}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                    className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                     {creating ? 'Creating…' : 'Create & add'}
                   </button>
                 </div>

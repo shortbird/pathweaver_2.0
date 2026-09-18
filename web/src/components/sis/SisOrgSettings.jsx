@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { moduleEnabled } from '../../modules/moduleEnabled'
 import { patchSisSettings } from '../../hooks/api/useSisSettings'
+import { INPUT_CLASS } from '../ui/Input'
 
 // The shared org identity + features card (settings/settingsRegistry.jsx
 // renders it on BOTH surfaces since blocks P3). Organization details +
@@ -12,8 +13,7 @@ import { patchSisSettings } from '../../hooks/api/useSisSettings'
 // render only when their building block is on, so a non-SIS org sees none
 // of them.
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 const Toggle = ({ on, onClick, disabled }) => (
   <button
     type="button" role="switch" aria-checked={on} onClick={onClick} disabled={disabled}
@@ -248,7 +248,7 @@ const SisOrgSettings = ({ orgId, orgData, onUpdate, onLogoChange, canEditSlug = 
             )}
           </div>
           <button onClick={saveDetails} disabled={savingDetails}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-medium hover:opacity-90 disabled:opacity-50">
+            className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-medium hover:opacity-90 disabled:opacity-50">
             {savingDetails ? 'Saving…' : 'Save'}
           </button>
         </div>

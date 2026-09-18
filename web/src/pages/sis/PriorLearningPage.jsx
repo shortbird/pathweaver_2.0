@@ -265,7 +265,7 @@ const PriorLearningPage = () => {
           </p>
         </div>
         <button type="button" onClick={() => setAdding(true)}
-                className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink">
+                className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-primary">
           Upload a transcript
         </button>
       </div>

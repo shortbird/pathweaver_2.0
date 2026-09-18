@@ -132,7 +132,7 @@ const CurriculumEditor = ({ orgId, entry, classes, onSaved, onCancel, onResource
           Cancel
         </button>
         <button onClick={save} disabled={busy}
-          className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+          className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
           {busy ? 'Saving…' : 'Save curriculum'}
         </button>
       </div>
@@ -248,7 +248,7 @@ const CurriculumPanel = () => {
           className="flex-1 min-w-[14rem] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
         {admin && !editing && (
           <button onClick={() => setEditing('new')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold shrink-0">
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold shrink-0">
             <PlusIcon className="w-4 h-4" /> Add curriculum
           </button>
         )}

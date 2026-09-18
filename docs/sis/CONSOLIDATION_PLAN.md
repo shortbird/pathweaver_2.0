@@ -44,7 +44,7 @@ and patterns instead.
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | shipped: 13a, 13b, 13c (one mount each, `RecordDoors`), 13d, 13f (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`, `consolidate/M13c-staff-record`) | `class_form_mount` 1, `staff_phone_edit` 0, `student_record_mount` 1, `family_record_mount` 1, `staff_record_mount` 1; `input_recipe` 33, `brand_gradient` 88 |
-| M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
+| M14c-e Pickers, modals, inputs, tables | 2 | shipped: (c), (d), (e) the sort header, the input spelling and the gradient spelling (2026-09-18) | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`, `consolidate/M14e-inputs-gradients`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 0, `brand_gradient` 0 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c's mobile half shipped 2026-09-18, the server's two old shapes retire once that build is on every phone; e not merged) | see git log (`consolidate/M19-parent-parity`, `consolidate/M19c-absence-selections`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the old shapes retire |
 | M16 One attach path | 3 | shipped: `sis_attach_service` behind every door (funnel, admin add-student, People add-member, three scripts), one advisor-role write for the two staff-linking paths; the `+ Add` menu stays three creation dialogs behind one door (see As shipped) | see git log (`consolidate/M16-one-attach`, `consolidate/M16-attach-service`) | `household_member_write` 0, `duplicate_detection` 0, new `student_attach` 0, `advisor_role_grant` 0 |
 | M8b Time-block table | 3 | shipped: `sis_time_blocks` rows with ids, `class_meetings.block_id`, migration applied to prod + staging 2026-09-18 (iCreate 6 blocks, 184 meetings stamped) | see git log (`consolidate/M8b-one-blocks-reader`, `consolidate/M8b-time-block-table`) | `time_blocks_read` 0 |
@@ -1332,6 +1332,22 @@ left for daylight. Verify at :3000: sort Classes by Days then Time (the
 level numbers show), People by Age, Secure Documents by person, Curriculum by
 Title; the org admin's student progress table and the credit dashboard still
 sort.
+
+(e) As shipped, the spellings (2026-09-18). The 88 hand-spelled gradients in 58
+SIS files are `bg-gradient-primary`, the class `DESIGN_SYSTEM.md` names (all 88
+were the identical string, no invented hover stops, so it was one substitution;
+the 135-degree brand gradient replaces the left-to-right one). The 33 input
+constants were four recipes; the spelling lives once in `components/ui/Input.jsx`
+as `INPUT_CLASS` (a field that fills its row -- the 20 identical copies and the 4
+of the `focus:border-transparent` recipe), `INLINE_INPUT_CLASS` (without
+`w-full`, the 8 fields inside flex rows: the settings cards' time and room
+inputs, the attendance and tuition filters) and `CELL_INPUT_CLASS` (the class
+editor's table cell), and every file imports one under the local name it already
+used, so no markup moved and every per-file lint count matches main; `<Input>`
+draws from the same focus string. `input_recipe` 33 → 0, `brand_gradient` 88 → 0.
+Still open: a `SortableTable` over the 23 raw tables; rendering `<Input>` /
+`<FormField>` where a page's markup is next touched; the `DESIGN_SYSTEM.md` SIS
+section.
 
 ### M19 — Parent surface parity
 

@@ -326,7 +326,7 @@ const EnrollmentWaitlistCard = ({ orgId, org }) => {
                           Not accepted
                         </button>
                         <button onClick={() => releaseOne(e)} disabled={busy === e.id}
-                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gradient-primary text-white hover:opacity-90 disabled:opacity-50">
                           {busy === e.id ? 'Releasing…' : 'Release'}
                         </button>
                       </div>
@@ -465,7 +465,7 @@ const FamilyDirectivesCard = ({ orgId }) => {
             {emails.length ? `${emails.length} email${emails.length === 1 ? '' : 's'} found` : 'Commas, spaces, or new lines all work.'}
           </span>
           <button onClick={markPrepaid} disabled={saving || !emails.length}
-            className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+            className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
             {saving ? 'Saving…' : 'Mark as prepaid'}
           </button>
         </div>

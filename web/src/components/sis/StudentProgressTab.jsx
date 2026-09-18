@@ -434,7 +434,7 @@ const StudentWorkPanel = ({ classId, student, onClose, onChanged }) => {
               onClick={remind}
               disabled={reminding || !outstanding.length}
               title={`Sends ${firstName} and their parents a notification listing the quests and tasks still open. It is the same fixed list each time; to write your own words, use Message.`}
-              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm disabled:opacity-40"
+              className="px-3 py-1.5 rounded-lg bg-gradient-primary text-white text-sm disabled:opacity-40"
             >
               {reminding ? 'Sending…' : 'Send reminder'}
             </button>

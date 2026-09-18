@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useSisOrg, withOrg } from './useSisOrg'
 import { withPreview, getPreviewTeacher } from './teacherPreview'
 import BackToDashboard from '../../components/sis/BackToDashboard'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
 /**
  * MyProfilePage — the teacher's own staff profile.
@@ -136,7 +137,7 @@ const MyProfilePage = () => {
   if (loading) return <p className="text-neutral-500">Loading…</p>
 
   const p = profile || {}
-  const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+  const field = INPUT_CLASS
   const dirty = (name.trim() || '') !== (p.emergency_contact_name || '') ||
     (phone.trim() || '') !== (p.emergency_contact_phone || '') ||
     (myPhone.trim() || '') !== (p.phone_number || '')
@@ -191,7 +192,7 @@ const MyProfilePage = () => {
               placeholder="A short introduction — your background, what you teach, what you're excited about." />
             <div className="mt-3">
               <button onClick={saveBio} disabled={savingBio || (bio.trim() === ((user?.bio || '').trim()))}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                 {savingBio ? 'Saving…' : 'Save bio'}
               </button>
             </div>
@@ -238,7 +239,7 @@ const MyProfilePage = () => {
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={`${field} mb-5`} placeholder="e.g. (555) 123-4567" />
 
             <button onClick={save} disabled={saving || !dirty}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {saving ? 'Saving…' : 'Save contact details'}
             </button>
           </>

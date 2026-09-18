@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import SettingsPage from './SettingsPage'
 import { AuthContext } from '../../contexts/AuthContext'
 import api from '../../services/api'
-import { useSisOrg } from './useSisOrg'
+import { useSisOrg, withOrg } from './useSisOrg'
 
 /**
  * Settings for a campus coordinator.
@@ -47,6 +47,9 @@ beforeEach(() => {
   useSisOrg.mockReturnValue({
     orgId: 'org-1', setOrgId: vi.fn(), orgs: [ORG], isSuperadmin: false, loading: false,
   })
+  // The time-blocks card reads its rows through withOrg (M8b); the auto-mock
+  // would hand api.get an undefined url.
+  withOrg.mockImplementation((p) => p)
   api.get.mockImplementation((url) => {
     if (url.includes('/api/admin/organizations/')) return Promise.resolve({ data: { organization: ORG } })
     return Promise.resolve({ data: {} })

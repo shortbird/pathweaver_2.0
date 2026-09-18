@@ -9,9 +9,9 @@ import { useConfirm } from '../../../contexts/ConfirmContext'
 import ModalOverlay from '../../../components/ui/ModalOverlay'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import DocumentPreview, { isPreviewableDocument } from '../../../components/evidence/preview/DocumentPreview'
+import { INPUT_CLASS } from '../../../components/ui/Input'
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 /**
  * Documents -- the org's document library (family guidebook, student
  * contract, links). Staff add documents or links here; the org's families see
@@ -237,7 +237,7 @@ const DocumentsPanel = () => {
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   {r.requires_ack && !r.my_ack?.current && (
-                    <button onClick={() => acknowledge(r)} className="text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg px-3 py-1.5">
+                    <button onClick={() => acknowledge(r)} className="text-sm font-medium text-white bg-gradient-primary rounded-lg px-3 py-1.5">
                       I&apos;ve read this
                     </button>
                   )}

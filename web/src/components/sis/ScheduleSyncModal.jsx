@@ -3,9 +3,9 @@ import { toast } from 'react-hot-toast'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
 import ModalOverlay from '../ui/ModalOverlay'
+import { INPUT_CLASS } from '../ui/Input'
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 const GROUPS = [
   { key: 'create', title: 'New classes', hint: 'In the sheet, not in Optio' },
   { key: 'update', title: 'Changed', hint: 'Fields differ from the sheet' },
@@ -114,7 +114,7 @@ const ScheduleSyncModal = ({ orgId, onClose, onApplied }) => {
               placeholder={loadingConfig ? 'Loading…' : 'https://docs.google.com/spreadsheets/d/…'}
             />
             <button onClick={propose} disabled={busy || loadingConfig}
-              className="shrink-0 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+              className="shrink-0 px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
               {busy && !proposal ? 'Comparing…' : 'Preview changes'}
             </button>
           </div>
@@ -189,7 +189,7 @@ const ScheduleSyncModal = ({ orgId, onClose, onApplied }) => {
           <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
             <button onClick={() => setProposal(null)} className="text-sm text-neutral-500 hover:underline">Discard</button>
             <button onClick={apply} disabled={busy || selectedCount === 0}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
               {busy ? 'Applying…' : `Apply ${selectedCount} change${selectedCount === 1 ? '' : 's'}`}
             </button>
           </div>

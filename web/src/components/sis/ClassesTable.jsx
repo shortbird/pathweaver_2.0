@@ -373,7 +373,7 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
                               className="text-sm text-neutral-500 hover:underline disabled:opacity-50">Cancel</button>
                           )}
                           <button onClick={() => save(c)} disabled={busy || !dirty || !d.name.trim()}
-                            className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50">
+                            className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-primary text-white hover:opacity-90 disabled:opacity-50">
                             {busy ? 'Saving…' : 'Save'}
                           </button>
                         </div>

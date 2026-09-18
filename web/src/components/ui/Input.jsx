@@ -1,6 +1,23 @@
 import React from 'react';
 
 /**
+ * The one spelling of a text input's classes, for markup that is not (yet)
+ * an <Input>: thirty-three SIS files each kept a local constant in four
+ * recipes that drifted apart (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md,
+ * L1; consolidation move M14e, 2026-09-18). Import one of these under the
+ * local name the file already uses; reach for <Input> / <FormField> when the
+ * markup is being touched anyway.
+ *
+ *   INPUT_CLASS         a field that fills its row (the default)
+ *   INLINE_INPUT_CLASS  the same without w-full, for a field inside a flex row
+ *   CELL_INPUT_CLASS    the tighter field an editable table cell draws
+ */
+const INPUT_FOCUS = 'focus:outline-none focus:ring-2 focus:ring-optio-purple';
+export const INLINE_INPUT_CLASS = `rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors ${INPUT_FOCUS}`;
+export const INPUT_CLASS = `w-full ${INLINE_INPUT_CLASS}`;
+export const CELL_INPUT_CLASS = `w-full rounded-md border border-gray-200 bg-white px-2 py-2 text-sm ${INPUT_FOCUS}`;
+
+/**
  * Input Component - Reusable form input with consistent styling
  *
  * Standardizes form input patterns across 80+ instances
@@ -33,7 +50,7 @@ export const Input = React.forwardRef(({
   const baseClasses = 'w-full px-3 py-2 border rounded-lg transition-colors';
   const stateClasses = error
     ? 'border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500'
-    : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-optio-purple';
+    : `border-gray-300 ${INPUT_FOCUS}`;
   const disabledClasses = disabled ? 'bg-gray-100 cursor-not-allowed' : '';
 
   return (

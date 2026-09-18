@@ -8,9 +8,9 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import useSisEventRsvps from '../../hooks/api/useSisEventRsvps'
 import { toCsv, downloadCsv, dateStamp } from '../../utils/csv'
 import { splitEventStamp, compact12h } from '../../utils/timeFormat'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 /**
  * SIS Calendar — the org's EVENTS (field trips, showcases, closures, deadlines),
  * not class meetings. The weekly class grid lives with the classes themselves

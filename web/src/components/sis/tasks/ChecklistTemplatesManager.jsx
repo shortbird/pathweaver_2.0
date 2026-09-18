@@ -20,9 +20,9 @@ import { useConfirm } from '../../../contexts/ConfirmContext'
 import {
   useOnboardingTemplates, useOnboardingAssignments, sisOnboardingApi,
 } from '../../../hooks/api/useSisOnboarding'
+import { INPUT_CLASS } from '../../ui/Input'
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
+const inputClass = INPUT_CLASS
 const emptyItem = () => ({ title: '', description: '', link: '', required: true,
   needs_document: false, needs_signature: false, needs_approval: false })
 
@@ -207,7 +207,7 @@ const TemplateEditor = ({ orgId, template, onSaved, onCancel }) => {
           )}
           <button onClick={onCancel} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
           <button onClick={save} disabled={busy}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+            className="px-4 py-1.5 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
             Save template
           </button>
         </div>

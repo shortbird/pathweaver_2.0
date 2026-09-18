@@ -7,6 +7,7 @@ import { useSisOrg, withOrg } from './useSisOrg'
 import FamilyGoalsPage from '../FamilyGoalsPage'
 import StatusPill from '../../components/sis/ui/StatusPill'
 import { statusLabel } from '../../components/sis/ui/statusMaps'
+import { INLINE_INPUT_CLASS } from '../../components/ui/Input'
 
 /**
  * Goals — the staff side of goal/direction setting (goals-mode schools). Parents
@@ -14,8 +15,7 @@ import { statusLabel } from '../../components/sis/ui/statusMaps'
  * review them in a family meeting and mark them reviewed here.
  */
 
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INLINE_INPUT_CLASS
 const STATUS_ORDER = ['submitted', 'draft', 'reviewed']
 
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString() : '')

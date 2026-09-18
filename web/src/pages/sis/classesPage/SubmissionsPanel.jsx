@@ -175,7 +175,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
             type="button"
             onClick={save}
             disabled={saving || !reason.trim()}
-            className="rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
+            className="rounded-lg bg-gradient-primary px-3 py-1 text-xs font-semibold text-white disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save XP'}
           </button>
@@ -373,7 +373,7 @@ export default function SubmissionsPanel() {
       onClick={() => setScope(key)}
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
         scope === key
-          ? 'bg-gradient-to-r from-optio-purple to-optio-pink text-white'
+          ? 'bg-gradient-primary text-white'
           : 'bg-white border border-gray-200 text-neutral-600 hover:border-optio-purple/50'
       }`}
     >
@@ -462,7 +462,7 @@ export default function SubmissionsPanel() {
                     {selected.student?.avatar_url ? (
                       <img src={selected.student.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink text-white flex items-center justify-center text-sm font-semibold">
+                      <div className="w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center text-sm font-semibold">
                         {(selected.student?.name || '?').slice(0, 1)}
                       </div>
                     )}

@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { getLearningOrigin } from '../../utils/appSurface'
+import { INLINE_INPUT_CLASS as field } from '../ui/Input'
 
 /**
  * Kiosk devices — provision and manage shared-device codes for the org's
@@ -30,7 +31,7 @@ import { getLearningOrigin } from '../../utils/appSurface'
  * Props: orgId (uuid). Superadmins may manage any org; the orgId is always
  * passed explicitly so the card works in the SIS org-picker context.
  */
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+
 const ALL_STUDENTS = ''
 
 const KioskDevicesCard = ({ orgId }) => {
@@ -244,7 +245,7 @@ const KioskDevicesCard = ({ orgId }) => {
         <button
           onClick={createDevice}
           disabled={creating || !kioskEnabled}
-          className="px-5 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-medium hover:opacity-90 disabled:opacity-50"
+          className="px-5 py-2 rounded-lg bg-gradient-primary text-white font-medium hover:opacity-90 disabled:opacity-50"
         >
           {creating ? 'Creating...' : 'Add device'}
         </button>

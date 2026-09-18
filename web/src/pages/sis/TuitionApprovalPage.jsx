@@ -8,6 +8,7 @@ import RecurringTuitionModal from './RecurringTuitionModal'
 import RecurringTuitionList, { useRecurringTuition, money as monthlyMoney } from './RecurringTuitionList'
 import { isClpEnabled } from './sisModules'
 import { formatCents as money } from '../../utils/money'
+import { INLINE_INPUT_CLASS as field } from '../../components/ui/Input'
 
 /**
  * Tuition Approver — the step after a CLP meeting.
@@ -27,7 +28,6 @@ import { formatCents as money } from '../../utils/money'
 // w-full won, the amount box went full width, and the description box next to it
 // was squeezed to a sliver you couldn't read the class name in. Callers set
 // their own width.
-const field = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 const toCents = (str) => {
   const n = parseFloat(str)

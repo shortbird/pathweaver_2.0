@@ -5,6 +5,7 @@ import { ModalOverlay } from '../ui'
 import Button from '../ui/Button'
 import SearchSelect from '../ui/SearchSelect'
 import { withOrg } from '../../pages/sis/useSisOrg'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * Hand-add a student to the enrollment waitlist (SIS admin only).
@@ -58,8 +59,7 @@ const AddToWaitlistModal = ({ orgId, bands = [], existingStudentIds = [], onClos
     } finally { setSaving(false) }
   }
 
-  const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+  const field = INPUT_CLASS
   return (
     <ModalOverlay onClose={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">

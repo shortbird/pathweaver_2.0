@@ -4,6 +4,7 @@ import api from '../../../services/api'
 import ModalOverlay from '../../ui/ModalOverlay'
 import PeoplePicker from '../ui/PeoplePicker'
 import { withOrg } from '../../../pages/sis/useSisOrg'
+import { INPUT_CLASS } from '../../ui/Input'
 
 /**
  * Assign — the one way to ask people to do something.
@@ -26,8 +27,7 @@ import { withOrg } from '../../../pages/sis/useSisOrg'
  * come from is different and so is the portal the notification points at.
  */
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
+const inputClass = INPUT_CLASS
 export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
   onClose, onAssigned, onUseTemplate }) {
   const [title, setTitle] = useState('')
@@ -295,7 +295,7 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
           <div className="flex gap-2">
             <button onClick={onClose} className="px-3 py-2 rounded-lg text-sm text-neutral-600 hover:bg-gray-100">Cancel</button>
             <button onClick={assign} disabled={busy || !total || !title.trim()}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
               {busy ? 'Assigning…' : signing ? 'Send for signature' : 'Assign'}
             </button>
           </div>

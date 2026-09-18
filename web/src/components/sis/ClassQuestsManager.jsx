@@ -11,6 +11,7 @@ import PresetTaskManager from './PresetTaskManager'
 import QuestResourcesPanel from './QuestResourcesPanel'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import GlassTabBar from '../ui/GlassTabBar'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * ClassQuestsManager — the teacher's Quests tab for one SIS class.
@@ -27,8 +28,7 @@ import GlassTabBar from '../ui/GlassTabBar'
  * assignments to specific kids").
  */
 
-const inputCls = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const inputCls = INPUT_CLASS
 // Preset-task editing moved to PresetTaskManager (shared with the admin
 // curriculum page, 2026-08-31); this file passes it the class-scoped base URL.
 
@@ -372,7 +372,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
         </p>
         {!mode && (
           <button onClick={() => setMode('existing')}
-            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+            className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
             <PlusIcon className="w-4 h-4" /> Assign a quest
           </button>
         )}
@@ -523,7 +523,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
               />
               <div className="flex justify-end">
                 <button onClick={createNew} disabled={creating || !newTitle.trim()}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                  className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                   {creating ? 'Creating…' : 'Create & assign'}
                 </button>
               </div>
@@ -600,7 +600,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
                           title="Students see the quest from this day. Until then only you and other staff do."
                           className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
                         <button onClick={() => saveRelease(q.quest_id, releaseValue)} disabled={!releaseValue}
-                          className="px-2 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs disabled:opacity-40">
+                          className="px-2 py-1 rounded-lg bg-gradient-primary text-white text-xs disabled:opacity-40">
                           Save
                         </button>
                         {isFuture(q.publish_at) && (
@@ -641,7 +641,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
                           title="Nothing locks after this date. It marks the quest overdue on your progress view and in reminders; students can still finish it."
                           className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
                         <button onClick={() => saveDue(q.quest_id, dueValue)}
-                          className="px-2 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs">
+                          className="px-2 py-1 rounded-lg bg-gradient-primary text-white text-xs">
                           Save
                         </button>
                         {q.due_date && (
@@ -715,7 +715,7 @@ export default function ClassQuestsManager({ classId, scheduledEnabled = false }
                       <button type="button" onClick={() => saveAudience(q)}
                         disabled={savingAudience || audienceDraft.length === 0}
                         title={audienceDraft.length === 0 ? 'Pick at least one student, or unassign the quest instead' : undefined}
-                        className="ml-2 px-3 py-1 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-xs font-semibold disabled:opacity-40">
+                        className="ml-2 px-3 py-1 rounded-lg bg-gradient-primary text-white text-xs font-semibold disabled:opacity-40">
                         {savingAudience ? 'Saving…' : 'Save'}
                       </button>
                       <button type="button" onClick={() => setAudienceEditing(null)}

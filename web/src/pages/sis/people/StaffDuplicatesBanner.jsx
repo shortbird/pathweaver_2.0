@@ -53,7 +53,7 @@ const StaffDuplicatesBanner = ({ rows, orgId, onMerged }) => {
         type="button"
         onClick={() => merge(d)}
         disabled={merging === d.student_id}
-        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90 disabled:opacity-50"
+        className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gradient-primary text-white hover:opacity-90 disabled:opacity-50"
       >
         {merging === d.student_id ? 'Merging…' : 'Merge into invited account'}
       </button>

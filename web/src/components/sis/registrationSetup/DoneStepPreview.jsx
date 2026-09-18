@@ -42,7 +42,7 @@ const doneStep = (
               Next, sit down with each of your kids and set a direction and goals for the
               year together.
             </p>
-            <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
+            <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-primary text-white font-semibold">
               Set your student's goals
             </span>
             <p className="text-sm text-neutral-500 mt-5">
@@ -62,7 +62,7 @@ const doneStep = (
               Your account has been created. Next, use the Schedule Builder to create your
               family's schedule for the coming school year.
             </p>
-            <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white font-semibold">
+            <span className="inline-block px-5 py-2.5 rounded-lg bg-gradient-primary text-white font-semibold">
               Open the Schedule Builder
             </span>
             <div className="border-t border-gray-100 mt-7 pt-6">

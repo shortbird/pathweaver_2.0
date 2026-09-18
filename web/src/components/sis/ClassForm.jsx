@@ -120,7 +120,7 @@ export default function ClassForm({ onCancel = null, onSubmit, initial = null, s
           </button>
         )}
         <button type="submit" disabled={submitting || !draft.name.trim()}
-          className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
+          className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
           {submitting ? 'Saving...' : isEdit ? 'Save changes' : 'Create Class'}
         </button>
       </div>

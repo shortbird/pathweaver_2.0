@@ -5,6 +5,7 @@ import { Modal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { withOrg } from './useSisOrg'
+import { INPUT_CLASS } from '../../components/ui/Input'
 
 /**
  * Put one student on monthly tuition — a set amount charged every month until
@@ -27,7 +28,7 @@ const toCents = (str) => {
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
+const field = INPUT_CLASS
 const label = 'block text-xs font-medium text-neutral-600 mb-1'
 
 const RecurringTuitionModal = ({ isOpen, onClose, orgId, onAdded }) => {

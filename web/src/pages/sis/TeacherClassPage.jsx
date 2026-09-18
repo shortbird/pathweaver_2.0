@@ -406,7 +406,7 @@ const TeacherClassPage = () => {
               <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
                 <span className="text-xs text-neutral-400">Untouched students are saved as present. You can edit and re-save anytime.</span>
                 <button onClick={saveAttendance} disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-50">
+                  className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
                   {saving ? 'Saving…' : 'Save attendance'}
                 </button>
               </div>

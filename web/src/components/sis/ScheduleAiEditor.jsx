@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { SparklesIcon } from '@heroicons/react/24/outline'
 import api from '../../services/api'
+import { INPUT_CLASS } from '../ui/Input'
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 /**
  * AI schedule editor — staff describe a schedule change in plain English
  * ("move Art to 1-2 on Tuesdays", "add a Chess class in Room 3 MWF at 10:30"),
@@ -98,7 +98,7 @@ const ScheduleAiEditor = ({ orgId, onApplied }) => {
         placeholder="What should change?" />
       <div className="flex justify-end mt-2">
         <button onClick={propose} disabled={busy}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+          className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
           {busy && !proposal ? 'Thinking…' : 'Propose changes'}
         </button>
       </div>
@@ -137,7 +137,7 @@ const ScheduleAiEditor = ({ orgId, onApplied }) => {
             <div className="flex items-center justify-end gap-3 mt-2">
               <button onClick={() => setProposal(null)} className="text-sm text-neutral-500 hover:underline">Discard</button>
               <button onClick={apply} disabled={busy}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
+                className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50">
                 {busy ? 'Applying…' : `Apply ${proposal.operations.length} change${proposal.operations.length === 1 ? '' : 's'}`}
               </button>
             </div>

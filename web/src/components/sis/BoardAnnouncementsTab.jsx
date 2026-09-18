@@ -10,6 +10,7 @@ import RichTextEditor from '../course/outline/RichTextEditor'
 import AnnouncementBody from '../announcements/AnnouncementBody'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { fmtDateOnly, fmtShortDate, fmtInstant, isDateOnly } from '../../utils/timeFormat'
+import { INPUT_CLASS } from '../ui/Input'
 
 /**
  * Posting an announcement. One composer, mounted in two places.
@@ -31,8 +32,7 @@ import { fmtDateOnly, fmtShortDate, fmtInstant, isDateOnly } from '../../utils/t
  * announcements, from /inbox.
  */
 
-const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const field = INPUT_CLASS
 // Who can READ the board post, and -- because it is one vocabulary, not two --
 // who "Also notify people" reaches. Kept in step with services/sis_audiences.py
 // (BOARD_AUDIENCES and recipient_roles_for): the server derives the send from

@@ -229,7 +229,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
         <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
                 <LinkIcon className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-lg font-semibold text-gray-900">They already have an account</h2>
@@ -258,7 +258,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
               Cancel
             </button>
             <button type="button" disabled={submitting} onClick={grantTeacherRole}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
               {submitting ? 'Adding…' : 'Make them a teacher'}
             </button>
           </div>
@@ -275,7 +275,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
         <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
           <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+              <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
                 <LinkIcon className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-lg font-semibold text-gray-900">This teacher may already exist</h2>
@@ -301,7 +301,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
               No, create a new teacher
             </button>
             <button type="button" disabled={submitting} onClick={linkToPlaceholder}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
               {submitting ? 'Linking…' : `Link ${placeholderMatch.name}’s account`}
             </button>
           </div>
@@ -316,7 +316,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
               <UserCircleIcon className="w-6 h-6 text-white" />
             </div>
             <h2 className="text-lg font-semibold text-gray-900">Add Teacher</h2>
@@ -439,7 +439,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [
               Cancel
             </button>
             <button type="submit" disabled={submitting}
-              className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
+              className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
               {submitting ? 'Saving...'
                 : linkTarget ? `Link ${placeholders.find((p) => p.id === linkTarget)?.name || 'their'} account`
                 : 'Add Teacher'}

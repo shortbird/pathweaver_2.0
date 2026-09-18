@@ -4,6 +4,7 @@ import api from '../../../services/api'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 import { useConfirm } from '../../../contexts/ConfirmContext'
 import SearchSelect from '../../ui/SearchSelect'
+import { INPUT_CLASS } from '../../ui/Input'
 
 /**
  * Build the school's own forms — the editor checklists always had and forms
@@ -30,8 +31,7 @@ const FIELD_TYPES = [
 const PRIORITIES = [['', 'Normal (default)'], ['low', 'Low'], ['normal', 'Normal'],
   ['high', 'High'], ['urgent', 'Urgent']]
 
-const input = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
-
+const input = INPUT_CLASS
 const emptyField = () => ({ label: '', type: 'short_text', required: false, options: [], help: '' })
 
 const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
@@ -202,7 +202,7 @@ const FormEditor = ({ orgId, template, staff, onSaved, onCancel }) => {
 
       <div className="flex items-center gap-3 pt-1">
         <button onClick={save} disabled={busy}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold disabled:opacity-60">
+          className="px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-60">
           {busy ? 'Saving…' : 'Save form'}
         </button>
         {template?.id && (

@@ -226,7 +226,7 @@ const TrainingPanel = () => {
           </div>
           {!adding && view === 'mine' && (
             <button onClick={() => setAdding(true)}
-              className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+              className="ml-auto inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold">
               <PlusIcon className="w-4 h-4" /> {words(audience).add}
             </button>
           )}
