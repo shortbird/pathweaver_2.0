@@ -9,10 +9,16 @@ The rules for an image:
 
   faces > 0                       excluded, unless the tier is named AND the
                                   consent covers image and voice
+  faces > 1                       excluded even then (`other_faces`): the
+                                  consent covers the student's face, not the
+                                  people beside them; a human may override
   any person, team, place name    excluded, both tiers
   any identifying detail          excluded (a uniform crest, a plate, a house
                                   number, a school sign)
   model says uncertain            excluded
+  model says excluded             excluded, unless the only thing it found
+                                  was a face the consent covers (the prompt
+                                  makes it say so for any face at all)
   confidence below the floor      excluded
   the model call failed           the WHOLE batch excluded
 
@@ -171,7 +177,13 @@ phrases exactly as they appear.
 
 Return JSON: {"phrases": ["..."]}. Return {"phrases": []} when nothing
 identifies anyone.
+"""
 
+#: Added to TEXT_PROMPT in the named tier, once per allowed name.
+TEXT_ALLOWED_LINE = ('The student\'s first name, "{name}", is published with the family\'s '
+                     'written consent and must not be listed.')
+
+TEXT_PROMPT_TAIL = """
 THE TEXT:
 """
 
@@ -191,9 +203,13 @@ class SafetyChecker(BaseAIService):
         images = raw_images if isinstance(raw_images, list) else []
         return [i for i in images if isinstance(i, dict)], result.model_name
 
-    def identifying_phrases(self, text: str) -> Tuple[List[str], str]:
+    def identifying_phrases(self, text: str, *, allowed: Iterable[str] = ()
+                            ) -> Tuple[List[str], str]:
+        """The model's list of identifying phrases. `allowed` are names a
+        consent has cleared (the named tier's first name); the prompt says so."""
+        allowances = ''.join(TEXT_ALLOWED_LINE.format(name=n) + '\n' for n in allowed if n)
         answer = self.generate_json(
-            TEXT_PROMPT + text,
+            TEXT_PROMPT + allowances + TEXT_PROMPT_TAIL + text,
             temperature=TEXT_GENERATION_CONFIG['temperature'],
             max_output_tokens=TEXT_GENERATION_CONFIG['max_output_tokens'],
         )
@@ -264,7 +280,13 @@ def decide(raw: Dict[str, Any], *, tier: str, scope: Optional[Dict[str, Any]],
         faces = int(raw.get('faces') or 0)
     except (TypeError, ValueError):
         faces = 1  # an unreadable count is not zero faces
-    if faces > 0 and not (tier == 'named' and scope.get('image_voice')):
+    # A consent covers one face: the student's. A second face is a parent,
+    # a sibling or a friend nobody asked, so it is excluded until a human
+    # who has looked at the photo overrides it.
+    faces_covered = faces == 1 and tier == 'named' and bool(scope.get('image_voice'))
+    if faces > 1 and tier == 'named' and scope.get('image_voice'):
+        return 'excluded', 'other_faces'
+    if faces > 0 and not faces_covered:
         return 'excluded', 'faces'
 
     if _strings(raw.get('names_person')):
@@ -279,8 +301,14 @@ def decide(raw: Dict[str, Any], *, tier: str, scope: Optional[Dict[str, Any]],
         return 'excluded', 'readable_text'
 
     model_verdict = str(raw.get('verdict') or '').lower()
-    if model_verdict != 'safe':
-        return 'excluded', 'model_uncertain' if model_verdict == 'uncertain' else 'model_excluded'
+    if model_verdict == 'uncertain':
+        return 'excluded', 'model_uncertain'
+    # The prompt tells the model a face alone is never "safe". When the
+    # consent covers the face and the model listed nothing else (every
+    # finding above is empty), its "excluded" is that rule restated, not a
+    # finding; without the exemption no named story could show the student.
+    if model_verdict != 'safe' and not faces_covered:
+        return 'excluded', 'model_excluded'
 
     raw_confidence = raw.get('confidence')
     if raw_confidence is None:
@@ -639,9 +667,10 @@ PUBLISHER_NAMES = frozenset({'optio', 'optio academy'})
 _UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
 
 
-def _phrase_is_removable(phrase: str) -> bool:
+def _phrase_is_removable(phrase: str, kept: Iterable[str] = ()) -> bool:
     """A phrase the model listed that a scrub may act on: has letters, is not
-    one of the scrubber's placeholders, is not the publisher, is not an id."""
+    one of the scrubber's placeholders, is not the publisher, is not an id,
+    and is not a name the consent cleared ("Clare", "Clare's", "Clare, 17")."""
     text = (phrase or '').strip()
     if not re.search(r'[A-Za-z]', text) or text.startswith('['):
         return False
@@ -649,7 +678,10 @@ def _phrase_is_removable(phrase: str) -> bool:
         return False
     if _UUID_RE.match(text):
         return False
-    return True
+    for name in kept:
+        if name:
+            text = re.sub(rf"\b{re.escape(name)}(?:['’]s)?\b", '', text, flags=re.IGNORECASE)
+    return bool(re.search(r'[A-Za-z]', text))
 
 #: Keys the model's phrase list may not rewrite. A URL is not prose: cutting a
 #: phrase out of one leaves a link that goes nowhere while still claiming to
@@ -756,9 +788,10 @@ def check_text(fields: Dict[str, Any], scrubber: Scrubber, *,
 
     text = '\n'.join(_all_text(cleaned))
     phrases: List[str] = []
+    kept = list(getattr(scrubber, 'kept', None) or [])
     if text.strip():
         try:
-            phrases, model = (checker or SafetyChecker()).identifying_phrases(text)
+            phrases, model = (checker or SafetyChecker()).identifying_phrases(text, allowed=kept)
             report['model'] = model
         except Exception as e:  # noqa: BLE001
             logger.warning(f'Story text safety pass failed: {e}')
@@ -768,7 +801,7 @@ def check_text(fields: Dict[str, Any], scrubber: Scrubber, *,
     # would gut it, and scrubbing "Optio" out of a story Optio publishes did
     # happen. Anything that is a placeholder, the publisher, an id, or has no
     # letters is not a phrase to remove.
-    phrases = [p for p in phrases if _phrase_is_removable(p)]
+    phrases = [p for p in phrases if _phrase_is_removable(p, kept)]
     report['ai_phrases'] = phrases
     if phrases:
         cleaned = _replace_phrases(cleaned, phrases)

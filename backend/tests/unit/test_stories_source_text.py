@@ -274,7 +274,7 @@ class TestLeaks:
         }
 
         class Quiet:
-            def identifying_phrases(self, text):
+            def identifying_phrases(self, text, *, allowed=()):
                 assert 'Anna' not in text                          # never sent to the model
                 return [], 'gemini-test'
 
@@ -289,7 +289,7 @@ class TestLeaks:
         scrubber = Scrubber([])
 
         class Flagging:
-            def identifying_phrases(self, text):
+            def identifying_phrases(self, text, *, allowed=()):
                 return ['annasbridges'], 'gemini-test'
 
         fields = {'body': {'sections': [{'kind': 'evidence', 'items': [

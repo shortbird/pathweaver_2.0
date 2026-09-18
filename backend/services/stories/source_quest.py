@@ -109,7 +109,7 @@ def status(user_quest_id: str, *, repo=None, admin=None) -> Optional[Dict[str, A
 
 
 def load(user_quest_id: str, *, repo=None, admin=None,
-         load_images: bool = True) -> StorySource:
+         load_images: bool = True, keep_first_name: bool = False) -> StorySource:
     from repositories.story_source_repository import StorySourceRepository
 
     repo = repo or StorySourceRepository(client=admin)
@@ -120,7 +120,7 @@ def load(user_quest_id: str, *, repo=None, admin=None,
     student = build_student(repo, user_quest.get('user_id'))
     if student is None:
         raise SourceNotFound(f'student for user_quest {user_quest_id} not found')
-    scrubber = scrubber_for(student)
+    scrubber = scrubber_for(student, keep_first_name=keep_first_name)
 
     completions, _tasks = live_completions(repo, user_quest_id)
     if not completions:

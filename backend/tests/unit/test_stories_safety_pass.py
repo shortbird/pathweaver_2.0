@@ -89,8 +89,9 @@ class FakeChecker:
             raise answer
         return answer, 'gemini-test'
 
-    def identifying_phrases(self, text):
+    def identifying_phrases(self, text, *, allowed=()):
         self.text_calls.append(text)
+        self.allowed = list(allowed)
         return list(self.phrases), 'gemini-test'
 
 
@@ -106,8 +107,36 @@ class TestDecide:
                              scope={'first_name': True}) == ('excluded', 'faces')
 
     def test_faces_kept_only_named_with_image_voice(self):
-        assert safety.decide(_report(1, faces=2), tier='named',
+        assert safety.decide(_report(1, faces=1), tier='named',
                              scope={'image_voice': True}) == ('safe', None)
+
+    def test_a_second_face_is_somebody_who_did_not_consent(self):
+        """The wake-surfing hero: the student on the board and three people in
+        the boat. Their faces are not the family's to give."""
+        assert safety.decide(_report(1, faces=2), tier='named',
+                             scope={'image_voice': True}) == ('excluded', 'other_faces')
+        assert safety.decide(_report(1, faces=4, verdict='excluded'), tier='named',
+                             scope={'image_voice': True}) == ('excluded', 'other_faces')
+        # Without image_voice the plain faces rule still names the reason.
+        assert safety.decide(_report(1, faces=2), tier='named',
+                             scope={'first_name': True}) == ('excluded', 'faces')
+
+    def test_covered_face_survives_the_models_own_face_rule(self):
+        """The prompt makes the model say "excluded" for any face; a consent
+        that covers the face outranks that restatement, but not a real
+        finding, an "uncertain", or a low confidence."""
+        covered = {'image_voice': True}
+        assert safety.decide(_report(1, faces=1, verdict='excluded'), tier='named',
+                             scope=covered) == ('safe', None)
+        assert safety.decide(_report(1, faces=1, verdict='excluded', names_person=['Anna']),
+                             tier='named', scope=covered) == ('excluded', 'names_person')
+        assert safety.decide(_report(1, faces=1, verdict='uncertain'), tier='named',
+                             scope=covered) == ('excluded', 'model_uncertain')
+        assert safety.decide(_report(1, faces=1, verdict='excluded', confidence=0.5),
+                             tier='named', scope=covered) == ('excluded', 'low_confidence')
+        # No face: the model's "excluded" still stands in the named tier.
+        assert safety.decide(_report(1, verdict='excluded'), tier='named',
+                             scope=covered) == ('excluded', 'model_excluded')
 
     def test_any_name_excluded_in_both_tiers(self):
         for tier in ('anonymized', 'named'):
@@ -167,9 +196,17 @@ class TestPhraseFilter:
     def test_a_real_phrase_is_removed(self, phrase):
         assert safety._phrase_is_removable(phrase) is True
 
+    @pytest.mark.parametrize('phrase', ['Clare', 'clare', "Clare's", 'Clare, 17', 'Clare.'])
+    def test_a_consented_name_is_left_alone(self, phrase):
+        assert safety._phrase_is_removable(phrase, ['Clare']) is False
+
+    @pytest.mark.parametrize('phrase', ['Clare Bingham', 'Clare L', 'Coach Clare Mike'])
+    def test_a_consented_name_does_not_shield_the_rest_of_a_phrase(self, phrase):
+        assert safety._phrase_is_removable(phrase, ['Clare']) is True
+
     def test_check_text_keeps_optio_when_the_model_lists_it(self):
         class Checker:
-            def identifying_phrases(self, text):
+            def identifying_phrases(self, text, *, allowed=()):
                 return ['Optio', 'Hearthwood Academy'], 'gemini-test'
         fields = {'title': 'x', 'dek': 'Optio uses XP. Filmed at Hearthwood Academy.', 'body': {}}
         cleaned, report = safety.check_text(fields, Scrubber([]), checker=Checker())
@@ -312,12 +349,12 @@ class TestCheckVideos:
         assert file_api.deleted == [{'name': 'files/handle-1'}]
 
     def test_decide_applies_unchanged_to_a_video(self, file_api):
-        checker = FakeChecker([[_report(1, faces=2)], [_report(2, faces=2)]])
+        checker = FakeChecker([[_report(1, faces=1)], [_report(2, faces=1)]])
         anonymized = safety.check_images([_video(1)], tier='anonymized', scope={}, checker=checker)
         named = safety.check_images([_video(2)], tier='named', scope={'image_voice': True},
                                     checker=checker)
         assert (anonymized[0].verdict, anonymized[0].reason) == ('excluded', 'faces')
-        assert named[0].safe and named[0].faces == 2
+        assert named[0].safe and named[0].faces == 1
 
     def test_images_batch_and_videos_go_one_at_a_time_in_index_order(self, file_api):
         candidates = [_img(1), _video(2), _img(3), _video(4)]
@@ -461,9 +498,39 @@ class TestCheckText:
         assert report['leaks_after'] == ['Anna']
         assert report['blockers'] == ['text_leak']
 
+    def test_named_tier_keeps_the_consented_first_name(self):
+        """The scrubber lets the name through, the model is told it may, and
+        the model listing it anyway changes nothing."""
+        scrubber = Scrubber(['Anna Lindqvist'], ['Hearthwood Academy'], keep=['Anna'])
+        checker = FakeChecker([], phrases=['Anna', "Anna's", 'Hearthwood Academy'])
+        fields = {**self.FIELDS, 'dek': "Anna tested Anna's bridge at Hearthwood Academy with Lindqvist."}
+        cleaned, report = safety.check_text(fields, scrubber, checker=checker)
+        assert cleaned['dek'] == "Anna tested Anna's bridge at [school] with [name]."
+        assert checker.allowed == ['Anna']
+        assert report['leaks_found'] == ['Hearthwood Academy', 'Lindqvist']
+        # Only the school survived the phrase filter; the name did not.
+        assert report['ai_phrases'] == ['Hearthwood Academy']
+        assert report['blockers'] == []
+
+    def test_the_prompt_names_the_allowed_name(self, monkeypatch):
+        seen = {}
+
+        def fake_generate_json(self, prompt, **kw):
+            seen['prompt'] = prompt
+            return {'phrases': []}
+        monkeypatch.setattr(safety.SafetyChecker, '__init__', lambda self: None)
+        monkeypatch.setattr(safety.SafetyChecker, 'generate_json', fake_generate_json)
+        monkeypatch.setattr(safety.SafetyChecker, 'model_name', 'gemini-test', raising=False)
+        checker = safety.SafetyChecker()
+        checker.identifying_phrases('Anna built it.', allowed=['Anna'])
+        assert 'first name, "Anna", is published with the family' in seen['prompt']
+        assert seen['prompt'].endswith('THE TEXT:\nAnna built it.')
+        checker.identifying_phrases('The student built it.')
+        assert 'first name' not in seen['prompt']
+
     def test_model_failure_is_recorded_not_raised(self):
         class Broken:
-            def identifying_phrases(self, text):
+            def identifying_phrases(self, text, *, allowed=()):
                 raise RuntimeError('down')
         cleaned, report = safety.check_text(self.FIELDS, Scrubber(['Anna']), checker=Broken())
         assert cleaned['dek'].startswith('[name]')

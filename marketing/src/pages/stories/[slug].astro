@@ -219,7 +219,7 @@ const counted = lander
         {hero ? (
           <StoryHero hero={hero} fallbackAlt={story.receipt.activity} />
         ) : (
-          <Receipt {...story.receipt} class="max-w-sm" />
+          <Receipt {...story.receipt} pending={pending} class="max-w-sm" />
         )}
         <HowItWorksStrip />
         <StoryFacts story={story} hubSlugs={hubs} />

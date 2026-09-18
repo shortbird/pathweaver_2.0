@@ -192,12 +192,14 @@ def _gate(row: Dict[str, Any], *, source_repo) -> Dict[str, Any]:
     return student
 
 
-def _load(row: Dict[str, Any], *, admin) -> StorySource:
+def _load(row: Dict[str, Any], *, admin, keep_first_name: bool = False) -> StorySource:
     from services.stories import source_completion, source_quest
     try:
         if row.get('source_type') == 'quest':
-            return source_quest.load(row['source_id'], admin=admin)
-        return source_completion.load(row['source_id'], admin=admin)
+            return source_quest.load(row['source_id'], admin=admin,
+                                     keep_first_name=keep_first_name)
+        return source_completion.load(row['source_id'], admin=admin,
+                                      keep_first_name=keep_first_name)
     except SourceNotFound as e:
         raise Refused('source_not_found', str(e)) from e
     except NothingSubmitted as e:
@@ -216,10 +218,14 @@ def _run_claimed(row: Dict[str, Any], token: str, attempts: int, *,
     consent = PromotionalConsentRepository(client=admin).active_for_student(student['id'])
     tier = tier_for(consent)
     scope = scope_of(consent)
+    # The named tier's label is the first name; the scrubber that reads the
+    # source and re-reads the draft has to let that one name through, or every
+    # named story says "[name], 17".
+    keep_first_name = tier == 'named' and bool(scope.get('first_name'))
 
-    source = _load(row, admin=admin)
+    source = _load(row, admin=admin, keep_first_name=keep_first_name)
     try:
-        scrubber = scrubber_for(source.student)
+        scrubber = scrubber_for(source.student, keep_first_name=keep_first_name)
         label = anonymize.student_label(
             tier, scope, source.student.first_name, source.student.grade_band,
             anonymize.age_at(source.student.date_of_birth))

@@ -195,6 +195,8 @@ class Scrubber:
     of each name is scrubbed as a whole word. ``org_names`` are matched as
     whole phrases, case-insensitively. Emails, phone numbers, @handles and any
     URL that resolves to one of our storage buckets are always scrubbed.
+    ``keep`` names the tokens a consent has cleared for publication; they are
+    never scrubbed and never reported as leaks.
     """
 
     #: Dict keys that hold identifiers, never prose. Skipped by the structure
@@ -210,8 +212,14 @@ class Scrubber:
     LINK_TOKEN = '[link]'
 
     def __init__(self, names: Iterable[Optional[str]] = (),
-                 org_names: Iterable[Optional[str]] = ()):
-        self.tokens = _name_tokens(names)
+                 org_names: Iterable[Optional[str]] = (),
+                 keep: Iterable[Optional[str]] = ()):
+        # `keep` is what a live consent lets the story say: the named tier's
+        # first name. It leaves the token list, so "Clare" survives every
+        # pass while "Bingham" and the parents' names still go.
+        self.kept = [str(k).strip() for k in (keep or ()) if k and str(k).strip()]
+        kept_lower = {k.lower() for k in self.kept}
+        self.tokens = [t for t in _name_tokens(names) if t.lower() not in kept_lower]
         self.org_names = [str(n) for n in (org_names or []) if n]
         self._name_re = _name_pattern(self.tokens)
         self._org_re = _org_pattern(self.org_names)

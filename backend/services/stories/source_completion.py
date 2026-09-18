@@ -30,7 +30,7 @@ class SourceNotFound(Exception):
 
 
 def load(completion_id: str, *, repo=None, admin=None,
-         load_images: bool = True) -> StorySource:
+         load_images: bool = True, keep_first_name: bool = False) -> StorySource:
     from repositories.story_source_repository import StorySourceRepository
 
     repo = repo or StorySourceRepository(client=admin)
@@ -41,7 +41,7 @@ def load(completion_id: str, *, repo=None, admin=None,
     student = build_student(repo, completion.get('user_id'))
     if student is None:
         raise SourceNotFound(f'student for completion {completion_id} not found')
-    scrubber = scrubber_for(student)
+    scrubber = scrubber_for(student, keep_first_name=keep_first_name)
 
     from services.stories.source_quest import credited
 

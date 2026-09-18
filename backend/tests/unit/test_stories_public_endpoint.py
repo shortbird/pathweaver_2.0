@@ -166,6 +166,18 @@ class TestPublicView:
         assert set(evidence['items'][0]) == {'type', 'url', 'alt', 'caption', 'width', 'height'}
         assert evidence['items'][0]['width'] == 1600
 
+    def test_an_asset_switched_off_after_publish_leaves_the_page_at_once(self):
+        """The body item still carries the public URL the publish filled in
+        (the nightly reconcile rewrites it later); the asset row's `included`
+        is what the page reads."""
+        story = _story()
+        assets = _assets()
+        assets[0] = {**assets[0], 'included': False}
+        view = public_view(story, assets)
+        evidence = next(s for s in view['sections'] if s['kind'] == 'evidence')
+        assert evidence['items'] == []
+        assert view['hero'] is None
+
     def test_sections_carry_only_their_declared_keys(self):
         view = public_view(_story(), _assets())
         by_kind = {s['kind']: s for s in view['sections']}

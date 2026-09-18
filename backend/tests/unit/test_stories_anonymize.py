@@ -107,6 +107,16 @@ class TestScrubber:
         # Whole words: the longer name that merely CONTAINS a token survives.
         assert 'Annabelle' in out
 
+    def test_kept_name_survives_and_is_not_a_leak(self):
+        """The named tier: the consented first name stays, the rest of the
+        family still goes, and the kept name is not reported as a leak."""
+        s = Scrubber(['Anna Lindqvist', 'Erik Lindqvist'], ['Hearthwood Academy'], keep=['Anna'])
+        text = "Anna's bridge, which Erik Lindqvist saw at Hearthwood Academy. ANNA won."
+        assert s.scrub(text) == "Anna's bridge, which [name] [name] saw at [school]. ANNA won."
+        assert s.find_leaks(text) == ['Erik', 'Lindqvist', 'Hearthwood Academy']
+        assert s.kept == ['Anna']
+        assert 'Anna' not in s.tokens
+
     def test_possessives_go_with_the_name(self):
         s = Scrubber(['Anna Lindqvist'])
         assert s.scrub("Anna's bridge held Anna’s books") == '[name] bridge held [name] books'

@@ -436,8 +436,12 @@ def build_student(repo, user_id: str) -> Optional[StudentSource]:
     )
 
 
-def scrubber_for(student: StudentSource) -> Scrubber:
-    return Scrubber(student.identity_names, student.org_names)
+def scrubber_for(student: StudentSource, *, keep_first_name: bool = False) -> Scrubber:
+    """The student's scrubber. `keep_first_name` is the named tier with a
+    consent that covers the first name: the label says "Clare, 17", so the
+    body may too. Everything else about the family is still scrubbed."""
+    keep = [student.first_name] if keep_first_name and student.first_name else []
+    return Scrubber(student.identity_names, student.org_names, keep=keep)
 
 
 # ── one task ─────────────────────────────────────────────────────────────────

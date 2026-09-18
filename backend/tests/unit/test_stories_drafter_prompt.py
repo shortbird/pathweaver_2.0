@@ -231,7 +231,15 @@ class TestThePrompt:
         text = prompt_mod.build_prompt(source, student_label='Anna, 14',
                                        safe_images=[_image()], tier='named')
         assert 'Call the student: "Anna, 14". That is the only way to refer to them.' in text
+        # The age belongs to the first mention; "Anna, 14 tested it. Anna, 14
+        # wrote it up." was a real draft.
+        assert 'Write "Anna, 14" once, where the student is first mentioned, and "Anna" or a pronoun after that.' in text
         assert 'Refer to the student as "the student"' not in text
+
+    def test_a_named_label_without_an_age_has_no_once_rule(self, source):
+        text = prompt_mod.build_prompt(source, student_label='Anna', safe_images=[], tier='named')
+        assert 'Call the student: "Anna". That is the only way to refer to them.' in text
+        assert 'once, where the student is first mentioned' not in text
 
     def test_the_setting_line_never_names_a_partner_school(self, source):
         source.student.setting = 'org'
@@ -390,6 +398,21 @@ class TestAssemble:
         assert (row['criteria_met'], row['criteria_total']) == (2, 2)
         assert 'rounds' not in row
         assert row['summary'] == 'Built and tested a bridge.'
+
+    def test_task_row_counts_follow_the_credit_not_the_ai_review(self, source):
+        """The teacher awarded it, so every criterion counts as met; only an
+        uncredited task shows the AI review's tally."""
+        source.source_type = 'quest'
+        source.tasks[0].ai_criteria = [
+            {'index': 1, 'criterion': 'Built the bridge', 'verdict': 'met', 'note': ''},
+            {'index': 2, 'criterion': 'Tested it', 'verdict': 'not_met', 'note': 'No load shown.'},
+        ]
+        source.tasks[0].credited = True
+        row = {s['kind']: s for s in _assemble(source)['story']['body']['sections']}['tasks']['rows'][0]
+        assert (row['criteria_met'], row['criteria_total']) == (2, 2)
+        source.tasks[0].credited = False
+        row = {s['kind']: s for s in _assemble(source)['story']['body']['sections']}['tasks']['rows'][0]
+        assert (row['criteria_met'], row['criteria_total']) == (1, 2)
 
     def test_faq_drops_empty_rows(self, source):
         assert _assemble(source)['story']['body']['faq'] == [{'q': 'Can a bridge count?', 'a': 'Yes.'}]

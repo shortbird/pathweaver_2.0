@@ -180,14 +180,20 @@ def _criteria_rows(source: StorySource) -> List[Dict[str, Any]]:
 
 
 def _task_rows(source: StorySource, summaries: Dict[int, str]) -> List[Dict[str, Any]]:
+    """One row per task. A credited task met every criterion: the teacher
+    judged the whole and awarded it, whatever the AI review called each line
+    (its notes stay in the criteria section as "partial"). "0 of 1 criteria
+    met" beside an awarded credit was a real page on 2026-09-18."""
     rows = []
     for task in source.tasks:
+        total = len(task.ai_criteria) if task.ai_criteria else len(task.criteria)
+        met = total if task.credited or not task.ai_criteria else task.criteria_met
         rows.append({
             'title': task.title,
             'subject': subject_display(task.primary_subject) if task.primary_subject else 'Electives',
             'xp': task.xp,
-            'criteria_met': task.criteria_met if task.ai_criteria else len(task.criteria),
-            'criteria_total': len(task.ai_criteria) if task.ai_criteria else len(task.criteria),
+            'criteria_met': met,
+            'criteria_total': total,
             'summary': summaries.get(task.index) or None,
         })
     return rows

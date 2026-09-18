@@ -226,7 +226,12 @@ def _student_block(source: StorySource, *, student_label: str, tier: str) -> str
     story may state once, not a name.
     """
     if tier == 'named':
-        return f'Call the student: "{student_label}". That is the only way to refer to them.'
+        first_name = student_label.split(',')[0].strip()
+        once = (f' Write "{student_label}" once, where the student is first mentioned, '
+                f'and "{first_name}" or a pronoun after that.'
+                if first_name and first_name != student_label else '')
+        return (f'Call the student: "{student_label}". That is the only way to refer to them.'
+                + once)
     band = source.student.grade_band
     words = {'elementary': 'an elementary student', 'middle': 'a middle schooler',
              'high': 'a high school student'}.get(band or '', 'a student')

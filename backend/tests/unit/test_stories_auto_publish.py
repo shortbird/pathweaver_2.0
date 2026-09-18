@@ -193,7 +193,7 @@ def world(monkeypatch):
     monkeypatch.setattr('repositories.promotional_consent_repository.PromotionalConsentRepository',
                         lambda client=None: state['consent'])
     monkeypatch.setattr('utils.ai_access.check_ai_access', lambda sid, strict=False: state['ai_access'])
-    monkeypatch.setattr(generate, '_load', lambda row, admin: state['source'])
+    monkeypatch.setattr(generate, '_load', lambda row, admin, **kw: state['source'])
     monkeypatch.setattr(safety, 'check_images',
                         lambda candidates, **k: [v for v in state['verdicts']
                                                  if v.index in {c.index for c in candidates}])
@@ -353,12 +353,28 @@ class TestAutoPublish:
     def test_named_tier_with_consent(self, world):
         world['consent'] = FakeConsentRepo({'id': 'consent-1', 'scope_work': True,
                                             'scope_first_name': True, 'scope_age': True})
+        world['drafter'] = FakeDrafter({**DRAFT, 'what_they_did': 'Anna, 14 built it. Anna tested it. '
+                                                                   'Her mother Lindqvist watched.'})
         generate.run(STORY_ID)
         story = _story(world)
         assert story['tier'] == 'named'
         assert story['consent_id'] == 'consent-1'
         assert story['student_label'] == 'Anna, 14'
         assert story['status'] == 'published'
+        # The label is the first name, so the body keeps it; the surname still goes.
+        did = next(s for s in story['body']['sections'] if s['kind'] == 'what_they_did')
+        assert did['body_md'] == 'Anna, 14 built it. Anna tested it. Her mother [name] watched.'
+
+    def test_named_tier_without_first_name_scope_still_scrubs_it(self, world):
+        world['consent'] = FakeConsentRepo({'id': 'consent-1', 'scope_work': True,
+                                            'scope_first_name': False})
+        world['drafter'] = FakeDrafter({**DRAFT, 'what_they_did': 'Anna built it.'})
+        generate.run(STORY_ID)
+        story = _story(world)
+        assert story['tier'] == 'named'
+        assert story['student_label'] == 'A high school student'
+        did = next(s for s in story['body']['sections'] if s['kind'] == 'what_they_did')
+        assert did['body_md'] == '[name] built it.'
 
 
 class TestVideoEvidence:
@@ -821,7 +837,7 @@ class TestGates:
         """Credit is not a gate (2026-09-15). The story goes out, the receipt
         and the payload say the review is open, and nothing claims credit."""
         world['source_repo'] = FakeSourceRepo(status='pending_review')
-        monkeypatch.setattr(generate, '_load', lambda row, admin: _source(credited=False))
+        monkeypatch.setattr(generate, '_load', lambda row, admin, **kw: _source(credited=False))
         out = generate.run(STORY_ID)
         assert out['status'] == 'published'
         story = _story(world)
@@ -856,7 +872,7 @@ class TestGates:
     def test_ai_disabled_refuses_before_loading(self, world, monkeypatch):
         world['ai_access'] = (False, {'code': 'DEPENDENT_AI_DISABLED', 'message': 'off'}, 403)
         loaded = []
-        monkeypatch.setattr(generate, '_load', lambda row, admin: loaded.append(1))
+        monkeypatch.setattr(generate, '_load', lambda row, admin, **kw: loaded.append(1))
         out = generate.run(STORY_ID)
         assert out == {'status': 'failed', 'reason': 'ai_disabled'}
         assert loaded == []
@@ -872,7 +888,7 @@ class TestClaimAndFailure:
         assert generate.run(STORY_ID) == {'status': 'not_claimed', 'story_id': STORY_ID}
 
     def test_an_exception_lands_in_failed_never_raises(self, world, monkeypatch):
-        monkeypatch.setattr(generate, '_load', lambda row, admin: (_ for _ in ()).throw(RuntimeError('boom')))
+        monkeypatch.setattr(generate, '_load', lambda row, admin, **kw: (_ for _ in ()).throw(RuntimeError('boom')))
         out = generate.run(STORY_ID)
         assert out['status'] == 'failed'
         story = _story(world)

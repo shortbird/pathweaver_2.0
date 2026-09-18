@@ -538,6 +538,12 @@ def _asset_public_item(asset: Dict[str, Any], item: Dict[str, Any]) -> Optional[
     is nothing public to show. The asset row decides the type (a video is a
     video and a PDF a document whatever the item says) and the URL; the body
     item may carry the editor's alt and caption."""
+    # An asset row that says not included is the last word, whatever URL the
+    # body item still carries: an editor switching a photo off after publish
+    # leaves the filled-in public URL on the item until the nightly reconcile
+    # rewrites the body, and the page must not show it in the meantime.
+    if asset and not asset.get('included'):
+        return None
     url = (assets_mod.public_url_for(asset.get('public_path'))
            if asset.get('included') and asset.get('public_path')
            else asset.get('preview_url') or item.get('url'))
