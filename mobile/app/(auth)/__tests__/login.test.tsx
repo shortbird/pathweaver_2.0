@@ -44,7 +44,7 @@ describe('LoginScreen', () => {
     expect(getByPlaceholderText('you@email.com')).toBeTruthy();
     expect(getByPlaceholderText('Enter password')).toBeTruthy();
     expect(getByText('Sign In')).toBeTruthy();
-    expect(getByText('Welcome Back')).toBeTruthy();
+    expect(getByText('Sign in')).toBeTruthy();
   });
 
   it('renders Forgot Password button', () => {
@@ -52,9 +52,15 @@ describe('LoginScreen', () => {
     expect(getByText('Forgot Password?')).toBeTruthy();
   });
 
-  it('renders Sign Up link', () => {
+  it('renders the create-account path for new users', () => {
     const { getByText } = render(<LoginScreen />);
-    expect(getByText("Don't have an account? Sign Up")).toBeTruthy();
+    expect(getByText('New to Optio?')).toBeTruthy();
+    expect(getByText('Create an account')).toBeTruthy();
+  });
+
+  it('does not greet a fresh install as a returning user', () => {
+    const { queryByText } = render(<LoginScreen />);
+    expect(queryByText(/welcome back/i)).toBeNull();
   });
 
   it('displays error message from auth store', () => {

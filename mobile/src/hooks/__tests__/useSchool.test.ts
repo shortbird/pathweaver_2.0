@@ -465,40 +465,77 @@ describe('useSchoolAbsences', () => {
   });
 });
 
-describe('familyDoorsFor (the web shell\'s family doors, in its order)', () => {
+describe('schoolTabsFor (the hub\'s tabs, 2026-09-18)', () => {
+  const { schoolTabsFor } = require('../useSchool');
+  const org = (over: Record<string, unknown> = {}) => ({
+    organization_id: 'org-1', organization_name: 'iCreate', is_guardian: true,
+    post_registration_flow: 'schedule', logo_url: null, ...over,
+  });
+  const keys = (o: unknown, have = { board: true, documents: true }) =>
+    schoolTabsFor(o, have).map((t: { key: string }) => t.key);
+
+  it('gives a guardian at a school with a board and documents all five', () => {
+    expect(keys(org())).toEqual(['feed', 'schedule', 'calendar', 'carpool', 'documents']);
+  });
+
+  it('never lists billing, forms, absences or lost & found as tabs', () => {
+    // Absences live inside Schedule; Lost & found is a filter on the feed;
+    // Billing and Forms only opened a browser.
+    const all = keys(org({ modules: ['classes', 'attendance', 'billing', 'forms', 'onboarding'] }));
+    expect(all).not.toContain('billing');
+    expect(all).not.toContain('forms');
+    expect(all).not.toContain('absences');
+    expect(all).not.toContain('lostfound');
+  });
+
+  it('keeps Schedule for a school that runs attendance but not classes, and vice versa', () => {
+    expect(keys(org({ modules: ['attendance'] }))).toContain('schedule');
+    expect(keys(org({ modules: ['classes'] }))).toContain('schedule');
+    expect(keys(org({ modules: ['billing'] }))).not.toContain('schedule');
+  });
+
+  it('a student, a family-first school, or no org gets no Schedule tab', () => {
+    expect(keys(org({ is_guardian: false }))).not.toContain('schedule');
+    expect(keys(org({ family_first_home: true }))).not.toContain('schedule');
+    expect(keys(null)).toEqual(['feed', 'calendar', 'carpool', 'documents']);
+  });
+
+  it('calendar and carpool wait for a board; documents wait for any', () => {
+    expect(keys(org(), { board: false, documents: false })).toEqual(['feed', 'schedule']);
+    expect(keys(org(), { board: false, documents: true })).toEqual(['feed', 'schedule', 'documents']);
+  });
+
+  it('feed is always first', () => {
+    expect(keys(org({ is_guardian: false }), { board: false, documents: false })).toEqual(['feed']);
+  });
+});
+
+describe('familyDoorsFor (the doors that still open on the web)', () => {
   const { familyDoorsFor } = require('../useSchool');
   const org = (over: Record<string, unknown> = {}) => ({
     organization_id: 'org-1', organization_name: 'iCreate', is_guardian: true,
     post_registration_flow: 'schedule', logo_url: null, ...over,
   });
 
-  it('lists schedule, absence, billing, forms for a schedule-flow school', () => {
-    expect(familyDoorsFor(org()).map((d: { key: string }) => d.key))
-      .toEqual(['schedule', 'absences', 'billing', 'forms']);
+  it('a schedule-flow school like iCreate has none', () => {
+    expect(familyDoorsFor(org())).toEqual([]);
   });
 
-  it('swaps schedule for goal setting and adds prior learning when the school has it', () => {
+  it('a goals-flow school gets Goal Setting; prior learning when the school has it', () => {
     expect(familyDoorsFor(org({ post_registration_flow: 'goals', prior_learning_enabled: true })).map((d: { key: string }) => d.key))
-      .toEqual(['goals', 'absences', 'billing', 'forms', 'prior_learning']);
+      .toEqual(['goals', 'prior_learning']);
+    expect(familyDoorsFor(org({ post_registration_flow: 'goals' }))[0]).toMatchObject({ web: '/family/goals' });
   });
 
   it('drops a door whose module the school does not run', () => {
-    expect(familyDoorsFor(org({ modules: ['classes', 'attendance'] })).map((d: { key: string }) => d.key))
-      .toEqual(['schedule', 'absences']);
-    expect(familyDoorsFor(org({ modules: ['forms'] })).map((d: { key: string }) => d.key)).toEqual(['forms']);
+    expect(familyDoorsFor(org({ post_registration_flow: 'goals', modules: ['classes'] }))).toEqual([]);
   });
 
   it('a family-first school gets only prior learning, and a non-guardian nothing', () => {
     expect(familyDoorsFor(org({ family_first_home: true, prior_learning_enabled: true })).map((d: { key: string }) => d.key))
       .toEqual(['prior_learning']);
-    expect(familyDoorsFor(org({ family_first_home: true }))).toEqual([]);
+    expect(familyDoorsFor(org({ family_first_home: true, post_registration_flow: 'goals' }))).toEqual([]);
     expect(familyDoorsFor(org({ is_guardian: false }))).toEqual([]);
     expect(familyDoorsFor(null)).toEqual([]);
-  });
-
-  it('absence is native and the rest open on the web inside the hub', () => {
-    const doors = familyDoorsFor(org());
-    expect(doors.find((d: { key: string }) => d.key === 'absences')).toMatchObject({ native: '/(app)/school/absences' });
-    expect(doors.find((d: { key: string }) => d.key === 'billing')).toMatchObject({ web: '/family/billing' });
   });
 });

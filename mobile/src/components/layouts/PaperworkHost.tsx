@@ -33,6 +33,7 @@ import { Linking, Modal, Pressable, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api, { onSignatureRequired } from '@/src/services/api';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { holdLifted } from '@/src/stores/holdStore';
 import { UIText } from '@/src/components/ui';
 
@@ -44,6 +45,10 @@ export function PaperworkHost() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const userId = useAuthStore((s) => s.user?.id);
   const logout = useAuthStore((s) => s.logout);
+  // An admin viewing as a held guardian is not held: an admin must not sign a
+  // family's paperwork for them. Same exemption as PhoneVerificationHost, the
+  // API gate and the web router.
+  const masquerading = useActingAsStore((s) => s.isActive && s.mode === 'masquerade');
   const [held, setHeld] = useState(false);
   const [checking, setChecking] = useState(false);
   // Mirrors `held` for check(), which is a stable callback and would otherwise
@@ -53,11 +58,11 @@ export function PaperworkHost() {
   // `held` is per-account: signing out, or switching accounts, must not carry
   // one person's hold onto the next.
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || masquerading) {
       heldRef.current = false;
       setHeld(false);
     }
-  }, [isAuthenticated, userId]);
+  }, [isAuthenticated, userId, masquerading]);
 
   const check = useCallback(async (): Promise<boolean> => {
     try {
@@ -81,12 +86,14 @@ export function PaperworkHost() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !userId) return;
+    if (!isAuthenticated || !userId || masquerading) return;
     void check();
-  }, [isAuthenticated, userId, check]);
+  }, [isAuthenticated, userId, masquerading, check]);
 
   // The parent who was already inside the app when the document was sent.
+  // Read the masquerade state at event time: the listener is registered once.
   useEffect(() => onSignatureRequired(() => {
+    if (useActingAsStore.getState().isActive) return;
     heldRef.current = true;
     setHeld(true);
   }), []);

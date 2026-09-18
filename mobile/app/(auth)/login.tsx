@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import {
-  VStack, Heading, UIText, Button, ButtonText,
+  VStack, HStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 
@@ -167,10 +167,25 @@ export default function LoginScreen() {
             {/* Login Card */}
             <Card variant="elevated" size="lg">
               <VStack space="md">
-                <Heading size="lg">Welcome Back</Heading>
-                <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
-                  Sign in to continue your learning journey
-                </UIText>
+                {/* This is the first screen a fresh install shows, so it must
+                    read the same to a new user as to a returning one: no
+                    "welcome back", and the create-account path up top where a
+                    first-timer looks, not under the sign-in button. */}
+                <Heading size="lg">Sign in</Heading>
+                <HStack space="xs" className="items-center flex-wrap">
+                  <UIText size="sm" className="text-typo-500 dark:text-dark-typo-500">
+                    New to Optio?
+                  </UIText>
+                  <Pressable
+                    onPress={() => router.push('/(auth)/register')}
+                    accessibilityRole="link"
+                    hitSlop={8}
+                  >
+                    <UIText size="sm" className="text-optio-purple font-poppins-semibold">
+                      Create an account
+                    </UIText>
+                  </Pressable>
+                </HStack>
 
                 {error && (
                   <View className="bg-red-50 p-3 rounded-lg">
@@ -221,10 +236,6 @@ export default function LoginScreen() {
 
                 <Button variant="link" size="sm" onPress={openForgotPassword}>
                   <ButtonText>Forgot Password?</ButtonText>
-                </Button>
-
-                <Button variant="link" size="sm" onPress={() => router.push('/(auth)/register')}>
-                  <ButtonText>Don't have an account? Sign Up</ButtonText>
                 </Button>
 
                 {/* Social sign-in:

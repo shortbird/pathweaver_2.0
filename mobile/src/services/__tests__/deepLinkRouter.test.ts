@@ -139,7 +139,9 @@ describe('resolveDeepLink', () => {
     expect(resolveDeepLink('/school')?.target).toBe('/(app)/school');
     // /announcements is the legacy web alias for the school page.
     expect(resolveDeepLink('/announcements')?.target).toBe('/(app)/school');
-    expect(resolveDeepLink('/absences')?.target).toBe('/(app)/school/absences');
+    // Absences and the calendar are tabs of the hub since 2026-09-18.
+    expect(resolveDeepLink('/absences')).toEqual({ target: '/(app)/school', params: { tab: 'schedule' } });
+    expect(resolveDeepLink('/calendar')).toEqual({ target: '/(app)/school', params: { tab: 'calendar' } });
   });
 
   it('routes /credit-dashboard to view-on-web', () => {

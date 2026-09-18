@@ -41,6 +41,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import api, { onPhoneVerificationRequired } from '@/src/services/api';
 import { holdLifted } from '@/src/stores/holdStore';
 import { useAuthStore } from '@/src/stores/authStore';
+import { useActingAsStore } from '@/src/stores/actingAsStore';
 import { UIText, toast } from '@/src/components/ui';
 
 /** Matches the server's own resend cooldown, so the button and the API agree. */
@@ -50,6 +51,13 @@ export function PhoneVerificationHost() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const userId = useAuthStore((s) => s.user?.id);
   const logout = useAuthStore((s) => s.logout);
+  // An admin viewing as a held adult is not held. Nobody can type a code
+  // texted to somebody else's phone, so raising this screen over a masquerade
+  // gives the admin one action they cannot take and no way out but signing
+  // out of their own account. The API gate and the status endpoint both
+  // exempt masquerade; this mirrors them on the client, as the web router
+  // does, so the screen cannot come up even against an older backend.
+  const masquerading = useActingAsStore((s) => s.isActive && s.mode === 'masquerade');
 
   const [held, setHeld] = useState(false);
   const [step, setStep] = useState<'phone' | 'code'>('phone');
@@ -64,12 +72,12 @@ export function PhoneVerificationHost() {
   // `held` is per-account: signing out, or switching accounts, must not carry
   // one person's hold onto the next.
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || masquerading) {
       setHeld(false);
       setStep('phone');
       setCode('');
     }
-  }, [isAuthenticated, userId]);
+  }, [isAuthenticated, userId, masquerading]);
 
   const check = useCallback(async (): Promise<boolean> => {
     try {
@@ -89,12 +97,16 @@ export function PhoneVerificationHost() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !userId) return;
+    if (!isAuthenticated || !userId || masquerading) return;
     void check();
-  }, [isAuthenticated, userId, check]);
+  }, [isAuthenticated, userId, masquerading, check]);
 
-  // The adult who was already inside the app when the flag flipped.
-  useEffect(() => onPhoneVerificationRequired(() => setHeld(true)), []);
+  // The adult who was already inside the app when the flag flipped. Read the
+  // masquerade state at event time: the listener is registered once.
+  useEffect(() => onPhoneVerificationRequired(() => {
+    if (useActingAsStore.getState().isActive) return;
+    setHeld(true);
+  }), []);
 
   useEffect(() => {
     if (!cooldown) return undefined;

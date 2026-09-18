@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore, User } from '@/src/stores/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  VStack, HStack, Heading, UIText, Button, ButtonText,
+  VStack, Heading, UIText, Button, ButtonText,
   Card, Input, InputField, InputSlot, InputIcon,
 } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -102,11 +102,6 @@ export default function RegisterScreen() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  // Parent vs student (13+) signup. The backend defaults platform signups to
-  // 'student', so without this a parent's account couldn't manage a family
-  // ("new parent can't add a child"). Default to parent — this signup is
-  // family-oriented — and OEA is always a parent enrollment.
-  const [accountType, setAccountType] = useState<'parent' | 'student'>('parent');
 
   // Field-level errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -160,7 +155,11 @@ export default function RegisterScreen() {
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth,
         acceptedLegalTerms: true,
-        account_type: isOEA ? 'parent' : accountType,
+        // In-app signup is always a student account. Parents create their
+        // family account on the web (optioeducation.com), where the parent
+        // path and the child-profile setup live; the one exception is the
+        // Hearthwood partner link, which is a parent enrollment by definition.
+        account_type: isOEA ? 'parent' : 'student',
         ...(isOEA ? { program_key: OEA_PARTNER_KEY } : {}),
       });
       const state = useAuthStore.getState();
@@ -270,38 +269,47 @@ export default function RegisterScreen() {
                     : 'Start your learning journey today'}
                 </UIText>
 
-                {/* Account type — parents get the family experience + can add
-                    children; students (13+) get their own learner account. OEA
-                    is always a parent enrollment, so the picker is hidden. */}
-                {!isOEA && (
-                  <VStack space="xs">
-                    <UIText size="sm" className="font-poppins-medium">I'm signing up as a…</UIText>
-                    <HStack className="gap-2">
-                      {(['parent', 'student'] as const).map((t) => {
-                        const active = accountType === t;
-                        return (
-                          <Pressable
-                            key={t}
-                            onPress={() => setAccountType(t)}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                            className={`flex-1 items-center py-3 rounded-xl border ${active ? 'bg-optio-purple border-optio-purple' : 'bg-surface-50 dark:bg-dark-surface-50 border-surface-200 dark:border-dark-surface-200'}`}
-                          >
-                            <UIText size="sm" className={active ? 'text-white font-poppins-semibold' : 'font-poppins-medium'}>
-                              {t === 'parent' ? 'Parent / Guardian' : 'Student (13+)'}
-                            </UIText>
-                          </Pressable>
-                        );
-                      })}
-                    </HStack>
-                  </VStack>
-                )}
-
                 {error && (
                   <View className="bg-red-50 p-3 rounded-lg">
                     <UIText size="sm" className="text-red-600">{error}</UIText>
                   </View>
                 )}
+
+                {/* Social sign-up first: it is the one-tap path, so it goes
+                    above the form. Same matrix as login: Google everywhere,
+                    Apple on iOS + web only. */}
+                <Pressable
+                  onPress={googleLogin}
+                  disabled={isLoading}
+                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 web:cursor-pointer hover:bg-surface-50 active:bg-surface-50 dark:hover:bg-dark-surface-50 dark:active:bg-dark-surface-50"
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
+                >
+                  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
+                  <UIText className="font-poppins-medium text-typo dark:text-dark-typo">
+                    Sign up with Google
+                  </UIText>
+                </Pressable>
+
+                {(isWeb || isIos) && (
+                  <Pressable
+                    onPress={isIos ? appleLoginNative : appleLoginWeb}
+                    disabled={isLoading}
+                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black web:cursor-pointer hover:opacity-90 active:opacity-80"
+                    style={{ opacity: isLoading ? 0.5 : 1 }}
+                    accessibilityLabel="Sign up with Apple"
+                  >
+                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={{ marginTop: -2 }} />
+                    <UIText className="font-poppins-medium text-white">
+                      Sign up with Apple
+                    </UIText>
+                  </Pressable>
+                )}
+
+                <View className="flex-row items-center my-1">
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
+                  <UIText size="sm" className="px-3 text-typo-400 dark:text-dark-typo-400">Or sign up with email</UIText>
+                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
+                </View>
 
                 {/* First Name */}
                 <VStack space="xs">
@@ -412,7 +420,7 @@ export default function RegisterScreen() {
                         Parent Account Required
                       </UIText>
                       <UIText size="xs" className="text-amber-700 mt-1">
-                        Users under 13 cannot create their own account. A parent or guardian must create an account first and add you as a dependent.
+                        Users under 13 cannot create their own account. A parent or guardian can create a family account at optioeducation.com and add you from there.
                       </UIText>
                     </View>
                   )}
@@ -509,41 +517,6 @@ export default function RegisterScreen() {
                 <Button variant="link" size="sm" onPress={() => router.replace('/(auth)/login')}>
                   <ButtonText>Already have an account? Sign In</ButtonText>
                 </Button>
-
-                {/* Social register — same matrix as login:
-                    Google everywhere, Apple on iOS + web only. */}
-                <View className="flex-row items-center my-1">
-                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
-                  <UIText size="sm" className="px-3 text-typo-400 dark:text-dark-typo-400">Or</UIText>
-                  <View className="flex-1 h-px bg-surface-200 dark:bg-dark-surface-300" />
-                </View>
-
-                <Pressable
-                  onPress={googleLogin}
-                  disabled={isLoading}
-                  className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg border border-surface-200 dark:border-dark-surface-300 bg-white dark:bg-dark-surface-100 web:cursor-pointer hover:bg-surface-50 active:bg-surface-50 dark:hover:bg-dark-surface-50 dark:active:bg-dark-surface-50"
-                  style={{ opacity: isLoading ? 0.5 : 1 }}
-                >
-                  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: 20, height: 20 }} />
-                  <UIText className="font-poppins-medium text-typo dark:text-dark-typo">
-                    Sign up with Google
-                  </UIText>
-                </Pressable>
-
-                {(isWeb || isIos) && (
-                  <Pressable
-                    onPress={isIos ? appleLoginNative : appleLoginWeb}
-                    disabled={isLoading}
-                    className="flex-row items-center justify-center gap-3 px-4 py-3 rounded-lg bg-black web:cursor-pointer hover:opacity-90 active:opacity-80"
-                    style={{ opacity: isLoading ? 0.5 : 1 }}
-                    accessibilityLabel="Sign up with Apple"
-                  >
-                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" style={{ marginTop: -2 }} />
-                    <UIText className="font-poppins-medium text-white">
-                      Sign up with Apple
-                    </UIText>
-                  </Pressable>
-                )}
               </VStack>
             </Card>
           </VStack>

@@ -33,42 +33,66 @@ export interface SchoolOrg {
 }
 
 /**
- * The family doors, in the order the web's school shell lists them
- * (web/src/pages/school/schoolCards.js familyNavItemsFor): the flow door
- * (Schedule or Goal Setting), Absences, Billing, Forms, Prior Learning when
- * the school has it. The phone has native screens for some and opens the
- * rest on the web INSIDE the hub, so a parent finds the same doors in the
- * same order on both (M19; until then Schedule, Billing, Forms and Prior
- * Learning were simply missing from the phone).
+ * The school hub's tabs (2026-09-18): the hub is one page with a tab strip,
+ * and everything a family gets from the school is a tab on it. Feed is
+ * always first; the rest appear when the school runs the thing and this
+ * member may use it. Schedule folds in absence reporting, since both are
+ * about one child's time at the school; Lost & found is a filter on the
+ * Feed rather than a place of its own. Billing and Forms are absent on
+ * purpose: both only opened a browser, and a tab that is really a web link
+ * is worse than no tab on a phone. They come back when they have screens.
+ */
+export type SchoolTabKey = 'feed' | 'schedule' | 'calendar' | 'carpool' | 'documents';
+
+export interface SchoolTab {
+  key: SchoolTabKey;
+  label: string;
+}
+
+export function schoolTabsFor(
+  org: SchoolOrg | null | undefined,
+  have: { board: boolean; documents: boolean },
+): SchoolTab[] {
+  const on = (mod: string) => !org || !Array.isArray(org.modules) || org.modules.includes(mod);
+  const tabs: SchoolTab[] = [{ key: 'feed', label: 'Feed' }];
+  // Schedules and absences act on a FAMILY: a student is a member without
+  // being a guardian, so no Schedule tab for them (the backend enforces the
+  // same by family relationship).
+  if (org?.is_guardian && !org.family_first_home && (on('classes') || on('attendance'))) {
+    tabs.push({ key: 'schedule', label: 'Schedule' });
+  }
+  // The calendar and the carpool board wait for a board (feed === null means
+  // no board for this user); documents wait for the school to have any.
+  if (have.board) {
+    tabs.push({ key: 'calendar', label: 'Calendar' });
+    tabs.push({ key: 'carpool', label: 'Carpool' });
+  }
+  if (have.documents) tabs.push({ key: 'documents', label: 'Documents' });
+  return tabs;
+}
+
+/**
+ * The family doors that still open on the web inside the hub: Goal Setting
+ * (for a goals-flow school, where it stands in for the schedule) and Prior
+ * Learning. Neither has a native screen, so they sit as chips at the top of
+ * the Feed tab rather than pretending to be tabs. Same order as the web's
+ * school shell (web/src/pages/school/schoolCards.js familyNavItemsFor).
  */
 export interface FamilyDoor {
   key: string;
   label: string;
   icon: string;
-  /** A native screen to push, or */
-  native?: string;
-  /** a web path to open on the web inside the hub. */
-  web?: string;
+  /** The web path to open on the web inside the hub. */
+  web: string;
 }
 
 export function familyDoorsFor(org: SchoolOrg | null | undefined): FamilyDoor[] {
   if (!org?.is_guardian) return [];
   const on = (mod: string) => !Array.isArray(org.modules) || org.modules.includes(mod);
   const doors: FamilyDoor[] = [];
-  if (org.family_first_home) {
-    if (org.prior_learning_enabled && on('prior_learning')) {
-      doors.push({ key: 'prior_learning', label: 'Prior Learning', icon: 'school-outline', web: '/family/prior-learning' });
-    }
-    return doors;
+  if (!org.family_first_home && org.post_registration_flow === 'goals' && on('goals')) {
+    doors.push({ key: 'goals', label: 'Goal Setting', icon: 'checkmark-circle-outline', web: '/family/goals' });
   }
-  if (org.post_registration_flow === 'goals') {
-    if (on('goals')) doors.push({ key: 'goals', label: 'Goal Setting', icon: 'checkmark-circle-outline', web: '/family/goals' });
-  } else if (on('classes')) {
-    doors.push({ key: 'schedule', label: 'Schedule', icon: 'grid-outline', web: '/schedule-builder' });
-  }
-  if (on('attendance')) doors.push({ key: 'absences', label: 'Absence', icon: 'calendar-outline', native: '/(app)/school/absences' });
-  if (on('billing')) doors.push({ key: 'billing', label: 'Billing', icon: 'card-outline', web: '/family/billing' });
-  if (on('onboarding') || on('forms')) doors.push({ key: 'forms', label: 'Forms', icon: 'document-text-outline', web: '/family/forms' });
   if (org.prior_learning_enabled && on('prior_learning')) {
     doors.push({ key: 'prior_learning', label: 'Prior Learning', icon: 'school-outline', web: '/family/prior-learning' });
   }
@@ -497,7 +521,7 @@ export function useSchoolArchive(options?: { organizationId?: string }) {
 
 // ── Absences: guardian context + report/cancel ──
 
-export function useSchoolAbsences() {
+export function useSchoolAbsences(preferredOrgId?: string | null) {
   const [orgs, setOrgs] = useState<any[]>([]);
   const [orgId, setOrgId] = useState<string>('');
   const [studentIds, setStudentIds] = useState<string[]>([]);
@@ -515,13 +539,20 @@ export function useSchoolAbsences() {
         const list = r.data?.orgs || [];
         setOrgs(list);
         if (list.length) {
-          setOrgId(list[0].organization_id);
-          if (list[0].students?.length) setStudentIds([list[0].students[0].student_id]);
+          // The hub's org when it is one of the family's, else the first:
+          // the Schedule tab lives under one school's name and must not
+          // report an absence to a different one.
+          const first = list.find((o: any) => o.organization_id === preferredOrgId) || list[0];
+          setOrgId(first.organization_id);
+          if (first.students?.length) setStudentIds([first.students[0].student_id]);
         }
       })
       .catch(() => { if (active) setError('Could not load absences'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
+  // The preferred org only matters on the first load; the hub does not
+  // change schools underneath an open tab.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const org = useMemo(() => orgs.find((o) => o.organization_id === orgId), [orgs, orgId]);
@@ -559,6 +590,13 @@ export function useSchoolAbsences() {
   const toggleStudent = useCallback((sid: string) => {
     setStudentIds((prev) => (
       prev.includes(sid) ? prev.filter((id) => id !== sid) : [...prev, sid]
+    ));
+  }, []);
+
+  // The Schedule tab picks the child; the report starts from that child.
+  const selectStudents = useCallback((ids: string[]) => {
+    setStudentIds((prev) => (
+      prev.length === ids.length && prev.every((id, i) => id === ids[i]) ? prev : ids
     ));
   }, []);
 
@@ -609,7 +647,10 @@ export function useSchoolAbsences() {
 
   return {
     orgs, orgId, setOrgId,
-    students, studentIds, toggleStudent,
+    students, studentIds, toggleStudent, selectStudents,
+    // Every child's upcoming absences, whoever is selected: the Schedule tab
+    // shows the chosen child's under their week.
+    byStudent,
     absences, classes,
     orgName: org?.organization_name || null,
     loading, error,

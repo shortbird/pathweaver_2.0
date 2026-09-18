@@ -16,7 +16,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { View, Image, Pressable } from 'react-native';
+import { View, Image, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Badge, BadgeText, Card, HStack, Heading, UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
@@ -210,17 +210,109 @@ function renderItem(item: FeedItem) {
   return <AnnouncementItem key={item.key} item={item} />;
 }
 
-export default function SchoolFeed({ schoolName, feed, messages, onSeeAll }: {
+/**
+ * The feed's filter, one chip per kind of post. Lost & found had a chip of
+ * its own on the hub that opened a modal listing the same feed items; it is
+ * a filter here instead (2026-09-18), and it is ALWAYS offered when there is
+ * a board, or with zero items nothing on the page says the feature exists
+ * (iCreate report). The other kinds only earn a chip when they have posts.
+ */
+export type FeedFilter = 'all' | 'announcements' | 'shoutouts' | 'lostfound';
+
+const FILTER_LABEL: Record<FeedFilter, string> = {
+  all: 'All',
+  announcements: 'Announcements',
+  shoutouts: 'Shout-outs',
+  lostfound: 'Lost & found',
+};
+
+const matchesFilter = (item: FeedItem, filter: FeedFilter) => (
+  filter === 'all'
+  || (filter === 'announcements' && (item.kind === 'announcement' || item.kind === 'message'))
+  || (filter === 'shoutouts' && item.kind === 'shoutout')
+  || (filter === 'lostfound' && item.kind === 'lostfound')
+);
+
+export function feedFiltersFor(items: FeedItem[], hasBoard: boolean): FeedFilter[] {
+  const out: FeedFilter[] = ['all'];
+  if (items.some((i) => matchesFilter(i, 'announcements'))) out.push('announcements');
+  if (items.some((i) => matchesFilter(i, 'shoutouts'))) out.push('shoutouts');
+  if (hasBoard || items.some((i) => matchesFilter(i, 'lostfound'))) out.push('lostfound');
+  // A lone "All" is not a choice.
+  return out.length > 1 ? out : [];
+}
+
+export function FeedFilterRow({ filters, value, onChange }: {
+  filters: FeedFilter[]; value: FeedFilter; onChange: (f: FeedFilter) => void;
+}) {
+  if (!filters.length) return null;
+  // One row, scrolling sideways when the labels outgrow the screen — four
+  // chips wrapped onto two lines and read as two rows of buttons.
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="flex-grow-0 mb-3 -mx-5"
+      contentContainerStyle={{ paddingHorizontal: 20, gap: 8, alignItems: 'center' }}
+      testID="feed-filters"
+    >
+      {filters.map((f) => {
+        const on = f === value;
+        return (
+          <Pressable
+            key={f}
+            onPress={() => onChange(f)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            testID={`feed-filter-${f}`}
+            className={`px-3.5 py-1.5 rounded-full border ${
+              on
+                ? 'bg-optio-purple border-optio-purple'
+                : 'bg-white dark:bg-dark-surface-100 border-surface-200 dark:border-dark-surface-300'
+            }`}
+          >
+            <UIText size="xs" className={on ? 'text-white font-poppins-semibold' : 'font-poppins-medium'}>
+              {FILTER_LABEL[f]}
+            </UIText>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+const EMPTY_FOR: Record<FeedFilter, string> = {
+  all: '',
+  announcements: 'No announcements yet.',
+  shoutouts: 'No shout-outs yet.',
+  lostfound: 'Nothing in lost & found right now — found items are collected at the office.',
+};
+
+export default function SchoolFeed({ schoolName, feed, messages, onSeeAll, filter = 'all' }: {
   schoolName: string;
   feed: SchoolFeedData | null;
   messages: ArchivedMessage[];
   onSeeAll: () => void;
+  filter?: FeedFilter;
 }) {
   const c = useThemeColors();
   const [showAll, setShowAll] = useState(false);
-  const items = useMemo(() => mergeSchoolFeed(feed, messages), [feed, messages]);
+  const all = useMemo(() => mergeSchoolFeed(feed, messages), [feed, messages]);
+  const items = useMemo(() => all.filter((i) => matchesFilter(i, filter)), [all, filter]);
 
-  if (items.length === 0) return null;
+  // Nothing at all: the hub's own empty state speaks. A filter with nothing
+  // behind it, though, gets its own line — the chip promised something.
+  if (all.length === 0 && filter === 'all') return null;
+  if (items.length === 0) {
+    return (
+      <View testID="school-feed">
+        <UIText size="sm" className="text-typo-400 dark:text-dark-typo-400 py-6 text-center"
+          testID="feed-filter-empty">
+          {EMPTY_FOR[filter]}
+        </UIText>
+      </View>
+    );
+  }
 
   const overflows = items.length > FEED_CAP;
   const visible = showAll || !overflows ? items : items.slice(0, FEED_CAP);

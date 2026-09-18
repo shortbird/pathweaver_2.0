@@ -175,8 +175,14 @@ const REMAP: [RegExp, string][] = [
   // so older emailed/notification links land on the same screen.
   [/^\/school\/?$/, '/(app)/school'],
   [/^\/announcements\/?$/, '/(app)/school'],
-  [/^\/absences\/?$/, '/(app)/school/absences'],
-  [/^\/calendar\/?$/, '/(app)/school/calendar'],
+];
+
+/** School pages that are tabs of the hub (2026-09-18): the link lands on the
+ *  hub with the tab picked. The old /(app)/school/<tab> routes still exist as
+ *  redirects, for links already emitted with those paths. */
+const SCHOOL_TABS: [RegExp, string][] = [
+  [/^\/absences\/?$/, 'schedule'],
+  [/^\/calendar\/?$/, 'calendar'],
 ];
 
 /**
@@ -253,6 +259,9 @@ export function resolveDeepLink(rawLink: string | null | undefined): ResolvedRou
   // Exact remaps first (matched on path, query ignored)
   for (const [pattern, target] of REMAP) {
     if (pattern.test(path)) return { target };
+  }
+  for (const [pattern, tab] of SCHOOL_TABS) {
+    if (pattern.test(path)) return { target: '/(app)/school', params: { tab } };
   }
 
   // Dynamic routes that exist on mobile

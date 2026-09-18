@@ -39,6 +39,13 @@ jest.mock('@/src/stores/authStore', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) => selector(mockAuthState),
 }));
 
+let mockActingAs = { isActive: false, mode: null as 'masquerade' | null };
+jest.mock('@/src/stores/actingAsStore', () => {
+  const useActingAsStore = (selector: (s: unknown) => unknown) => selector(mockActingAs);
+  useActingAsStore.getState = () => mockActingAs;
+  return { useActingAsStore };
+});
+
 const HELD = { data: { blocked: true, assignments: [{ id: 'a-1' }] } };
 const CLEAR = { data: { blocked: false, assignments: [] } };
 
@@ -46,6 +53,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockHoldListener = null;
   mockAuthState = { isAuthenticated: true, user: { id: 'u-1' }, logout: mockLogout };
+  mockActingAs = { isActive: false, mode: null };
 });
 
 describe('PaperworkHost', () => {
@@ -115,5 +123,40 @@ describe('PaperworkHost', () => {
     await screen.findByText('You have unfinished paperwork');
     fireEvent.press(screen.getByText('Sign out'));
     expect(mockLogout).toHaveBeenCalled();
+  });
+});
+
+describe('an admin masquerading as a held guardian', () => {
+  // An admin must not sign a family's paperwork for them, so the hold must
+  // never come up over a masquerade (same rule as PhoneVerificationHost).
+
+  it('is not asked about, let alone held', async () => {
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    mockAuthState = { isAuthenticated: true, user: { id: 'held-parent' }, logout: mockLogout };
+    mockGet.mockResolvedValue(HELD);
+    render(<PaperworkHost />);
+    await act(async () => {});
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(screen.queryByText('You have unfinished paperwork')).toBeNull();
+  });
+
+  it('ignores a stray 403 raised during the masquerade', async () => {
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    render(<PaperworkHost />);
+    await act(async () => {
+      mockHoldListener?.();
+    });
+    expect(screen.queryByText('You have unfinished paperwork')).toBeNull();
+  });
+
+  it('drops the screen when a masquerade starts over a held session', async () => {
+    mockGet.mockResolvedValue(HELD);
+    const view = render(<PaperworkHost />);
+    expect(await screen.findByText('You have unfinished paperwork')).toBeTruthy();
+
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    mockAuthState = { isAuthenticated: true, user: { id: 'held-parent' }, logout: mockLogout };
+    view.rerender(<PaperworkHost />);
+    await waitFor(() => expect(screen.queryByText('You have unfinished paperwork')).toBeNull());
   });
 });

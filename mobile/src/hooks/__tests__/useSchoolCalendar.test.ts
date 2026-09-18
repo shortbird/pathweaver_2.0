@@ -10,7 +10,7 @@
  */
 
 import {
-  monthWindow, shiftMonth, eventDay, groupByDay,
+  monthWindow, shiftMonth, eventDay, groupByDay, splitAtToday,
 } from '../useSchoolCalendar';
 
 const ev = (over: Partial<Parameters<typeof eventDay>[0]> = {}) => ({
@@ -121,5 +121,23 @@ describe('grouping into an agenda', () => {
 
   it('is empty when the month is', () => {
     expect(groupByDay([])).toEqual([]);
+  });
+});
+
+describe('splitting the month at today', () => {
+  const day = (date: string) => ({ date, events: [] });
+
+  it('puts the days already gone aside and keeps today and after', () => {
+    const { past, upcoming } = splitAtToday(
+      [day('2026-09-07'), day('2026-09-17'), day('2026-09-18'), day('2026-09-25')],
+      '2026-09-18',
+    );
+    expect(past.map((d) => d.date)).toEqual(['2026-09-07', '2026-09-17']);
+    expect(upcoming.map((d) => d.date)).toEqual(['2026-09-18', '2026-09-25']);
+  });
+
+  it('is all upcoming on the first of the month, all past on a day after the last event', () => {
+    expect(splitAtToday([day('2026-09-07')], '2026-09-01').past).toEqual([]);
+    expect(splitAtToday([day('2026-09-07')], '2026-09-30').upcoming).toEqual([]);
   });
 });

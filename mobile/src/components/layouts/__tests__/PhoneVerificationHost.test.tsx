@@ -62,6 +62,13 @@ jest.mock('@/src/stores/authStore', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) => selector(mockAuthState),
 }));
 
+let mockActingAs = { isActive: false, mode: null as 'masquerade' | null };
+jest.mock('@/src/stores/actingAsStore', () => {
+  const useActingAsStore = (selector: (s: unknown) => unknown) => selector(mockActingAs);
+  useActingAsStore.getState = () => mockActingAs;
+  return { useActingAsStore };
+});
+
 const HELD = { data: { required: true, verified: false } };
 const CLEAR = { data: { required: false, verified: false } };
 
@@ -82,6 +89,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockHoldListener = null;
   mockAuthState = { isAuthenticated: true, user: { id: 'u-1' }, logout: mockLogout };
+  mockActingAs = { isActive: false, mode: null };
 });
 
 describe('learning it is held', () => {
@@ -124,6 +132,43 @@ describe('learning it is held', () => {
     render(<PhoneVerificationHost />);
     expect(screen.queryByText('Verify your phone number')).toBeNull();
     expect(mockGet).not.toHaveBeenCalled();
+  });
+});
+
+describe('an admin masquerading as a held adult', () => {
+  // Nobody can type a code texted to somebody else's phone, so the screen
+  // must never come up over a masquerade: the admin would have one action
+  // they cannot take and no exit but signing out of their own account
+  // (Lynette Evans, iCreate, 2026-09-18).
+
+  it('is not asked about, let alone held', async () => {
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    mockAuthState = { isAuthenticated: true, user: { id: 'held-parent' }, logout: mockLogout };
+    mockGet.mockResolvedValue(HELD);
+    render(<PhoneVerificationHost />);
+    await act(async () => {});
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(screen.queryByText('Verify your phone number')).toBeNull();
+  });
+
+  it('ignores a stray 403 raised during the masquerade', async () => {
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    render(<PhoneVerificationHost />);
+    await act(async () => {
+      mockHoldListener?.();
+    });
+    expect(screen.queryByText('Verify your phone number')).toBeNull();
+  });
+
+  it('drops the screen when a masquerade starts over a held session', async () => {
+    mockGet.mockResolvedValue(HELD);
+    const view = render(<PhoneVerificationHost />);
+    expect(await screen.findByText('Verify your phone number')).toBeTruthy();
+
+    mockActingAs = { isActive: true, mode: 'masquerade' };
+    mockAuthState = { isAuthenticated: true, user: { id: 'held-parent' }, logout: mockLogout };
+    view.rerender(<PhoneVerificationHost />);
+    await waitFor(() => expect(screen.queryByText('Verify your phone number')).toBeNull());
   });
 });
 

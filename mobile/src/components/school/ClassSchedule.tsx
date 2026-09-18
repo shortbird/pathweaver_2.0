@@ -60,7 +60,7 @@ function MeetingRow({ cls, meeting }: { cls: ScheduledClass; meeting: ClassMeeti
  * "where is she at 10:30 on Tuesday?" (iCreate parent, 2026-08-25). Day
  * headings with time-ordered rows put the answer where they look for it.
  */
-function StudentDays({ classes }: { classes: ScheduledClass[] }) {
+export function StudentDays({ classes }: { classes: ScheduledClass[] }) {
   const days = meetingsByDay(classes);
   return (
     <VStack space="md">
@@ -87,7 +87,7 @@ function StudentDays({ classes }: { classes: ScheduledClass[] }) {
  * under the week rather than in a menu — a parent who wants it on the fridge is
  * looking at the schedule when they decide that.
  */
-function PrintScheduleButton({ studentName, classes }: {
+export function PrintScheduleButton({ studentName, classes }: {
   studentName: string; classes: ScheduledClass[];
 }) {
   const c = useThemeColors();

@@ -9,7 +9,7 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import SchoolFeed, { ComingUp, mergeSchoolFeed } from '../SchoolFeed';
+import SchoolFeed, { ComingUp, mergeSchoolFeed, feedFiltersFor, FeedFilterRow } from '../SchoolFeed';
 import CarpoolBoard from '../CarpoolBoard';
 import type { SchoolFeed as SchoolFeedData, CarpoolPost, ArchivedMessage } from '@/src/hooks/useSchool';
 
@@ -246,5 +246,52 @@ describe('CarpoolBoard', () => {
     await waitFor(() => expect(onPost).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'need', message: 'Need a ride on studio days' }),
     ));
+  });
+});
+
+describe('the feed filter (Lost & found folded in, 2026-09-18)', () => {
+  const lost = { id: 'l1', description: 'Blue water bottle', image_url: null, category: null, date_found: null, location_found: null, created_at: '2026-08-02T00:00:00Z' };
+
+  it('always offers Lost & found when there is a board, even with nothing in it', () => {
+    // With zero items nothing on the page would say the feature exists
+    // (iCreate report) — the chip is the promise.
+    const items = mergeSchoolFeed({ ...emptyFeed, announcements: [board()] }, []);
+    expect(feedFiltersFor(items, true)).toEqual(['all', 'announcements', 'lostfound']);
+  });
+
+  it('only offers a kind that has posts, and no lone All', () => {
+    expect(feedFiltersFor([], false)).toEqual([]);
+    const items = mergeSchoolFeed({
+      ...emptyFeed,
+      recognition: [{ id: 'r1', type: 'shout_out', recipient_name: 'Sam', message: 'Nice', created_at: '2026-08-02T00:00:00Z' }],
+    }, []);
+    expect(feedFiltersFor(items, false)).toEqual(['all', 'shoutouts']);
+  });
+
+  it('narrows the stream to the kind picked', () => {
+    const feed = { ...emptyFeed, announcements: [board()], lost_found: [lost] };
+    const { getByText, queryByText } = render(
+      <SchoolFeed schoolName="iCreate" feed={feed} messages={[message()]} onSeeAll={() => {}} filter="lostfound" />,
+    );
+    expect(getByText('Blue water bottle')).toBeTruthy();
+    expect(queryByText('Picture day')).toBeNull();
+    expect(queryByText('Fall Newsletter')).toBeNull();
+  });
+
+  it('says so when the kind picked has nothing, rather than vanishing', () => {
+    const { getByTestId, getByText } = render(
+      <SchoolFeed schoolName="iCreate" feed={{ ...emptyFeed, announcements: [board()] }} messages={[]} onSeeAll={() => {}} filter="lostfound" />,
+    );
+    expect(getByTestId('feed-filter-empty')).toBeTruthy();
+    expect(getByText(/found items are collected at the office/)).toBeTruthy();
+  });
+
+  it('the row reports the chip tapped', () => {
+    const onChange = jest.fn();
+    const { getByTestId } = render(
+      <FeedFilterRow filters={['all', 'lostfound']} value="all" onChange={onChange} />,
+    );
+    fireEvent.press(getByTestId('feed-filter-lostfound'));
+    expect(onChange).toHaveBeenCalledWith('lostfound');
   });
 });

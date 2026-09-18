@@ -106,3 +106,15 @@ export const fmtDayHeading = (iso: string): string => {
       .toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
   } catch { return ''; }
 };
+
+/**
+ * Today as the local calendar date, 'YYYY-MM-DD' -- the shape the calendar
+ * agenda keys its days by, so "what is still to come" splits on the day the
+ * parent is actually living in. The one local-time read the calendar makes;
+ * it lives here because the wall-clock guard (schoolEventWallClock.test.ts)
+ * allows local time in this file alone.
+ */
+export const todayIso = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

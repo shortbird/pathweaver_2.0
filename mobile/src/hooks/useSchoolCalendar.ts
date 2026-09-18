@@ -28,6 +28,12 @@ export const thisMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
+/** Today as the local calendar date, 'YYYY-MM-DD' — the same shape the
+ *  agenda keys its days by. Read in components/school/format.ts, the one
+ *  file the wall-clock guard lets touch local time; re-exported here for the
+ *  screen and its tests. */
+export { todayIso } from '@/src/components/school/format';
+
 /** Step a 'YYYY-MM' string by whole months, without Date's day-overflow. */
 export const shiftMonth = (month: string, by: number) => {
   const [y, m] = month.split('-').map(Number);
@@ -80,6 +86,26 @@ export const groupByDay = (events: SchoolEvent[]): CalendarDay[] => {
         || (x.start_at || '').localeCompare(y.start_at || '')
       )),
     }));
+};
+
+/**
+ * The agenda split at today: what is still to come, and what has already
+ * happened this month.
+ *
+ * The current month opened on its first event, which mid-month meant a
+ * parent landing on 9/7 and scrolling past a fortnight they had lived through
+ * to find tomorrow (2026-09-18). Today goes to the top; the days before it
+ * stay reachable behind one tap rather than in the way. Any other month is
+ * returned whole — a month you navigated to, you meant to read.
+ */
+export const splitAtToday = (
+  days: CalendarDay[],
+  today: string,
+): { past: CalendarDay[]; upcoming: CalendarDay[] } => {
+  const past: CalendarDay[] = [];
+  const upcoming: CalendarDay[] = [];
+  for (const d of days) (d.date < today ? past : upcoming).push(d);
+  return { past, upcoming };
 };
 
 export function useSchoolCalendar(organizationId: string | undefined) {

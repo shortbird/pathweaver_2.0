@@ -2,6 +2,7 @@ export { Button, ButtonText } from './button';
 export { Card } from './card';
 export { Input, InputField, InputSlot, InputIcon } from './input';
 export { UIText } from './text';
+export { LinkedText } from './linked-text';
 export { Heading } from './heading';
 export { VStack } from './vstack';
 export { HStack } from './hstack';

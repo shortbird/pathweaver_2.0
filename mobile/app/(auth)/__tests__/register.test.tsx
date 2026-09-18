@@ -56,6 +56,20 @@ describe('RegisterScreen', () => {
     expect(getAllByText('Create Account').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('offers only a student signup, with no parent or student picker', () => {
+    const { queryByText } = render(<RegisterScreen />);
+    expect(queryByText(/signing up as/i)).toBeNull();
+    expect(queryByText('Parent / Guardian')).toBeNull();
+    expect(queryByText('Student (13+)')).toBeNull();
+  });
+
+  it('puts social sign-up above the email form', () => {
+    const tree = JSON.stringify(render(<RegisterScreen />).toJSON());
+    const google = tree.indexOf('Sign up with Google');
+    expect(google).toBeGreaterThan(-1);
+    expect(google).toBeLessThan(tree.indexOf('First name'));
+  });
+
   it('has link back to sign in', () => {
     const { getByText } = render(<RegisterScreen />);
     expect(getByText('Already have an account? Sign In')).toBeTruthy();

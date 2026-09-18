@@ -152,6 +152,7 @@
       "expo-apple-authentication",
       "./plugins/withGradleVersion",
       "./plugins/withMlKitDocScanner",
+      "./plugins/withPodDeploymentTarget",
       [
         "react-native-document-scanner-plugin",
         {

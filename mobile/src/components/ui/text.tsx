@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text as RNText, TextProps } from 'react-native';
 
-interface UITextProps extends TextProps {
+export interface UITextProps extends TextProps {
   className?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg';
 }
