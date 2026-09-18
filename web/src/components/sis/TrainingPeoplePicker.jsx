@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Modal } from '../ui'
+import PeoplePicker from './ui/PeoplePicker'
 import api from '../../services/api'
 import { withOrg } from '../../pages/sis/useSisOrg'
 
@@ -22,7 +23,6 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 export default function TrainingPeoplePicker({ item, orgId, onClose, onAssigned }) {
   const [people, setPeople] = useState([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
   const [chosen, setChosen] = useState(() => new Set())
   const [busy, setBusy] = useState(false)
 
@@ -34,12 +34,6 @@ export default function TrainingPeoplePicker({ item, orgId, onClose, onAssigned 
       .catch(() => toast.error('Could not load the list of people'))
       .finally(() => setLoading(false))
   }, [item, orgId])
-
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return people
-    return people.filter((p) => `${p.name || ''} ${p.email || ''}`.toLowerCase().includes(q))
-  }, [people, query])
 
   const toggle = (id) => setChosen((prev) => {
     const next = new Set(prev)
@@ -106,47 +100,32 @@ export default function TrainingPeoplePicker({ item, orgId, onClose, onAssigned 
         </p>
       )}
 
-      <div className="flex items-center gap-2 mb-3">
-        <input value={query} onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or email" aria-label="Search people"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
-        {/* The common shape of this job: everyone who has not done it yet. */}
-        <button type="button" onClick={() => setChosen(new Set(notYetIds))}
-          disabled={!notYetIds.length}
-          className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
-          Select not started
-        </button>
-      </div>
-
       {loading ? (
         <p className="text-sm text-neutral-500">Loading…</p>
-      ) : !people.length ? (
-        <p className="text-sm text-neutral-500">Nobody here to assign this to yet.</p>
-      ) : !shown.length ? (
-        <p className="text-sm text-neutral-500">Nobody matches "{query}".</p>
       ) : (
-        <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-80 overflow-y-auto">
-          {shown.map((p) => (
-            <li key={p.user_id}>
-              <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                <input type="checkbox" checked={chosen.has(p.user_id)}
-                  onChange={() => toggle(p.user_id)}
-                  aria-label={`Select ${p.name}`} />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-neutral-900 truncate">{p.name}</span>
-                  {p.email && <span className="block text-xs text-neutral-500 truncate">{p.email}</span>}
-                </span>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${
-                  p.progress?.completed ? 'bg-green-100 text-green-700'
-                    : p.progress?.started ? 'bg-amber-100 text-amber-800'
-                      : 'bg-gray-100 text-neutral-500'}`}>
-                  {p.progress?.completed ? 'Complete'
-                    : p.progress?.started ? 'Has it' : 'Not started'}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        <PeoplePicker people={people} selected={chosen} onToggle={toggle}
+          getId={(p) => p.user_id}
+          getSearchText={(p) => `${p.name || ''} ${p.email || ''}`}
+          renderMeta={(p) => (p.email && <span className="block text-xs text-neutral-500 truncate">{p.email}</span>)}
+          renderTrailing={(p) => (
+            <span className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${
+              p.progress?.completed ? 'bg-green-100 text-green-700'
+                : p.progress?.started ? 'bg-amber-100 text-amber-800'
+                  : 'bg-gray-100 text-neutral-500'}`}>
+              {p.progress?.completed ? 'Complete'
+                : p.progress?.started ? 'Has it' : 'Not started'}
+            </span>
+          )}
+          /* The common shape of this job: everyone who has not done it yet. */
+          actions={(
+            <button type="button" onClick={() => setChosen(new Set(notYetIds))}
+              disabled={!notYetIds.length}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-neutral-700 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap">
+              Select not started
+            </button>
+          )}
+          placeholder="Search by name or email" searchLabel="Search people"
+          emptyLabel="Nobody here to assign this to yet." maxHeight="max-h-80" />
       )}
     </Modal>
   )

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { Modal } from '../ui'
+import PeoplePicker from './ui/PeoplePicker'
 import api from '../../services/api'
 import { withOrg } from '../../pages/sis/useSisOrg'
 
@@ -35,7 +36,6 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent }) {
   const [people, setPeople] = useState([])
   const [presets, setPresets] = useState([])
   const [loading, setLoading] = useState(true)
-  const [query, setQuery] = useState('')
   const [chosen, setChosen] = useState(() => new Set())
   const [separate, setSeparate] = useState(false)
   const [subject, setSubject] = useState('')
@@ -59,17 +59,11 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent }) {
   // is worse than retyping a sentence.
   useEffect(() => {
     if (isOpen) return
-    setChosen(new Set()); setQuery(''); setSubject(''); setBody('')
+    setChosen(new Set()); setSubject(''); setBody('')
     setName(''); setSeparate(false)
   }, [isOpen])
 
   const byId = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return people
-    return people.filter((p) => `${nameOf(p)} ${(p.role_labels || []).join(' ')}`
-      .toLowerCase().includes(q))
-  }, [people, query])
 
   const toggle = (id) => setChosen((prev) => {
     const next = new Set(prev)
@@ -178,33 +172,14 @@ export default function StaffComposeModal({ isOpen, orgId, onClose, onSent }) {
             </div>
           )}
 
-          <div>
-            <input value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search staff by name or role" aria-label="Search staff"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent" />
-            {!people.length ? (
-              <p className="text-sm text-neutral-500 mt-2">Nobody to message here yet.</p>
-            ) : (
-              <ul className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-52 overflow-y-auto">
-                {shown.map((p) => (
-                  <li key={p.id}>
-                    <label className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                      <input type="checkbox" checked={chosen.has(p.id)}
-                        onChange={() => toggle(p.id)} aria-label={`Select ${nameOf(p)}`} />
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-sm font-medium text-neutral-900 truncate">{nameOf(p)}</span>
-                        {(p.role_labels || []).length > 0 && (
-                          <span className="block text-xs text-neutral-500 truncate">
-                            {p.role_labels.join(', ')}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <PeoplePicker people={people} selected={chosen} onToggle={toggle}
+            getLabel={nameOf}
+            getSearchText={(p) => `${nameOf(p)} ${(p.role_labels || []).join(' ')}`}
+            renderMeta={(p) => ((p.role_labels || []).length > 0 && (
+              <span className="block text-xs text-neutral-500 truncate">{p.role_labels.join(', ')}</span>
+            ))}
+            placeholder="Search staff by name or role" searchLabel="Search staff"
+            emptyLabel="Nobody to message here yet." />
 
           {chosen.size > 1 && (
             <label className="flex items-start gap-2 text-sm text-neutral-700">

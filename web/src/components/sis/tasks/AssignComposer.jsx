@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import api from '../../../services/api'
 import ModalOverlay from '../../ui/ModalOverlay'
+import PeoplePicker from '../ui/PeoplePicker'
 import { withOrg } from '../../../pages/sis/useSisOrg'
 
 /**
@@ -26,31 +27,6 @@ import { withOrg } from '../../../pages/sis/useSisOrg'
  */
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-optio-purple focus:border-transparent'
-
-const RecipientList = ({ people, selected, onToggle, emptyLabel }) => {
-  const [q, setQ] = useState('')
-  const shown = q.trim()
-    ? people.filter((p) => (p.name || '').toLowerCase().includes(q.trim().toLowerCase()))
-    : people
-
-  if (!people.length) return <p className="text-sm text-neutral-400 py-2">{emptyLabel}</p>
-  return (
-    <div>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name"
-        className={`${inputClass} mb-2`} aria-label="Search recipients" />
-      <div className="max-h-44 overflow-y-auto divide-y divide-gray-50">
-        {shown.map((p) => (
-          <label key={p.id} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
-            <input type="checkbox" checked={selected.includes(p.id)} onChange={() => onToggle(p.id)}
-              className="h-4 w-4 rounded border-gray-300 text-optio-purple focus:ring-optio-purple" />
-            <span className="text-neutral-800">{p.name}</span>
-          </label>
-        ))}
-        {!shown.length && <p className="text-sm text-neutral-400 py-2">No match.</p>}
-      </div>
-    </div>
-  )
-}
 
 export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
   onClose, onAssigned, onUseTemplate }) {
@@ -296,10 +272,12 @@ export default function AssignComposer({ orgId, sigEndpoint, allowHr = false,
           </div>
           <div className="rounded-lg border border-gray-200 p-3">
             {tab === 'staff' ? (
-              <RecipientList people={staff} selected={staffIds} onToggle={toggle(setStaffIds)}
+              <PeoplePicker people={staff} selected={staffIds} onToggle={toggle(setStaffIds)}
+                searchLabel="Search recipients" maxHeight="max-h-44"
                 emptyLabel="No staff to assign to yet." />
             ) : (
-              <RecipientList people={families} selected={familyIds} onToggle={toggle(setFamilyIds)}
+              <PeoplePicker people={families} selected={familyIds} onToggle={toggle(setFamilyIds)}
+                searchLabel="Search recipients" maxHeight="max-h-44"
                 emptyLabel="No families to assign to yet." />
             )}
           </div>

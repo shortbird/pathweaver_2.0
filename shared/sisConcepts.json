@@ -577,15 +577,15 @@
     },
     {
       "id": "person_picker",
-      "means": "Picking a person from the school by typing. SearchSelect does this; three components rebuild it as a filtered list with a query box.",
-      "owner": { "web": ["components/ui/SearchSelect.jsx"] },
+      "means": "Picking people from the school by typing. One person: SearchSelect. Several at once (a message to some staff, a task for some teachers and families, a training for whoever has not started): components/sis/ui/PeoplePicker, the search-box-over-a-checklist that three dialogs each rebuilt until M14c (2026-09-17).",
+      "owner": { "web": ["components/ui/SearchSelect.jsx", "components/sis/ui/PeoplePicker.jsx"] },
       "forbid": {
         "web": { "pattern": "people\\.filter\\(\\(p\\) => [`(]", "dirs": ["components/sis", "pages/sis"] }
       },
-      "baseline": { "web": 3 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14c",
-      "use_instead": "<SearchSelect options={people} .../> from components/ui, the platform rule for any long-list picker."
+      "use_instead": "<SearchSelect options={people} .../> to pick one; <PeoplePicker people selected onToggle renderMeta renderTrailing actions .../> to tick several. Never a local query filter over a people list."
     },
     {
       "id": "brand_gradient",

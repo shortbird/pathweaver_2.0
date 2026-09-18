@@ -44,7 +44,7 @@ and patterns instead.
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
-| M14c-e Pickers, modals, inputs, tables | 2 | not started | | |
+| M14c-e Pickers, modals, inputs, tables | 2 | (c) shipped; (d), (e) not started | see git log (`consolidate/M14c-people-picker`) | `person_picker` 0 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | not started | | |
 | M8b Time-block table | 3 | not started | | |
@@ -1115,6 +1115,21 @@ design-system token. Add the SIS console to `docs/design/DESIGN_SYSTEM.md`.
 Verify: visual pass per page at :3000; `modalPortalGuard.test.js` count falls with
 each. Manifest `person_picker`, `modal_shell`, `input_recipe`, `sort_header`,
 `brand_gradient` count down per PR.
+
+(c) As shipped (2026-09-17): `components/sis/ui/PeoplePicker.jsx` is the one
+"tick several people" widget -- a search box over a checklist, with `getId`,
+`getLabel`, `getSearchText`, `renderMeta` (under the name), `renderTrailing`
+(at the edge), `actions` (beside the box), and its own empty and no-match
+copy -- drawn from `ui/Input`. `StaffComposeModal` (role labels under the
+name), `tasks/AssignComposer` (two lists, staff and families) and
+`TrainingPeoplePicker` (email under, progress pill at the edge, "Select not
+started" beside the box) render it; their three local query filters are gone.
+The fourth rebuilt picker, `RoleViewSwitcher`, was already on `SearchSelect`
+(single pick) upstream. Every existing test query (`Select <name>`, `Search
+staff`, `Search people`, `Search recipients`) still holds. Verify at :3000:
+Task Center > Assign a task (both lists filter), Messaging > New message
+(role labels, presets still add), Training > Choose people (progress pills,
+"Select not started").
 
 ### M19 — Parent surface parity
 
