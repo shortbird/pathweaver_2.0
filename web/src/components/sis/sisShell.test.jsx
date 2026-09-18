@@ -177,10 +177,11 @@ describe('SisSidebar', () => {
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()
     expect(screen.getByText('Classes')).toBeInTheDocument()
     expect(screen.getByText('Registration')).toBeInTheDocument()
-    // Their own tasks and documents: one entry, tabs inside (the old My
-    // Documents link — iCreate, 2026-08-26 — is a tab of My Tasks now).
-    expect(screen.getByText('My Tasks')).toBeInTheDocument()
-    expect(screen.getByText('Task Center')).toBeInTheDocument()
+    // Their own tasks and documents, and the office's queue: one entry, tabs
+    // inside (the old My Documents link — iCreate, 2026-08-26 — is a tab; so
+    // is the Task Center since 2026-09-17).
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.queryByText('Task Center')).not.toBeInTheDocument()
     // The teacher portal too: the admin tiers hold everything a teacher holds.
     expect(screen.getByText('My Classes')).toBeInTheDocument()
     expect(screen.getByText('My Schedule')).toBeInTheDocument()
@@ -222,19 +223,21 @@ describe('SisSidebar', () => {
     expect(screen.queryByText('Directory')).not.toBeInTheDocument()
   })
 
-  it('has no separate document entries — the stores live inside the two task pages', () => {
-    // Secure Documents is the Documents tab of Task Center (HR only, enforced
-    // there and on the server); My Documents is a tab of My Tasks. Two entries
-    // per side of the desk, not four nouns.
+  it('has no separate document or task entries — one Tasks page holds them as tabs', () => {
+    // Secure documents is an HR-only tab (enforced there and on the server);
+    // My documents, My tasks and the office's Requests / Assigned / Templates
+    // are the others. One entry, not six nouns.
     authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByText('My Tasks')).toBeInTheDocument()
-    expect(screen.getByText('Task Center')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/tasks')
+    expect(screen.queryByText('My Tasks')).not.toBeInTheDocument()
+    expect(screen.queryByText('Task Center')).not.toBeInTheDocument()
+    expect(screen.queryByText('Onboarding')).not.toBeInTheDocument()
     expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
     expect(screen.queryByText('My Documents')).not.toBeInTheDocument()
   })
 
-  it('keeps My Tasks while previewing a teacher — the page lands the preview on documents', () => {
+  it('keeps Tasks while previewing a teacher — the page lands the preview on documents', () => {
     // /api/sis/my-tasks deliberately takes no ?teacher_id=, so the task inbox
     // cannot answer for the teacher — but the Documents tab can, and the page
     // opens there under a preview (with a banner on the tasks tab naming whose
@@ -244,7 +247,7 @@ describe('SisSidebar', () => {
     setPreviewTeacher({ id: 'teach-1', name: 'Ana Rogers' })
     try {
       render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-      expect(screen.getByText('My Tasks')).toBeInTheDocument()
+      expect(screen.getByText('Tasks')).toBeInTheDocument()
       expect(screen.getByText('My Classes')).toBeInTheDocument()
     } finally {
       clearPreviewTeacher()

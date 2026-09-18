@@ -163,7 +163,7 @@ const CoordinatorDashboard = ({ userName }) => {
               </li>
             ))}
           </ul>
-          <Link to="/my-tasks" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
+          <Link to="/tasks" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
             Open my tasks →
           </Link>
         </DashboardCard>

@@ -75,7 +75,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       .then((r) => setAlerts(r.data?.alerts || []))
       .catch(() => setAlerts([]))
     // preview?.id (not the object) so a re-created preview object can't loop the effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [orgId, preview?.id])
 
   useEffect(() => { load() }, [load])
@@ -174,8 +174,8 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       {(onboarding && onboarding.status !== 'complete' && !hidden.has('onboarding')) && (
         // /my-tasks is deliberately blind to preview — its writes would land on
         // the admin — so an admin previewing a teacher followed this banner to
-        // their OWN tasks. The Checklist tab reads the previewed teacher's checklist.
-        <Link to={preview ? '/my-tasks?tab=checklist' : '/my-tasks'} className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
+        // their OWN tasks. The checklist view reads the previewed teacher's checklist.
+        <Link to={preview ? '/tasks?view=checklist' : '/tasks'} className="block rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-medium text-amber-900">
             Onboarding: {onboarding.done} of {onboarding.total} items complete
           </p>

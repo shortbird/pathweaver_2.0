@@ -36,8 +36,6 @@ export const SIS_MODULE_BY_PATH = {
   '/tasks': 'tasks',
   '/forms': 'forms',
   '/onboarding': 'onboarding',
-  // The sidebar's Onboarding door since M9: the Checklist tab of My Tasks.
-  '/my-tasks?tab=checklist': 'onboarding',
   '/secure-documents': 'secure_documents',
   '/timesheets': 'timesheets',
   '/time': 'timesheets',

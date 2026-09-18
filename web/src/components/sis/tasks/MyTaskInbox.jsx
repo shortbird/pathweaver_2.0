@@ -1,50 +1,39 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import BackToDashboard from '../../components/sis/BackToDashboard'
-import ChecklistSignature from '../../components/sis/ChecklistSignature'
-import { getPreviewTeacher } from './teacherPreview'
-import { MyDocumentsPanel } from './MyDocumentsPage'
-import MyChecklists from '../../components/sis/tasks/MyChecklists'
-import { isPathHidden } from './sisModules'
-import { useConfirm } from '../../contexts/ConfirmContext'
-import AnnouncementBody from '../../components/announcements/AnnouncementBody'
-import StatusPill from '../../components/sis/ui/StatusPill'
-import GlassTabBar from '../../components/ui/GlassTabBar'
+import api from '../../../services/api'
+import { withOrg } from '../../../pages/sis/useSisOrg'
+import ChecklistSignature from '../ChecklistSignature'
+import MyChecklists from './MyChecklists'
+import { useConfirm } from '../../../contexts/ConfirmContext'
+import AnnouncementBody from '../../announcements/AnnouncementBody'
+import StatusPill from '../ui/StatusPill'
 
 /**
- * My Tasks — everything the school is currently asking this person to do,
- * and the documents behind it.
+ * My tasks -- everything the school is currently asking this person to do.
  *
- * Before this page there were four: a request assigned to you lived in Forms, a
- * checklist item in Onboarding, a document sent for your signature nowhere in
- * particular, and a policy to acknowledge in Resources. Nobody checks four
- * places, so things sat.
+ * Before this list there were four places: a request assigned to you lived in
+ * Forms, a checklist item in Onboarding, a document sent for your signature
+ * nowhere in particular, and a policy to acknowledge in Resources. Nobody
+ * checks four places, so things sat.
  *
- * Tasks are completed HERE wherever the whole interaction fits — signing,
+ * Tasks are completed HERE wherever the whole interaction fits -- signing,
  * ticking an item, uploading a document, acknowledging a policy. A request
  * (which is a conversation, with a status and a comment thread) keeps its own
  * page and this list links into it. The rule is: if finishing it takes one
  * interaction, finish it here.
  *
- * The Documents tab is the same person-scoped view /my-documents serves (that
- * page stays mounted for deep links): what the school shared with you, what
- * you sent in. Half of what lands here is "sign this" or "upload that", so the
- * files those tasks produce live one tab over instead of one nav entry away.
+ * Two views of the same rows. The list is an inbox: what is outstanding,
+ * finished work behind "Show completed". "By checklist" is the whole
+ * checklist, ticks and all, grouped the way it was assigned -- the one list
+ * people go looking for on purpose ("which of my documents are in, which are
+ * still owed", iCreate 2026-09-10), which an inbox cannot answer. It was its
+ * own page (/onboarding), then its own tab; a checklist item is a task, so
+ * it is a view here (2026-09-17).
  *
- * The Checklist tab is the whole onboarding checklist, ticks and all -- the
- * one list people go looking for on purpose ("which of my documents are in,
- * which are still owed", iCreate 2026-09-10), which an inbox of outstanding
- * work cannot answer. It was its own page, /onboarding, until M9; that path
- * redirects here and the sidebar's Onboarding entry opens this tab.
- *
- * Under a teacher preview the tasks tab cannot answer for the teacher — the
- * inbox is always the CALLER's own (routes/sis/tasks.py takes no ?teacher_id=)
- * — so a preview lands on Documents, which does support it, and the tasks tab
- * says whose list it would be showing. The Checklist tab supports the
- * preview too.
+ * The inbox is always the CALLER's own (routes/sis/tasks.py takes no
+ * ?teacher_id=), so under a teacher preview the list says whose it would be
+ * showing; the checklist view does support the preview.
  */
 
 const TYPE_LABEL = {
@@ -254,31 +243,14 @@ const TaskRow = ({ task, orgId, busy, onChanged, setBusy }) => {
   )
 }
 
-const TABS = ['tasks', 'checklist', 'documents']
+const VIEWS = [['list', 'List'], ['checklist', 'By checklist']]
 
-const MyTasksPage = () => {
-  const { orgId, activeOrg } = useSisOrg()
-  const [preview] = useState(() => getPreviewTeacher())
-  const [searchParams, setSearchParams] = useSearchParams()
-  // An org that hid the onboarding module before the tab existed keeps it
-  // hidden: the config is a promise already made (sisModules).
-  const checklistHidden = isPathHidden('/onboarding', activeOrg)
-  // A preview lands on Documents: the tasks tab can only answer for the caller.
-  const wanted = searchParams.get('tab')
-  const tab = TABS.includes(wanted) && !(wanted === 'checklist' && checklistHidden)
-    ? wanted : (preview ? 'documents' : 'tasks')
-  const openItemKey = searchParams.get('item')
+export default function MyTaskInbox({ orgId, preview = null, view = 'list', onViewChange,
+  openItemKey = null, checklistHidden = false }) {
   const [data, setData] = useState({ tasks: [], counts: {} })
   const [showDone, setShowDone] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
-
-  const setTab = (next) => {
-    const params = new URLSearchParams(searchParams)
-    if (next === 'tasks' && !preview) params.delete('tab')
-    else params.set('tab', next)
-    setSearchParams(params, { replace: true })
-  }
 
   const load = useCallback(() => {
     if (!orgId) return
@@ -301,45 +273,33 @@ const MyTasksPage = () => {
   }), [data.tasks])
 
   const counts = data.counts || {}
+  const byChecklist = view === 'checklist' && !checklistHidden
 
   return (
-    <div className="space-y-6">
-      <div>
-        <BackToDashboard className="mb-1" />
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-neutral-900">
-            {preview && tab === 'documents' ? `${preview.name}'s documents` : 'My Tasks'}
-          </h1>
-        </div>
-        <p className="text-sm text-neutral-500 mt-1">
-          Everything waiting on you — documents to sign, checklists, requests and policies to
-          read — and your documents: what the school shared with you, and what you send back.
+    <div className="space-y-4">
+      {preview && !byChecklist && (
+        <p className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
+          These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
+          the task inbox. Their checklist is under &quot;By checklist&quot;; their documents are on
+          the My documents tab.
         </p>
-        {preview && tab === 'tasks' && (
-          <p className="mt-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
-            These are your own tasks, not {preview.name}&apos;s — the teacher preview does not cover
-            the task inbox. Their checklist and their documents are on the other two tabs here.
-          </p>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        {!checklistHidden && (
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white" role="group" aria-label="How to see your tasks">
+            {VIEWS.map(([key, label]) => (
+              <button key={key} type="button" onClick={() => onViewChange?.(key)} aria-pressed={byChecklist ? key === 'checklist' : key === 'list'}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  (byChecklist ? key === 'checklist' : key === 'list')
+                    ? 'bg-optio-purple text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         )}
-      </div>
-
-      <GlassTabBar
-        align="start" size="md" aria-label="My Tasks sections"
-        tabs={[
-          { id: 'tasks', label: 'My tasks' },
-          ...(checklistHidden ? [] : [{ id: 'checklist', label: 'My checklist' }]),
-          { id: 'documents', label: 'My documents' },
-        ]}
-        active={tab} onSelect={setTab}
-      />
-
-      {tab === 'documents' && <MyDocumentsPanel orgId={orgId} preview={preview} />}
-
-      {tab === 'checklist' && <MyChecklists orgId={orgId} preview={preview} openItemKey={openItemKey} />}
-
-      {tab === 'tasks' && (
-        <>
-          <div className="flex items-center gap-3 flex-wrap">
+        {!byChecklist && (
+          <>
             <span className="text-sm text-neutral-600">
               <span className="font-semibold text-neutral-900">{counts.open ?? 0}</span> open
             </span>
@@ -351,8 +311,14 @@ const MyTasksPage = () => {
                 className="h-4 w-4 accent-purple-700" />
               Show completed
             </label>
-          </div>
+          </>
+        )}
+      </div>
 
+      {byChecklist && <MyChecklists orgId={orgId} preview={preview} openItemKey={openItemKey} />}
+
+      {!byChecklist && (
+        <>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             {loading && <p className="text-sm text-neutral-500">Loading…</p>}
             {!loading && !open.length && !done.length && (
@@ -375,7 +341,7 @@ const MyTasksPage = () => {
                 anything here (iCreate, 2026-09-10). */}
             {!loading && !preview && !checklistHidden && (
               <p className="text-sm text-neutral-500 mt-3 pt-3 border-t border-gray-100">
-                <button type="button" onClick={() => setTab('checklist')}
+                <button type="button" onClick={() => onViewChange?.('checklist')}
                   className="text-optio-purple hover:underline">
                   See your full checklist
                 </button>
@@ -402,5 +368,3 @@ const MyTasksPage = () => {
     </div>
   )
 }
-
-export default MyTasksPage

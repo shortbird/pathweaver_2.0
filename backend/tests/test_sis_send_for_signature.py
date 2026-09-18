@@ -106,7 +106,7 @@ class TestSendingIt:
     def test_the_notification_points_at_the_right_portal(self):
         _result, _rows, _s, _r, notify = _send()
         links = [c.kwargs['link'] for c in notify.call_args_list]
-        assert links == ['/my-tasks', '/family/portal']
+        assert links == ['/tasks', '/family/portal']
 
     def test_a_title_and_note_and_due_date_ride_along(self):
         _result, rows, _s, _r, _n = _send(
@@ -367,7 +367,7 @@ class TestChasingAnUnsignedDocument:
 
     def test_a_staff_reminder_points_at_the_task_inbox(self):
         _, notify = self._remind()
-        assert notify.call_args.kwargs['link'] == '/my-tasks'
+        assert notify.call_args.kwargs['link'] == '/tasks'
 
     def test_a_family_reminder_points_at_the_family_portal(self):
         row = {**self.ROW, 'audience': 'family'}
@@ -444,7 +444,7 @@ class TestRequiringItBeforeAccess:
         _r, _rows, _s, _rm, notify = _send(blocks_access=True)
         staff = [c for c in notify.call_args_list if c[0][0] == 'kate'][0]
         assert staff[0][1] == 'Document to sign'
-        assert staff[1]['link'] == '/my-tasks'
+        assert staff[1]['link'] == '/tasks'
 
     def test_the_new_hold_takes_effect_immediately(self):
         """The gate caches "this person is clear" for a minute. A hold created

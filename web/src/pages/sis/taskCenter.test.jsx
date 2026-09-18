@@ -13,17 +13,19 @@ const render = (ui) => {
 import { MemoryRouter } from 'react-router-dom'
 
 /**
- * Task Center — organized by direction: Requests (what people send us),
- * Assigned (what we asked of people — tasks, checklists and signatures in ONE
- * list), Documents (the HR store).
+ * The office's side of the one Tasks page — organized by direction: Requests
+ * (what people send us), Assigned (what we asked of people — tasks,
+ * checklists and signatures in ONE list), Secure documents (the HR store).
+ * These tabs sit after My tasks and My documents and exist only for admins
+ * (2026-09-17: My Tasks and Task Center became one page).
  *
  * What is worth locking down: which endpoints a given role's page talks to
  * (that is where the HR line is drawn on the client — the server enforces it
  * regardless), that the unified Assigned list really carries all three kinds
  * of work, and that a retired tab name still lands somewhere sensible (it
- * lands on Requests; nothing the platform sends links to an old name -- the
+ * lands on My tasks; nothing the platform sends links to an old name -- the
  * dashboard tiles name the live tabs and notifications link to /forms and
- * /onboarding, checked against the notifications table on 2026-09-17).
+ * /tasks, checked against the notifications table on 2026-09-17).
  */
 
 const authState = { user: { id: 'admin-1', role: 'org_managed', org_roles: ['org_admin'] } }
@@ -55,7 +57,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import TaskCenterPage from './TaskCenterPage'
+import TasksPage from './TasksPage'
 
 const BATCH = {
   batch_id: 'b1', title: 'Employee handbook', sent_at: '2026-08-14T00:00:00Z',
@@ -96,7 +98,7 @@ const mockGets = (over = {}) => {
 }
 
 const renderPage = (path = '/tasks?tab=assigned') => render(
-  <MemoryRouter initialEntries={[path]}><TaskCenterPage /></MemoryRouter>)
+  <MemoryRouter initialEntries={[path]}><TasksPage /></MemoryRouter>)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -327,9 +329,12 @@ describe('starting a piece of work', () => {
 })
 
 describe('the tabs', () => {
-  it('opens on requests by default', async () => {
+  it('opens on My tasks by default, with the office tabs beside it', async () => {
     renderPage('/tasks')
-    expect(await screen.findByRole('tab', { name: 'Requests' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Requests' })).toBeInTheDocument()
+    // The office's counts are fetched for the badges even while the admin is
+    // looking at their own inbox.
     await waitFor(() => expect(
       api.get.mock.calls.some(([u]) => u.includes('/api/sis/staff-admin/forms'))).toBe(true))
   })
@@ -360,13 +365,13 @@ describe('the tabs', () => {
     expect(await screen.findByLabelText('Who receives Substitute request')).toHaveValue('julia-1')
   })
 
-  it('lands a retired tab name on Requests rather than nowhere', async () => {
+  it('lands a retired tab name on My tasks rather than nowhere', async () => {
     // ?tab=paperwork was a tab once; a bookmark may still say so. The page
     // used to carry a remap for every name it ever had (M10 retired it: the
     // tiles link to the live names, and no sent notification uses an old
     // one), so an unknown tab is simply the first tab.
     renderPage('/tasks?tab=paperwork')
-    expect(await screen.findByRole('tab', { name: 'Requests' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByText('Employee handbook')).not.toBeInTheDocument()
   })
 
@@ -380,14 +385,15 @@ describe('the tabs', () => {
 })
 
 /**
- * Documents is the filing cabinet, and it is HR's: contracts and background
- * checks live there. A coordinator does not get an emptier version of the tab
- * — they get no tab, because signature tracking (the one thing they had on
- * the old paperwork tab) now lives on Assigned.
+ * Secure documents is the filing cabinet, and it is HR's: contracts and
+ * background checks live there. A coordinator does not get an emptier version
+ * of the tab — they get no tab, because signature tracking (the one thing
+ * they had on the old paperwork tab) now lives on Assigned. My documents,
+ * the person's own, is a different tab for everybody.
  */
-describe('the documents tab', () => {
+describe('the secure documents tab', () => {
   it('shows the secure store to an HR administrator', async () => {
-    renderPage('/tasks?tab=documents')
+    renderPage('/tasks?tab=secure')
     expect(await screen.findByText('Upload a document')).toBeInTheDocument()
     await waitFor(() => expect(api.get.mock.calls.some(
       ([u]) => u.includes('/api/sis/secure-documents?'))).toBe(true))
@@ -395,10 +401,12 @@ describe('the documents tab', () => {
 
   it('does not exist for a campus coordinator', async () => {
     authState.user = { id: 'kate', role: 'org_managed', org_roles: ['campus_coordinator'] }
-    renderPage('/tasks?tab=documents')
-    // The tab is gone and the deep link falls back to Requests.
-    expect(await screen.findByRole('tab', { name: 'Requests' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Documents' })).not.toBeInTheDocument()
+    renderPage('/tasks?tab=secure')
+    // The tab is gone and the deep link falls back to My tasks.
+    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Requests' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Secure documents' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'My documents' })).toBeInTheDocument()
     expect(api.get.mock.calls.some(([u]) => u.includes('/api/sis/secure-documents?'))).toBe(false)
   })
 })

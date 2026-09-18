@@ -69,7 +69,7 @@ def test_each_recipient_gets_their_own_row_and_notification():
     assert [r['user_id'] for r in rows] == ['kate', 'sam']
     assert notify.call_count == 2
     # Staff are pointed at the inbox where the checkbox is.
-    assert notify.call_args.kwargs['link'] == '/my-tasks'
+    assert notify.call_args.kwargs['link'] == '/tasks'
 
 
 def test_family_tasks_point_at_the_family_portal():

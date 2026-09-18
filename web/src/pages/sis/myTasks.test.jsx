@@ -4,14 +4,26 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * My Tasks — the unified inbox.
+ * My tasks — the unified inbox, the first tab of the one Tasks page.
  *
  * The page's job is to be the one place a person looks, so what these tests
  * hold down is that things are actually finishable here: a document sent for
  * signature is signed in place, a policy is acknowledged in one click, and a
  * request — which is a conversation, not a one-click job — links out to its own
- * page rather than pretending to be completable in a list.
+ * page rather than pretending to be completable in a list. A teacher (not an
+ * admin) is the person here: they see My tasks and My documents and none of
+ * the office's tabs.
  */
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'kate', role: 'org_managed', org_roles: ['advisor'] } }),
+}))
+vi.mock('./teacherPreview', () => ({
+  getPreviewTeacher: () => null,
+  withPreview: (p) => p,
+  setPreviewTeacher: vi.fn(),
+  clearPreviewTeacher: vi.fn(),
+}))
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -33,7 +45,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import MyTasksPage from './MyTasksPage'
+import TasksPage from './TasksPage'
 
 const SIGNATURE_TASK = {
   id: 'onb:a1:sign', type: 'signature', title: 'Sign: Employee handbook',
@@ -71,7 +83,7 @@ const respond = (tasks, counts = {}) => {
   })
 }
 
-const renderPage = () => render(<MemoryRouter><MyTasksPage /></MemoryRouter>)
+const renderPage = (path = '/tasks') => render(<MemoryRouter initialEntries={[path]}><TasksPage /></MemoryRouter>)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -180,11 +192,14 @@ describe('the finished half of the checklist is still reachable', () => {
   // An inbox drops what is done, so an empty page says "nothing outstanding"
   // and reads as "your onboarding is gone" — which is how iCreate's teachers
   // reported it on 2026-09-10 after the Onboarding nav entry was removed. The
-  // full checklist, ticks and all, is the Checklist tab (M9); say so here.
-  const renderWithQueries = () => {
+  // full checklist, ticks and all, is the "By checklist" view of My tasks
+  // (2026-09-17, after being its own page and then its own tab); say so here.
+  const renderWithQueries = (path = '/tasks') => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
-      <QueryClientProvider client={client}><MemoryRouter><MyTasksPage /></MemoryRouter></QueryClientProvider>)
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[path]}><TasksPage /></MemoryRouter>
+      </QueryClientProvider>)
   }
 
   it('opens the full checklist even when nothing is waiting', async () => {
@@ -192,7 +207,7 @@ describe('the finished half of the checklist is still reachable', () => {
     renderWithQueries()
     await screen.findByText(/Nothing is waiting on you/i)
     fireEvent.click(screen.getByRole('button', { name: /full checklist/i }))
-    expect(screen.getByRole('tab', { name: 'My checklist' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'By checklist' })).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByText(/No checklist assigned to you/)).toBeInTheDocument()
   })
 
@@ -203,13 +218,24 @@ describe('the finished half of the checklist is still reachable', () => {
     expect(screen.getByRole('button', { name: /full checklist/i })).toBeInTheDocument()
   })
 
-  it('lands on the checklist tab from an /onboarding-era link', async () => {
+  it('lands on the checklist view from an /onboarding-era link', async () => {
     respond([])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={['/my-tasks?tab=checklist&assignment=a1&item=sign']}><MyTasksPage /></MemoryRouter>
-      </QueryClientProvider>)
-    expect(await screen.findByRole('tab', { name: 'My checklist' })).toHaveAttribute('aria-selected', 'true')
+    renderWithQueries('/tasks?view=checklist&assignment=a1&item=sign')
+    expect(await screen.findByRole('button', { name: 'By checklist' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
+describe('the office tabs are the office\'s', () => {
+  it('shows a teacher only their own two tabs, and lands an office tab link on My tasks', async () => {
+    respond([])
+    renderPage('/tasks?tab=requests')
+    expect(await screen.findByRole('tab', { name: 'My tasks' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'My documents' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Requests' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Assigned' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Assign a task/ })).not.toBeInTheDocument()
+    // Nothing of the office's was fetched for them.
+    expect(api.get.mock.calls.some(([u]) => u.includes('/staff-admin/'))).toBe(false)
   })
 })

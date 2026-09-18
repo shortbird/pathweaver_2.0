@@ -140,7 +140,7 @@ def _checklist_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str,
                 'required': bool(item.get('required', True)),
                 'documents': onboarding.item_documents(item),
                 'link': ('/family/portal' if audience == 'family'
-                         else f"/my-tasks?tab=checklist&assignment={a['id']}&item={item.get('key')}"),
+                         else f"/tasks?view=checklist&assignment={a['id']}&item={item.get('key')}"),
                 'is_signature_request': is_send,
             })
     return out

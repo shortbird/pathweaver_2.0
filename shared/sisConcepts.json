@@ -473,8 +473,8 @@
     },
     {
       "id": "legacy_tab_remap",
-      "means": "Dashboard tiles deep-linked to tab names the Task Center no longer had, and the page remapped them on arrival. Retired by M10: the tiles name the live tabs and no sent notification uses an old name.",
-      "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
+      "means": "Dashboard tiles deep-linked to tab names the Task Center no longer had, and the page remapped them on arrival. Retired by M10: the tiles name the live tabs and no sent notification uses an old name. The Task Center and My Tasks became one page, pages/sis/TasksPage.jsx, on 2026-09-17.",
+      "owner": { "web": ["pages/sis/TasksPage.jsx"] },
       "forbid": {
         "web": { "pattern": "const LEGACY_TABS\\s*=", "dirs": ["pages/sis"], "exempt": [] }
       },
@@ -485,15 +485,15 @@
     },
     {
       "id": "queue_double_mount",
-      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10; /forms now sends an admin to the Task Center with the deep link intact.",
-      "owner": { "web": ["pages/sis/TaskCenterPage.jsx"] },
+      "means": "The staff-forms admin queue rendered by two routes (/tasks and /forms) until M10; /forms now sends an admin to the Tasks page's Requests tab with the deep link intact (the Task Center and My Tasks became that one page on 2026-09-17).",
+      "owner": { "web": ["pages/sis/TasksPage.jsx"] },
       "forbid": {
         "web": { "pattern": "<AdminQueue\\b", "dirs": ["pages/sis", "components/sis"] }
       },
       "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M10",
-      "use_instead": "AdminQueue mounts once, in TaskCenterPage; /forms redirects there (M10)."
+      "use_instead": "AdminQueue mounts once, in TasksPage; /forms redirects there (M10)."
     },
     {
       "id": "dashboard_card",

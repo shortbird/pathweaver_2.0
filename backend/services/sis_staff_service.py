@@ -238,7 +238,7 @@ def create_assignment(org_id: str, fields: Dict[str, Any], created_by: str) -> D
     sis_notifications.notify(
         target, 'New assignment',
         f'You have a new {a_type}: {title}',
-        link='/my-tasks', organization_id=org_id)
+        link='/tasks', organization_id=org_id)
     return {'assignment': row[0] if row else None}
 
 

@@ -48,6 +48,7 @@ and patterns instead.
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
 | M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
+| M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
 `declined (<why>)`.
@@ -1050,6 +1051,37 @@ sign a checklist item; as a parent, the funnel's paperwork step shows the
 affirmation tick and refuses to continue without it; as an admin, the setup
 tab's paperwork preview shows the same sentence, and Task Center > Assigned
 finds "lisa w-4" and opens the card on the W-4.
+
+### M20 — One tasks page (added 2026-09-17, after M9)
+
+Tanner, reviewing M9 at :3000: "my tasks and task center feel like they could
+be merged, and onboarding feels like a task within that. is there a good
+reason to keep them separate?" There was not. The two pages differed only by
+the verb's direction (what is waiting on me vs. what the office is waiting on
+from others); every office endpoint is gated server-side, so the `AdminRoute`
+on `/tasks` was a door, not a lock; and the checklist was a view of the inbox
+that hid finished items, not a page.
+
+**As shipped (2026-09-17).** `pages/sis/TasksPage.jsx` at `/tasks` for every
+staff member: tabs `My tasks` (the inbox, `components/sis/tasks/
+MyTaskInbox.jsx`, with a `List | By checklist` switch -- `?view=checklist` --
+and "Show completed"), `My documents`, and for admins `Requests`, `Assigned`,
+`Templates` and, for HR, `Secure documents` (tab id `secure`; the HR store used
+to share the id `documents` with the person's own). The Assign / New request
+split button shows for admins only; the office's badge counts are fetched for
+admins only. `MyTasksPage.jsx` and `TaskCenterPage.jsx` are deleted.
+`/my-tasks` and `/onboarding` redirect to `/tasks` with their query strings
+(`?tab=checklist` becomes `?view=checklist`; `?assignment=&item=` ride along),
+`/secure-documents` to `/tasks?tab=secure`. The sidebar's "Tasks & Documents"
+section has one entry, `Tasks`; the Onboarding door is gone (the checklist is
+one click inside, and `/onboarding` still lands on it) -- restore it as
+`/tasks?view=checklist` if iCreate's teachers miss it. Backend notification
+links (`sis_tasks_service`, `sis_onboarding_service`, `sis_staff_service`,
+`sis_forms_service`) point at `/tasks`. A teacher preview still lands on My
+documents. Verify at :3000 as a teacher: `/tasks` shows two tabs, the
+checklist switch, and no office button; as an admin: six tabs, badges on
+Requests and Assigned, the split button; `/my-tasks`, `/onboarding` and a
+dashboard tile all land on the right tab.
 
 ### M13 — One detail surface per entity
 

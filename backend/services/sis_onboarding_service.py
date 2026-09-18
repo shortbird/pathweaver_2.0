@@ -454,7 +454,7 @@ def assign(org_id: str, template_id: str, user_id: str, assigned_by: str) -> Dic
     # Family checklists live in the learning-app family portal; staff ones in the
     # SIS console — point the notification at the right place.
     is_family = _clean_audience(template.get('audience')) == 'family'
-    link = '/family/portal' if is_family else '/my-tasks?tab=checklist'
+    link = '/family/portal' if is_family else '/tasks?view=checklist'
     items = [{**i, 'status': 'pending', 'document_url': None,
               'submitted_at': None, 'approved_by': None, 'approved_at': None,
               'admin_notes': None, 'signature': None}
@@ -526,7 +526,7 @@ def assign_task(org_id: str, title: str, user_ids: List[str], assigned_by: str,
         return {'error': str(e)}
     audience = _clean_audience(audience)
     is_family = audience == 'family'
-    link = '/family/portal' if is_family else '/my-tasks'
+    link = '/family/portal' if is_family else '/tasks'
 
     if items:
         cleaned = _clean_items(items)
@@ -1069,7 +1069,7 @@ def send_for_signature(org_id: str, sent_by: str, blob: bytes, filename: str,
         return {'error': 'Could not send the document for signature', 'status': 500}
 
     for row in rows:
-        link = '/family/portal' if row['audience'] == 'family' else '/my-tasks'
+        link = '/family/portal' if row['audience'] == 'family' else '/tasks'
         required = row.get('blocks_access')
         sis_notifications.notify(
             row['user_id'],
@@ -1226,7 +1226,7 @@ def remind_signature_recipient(org_id: str, assignment_id: str, *,
     sis_notifications.notify(
         row['user_id'], 'Reminder: document to sign',
         f'"{title}" is still waiting for your signature.',
-        link='/family/portal' if is_family else '/my-tasks',
+        link='/family/portal' if is_family else '/tasks',
         organization_id=org_id)
     return {'reminded': row['user_id']}
 
@@ -1493,7 +1493,7 @@ def update_item(org_id: str, assignment_id: str, item_key: str,
             sis_notifications.notify(
                 assignment['user_id'],
                 f'Onboarding item {status}', target['title'],
-                link='/my-tasks?tab=checklist', organization_id=org_id)
+                link='/tasks?view=checklist', organization_id=org_id)
     if is_admin and 'admin_notes' in fields:
         target['admin_notes'] = (fields.get('admin_notes') or '').strip() or None
 

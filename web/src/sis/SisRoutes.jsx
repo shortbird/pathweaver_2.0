@@ -16,12 +16,19 @@ import { useAuth } from '../contexts/AuthContext'
 // is bounced too — mirroring exactly what the org's admin can reach. `path`
 // is the leading-slash nav path (e.g. '/clp'). Replaced the former
 // ModuleRoute / CommunityRoute / PriorLearningRoute trio.
-// /onboarding -> My Tasks' Checklist tab, query string intact.
-const OnboardingRedirect = () => {
+// The two task pages became one on 2026-09-17: /tasks holds My tasks (with
+// the checklist as a view), My documents and, for admins, the office's tabs.
+// Older links keep working: /my-tasks was the person's page (its ?tab=
+// checklist is now ?view=checklist on My tasks), /onboarding the person's
+// checklist. Query strings ride along, so ?assignment=&item= from an older
+// notification still lands on the item.
+const TasksRedirect = ({ view = null }) => {
   const { search } = useLocation()
   const params = new URLSearchParams(search)
-  params.set('tab', 'checklist')
-  return <Navigate to={`/my-tasks?${params.toString()}`} replace />
+  if (params.get('tab') === 'checklist') { params.delete('tab'); params.set('view', 'checklist') }
+  if (view) params.set('view', view)
+  const query = params.toString()
+  return <Navigate to={`/tasks${query ? `?${query}` : ''}`} replace />
 }
 
 const ModuleGate = ({ path, children }) => {
@@ -123,8 +130,7 @@ const MySchedulePage = lazy(() => import('../pages/sis/MySchedulePage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
-const MyTasksPage = lazy(() => import('../pages/sis/MyTasksPage'))
-const TaskCenterPage = lazy(() => import('../pages/sis/TaskCenterPage'))
+const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
 const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
 const MyTimePage = lazy(() => import('../pages/sis/MyTimePage'))
 const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
@@ -175,9 +181,9 @@ const SisRoutes = () => (
       <Route path="submissions" element={<ModuleGate path="/submissions"><SubmissionsPage /></ModuleGate>} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
-      {/* The HR document store is the Task Center's Documents tab; this was a
-          second door to the same panel that nothing linked to (M10). */}
-      <Route path="secure-documents" element={<HrRoute><Navigate to="/tasks?tab=documents" replace /></HrRoute>} />
+      {/* The HR document store is the Tasks page's Secure documents tab; this
+          was a second door to the same panel that nothing linked to (M10). */}
+      <Route path="secure-documents" element={<HrRoute><Navigate to="/tasks?tab=secure" replace /></HrRoute>} />
       {/* Messaging merged into the inbox (2026-08-31) — the old path keeps
           working for bookmarks and old notification links. */}
       <Route path="messaging" element={<Navigate to="/inbox?tab=announcements" replace />} />
@@ -200,16 +206,15 @@ const SisRoutes = () => (
       <Route path="my-schedule" element={<ModuleGate path="/my-schedule"><MySchedulePage /></ModuleGate>} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
-      {/* The unified surfaces. /forms stays mounted rather than redirecting: it
+      {/* The one task surface (TasksRedirect above says what /my-tasks and
+          /onboarding became). /forms stays mounted rather than redirecting: it
           owns the deep-linked completion flow the task inbox links into
           (?submission=), and every notification sent before this shipped
-          points at it. It is simply off the nav. /onboarding became the
-          Checklist tab of My Tasks (M9); the redirect keeps ?assignment=&item=
-          so older notifications still land on the item. */}
-      <Route path="my-tasks" element={<ModuleGate path="/my-tasks"><MyTasksPage /></ModuleGate>} />
-      <Route path="tasks" element={<AdminRoute><ModuleGate path="/tasks"><TaskCenterPage /></ModuleGate></AdminRoute>} />
+          points at it. It is simply off the nav. */}
+      <Route path="tasks" element={<ModuleGate path="/tasks"><TasksPage /></ModuleGate>} />
+      <Route path="my-tasks" element={<TasksRedirect />} />
       <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
-      <Route path="onboarding" element={<ModuleGate path="/onboarding"><OnboardingRedirect /></ModuleGate>} />
+      <Route path="onboarding" element={<ModuleGate path="/onboarding"><TasksRedirect view="checklist" /></ModuleGate>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />
       <Route path="time" element={<ModuleGate path="/time"><MyTimePage /></ModuleGate>} />
       <Route path="timesheets" element={<FinanceRoute><ModuleGate path="/timesheets"><TimesheetsPage /></ModuleGate></FinanceRoute>} />

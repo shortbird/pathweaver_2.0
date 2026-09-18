@@ -97,7 +97,7 @@ const FirstDayOfSchoolCard = ({ orgId, org, onUpdate }) => {
           <h2 className="text-lg font-semibold text-neutral-900">Add/drop deadline</h2>
           <div className="text-sm text-neutral-500">
             Through this date, families see a "Request an add/drop" button on the Schedule Builder;
-            each request arrives in the Task Center for the office to work. The button disappears at
+            each request arrives under Tasks > Requests for the office to work. The button disappears at
             midnight after this date. Leave blank to take no add/drop requests.
           </div>
         </div>

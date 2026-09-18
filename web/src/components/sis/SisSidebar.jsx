@@ -1,5 +1,5 @@
 import React from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { userHasFamily } from '../../contexts/FamilyScopeContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
@@ -88,29 +88,21 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    // Things people owe, and the paperwork behind them. Forms, Secure Documents
-    // and My Documents used to sit here separately; they are now tabs inside My
-    // Tasks (what I owe, and my documents) and Task Center (what the office
-    // asks, and the secure store). Their own paths still work for deep links
-    // and old notifications.
+    // Things people owe, and the paperwork behind them. Forms, Secure
+    // Documents, My Documents, My Tasks, Onboarding and Task Center used to sit
+    // here as separate entries; they are tabs of one page now. Their own paths
+    // still work for deep links and old notifications.
     label: 'Tasks & Documents',
     items: [
-      // Visible in preview: the page lands a preview on its Documents tab
-      // (which supports ?teacher_id=) and keeps the task inbox — always the
-      // CALLER's own, routes/sis/tasks.py takes no ?teacher_id= — behind a
-      // banner naming whose list it is.
-      { name: 'My Tasks', path: '/my-tasks', d: ICONS.check },
-      // Onboarding was folded into My Tasks on 2026-08-14 and its nav entry
-      // deleted. That was wrong for the one list people go looking for on
-      // purpose: My Tasks answers "what is outstanding" and hides finished
-      // items behind a checkbox, so a teacher who wanted to re-read her
-      // checklist — which docs are in, which are still owed — found the entry
-      // gone and the items gone with it, and reported onboarding as broken
-      // (iCreate, 2026-09-10). The Checklist tab of My Tasks shows every item
-      // in one place, done and not done, which is the question actually being
-      // asked. Both doors stay open; since M9 they open the same page.
-      { name: 'Onboarding', path: '/my-tasks?tab=checklist', d: ICONS.doc },
-      { name: 'Task Center', path: '/tasks', adminOnly: true, d: ICONS.clipboard },
+      // One page for everyone (2026-09-17): what is waiting on me, my
+      // documents, and -- for admins -- the office's queue, what it assigned,
+      // the templates and the HR store, as tabs. It was My Tasks + Task Center
+      // + an Onboarding door; the person's checklist is a view of My tasks
+      // now ("By checklist"), and /onboarding still lands there. Visible in
+      // preview: the page lands a preview on My documents (which supports
+      // ?teacher_id=) and keeps the inbox -- always the CALLER's own -- behind
+      // a banner naming whose list it is.
+      { name: 'Tasks', path: '/tasks', d: ICONS.check },
     ],
   },
   {
@@ -168,22 +160,8 @@ const linkClass = ({ isActive }) => `
     : 'text-neutral-700 hover:bg-[#F3EFF4]'}
 `
 
-// Two doors can share a pathname when one opens a tab of the other's page
-// (Onboarding is My Tasks' Checklist tab). NavLink matches on the pathname
-// alone, so the tab door is active only on its tab, and the page's own door
-// everywhere on that page except a sibling door's tab.
-const tabOf = (search) => new URLSearchParams(search).get('tab')
-const doorIsActive = (item, isActive, location) => {
-  if (!isActive) return false
-  const [pathname, query] = item.path.split('?')
-  const here = tabOf(location.search)
-  if (query) return here === tabOf(`?${query}`)
-  return !NAV_SECTIONS.some((s) => s.items.some((it) => it.path === `${pathname}?tab=${here}`))
-}
-
 const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   const { user } = useAuth()
-  const location = useLocation()
   // activeOrg is the org currently in view — for a superadmin that's the one
   // picked in the org selector, so the nav mirrors that org's admin exactly.
   const { activeOrg } = useSisOrg()
@@ -266,8 +244,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
                 </div>
               )}
               {items.map((item) => (
-                <NavLink key={item.path} to={item.path} end={item.end}
-                  className={({ isActive }) => linkClass({ isActive: doorIsActive(item, isActive, location) })}
+                <NavLink key={item.path} to={item.path} end={item.end} className={linkClass}
                   onClick={onNavigate}>
                   <span className="text-neutral-500">{icon(item.d)}</span>
                   {item.name}

@@ -279,7 +279,7 @@ def submit(org_id: str, user_id: str, data: Dict[str, Any],
 
 # The SIS console. Task links have to leave the app entirely, so they cannot be
 # relative the way an in-app notification link is.
-SIS_TASKS_URL = 'https://sis.optioeducation.com/my-tasks'
+SIS_TASKS_URL = 'https://sis.optioeducation.com/tasks'
 
 # Where the person who filed a submission reads it. Staff read the console's
 # queue; a family reads the Forms page in the learning app, and the two are
