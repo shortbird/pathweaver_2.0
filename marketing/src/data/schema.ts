@@ -19,6 +19,7 @@ export const AUTHOR = {
   name: 'Dr. Tanner Bowman',
   title: 'Founder and Head of School, Optio Academy',
   image: `${SITE.url}/images/head-of-school.png`,
+  sameAs: ['https://www.linkedin.com/in/tannerbowman/'],
 }
 
 export function organizationNode() {
@@ -66,6 +67,7 @@ export function personNode() {
     name: AUTHOR.name,
     jobTitle: AUTHOR.title,
     image: AUTHOR.image,
+    sameAs: AUTHOR.sameAs,
     worksFor: { '@id': ORG_ID },
     url: SITE.url,
   }
