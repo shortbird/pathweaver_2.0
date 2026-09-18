@@ -187,20 +187,20 @@ describe('the finished half of the checklist is still reachable', () => {
       <QueryClientProvider client={client}><MemoryRouter><MyTasksPage /></MemoryRouter></QueryClientProvider>)
   }
 
-  it('opens the full onboarding checklist even when nothing is waiting', async () => {
+  it('opens the full checklist even when nothing is waiting', async () => {
     respond([])
     renderWithQueries()
     await screen.findByText(/Nothing is waiting on you/i)
-    fireEvent.click(screen.getByRole('button', { name: /full onboarding checklist/i }))
+    fireEvent.click(screen.getByRole('button', { name: /full checklist/i }))
     expect(screen.getByRole('tab', { name: 'My checklist' })).toHaveAttribute('aria-selected', 'true')
-    expect(await screen.findByText(/No onboarding checklist assigned to you/)).toBeInTheDocument()
+    expect(await screen.findByText(/No checklist assigned to you/)).toBeInTheDocument()
   })
 
   it('still points at it when there is outstanding work', async () => {
     respond([SIGNATURE_TASK])
     renderPage()
     await screen.findByText('Sign: Employee handbook')
-    expect(screen.getByRole('button', { name: /full onboarding checklist/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /full checklist/i })).toBeInTheDocument()
   })
 
   it('lands on the checklist tab from an /onboarding-era link', async () => {

@@ -377,7 +377,7 @@ const MyTasksPage = () => {
               <p className="text-sm text-neutral-500 mt-3 pt-3 border-t border-gray-100">
                 <button type="button" onClick={() => setTab('checklist')}
                   className="text-optio-purple hover:underline">
-                  See your full onboarding checklist
+                  See your full checklist
                 </button>
                 {' '}— every item, including the ones you have already finished.
               </p>

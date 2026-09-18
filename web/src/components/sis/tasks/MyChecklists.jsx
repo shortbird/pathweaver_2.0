@@ -36,7 +36,7 @@ export default function MyChecklists({ orgId, preview = null, hideWhenEmpty = fa
   const load = mine.refetch
 
   useEffect(() => {
-    if (mine.isError) toast.error('Failed to load your onboarding')
+    if (mine.isError) toast.error('Failed to load your checklist')
   }, [mine.isError])
 
   const patchItem = async (assignmentId, itemKey, fields) => {
@@ -99,7 +99,7 @@ export default function MyChecklists({ orgId, preview = null, hideWhenEmpty = fa
     if (hideWhenEmpty) return null
     return (
       <p className="text-neutral-500">
-        {preview ? `No onboarding checklist assigned to ${preview.name}.` : 'No onboarding checklist assigned to you.'}
+        {preview ? `No checklist assigned to ${preview.name}.` : 'No checklist assigned to you.'}
       </p>
     )
   }
