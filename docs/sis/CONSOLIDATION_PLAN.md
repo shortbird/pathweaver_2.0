@@ -43,7 +43,7 @@ and patterns instead.
 | M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not); enrollment backfill run on prod 2026-09-18 (iCreate 186, Gryffin 6, Optio Academy 2) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
-| M13 One detail surface per entity | 2 | 13a shipped (one mount, `RecordDoors`); 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13b not started | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`) | `class_form_mount` 1, `staff_phone_edit` 0, new `student_record_mount` 1 |
+| M13 One detail surface per entity | 2 | 13a and 13b shipped (one mount each, `RecordDoors`); 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`) | `class_form_mount` 1, `staff_phone_edit` 0, new `student_record_mount` 1, `family_record_mount` 1 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
@@ -1166,7 +1166,7 @@ into `StaffDetailModal` is NOT done: `TeacherModal` carries three dialog states 
 its own (the form and two duplicate-match prompts), and hosting it as a tab means
 three nested panels; PeoplePage still mounts the stack. 13f: confirmed, M8a's
 `useRegistrationConfig` is the one fetch (`org_payload_fetch` 0). 13a: ticket
-`7962081e` (rename without an email) was fixed upstream in `a036e9b2`. 13b: not started.
+`7962081e` (rename without an email) was fixed upstream in `a036e9b2`.
 
 **13a as shipped (2026-09-18).** The student record is mounted once:
 `components/sis/RecordDoors.jsx` is a provider `SisLayout` renders around the
@@ -1188,6 +1188,23 @@ cell (photo, name, age, the email-or-username line, the door) for the People tab
 and the roster. Manifest row `student_record_mount`: `<StudentDetailModal` mounted
 once, counted with the owner (baseline 1). Outside the provider (tests render pages
 bare) the door is a no-op; a test that asserts on the modal wraps its page.
+
+**13b as shipped (2026-09-18).** The family record is mounted once, beside the
+student's, in the same provider: `useRecordDoors().openFamily(householdId, { tab,
+onSaved })` reads the household from the families query (so a save that invalidates
+it refreshes the open record, as People's own wiring did) and the roster for the
+add-member picker, and lands on the asked-for tab. M7 had made the family record the
+billing hub but reached it by sending the office to `/people?open=<id>&tab=billing`;
+the Billing page's family detail, the recurring-tuition list and the directives
+card's "Registered" pill now open the record over the page they are on, and the
+student record's family name is a door to the family (a family opens over a student
+and a student over a family; the one opened last is on top). `/people?open=` and
+`?student=` stay as deep links for the dashboard and notifications. The hook lives
+in `components/sis/recordDoorsContext.js` so the two modals can use it without
+importing the provider back (`importCycles.test.js` caught the cycle). Manifest row
+`family_record_mount`: `<FamilyDetailModal` mounted once (baseline 1). Not done, on
+purpose: membership editing already lives on the family's Members tab and the photo
+on its header (M4e), so nothing moved there.
 
 ### M14c/d/e — Pickers, modals, inputs, tables
 

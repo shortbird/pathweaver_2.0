@@ -12,6 +12,7 @@ import { useConfirm } from '../../contexts/ConfirmContext'
 import { useOrgSettings } from '../../hooks/api/useSisSettings'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import { Spinner } from '../../components/ui/Spinner'
+import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 /**
  * SIS Registration page — everything about how families register, in two tabs:
@@ -385,6 +386,7 @@ const parseEmails = (text) => {
 // they've registered here yet (matched household). The paste box marks parents
 // prepaid by email — applied automatically when they register with that email.
 const FamilyDirectivesCard = ({ orgId }) => {
+  const { openFamily } = useRecordDoors()
   const [directives, setDirectives] = useState(null)
   const [filter, setFilter] = useState('all') // all | pending | hold
   const [pasted, setPasted] = useState('')
@@ -499,10 +501,15 @@ const FamilyDirectivesCard = ({ orgId }) => {
                     <td className="py-2">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">
                         {d.matched_household_id
-                          ? <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700"
-                              title={d.applied_at ? `Applied to the family ${String(d.applied_at).slice(0, 10)}` : 'Registered'}>
+                          ? (
+                            // The family this directive became: its record
+                            // opens here (M13b) rather than a search on People.
+                            <button type="button" onClick={() => openFamily(d.matched_household_id, { onSaved: reload })}
+                              className="text-xs font-medium rounded-full px-2 py-0.5 bg-green-100 text-green-700 hover:bg-green-200"
+                              title={d.applied_at ? `Applied to the family ${String(d.applied_at).slice(0, 10)}. Open the family.` : 'Registered. Open the family.'}>
                               {d.applied_at ? `Applied ${String(d.applied_at).slice(0, 10)}` : 'Registered'}
-                            </span>
+                            </button>
+                          )
                           : <span className="text-xs font-medium rounded-full px-2 py-0.5 bg-neutral-100 text-neutral-500">Not registered</span>}
                         {d.registration_hold && (
                           <span className="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700" title={d.hold_reason || ''}>Hold</span>

@@ -1,39 +1,48 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import { sisStudentApi } from '../../hooks/api/useSisStudentDetail'
+import { useSisHouseholds } from '../../hooks/api/useSisHouseholds'
+import { useSisRoster } from '../../hooks/api/useSisRoster'
 import { queryKeys } from '../../utils/queryKeys'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import StudentDetailModal from '../../pages/sis/StudentDetailModal'
+import FamilyDetailModal from '../../pages/sis/FamilyDetailModal'
+import { RecordDoorsContext, useRecordDoors } from './recordDoorsContext'
 
 /**
- * The one door onto a person's record.
+ * The one door onto a person's record, and the one onto a family's.
  *
  * StudentDetailModal is the student's record: profile, family, emergency
- * contacts, the school's record and materials, the schedule, a message. Until
- * M13a (2026-09-18) it was mounted by whichever page wanted it (People, the
- * family record), and the surfaces that did not mount it -- the CLP meeting,
- * a class roster, the learning app's admin page -- drew a partial student of
- * their own instead (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, G-1).
- * SisLayout mounts the modal once, through this provider, and anything in
- * the console opens it:
+ * contacts, the school's record and materials, the schedule, a message.
+ * FamilyDetailModal is the family's: members, details, billing, contacts,
+ * registration. Until M13a/b (2026-09-18) each was mounted by whichever page
+ * wanted it, and the surfaces that did not mount one -- the CLP meeting, a
+ * class roster, the Billing page, the recurring-tuition list, the directives
+ * card, the learning app's admin page -- drew a partial student or family of
+ * their own, or sent the office to People (audit G-1, G-2). SisLayout mounts
+ * both modals once, through this provider, and anything in the console opens
+ * them:
  *
- *   const { openStudent } = useRecordDoors()
- *   openStudent(row)                       // a roster row you already hold
- *   openStudent(userId, { onSaved })       // an id: the record is fetched first
+ *   const { openStudent, openFamily } = useRecordDoors()
+ *   openStudent(row)                          // a roster row you already hold
+ *   openStudent(userId, { onSaved })          // an id: the record is fetched first
+ *   openFamily(householdId, { tab, onSaved }) // an id or a household row; tab
+ *                                             // 'billing' lands on Billing
  *
- * A save inside the modal re-reads the person, so the open record stays in
+ * A family opens over a student and a student over a family (a member's name
+ * in the family record, the family's name in the student's), which is why
+ * the family renders after the student here: the one opened last is on top.
+ *
+ * A save inside a modal re-reads what it shows, so the open record stays in
  * step with itself, then invalidates the roster and household lists and calls
  * the opener's onSaved -- the same refresh every opener used to wire by hand.
  *
- * Outside the provider (tests render pages bare) the doors are closed:
- * openStudent is a no-op. A test that asserts on the modal wraps its page in
- * <RecordDoorsProvider>.
+ * Outside the provider (tests render pages bare) the doors are closed: both
+ * openers are no-ops. A test that asserts on a modal wraps its page in
+ * <RecordDoorsProvider>. The hook lives in recordDoorsContext.js so the two
+ * modals can use it without importing this file back.
  */
-
-const RecordDoorsContext = createContext(null)
-
-const CLOSED = { openStudent: () => {}, closeStudent: () => {} }
 
 const fetchPerson = async (userId, orgId) => {
   const r = await sisStudentApi.getPerson(userId, orgId)
@@ -78,7 +87,44 @@ export const RecordDoorsProvider = ({ children }) => {
     } catch { /* the modal keeps what it has */ }
   }, [orgId, queryClient, student])
 
-  const value = useMemo(() => ({ openStudent, closeStudent }), [openStudent, closeStudent])
+  // { id, tab, onSaved } while a family record is open. The household row
+  // comes from the families query, so a save that invalidates it refreshes
+  // the open record; the roster feeds the add-member picker.
+  const [family, setFamily] = useState(null)
+  const { data: familyData } = useSisHouseholds(orgId, { enabled: Boolean(orgId && family) })
+  const { data: roster = [] } = useSisRoster(orgId, { enabled: Boolean(orgId && family) })
+  const household = family ? (familyData?.households || []).find((h) => h.id === family.id) : null
+  const memberOptions = useMemo(
+    () => roster.map((r) => ({ id: r.student_id, name: r.name, email: r.email, is_student: r.is_student })),
+    [roster],
+  )
+  // An id the families query does not know (another school's, or deleted)
+  // opens nothing; say so once. The stale request stays until the next open
+  // replaces it rather than being cleared from inside an effect.
+  useEffect(() => {
+    if (family && familyData && !household) toast.error('That family is not in this school')
+  }, [family, familyData, household])
+
+  const openFamily = useCallback((idOrRow, { tab = null, onSaved } = {}) => {
+    const id = typeof idOrRow === 'string' ? idOrRow : idOrRow?.id
+    if (!id) return
+    setFamily({ id, tab, onSaved })
+  }, [])
+
+  const closeFamily = useCallback(() => setFamily(null), [])
+
+  const savedFamily = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.roster(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.households(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.householdList(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
+    family?.onSaved?.()
+  }, [orgId, queryClient, family])
+
+  const value = useMemo(
+    () => ({ openStudent, closeStudent, openFamily, closeFamily }),
+    [openStudent, closeStudent, openFamily, closeFamily],
+  )
 
   return (
     <RecordDoorsContext.Provider value={value}>
@@ -86,10 +132,14 @@ export const RecordDoorsProvider = ({ children }) => {
       {student && (
         <StudentDetailModal student={student.row} orgId={orgId} onClose={closeStudent} onSaved={savedStudent} />
       )}
+      {household && (
+        <FamilyDetailModal household={household} orgId={orgId} members={memberOptions}
+          initialTab={family.tab} onClose={closeFamily} onSaved={savedFamily} />
+      )}
     </RecordDoorsContext.Provider>
   )
 }
 
-export const useRecordDoors = () => useContext(RecordDoorsContext) || CLOSED
+export { useRecordDoors }
 
 export default RecordDoorsProvider

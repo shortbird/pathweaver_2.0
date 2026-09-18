@@ -12,7 +12,6 @@ import RecordPaymentModal from './billingPage/RecordPaymentModal'
 import RecordRefundModal from './billingPage/RecordRefundModal'
 import InvoiceModal from './billingPage/InvoiceModal'
 import ReceiptModal from './billingPage/ReceiptModal'
-import field from './billingPage/field'
 import money from './billingPage/money'
 import today from './billingPage/today'
 import METHOD_LABEL from './billingPage/METHOD_LABEL'
@@ -23,7 +22,7 @@ import { statusLabel } from '../../components/sis/ui/statusMaps'
 import { printElement } from '../../utils/printView'
 import usePersistedChoice from '../../hooks/usePersistedChoice'
 import { downloadBlob } from '../../utils/csv'
-import { Link } from 'react-router-dom'
+import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 // Build the last 12 months (YYYY-MM) plus an "All open" option.
 const monthOptions = () => {
@@ -117,6 +116,7 @@ const checkSortPrefs = (raw) => Object.fromEntries(Object.entries(raw || {})
 
 const BillingPage = () => {
   const { orgId } = useSisOrg()
+  const { openFamily } = useRecordDoors()
   const [view, setView] = useState('charges') // 'charges' | 'outstanding' | 'monthly' | 'detail'
   // A school billing a monthly rate has no invoice until the first month is
   // charged, so Charges and Outstanding are both empty while real money is
@@ -503,10 +503,12 @@ const BillingPage = () => {
               ))}
             </select>
             {detailHousehold && (
-              <Link to={`/people?open=${detailHousehold}&tab=billing`}
+              // The family record opens over this page (M13b), so the office
+              // keeps the ledger it was reading.
+              <button type="button" onClick={() => openFamily(detailHousehold, { tab: 'billing', onSaved: loadDetail })}
                 className="text-sm font-medium text-optio-purple hover:underline">
                 Open the family record →
-              </Link>
+              </button>
             )}
             <select
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"

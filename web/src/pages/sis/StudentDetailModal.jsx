@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../../utils/queryKeys'
 import { ageFromDob, fitsAge, conflictsWith } from '../../utils/schedule'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import { useRecordDoors } from '../../components/sis/recordDoorsContext'
 
 /**
  * Tabbed per-student management modal.
@@ -294,6 +295,7 @@ const AccountSection = ({ student, orgId, onSaved, onClose }) => {
 }
 
 const FamilySection = ({ student, orgId, onSaved }) => {
+  const { openFamily } = useRecordDoors()
   const [chosen, setChosen] = useState('')
   const [busy, setBusy] = useState(false)
   const { data: households = [], isLoading: loading } = useOrgHouseholds(orgId)
@@ -313,7 +315,21 @@ const FamilySection = ({ student, orgId, onSaved }) => {
     <section className="border-t border-gray-100 pt-4">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">Family</h4>
       {student.household_name
-        ? <p className="text-sm text-neutral-600 mb-2">In <span className="font-medium">{student.household_name}</span>. Assigning another moves them.</p>
+        ? (
+          <p className="text-sm text-neutral-600 mb-2">
+            In{' '}
+            {student.household_id
+              ? (
+                // The family record opens over this one (M13b).
+                <button type="button" onClick={() => openFamily(student.household_id, { onSaved })}
+                  className="font-medium text-neutral-800 hover:text-optio-purple hover:underline">
+                  {student.household_name}
+                </button>
+              )
+              : <span className="font-medium">{student.household_name}</span>}
+            . Assigning another moves them.
+          </p>
+        )
         : <p className="text-sm text-neutral-400 mb-2">Not in a family yet.</p>}
       {loading ? <p className="text-sm text-neutral-400">Loading…</p>
         : households.length === 0 ? <p className="text-sm text-neutral-400">No families yet — create one from the People page's Add menu.</p>

@@ -4,7 +4,7 @@ import api from '../../services/api'
 import Button from '../../components/ui/Button'
 import { withOrg } from './useSisOrg'
 import { formatCents as money } from '../../utils/money'
-import { Link } from 'react-router-dom'
+import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 /**
  * The school's monthly tuition — who is being billed a set amount every month,
@@ -93,6 +93,7 @@ export const useRecurringTuition = (orgId, enabled = true) => {
 }
 
 const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
+  const { openFamily } = useRecordDoors()
   const [busyId, setBusyId] = useState(null)
   const families = useMemo(() => groupByFamily(schedules), [schedules])
 
@@ -139,7 +140,12 @@ const RecurringTuitionList = ({ orgId, schedules, onChanged, emptyHint }) => {
               <div className="min-w-0">
                 <div className="text-sm font-medium text-neutral-800">
                   {fam.householdId
-                    ? <Link to={`/people?open=${fam.householdId}&tab=billing`} className="hover:text-optio-purple hover:underline">{fam.name}</Link>
+                    ? (
+                      <button type="button" onClick={() => openFamily(fam.householdId, { tab: 'billing', onSaved: onChanged })}
+                        className="hover:text-optio-purple hover:underline">
+                        {fam.name}
+                      </button>
+                    )
                     : fam.name}
                   <span className="ml-2 text-neutral-500 font-normal">
                     {money(fam.monthlyCents)}/month

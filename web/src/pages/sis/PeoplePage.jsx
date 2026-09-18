@@ -4,12 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
 import { useSisRoster } from '../../hooks/api/useSisRoster'
-import { useSisHouseholds } from '../../hooks/api/useSisHouseholds'
 import { sisPeopleApi } from '../../hooks/api/useSisPeople'
 import { queryKeys } from '../../utils/queryKeys'
 import Button from '../../components/ui/Button'
 import { useSisOrg } from './useSisOrg'
-import FamilyDetailModal from './FamilyDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
 import TeacherModal from '../../components/sis/TeacherModal'
@@ -79,7 +77,7 @@ const asStaffRow = (r) => ({
 
 const PeoplePage = () => {
   const { orgId, canViewAs } = useSisOrg()
-  const { openStudent } = useRecordDoors()
+  const { openStudent, openFamily } = useRecordDoors()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
@@ -94,21 +92,11 @@ const PeoplePage = () => {
   const [linking, setLinking] = useState(null)
   const [employment, setEmployment] = useState(null)
   const [removing, setRemoving] = useState(null)
-  const [familyId, setFamilyId] = useState(null)
   const [adding, setAdding] = useState(null)            // 'person' | 'teacher' | 'family' | null
   const [addMenu, setAddMenu] = useState(false)
   const [newFamily, setNewFamily] = useState('')
   const [showExport, setShowExport] = useState(false)
   const [resendingId, setResendingId] = useState(null)
-
-  // Families are fetched only when one is opened: the table itself carries
-  // what it needs, and the page is meant to load fast.
-  const { data: familyData } = useSisHouseholds(orgId, { enabled: Boolean(orgId && familyId) })
-  const household = familyId ? (familyData?.households || []).find((h) => h.id === familyId) : null
-  const memberOptions = useMemo(
-    () => roster.map((r) => ({ id: r.student_id, name: r.name, email: r.email, is_student: r.is_student })),
-    [roster],
-  )
 
   const refresh = () => {
     refetch()
@@ -116,12 +104,14 @@ const PeoplePage = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
   }
 
-  // A link can open the new-family form (the dashboard's "Add a family") or
-  // one family's record on a tab (?open=<household id>&tab=billing): the
-  // Billing page and the recurring-tuition list send the office here rather
-  // than keeping their own family views (M7).
-  const [familyTab, setFamilyTab] = useState(null)
+  // A link can open the new-family form (the dashboard's "Add a family"),
+  // one family's record on a tab (?open=<household id>&tab=billing, the
+  // deep link the dashboard and notifications use), or one person's record
+  // (?student=<user id>, from the learning app's student page). The records
+  // open through the console's one mount (M13a/b); this waits for the org,
+  // which a superadmin's picker resolves a beat after the first render.
   useEffect(() => {
+    if (!orgId) return
     const next = new URLSearchParams(params)
     let changed = false
     if (params.get('add') === 'family') {
@@ -130,24 +120,19 @@ const PeoplePage = () => {
       changed = true
     }
     if (params.get('open')) {
-      setFamilyId(params.get('open'))
-      setFamilyTab(params.get('tab') === 'billing' ? 'billing' : null)
+      openFamily(params.get('open'), {
+        tab: params.get('tab') === 'billing' ? 'billing' : null, onSaved: refresh,
+      })
       next.delete('open')
       if (params.get('tab') === 'billing') next.delete('tab')
       changed = true
     }
+    if (params.get('student')) {
+      openStudent(params.get('student'), { onSaved: refresh })
+      next.delete('student')
+      changed = true
+    }
     if (changed) setParams(next, { replace: true })
-  }, [])
-  // ?student=<user id>: the learning app's student page sends the office
-  // here for the record (M13a). Waits for the org, which a superadmin's
-  // picker resolves a beat after the first render.
-  useEffect(() => {
-    const sid = params.get('student')
-    if (!sid || !orgId) return
-    openStudent(sid, { onSaved: refresh })
-    const next = new URLSearchParams(params)
-    next.delete('student')
-    setParams(next, { replace: true })
   }, [orgId])
 
   const visible = useMemo(() => sortRows(applyFilters(roster, filters), sort), [roster, filters, sort])
@@ -203,7 +188,7 @@ const PeoplePage = () => {
     s.is_student && canViewAs && { label: 'View as student', onClick: () => viewAsStudent(s) },
     isStaff(s) && { label: 'Staff record', onClick: () => setStaffFor(s) },
     isStaff(s) && !s.is_placeholder && { label: 'View their portal', onClick: () => openPortalPreview(s) },
-    s.household_id && { label: 'Open family', onClick: () => setFamilyId(s.household_id) },
+    s.household_id && { label: 'Open family', onClick: () => openFamily(s.household_id, { onSaved: refresh }) },
     { label: 'Remove from school…', danger: true, onClick: () => setRemoving(s) },
   ].filter(Boolean)
 
@@ -288,7 +273,7 @@ const PeoplePage = () => {
           sort={sort}
           onSort={toggleSort}
           onOpen={(s) => openStudent(s, { onSaved: refresh })}
-          onOpenFamily={(s) => setFamilyId(s.household_id)}
+          onOpenFamily={(s) => openFamily(s.household_id, { onSaved: refresh })}
           onResendInvite={resendInvite}
           resendingId={resendingId}
           menuFor={menuFor}
@@ -336,11 +321,6 @@ const PeoplePage = () => {
       {employment && (
         <StaffProfileModal orgId={orgId} staff={employment}
           onClose={() => setEmployment(null)} onSaved={() => { setEmployment(null); refresh() }} />
-      )}
-
-      {household && (
-        <FamilyDetailModal household={household} orgId={orgId} members={memberOptions}
-          initialTab={familyTab} onClose={() => { setFamilyId(null); setFamilyTab(null) }} onSaved={refresh} />
       )}
 
       {adding === 'person' && (

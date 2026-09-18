@@ -2,8 +2,10 @@
  * The family record's Billing tab: how this family pays and whether they are
  * current, from sis_billing_service.household_billing_summary (M7). This is
  * the hub -- the Billing page's family detail and the recurring-tuition list
- * link here (/people?open=<household>&tab=billing) rather than keeping their
- * own family views (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, G2).
+ * open the family record on this tab (useRecordDoors().openFamily(id, { tab:
+ * 'billing' }), M13b; a /people?open=<household>&tab=billing deep link lands
+ * here too) rather than keeping their own family views
+ * (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, G2).
  */
 import React, { useEffect } from 'react'
 import { toast } from 'react-hot-toast'

@@ -739,6 +739,18 @@
       "use_instead": "const { openStudent } = useRecordDoors(); openStudent(row) or openStudent(userId, { onSaved }). Never mount StudentDetailModal on a page; the one mount is RecordDoors.jsx (baseline 1)."
     },
     {
+      "id": "family_record_mount",
+      "means": "Where a family's record (FamilyDetailModal) is mounted. People mounted it; the Billing page, the recurring-tuition list and the directives card sent the office to People for it; the student record named the family without a door. Since M13b (2026-09-18) components/sis/RecordDoors.jsx mounts it once beside the student record and every surface opens it through useRecordDoors().openFamily(householdId, { tab }).",
+      "owner": { "web": ["components/sis/RecordDoors.jsx"] },
+      "forbid": {
+        "web": { "pattern": "<FamilyDetailModal\\b", "dirs": ["pages", "components"], "exempt": [] }
+      },
+      "baseline": { "web": 1 },
+      "measured": "2026-09-18",
+      "lowered_by": "M13b",
+      "use_instead": "const { openFamily } = useRecordDoors(); openFamily(householdId, { tab: 'billing', onSaved }). Never mount FamilyDetailModal on a page and never link to /people?open= from inside the console; the one mount is RecordDoors.jsx (baseline 1)."
+    },
+    {
       "id": "household_member_write",
       "means": "Putting a person in a family (household_members). Until M16 (2026-09-17) four app paths and three scripts wrote the row themselves, most with their own 'already a member?' read first; now sis_person_service.join_household is the one attach path, over HouseholdRepository.add_members (an upsert, so it is idempotent without the read). The funnel still applies the staged directive right after it (sis_holds.apply_directives), as M2 left it.",
       "owner": { "backend": ["services/sis_person_service.py", "repositories/household_repository.py"] },
