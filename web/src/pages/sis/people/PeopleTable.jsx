@@ -1,5 +1,5 @@
 import React from 'react'
-import PersonPhoto from '../../../components/sis/PersonPhoto'
+import StudentRow from '../../../components/sis/StudentRow'
 import { RolePill } from '../../../components/ui/RolePill'
 import { PaymentMethodPills } from '../PaymentMethodPills'
 import { RowActions } from './RowActions'
@@ -68,16 +68,7 @@ const PeopleTable = ({
           return (
             <tr key={s.student_id} onClick={() => onOpen(s)} className="hover:bg-neutral-50 cursor-pointer">
               <td className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <PersonPhoto src={s.avatar_url} name={s.name} />
-                  <div className="min-w-0">
-                    <div className="font-medium text-neutral-900">{s.name}</div>
-                    <div className="text-xs text-neutral-400 truncate">
-                      {/* A placeholder's email is synthetic; nobody should read it. */}
-                      {[s.is_placeholder ? null : (s.email || s.username), s.phone_number].filter(Boolean).join(' · ')}
-                    </div>
-                  </div>
-                </div>
+                <StudentRow person={s} withAge={false} />
               </td>
               <td className="px-4 py-3 text-neutral-600">{s.age != null ? s.age : <span className="text-neutral-300">—</span>}</td>
               <td className="px-4 py-3">

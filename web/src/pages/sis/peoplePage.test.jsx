@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RecordDoorsProvider } from '../../components/sis/RecordDoors'
 
 /**
  * People: one table of everyone in the school.
@@ -11,11 +12,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  * from the list: a chip or an option nobody matches is not offered.
  */
 
+// RecordDoorsProvider is the console's one mount of the student record
+// (SisLayout renders it); a page rendered bare opens nothing without it.
 const render = (ui, { route = '/people' } = {}) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[route]}><RecordDoorsProvider>{ui}</RecordDoorsProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }

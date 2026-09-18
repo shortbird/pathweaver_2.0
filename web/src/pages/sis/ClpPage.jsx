@@ -33,6 +33,7 @@ import { matchesPersonSearch } from '../../utils/personSearch'
 import { fitsAge, firstSlot, conflictsWithSchedule, meetingsOverlap, DEFAULT_DAYS } from './clp/clpHelpers'
 import StudentDirectory from './clp/StudentDirectory'
 import StudentDetail from './clp/StudentDetail'
+import StudentHeader from './clp/StudentHeader'
 
 const ClpPage = () => {
   const confirm = useConfirm()
@@ -338,27 +339,34 @@ const ClpPage = () => {
   }, [student, classSearch, hideFull, fitsOnly, allAges, studentAge, timeFocus, schedule])
 
   const studentDetail = (
-    <StudentDetail
-      allAges={allAges} setAllAges={setAllAges}
-      availableClasses={availableClasses} busyId={busyId}
-      classSearch={classSearch} setClassSearch={setClassSearch}
-      confirm={confirm} drop={drop} enroll={enroll}
-      enrollFromWaitlist={enrollFromWaitlist}
-      fitsOnly={fitsOnly} setFitsOnly={setFitsOnly}
-      hideFull={hideFull} setHideFull={setHideFull}
-      joinWaitlist={joinWaitlist} leaveWaitlist={leaveWaitlist}
-      lowEnrollmentClasses={lowEnrollmentClasses}
-      notesDraft={notesDraft} notesStatus={notesStatus}
-      offerOtherSection={offerOtherSection} onNotesChange={onNotesChange}
-      openRequests={openRequests} presentation={presentation}
-      removeWaitlistEntry={removeWaitlistEntry} resolveException={resolveException}
-      saveNotes={saveNotes} schedule={schedule} scheduleDays={scheduleDays}
-      schoolBusy={schoolBusy} selectStudent={selectStudent}
-      student={student} studentAge={studentAge} studentLoading={studentLoading}
-      timeFocus={timeFocus} setTimeFocus={setTimeFocus}
-      toggleFinished={toggleFinished} togglePrivateSchool={togglePrivateSchool}
-      waitlistedClasses={waitlistedClasses}
-    />
+    <>
+      {student && !studentLoading && (
+        <StudentHeader
+          student={student} presentation={presentation} selectStudent={selectStudent}
+          toggleFinished={toggleFinished} togglePrivateSchool={togglePrivateSchool}
+          schoolBusy={schoolBusy} onRecordSaved={() => loadStudent(selectedId)}
+        />
+      )}
+      <StudentDetail
+        allAges={allAges} setAllAges={setAllAges}
+        availableClasses={availableClasses} busyId={busyId}
+        classSearch={classSearch} setClassSearch={setClassSearch}
+        confirm={confirm} drop={drop} enroll={enroll}
+        enrollFromWaitlist={enrollFromWaitlist}
+        fitsOnly={fitsOnly} setFitsOnly={setFitsOnly}
+        hideFull={hideFull} setHideFull={setHideFull}
+        joinWaitlist={joinWaitlist} leaveWaitlist={leaveWaitlist}
+        lowEnrollmentClasses={lowEnrollmentClasses}
+        notesDraft={notesDraft} notesStatus={notesStatus}
+        offerOtherSection={offerOtherSection} onNotesChange={onNotesChange}
+        openRequests={openRequests} presentation={presentation}
+        removeWaitlistEntry={removeWaitlistEntry} resolveException={resolveException}
+        saveNotes={saveNotes} schedule={schedule} scheduleDays={scheduleDays}
+        student={student} studentAge={studentAge} studentLoading={studentLoading}
+        timeFocus={timeFocus} setTimeFocus={setTimeFocus}
+        waitlistedClasses={waitlistedClasses}
+      />
+    </>
   )
 
 

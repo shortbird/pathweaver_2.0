@@ -1,6 +1,9 @@
 import React from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOrganization } from '../../contexts/OrganizationContext';
+import { moduleEnabled } from '../../modules/moduleEnabled';
+import { switchSurfaceInApp } from '../../utils/appSurface';
 import AdvisorStudentOverviewContent from '../../components/advisor/AdvisorStudentOverviewContent';
 
 /**
@@ -17,10 +20,16 @@ export default function OrgStudentOverviewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAdmin, isSuperadmin } = useAuth();
+  const { organization } = useOrganization();
 
   // Org admins and superadmins can edit student information
   const canEdit = isAdmin || isSuperadmin;
   const returnTab = searchParams.get('tab') || 'people';
+  // A school that runs the SIS console keeps the student's record there
+  // (profile, family, contacts, schedule); this page is their learning
+  // overview. One door to that record rather than a second editor here
+  // (M13a; ticket 7962081e was filed from this page).
+  const sisRecord = isSuperadmin || (organization?.id === orgId && moduleEnabled(organization, 'sis'));
 
   const handleBack = () => {
     navigate(`/organization?tab=${returnTab}`);
@@ -40,10 +49,23 @@ export default function OrgStudentOverviewPage() {
             </svg>
             Back to People
           </button>
-          <h1 className="text-2xl font-bold">Student Overview</h1>
-          <p className="mt-1 text-white/80 text-sm">
-            Comprehensive learning analytics and portfolio
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Student Overview</h1>
+              <p className="mt-1 text-white/80 text-sm">
+                Comprehensive learning analytics and portfolio
+              </p>
+            </div>
+            {sisRecord && (
+              <button
+                type="button"
+                onClick={() => switchSurfaceInApp('sis', `/people?student=${studentId}`)}
+                className="shrink-0 rounded-lg border border-white/60 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/10 min-h-[44px]"
+              >
+                Open school record
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

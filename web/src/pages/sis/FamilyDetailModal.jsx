@@ -5,7 +5,8 @@ import Button from '../../components/ui/Button'
 import ModalOverlay from '../../components/ui/ModalOverlay'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { RolePill, PrimaryTag } from '../../components/ui/RolePill'
-import StudentDetailModal, { inboxThreadLink } from './StudentDetailModal'
+import { inboxThreadLink } from './StudentDetailModal'
+import { useRecordDoors } from '../../components/sis/RecordDoors'
 import PersonPhoto from '../../components/sis/PersonPhoto'
 import { useSisOrg } from './useSisOrg'
 import { useAuth } from '../../contexts/AuthContext'
@@ -96,7 +97,7 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [messaging, setMessaging] = useState(false)
-  const [openStudent, setOpenStudent] = useState(null)
+  const { openStudent } = useRecordDoors()
 
   const startEdit = () => { setName(household.name || ''); setEditingName(true) }
   const saveName = async () => {
@@ -203,12 +204,8 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
     } catch (e) { toast.error(e?.response?.data?.error || 'Could not withdraw the family') }
   }
 
-  const openUserModal = async (userId) => {
-    try {
-      const r = await sisFamilyApi.getUser(userId, orgId)
-      setOpenStudent(r.data?.user || null)
-    } catch { toast.error('Could not open user') }
-  }
+  // A member's record opens over this one (the console's one mount, M13a).
+  const openUserModal = (userId) => openStudent(userId, { onSaved })
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -283,9 +280,6 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
       </div>
 
       {messaging && <MessageComposeModal household={household} orgId={orgId} onClose={() => setMessaging(false)} />}
-      {openStudent && (
-        <StudentDetailModal student={openStudent} orgId={orgId} onClose={() => setOpenStudent(null)} onSaved={onSaved} />
-      )}
     </ModalOverlay>
   )
 }

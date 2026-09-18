@@ -727,6 +727,18 @@
       "use_instead": "ClassFieldsEditor is the one form; CreateClassModal mounts once from ClassesPage and the detail modal edits in place (M13d). Baseline after M13d: 1."
     },
     {
+      "id": "student_record_mount",
+      "means": "Where a student's record (StudentDetailModal) is mounted. People and the family record each mounted it, and the surfaces that did not -- the CLP meeting, a class roster, the learning app's admin student page -- drew a partial student of their own. Since M13a (2026-09-18) components/sis/RecordDoors.jsx mounts it once inside SisLayout and every surface opens it through useRecordDoors().openStudent(idOrRow).",
+      "owner": { "web": ["components/sis/RecordDoors.jsx"] },
+      "forbid": {
+        "web": { "pattern": "<StudentDetailModal\\b", "dirs": ["pages", "components"], "exempt": [] }
+      },
+      "baseline": { "web": 1 },
+      "measured": "2026-09-18",
+      "lowered_by": "M13a",
+      "use_instead": "const { openStudent } = useRecordDoors(); openStudent(row) or openStudent(userId, { onSaved }). Never mount StudentDetailModal on a page; the one mount is RecordDoors.jsx (baseline 1)."
+    },
+    {
       "id": "household_member_write",
       "means": "Putting a person in a family (household_members). Until M16 (2026-09-17) four app paths and three scripts wrote the row themselves, most with their own 'already a member?' read first; now sis_person_service.join_household is the one attach path, over HouseholdRepository.add_members (an upsert, so it is idempotent without the read). The funnel still applies the staged directive right after it (sis_holds.apply_directives), as M2 left it.",
       "owner": { "backend": ["services/sis_person_service.py", "repositories/household_repository.py"] },

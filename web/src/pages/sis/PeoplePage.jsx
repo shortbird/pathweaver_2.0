@@ -9,7 +9,6 @@ import { sisPeopleApi } from '../../hooks/api/useSisPeople'
 import { queryKeys } from '../../utils/queryKeys'
 import Button from '../../components/ui/Button'
 import { useSisOrg } from './useSisOrg'
-import StudentDetailModal from './StudentDetailModal'
 import FamilyDetailModal from './FamilyDetailModal'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
@@ -28,6 +27,7 @@ import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, rolesOf, STAFF_ROLES,
 } from './people/peopleFilters'
 import PopMenu from '../../components/sis/ui/PopMenu'
+import { useRecordDoors } from '../../components/sis/RecordDoors'
 
 /**
  * People: one table of everyone in the school.
@@ -79,6 +79,7 @@ const asStaffRow = (r) => ({
 
 const PeoplePage = () => {
   const { orgId, canViewAs } = useSisOrg()
+  const { openStudent } = useRecordDoors()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
@@ -88,7 +89,6 @@ const PeoplePage = () => {
   const { data: roster = [], isLoading: loading, refetch } = useSisRoster(orgId)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
   const [menuFor, setMenuFor] = useState(null)
-  const [selected, setSelected] = useState(null)        // Manage
   const [staffFor, setStaffFor] = useState(null)        // Staff record
   const [editingStaff, setEditingStaff] = useState(null)
   const [linking, setLinking] = useState(null)
@@ -110,13 +110,11 @@ const PeoplePage = () => {
     [roster],
   )
 
-  // Keep an open Manage modal in step with fresh data (assigning a family
-  // shows in the modal without reopening it).
-  useEffect(() => {
-    if (!selected) return
-    const fresh = roster.find((r) => r.student_id === selected.student_id)
-    if (fresh) setSelected(fresh)
-  }, [roster])
+  const refresh = () => {
+    refetch()
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.households(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
+  }
 
   // A link can open the new-family form (the dashboard's "Add a family") or
   // one family's record on a tab (?open=<household id>&tab=billing): the
@@ -140,12 +138,17 @@ const PeoplePage = () => {
     }
     if (changed) setParams(next, { replace: true })
   }, [])
-
-  const refresh = () => {
-    refetch()
-    queryClient.invalidateQueries({ queryKey: queryKeys.sis.households(orgId) })
-    queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
-  }
+  // ?student=<user id>: the learning app's student page sends the office
+  // here for the record (M13a). Waits for the org, which a superadmin's
+  // picker resolves a beat after the first render.
+  useEffect(() => {
+    const sid = params.get('student')
+    if (!sid || !orgId) return
+    openStudent(sid, { onSaved: refresh })
+    const next = new URLSearchParams(params)
+    next.delete('student')
+    setParams(next, { replace: true })
+  }, [orgId])
 
   const visible = useMemo(() => sortRows(applyFilters(roster, filters), sort), [roster, filters, sort])
   const hiddenCount = roster.length - visible.length
@@ -193,7 +196,7 @@ const PeoplePage = () => {
 
   // Every account gets Manage; the rest depends on what the person is.
   const actionsFor = (s) => [
-    { label: 'Manage', onClick: () => setSelected(s) },
+    { label: 'Manage', onClick: () => openStudent(s, { onSaved: refresh }) },
     s.is_student && { label: 'Overview', onClick: () => goOverview(s) },
     // The backend rule (caller_may_masquerade) has let an org admin open a
     // student of their own school since August; only this gate was narrower.
@@ -284,7 +287,7 @@ const PeoplePage = () => {
           rows={visible}
           sort={sort}
           onSort={toggleSort}
-          onOpen={setSelected}
+          onOpen={(s) => openStudent(s, { onSaved: refresh })}
           onOpenFamily={(s) => setFamilyId(s.household_id)}
           onResendInvite={resendInvite}
           resendingId={resendingId}
@@ -299,10 +302,6 @@ const PeoplePage = () => {
           Showing {visible.length} of {roster.length} {roster.length === 1 ? 'person' : 'people'}
           {hiddenCount > 0 && ` · ${hiddenCount} hidden`}
         </p>
-      )}
-
-      {selected && (
-        <StudentDetailModal student={selected} orgId={orgId} onClose={() => setSelected(null)} onSaved={refresh} />
       )}
 
       {staffRow && (

@@ -70,6 +70,8 @@ const { api } = vi.hoisted(() => {
   }
 })
 vi.mock('../../services/api', () => ({ default: api }))
+const doors = vi.hoisted(() => ({ openStudent: () => {} }))
+vi.mock('../../components/sis/RecordDoors', () => ({ useRecordDoors: () => doors }))
 
 import ClpPage from './ClpPage'
 
@@ -186,6 +188,22 @@ describe('ClpPage', () => {
     const bob = screen.getByText('Bob Ant').closest('button')
     expect(alice.querySelector('[aria-label="CLP done"]')).toBeTruthy()
     expect(bob.querySelector('[aria-label="CLP done"]')).toBeFalsy()
+  })
+
+  // The header is the meeting's view of the student, not a second editor:
+  // "Open record" opens the one student record over the meeting (M13a), and
+  // is not offered with the screen turned to the family.
+  it('opens the one student record from the header, except in presentation', async () => {
+    const openStudent = vi.fn()
+    doors.openStudent = openStudent
+    render(<ClpPage />)
+    fireEvent.click(await screen.findByText('Alice Ant'))
+    await screen.findByText('Weekly schedule')
+    fireEvent.click(screen.getByRole('button', { name: 'Open record' }))
+    expect(openStudent).toHaveBeenCalledWith('s1', expect.objectContaining({ onSaved: expect.any(Function) }))
+    fireEvent.click(screen.getByText('Presentation mode'))
+    await screen.findByText('Exit presentation')
+    expect(screen.queryByRole('button', { name: 'Open record' })).not.toBeInTheDocument()
   })
 
   it('marks the CLP finished from the student header', async () => {

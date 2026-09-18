@@ -8,13 +8,16 @@ import ClassRosterExportModal from '../../../components/sis/ClassRosterExportMod
 import SearchSelect from '../../../components/ui/SearchSelect'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useConfirm } from '../../../contexts/ConfirmContext'
-import { useSisOrg, withOrg } from '../useSisOrg'
+import { withOrg } from '../useSisOrg'
 import { fmt12ap } from '../../../components/sis/classFields'
+import StudentRow from '../../../components/sis/StudentRow'
+import { useRecordDoors } from '../../../components/sis/RecordDoors'
 
 const ClassRoster = ({ classId, className, orgId, onChanged }) => {
   const confirm = useConfirm()
+  const { openStudent } = useRecordDoors()
   const [roster, setRoster] = useState(null)
   const [dropping, setDropping] = useState(null)
   const [exporting, setExporting] = useState(false)
@@ -150,21 +153,21 @@ const ClassRoster = ({ classId, className, orgId, onChanged }) => {
         {roster.map((s) => (
           <li key={s.student_id} className="py-2">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-neutral-800">
-                {s.name}
-                {s.age != null && <span className="ml-1.5 text-xs font-normal text-neutral-400">age {s.age}</span>}
-                {/* Where this student goes next, so staff running a roster can
-                    point them at it (ticket 2af45fd2). */}
-                {s.next_class && (
+              {/* The name opens the student's record -- the same one People
+                  opens -- so a question on the roster does not mean a trip to
+                  the People page (M13a). */}
+              <StudentRow person={s} photo={false} className="text-sm"
+                onOpen={() => openStudent(s.student_id, { onSaved: reload })}
+                detail={s.next_class && (
+                  // Where this student goes next, so staff running a roster can
+                  // point them at it (ticket 2af45fd2).
                   <span className="block text-xs font-normal text-neutral-500 truncate">
                     Next: {s.next_class.name}
                     {s.next_class.location ? ` · ${s.next_class.location}` : ''}
                     {s.next_class.start_time ? ` · ${fmt12ap(s.next_class.start_time)}` : ''}
                   </span>
-                )}
-              </span>
+                )} />
               <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs text-neutral-400 truncate max-w-[10rem]">{s.email || s.username || ''}</span>
                 {sections.length > 0 && (
                   <Button size="sm" variant="outline" disabled={dropping === s.student_id}
                     onClick={() => setMovingId(movingId === s.student_id ? null : s.student_id)}>

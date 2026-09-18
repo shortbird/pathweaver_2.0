@@ -8,11 +8,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 // QueryClient. A fresh client per render keeps one test's cache out of the
 // next one's; retry:false makes a failed query fail the assertion rather than
 // hang through three backoff rounds.
+// RecordDoorsProvider is the console's one mount of the student record
+// (SisLayout renders it); a page rendered bare opens nothing without it.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{withConfirm(ui)}</MemoryRouter>
+      <MemoryRouter><RecordDoorsProvider>{withConfirm(ui)}</RecordDoorsProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -104,6 +106,7 @@ import SisDashboard from './SisDashboard'
 import PeoplePage from './PeoplePage'
 import SisOrgPicker from './SisOrgPicker'
 import StudentDetailModal from './StudentDetailModal'
+import { RecordDoorsProvider } from '../../components/sis/RecordDoors'
 import { withConfirm } from '../../tests/confirmTestUtils'
 
 beforeEach(() => {

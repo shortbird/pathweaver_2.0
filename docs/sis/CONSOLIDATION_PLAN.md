@@ -40,10 +40,10 @@ and patterns instead.
 | M6 One invoice writer, one checkout factory, one verifier | 1 | shipped (code + tests; no Stripe test-mode run) | see git log (`consolidate/M6-one-invoice-writer`) | `invoice_row` 1, `stripe_checkout` 1, `stripe_verify` 2, `pay_link_signing` 0 |
 | M7 One household billing view, formatCents | 1 | shipped | see git log (`consolidate/M7-household-billing`) | `money_format` 0/0 |
 | M2 One family hold | 1 | shipped (migration applied to prod + staging) | see git log (`consolidate/M2-one-family-hold`) | `family_hold_write` 0, `fee_hold_sentinel` 0 |
-| M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not; enrollment backfill written, not run) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
+| M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not); enrollment backfill run on prod 2026-09-18 (iCreate 186, Gryffin 6, Optio Academy 2) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
-| M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
+| M13 One detail surface per entity | 2 | 13a shipped (one mount, `RecordDoors`); 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13b not started | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`) | `class_form_mount` 1, `staff_phone_edit` 0, new `student_record_mount` 1 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
@@ -894,8 +894,11 @@ enrollment waitlist recorded as an `applicant`, and never downgrades an enrolled
 student. The backfill is `backend/scripts/backfill_school_enrollments.py` (dry-run by
 default, one org at a time); its dry run against prod on 2026-09-17: iCreate 197
 funnel children, 9 with a row, 188 to fill (2 as applicant); Gryffin 6 to fill; Optio
-Academy 2 to fill. It has NOT been run: it changes what the People page says about
-188 students and is the school's to review. (c) `services/emergency_contacts_service.py`
+Academy 2 to fill. Run with `--apply` on 2026-09-18 on Tanner's go, after a fresh
+dry run (iCreate 207 children, 9 with a row, 186 to fill, none as applicant; all 186
+were org students in a household, 180 holding an active class seat): iCreate 186
+rows, Gryffin 6, Optio Academy 2 written; iCreate now 189 enrolled, 2 graduated, 11
+withdrawn. (c) `services/emergency_contacts_service.py`
 holds every read and write (moved verbatim from `sis_service`; the routes call it
 directly); migration `20260918200000_emergency_contacts_source` (applied to prod and
 staging) adds `emergency_contacts.source`, the funnel writes `registration_funnel`
@@ -1163,8 +1166,28 @@ into `StaffDetailModal` is NOT done: `TeacherModal` carries three dialog states 
 its own (the form and two duplicate-match prompts), and hosting it as a tab means
 three nested panels; PeoplePage still mounts the stack. 13f: confirmed, M8a's
 `useRegistrationConfig` is the one fetch (`org_payload_fetch` 0). 13a: ticket
-`7962081e` (rename without an email) was fixed upstream in `a036e9b2`; the
-`StudentRow` and the CLP panel opening the modal are not started. 13b: not started.
+`7962081e` (rename without an email) was fixed upstream in `a036e9b2`. 13b: not started.
+
+**13a as shipped (2026-09-18).** The student record is mounted once:
+`components/sis/RecordDoors.jsx` is a provider `SisLayout` renders around the
+outlet, and `useRecordDoors().openStudent(rowOrId, { onSaved })` opens the one
+`StudentDetailModal` from anywhere in the console -- with a roster row the caller
+already holds, or with a user id, in which case the person is fetched in the modal's
+shape (`GET /api/sis/users/<id>`, the endpoint the family record already used). A
+save inside the modal re-reads the person (so the open record stays in step with
+itself; PeoplePage's roster-sync effect is gone), invalidates the roster and
+household lists, and calls the opener back. People and the family record open it
+through the door instead of mounting it; the class roster's names are doors (a
+question on the roster used to mean a trip to People); the CLP meeting's student
+header is its own `clp/StudentHeader.jsx` with an "Open record" button (hidden in
+presentation mode), and `clp/StudentDetail.jsx` lost the five props the header owned;
+the learning app's admin student page (`/admin/organizations/:org/student/:id`, the
+page ticket `7962081e` was filed from) has "Open school record" for SIS orgs, which
+lands on `/people?student=<id>`. `components/sis/StudentRow.jsx` is the one identity
+cell (photo, name, age, the email-or-username line, the door) for the People table
+and the roster. Manifest row `student_record_mount`: `<StudentDetailModal` mounted
+once, counted with the owner (baseline 1). Outside the provider (tests render pages
+bare) the door is a no-op; a test that asserts on the modal wraps its page.
 
 ### M14c/d/e — Pickers, modals, inputs, tables
 

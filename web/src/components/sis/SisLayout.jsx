@@ -10,6 +10,7 @@ import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
 import { navContextFor } from '../../pages/sis/sisNavVisibility'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import SisOrgPicker from '../../pages/sis/SisOrgPicker'
+import { RecordDoorsProvider } from './RecordDoors'
 import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
 import { getPreviewTeacher, clearPreviewTeacher } from '../../pages/sis/teacherPreview'
 import { PageLoader } from '../ui/Spinner'
@@ -149,9 +150,13 @@ const SisLayout = () => {
           </div>
         </header>
         {admin && <PreviewBanner />}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <Outlet />
-        </div>
+        {/* A person's record is one modal mounted once, here; every page,
+            panel and roster opens it through useRecordDoors (M13a). */}
+        <RecordDoorsProvider>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            <Outlet />
+          </div>
+        </RecordDoorsProvider>
       </main>
       {/* Staff issue reporting is IssueReporter, mounted app-wide in App.jsx.
           It files into /admin/tickets; it replaced the Perch widget, which

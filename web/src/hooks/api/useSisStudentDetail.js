@@ -87,6 +87,8 @@ export const useOrgHouseholds = (orgId) => useQuery({
 
 /** The drawer's write surface, so no panel calls `api` directly. */
 export const sisStudentApi = {
+  /** Any org member in the modal's shape, for opening the record by id (RecordDoors). */
+  getPerson: (userId, orgId) => api.get(`/api/sis/users/${userId}?organization_id=${orgId}`),
   updateStudent: (studentId, body) => api.patch(`/api/sis/students/${studentId}`, body),
   updateRoles: (studentId, roles, orgId) =>
     api.patch(`/api/sis/users/${studentId}/role`, { roles, organization_id: orgId }),
