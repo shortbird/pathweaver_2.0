@@ -44,7 +44,7 @@ def list_emergency_contacts(student_id: str) -> List[Dict[str, Any]]:
 
 
 def add_emergency_contact(student_id: str, org_id: Optional[str],
-                          fields: Dict[str, Any]) -> Dict[str, Any]:
+                          fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     payload = {
         'student_user_id': student_id,
         'organization_id': org_id,
