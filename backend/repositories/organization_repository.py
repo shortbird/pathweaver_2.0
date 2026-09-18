@@ -28,6 +28,16 @@ class OrganizationRepository(BaseRepository):
             .execute()
         return response.data if response and response.data else None
 
+    def names_for(self, org_ids) -> Dict[str, Any]:
+        """{organization_id: name} for the ids given, one query. The credit
+        dashboard puts a school's name beside each student in a superadmin's
+        cross-org queue."""
+        ids = [o for o in set(org_ids or []) if o]
+        if not ids:
+            return {}
+        rows = self.client.table(self.table_name).select('id, name').in_('id', ids).execute()
+        return {o['id']: o.get('name') for o in (rows.data or [])}
+
     def assign_user_to_organization(self, user_id: str, organization_id: str) -> bool:
         """Assign a user to an organization"""
         response = self.client.table('users')\

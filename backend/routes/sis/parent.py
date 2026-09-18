@@ -24,6 +24,7 @@ from services import sis_parent_service as parent
 from services import sis_access_gate
 from routes.sis import portal_views
 from services import sis_service
+from utils.session_manager import session_manager
 
 logger = get_logger(__name__)
 
@@ -634,7 +635,15 @@ def my_required_documents(user_id):
     `blocked: false` is the answer for everybody who is not held — no
     organization, no SIS, staff, or simply nothing outstanding — so the client
     has one condition to check rather than a taxonomy.
+
+    A masquerading admin is not held either: the API gate lets a masquerade
+    through (an admin must not sign a family's paperwork for them), and this
+    endpoint has to agree with the gate or the mobile app shows the hold
+    screen anyway. Same rule as /api/phone-verification/status.
     """
+    if session_manager.is_masquerading():
+        return jsonify({'success': True, 'blocked': False, 'assignments': [],
+                        'masquerading': True})
     return jsonify({'success': True, **sis_access_gate.status(user_id)})
 
 

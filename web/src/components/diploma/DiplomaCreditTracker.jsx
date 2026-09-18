@@ -40,7 +40,15 @@ const FILTER_TABS = [
   { key: 'grow_this', label: 'Grow This' },
   { key: 'pending_org_approval', label: 'Awaiting Org Review' },
   { key: 'pending_review', label: 'Awaiting Review' },
+  // Approved credit is not actionable, but the reviewer's note on it was
+  // written to the database and shown to nobody until this tab existed.
+  { key: 'finalized', label: 'Approved' },
 ];
+
+// Approved credit accumulates for as long as the student is enrolled. The
+// dashboard shows the newest few and the rest on request, so a hundred
+// finalized rows do not push everything under the tracker off the screen.
+const APPROVED_PREVIEW = 8;
 
 export default function DiplomaCreditTracker() {
   // Family scope: on a child's dashboard this is the CHILD's credit requests.
@@ -53,6 +61,7 @@ export default function DiplomaCreditTracker() {
   const [filter, setFilter] = useState(null); // null = auto-select based on data
   const [expandedId, setExpandedId] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showAllApproved, setShowAllApproved] = useState(false);
 
   // Set-state-after-unmount guard: the fetch can resolve after the component
   // (or the test environment) is gone, and the late setLoading/setError then
@@ -89,6 +98,10 @@ export default function DiplomaCreditTracker() {
             ['pending_org_approval', 'pending_review'].includes(r.diploma_status)
           );
           if (firstPending) setFilter(firstPending.diploma_status);
+        } else if (requests.some(r => r.diploma_status === 'finalized')) {
+          // Nothing to do: the newest approvals, and any note that came
+          // with them, are what the student came to see.
+          setFilter('finalized');
         }
         // Otherwise filter stays null — shows "all caught up" summary
       }
@@ -102,6 +115,9 @@ export default function DiplomaCreditTracker() {
   const filtered = filter
     ? creditRequests.filter(r => r.diploma_status === filter)
     : [];
+  const previewCapped = filter === 'finalized' && !showAllApproved
+    && filtered.length > APPROVED_PREVIEW;
+  const visible = previewCapped ? filtered.slice(0, APPROVED_PREVIEW) : filtered;
 
   const growCount = creditRequests.filter(r => r.diploma_status === 'grow_this').length;
   const pendingCount = creditRequests.filter(r =>
@@ -109,6 +125,10 @@ export default function DiplomaCreditTracker() {
   ).length;
   const approvedCount = creditRequests.filter(r => r.diploma_status === 'finalized').length;
   const allCaughtUp = growCount === 0 && pendingCount === 0;
+  // Tabs earn their row once there is something to switch between.
+  const tabsWithItems = FILTER_TABS.filter(tab =>
+    creditRequests.some(r => r.diploma_status === tab.key)
+  );
 
   if (loading) {
     return (
@@ -167,45 +187,44 @@ export default function DiplomaCreditTracker() {
             </div>
           )}
 
-          {allCaughtUp ? (
+          {allCaughtUp && approvedCount === 0 && (
             <p className="text-sm text-gray-500 text-center py-3">
               All caught up! Complete tasks and request diploma credit to track progress here.
             </p>
-          ) : (
-            <>
-              {/* Filter tabs - only show if both categories have items */}
-              {growCount > 0 && pendingCount > 0 && (
-                <div className="flex gap-1 mb-4 overflow-x-auto">
-                  {FILTER_TABS.map(tab => {
-                    const count = creditRequests.filter(r => r.diploma_status === tab.key).length;
-                    if (count === 0) return null;
-                    return (
-                      <button
-                        key={tab.key}
-                        onClick={() => setFilter(tab.key)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
-                          filter === tab.key
-                            ? 'bg-optio-purple text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {tab.label} ({count})
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+          )}
+
+          {/* Filter tabs - only once there is more than one category to switch between */}
+          {tabsWithItems.length > 1 && (
+            <div className="flex gap-1 mb-4 overflow-x-auto" role="tablist">
+              {tabsWithItems.map(tab => {
+                const count = creditRequests.filter(r => r.diploma_status === tab.key).length;
+                return (
+                  <button
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={filter === tab.key}
+                    onClick={() => setFilter(tab.key)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
+                      filter === tab.key
+                        ? 'bg-optio-purple text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tab.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* Credit request list */}
-          {!allCaughtUp && filtered.length === 0 ? (
+          {filter && filtered.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-4">
               No credit requests in this category.
             </p>
           ) : filtered.length > 0 && (
             <div className="space-y-3">
-              {filtered.map(req => {
+              {visible.map(req => {
                 const config = STATUS_CONFIG[req.diploma_status] || STATUS_CONFIG.pending_review;
                 const StatusIcon = config.icon;
                 const isExpanded = expandedId === req.completion_id;
@@ -220,7 +239,7 @@ export default function DiplomaCreditTracker() {
                       className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors text-left"
                     >
                       <StatusIcon className={`w-5 h-5 flex-shrink-0 ${
-                        req.diploma_status === 'approved' ? 'text-green-600' :
+                        req.diploma_status === 'finalized' ? 'text-green-600' :
                         req.diploma_status === 'grow_this' ? 'text-blue-600' :
                         'text-amber-600'
                       }`} />
@@ -268,11 +287,19 @@ export default function DiplomaCreditTracker() {
                           </div>
                         )}
 
-                        {/* Grow This feedback */}
+                        {/* The reviewer's note: what to grow, or what was
+                            good about it. Both come from the latest review
+                            round, so an approval with no note shows nothing. */}
                         {req.diploma_status === 'grow_this' && req.latest_feedback && (
                           <div className="mb-3 bg-blue-50 border border-blue-200 rounded-md p-3">
                             <p className="text-xs font-medium text-blue-800 mb-1">Teacher Feedback:</p>
-                            <p className="text-sm text-blue-900">{req.latest_feedback}</p>
+                            <p className="text-sm text-blue-900 whitespace-pre-wrap">{req.latest_feedback}</p>
+                          </div>
+                        )}
+                        {req.diploma_status === 'finalized' && req.latest_feedback && (
+                          <div className="mb-3 bg-green-50 border border-green-200 rounded-md p-3">
+                            <p className="text-xs font-medium text-green-800 mb-1">Teacher Feedback:</p>
+                            <p className="text-sm text-green-900 whitespace-pre-wrap">{req.latest_feedback}</p>
                           </div>
                         )}
 
@@ -291,7 +318,11 @@ export default function DiplomaCreditTracker() {
                               Round {req.revision_number}
                             </span>
                           )}
-                          {req.credit_requested_at && (
+                          {req.diploma_status === 'finalized' && req.finalized_at ? (
+                            <span className="text-xs text-gray-400 ml-auto">
+                              Approved {new Date(req.finalized_at).toLocaleDateString()}
+                            </span>
+                          ) : req.credit_requested_at && (
                             <span className="text-xs text-gray-400 ml-auto">
                               {new Date(req.credit_requested_at).toLocaleDateString()}
                             </span>
@@ -311,6 +342,15 @@ export default function DiplomaCreditTracker() {
                   </div>
                 );
               })}
+              {previewCapped && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllApproved(true)}
+                  className="w-full py-2 text-xs font-medium text-optio-purple hover:text-optio-pink transition-colors"
+                >
+                  Show all {filtered.length} approved
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -19,6 +19,7 @@ from middleware.rate_limiter import rate_limit
 from services import phone_verification_service as phone_verification
 from utils.auth.decorators import require_auth
 from utils.logger import get_logger
+from utils.session_manager import session_manager
 
 logger = get_logger(__name__)
 
@@ -34,7 +35,18 @@ def verification_status(user_id):
     Asked by the router gate before the app renders anything, so like the
     required-documents endpoint it takes no parameters: `required: false` is
     the one answer for everybody who is not held.
+
+    An admin viewing as a held adult is not held. The API gate
+    (middleware/api_hold_gate.py) lets a masquerade through every hold, and
+    this endpoint is what the clients render the hold screen from, so it has
+    to agree -- or the mobile app raises a full-screen flow whose one action,
+    typing a code texted to somebody else's phone, the admin cannot take
+    (Lynette Evans, iCreate, 2026-09-18). The web router exempts masquerade
+    on its own side too; this is the answer for every client at once.
     """
+    if session_manager.is_masquerading():
+        return jsonify({'success': True, 'required': False, 'verified': False,
+                        'masquerading': True})
     return jsonify({'success': True, **phone_verification.status(user_id)})
 
 

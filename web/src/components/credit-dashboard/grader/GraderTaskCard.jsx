@@ -19,6 +19,15 @@ const GraderTaskCard = ({
   const hasCriteria = criteriaForDisplay(task, aiReview).length > 0
   const studentName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim()
     || student?.display_name || 'Student'
+  const orgName = student?.organization_name || ''
+  // Rewritten on every resubmission, so this is when the revision on screen
+  // was sent for review, not when the first attempt was.
+  const requestedAt = completion?.credit_requested_at
+    ? new Date(completion.credit_requested_at)
+    : null
+  const requestedLabel = requestedAt && !Number.isNaN(requestedAt.getTime())
+    ? requestedAt.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+    : null
 
   return (
     <section aria-labelledby="grader-task-title" className="space-y-4">
@@ -31,9 +40,21 @@ const GraderTaskCard = ({
         </h2>
         <p className="mt-1 text-sm text-gray-500">
           <span className="font-medium text-gray-700">{studentName}</span>
+          {orgName && <span> ({orgName})</span>}
           <span> in </span>
           <span className="font-medium text-gray-700">{quest?.title || 'Unknown Quest'}</span>
         </p>
+        {requestedLabel && (
+          <p className="mt-0.5 text-sm text-gray-500">
+            Credit requested{' '}
+            <time dateTime={completion.credit_requested_at} className="text-gray-700">
+              {requestedLabel}
+            </time>
+            {completion?.revision_number > 1 && (
+              <span> (revision {completion.revision_number})</span>
+            )}
+          </p>
+        )}
       </div>
 
       <div className="max-w-xs">

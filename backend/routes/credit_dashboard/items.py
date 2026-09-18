@@ -56,6 +56,14 @@ def resolve_user_name(user_data):
     )
 
 
+def _org_names(admin, org_ids):
+    """``{organization_id: name}`` for the ids given, one query. A superadmin
+    reviews every org's queue in one list, and a name next to the student is
+    how they tell whose standard they are grading against."""
+    from repositories.organization_repository import OrganizationRepository
+    return OrganizationRepository(client=admin).names_for(org_ids)
+
+
 def _org_student_ids(admin, org_id):
     """Every user id in an org. Empty list when the org is missing."""
     if not org_id:
@@ -210,6 +218,8 @@ def get_dashboard_items(user_id: str):
                 .in_('id', c_student_ids) \
                 .execute()
             students_map = {s['id']: s for s in (students.data or [])}
+        org_names = _org_names(admin_supabase,
+                               [s.get('organization_id') for s in students_map.values()])
 
         # Batch fetch tasks
         tasks_map = {}
@@ -282,7 +292,8 @@ def get_dashboard_items(user_id: str):
                 'finalized_at': c.get('finalized_at'),
                 'merged_into': c.get('merged_into'),
                 'evidence_block_count': evidence_counts.get(c['id'], 0),
-                'is_org_student': bool(student.get('organization_id'))
+                'is_org_student': bool(student.get('organization_id')),
+                'organization_name': org_names.get(student.get('organization_id')),
             })
 
         # AI verdicts for this page, in one query. Superadmin only.
@@ -424,6 +435,9 @@ def get_dashboard_item_detail(user_id: str, completion_id: str):
         # Inject resolved display_name into student data
         student_data = student.data or {}
         student_data['display_name'] = resolve_user_name(student_data)
+        student_data['organization_name'] = _org_names(
+            admin_supabase, [student_data.get('organization_id')],
+        ).get(student_data.get('organization_id'))
         sign_in_place([student_data], ['avatar_url'])
 
         payload = {

@@ -521,7 +521,9 @@ BASELINES = {
     # 2026-09-18 (M16, second half): unchanged at 584. sis_attach_service
     # reads the guardian's household through the for_guardian above; the
     # funnel's and the admin path's copies of that lookup left routes/.
-    'repositories': 584,
+    # 2026-09-18: 584 -> 585. OrganizationRepository.names_for, the school
+    # names beside a superadmin's cross-org credit queue.
+    'repositories': 585,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

@@ -44,6 +44,7 @@ const itemStub = {
 function renderGrader({
   role, status, evidence_blocks = [], review_rounds = [], task = {}, props = {},
   suggested_subjects = { math: 100 },
+  student = { display_name: 'Clare B' }, completion = {},
 }) {
   const detail = {
     completion: {
@@ -51,6 +52,7 @@ function renderGrader({
       user_id: 'student-1',
       diploma_status: status,
       user_quest_task_id: 'task-1',
+      ...completion,
     },
     task: {
       id: 'task-1',
@@ -61,7 +63,7 @@ function renderGrader({
       ...task,
     },
     quest: { id: 'q1', title: 'Quest' },
-    student: { display_name: 'Clare B' },
+    student,
     evidence_blocks,
     review_rounds,
     suggested_subjects,
@@ -223,6 +225,44 @@ describe('GraderView — the frame', () => {
                    task: { success_criteria: ['Show the working', 'Name the result'] } })
     expect(screen.getByText('Show the working')).toBeInTheDocument()
     expect(screen.getByText('Name the result')).toBeInTheDocument()
+  })
+
+  it('shows the organization the student belongs to next to their name', () => {
+    renderGrader({ role: 'superadmin', status: 'pending_review', props: {
+      item: { ...itemStub, diploma_status: 'pending_review', organization_name: 'Hearthwood Academy' },
+    } })
+    // The header prefers the queue row; the task card reads the detail.
+    expect(screen.getByTitle('Organization: Hearthwood Academy')).toHaveTextContent('Hearthwood Academy')
+  })
+
+  it('reads the organization from the detail when the row has none yet', () => {
+    renderGrader({ role: 'superadmin', status: 'pending_review',
+                   student: { display_name: 'Clare B', organization_name: 'Hearthwood Academy' } })
+    expect(screen.getByTitle('Organization: Hearthwood Academy')).toBeInTheDocument()
+    expect(screen.getByText('(Hearthwood Academy)')).toBeInTheDocument()
+  })
+
+  it('labels a platform student with no organization at all', () => {
+    renderGrader({ role: 'superadmin', status: 'pending_review' })
+    expect(screen.queryByTitle(/^Organization:/)).toBeNull()
+    expect(screen.queryByText(/^\(.*\)$/)).toBeNull()
+  })
+
+  it('shows when the student requested credit for the revision on screen', () => {
+    const iso = '2026-09-14T15:12:00Z'
+    renderGrader({ role: 'superadmin', status: 'pending_review',
+                   completion: { credit_requested_at: iso, revision_number: 2 } })
+    const when = screen.getByText(/credit requested/i)
+    const time = when.querySelector('time')
+    expect(time).toHaveAttribute('datetime', iso)
+    expect(time).toHaveTextContent(
+      new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))
+    expect(when).toHaveTextContent('(revision 2)')
+  })
+
+  it('says nothing about a request time it does not have', () => {
+    renderGrader({ role: 'superadmin', status: 'pending_review' })
+    expect(screen.queryByText(/credit requested/i)).toBeNull()
   })
 
   it('waits for the detail to match the item before rendering it', () => {

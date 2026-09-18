@@ -81,6 +81,11 @@ const GraderView = ({
     || (ready && `${detail.student?.first_name || ''} ${detail.student?.last_name || ''}`.trim())
     || (ready && detail.student?.display_name)
     || 'Student'
+  // A superadmin's queue mixes every org. The name alone does not say whose
+  // standard applies; a platform student has no org and gets no label.
+  const orgName = item?.organization_name
+    || (ready && detail.student?.organization_name)
+    || ''
   const taskTitle = item?.task_title || (ready && detail.task?.title) || ''
 
   return (
@@ -105,6 +110,14 @@ const GraderView = ({
 
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <span className="truncate text-sm font-semibold text-gray-900">{studentName}</span>
+          {orgName && (
+            <span
+              className="shrink-0 max-w-[12rem] truncate rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+              title={`Organization: ${orgName}`}
+            >
+              {orgName}
+            </span>
+          )}
           {taskTitle && (
             <>
               <span className="text-gray-300 hidden sm:inline" aria-hidden="true">·</span>
