@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 /**
@@ -34,6 +34,9 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import MySchedulePanel from './classesPage/MySchedulePanel'
+
+// The persisted list|grid choice must not leak between tests.
+beforeEach(() => { try { localStorage.clear() } catch { /* jsdom */ } })
 
 const LONG_NAME = 'Creative Explorers: Nature & Art (Thurs, Block 2)'
 
@@ -88,5 +91,35 @@ describe('MySchedulePage table view', () => {
     expect(screen.getByText('Cafeteria')).toBeInTheDocument()
     const dutyRow = screen.getByText('Lunch duty').closest('tr')
     expect(dutyRow).toHaveTextContent('—')
+  })
+})
+
+/**
+ * The same week as a grid (E4, 2026-09-18): one drawing, the student
+ * record's WeeklyScheduleGrid, with the duties on it that the My classes
+ * tab's own grid never showed. Mon-Fri always, today marked, a class block
+ * opens the class.
+ */
+describe('MySchedulePanel week grid', () => {
+  it('draws classes and duties on one grid, Monday to Friday', async () => {
+    renderPage()
+    await screen.findByText('Thursday')
+    fireEvent.click(screen.getByTitle('Week grid'))
+    for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']) {
+      expect(screen.getByRole('columnheader', { name: new RegExp(`^${day}`) })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('button', { name: LONG_NAME })).toBeInTheDocument()
+    expect(screen.getByText('Lunch duty')).toBeInTheDocument()
+    expect(screen.getByText('Cafeteria')).toBeInTheDocument()
+    // The list's day tables are gone while the grid is up.
+    expect(screen.queryByRole('columnheader', { name: 'Ages' })).not.toBeInTheDocument()
+  })
+
+  it('a class block opens the class; a duty is not a door', async () => {
+    renderPage()
+    await screen.findByText('Thursday')
+    fireEvent.click(screen.getByTitle('Week grid'))
+    expect(screen.getByRole('button', { name: LONG_NAME })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Lunch duty' })).not.toBeInTheDocument()
   })
 })

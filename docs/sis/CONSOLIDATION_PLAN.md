@@ -1112,9 +1112,14 @@ intact (the progress tab's `?class_id=&completion_id=&from=` still land);
 dashboard tiles, the teacher home's "View all", the class page's back link
 and the backend's attendance notification links point at the tabs. Academics
 in the sidebar: Classes, CLP, Calendar, Prior Learning, Goals. Not merged:
-the week grid on My classes and the week list on My schedule are still two
-renderings of the teacher's week (the list carries duties; the grid does
-not) -- the E4 leftover, a later pass. Verify at :3000 as a teacher: three
+the week grid on My classes and the week list on My schedule were still two
+renderings of the teacher's week (the list carried duties; the grid did
+not) -- the E4 leftover, closed on 2026-09-18: My classes is cards only, and
+My schedule is the one week, as the list or as the grid (a persisted
+list|grid switch), both drawing classes and duties; the grid is the student
+record's `WeeklyScheduleGrid`, now taking `tone` (a duty block is amber),
+`onOpen`, `fixedDays` (Mon-Fri always) and `markToday`, so the teacher's
+week and the student's week are one drawing over `utils/schedule.weekGrid`. Verify at :3000 as a teacher: three
 tabs, no office button; as an admin: six tabs with counts on the first two
 office tabs, the catalog's create/edit/roster/waitlist unchanged; Take
 attendance from the dashboard lands on the Attendance tab; a class's Student

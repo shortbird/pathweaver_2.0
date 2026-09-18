@@ -1,18 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
+import { ListBulletIcon, CalendarDaysIcon } from '@heroicons/react/24/outline'
 import api from '../../../services/api'
 import { useSisOrg, withOrg } from '../useSisOrg'
 import { withPreview, getPreviewTeacher } from '../teacherPreview'
 import { fmtTime } from '../../../utils/schedule'
+import usePersistedChoice from '../../../hooks/usePersistedChoice'
+import WeeklyScheduleGrid from '../../../components/sis/WeeklyScheduleGrid'
 
 /**
- * My schedule -- the teacher's weekly view: recurring class meetings and
- * assigned duties grouped by weekday, plus one-off dated items under
- * "Upcoming". A tab of the one Classes page (2026-09-17; it was /my-schedule).
+ * My schedule -- the teacher's week: recurring class meetings and assigned
+ * duties, as a list grouped by weekday (the table the client asked for) or
+ * as the week grid, plus one-off dated items under "Upcoming". A tab of the
+ * one Classes page (2026-09-17; it was /my-schedule). Until E4 (2026-09-18)
+ * the grid lived on the My classes tab and drew classes only, so the week
+ * was rendered twice and only one rendering knew about lunch duty.
  * Reads GET /api/sis/teacher/schedule ({ meetings, assignments }); both use the
  * class_meetings weekday convention (0=Sun … 6=Sat) and optional specific_date.
  */
+
+const WEEKDAYS = [1, 2, 3, 4, 5] // Mon-Fri, always on the grid
 
 // class_meetings / assignments convention: 0=Sun … 6=Sat. Rendered Mon-first
 // (microschools run weekdays), with Sun/Sat last.
@@ -98,9 +106,13 @@ const ItemCells = ({ item }) => (
 
 export default function MySchedulePanel() {
   const { orgId } = useSisOrg()
+  const navigate = useNavigate()
   const [meetings, setMeetings] = useState([])
   const [assignments, setAssignments] = useState([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = usePersistedChoice('sis_my_schedule_view', 'list', {
+    validate: (v) => (v === 'list' || v === 'grid' ? v : null),
+  })
   const preview = getPreviewTeacher()
 
   useEffect(() => {
@@ -117,7 +129,7 @@ export default function MySchedulePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, preview?.id])
 
-  const { weekly, upcoming } = useMemo(() => {
+  const { weekly, upcoming, gridItems } = useMemo(() => {
     const items = [...meetings.map(fromMeeting), ...assignments.map(fromAssignment)]
     const recurring = items.filter((i) => !i.specific_date && i.day_of_week != null)
     const dated = items
@@ -127,7 +139,23 @@ export default function MySchedulePanel() {
       ...d,
       items: recurring.filter((i) => i.day_of_week === d.dow).sort(byTime),
     })).filter((d) => d.items.length)
-    return { weekly, upcoming: dated }
+    // The grid draws the same items in the grid's shape: a class with its
+    // meetings, and each duty as a block of its own kind.
+    const byClass = {}
+    const gridItems = []
+    for (const i of recurring) {
+      const meeting = { day_of_week: i.day_of_week, start_time: i.start_time, end_time: i.end_time, location: i.location }
+      if (i.kind === 'class') {
+        if (!byClass[i.class_id]) {
+          byClass[i.class_id] = { id: i.class_id, name: i.title, tone: 'class', meetings: [] }
+          gridItems.push(byClass[i.class_id])
+        }
+        byClass[i.class_id].meetings.push(meeting)
+      } else {
+        gridItems.push({ id: `${i.kind}-${gridItems.length}`, name: i.title, tone: i.kind, meetings: [meeting] })
+      }
+    }
+    return { weekly, upcoming: dated, gridItems }
   }, [meetings, assignments])
 
   if (loading) return <p className="text-neutral-500">Loading…</p>
@@ -136,7 +164,21 @@ export default function MySchedulePanel() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-neutral-500">Your weekly classes and duties. Tap a class to take attendance or message it.</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-neutral-500">Your weekly classes and duties. Tap a class to take attendance or message it.</p>
+        {weekly.length > 0 && (
+          <div className="inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5 bg-white">
+            <button onClick={() => setView('list')} title="List by day" aria-pressed={view === 'list'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'list' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <ListBulletIcon className="w-4 h-4" />
+            </button>
+            <button onClick={() => setView('grid')} title="Week grid" aria-pressed={view === 'grid'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'grid' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <CalendarDaysIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {empty && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -146,7 +188,14 @@ export default function MySchedulePanel() {
         </div>
       )}
 
-      {weekly.map((d) => {
+      {view === 'grid' && weekly.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <WeeklyScheduleGrid classes={gridItems} fixedDays={WEEKDAYS} markToday
+            onOpen={(cls) => navigate(`/my-classes/${cls.id}`)} />
+        </div>
+      )}
+
+      {view === 'list' && weekly.map((d) => {
         const isToday = d.dow === new Date().getDay()
         return (
           <div key={d.dow}
