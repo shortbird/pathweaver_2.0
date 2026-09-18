@@ -9,21 +9,26 @@
  * than "3/7 tasks" -- the weekly goal as one line, and the peer-connection
  * requests waiting on the parent. The summary is /api/parent/dashboard/:id
  * (useChildDashboard), the same read the web dashboard's cards make, and
- * until it lands, or if it fails, the card still stands: name, picture, and
- * Open.
+ * until it lands, or if it fails, the card still stands: picture, name and
+ * the stat line, and that top row opens the child.
  *
- * "Open" puts the child in family scope (stores/familyStore) and lands on
- * their dashboard; a quest row does the same and lands on that quest, so
- * the parent is working WITH the child on it; the name lands on their full
- * profile. Until 2026-09-15 the tab showed ONE child at a time behind a
- * switcher, with a hero, a calendar and a list of doors; every child is a
- * card now, the way the web dashboard does it.
+ * Tapping the top of the card puts the child in family scope
+ * (stores/familyStore) and lands on their dashboard; a quest row does the
+ * same and lands on that quest, so the parent is working WITH the child on
+ * it. The row carried an "Open" button until 2026-09-18; the button said
+ * what the row already looked like it would do, and the name beside it went
+ * somewhere else (the full profile), so a tap a few points off landed on a
+ * different screen. One target now; the profile is a tap away from the
+ * dashboard and from the settings sheet. The picture keeps its own tap (set
+ * a photo) -- the camera badge says so. Until 2026-09-15 the tab showed ONE
+ * child at a time behind a switcher, with a hero, a calendar and a list of
+ * doors; every child is a card now, the way the web dashboard does it.
  */
 
 import React, { useEffect, useRef } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, HStack, UIText, VStack, Button, ButtonText } from '@/src/components/ui';
+import { Card, HStack, UIText, VStack } from '@/src/components/ui';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { useChildDashboard } from '@/src/hooks/useParent';
 import type { Child } from '@/src/types/family';
@@ -84,9 +89,9 @@ interface ChildCardProps {
   connections: ConnectionApprovals;
   /** Opens the child's Friends screen (policy, list, requests). */
   onOpenFriends: (child: Child) => void;
+  /** The top row: the child's dashboard, in their scope. */
   onOpen: (child: Child) => void;
   onOpenQuest: (child: Child, questId: string) => void;
-  onOpenProfile: (child: Child) => void;
   /** The quest catalog in this child's scope. The parent tab bar has no
    *  Quests tab, so the card is the door (the web has the sidebar). */
   onBrowseQuests: (child: Child) => void;
@@ -94,7 +99,7 @@ interface ChildCardProps {
 
 export function ChildCard({
   child, refreshKey, connections, onOpenFriends,
-  onOpen, onOpenQuest, onOpenProfile, onBrowseQuests,
+  onOpen, onOpenQuest, onBrowseQuests,
 }: ChildCardProps) {
   const c = useThemeColors();
   const { data, refetch } = useChildDashboard(child.id);
@@ -113,27 +118,33 @@ export function ChildCard({
 
   return (
     <Card variant="outline" size="md" testID={`child-card-${child.id}`}>
-      <HStack className="items-center gap-3">
-        <ChildAvatar
-          childId={child.id}
-          firstName={firstName}
-          avatarUrl={summary?.student?.avatar_url || child.avatar_url}
-          initials={initialsFor(child)}
-          size="lg"
-        />
-        <VStack className="flex-1 min-w-0">
-          {/* The name opens the child's full profile. */}
-          <Pressable onPress={() => onOpenProfile(child)} accessibilityRole="button" accessibilityLabel={`Open ${nameFor(child)}'s profile`}>
+      {/* The top row opens the child. The picture inside it keeps its own
+          tap (the inner pressable wins), so a parent can still set a photo
+          from here. */}
+      <Pressable
+        onPress={() => onOpen(child)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${nameFor(child)}`}
+        testID={`child-open-${child.id}`}
+        className="active:opacity-70"
+      >
+        <HStack className="items-center gap-3">
+          <ChildAvatar
+            childId={child.id}
+            firstName={firstName}
+            avatarUrl={summary?.student?.avatar_url || child.avatar_url}
+            initials={initialsFor(child)}
+            size="lg"
+          />
+          <VStack className="flex-1 min-w-0">
             <UIText size="md" className="font-poppins-semibold" numberOfLines={1}>{nameFor(child)}</UIText>
-          </Pressable>
-          <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
-            {statLine(summary, child)}
-          </UIText>
-        </VStack>
-        <Button size="sm" onPress={() => onOpen(child)} testID={`child-open-${child.id}`}>
-          <ButtonText>Open</ButtonText>
-        </Button>
-      </HStack>
+            <UIText size="xs" className="text-typo-500 dark:text-dark-typo-500" numberOfLines={1}>
+              {statLine(summary, child)}
+            </UIText>
+          </VStack>
+          <Ionicons name="chevron-forward" size={18} color={c.iconMuted} />
+        </HStack>
+      </Pressable>
 
       {quests.length > 0 && (
         <VStack className="mt-3" space="xs">

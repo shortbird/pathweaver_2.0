@@ -19,6 +19,10 @@ WEB_PUSH_NOTIFICATION_TYPES = {
     # A parent's Friends inbox: a request to answer, or a friend added
     # under their policy. Both are theirs to act on from the Family tab.
     'peer_connection_needs_approval', 'peer_friend_added', 'peer_text_held',
+    # The child asked (ask_parent, 2026-09-18) -- or a portfolio needs the
+    # parent's say-so. Either way the parent is the one who can act, and
+    # the link lands on the switch (/family?friends=<child>).
+    'parent_approval_required',
 }
 
 # Notification types that should trigger mobile push notifications.

@@ -1,23 +1,24 @@
 /**
  * FamilySettingsSheet - ONE place for the family's settings on the phone.
  *
- * Adding a child, each child's picture, their profile, and inviting an
- * observer. Until 2026-09-15 these were spread over a menu behind a
+ * The parent's own account, adding a child, inviting an observer, and each
+ * child's Friends. Until 2026-09-15 these were spread over a menu behind a
  * three-dot button on the one child showing, the header's avatar menu, and
  * the plus button's sheet; the web dashboard put them in one Family Settings
- * modal with a tab per child, and this is that sheet. The cards on the
- * Family tab carry only Open.
+ * modal with a tab per child, and this is that sheet.
  *
  * Each child's Friends policy (on/off, ask me first, who may ask, what
  * friends may do) is the child's Friends screen (parent/friends/<id>),
  * reached from here the way the web reaches it from the child's settings
  * tab. A request waiting on the parent shows its count on the row.
  *
- * A child's login, AI access and portfolio privacy are web settings
- * (FamilySettingsModal -> ChildSettingsPanel). The phone used to offer
- * "Give login access" here and create the account with a hardcoded
- * password (and, off iOS, a made-up email); that row now opens the web
- * settings for that child instead.
+ * Trimmed 2026-09-18: a child's picture is set by tapping it on their card
+ * or profile (ChildAvatar), their profile opens from their dashboard, and
+ * "login, AI and privacy" was a door to the web settings modal; the three
+ * rows repeated what the app already offers, or left it. (That last row had
+ * itself replaced "Give login access", which created the account here with
+ * a hardcoded password.) The web's FamilySettingsModal still carries the
+ * login, AI and privacy settings.
  *
  * "Add a child" is hidden for a family in an SIS school: the office owns the
  * roster there, and a child added from the app lands outside the household
@@ -38,27 +39,8 @@ import { useAuthStore } from '@/src/stores/authStore';
 import { useAddKidStore } from '@/src/stores/familyStore';
 import { useInviteObserverStore } from '@/src/stores/inviteObserverStore';
 import type { Child } from '@/src/types/family';
-import { showAlert } from '@/src/utils/alerts';
-import { extractApiError } from '@/src/services/apiError';
 import { userInSisOrg } from '@/src/utils/orgModules';
-import { pickChildAvatar } from './ChildAvatar';
 import { initialsFor, nameFor } from './ChildSwitcher';
-
-/** The web Family Settings modal, opened on this child's tab. */
-function openWebSettings(child: Child) {
-  router.push({
-    pathname: '/(app)/view-on-web',
-    params: { path: `/family?settings=${child.id}`, label: 'Login, AI and privacy settings', surface: 'learning' },
-  } as any);
-}
-
-async function changePicture(child: Child) {
-  try {
-    await pickChildAvatar(child.id);
-  } catch (err) {
-    showAlert('Error', extractApiError(err, 'Could not update the picture.').message);
-  }
-}
 
 function Row({ icon, label, onPress, testID, badge }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; testID?: string;
@@ -145,21 +127,12 @@ export function FamilySettingsSheet({ visible, onClose, kids, pendingFriendReque
                   </UIText>
                 </VStack>
               </HStack>
-              {/* The picker runs after the sheet has closed (see pickChildAvatar). */}
-              <Row icon="image-outline" label={`Change ${first}'s picture`} onPress={() => after(() => changePicture(kid))} />
-              <Row icon="person-circle-outline" label={`${first}'s profile`} onPress={() => after(() => router.push(`/parent/child/${kid.id}` as any))} />
               <Row
                 icon="people-outline"
                 label={`${first}'s friends`}
                 testID={`family-settings-friends-${kid.id}`}
                 badge={pendingFriendRequests?.[kid.id]}
                 onPress={() => after(() => router.push(`/(app)/parent/friends/${kid.id}` as any))}
-              />
-              <Row
-                icon="key-outline"
-                label={`${first}'s login, AI and privacy`}
-                testID={`family-settings-web-${kid.id}`}
-                onPress={() => after(() => openWebSettings(kid))}
               />
             </View>
           );

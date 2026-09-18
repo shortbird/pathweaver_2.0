@@ -1,7 +1,8 @@
 /**
- * One child's card on the Family tab: picture (tap to set), stat line,
- * quests with rhythm, the weekly goal line, and a count of the friend
- * requests waiting on the parent (answered on the child's Friends screen).
+ * One child's card on the Family tab: a top row that opens the child
+ * (picture inside it, tap to set), stat line, quests with rhythm, the
+ * weekly goal line, and a count of the friend requests waiting on the
+ * parent (answered on the child's Friends screen).
  */
 
 import React from 'react';
@@ -46,7 +47,7 @@ const noConnections = { pending: [], approved: [] };
 
 function renderCard(props: Partial<React.ComponentProps<typeof ChildCard>> = {}) {
   const handlers = {
-    onOpen: jest.fn(), onOpenQuest: jest.fn(), onOpenProfile: jest.fn(), onBrowseQuests: jest.fn(),
+    onOpen: jest.fn(), onOpenQuest: jest.fn(), onBrowseQuests: jest.fn(),
     onOpenFriends: jest.fn(),
   };
   const result = render(
@@ -90,14 +91,17 @@ describe('ChildCard', () => {
     expect(queryByTestId('child-quest-class-q-1')).toBeNull();
   });
 
-  it('routes Open, a quest row and the name to the handlers', () => {
-    const { getByTestId, getByLabelText, handlers } = renderCard();
-    fireEvent.press(getByTestId('child-open-kid-1'));
+  it('opens the child from the top row, a quest from its row, and the catalog from its line', () => {
+    // The row carried an Open button until 2026-09-18, with the name beside
+    // it going to the profile instead; the whole top row is one target now.
+    const { getByText, getByLabelText, queryByText, queryByLabelText, handlers } = renderCard();
+    expect(queryByText('Open')).toBeNull();
+    // Pressing the name (not the picture) bubbles to the row.
+    fireEvent.press(getByText('Romney Hanna'));
     expect(handlers.onOpen).toHaveBeenCalledWith(child);
+    expect(queryByLabelText("Open Romney Hanna's profile")).toBeNull();
     fireEvent.press(getByLabelText('Open Build a drone with Romney'));
     expect(handlers.onOpenQuest).toHaveBeenCalledWith(child, 'q-1');
-    fireEvent.press(getByLabelText("Open Romney Hanna's profile"));
-    expect(handlers.onOpenProfile).toHaveBeenCalledWith(child);
     fireEvent.press(getByLabelText('Browse quests for Romney'));
     expect(handlers.onBrowseQuests).toHaveBeenCalledWith(child);
   });

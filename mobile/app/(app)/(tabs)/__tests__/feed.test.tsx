@@ -74,8 +74,9 @@ describe('FeedScreen', () => {
 
   // The All / Mine / Friends bar appears once there is a friend to filter by,
   // and Friends asks the server for scope=friends rather than filtering a
-  // page of everyone's. The badge on the Friends button counts requests
-  // waiting on the student.
+  // page of everyone's. The strip above the bar (FriendsStrip) is where a
+  // student with none yet is told how to get one; its door to Friends
+  // counts the requests waiting on the student.
   describe('whose work', () => {
     const empty = {
       items: [], loading: false, loadingMore: false, hasMore: false, error: null,
@@ -90,12 +91,14 @@ describe('FeedScreen', () => {
       });
     };
 
-    it('offers no filter to a student with no friends', async () => {
+    it('offers no filter to a student with no friends, and says how to get one', async () => {
       (useFeed as jest.Mock).mockReturnValue(empty);
       friendsListing([]);
-      const { queryByText } = render(<FeedScreen />);
+      const { queryByText, getByText } = render(<FeedScreen />);
       await act(async () => {});
       expect(queryByText('Mine')).toBeNull();
+      expect(getByText('Add friends to see their work here')).toBeTruthy();
+      expect(getByText('Add a friend')).toBeTruthy();
     });
 
     it('filters to friends through the server scope, and counts waiting requests', async () => {

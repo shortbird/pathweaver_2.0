@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api, { observerAPI } from '../services/api';
 import FeedCard from '../components/observer/FeedCard';
+import FeedFriendsCard from '../components/connections/FeedFriendsCard';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import EmptyState from '../components/ui/EmptyState';
@@ -309,16 +310,13 @@ export default function StudentFeedbackPage() {
             ? "Your work, your connected friends' work, and feedback from your observers."
             : 'See your completed work and feedback from your observers.'}
         </p>
-        {peerCount === 0 && (
-          <Link
-            to="/connections"
-            className="inline-flex items-center gap-1 mt-2 text-sm text-optio-purple hover:text-optio-pink font-medium"
-          >
-            Connect with another student
-            <ArrowRightIcon className="w-4 h-4" />
-          </Link>
-        )}
       </div>
+
+      {/* The friends themselves, and the way to more of them (or, for a kid
+          whose parent holds the switch, the ask). Until 2026-09-18 this was
+          one "Connect with another student" line to a page that then said
+          Friends was off. */}
+      <FeedFriendsCard />
 
       {/* Whose work: everyone, only mine, only my friends'. Shown once there
           is a friend to filter by. */}

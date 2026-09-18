@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from services.notification_service import (
     MOBILE_PUSH_NOTIFICATION_TYPES,
+    WEB_PUSH_NOTIFICATION_TYPES,
     NotificationService,
 )
 
@@ -43,6 +44,14 @@ FORBIDDEN_TYPES = {
 def test_mobile_push_types_include_required_set():
     missing = REQUIRED_MOBILE_PUSH_TYPES - MOBILE_PUSH_NOTIFICATION_TYPES
     assert not missing, f"Mobile push types missing required entries: {missing}"
+
+
+def test_child_asking_for_friends_reaches_a_parent_on_the_web_too():
+    # ask_parent (2026-09-18): the child's tap on the feed must reach the
+    # parent wherever they are -- the phone (mobile push) and the browser
+    # (web push), each landing on the switch.
+    assert 'parent_approval_required' in WEB_PUSH_NOTIFICATION_TYPES
+    assert 'parent_approval_required' in MOBILE_PUSH_NOTIFICATION_TYPES
 
 
 def test_mobile_push_types_exclude_removed():

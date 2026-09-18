@@ -1,7 +1,7 @@
 /**
  * One settings sheet for the family: add a child, invite an observer, and
- * each child's picture, profile, Friends, and a door to their web-only
- * settings (login, AI, privacy).
+ * each child's Friends. Picture, profile and the web-settings door left the
+ * sheet on 2026-09-18 (the card and the dashboard cover the first two).
  */
 
 import React from 'react';
@@ -16,7 +16,6 @@ import { createMockChild } from '@/src/__tests__/utils/mockFactories';
 jest.mock('@/src/services/api', () =>
   require('@/src/__tests__/utils/mockApi').mockApiModule()
 );
-jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 // The sheet runs the chosen action once it has closed; make that immediate.
 jest.mock('@/src/components/ui/bottom-sheet', () => ({
   BottomSheet: ({ visible, children, onClosed }: any) => {
@@ -43,12 +42,14 @@ describe('FamilySettingsSheet', () => {
     expect(getByLabelText('Invite an observer')).toBeTruthy();
     expect(getByTestId('family-settings-child-kid-a')).toBeTruthy();
     expect(getByTestId('family-settings-child-kid-b')).toBeTruthy();
-    expect(getByLabelText("Change Romney's picture")).toBeTruthy();
-    expect(getByLabelText("Romney's profile")).toBeTruthy();
-    // Login, AI and privacy are web settings; every child gets the door and
-    // nobody gets an in-app account creator with a hardcoded password.
-    expect(getByLabelText("Romney's login, AI and privacy")).toBeTruthy();
-    expect(getByLabelText("Timmy's login, AI and privacy")).toBeTruthy();
+    expect(getByLabelText("Romney's friends")).toBeTruthy();
+    // Per child, Friends is the only row. Picture and profile have their own
+    // taps on the card and the dashboard; login, AI and privacy stay on the
+    // web, and nobody gets an in-app account creator with a hardcoded
+    // password.
+    expect(queryByLabelText("Change Romney's picture")).toBeNull();
+    expect(queryByLabelText("Romney's profile")).toBeNull();
+    expect(queryByLabelText("Romney's login, AI and privacy")).toBeNull();
     expect(queryByLabelText('Give login access')).toBeNull();
   });
 
@@ -63,18 +64,6 @@ describe('FamilySettingsSheet', () => {
     fireEvent.press(getByTestId('family-settings-friends-kid-a'));
     rerender(<FamilySettingsSheet visible={false} onClose={onClose} kids={kids} />);
     expect(router.push).toHaveBeenCalledWith('/(app)/parent/friends/kid-a');
-  });
-
-  it("opens the web Family Settings on that child's tab", () => {
-    useAuthStore.setState({ user: { id: 'p1', role: 'parent', organization: null } as any });
-    const onClose = jest.fn();
-    const { getByTestId, rerender } = render(<FamilySettingsSheet visible onClose={onClose} kids={kids} />);
-    fireEvent.press(getByTestId('family-settings-web-kid-b'));
-    rerender(<FamilySettingsSheet visible={false} onClose={onClose} kids={kids} />);
-    expect(router.push).toHaveBeenCalledWith(expect.objectContaining({
-      pathname: '/(app)/view-on-web',
-      params: expect.objectContaining({ path: '/family?settings=kid-b' }),
-    }));
   });
 
   it('hides Add a child for a family in an SIS school', () => {

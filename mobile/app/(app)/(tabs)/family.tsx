@@ -10,11 +10,13 @@
  * requests waiting on the parent), then the family's quests
  * (components/family/FamilyQuestsSection). Settings are one sheet
  * (components/family/FamilySettingsSheet), reached from the gear beside the
- * greeting; adding a child lives there too, so the cards carry only Open.
+ * greeting; adding a child lives there too, so the cards carry no controls
+ * of their own.
  *
- * "Open" puts the child in family scope (stores/familyStore) and lands on
- * their dashboard; the child's quests, journal and profile then render
- * pointed at that child, with the parent still signed in as themselves.
+ * Tapping the top of a card puts the child in family scope
+ * (stores/familyStore) and lands on their dashboard; the child's quests,
+ * journal and profile then render pointed at that child, with the parent
+ * still signed in as themselves.
  *
  * Until now the tab showed ONE child at a time behind a switcher -- a hero
  * with three numbers, a calendar, the quest list, and five doors -- and the
@@ -115,8 +117,9 @@ export default function ParentDashboardPage() {
     setRefreshing(false);
   };
 
-  // "Open" and the quest rows enter family scope, then go to the child's
-  // own screens; the name goes to their full profile.
+  // The top of a card and its quest rows enter family scope, then go to
+  // the child's own screens. The full profile is reached from the
+  // dashboard's header and from the settings sheet, not from the card.
   const openChild = (child: Child) => {
     setSelected(child.id);
     router.push('/(app)/(tabs)/dashboard' as any);
@@ -124,10 +127,6 @@ export default function ParentDashboardPage() {
   const openChildQuest = (child: Child, questId: string) => {
     setSelected(child.id);
     router.push(`/(app)/quests/${questId}` as any);
-  };
-  const openChildProfile = (child: Child) => {
-    setSelected(child.id);
-    router.push(`/parent/child/${child.id}` as any);
   };
   const openChildFriends = (child: Child) => {
     setSelected(child.id);
@@ -276,7 +275,6 @@ export default function ParentDashboardPage() {
                     onOpenFriends={openChildFriends}
                     onOpen={openChild}
                     onOpenQuest={openChildQuest}
-                    onOpenProfile={openChildProfile}
                     onBrowseQuests={browseQuests}
                   />
                 </View>

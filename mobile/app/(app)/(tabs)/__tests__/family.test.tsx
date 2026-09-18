@@ -108,27 +108,25 @@ describe('ParentDashboardPage', () => {
     expect(getByText('Add a Child')).toBeTruthy();
   });
 
-  it('Open enters family scope and lands on the child dashboard; a quest row opens that quest with the child', async () => {
+  it('the top of a card enters family scope and lands on the child dashboard; a quest row opens that quest with the child', async () => {
     const kids = [
       createMockChild({ id: 'kid-a', first_name: 'Romney', last_name: 'Hanna', display_name: 'Romney Hanna' }),
       createMockChild({ id: 'kid-b', first_name: 'Hope', last_name: 'Hanna', display_name: 'Hope Hanna' }),
     ];
     withChildren(kids);
 
-    const { getByTestId, getAllByLabelText, getByLabelText } = render(<ParentDashboardPage />);
+    const { getByText, getByTestId, getAllByLabelText, getByLabelText, queryByText } = render(<ParentDashboardPage />);
     await waitFor(() => expect(getByTestId('child-open-kid-b')).toBeTruthy());
 
-    fireEvent.press(getByTestId('child-open-kid-b'));
+    // No Open button since 2026-09-18: the name, the stat line, the row.
+    expect(queryByText('Open')).toBeNull();
+    fireEvent.press(getByText('Hope Hanna'));
     expect(useFamilyStore.getState().selectedChildId).toBe('kid-b');
     expect(router.push).toHaveBeenCalledWith('/(app)/(tabs)/dashboard');
 
     fireEvent.press(getAllByLabelText('Open Build a drone with Romney')[0]);
     expect(useFamilyStore.getState().selectedChildId).toBe('kid-a');
     expect(router.push).toHaveBeenCalledWith('/(app)/quests/q-1');
-
-    // The name opens the full profile.
-    fireEvent.press(getByLabelText("Open Hope Hanna's profile"));
-    expect(router.push).toHaveBeenCalledWith('/parent/child/kid-b');
 
     // The catalog, in the child's scope.
     fireEvent.press(getByLabelText('Browse quests for Hope'));
