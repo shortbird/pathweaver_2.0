@@ -125,9 +125,12 @@ const SchoolInboxPage = () => {
   const [composing, setComposing] = useState(false)
   const [people, setPeople] = useState([])
   const [pickedPerson, setPickedPerson] = useState('')
-  // Writing to several staff at once. Separate from `composing`, which starts a
-  // thread with ONE family or student as the school.
-  const [staffCompose, setStaffCompose] = useState(false)
+  // Writing to several people at once: 'staff' or 'families', or null when
+  // closed. Separate from `composing`, which starts a thread with ONE family
+  // or student as the school. Families was the gap Molly named from this very
+  // tab (iCreate, 2026-09-17, b32b2fca: "Right now we can only send to one
+  // person. I'm needing to message all the elementary school parents").
+  const [staffCompose, setStaffCompose] = useState(null)
   const scrollerRef = useRef(null)
 
   // Which list the hooks read (see useDirectMessages). A superadmin names the
@@ -398,9 +401,10 @@ const SchoolInboxPage = () => {
       />
 
       <StaffComposeModal
-        isOpen={staffCompose}
+        isOpen={!!staffCompose}
+        initialAudience={staffCompose || 'staff'}
         orgId={isSuperadmin ? orgId : null}
-        onClose={() => setStaffCompose(false)}
+        onClose={() => setStaffCompose(null)}
         onSent={() => queryClient.invalidateQueries({ queryKey: ['conversations'] })}
       />
 
@@ -447,16 +451,22 @@ const SchoolInboxPage = () => {
                   </button>
                 </div>
               ) : (
-                <button type="button" onClick={() => setComposing(true)}
-                  className="w-full rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
-                  New message
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setComposing(true)}
+                    className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+                    New message
+                  </button>
+                  <button type="button" onClick={() => setStaffCompose('families')}
+                    className="flex-1 rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
+                    Message families
+                  </button>
+                </div>
               )}
             </div>
           )}
           {admin && tab === 'mine' && (
             <div className="border-b border-gray-100 p-3">
-              <button type="button" onClick={() => setStaffCompose(true)}
+              <button type="button" onClick={() => setStaffCompose('staff')}
                 className="w-full rounded-lg border border-optio-purple/40 px-3 py-2 text-sm font-semibold text-optio-purple hover:bg-optio-purple/5 transition-colors">
                 New message
               </button>

@@ -68,7 +68,7 @@ def _fresh_admin_client():
     return create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
 
-def render_announcement_html(message: str) -> str:
+def render_announcement_html(message: str, link_path: str = '/school') -> str:
     """Announcement body as HTML paragraphs + footer link.
 
     A body written with the editor is already HTML — escaping it would put
@@ -85,13 +85,13 @@ def render_announcement_html(message: str) -> str:
         )
     footer = (
         f'<p style="margin: 1.5em 0 0 0; font-size: 14px; color: #6b7280;">'
-        f'Read in Optio: <a href="{Config.FRONTEND_URL}/school" '
-        f'style="color: #6D469B;">{Config.FRONTEND_URL}/school</a></p>'
+        f'Read in Optio: <a href="{Config.FRONTEND_URL}{link_path}" '
+        f'style="color: #6D469B;">{Config.FRONTEND_URL}{link_path}</a></p>'
     )
     return body + footer
 
 
-def send_announcement_emails(org_id, title, message, recipient_ids):
+def send_announcement_emails(org_id, title, message, recipient_ids, link_path='/school'):
     """
     Email an announcement to every recipient with a real email address.
 
@@ -100,6 +100,9 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
         title: Announcement title
         message: Full announcement body (plain text or sanitized editor HTML)
         recipient_ids: Iterable of user ids that received the in-app notification
+        link_path: Where "Read in Optio" points. Announcements live on /school;
+            a message sent to families (sis_family_messaging_service) is
+            answered from /messages, so that one says so.
 
     Returns:
         (sent_count, skipped_count) — informational only; all failures are logged.
@@ -178,9 +181,9 @@ def send_announcement_emails(org_id, title, message, recipient_ids):
             return 0, len(rows)
 
         subject = f"{org_name}: {title}"
-        html_body = render_announcement_html(message)
+        html_body = render_announcement_html(message, link_path)
         text_body = (f"{rich_text.to_text(message)}\n\n"
-                     f"Read in Optio: {Config.FRONTEND_URL}/school")
+                     f"Read in Optio: {Config.FRONTEND_URL}{link_path}")
 
         from services.email_service import email_service, SUPPORT_COPY_EXCLUDE_ORG_SLUGS
 

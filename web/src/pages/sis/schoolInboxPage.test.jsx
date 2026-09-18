@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -211,6 +211,18 @@ describe('SchoolInboxPage — combined inbox', () => {
     render(<SchoolInboxPage />)
     await screen.findByRole('tab', { name: /^My messages/ })
     expect(screen.queryByRole('button', { name: 'New message' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Message families' })).not.toBeInTheDocument()
+  })
+
+  // iCreate, 2026-09-17 (b32b2fca), from this tab: "Right now we can only send
+  // to one person. I'm needing to message all the elementary school parents."
+  it('opens the composer on Families from the school tab', async () => {
+    render(<SchoolInboxPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Message families' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Families' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sis/messaging/family-audience')))
   })
 
   it('shows the announcements composer on its tab, for teachers too', async () => {
