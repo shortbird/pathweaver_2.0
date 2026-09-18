@@ -9,6 +9,7 @@ import { HomeStatSection, HomeDoorGrid } from '../../components/home/AdminHomeTi
 import AICostChart from '../../components/home/AICostChart'
 import SafetyScreenCard from '../../components/home/SafetyScreenCard'
 import PlatformMetricsSection from '../../components/home/PlatformMetricsSection'
+import WebTrafficSection from '../../components/home/WebTrafficSection'
 
 /**
  * Superadmin Home — the platform cockpit (rendered by RoleHome at /dashboard).
@@ -164,6 +165,8 @@ export default function SuperadminHome() {
       <AICostChart />
 
       <PlatformMetricsSection />
+
+      <WebTrafficSection />
 
       <HomeDoorGrid ariaLabel="Superadmin surfaces" doors={DOORS} />
     </div>

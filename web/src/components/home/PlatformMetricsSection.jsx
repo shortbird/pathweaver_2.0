@@ -26,16 +26,15 @@ import { formatCost, shortDate } from './AICostChart'
  * channel.
  */
 
-const BRAND = '#6D469B' // optio-purple
+export const BRAND = '#6D469B' // optio-purple
 const SERIES = {
   completions: '#6D469B', // brand purple
   evidence: '#12a06e',    // green, darkened to clear 3:1 on white
   starts: '#eb6834',      // orange
 }
 const STATUS = { good: '#0ca30c', critical: '#d03b3b' }
-const COMMENTS = { platform: '#9CA3AF' } // gray: context, not the signal
 
-const RANGES = [
+export const RANGES = [
   { days: 7, label: '7d' },
   { days: 30, label: '30d' },
   { days: 90, label: '90d' },
@@ -136,8 +135,20 @@ export function formatDollars(value) {
   return `$${Math.round(Number(value) || 0).toLocaleString('en')}`
 }
 
-const AXIS_TICK = { fontSize: 11, fill: '#9CA3AF' }
-const CURSOR = { stroke: '#D1D5DB', strokeWidth: 1 }
+/* Chart chrome inks (Tailwind gray-100/400/600/500 and white). Named once
+   here so every home chart draws from the same four and the off-palette
+   ratchet (src/__tests__/brandPalette.test.js) sees one literal per role. */
+export const INK = {
+  grid: '#F3F4F6',    // gray-100: recessive gridlines
+  muted: '#9CA3AF',   // gray-400: axis ticks, context series
+  label: '#4B5563',   // gray-600: category labels
+  value: '#6B7280',   // gray-500: direct value labels
+  surface: '#FFFFFF', // the card: rings and gaps between marks
+}
+export const AXIS_TICK = { fontSize: 11, fill: INK.muted }
+export const CURSOR = { stroke: '#D1D5DB', strokeWidth: 1 }
+export const ACTIVE_DOT = { r: 4, strokeWidth: 2, stroke: INK.surface }
+const COMMENTS = { platform: INK.muted } // gray: context, not the signal
 
 function TooltipShell({ title, children }) {
   return (
@@ -149,7 +160,7 @@ function TooltipShell({ title, children }) {
 }
 
 /** rows: [{label, value, swatch?}] — values wear ink, identity wears the chip. */
-function RowsTooltip({ active, payload, label, titleFormatter, rows }) {
+export function RowsTooltip({ active, payload, label, titleFormatter, rows }) {
   if (!active || !payload?.length) return null
   const point = payload[0].payload
   return (
@@ -167,7 +178,7 @@ function RowsTooltip({ active, payload, label, titleFormatter, rows }) {
   )
 }
 
-function LegendChips({ items }) {
+export function LegendChips({ items }) {
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
       {items.map(({ label, color, glyph }) => (
@@ -185,7 +196,30 @@ function LegendChips({ items }) {
   )
 }
 
-function ChartCard({ ariaLabel, title, headline, subtitle, isLoading, legend, children, height = 'h-40' }) {
+/** 7d / 30d / 90d, shared by every home section with a window. */
+export function RangeToggle({ days, onChange }) {
+  return (
+    <div className="flex gap-1" role="group" aria-label="Time range">
+      {RANGES.map(r => (
+        <button
+          key={r.days}
+          type="button"
+          onClick={() => onChange(r.days)}
+          aria-pressed={days === r.days}
+          className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+            days === r.days
+              ? 'bg-optio-purple text-white border-optio-purple'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-optio-purple/60'
+          }`}
+        >
+          {r.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function ChartCard({ ariaLabel, title, headline, subtitle, isLoading, legend, children, height = 'h-40' }) {
   return (
     <section aria-label={ariaLabel} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
@@ -208,10 +242,10 @@ function ChartCard({ ariaLabel, title, headline, subtitle, isLoading, legend, ch
 }
 
 /* Shared axes: recessive horizontal-only grid, no axis lines, gray ticks. */
-function dayAxes(yProps = {}) {
+export function dayAxes(yProps = {}) {
   return (
     <>
-      <CartesianGrid vertical={false} stroke="#F3F4F6" />
+      <CartesianGrid vertical={false} stroke={INK.grid} />
       <XAxis
         dataKey="day" tickFormatter={shortDate} tick={AXIS_TICK}
         axisLine={false} tickLine={false} minTickGap={28}
@@ -247,7 +281,7 @@ function DauChart({ rows }) {
         <Area
           type="monotone" dataKey="dau" stroke={BRAND} strokeWidth={2}
           fill="url(#dauFill)" dot={false}
-          activeDot={{ r: 4, strokeWidth: 2, stroke: '#FFFFFF' }} name="Active users"
+          activeDot={ACTIVE_DOT} name="Active users"
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -299,11 +333,11 @@ function AuthStackChart({ rows, okKey, failKey, okLabel, failLabel }) {
         />
         <Bar
           dataKey={okKey} stackId="auth" fill={STATUS.good} maxBarSize={24}
-          stroke="#FFFFFF" strokeWidth={1} name={okLabel}
+          stroke={INK.surface} strokeWidth={1} name={okLabel}
         />
         <Bar
           dataKey={failKey} stackId="auth" fill={STATUS.critical} maxBarSize={24}
-          stroke="#FFFFFF" strokeWidth={1} radius={[2, 2, 0, 0]} name={failLabel}
+          stroke={INK.surface} strokeWidth={1} radius={[2, 2, 0, 0]} name={failLabel}
         />
       </BarChart>
     </ResponsiveContainer>
@@ -328,9 +362,9 @@ function LearningActivityChart({ rows }) {
             />
           )}
         />
-        <Line type="monotone" dataKey="task_completions" stroke={SERIES.completions} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: '#FFFFFF' }} name="Tasks completed" />
-        <Line type="monotone" dataKey="evidence_uploads" stroke={SERIES.evidence} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: '#FFFFFF' }} name="Evidence uploads" />
-        <Line type="monotone" dataKey="quest_starts" stroke={SERIES.starts} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: '#FFFFFF' }} name="Quests started" />
+        <Line type="monotone" dataKey="task_completions" stroke={SERIES.completions} strokeWidth={2} dot={false} activeDot={ACTIVE_DOT} name="Tasks completed" />
+        <Line type="monotone" dataKey="evidence_uploads" stroke={SERIES.evidence} strokeWidth={2} dot={false} activeDot={ACTIVE_DOT} name="Evidence uploads" />
+        <Line type="monotone" dataKey="quest_starts" stroke={SERIES.starts} strokeWidth={2} dot={false} activeDot={ACTIVE_DOT} name="Quests started" />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -341,10 +375,10 @@ function CostByServiceChart({ rows }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 56, left: 8, bottom: 0 }}>
-        <CartesianGrid horizontal={false} stroke="#F3F4F6" />
+        <CartesianGrid horizontal={false} stroke={INK.grid} />
         <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={formatCost} />
         <YAxis
-          type="category" dataKey="name" tick={{ ...AXIS_TICK, fill: '#4B5563' }}
+          type="category" dataKey="name" tick={{ ...AXIS_TICK, fill: INK.label }}
           axisLine={false} tickLine={false} width={128}
         />
         <Tooltip
@@ -360,7 +394,7 @@ function CostByServiceChart({ rows }) {
           )}
         />
         <Bar dataKey="cost" fill={BRAND} radius={[0, 4, 4, 0]} maxBarSize={18} name="Cost">
-          <LabelList dataKey="cost" position="right" formatter={formatCost} style={{ fontSize: 11, fill: '#6B7280' }} />
+          <LabelList dataKey="cost" position="right" formatter={formatCost} style={{ fontSize: 11, fill: INK.value }} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -371,7 +405,7 @@ function SisRevenueChart({ rows }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="#F3F4F6" />
+        <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis
           dataKey="week" tickFormatter={shortDate} tick={AXIS_TICK}
           axisLine={false} tickLine={false} minTickGap={28}
@@ -402,7 +436,7 @@ function CommentLoopChart({ rows }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={rows} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="#F3F4F6" />
+        <CartesianGrid vertical={false} stroke={INK.grid} />
         <XAxis
           dataKey="week" tickFormatter={shortDate} tick={AXIS_TICK}
           axisLine={false} tickLine={false} minTickGap={28}
@@ -471,23 +505,7 @@ export default function PlatformMetricsSection() {
     <section aria-label="Platform health" className="mt-8">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-base font-semibold text-gray-900">Platform health</h2>
-        <div className="flex gap-1" role="group" aria-label="Time range">
-          {RANGES.map(r => (
-            <button
-              key={r.days}
-              type="button"
-              onClick={() => setDays(r.days)}
-              aria-pressed={days === r.days}
-              className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
-                days === r.days
-                  ? 'bg-optio-purple text-white border-optio-purple'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-optio-purple/60'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <RangeToggle days={days} onChange={setDays} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-3">

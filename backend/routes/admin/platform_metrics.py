@@ -7,12 +7,14 @@ Daily platform-health series for the superadmin home charts.
 All routes require superadmin role.
 
 Endpoints:
-    GET /api/admin/platform-metrics/daily - Daily metrics for the last N days
+    GET /api/admin/platform-metrics/daily     - Daily metrics for the last N days
+    GET /api/admin/platform-metrics/analytics - Google Analytics traffic for the last N days
 """
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_superadmin
 from database import get_supabase_admin_client
+from services import google_analytics_service
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,3 +79,36 @@ def get_daily_platform_metrics(user_id):
     except Exception as e:
         logger.error(f"Error fetching platform metrics: {e}")
         return jsonify({'error': 'Failed to fetch platform metrics'}), 500
+
+
+@platform_metrics_bp.route('/platform-metrics/analytics', methods=['GET'])
+@require_superadmin
+def get_analytics_overview(user_id):
+    """
+    Website traffic from the GA4 property both the web platform and the
+    marketing site tag into: daily visitors and sessions (zero-filled), plus
+    sessions by acquisition channel, page views by path, and sessions by
+    host, each ranked.
+
+    Query params:
+        - days: Number of days to look back (default: 30, max: 90)
+
+    `{"configured": false}` when the service account or property id is not
+    set; the page hides the section rather than showing empty charts. The
+    GA4 Data API's own errors are logged in full and answered with a generic
+    502 -- the body names the GCP project and grant, which is nobody else's.
+    """
+    if not google_analytics_service.is_configured():
+        return jsonify({'configured': False})
+
+    try:
+        days = int(request.args.get('days', 30))
+    except ValueError:
+        return jsonify({'error': 'days must be a number'}), 400
+    days = min(max(days, 1), google_analytics_service.MAX_DAYS)
+    try:
+        data = google_analytics_service.fetch_overview(days)
+    except google_analytics_service.GoogleAnalyticsError as e:
+        logger.error(f"Error fetching Google Analytics overview: {e}")
+        return jsonify({'error': 'Google Analytics is unavailable'}), 502
+    return jsonify({'configured': True, **data})

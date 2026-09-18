@@ -328,6 +328,13 @@ class Config:
     GOOGLE_CALENDAR_SA_KEY_B64 = os.getenv('GOOGLE_CALENDAR_SA_KEY_B64')
     GOOGLE_CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID')
 
+    # Superadmin home "Website traffic" charts: the GA4 Data API, read as a
+    # service account (base64 of its JSON key) granted Viewer on the property.
+    # The property id is the NUMERIC one from GA Admin -> Property details,
+    # not the G-XXXX measurement id the tag uses. Unset = the section is hidden.
+    GOOGLE_ANALYTICS_SA_KEY_B64 = os.getenv('GOOGLE_ANALYTICS_SA_KEY_B64')
+    GA_PROPERTY_ID = os.getenv('GA_PROPERTY_ID')
+
     # Email sender identity (delivery goes through the SendGrid API)
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
     SENDER_NAME = os.getenv('SENDER_NAME', 'Optio Support')

@@ -47,7 +47,7 @@ Four rules, learned the hard way:
 | 109 direct `os.getenv`/`os.environ` reads outside the app layers | `backend/tests/unit/test_config_access_ratchet.py` | Rule 9's other half. The app layers themselves are at zero (see §2) |
 | 18 app-layer + 9 script queries against dropped tables | `backend/tests/unit/test_dropped_tables_are_not_queried.py` | 500s from tables production does not have. Invisible to every other check here |
 | 6 writes to `users.is_org_admin` | `backend/tests/unit/test_role_rules_are_enforced.py` | The flag is derived by a trigger; a hand-written value is silently reverted |
-| 174 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
+| 165 off-palette hex literals | `web/src/__tests__/brandPalette.test.js` | QF-07. Reads the sanctioned palette out of `tailwind.config.js`, so it cannot drift from the design system |
 | 786 hand-rolled fetch call sites | `web/src/__tests__/dataFetchingParadigm.test.js` | QF-03. Counts **call sites**, not files, so a pure component split does not move it |
 | 180 eslint errors / 1,848 warnings | `web/src/__tests__/eslintRatchet.test.js` | CI-03. 273k lines written without a linter; the point is that the number stops growing |
 | 5 `console.*` calls | `web/src/__tests__/lintRules.test.js` | CI-03. `console.warn`/`error` stay legitimate; `.log` became `logger.debug` |
