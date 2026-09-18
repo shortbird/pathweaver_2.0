@@ -31,6 +31,7 @@ from utils.validation.password_validator import validate_password_strength
 from datetime import datetime
 import secrets
 from config.constants import GUARDIAN_RELATIONSHIPS
+from services import sis_person_service
 
 logger = get_logger(__name__)
 
@@ -78,24 +79,12 @@ def _ensure_shared_household(client, org_id, guardian_id, guardian_last_name, st
             }).execute().data)
             household_id = created[0]['id']
 
-        already_guardian = (client.table('household_members').select('id')
-                            .eq('household_id', household_id)
-                            .eq('user_id', guardian_id).execute().data) or []
-        if not already_guardian:
-            client.table('household_members').insert({
-                'household_id': household_id, 'user_id': guardian_id,
-                'relationship': 'guardian', 'is_primary_guardian': True,
-            }).execute()
+        sis_person_service.join_household(
+            household_id, guardians=[guardian_id], primary_guardian=guardian_id, client=client)
 
-    # 3) Add the student to the household (idempotent).
-    already_member = (client.table('household_members').select('id')
-                      .eq('household_id', household_id)
-                      .eq('user_id', student_id).execute().data) or []
-    if not already_member:
-        client.table('household_members').insert({
-            'household_id': household_id, 'user_id': student_id,
-            'relationship': 'student', 'is_primary_guardian': False,
-        }).execute()
+    # 3) Add the student to the household. The one attach path (M16) is an
+    #    upsert, so this is idempotent without a read first.
+    sis_person_service.join_household(household_id, students=[student_id], client=client)
 
     return household_id
 

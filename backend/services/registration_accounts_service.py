@@ -25,6 +25,7 @@ from dateutil.relativedelta import relativedelta
 
 from services.email_service import email_service
 from utils.logger import get_logger
+from services import person_matching
 
 logger = get_logger(__name__)
 
@@ -174,17 +175,10 @@ def _existing_account_for_kid(admin, org_id, parent_id, email):
     return u, None
 
 
-def _match_existing_dependent(dependents, first, last, dob):
-    """Find this parent's OWN pre-existing dependent matching a submitted kid.
-    Name match (case-insensitive) plus DOB when the dependent has one on file.
-    Safe on name alone because the pool is limited to the parent's dependents."""
-    for d in dependents:
-        if ((d.get('first_name') or '').strip().lower() == first.lower()
-                and (d.get('last_name') or '').strip().lower() == last.lower()):
-            ddob = str(d.get('date_of_birth') or '')[:10]
-            if not ddob or ddob == str(dob):
-                return d
-    return None
+# The parent's-own-dependent matcher lives in services/person_matching.py
+# (M16), beside the staff-facing look-alike matcher; the private name stays
+# so the funnel and its tests read unchanged.
+_match_existing_dependent = person_matching.match_own_dependent
 
 
 def _existing_org_student_by_name_dob(admin, org_id, parent_id, first, last, dob):

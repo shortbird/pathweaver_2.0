@@ -46,7 +46,7 @@ and patterns instead.
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
-| M16 One attach path | 3 | not started | | |
+| M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
 | M8b Time-block table | 3 | not started | | |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
@@ -1226,6 +1226,29 @@ Verify: register through the funnel, add a member from People, import a roster r
 run the backfill in dry-run — every path produces the same household row, the same
 directive application and the same duplicate warning. Manifest
 `household_member_write` → 0 app / 0 scripts, `duplicate_detection` → 0.
+
+**As shipped, first cut (2026-09-17).** `sis_person_service.join_household(
+household_id, guardians=, students=, primary_guardian=, guardian_relationship=,
+client=)` is the one `household_members` write, over the new
+`HouseholdRepository.add_members` (an upsert on `household_id, user_id`, so
+every caller is idempotent and the two "already a member?" reads in the
+learning-app admin path are gone). The funnel, `routes/admin/
+organization_users.py`, the SIS add-member route and the three one-off scripts
+(backfill, the Larson restore, the demo seed -- each under its own client)
+call it. `services/person_matching.py` holds `likely_same_student` (the
+office's fuzzy look-alike) and `match_own_dependent` (the funnel's exact
+own-dependent match) with the module docstring saying why they are two rules;
+`sis_service` and `registration_accounts_service` keep the old names as
+aliases so their callers and tests read unchanged. Not done: the wider
+`attach_student(org, student, household, source)` that also applies
+directives, enrolls and logs (the funnel still does those three steps in
+sequence after `join_household`, as M2 and M4 left them); `link_staff_account`
+for the six staff-linking paths; the People page's `+ Add` menu as one form;
+per-entry-point fixture tests. Those touch registration's live paths and
+belong to a daytime session with a staging run. Routes `.table()` 2263 → 2257.
+Verify at :3000: People > a family > Add member (student and guardian) and the
+duplicate warning still fires; the funnel's family step still lands a
+household (staging).
 
 ### M8b — Time blocks as a table
 

@@ -25,6 +25,7 @@ from services import sis_service
 from services import sis_staff_service
 from services import sis_payment_profile
 from services import sis_holds
+from services import sis_person_service
 from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
@@ -690,12 +691,14 @@ def add_household_member(user_id, household_id):
                     if m.get('relationship') == 'student']
         sis_service.link_guardian_to_students(member_user_id, students)
 
-    member = repo.add_member(
-        household_id, member_user_id,
-        relationship=relationship,
-        is_primary_guardian=bool(data.get('is_primary_guardian')),
-    )
-    return jsonify({'success': True, 'member': member}), 201
+    # The one attach path (M16).
+    rows = sis_person_service.join_household(
+        household_id,
+        guardians=[member_user_id] if relationship != 'student' else (),
+        students=[member_user_id] if relationship == 'student' else (),
+        guardian_relationship=relationship,
+        primary_guardian=member_user_id if data.get('is_primary_guardian') else None)
+    return jsonify({'success': True, 'member': rows[0] if rows else None}), 201
 
 
 @bp.route('/households/<household_id>/members/<member_user_id>', methods=['DELETE'])

@@ -308,64 +308,10 @@ def _full_name(u: Dict[str, Any]) -> str:
 
 
 # ── Duplicate-student detection ──────────────────────────────────────────────
-# The iCreate funnel can only auto-match a re-registered kid to their existing
-# Optio account by email (or the parent's own prior dependents). A parent who
-# registers an under-13 kid as a fresh dependent — while that kid already has an
-# account — slips past both checks and a duplicate is created. Staff then attach
-# the original account to the same family and end up with the kid twice. These
-# helpers flag those look-alikes so the add-member flow can warn and the Families
-# view can badge them, WITHOUT tripping on twins/siblings who share a birthday.
-
-def _norm_name(v: Any) -> str:
-    return (v or '').strip().lower()
-
-
-def _parse_iso_date(v: Any):
-    from datetime import date
-    if not v:
-        return None
-    try:
-        return date.fromisoformat(str(v)[:10])
-    except (ValueError, TypeError):
-        return None
-
-
-
-def _dob_gap_days(a: Any, b: Any) -> Optional[int]:
-    """Absolute day gap between two DOBs, or None when either is unknown."""
-    da, db = _parse_iso_date(a), _parse_iso_date(b)
-    if da is None or db is None:
-        return None
-    return abs((da - db).days)
-
-
-def likely_same_student(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
-    """Do two student records look like the same child entered twice?
-
-    Compares names + DOB. Tuned for the re-registration pattern (a kid entered a
-    second time, often as a dependent with the name spelled differently or the
-    DOB off by a day) while deliberately NOT flagging twins/siblings, who share a
-    birthday but have distinct first names:
-
-      - Same last name is required (a duplicate of a kid keeps the surname).
-      - Identical first name -> duplicate regardless of DOB. No family names two
-        living children the exact same first + last name, so this safely catches
-        a re-registration where the DOB was mistyped (off by a day, or a year).
-      - Nickname/typo first name (one a prefix of the other, e.g. Zach/Zachary)
-        -> duplicate ONLY when the DOB matches exactly, so same-birthday siblings
-        with unrelated names (twins) never match.
-    """
-    la, lb = _norm_name(a.get('last_name')), _norm_name(b.get('last_name'))
-    if la and lb and la != lb:
-        return False
-    fa, fb = _norm_name(a.get('first_name')), _norm_name(b.get('first_name'))
-    if not fa or not fb:
-        return False
-    if fa == fb:
-        return True
-    if min(len(fa), len(fb)) >= 3 and (fa.startswith(fb) or fb.startswith(fa)):
-        return _dob_gap_days(a.get('date_of_birth'), b.get('date_of_birth')) == 0
-    return False
+# The matcher lives in services/person_matching.py (M16): one answer to "is
+# this the same person as that one", shared with the registration funnel.
+# Re-exported so this module's callers (and the tests) read unchanged.
+from services.person_matching import likely_same_student  # noqa: E402
 
 
 def _mark_duplicate_members(members: List[Dict[str, Any]]) -> None:

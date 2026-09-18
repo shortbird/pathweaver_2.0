@@ -35,8 +35,10 @@ def _repo():
     repo.members_for_households.return_value = [
         {'user_id': 'g1', 'relationship': 'guardian'},
     ]
-    repo.add_member.return_value = {'household_id': 'h1', 'user_id': 'k1',
-                                    'relationship': 'student'}
+    # The one attach path (sis_person_service.join_household, M16) writes
+    # through the repository's bulk upsert.
+    repo.add_members.return_value = [{'household_id': 'h1', 'user_id': 'k1',
+                                      'relationship': 'student'}]
     return repo
 
 
@@ -49,6 +51,7 @@ def _post(client, auth_headers, body, role='org_admin', users_rows=None, attach_
     with patch('database.get_supabase_admin_client', return_value=admin), \
          patch('routes.sis.get_supabase_admin_client', return_value=admin), \
          patch('routes.sis.HouseholdRepository', return_value=repo), \
+         patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
          patch('services.sis_service.resolve_org_id', return_value='org-1'), \
          patch('services.sis_service.find_household_duplicates',
                return_value=duplicates or []), \
@@ -67,7 +70,7 @@ class TestAddHouseholdMemberAttach:
                                    {'user_id': 'k1', 'relationship': 'student'})
         assert resp.status_code == 201
         attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
     def test_student_by_email_resolves_account(self, client, auth_headers, mock_verify_token):
         resp, repo, attach = _post(client, auth_headers,
@@ -75,35 +78,35 @@ class TestAddHouseholdMemberAttach:
                                    users_rows=[{'id': 'k1'}])
         assert resp.status_code == 201
         attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
     def test_unknown_email_404s(self, client, auth_headers, mock_verify_token):
         resp, repo, _ = _post(client, auth_headers,
                               {'email': 'nobody@x.com', 'relationship': 'student'},
                               users_rows=[])
         assert resp.status_code == 404
-        repo.add_member.assert_not_called()
+        repo.add_members.assert_not_called()
 
     def test_refused_attach_never_adds_the_member(self, client, auth_headers, mock_verify_token):
         resp, repo, _ = _post(client, auth_headers,
                               {'user_id': 'k1', 'relationship': 'student'},
                               attach_ok=False)
         assert resp.status_code == 409
-        repo.add_member.assert_not_called()
+        repo.add_members.assert_not_called()
 
     def test_guardian_by_email_rejected(self, client, auth_headers, mock_verify_token):
         resp, repo, attach = _post(client, auth_headers,
                                    {'email': 'mom@x.com', 'relationship': 'guardian'})
         assert resp.status_code == 400
         attach.assert_not_called()
-        repo.add_member.assert_not_called()
+        repo.add_members.assert_not_called()
 
     def test_guardian_by_user_id_skips_attach(self, client, auth_headers, mock_verify_token):
         resp, repo, attach = _post(client, auth_headers,
                                    {'user_id': 'g2', 'relationship': 'guardian'})
         assert resp.status_code == 201
         attach.assert_not_called()
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
     def test_duplicate_student_warns_before_adding(self, client, auth_headers, mock_verify_token):
         resp, repo, attach = _post(
@@ -114,7 +117,7 @@ class TestAddHouseholdMemberAttach:
         assert body['needs_confirmation'] is True
         assert body['duplicates'][0]['name'] == 'Zachary Barlow'
         attach.assert_not_called()
-        repo.add_member.assert_not_called()
+        repo.add_members.assert_not_called()
 
     def test_confirm_duplicate_bypasses_the_guard(self, client, auth_headers, mock_verify_token):
         resp, repo, attach = _post(
@@ -123,7 +126,7 @@ class TestAddHouseholdMemberAttach:
             duplicates=[{'user_id': 'k2', 'name': 'Zachary Barlow', 'email': None}])
         assert resp.status_code == 201
         attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
     def test_guardian_add_skips_duplicate_guard(self, client, auth_headers, mock_verify_token):
         # The guard is student-only; a guardian is never a "duplicate student".
@@ -131,7 +134,7 @@ class TestAddHouseholdMemberAttach:
             client, auth_headers, {'user_id': 'g2', 'relationship': 'guardian'},
             duplicates=[{'user_id': 'k2', 'name': 'Should Not Matter', 'email': None}])
         assert resp.status_code == 201
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
     def test_guardian_added_after_students_backfills_links(self, client, auth_headers, mock_verify_token):
         # Order must not matter: adding the guardian second has to create the
@@ -147,6 +150,8 @@ class TestAddHouseholdMemberAttach:
         with patch('database.get_supabase_admin_client', return_value=admin), \
              patch('routes.sis.get_supabase_admin_client', return_value=admin), \
              patch('routes.sis.HouseholdRepository', return_value=repo), \
+             patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
+         patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
              patch('services.sis_service.resolve_org_id', return_value='org-1'), \
              patch('services.sis_service.link_guardian_to_students') as link:
             resp = client.post('/api/sis/households/h1/members',
@@ -155,7 +160,7 @@ class TestAddHouseholdMemberAttach:
                                headers=auth_headers)
         assert resp.status_code == 201
         link.assert_called_once_with('g2', ['k1', 'k2'])
-        repo.add_member.assert_called_once()
+        repo.add_members.assert_called_once()
 
 
 @pytest.mark.unit
@@ -176,6 +181,8 @@ class TestRemoveHouseholdMemberIsAudited:
         with patch('database.get_supabase_admin_client', return_value=admin), \
              patch('routes.sis.get_supabase_admin_client', return_value=admin), \
              patch('routes.sis.HouseholdRepository', return_value=repo), \
+             patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
+         patch('repositories.household_repository.HouseholdRepository', return_value=repo), \
              patch('services.sis_service.resolve_org_id', return_value='org-1'), \
              patch.dict('utils.auth.relationships.RELATIONSHIPS', {'org_staff': lambda c, t: True}), \
              patch('services.sis_person_service.audit_removal') as audit:

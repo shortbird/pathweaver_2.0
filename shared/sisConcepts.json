@@ -728,35 +728,33 @@
     },
     {
       "id": "household_member_write",
-      "means": "Putting a person in a family (household_members). Four app paths and three scripts insert the row; each re-implements 'is this the same student'.",
-      "owner": { "backend": ["services/sis_attach_service.py"] },
-      "proposed": true,
+      "means": "Putting a person in a family (household_members). Until M16 (2026-09-17) four app paths and three scripts wrote the row themselves, most with their own 'already a member?' read first; now sis_person_service.join_household is the one attach path, over HouseholdRepository.add_members (an upsert, so it is idempotent without the read). The funnel still applies the staged directive right after it (sis_holds.apply_directives), as M2 left it.",
+      "owner": { "backend": ["services/sis_person_service.py", "repositories/household_repository.py"] },
       "forbid": {
         "backend": {
           "pattern": "(\\.table\\(\\s*['\"]household_members['\"]\\s*\\)\\s*\\.(insert|upsert)|repo\\.add_member\\()",
           "dirs": ["routes", "services", "scripts"]
         }
       },
-      "baseline": { "backend": 8 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M16",
-      "use_instead": "sis_attach_service.attach_student(org_id, student, household, source) (M16) is the one write path; M2's apply_directives runs inside it."
+      "use_instead": "sis_person_service.join_household(household_id, guardians=[...], students=[...], primary_guardian=..., guardian_relationship=...) -- a script passes its own client=."
     },
     {
       "id": "duplicate_detection",
-      "means": "'Is this the same person as that one.' likely_same_student in sis_service, _match_existing_dependent in registration_accounts_service, and two inline versions in the backfill and import scripts.",
+      "means": "'Is this the same person as that one.' Until M16 (2026-09-17) likely_same_student lived in sis_service and _match_existing_dependent in registration_accounts_service; now services/person_matching.py holds both -- deliberately two rules (a fuzzy look-alike for the office to judge; an exact match inside the parent's own dependents for the funnel to reuse) with one home and one explanation of why they differ. The old names stay as aliases.",
       "owner": { "backend": ["services/person_matching.py"] },
-      "proposed": true,
       "forbid": {
         "backend": {
           "pattern": "^def (likely_same_student|_match_existing_dependent|_likely_same\\w*|_same_person\\w*)\\(",
           "dirs": ["routes", "services", "scripts"]
         }
       },
-      "baseline": { "backend": 2 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M16",
-      "use_instead": "person_matching.likely_same_student(a, b) (M16), one matcher with one definition of 'same', imported by every attach path."
+      "use_instead": "person_matching.likely_same_student(a, b) for a look-alike warning; person_matching.match_own_dependent(dependents, first, last, dob) for a self-service reuse. A new rule goes in that module with its reason."
     },
     {
       "id": "absence_request_shape",

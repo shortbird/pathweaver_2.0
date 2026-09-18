@@ -49,6 +49,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 from supabase import create_client
 
 from utils.validation.sanitizers import pgrst_pattern
+from services import sis_person_service
 
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ['SUPABASE_SERVICE_KEY']
@@ -199,10 +200,7 @@ def fix_dependent_households(db, org_id, apply):
         n += 1
         print(f"  HOUSEHOLD {_name(d)} ({d['id'][:8]}) -> {hh_names.get(hh_id)} (via managing parent)")
         if apply:
-            db.table('household_members').upsert({
-                'household_id': hh_id, 'user_id': d['id'],
-                'relationship': 'student', 'is_primary_guardian': False,
-            }, on_conflict='household_id,user_id').execute()
+            sis_person_service.join_household(hh_id, students=[d['id']], client=db)
     print(f"dependent households: {n} placement(s)")
 
 

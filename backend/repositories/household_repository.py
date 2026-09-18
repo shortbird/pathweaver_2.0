@@ -44,18 +44,27 @@ class HouseholdRepository(BaseRepository):
     def add_member(self, household_id: str, user_id: str,
                    relationship: str = 'student',
                    is_primary_guardian: bool = False) -> Dict[str, Any]:
-        # upsert so re-adding the same member just updates the relationship
+        rows = self.add_members([{
+            'household_id': household_id,
+            'user_id': user_id,
+            'relationship': relationship,
+            'is_primary_guardian': is_primary_guardian,
+        }])
+        return rows[0] if rows else None
+
+    def add_members(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Put people in a family: the one household_members write (M16).
+        Upsert on (household_id, user_id), so re-adding somebody just updates
+        their relationship and a family reused by a re-registration never
+        collides on an existing membership."""
+        if not rows:
+            return []
         resp = (
             self.client.table('household_members')
-            .upsert({
-                'household_id': household_id,
-                'user_id': user_id,
-                'relationship': relationship,
-                'is_primary_guardian': is_primary_guardian,
-            }, on_conflict='household_id,user_id')
+            .upsert(rows, on_conflict='household_id,user_id')
             .execute()
         )
-        return resp.data[0] if resp.data else None
+        return resp.data or []
 
     def remove_member(self, household_id: str, user_id: str) -> None:
         (

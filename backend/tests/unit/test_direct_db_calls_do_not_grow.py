@@ -227,7 +227,12 @@ BASELINES = {
     # writes moved into services/emergency_contacts_service.py (which then
     # writes through the repository); the family-cover route reads and writes
     # the household through HouseholdRepository.
-    'routes': 2263,
+    # 2026-09-17 (M16): 2263 -> 2257. The funnel's household_members upsert
+    # and the learning-app admin's four "already a member?" reads and inserts
+    # went through sis_person_service.join_household, which writes through
+    # HouseholdRepository.add_members (the repository's add_member now calls
+    # it, so that layer's count did not move).
+    'routes': 2257,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -574,7 +579,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2263 + 1835
+UPPER_TOTAL_BASELINE = 2257 + 1835
 
 
 def test_the_upper_layers_do_not_grow_in_total():

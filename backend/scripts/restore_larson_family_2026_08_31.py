@@ -61,6 +61,7 @@ from dateutil.relativedelta import relativedelta  # noqa: E402
 from datetime import date  # noqa: E402
 
 from supabase import create_client  # noqa: E402
+from services import sis_person_service
 
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ['SUPABASE_SERVICE_KEY']
@@ -215,13 +216,9 @@ def restore_household(client, parent_id, child_ids, apply_):
         return
     client.table('households').update(
         {'primary_contact_user_id': parent_id}).eq('id', HOUSEHOLD_ID).execute()
-    members = [{'household_id': HOUSEHOLD_ID, 'user_id': parent_id,
-                'relationship': 'guardian', 'is_primary_guardian': True}]
-    members += [{'household_id': HOUSEHOLD_ID, 'user_id': cid,
-                 'relationship': 'student', 'is_primary_guardian': False}
-                for cid in child_ids]
-    client.table('household_members').upsert(
-        members, on_conflict='household_id,user_id').execute()
+    members = sis_person_service.join_household(
+        HOUSEHOLD_ID, guardians=[parent_id], primary_guardian=parent_id,
+        students=list(child_ids), client=client)
     log(apply_, f"household {HOUSEHOLD_ID}: primary contact set, {len(members)} members")
 
 

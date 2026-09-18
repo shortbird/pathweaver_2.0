@@ -89,6 +89,7 @@ from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
 from services import sis_holds
+from services import sis_person_service
 from services import emergency_contacts_service as emergency_contacts
 # The one affirmation sentence every typed signature is recorded under.
 from services.sis_onboarding_service import SIGNATURE_STATEMENT
@@ -793,14 +794,12 @@ def submit_family(reg_id):
             ).eq('id', household_id).execute()
         else:
             household_id = admin.table('households').insert(hh_fields).execute().data[0]['id']
-        members = [{'household_id': household_id, 'user_id': parent_id,
-                    'relationship': 'guardian', 'is_primary_guardian': True}]
-        members += [{'household_id': household_id, 'user_id': ck['user_id'],
-                     'relationship': 'student', 'is_primary_guardian': False}
-                    for ck in created_kids]
-        # Upsert so reusing a household never collides on an existing membership.
-        admin.table('household_members').upsert(
-            members, on_conflict='household_id,user_id').execute()
+        # The one attach path (sis_person_service.join_household, M16): an
+        # upsert, so reusing a household never collides on an existing
+        # membership.
+        sis_person_service.join_household(
+            household_id, guardians=[parent_id], primary_guardian=parent_id,
+            students=[ck['user_id'] for ck in created_kids])
         # The staged directive lands on the household exactly once (a hold the
         # office staged by email, marked applied); nothing reconciles the two
         # afterwards (sis_holds).

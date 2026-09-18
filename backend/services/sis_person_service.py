@@ -468,3 +468,40 @@ def _is_withdrawn(org_id: str, student_id: str) -> bool:
     from repositories.school_enrollment_repository import SchoolEnrollmentRepository
     row = SchoolEnrollmentRepository(client=_admin()).find_for_student(org_id, student_id)
     return bool(row and row.get('status') == 'withdrawn')
+
+
+# ── Joining a family ─────────────────────────────────────────────────────────
+
+def join_household(household_id: str, *, guardians=(), students=(),
+                   primary_guardian: Optional[str] = None, guardian_relationship: str = 'guardian',
+                   client=None) -> List[Dict[str, Any]]:
+    """Put people in a family -- the one attach path (M16, 2026-09-17).
+
+    The registration funnel, the learning-app admin's "link a student to a
+    guardian", the SIS "add member" and three one-off scripts each wrote
+    household_members rows themselves, four of them with their own
+    "already a member?" read first. This is that write once, through
+    HouseholdRepository.add_members: an upsert on (household_id, user_id), so
+    it is idempotent and the pre-check is gone. `guardians` and `students` are
+    user ids; `primary_guardian` names the one guardian who is the family's
+    primary contact; `guardian_relationship` is the label a guardian row
+    carries ('guardian', or 'other' for a grandparent or step-parent --
+    config.constants.GUARDIAN_RELATIONSHIPS). `client` is for scripts that run under their own client
+    (a dry-run flag, a service-role key for another environment); the app
+    passes nothing and the admin client is used -- putting somebody in a
+    family is a cross-user write.
+    """
+    from repositories.household_repository import HouseholdRepository
+    rows = [{'household_id': household_id, 'user_id': uid,
+             'relationship': guardian_relationship, 'is_primary_guardian': uid == primary_guardian}
+            for uid in guardians if uid]
+    rows += [{'household_id': household_id, 'user_id': uid,
+              'relationship': 'student', 'is_primary_guardian': False}
+             for uid in students if uid]
+    if not rows:
+        return []
+    # admin client justified: joining a family writes rows about OTHER people
+    #   (the guardian and the children); every caller has already checked the
+    #   org and the relationship it is recording.
+    return HouseholdRepository(client=client or _admin()).add_members(rows)
+

@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 from supabase import create_client
+from services import sis_person_service
 
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ['SUPABASE_SERVICE_KEY']
@@ -119,14 +120,9 @@ def main():
         }).execute().data[0]['id']
         print(f"Created household: {household_id}")
 
-    admin.table('household_members').upsert({
-        'household_id': household_id, 'user_id': parent_id,
-        'relationship': 'guardian', 'is_primary_guardian': True,
-    }, on_conflict='household_id,user_id').execute()
-    admin.table('household_members').upsert({
-        'household_id': household_id, 'user_id': child_id,
-        'relationship': 'student', 'is_primary_guardian': False,
-    }, on_conflict='household_id,user_id').execute()
+    sis_person_service.join_household(
+        household_id, guardians=[parent_id], primary_guardian=parent_id,
+        students=[child_id], client=admin)
     print("Linked parent (guardian) + child (student) into household")
 
     # ── An OPEN demo class so the parent has something to register for ────────
