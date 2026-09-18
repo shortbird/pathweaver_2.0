@@ -6,11 +6,11 @@
 import Button from '../../../components/ui/Button'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState } from 'react'
 import field from './field'
 import money from './money'
 import PAYMENT_METHODS from './PAYMENT_METHODS'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 const RecordRefundModal = ({ orgId, row, onClose, onSaved }) => {
   const paid = row.amount_paid_cents || 0
@@ -37,7 +37,7 @@ const RecordRefundModal = ({ orgId, row, onClose, onSaved }) => {
   }
 
   return (
-    <Modal title="Record refund" onClose={onClose}>
+    <Modal isOpen size="sm" title="Record refund" onClose={onClose}>
       <p className="text-sm text-neutral-500 mb-3">
         {row.family_name || 'Family'}{row.student_name ? ` · ${row.student_name}` : ''} — {row.description || 'Charge'}
         {' · '}{money(paid)} paid

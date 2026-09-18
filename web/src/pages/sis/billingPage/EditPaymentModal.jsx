@@ -6,11 +6,11 @@
 import Button from '../../../components/ui/Button'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState } from 'react'
 import field from './field'
 import money from './money'
 import PAYMENT_METHODS from './PAYMENT_METHODS'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 /**
  * iCreate, 2026-08-14: "I accidentally chose the wrong form of payment for
@@ -40,7 +40,7 @@ const EditPaymentModal = ({ orgId, payment, onClose, onSaved }) => {
   }
 
   return (
-    <Modal title="Correct payment" onClose={onClose}>
+    <Modal isOpen size="sm" title="Correct payment" onClose={onClose}>
       <p className="text-sm text-neutral-500 mb-3">
         {payment.family_name || 'Family'}{payment.student_name ? ` · ${payment.student_name}` : ''}
         {' — '}{money(payment.amount_cents)} recorded

@@ -4,17 +4,17 @@
  */
 
 import Button from '../../../components/ui/Button'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import { useSisOrg, withOrg } from '../useSisOrg'
+import { withOrg } from '../useSisOrg'
 import EditPaymentModal from './EditPaymentModal'
 import EditInvoiceModal from './EditInvoiceModal'
 import money from './money'
 import METHOD_LABEL from './METHOD_LABEL'
 import payLabel from './payLabel'
 import payAmountCls from './payAmountCls'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   const [doc, setDoc] = useState(null)
@@ -71,7 +71,7 @@ const InvoiceModal = ({ invoiceId, orgId, onClose, onPrint, onChanged }) => {
   }
 
   return (
-    <Modal title={doc?.invoice_number ? `Invoice ${doc.invoice_number}` : 'Invoice'} onClose={onClose}>
+    <Modal isOpen size="sm" title={doc?.invoice_number ? `Invoice ${doc.invoice_number}` : 'Invoice'} onClose={onClose}>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!doc && !error && <p className="text-sm text-neutral-500">Loading…</p>}
       {doc && (

@@ -44,7 +44,7 @@ and patterns instead.
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
-| M14c-e Pickers, modals, inputs, tables | 2 | (c) shipped; (d), (e) not started | see git log (`consolidate/M14c-people-picker`) | `person_picker` 0 |
+| M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) not started | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`) | `person_picker` 0, `modal_shell` 0 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | not started | | |
 | M8b Time-block table | 3 | not started | | |
@@ -1130,6 +1130,20 @@ staff`, `Search people`, `Search recipients`) still holds. Verify at :3000:
 Task Center > Assign a task (both lists filter), Messaging > New message
 (role labels, presets still add), Training > Choose people (progress pills,
 "Select not started").
+
+(d) As shipped (2026-09-17): the seven billing dialogs (`billingPage/*Modal.jsx`)
+render `ui/Modal` (`size="sm"`, always open when mounted) and the private
+`billingPage/Modal.jsx` is deleted. The four hand-rolled dropdown menus -- the
+people row's actions (`people/RowActions.jsx`), the People page's "+ Add", the
+Task Center's "other things to assign or send" split button, and the class
+waitlist's "Other section" panel -- render `components/sis/ui/PopMenu.jsx`
+(trigger, click-away catcher, `items` or a bespoke panel as children). The two
+`fixed inset-0` left in SIS are not dialogs (the CLP's presentation mode and
+the layout's small-screen nav backdrop) and the manifest row names them as
+exempt. The billing test that pinned the private card's height class now asks
+the dialog role for the same guarantee. Verify at :3000: Billing > click an
+invoice, Record payment, Edit; People > + Add and a row's "..." menu; Task
+Center's split button; Classes > a class's Waitlist > "Other section".
 
 ### M19 — Parent surface parity
 

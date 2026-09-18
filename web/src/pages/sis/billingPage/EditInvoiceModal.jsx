@@ -6,9 +6,9 @@
 import Button from '../../../components/ui/Button'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState } from 'react'
 import money from './money'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
   const [lines, setLines] = useState(() => (doc.line_items || []).map((li) => ({
@@ -61,7 +61,7 @@ const EditInvoiceModal = ({ invoiceId, orgId, doc, onCancel, onSaved }) => {
   }
 
   return (
-    <Modal title={`Edit ${doc.invoice_number || 'invoice'}`} onClose={onCancel}>
+    <Modal isOpen size="sm" title={`Edit ${doc.invoice_number || 'invoice'}`} onClose={onCancel}>
       <p className="text-xs text-neutral-500 mb-3">
         The invoice number stays the same, so the family&rsquo;s copy and yours still match.
       </p>

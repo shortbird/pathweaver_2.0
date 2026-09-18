@@ -7,9 +7,9 @@ import Button from '../../../components/ui/Button'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import field from './field'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
   const [householdId, setHouseholdId] = useState('')
@@ -50,7 +50,7 @@ const AddChargeModal = ({ orgId, households, onClose, onSaved }) => {
   }
 
   return (
-    <Modal title="Add charge" onClose={onClose}>
+    <Modal isOpen size="sm" title="Add charge" onClose={onClose}>
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1">Family</label>

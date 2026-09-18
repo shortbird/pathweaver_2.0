@@ -307,9 +307,11 @@ describe('opening the invoice a family was sent', () => {
     render(<BillingPage />)
     fireEvent.click(await screen.findByText('Fall tuition'))
     const number = await screen.findByText('INV-2026-3B3796')
-    const card = number.closest('.max-h-\\[calc\\(100vh-2rem\\)\\]')
+    // ui/Modal (M14d): the dialog is height-capped and its body scrolls; the
+    // title bar it is next to does not move.
+    const card = number.closest('[role="dialog"]')
     expect(card).not.toBeNull()
-    // The body scrolls; the title bar it is next to does not move.
+    expect(card.className).toMatch(/max-h-\[/)
     expect(card.querySelector('.overflow-y-auto')).not.toBeNull()
   })
 

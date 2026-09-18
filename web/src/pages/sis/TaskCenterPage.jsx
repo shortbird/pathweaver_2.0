@@ -16,6 +16,7 @@ import { awaitingReviewOf } from '../../components/sis/tasks/ChecklistReview'
 import { SecureDocumentsPanel } from './SecureDocumentsPage'
 import { isPathHidden } from './sisModules'
 import GlassTabBar from '../../components/ui/GlassTabBar'
+import PopMenu from '../../components/sis/ui/PopMenu'
 
 /**
  * Task Center — organized by direction, because that is how the office thinks:
@@ -163,33 +164,20 @@ const TaskCenterPage = () => {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-neutral-900">Task Center</h1>
           <div className="flex items-center gap-3">
-            <div className="relative flex">
-              <button onClick={() => startCreating(primaryAction)}
-                className="px-4 py-2 rounded-l-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
-                {primaryLabel}
-              </button>
-              <button onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"
-                aria-label="Other things to assign or send"
-                className="px-2 py-2 rounded-r-lg bg-gradient-to-r from-optio-pink to-optio-pink text-white text-sm font-semibold border-l border-white/30">
-                <span className="text-xs" aria-hidden="true">▾</span>
-              </button>
-              {menuOpen && (
-                <>
-                  {/* Click-away. Behind the menu, above everything else. */}
-                  <button className="fixed inset-0 z-10 cursor-default" aria-hidden="true" tabIndex={-1}
-                    onClick={() => setMenuOpen(false)} />
-                  <div role="menu"
-                    className="absolute right-0 top-full mt-1 z-20 w-64 bg-white rounded-lg border border-gray-200 shadow-lg py-1">
-                    {CREATE_ACTIONS.filter(([action]) => action !== primaryAction).map(([action, label]) => (
-                      <button key={action} role="menuitem" onClick={() => startCreating(action)}
-                        className="block w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-gray-50">
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <PopMenu open={menuOpen} onClose={() => setMenuOpen(false)} width="w-64" className="flex"
+              trigger={(<>
+                <button onClick={() => startCreating(primaryAction)}
+                  className="px-4 py-2 rounded-l-lg bg-gradient-to-r from-optio-purple to-optio-pink text-white text-sm font-semibold">
+                  {primaryLabel}
+                </button>
+                <button onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"
+                  aria-label="Other things to assign or send"
+                  className="px-2 py-2 rounded-r-lg bg-gradient-to-r from-optio-pink to-optio-pink text-white text-sm font-semibold border-l border-white/30">
+                  <span className="text-xs" aria-hidden="true">▾</span>
+                </button>
+              </>)}
+              items={CREATE_ACTIONS.filter(([action]) => action !== primaryAction)
+                .map(([action, label]) => ({ label, onClick: () => startCreating(action) }))} />
           </div>
         </div>
         <p className="text-sm text-neutral-500 mt-1">

@@ -548,19 +548,20 @@
     },
     {
       "id": "modal_shell",
-      "means": "A dialog's backdrop and frame. Six SIS files hand-roll a fixed inset-0 overlay; billingPage has a private Modal beside components/ui/Modal.jsx.",
-      "owner": { "web": ["components/ui/Modal.jsx", "components/ui/ModalOverlay.jsx"] },
+      "means": "A dialog's backdrop and frame, and a menu's click-away catcher. Until M14d (2026-09-17) four SIS surfaces hand-rolled the fixed inset-0 catcher behind a dropdown menu and billingPage kept a private Modal beside components/ui/Modal.jsx; now every dialog is ui/Modal and every dropdown is components/sis/ui/PopMenu. The two remaining fixed inset-0 in SIS are not dialogs -- the CLP's full-screen presentation mode and the layout's small-screen nav drawer backdrop -- and are exempted by name.",
+      "owner": { "web": ["components/ui/Modal.jsx", "components/ui/ModalOverlay.jsx", "components/sis/ui/PopMenu.jsx"] },
       "forbid": {
         "web": {
           "pattern": "className=\"fixed inset-0",
           "dirs": ["pages/sis", "components/sis"],
-          "files": ["pages/sis/billingPage/Modal.jsx"]
+          "files": ["pages/sis/billingPage/Modal.jsx"],
+          "exempt": ["components/ui/Modal.jsx", "components/ui/ModalOverlay.jsx", "components/sis/ui/PopMenu.jsx", "pages/sis/ClpPage.jsx", "components/sis/SisLayout.jsx"]
         }
       },
-      "baseline": { "web": 7 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14d",
-      "use_instead": "<Modal> from components/ui (or <ModalOverlay> for a bare backdrop). The portal guard in tests/modalPortalGuard.test.js counts the same recipe app-wide."
+      "use_instead": "<Modal> from components/ui for a dialog (or <ModalOverlay> for a bare backdrop); <PopMenu open onClose trigger items|children> from components/sis/ui for a dropdown. The portal guard in tests/modalPortalGuard.test.js counts the same recipe app-wide."
     },
     {
       "id": "sort_header",

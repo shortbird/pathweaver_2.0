@@ -7,11 +7,12 @@ import Button from '../../../components/ui/Button'
 import SearchSelect from '../../../components/ui/SearchSelect'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useConfirm } from '../../../contexts/ConfirmContext'
-import { useSisOrg, withOrg } from '../useSisOrg'
+import { withOrg } from '../useSisOrg'
 import WAITLIST_STATUS from './WAITLIST_STATUS'
 import offerExpiryText from './offerExpiryText'
+import PopMenu from '../../../components/sis/ui/PopMenu'
 
 const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
   const confirm = useConfirm()
@@ -278,49 +279,44 @@ const ClassWaitlist = ({ classId, orgId, cls, onChanged }) => {
                     {e.status === 'waiting' ? 'Offer seat' : 'Offer again'}
                   </button>
                   {sections.length > 0 && (
-                    <span className="relative">
-                      <button onClick={() => setMovingId(movingId === e.id ? null : e.id)}
-                        disabled={busy === e.id}
-                        className="text-neutral-500 hover:underline disabled:opacity-50">
-                        Other section ▾
-                      </button>
-                      {movingId === e.id && (
-                        <>
-                          <span className="fixed inset-0 z-10" onClick={() => setMovingId(null)} />
-                          <span className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left block">
-                            <span className="block px-3 py-1 text-[11px] uppercase tracking-wide text-neutral-400">
-                              Sections with room
+                    <PopMenu open={movingId === e.id} onClose={() => setMovingId(null)} width="w-64"
+                      trigger={(
+                        <button onClick={() => setMovingId(movingId === e.id ? null : e.id)}
+                          disabled={busy === e.id}
+                          className="text-neutral-500 hover:underline disabled:opacity-50">
+                          Other section ▾
+                        </button>
+                      )}>
+                      <span className="block px-3 py-1 text-[11px] uppercase tracking-wide text-neutral-400">
+                        Sections with room
+                      </span>
+                      <span className="block px-3 pb-1 text-[11px] text-neutral-400 leading-snug">
+                        Offer it lets the family claim the seat — they know
+                        whether that time works.
+                      </span>
+                      {sections.map((sec) => (
+                        <span key={sec.class_id} className="block px-3 py-1.5 hover:bg-neutral-50">
+                          <span className="block text-xs text-neutral-700">
+                            {sec.name}
+                            <span className="text-neutral-400">
+                              {sec.capacity != null
+                                ? ` · ${Math.max(0, sec.capacity - (sec.enrolled_count || 0))} seat(s)`
+                                : ' · space available'}
                             </span>
-                            <span className="block px-3 pb-1 text-[11px] text-neutral-400 leading-snug">
-                              Offer it lets the family claim the seat — they know
-                              whether that time works.
-                            </span>
-                            {sections.map((sec) => (
-                              <span key={sec.class_id} className="block px-3 py-1.5 hover:bg-neutral-50">
-                                <span className="block text-xs text-neutral-700">
-                                  {sec.name}
-                                  <span className="text-neutral-400">
-                                    {sec.capacity != null
-                                      ? ` · ${Math.max(0, sec.capacity - (sec.enrolled_count || 0))} seat(s)`
-                                      : ' · space available'}
-                                  </span>
-                                </span>
-                                <span className="flex items-center gap-2 mt-0.5">
-                                  <button onClick={() => offerSection(e, sec)}
-                                    className="text-xs font-medium text-optio-purple hover:underline">
-                                    Offer it
-                                  </button>
-                                  <button onClick={() => enrollInSection(e, sec)}
-                                    className="text-xs text-neutral-500 hover:underline">
-                                    Enroll directly
-                                  </button>
-                                </span>
-                              </span>
-                            ))}
                           </span>
-                        </>
-                      )}
-                    </span>
+                          <span className="flex items-center gap-2 mt-0.5">
+                            <button onClick={() => offerSection(e, sec)}
+                              className="text-xs font-medium text-optio-purple hover:underline">
+                              Offer it
+                            </button>
+                            <button onClick={() => enrollInSection(e, sec)}
+                              className="text-xs text-neutral-500 hover:underline">
+                              Enroll directly
+                            </button>
+                          </span>
+                        </span>
+                      ))}
+                    </PopMenu>
                   )}
                   <button onClick={() => remove(e)} disabled={busy === e.id}
                     className="text-neutral-400 hover:text-red-500 hover:underline disabled:opacity-50">

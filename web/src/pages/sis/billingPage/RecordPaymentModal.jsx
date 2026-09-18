@@ -6,12 +6,12 @@
 import Button from '../../../components/ui/Button'
 import api from '../../../services/api'
 import { toast } from 'react-hot-toast'
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useState } from 'react'
 import field from './field'
 import money from './money'
 import today from './today'
 import PAYMENT_METHODS from './PAYMENT_METHODS'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
   const balance = row.balance_cents ?? ((row.total_cents || 0) - (row.amount_paid_cents || 0))
@@ -39,7 +39,7 @@ const RecordPaymentModal = ({ orgId, row, onClose, onSaved }) => {
   }
 
   return (
-    <Modal title="Record payment" onClose={onClose}>
+    <Modal isOpen size="sm" title="Record payment" onClose={onClose}>
       <p className="text-sm text-neutral-500 mb-3">
         {row.family_name || 'Family'}{row.student_name ? ` · ${row.student_name}` : ''} — {row.description || 'Charge'}
       </p>

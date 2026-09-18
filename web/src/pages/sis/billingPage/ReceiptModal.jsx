@@ -7,7 +7,7 @@ import Button from '../../../components/ui/Button'
 import money from './money'
 import METHOD_LABEL from './METHOD_LABEL'
 import payLabel from './payLabel'
-import Modal from './Modal'
+import { Modal } from '../../../components/ui'
 
 /**
  * The receipt the office prints for a settled invoice.
@@ -34,7 +34,7 @@ const ReceiptModal = ({ row, onClose, onPrint, onCorrect }) => {
       : [])
 
   return (
-    <Modal title="Receipt" onClose={onClose}>
+    <Modal isOpen size="sm" title="Receipt" onClose={onClose}>
       <div className="print-area">
         <div className="border border-gray-200 rounded-lg p-4 text-sm space-y-2">
           <div className="text-lg font-semibold text-neutral-900">Payment receipt</div>

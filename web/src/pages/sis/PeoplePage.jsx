@@ -27,6 +27,7 @@ import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
   EMPTY_FILTERS, applyFilters, sortRows, isStaff, rolesOf, STAFF_ROLES,
 } from './people/peopleFilters'
+import PopMenu from '../../components/sis/ui/PopMenu'
 
 /**
  * People: one table of everyone in the school.
@@ -224,28 +225,16 @@ const PeoplePage = () => {
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)} disabled={!visible.length}
             title="Exports the rows shown, with your filters and sort applied">Export CSV</Button>
-          <div className="relative">
-            <Button size="sm" onClick={() => setAddMenu((v) => !v)} disabled={!orgId}
-              aria-haspopup="menu" aria-expanded={addMenu}>+ Add</Button>
-            {addMenu && (
-              <>
-                <button type="button" aria-label="Close menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setAddMenu(false)} />
-                <div role="menu" className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
-                  {[
-                    { key: 'person', label: 'Person' },
-                    { key: 'teacher', label: 'Teacher' },
-                    { key: 'family', label: 'Family' },
-                  ].map((o) => (
-                    <button key={o.key} type="button" role="menuitem"
-                      onClick={() => { setAddMenu(false); setAdding(o.key) }}
-                      className="block w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50">
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </>
+          <PopMenu open={addMenu} onClose={() => setAddMenu(false)} width="w-44"
+            trigger={(
+              <Button size="sm" onClick={() => setAddMenu((v) => !v)} disabled={!orgId}
+                aria-haspopup="menu" aria-expanded={addMenu}>+ Add</Button>
             )}
-          </div>
+            items={[
+              { label: 'Person', onClick: () => setAdding('person') },
+              { label: 'Teacher', onClick: () => setAdding('teacher') },
+              { label: 'Family', onClick: () => setAdding('family') },
+            ]} />
         </div>
       </div>
 
