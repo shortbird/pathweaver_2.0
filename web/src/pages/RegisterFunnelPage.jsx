@@ -57,6 +57,12 @@ import DoneStep from './registerFunnel/DoneStep'
 // all live in components/registration/funnelUi.jsx, shared with the SIS setup
 // editor.)
 
+const FullPageSpinner = () => (
+  <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" />
+  </div>
+)
+
 const RegisterFunnelPage = () => {
   const { code } = useParams()
   // ?preview=1 — staff walkthrough: step through the whole funnel with sample
@@ -844,13 +850,7 @@ const RegisterFunnelPage = () => {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-optio-purple" />
-      </div>
-    )
-  }
+  if (loading) return <FullPageSpinner />
   if (fatal) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
@@ -861,6 +861,11 @@ const RegisterFunnelPage = () => {
       </div>
     )
   }
+  // /enroll/resume with nothing to resume: the load above is sending the
+  // browser to / and there is no config to draw. One render lands here
+  // between the load finishing and the navigation taking effect, and it
+  // read config.organization off null (Sentry OPTIO-WEB-2B, 2026-09-17).
+  if (!config) return <FullPageSpinner />
 
   const org = config.organization || {}
   const logo = org.branding_config?.logo_url
