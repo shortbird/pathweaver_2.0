@@ -7,10 +7,15 @@ could put a category on each training here too. For example, some trainings
 are general and others are specific to certain teachers or staff." Marika, the
 same day: "the ability to add training as links and not just as new quests".
 
-A training link is an org_resources row flagged is_training. What these tests
-hold down: the row is filed as staff training and never as a family document;
-a teacher only sees the links aimed at them; "done" is the caller's own mark;
-and the report counts a link only against the people it was set for.
+A training link is an org_resources row flagged is_training, served by the
+Training page's own routes as the `kind='link'` branch (M18, 2026-09-17: the
+seven routes it used to have in routes/sis/training_links.py became branches
+of routes/sis/staff_training.py, and the list, the targeting and the progress
+report are one for both kinds). What these tests hold down: the row is filed
+as staff training and never as a family document; a teacher only sees the
+links aimed at them; "done" is the caller's own mark; the report counts a
+link only against the people it was set for; and a quest and a link sit in
+one list and one report.
 """
 
 from unittest.mock import Mock, patch
@@ -18,9 +23,10 @@ from unittest.mock import Mock, patch
 import pytest
 from flask import Flask
 
-import routes.sis.training_links as links
+import routes.sis.staff_training as training
 from repositories.training_link_repository import TrainingLinkRepository
 from services import sis_service
+from services import sis_training_service
 
 
 # Real UUIDs: the routes validate every id that arrives from the browser.
@@ -94,29 +100,52 @@ def _link(**over):
     }
 
 
-def _call(view, user_id, repo, *, json=None, is_admin=True, roles=(), **kwargs):
+def _quest_tables(quest_rows=()):
+    """The quest half of the catalog as the routes read it: sis_staff_training
+    rows (with their quests) and nothing else -- no progress, no enrolments."""
+    def _table(name):
+        t = Mock()
+        for chained in ('select', 'eq', 'in_', 'contains', 'order', 'limit', 'is_'):
+            getattr(t, chained).return_value = t
+        t.execute.return_value = Mock(data=list(quest_rows) if name == 'sis_staff_training' else [])
+        return t
+    client = Mock()
+    client.table.side_effect = _table
+    return client
+
+
+def _call(view, user_id, repo, *, json=None, query='', is_admin=True, roles=(),
+          quest_rows=(), **kwargs):
     app = Flask(__name__)
-    with patch.object(links, '_repo', return_value=repo), \
+    with patch.object(sis_training_service, '_repo', return_value=repo), \
+         patch.object(training, '_admin', return_value=_quest_tables(quest_rows)), \
          patch('services.sis_service.org_or_error', return_value=(ORG, None)), \
          patch.object(sis_service, 'caller_is_admin', return_value=is_admin), \
          patch.object(sis_service, 'caller_org_roles', return_value=list(roles)), \
-         app.test_request_context(json=json):
-        fn = getattr(view, '__wrapped__', view)
+         app.test_request_context(f'/api/sis/training{query}', json=json):
+        fn = view
+        while hasattr(fn, '__wrapped__'):
+            fn = fn.__wrapped__
         resp = fn(user_id, **kwargs)
     body = resp[0].get_json() if isinstance(resp, tuple) else resp.get_json()
     status = resp[1] if isinstance(resp, tuple) else 200
     return body, status
 
 
+def _links(body):
+    return [t for t in body['training'] if t['kind'] == 'link']
+
+
 @pytest.mark.unit
 class TestAddingOne:
     def test_a_link_is_filed_with_its_category_and_required_flag(self):
         repo = _FakeRepo()
-        body, status = _call(links.create_training_link, ADMIN, repo, json={
-            'title': 'Whole Brain Teaching', 'url': 'https://loom.com/x',
+        body, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'Whole Brain Teaching', 'url': 'https://loom.com/x',
             'category': 'Teaching', 'is_required': True,
         })
-        assert status == 201 and body['link']['id'] == 'new-link'
+        assert status == 201 and body['training']['id'] == 'new-link'
+        assert body['training']['kind'] == 'link'
         row = repo.created[0]
         assert row['organization_id'] == ORG and row['created_by'] == ADMIN
         assert row['category'] == 'Teaching'
@@ -127,8 +156,8 @@ class TestAddingOne:
     def test_it_needs_a_link_a_browser_can_open(self):
         repo = _FakeRepo()
         for bad in ('', 'handbook.pdf', 'javascript:alert(1)'):
-            _, status = _call(links.create_training_link, ADMIN, repo,
-                              json={'title': 'T', 'url': bad})
+            _, status = _call(training.add_training, ADMIN, repo,
+                              json={'kind': 'link', 'title': 'T', 'url': bad})
             assert status == 400, bad
         assert repo.created == []
 
@@ -136,8 +165,8 @@ class TestAddingOne:
         """The ticket's second ask: "some trainings are general and others are
         specific to certain teachers or staff". Roles and names, together."""
         repo = _FakeRepo()
-        _, status = _call(links.create_training_link, ADMIN, repo, json={
-            'title': 'T', 'url': 'https://x', 'visible_to_roles': ['advisor'],
+        _, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'T', 'url': 'https://x', 'visible_to_roles': ['advisor'],
             'visible_to_user_ids': [KATRINE],
         })
         assert status == 201
@@ -148,8 +177,8 @@ class TestAddingOne:
         """A link pinned to an id from another school would be visible to
         nobody and look like a bug."""
         repo = _FakeRepo()
-        _, status = _call(links.create_training_link, ADMIN, repo, json={
-            'title': 'T', 'url': 'https://x', 'visible_to_user_ids': [OTHER_ORG],
+        _, status = _call(training.add_training, ADMIN, repo, json={
+            'kind': 'link', 'title': 'T', 'url': 'https://x', 'visible_to_user_ids': [OTHER_ORG],
         })
         assert status == 400 and repo.created == []
 
@@ -180,25 +209,25 @@ class TestWhoSeesWhat:
             _link(id='coords', visible_to_roles=['campus_coordinator']),
             _link(id='katrines', visible_to_user_ids=[KATRINE]),
         ])
-        body, _ = _call(links.list_training_links, TEACHER, repo,
+        body, _ = _call(training.list_training, TEACHER, repo,
                         is_admin=False, roles=['advisor'])
-        assert [l['id'] for l in body['links']] == ['open']
-        body, _ = _call(links.list_training_links, KATRINE, repo,
+        assert [l['id'] for l in _links(body)] == ['open']
+        body, _ = _call(training.list_training, KATRINE, repo,
                         is_admin=False, roles=['advisor'])
-        assert [l['id'] for l in body['links']] == ['open', 'katrines']
+        assert [l['id'] for l in _links(body)] == ['open', 'katrines']
 
     def test_the_office_sees_everything_it_set(self):
         repo = _FakeRepo(rows=[_link(id='open'),
                                _link(id='coords', visible_to_roles=['campus_coordinator'])])
-        body, _ = _call(links.list_training_links, ADMIN, repo, is_admin=True)
-        assert [l['id'] for l in body['links']] == ['open', 'coords']
+        body, _ = _call(training.list_training, ADMIN, repo, is_admin=True)
+        assert [l['id'] for l in _links(body)] == ['open', 'coords']
 
     def test_the_list_says_whether_the_caller_has_done_each(self):
         repo = _FakeRepo(rows=[_link(id='done'), _link(id='todo')],
                          acks=[('done', TEACHER, 'v1')])
-        body, _ = _call(links.list_training_links, TEACHER, repo,
+        body, _ = _call(training.list_training, TEACHER, repo,
                         is_admin=False, roles=['advisor'])
-        by_id = {l['id']: l for l in body['links']}
+        by_id = {l['id']: l for l in _links(body)}
         assert by_id['done']['my_done'] and by_id['todo']['my_done'] is None
         assert by_id['done']['is_required'] is True
 
@@ -209,20 +238,20 @@ class TestDoingIt:
         """The user id comes from the decorator, never from the body -- a
         teacher cannot mark a colleague's training done for them."""
         repo = _FakeRepo(rows=[_link()])
-        body, status = _call(links.mark_training_link_done, TEACHER, repo,
-                             json={'user_id': KATRINE}, link_id=LINK)
-        assert status == 200 and body['link']['my_done']
+        body, status = _call(training.mark_training_done, TEACHER, repo,
+                             json={'user_id': KATRINE}, training_id=LINK)
+        assert status == 200 and body['training']['my_done']
         assert repo.done == [(LINK, TEACHER, 'v1')]
 
     def test_and_it_can_be_taken_back(self):
         repo = _FakeRepo(rows=[_link()], acks=[(LINK, TEACHER, 'v1')])
-        body, status = _call(links.unmark_training_link_done, TEACHER, repo, link_id=LINK)
-        assert status == 200 and body['link']['my_done'] is None
+        body, status = _call(training.unmark_training_done, TEACHER, repo, training_id=LINK)
+        assert status == 200 and body['training']['my_done'] is None
         assert repo.undone == [(LINK, TEACHER)]
 
     def test_another_schools_link_is_not_found(self):
         repo = _FakeRepo(rows=[_link(organization_id=OTHER_ORG)])
-        _, status = _call(links.mark_training_link_done, TEACHER, repo, link_id=LINK)
+        _, status = _call(training.mark_training_done, TEACHER, repo, training_id=LINK)
         assert status == 404 and repo.done == []
 
 
@@ -241,10 +270,10 @@ class TestTheReport:
         repo = _FakeRepo(rows=[_link(id='katrines', visible_to_user_ids=[KATRINE])],
                          acks=[('katrines', KATRINE, 'v1')])
         with patch.object(sis_service, 'list_org_staff', return_value=self._staff()):
-            body, _ = _call(links.training_links_progress, ADMIN, repo)
+            body, _ = _call(training.training_progress, ADMIN, repo)
         rows = {r['user_id']: r for r in body['staff']}
         assert rows[KATRINE]['cells'][0] == {
-            'link_id': 'katrines', 'applies': True, 'done': True, 'done_at': 'now'}
+            'kind': 'link', 'id': 'katrines', 'applies': True, 'completed': True, 'done_at': 'now'}
         assert rows[TEACHER]['cells'][0]['applies'] is False
         assert rows[ADMIN]['cells'][0]['applies'] is False
         assert rows[KATRINE]['required_completed'] == 1
@@ -253,12 +282,78 @@ class TestTheReport:
     def test_an_untargeted_required_link_is_everyones(self):
         repo = _FakeRepo(rows=[_link(id='open')], acks=[('open', TEACHER, 'v1')])
         with patch.object(sis_service, 'list_org_staff', return_value=self._staff()):
-            body, _ = _call(links.training_links_progress, ADMIN, repo)
+            body, _ = _call(training.training_progress, ADMIN, repo)
         rows = {r['user_id']: r for r in body['staff']}
         assert body['required_total'] == 1
         assert rows[TEACHER]['required_completed'] == 1
         assert rows[ADMIN]['required_completed'] == 0
         assert rows[ADMIN]['cells'][0]['applies'] is True
+
+
+def _quest_row(**over):
+    return {
+        'id': 'tr-q', 'quest_id': 'q-1', 'category': 'Teaching', 'is_required': True,
+        'sequence_order': 1, 'audience': 'staff', 'audiences': ['staff'],
+        'student_min_age': None, 'student_max_age': None,
+        'visible_to_roles': None, 'visible_to_user_ids': None, 'auto_assign': False,
+        'quests': {'id': 'q-1', 'title': 'Orientation', 'description': None,
+                   'is_active': True, 'xp_threshold': 0, 'organization_id': ORG},
+        **over,
+    }
+
+
+@pytest.mark.unit
+class TestOneCatalogForBothKinds:
+    """M18: the page used to read two lists and two reports and stitch them
+    together in the browser. Now the routes hand back one of each, in the
+    creator's order, with `kind` on every row and every cell."""
+
+    def test_the_list_carries_quests_and_links_in_the_arranged_order(self):
+        repo = _FakeRepo(rows=[_link(id='first', sort_order=0), _link(id='third', sort_order=2)])
+        with patch.object(training, '_progress_for', return_value={}):
+            body, _ = _call(training.list_training, ADMIN, repo, quest_rows=[_quest_row(sequence_order=1)])
+        assert [(t['kind'], t['id']) for t in body['training']] == [
+            ('link', 'first'), ('quest', 'tr-q'), ('link', 'third')]
+        assert body['training'][0]['sequence_order'] == 0
+
+    def test_only_the_staff_tab_has_links(self):
+        repo = _FakeRepo(rows=[_link()])
+        body, _ = _call(training.list_training, ADMIN, repo, query='?audience=family')
+        assert body['training'] == []
+
+    def test_the_report_has_one_column_per_row_of_either_kind(self):
+        repo = _FakeRepo(rows=[_link(id='open')], acks=[('open', TEACHER, 'v1')])
+        staff = [{'id': TEACHER, 'name': 'A Teacher', 'roles': ['advisor']}]
+        with patch.object(sis_service, 'list_org_staff', return_value=staff), \
+             patch.object(training, '_progress_for', return_value={}):
+            body, _ = _call(training.training_progress, ADMIN, repo,
+                            quest_rows=[_quest_row(sequence_order=1)])
+        assert [(c['kind'], c['id']) for c in body['training']] == [('link', 'open'), ('quest', 'tr-q')]
+        cells = body['staff'][0]['cells']
+        assert [(c['kind'], c['id'], c['completed']) for c in cells] == [
+            ('link', 'open', True), ('quest', 'tr-q', False)]
+        # Both kinds count towards the one required denominator.
+        assert body['required_total'] == 2
+        assert body['staff'][0]['required_completed'] == 1
+        assert body['staff'][0]['required_total'] == 2
+        assert '_raw' not in body['training'][0]
+
+    def test_a_quest_aimed_at_named_people_is_theirs_alone(self):
+        """One targeting model for both kinds: a quest can be for Katrine by
+        name now, and the report then leaves everybody else -- the admin who
+        set it included -- at a dash, exactly as a link does."""
+        repo = _FakeRepo()
+        staff = [
+            {'id': ADMIN, 'name': 'Molly', 'roles': ['org_admin']},
+            {'id': KATRINE, 'name': 'Katrine', 'roles': ['advisor']},
+        ]
+        with patch.object(sis_service, 'list_org_staff', return_value=staff), \
+             patch.object(training, '_progress_for', return_value={}):
+            body, _ = _call(training.training_progress, ADMIN, repo,
+                            quest_rows=[_quest_row(visible_to_user_ids=[KATRINE])])
+        rows = {r['user_id']: r for r in body['staff']}
+        assert rows[KATRINE]['cells'][0]['applies'] is True
+        assert rows[ADMIN]['cells'][0]['applies'] is False
 
 
 @pytest.mark.unit

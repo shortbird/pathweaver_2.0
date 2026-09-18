@@ -42,9 +42,7 @@ export {
   useUpdateAdminTicket,
 } from './useAdminTickets';
 export {
-  useTrainingLinks,
-  useTrainingLinksProgress,
   useSaveTrainingLink,
   useDeleteTrainingLink,
-  useSetTrainingLinkDone,
-} from './useTrainingLinks';
+  useSetTrainingDone,
+} from './useTraining';

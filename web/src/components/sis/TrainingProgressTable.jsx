@@ -6,17 +6,42 @@ import { progressLabel, progressStyle, words } from '../../pages/sis/trainingCop
  * the creator's order. The page's search narrows the ROWS by the person's
  * name -- every column stays, so one teacher's whole progress is in view at
  * once (Tanner, 2026-09-17). Lifted out of StaffTrainingPage the same day,
- * when that page crossed the size cap; the page owns the data (the two
- * report halves and the arranged column list) and this renders it.
+ * when that page crossed the size cap; the page owns the data and this
+ * renders it.
  *
- * A quest cell is that person's progress; a link cell is done / not done, or
- * a dash where the link was never aimed at this person, so nobody reads "not
- * done" on a training they were not given.
+ * One report for both kinds (M18): `report.training` lists quests and links
+ * with `kind`, and each person's `cells` follow it, keyed by kind and id. A
+ * quest cell is that person's progress; a link cell is done / not done; a
+ * dash is where the training was never aimed at this person, so nobody
+ * reads "not done" on a training they were not given. `ordered` is the
+ * page's arranged list, so a row just moved shows in its new place here too.
  */
-export default function TrainingProgressTable({
-  report, reportColumns, linkCells, linkReport, audience, personMatches = () => true,
-}) {
+export default function TrainingProgressTable({ report, ordered = [], audience, personMatches = () => true }) {
   const people = (report?.staff || []).filter((s) => personMatches(s.name))
+  const keyOf = (r) => `${r.kind}:${r.id}`
+  const rank = new Map(ordered.map((r, i) => [keyOf(r), i]))
+  const columns = [...(report?.training || [])]
+    .sort((a, b) => (rank.get(keyOf(a)) ?? Number.MAX_SAFE_INTEGER) - (rank.get(keyOf(b)) ?? Number.MAX_SAFE_INTEGER))
+  const cellFor = (person, col) => (person.cells || [])
+    .find((c) => c.kind === col.kind && c.id === col.id)
+
+  const cell = (c) => {
+    if (!c || c.applies === false) return <span className="text-neutral-300">{'\u2014'}</span>
+    if (c.kind === 'link') {
+      return (
+        <span className={`inline-block px-2 py-1 rounded-md text-xs ${
+          c.completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-500'}`}>
+          {c.completed ? 'Done' : 'Not done'}
+        </span>
+      )
+    }
+    return (
+      <span className={`inline-block px-2 py-1 rounded-md text-xs ${progressStyle(c)}`}>
+        {progressLabel(c)}
+      </span>
+    )
+  }
+
   return (
   !report?.staff?.length
     ? <p className="text-neutral-500">No {words(audience).many} to report on yet.</p>
@@ -26,11 +51,11 @@ export default function TrainingProgressTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-200">
-  <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
+            <th className="text-left px-4 py-2.5 font-semibold text-neutral-700">
               {audience === 'family' ? 'Family' : audience === 'student' ? 'Student' : 'Staff'}
             </th>
-            {reportColumns.map((t) => (
-              <th key={t.quest_id || `link-${t.id}`} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
+            {columns.map((t) => (
+              <th key={keyOf(t)} className="px-3 py-2.5 font-medium text-neutral-600 min-w-[7rem]">
                 <span className="block truncate max-w-[10rem] mx-auto" title={t.title}>{t.title}</span>
                 {t.is_required && <span className="block text-[11px] font-normal text-optio-purple">required</span>}
               </th>
@@ -42,40 +67,12 @@ export default function TrainingProgressTable({
           {people.map((s) => (
             <tr key={s.user_id} className="border-b border-gray-100 last:border-0">
               <td className="px-4 py-2.5 font-medium text-neutral-900">{s.name}</td>
-              {/* Cells follow the header: the creator's order, narrowed
-                  by the search. A quest cell is this person's progress;
-                  a link cell is done / not done, or a dash where the
-                  link was never aimed at this person, so nobody reads
-                  "not done" on a training they were not given. */}
-              {reportColumns.map((col) => {
-                if (col._key.startsWith('quest:')) {
-                  const c = (s.cells || []).find((cell) => cell.quest_id === col.quest_id)
-                  return (
-                    <td key={col._key} className="px-3 py-2.5 text-center">
-                      {c ? (
-                        <span className={`inline-block px-2 py-1 rounded-md text-xs ${progressStyle(c)}`}>
-                          {progressLabel(c)}
-                        </span>
-                      ) : <span className="text-neutral-300">{'\u2014'}</span>}
-                    </td>
-                  )
-                }
-                const c = (linkCells[s.user_id]?.cells || []).find((cell) => cell.link_id === col.id)
-                  || { applies: !linkCells[s.user_id], done: false }
-                return (
-                  <td key={col._key} className="px-3 py-2.5 text-center">
-                    {!c.applies ? <span className="text-neutral-300">{'\u2014'}</span> : (
-                      <span className={`inline-block px-2 py-1 rounded-md text-xs ${
-                        c.done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-neutral-500'}`}>
-                        {c.done ? 'Done' : 'Not done'}
-                      </span>
-                    )}
-                  </td>
-                )
-              })}
+              {columns.map((col) => (
+                <td key={keyOf(col)} className="px-3 py-2.5 text-center">{cell(cellFor(s, col))}</td>
+              ))}
               <td className="px-3 py-2.5 text-center text-neutral-600">
-                {s.required_completed + (linkCells[s.user_id]?.required_completed || 0)}
-                <span className="text-neutral-400">/{report.required_total + (linkReport?.required_total || 0)}</span>
+                {s.required_completed}
+                <span className="text-neutral-400">/{report.required_total}</span>
               </td>
             </tr>
           ))}

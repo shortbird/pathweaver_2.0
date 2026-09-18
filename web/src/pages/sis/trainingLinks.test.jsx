@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
@@ -10,6 +10,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  * training or a slide deck has no tasks to invent, so the Training page's add
  * panel grew a third door: paste a link, file it under a category, aim it at
  * roles or people. Teachers open it and press done; the report shows who has.
+ *
+ * Since M18 (2026-09-17) a link is a row of the one training list and one
+ * column of the one report: GET /api/sis/training carries both kinds with
+ * `kind`, POST /api/sis/training with kind='link' files one, and
+ * /training/<id>/done marks it.
  */
 
 vi.mock('react-hot-toast', () => ({
@@ -38,8 +43,7 @@ vi.mock('../../services/api', () => ({ default: api }))
 
 import StaffTrainingPage from './StaffTrainingPage'
 
-// The page reads its training links through hooks/api, so it needs a
-// QueryClient. A fresh client per render keeps one test's cache out of the
+// The page's link writes go through hooks/api, so it needs a QueryClient. A fresh client per render keeps one test's cache out of the
 // next one's, and retry:false makes a failed query fail rather than hang.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -47,33 +51,28 @@ const render = (ui) => {
 }
 
 const QUEST = {
-  id: 'tr-1', quest_id: 'q-1', title: 'Orientation quest', category: 'Onboarding',
+  kind: 'quest', id: 'tr-1', quest_id: 'q-1', title: 'Orientation quest', category: 'Onboarding',
   is_required: true, auto_assign: false, sequence_order: 0, audience: 'staff',
   my_progress: { started: false, completed: false, done: 0, total: 0 }, quest_is_ours: true,
 }
 const LINK = {
-  id: 'l-1', title: 'Whole Brain Teaching', url: 'https://loom.com/x',
-  description: 'Part one', category: 'Onboarding', is_required: true,
+  kind: 'link', id: 'l-1', title: 'Whole Brain Teaching', url: 'https://loom.com/x',
+  description: 'Part one', category: 'Onboarding', is_required: true, sequence_order: 1,
   visible_to_roles: null, visible_to_user_ids: null, my_done: null,
 }
 
-const mockGets = ({ training = [QUEST], links = [LINK] } = {}) => {
+const mockGets = ({ training = [QUEST, LINK] } = {}) => {
   api.get.mockImplementation((url) => {
-    if (url.includes('/training/links/progress')) {
-      return Promise.resolve({ data: { links, required_total: 1, staff: [
-        { user_id: 'u-1', name: 'A Teacher', required_completed: 1,
-          cells: [{ link_id: 'l-1', applies: true, done: true, done_at: 'now' }] },
-        { user_id: 'u-2', name: 'Katrine', required_completed: 0,
-          cells: [{ link_id: 'l-1', applies: false, done: false }] },
-      ] } })
-    }
-    if (url.includes('/training/links')) return Promise.resolve({ data: { links } })
     if (url.includes('/training/progress')) {
-      return Promise.resolve({ data: { training, required_total: 1, staff: [
-        { user_id: 'u-1', name: 'A Teacher', required_completed: 0, cells: [
-          { quest_id: 'q-1', applies: true, started: false, completed: false, done: 0, total: 0 }] },
+      // One report: a quest cell is progress, a link cell is done or not,
+      // and a link never aimed at the person does not apply to them.
+      return Promise.resolve({ data: { training, required_total: 2, staff: [
+        { user_id: 'u-1', name: 'A Teacher', required_completed: 1, cells: [
+          { kind: 'quest', id: 'tr-1', quest_id: 'q-1', applies: true, started: false, completed: false, done: 0, total: 0 },
+          { kind: 'link', id: 'l-1', applies: true, completed: true, done_at: 'now' }] },
         { user_id: 'u-2', name: 'Katrine', required_completed: 1, cells: [
-          { quest_id: 'q-1', applies: true, started: true, completed: true, done: 2, total: 2 }] },
+          { kind: 'quest', id: 'tr-1', quest_id: 'q-1', applies: true, started: true, completed: true, done: 2, total: 2 },
+          { kind: 'link', id: 'l-1', applies: false, completed: false, done_at: null }] },
       ] } })
     }
     if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
@@ -87,7 +86,7 @@ const mockGets = ({ training = [QUEST], links = [LINK] } = {}) => {
 beforeEach(() => {
   vi.clearAllMocks()
   mockGets()
-  api.post.mockResolvedValue({ data: { success: true, link: LINK } })
+  api.post.mockResolvedValue({ data: { success: true, training: LINK } })
   api.delete.mockResolvedValue({ data: { success: true } })
 })
 
@@ -104,9 +103,9 @@ describe('adding a link', () => {
     fireEvent.click(screen.getByLabelText('Teachers'))
     fireEvent.click(screen.getByRole('button', { name: /^add link$/i }))
 
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/training/links',
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sis/training',
       expect.objectContaining({
-        organization_id: 'org-1', title: 'Whole Brain Teaching', url: 'https://loom.com/x',
+        kind: 'link', organization_id: 'org-1', title: 'Whole Brain Teaching', url: 'https://loom.com/x',
         category: 'Teaching', is_required: true, visible_to_roles: ['advisor'],
       })))
   })
@@ -138,13 +137,13 @@ describe('the list', () => {
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /mark as done/i }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
-      '/api/sis/training/links/l-1/done?organization_id=org-1', {}))
+      '/api/sis/training/l-1/done?organization_id=org-1', {}))
 
-    mockGets({ links: [{ ...LINK, my_done: { done_at: 'now' } }] })
+    mockGets({ training: [QUEST, { ...LINK, my_done: { done_at: 'now' } }] })
     render(<StaffTrainingPage />)
     fireEvent.click(await screen.findByRole('button', { name: /mark as not done/i }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
-      '/api/sis/training/links/l-1/done?organization_id=org-1'))
+      '/api/sis/training/l-1/done?organization_id=org-1'))
   })
 })
 
@@ -161,5 +160,27 @@ describe('who has done what', () => {
     // Required done: quests + links, one total.
     expect(rows[0].textContent).toContain('1/2')
     expect(rows[1].textContent).toContain('1/2')
+  })
+})
+
+describe('editing a link', () => {
+  it('opens the same form on the link door, filled in, and patches it as a link', async () => {
+    render(<StaffTrainingPage />)
+    const row = (await screen.findByText('Whole Brain Teaching')).closest('.p-4')
+    fireEvent.click(within(row).getByRole('button', { name: /^edit$/i }))
+    expect(screen.getByLabelText('Training link').value).toBe('https://loom.com/x')
+    fireEvent.change(screen.getByLabelText('Training title'), { target: { value: 'Whole Brain Teaching, part 1' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith(
+      '/api/sis/training/l-1?organization_id=org-1',
+      expect.objectContaining({ kind: 'link', title: 'Whole Brain Teaching, part 1' })))
+  })
+
+  it('removes a link as a link', async () => {
+    render(<StaffTrainingPage />)
+    await screen.findByText('Whole Brain Teaching')
+    fireEvent.click(screen.getByRole('button', { name: /remove whole brain teaching/i }))
+    await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
+      '/api/sis/training/l-1?organization_id=org-1&kind=link'))
   })
 })

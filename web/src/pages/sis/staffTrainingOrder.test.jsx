@@ -43,19 +43,19 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 const quest = (id, title, sequence_order) => ({
-  id, quest_id: `q-${id}`, title, category: 'Onboarding', sequence_order,
+  kind: 'quest', id, quest_id: `q-${id}`, title, category: 'Onboarding', sequence_order,
   is_required: false, audience: 'staff', quest_is_ours: true,
   my_progress: { started: false, completed: false, done: 0, total: 0 },
 })
-const link = (id, title, sort_order) => ({
-  id, title, url: 'https://example.com', category: 'Onboarding', sort_order,
+const link = (id, title, sequence_order) => ({
+  kind: 'link', id, title, url: 'https://example.com', category: 'Onboarding', sequence_order,
   is_required: false, my_done: false, visible_to_roles: [], visible_to_user_ids: [],
 })
 
-// Stored out of title order on purpose: Third first, then First, then the link
-// Second between them on the shared scale.
-const TRAINING = [quest('t3', 'Third training', 2), quest('t1', 'First training', 0)]
-const LINKS = [link('l2', 'Second training (video)', 1)]
+// One list from the server (M18), sent out of title order on purpose: Third
+// first, then First, then the link Second between them on the shared scale.
+const TRAINING = [quest('t3', 'Third training', 2), quest('t1', 'First training', 0),
+  link('l2', 'Second training (video)', 1)]
 
 // The row titles, top to bottom. Row titles are the font-semibold spans;
 // the "Add training" button is not one of them.
@@ -70,8 +70,6 @@ beforeEach(() => {
   api.put.mockResolvedValue({ data: { success: true, ordered: 3 } })
   api.get.mockImplementation((url) => {
     if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
-    if (url.includes('/training/links/progress')) return Promise.resolve({ data: { links: [], staff: [], required_total: 0 } })
-    if (url.includes('/training/links')) return Promise.resolve({ data: { links: LINKS } })
     if (url.includes('/training/progress')) return Promise.resolve({ data: { training: [], staff: [], required_total: 0 } })
     if (url.includes('/api/sis/training')) return Promise.resolve({ data: { training: TRAINING } })
     return Promise.resolve({ data: {} })
@@ -124,21 +122,17 @@ describe('the creator\'s order on the Training page', () => {
 
   it('in Who has done what, the search finds a person and shows their whole row', async () => {
     const cells = (done) => [
-      { quest_id: 'q-t3', started: done, completed: done, done: done ? 2 : 0, total: 2 },
-      { quest_id: 'q-t1', started: false, completed: false, done: 0, total: 2 },
+      { kind: 'quest', id: 't3', quest_id: 'q-t3', applies: true, started: done, completed: done, done: done ? 2 : 0, total: 2 },
+      { kind: 'quest', id: 't1', quest_id: 'q-t1', applies: true, started: false, completed: false, done: 0, total: 2 },
+      { kind: 'link', id: 'l2', applies: true, completed: done, done_at: done ? 'now' : null },
     ]
     api.get.mockImplementation((url) => {
       if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
-      if (url.includes('/training/links/progress')) {
-        return Promise.resolve({ data: { links: LINKS, required_total: 0,
-          staff: [{ user_id: 'u-jane', cells: [{ link_id: 'l2', applies: true, done: true }], required_completed: 0 },
-                  { user_id: 'u-omar', cells: [{ link_id: 'l2', applies: true, done: false }], required_completed: 0 }] } })
-      }
-      if (url.includes('/training/links')) return Promise.resolve({ data: { links: LINKS } })
       if (url.includes('/training/progress')) {
         return Promise.resolve({ data: { required_total: 0,
-          training: [{ quest_id: 'q-t3', title: 'Third training', is_required: false },
-                     { quest_id: 'q-t1', title: 'First training', is_required: false }],
+          training: [{ kind: 'quest', id: 't3', quest_id: 'q-t3', title: 'Third training', is_required: false },
+                     { kind: 'quest', id: 't1', quest_id: 'q-t1', title: 'First training', is_required: false },
+                     { kind: 'link', id: 'l2', title: 'Second training (video)', is_required: false }],
           staff: [{ user_id: 'u-jane', name: 'Jane Bird', cells: cells(true), required_completed: 0 },
                   { user_id: 'u-omar', name: 'Omar Reyes', cells: cells(false), required_completed: 0 }] } })
       }

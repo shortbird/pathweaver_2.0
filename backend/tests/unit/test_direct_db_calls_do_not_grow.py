@@ -436,7 +436,8 @@ BASELINES = {
     # org's list, one owned row, the members a link can be aimed at by name,
     # the caller's acks and the report's acks, create/update/delete, and the
     # done mark and its undo on sis_resource_acks. routes/ and services/ did
-    # not move: routes/sis/training_links.py reads and writes through this.
+    # not move: routes/sis/training_links.py read and wrote through this
+    # (since M18, 2026-09-17, services/sis_training_service does).
     # 2026-09-15 (class chat screened): 578 -> 582. PeerTextScreenRepository
     # learns group_messages -- the pending backlog, the settle and the hide
     # the sweep needs -- and the group names a hold can carry. routes/ and

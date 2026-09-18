@@ -533,7 +533,7 @@
     },
     {
       "id": "input_recipe",
-      "means": "The Tailwind string for a text input, spelled as a local constant in four incompatible recipes across thirty-seven SIS files. components/ui/Input.jsx and FormField.jsx are used by no SIS file.",
+      "means": "The Tailwind string for a text input, spelled as a local constant in four incompatible recipes across thirty-odd SIS files. components/ui/Input.jsx and FormField.jsx were used by no SIS file until M18 (2026-09-17): the training form and page draw their inputs from ui/Input.",
       "owner": { "web": ["components/ui/Input.jsx", "components/ui/FormField.jsx"] },
       "forbid": {
         "web": {
@@ -541,7 +541,7 @@
           "dirs": ["pages/sis", "components/sis"]
         }
       },
-      "baseline": { "web": 36 },
+      "baseline": { "web": 34 },
       "measured": "2026-09-17",
       "lowered_by": "M14e",
       "use_instead": "<Input> / <FormField> from components/ui. A page that needs a variant adds it there, once."
@@ -641,16 +641,19 @@
     },
     {
       "id": "training_system",
-      "means": "Staff training. Two APIs, two stores, two targeting models and two progress reports: staff_training.py (quests, since July) and training_links.py (org_resources.is_training, since 2026-09-15). Six open tickets on /training are the symptom.",
-      "owner": { "backend": ["routes/sis/staff_training.py"], "web": ["pages/sis/StaffTrainingPage.jsx"] },
+      "means": "Staff training. Until M18 (2026-09-17) two APIs, two targeting models and two progress reports: staff_training.py (quests, since July) and training_links.py (org_resources.is_training, since 2026-09-15). Now one catalog: GET /api/sis/training lists both kinds with `kind`, POST with kind='link' files a link, /training/<id>/done marks one, and /training/progress has one column per row; both kinds target visible_to_roles OR visible_to_user_ids. Links still live on org_resources (read through services/sis_training_service); the store was not merged.",
+      "owner": {
+        "backend": ["routes/sis/staff_training.py", "services/sis_training_service.py"],
+        "web": ["pages/sis/StaffTrainingPage.jsx", "components/sis/TrainingForm.jsx", "components/sis/TrainingRow.jsx"]
+      },
       "forbid": {
         "backend": { "pattern": "^@bp\\.route\\(", "dirs": ["routes/sis/training_links.py"] },
         "web": { "files": ["components/sis/TrainingLinks.jsx"] }
       },
-      "baseline": { "backend": 7, "web": 1 },
+      "baseline": { "backend": 0, "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M18",
-      "use_instead": "One training catalogue row {kind: 'quest'|'link', targeting, required, progress} served by staff_training.py (M18); a link is a training whose completion is an ack. Web: one TrainingForm with a kind switch."
+      "use_instead": "A new training capability goes on the one catalog row (kind switch in staff_training.py, sis_training_service for the link half) and in TrainingForm/TrainingRow; never a second route file or a second form."
     },
     {
       "id": "portal_views",

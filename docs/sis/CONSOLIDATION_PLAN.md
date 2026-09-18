@@ -41,7 +41,7 @@ and patterns instead.
 | M7 One household billing view, formatCents | 1 | shipped | see git log (`consolidate/M7-household-billing`) | `money_format` 0/0 |
 | M2 One family hold | 1 | shipped (migration applied to prod + staging) | see git log (`consolidate/M2-one-family-hold`) | `family_hold_write` 0, `fee_hold_sentinel` 0 |
 | M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not; enrollment backfill written, not run) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
-| M18 One training system | 1 | not started | | |
+| M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
 | M14c-e Pickers, modals, inputs, tables | 2 | not started | | |
@@ -935,6 +935,48 @@ the link and see it marked done, complete the quest; the progress report shows b
 kinds in one grid; a 13-task document pasted into the quest draft keeps 13 tasks.
 Tickets `be12106a`, `b26c05e3`, `b2e109d4`, `f1286b5a`, `05cc69d8`, `8cdaef04`,
 `7c8c12a2` close. Manifest `training_system` → 0/0/0.
+
+**As shipped (2026-09-17).** Backend: `routes/sis/training_links.py` is deleted;
+`routes/sis/staff_training.py` serves both kinds -- `GET /training` returns
+quests and links in one list in the creator's order, each row with `kind`
+(`_in_creators_order`); `POST /training` with `kind: 'link'` files a link;
+`PATCH`/`DELETE /training/<id>` take `kind` (body or `?kind=link`) for the
+link branch; new `POST`/`DELETE /training/<id>/done` mark a link; `GET
+/training/progress` has one column per row of either kind and one required
+denominator, cells keyed by `kind` + `id`. The link half (URL and people
+validation, the shape, list/create/update/delete/done, the acks for the
+report) is `services/sis_training_service.py`, over the unchanged
+`TrainingLinkRepository`. One targeting model: migration
+`20260918210000_training_visible_to_user_ids` (applied prod + staging) adds
+`sis_staff_training.visible_to_user_ids`, read by the same
+`filter_role_visible` and by the one `_item_applies_to` (roles OR named
+people; a row aimed at named people only is theirs alone, admins included;
+a role-targeted or untargeted row still always includes admins), and
+written by add, build and edit. Web: `components/sis/TrainingForm.jsx` is the
+one form (the page's `AddTraining` moved out; the link door's fields fold in;
+category, required and "who is this for" -- roles + a `SearchSelect` people
+picker -- are one block for every kind); `components/sis/TrainingRow.jsx`
+draws either kind; `TrainingProgressTable` renders the one report;
+`hooks/api/useTraining.js` holds the three link writes (save, delete, done);
+`hooks/useTrainingOrder` sorts the one list. `TrainingLinks.jsx`,
+`useTrainingLinks.js` and the two query keys are gone. The training form and
+page draw their inputs from `ui/Input`, the first SIS use of it
+(`input_recipe` 36 → 34). Deliberately NOT done: the 14 iCreate link rows stay
+on `org_resources.is_training` (a data move to `sis_staff_training` is a
+backfill, not authorised tonight; the plan allowed either), so
+`resources.py` keeps its `is_training` exclusion; the 20,000-character
+truncation literals were already collapsed upstream (`11de6990`); the
+`TrainingPeoplePicker` (assign by ticking eligible people) stays beside the
+form's `SearchSelect` picker -- a different act (enrolment vs targeting),
+M14c's row. Tickets: `b26c05e3`, `8cdaef04`, `7c8c12a2` were resolved
+upstream; `be12106a`, `05cc69d8`, `b2e109d4`, `f1286b5a` stay open with
+triage notes -- each is a product call (publish-without-assign default, a
+video task type, a column filter, an unreproduced category report), not a
+duplicate-surface symptom. Verify at :3000 as iCreate admin: `/training`
+shows quests and the 14 links in one list; Add training → Link door → save;
+Edit a link; Mark as done as a teacher; Who has done what shows link columns
+beside quest columns with dashes where a link was aimed at named people; a
+quest built with "And these people" reaches only them.
 
 ---
 

@@ -176,7 +176,7 @@ def _ack_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str, Any]]
         current = bool(mine) and ((r.get('version_date') or '') <= (mine.get('version_date') or ''))
         # A required training link is the same obligation with a different
         # home: it is done on the Training page, not the Resources page,
-        # which hides training rows (routes/sis/training_links.py).
+        # which hides training rows (routes/sis/staff_training.py, the link kind).
         training = bool(r.get('is_training'))
         out.append({
             'id': f"ack:{r['id']}",
