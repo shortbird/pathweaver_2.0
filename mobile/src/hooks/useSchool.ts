@@ -579,15 +579,21 @@ export function useSchoolAbsences() {
     }))),
   ), [studentIds, byStudent, students]);
 
+  // One request shape, the web's: selections of {student_user_id, class_ids},
+  // empty class_ids meaning the whole day (M19c, 2026-09-18). The phone still
+  // offers one class shared by every selected child, so each selection
+  // carries the same list; the server's older student_user_ids shape retires
+  // once this build is on every phone.
   const report = useCallback(async (form: {
     absence_date: string; end_date?: string | null; class_id: string | null; reason: string | null;
   }) => {
     const r = await api.post('/api/sis/parent/absences', {
       organization_id: orgId,
-      student_user_ids: studentIds,
+      selections: studentIds.map((sid) => ({
+        student_user_id: sid, class_ids: form.class_id ? [form.class_id] : [],
+      })),
       absence_date: form.absence_date,
       end_date: form.end_date && form.end_date !== form.absence_date ? form.end_date : null,
-      class_id: form.class_id || null,
       reason: form.reason || null,
     });
     await loadAbsences();

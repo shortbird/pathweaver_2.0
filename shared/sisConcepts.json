@@ -782,7 +782,7 @@
     },
     {
       "id": "absence_request_shape",
-      "means": "The parent absence endpoint accepts three request shapes (student_user_id, student_user_ids, selections); web sends the newest, mobile the oldest.",
+      "means": "The parent absence endpoint accepts three request shapes (student_user_id, student_user_ids, selections). Web has sent selections since 2026-09-16 and the phone since the M19c build (2026-09-18, an OTA); the two older shapes retire once that build is on every phone.",
       "owner": { "backend": ["routes/sis/parent.py"] },
       "forbid": {
         "backend": { "pattern": "data\\.get\\(\\s*['\"]student_user_ids['\"]", "dirs": ["routes/sis/parent.py"], "exempt": [] }
@@ -790,7 +790,7 @@
       "baseline": { "backend": 1 },
       "measured": "2026-09-17",
       "lowered_by": "M19",
-      "use_instead": "selections: [{student_user_id, class_ids}] is the one shape (M19), once the mobile OTA that sends it has shipped."
+      "use_instead": "selections: [{student_user_id, class_ids}] is the one shape (M19). Both clients send it; the server keeps the older two only until the M19c mobile build (2026-09-18) has reached every phone, then this row goes to 0."
     },
     {
       "id": "route_rule_unique",

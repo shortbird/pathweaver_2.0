@@ -45,7 +45,7 @@ and patterns instead.
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13a and 13b shipped (one mount each, `RecordDoors`); 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`) | `class_form_mount` 1, `staff_phone_edit` 0, new `student_record_mount` 1, `family_record_mount` 1 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
-| M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
+| M19 Parent surface parity | 2 | shipped (a, b, d; c's mobile half shipped 2026-09-18, the server's two old shapes retire once that build is on every phone; e not merged) | see git log (`consolidate/M19-parent-parity`, `consolidate/M19c-absence-selections`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the old shapes retire |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
 | M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
@@ -1298,9 +1298,12 @@ the same family doors in the same order as the web shell (`familyDoorsFor` in
 `schoolCards.js`): Schedule or Goal Setting, Absence (native), Billing, Forms, Prior
 Learning, with the web-only ones opening on the web inside the hub instead of being
 missing; the school-life chips (calendar, carpool, lost & found, documents) stay.
-This ships with the next mobile OTA. (c) Not done: the two legacy absence shapes
-stay in `routes/sis/parent.py` until a build that sends `selections` is on every
-phone (the plan's order); `absence_request_shape` stays at 1. (e) Not done, on
+This ships with the next mobile OTA. (c) Half done: the phone sends `selections`
+since 2026-09-18 (`useSchool.ts`: one selection per chosen child, the shared class
+or an empty list for the whole day -- the same meaning the old shape carried, so
+nothing on the screen changed); the two legacy shapes stay in
+`routes/sis/parent.py` until that build is on every phone, then retire and
+`absence_request_shape` goes to 0. (e) Not done, on
 purpose: `/api/parent/child-overview/<id>` (the whole overview page, 850 lines) and
 `/api/parent/dashboard/<id>` (the child card's summary) answer different questions
 for different screens and share only the student read; an adapter would be a

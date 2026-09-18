@@ -410,13 +410,14 @@ def list_absences(user_id):
 @require_auth
 @require_module('attendance')
 def create_absence(user_id):
-    """Report an absence for one child (student_user_id) or several at once
-    (student_user_ids), all missing the same thing (class_id, or the whole day
-    when null) -- or, with `selections: [{student_user_id, class_ids}]`, each
-    child missing their own classes (web, 2026-09-16; mobile still sends the
-    older shape). Each child is written independently; the response lists
-    what was created plus per-student errors, so one duplicate doesn't block a
-    sibling."""
+    """Report absences as `selections: [{student_user_id, class_ids}]`, each
+    child missing their own classes (empty class_ids = the whole day). Web has
+    sent this since 2026-09-16 and the phone since the M19c build (2026-09-18);
+    the two older shapes -- one child (student_user_id) or several
+    (student_user_ids) all missing the same class_id -- stay accepted until that
+    build is on every phone, then retire. Each child is written independently;
+    the response lists what was created plus per-student errors, so one
+    duplicate doesn't block a sibling."""
     data = request.json or {}
     org_id = sis_service.requested_org_id()
     absence_date = data.get('absence_date')

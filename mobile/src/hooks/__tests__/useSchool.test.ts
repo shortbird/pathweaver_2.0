@@ -354,7 +354,10 @@ describe('useSchoolAbsences', () => {
     expect(result.current.absences).toEqual([]);
   });
 
-  it('report posts every selected child and reloads the list', async () => {
+  // The one request shape (M19c): selections per child, empty class_ids for
+  // the whole day, so the server can retire the older student_user_ids shape
+  // once this build is on every phone.
+  it('report posts every selected child as a selection and reloads the list', async () => {
     primeGets();
     (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
     const { result } = renderHook(() => useSchoolAbsences());
@@ -368,12 +371,26 @@ describe('useSchoolAbsences', () => {
 
     expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences', {
       organization_id: 'org-1',
-      student_user_ids: ['s1', 's2'],
+      selections: [
+        { student_user_id: 's1', class_ids: [] },
+        { student_user_id: 's2', class_ids: [] },
+      ],
       absence_date: '2026-08-20',
       end_date: null,
-      class_id: null,
       reason: 'dentist',
     });
+  });
+
+  it('report carries the chosen class on every selection', async () => {
+    primeGets();
+    (api.post as jest.Mock).mockResolvedValue({ data: { success: true, absences: [], errors: {} } });
+    const { result } = renderHook(() => useSchoolAbsences());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.report({ absence_date: '2026-08-20', class_id: 'c1', reason: null });
+    });
+    expect(api.post).toHaveBeenCalledWith('/api/sis/parent/absences',
+      expect.objectContaining({ selections: [{ student_user_id: 's1', class_ids: ['c1'] }] }));
   });
 
   it('report sends the end date for a range', async () => {
