@@ -88,26 +88,18 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    // Things people owe, and the paperwork behind them. Forms, Secure
-    // Documents, My Documents, My Tasks, Onboarding and Task Center used to sit
-    // here as separate entries; they are tabs of one page now. Their own paths
-    // still work for deep links and old notifications.
-    label: 'Tasks & Documents',
+    label: 'Operations',
     items: [
       // One page for everyone (2026-09-17): what is waiting on me, my
       // documents, and -- for admins -- the office's queue, what it assigned,
-      // the templates and the HR store, as tabs. It was My Tasks + Task Center
-      // + an Onboarding door; the person's checklist is a view of My tasks
-      // now ("By checklist"), and /onboarding still lands there. Visible in
-      // preview: the page lands a preview on My documents (which supports
-      // ?teacher_id=) and keeps the inbox -- always the CALLER's own -- behind
-      // a banner naming whose list it is.
+      // the templates and the HR store, as tabs. It was a section of its own
+      // ("Tasks & Documents": Forms, Secure Documents, My Documents, My Tasks,
+      // Onboarding, Task Center, one by one); the person's checklist is a
+      // view of My tasks now ("By checklist"), and every old path still lands
+      // on its tab. Visible in preview: the page lands a preview on My
+      // documents (which supports ?teacher_id=) and keeps the inbox -- always
+      // the CALLER's own -- behind a banner naming whose list it is.
       { name: 'Tasks', path: '/tasks', d: ICONS.check },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard },
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
       { name: 'Resources', path: '/resources', d: ICONS.books },
