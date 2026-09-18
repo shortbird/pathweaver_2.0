@@ -352,7 +352,8 @@ class TestMySchedule:
              patch.object(parent, 'org_has_feature', return_value=sis_enabled), \
              patch.object(parent, '_enrolled_classes',
                           return_value=list(classes or [])), \
-             patch.object(parent, '_sis_settings', return_value=settings or {}):
+             patch.object(parent.catalog, 'time_blocks',
+                          return_value=(settings or {}).get('time_blocks') or []):
             return parent.my_schedule('student-1')
 
     def test_a_student_gets_their_classes_and_time_blocks(self):

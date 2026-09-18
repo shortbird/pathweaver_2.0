@@ -745,8 +745,7 @@ def student_schedule_report(org_id: str) -> Dict[str, Any]:
     from services.sis_schedule_sync_service import teaching_blocks
 
     classes = sis_catalog_service.list_classes(org_id, audience='staff')
-    blocks = teaching_blocks(
-        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+    blocks = teaching_blocks(sis_catalog_service.time_blocks(org_id))
 
     # class_id -> [(day, minutes-for-sorting, 'Block 2 (10:30am-11:30am): Pottery')], and apart
     # from those the classes with no scheduled meeting at all.
@@ -841,8 +840,7 @@ def day_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, Any]
 
     classes = sis_catalog_service.list_classes(org_id, audience='staff')
     classes = [c for c in classes if c.get('status') != 'archived']
-    blocks = teaching_blocks(
-        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+    blocks = teaching_blocks(sis_catalog_service.time_blocks(org_id))
 
     # (day, sort-minutes, slot label) -> the classes meeting in it.
     slots: Dict[tuple, List[Dict[str, Any]]] = {}
@@ -995,8 +993,7 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
 
     classes = sis_catalog_service.list_classes(org_id, audience='staff')
     classes = [c for c in classes if c.get('status') != 'archived']
-    blocks = teaching_blocks(
-        sis_catalog_service.schedule_settings(org_id).get('time_blocks'))
+    blocks = teaching_blocks(sis_catalog_service.time_blocks(org_id))
     numbered = []
     for n, b in enumerate(blocks, start=1):
         bs, be = _minutes(b.get('start')), _minutes(b.get('end'))

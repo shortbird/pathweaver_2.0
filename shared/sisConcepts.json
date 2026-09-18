@@ -339,7 +339,7 @@
     },
     {
       "id": "time_blocks_read",
-      "means": "The school's time blocks, a JSON list inside feature_flags.sis_settings with no ids. Eight readers outside the catalog service; renaming a block orphans block rosters, the parent builder, the sheet sync and the AI editor at once.",
+      "means": "The school's time blocks, a JSON list inside feature_flags.sis_settings with no ids. Until M8b's first half (2026-09-17) eight readers outside the catalog service unpacked the blob themselves; now every reader calls sis_catalog_service.time_blocks(org_id), so a sis_time_blocks table with stable ids (M8b's second half, a data move) will be a change behind one function. Renaming a block still orphans block rosters until then.",
       "owner": { "backend": ["services/sis_catalog_service.py"] },
       "forbid": {
         "backend": {
@@ -347,10 +347,10 @@
           "dirs": ["routes", "services", "utils"]
         }
       },
-      "baseline": { "backend": 8 },
+      "baseline": { "backend": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M8b",
-      "use_instead": "sis_catalog_service.schedule_settings(org_id)['time_blocks'] today; a sis_time_blocks table with stable ids behind the same function after M8b."
+      "use_instead": "sis_catalog_service.time_blocks(org_id); never the sis_settings blob directly."
     },
     {
       "id": "settings_write",

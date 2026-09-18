@@ -702,8 +702,7 @@ def my_schedule(user_id: str) -> Dict[str, Any]:
         'primary_instructor': c.get('primary_instructor'),
         'assistant_instructors': c.get('assistant_instructors') or [],
     } for c in _enrolled_classes(org_id, user_id)]
-    settings = _sis_settings(org_id)
-    return {'classes': classes, 'time_blocks': settings.get('time_blocks') or []}
+    return {'classes': classes, 'time_blocks': catalog.time_blocks(org_id)}
 
 
 def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[str, Any]:
@@ -758,7 +757,7 @@ def student_schedule(user_id: str, org_id: str, student_user_id: str) -> Dict[st
     except Exception as _exc:  # noqa: BLE001
         logger.debug("tuition-plan lookup failed: %s", _exc, exc_info=True)
     settings = _sis_settings(org_id)
-    time_blocks = settings.get('time_blocks') or []
+    time_blocks = catalog.time_blocks(org_id)
     from services import sis_exception_service as exceptions
     from services import sis_enrollment_waitlist_service as enrollment_waitlist
     # Age-gated at registration: the student is queued for enrollment itself —
@@ -816,7 +815,7 @@ def schedule_preview(org_id: str) -> Dict[str, Any]:
         # a class with assistants hidden must look hidden here too.
         'classes': [c for c in catalog.list_classes(org_id, audience='family')
                     if c.get('registration_status') == 'open'],
-        'time_blocks': settings.get('time_blocks') or [],
+        'time_blocks': catalog.time_blocks(org_id),
         'block_pricing': settings.get('block_pricing') or None,
         'first_day_of_school': _first_day_of_school(org_id),
     }

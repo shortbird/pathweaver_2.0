@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from services.base_ai_service import BaseAIService
 from services.sis_eligibility import meetings_overlap
 from services import sis_service
+from services import sis_catalog_service
 from repositories.sis_class_repository import SisClassRepository
 from database import get_supabase_admin_client
 from utils.logger import get_logger
@@ -83,10 +84,7 @@ def _org_snapshot(org_id: str) -> Dict[str, Any]:
     for m in meetings:
         by_class.setdefault(m['class_id'], []).append(m)
     staff = sis_service.list_org_staff(org_id) or []
-    # admin client justified: reads organizations.feature_flags (time blocks) for the already-authorized org
-    org = (get_supabase_admin_client().table('organizations')
-           .select('feature_flags').eq('id', org_id).single().execute()).data or {}
-    blocks = ((org.get('feature_flags') or {}).get('sis_settings') or {}).get('time_blocks') or []
+    blocks = sis_catalog_service.time_blocks(org_id)
     staff_by_id = {s['id']: s.get('name') for s in staff}
     return {
         'classes': [{

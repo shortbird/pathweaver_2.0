@@ -47,7 +47,7 @@ and patterns instead.
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
-| M8b Time-block table | 3 | not started | | |
+| M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
 `declined (<why>)`.
@@ -1264,6 +1264,20 @@ rows.
 Verify: rename "Block 3" to "Third period" at iCreate; the block-rosters report, the
 Schedule Builder guides and the AI editor's proposal all say "Third period"; Gryffin
 (no blocks) is unaffected. Manifest `time_blocks_read` → 0.
+
+**As shipped, first half (2026-09-17).** Every reader of the blocks --
+the parent builder and its two schedule payloads (`sis_parent_service`),
+the three block reports (`sis_reports_service`), the AI schedule editor's
+snapshot (`sis_schedule_ai_service`, which also drops its own
+`organizations.feature_flags` read) and the sheet sync
+(`sis_schedule_sync_service`) -- calls `sis_catalog_service.time_blocks(org_id)`.
+The blocks are still the JSON list in `feature_flags.sis_settings` with no
+ids; the `sis_time_blocks` table with stable ids, the writer in
+`TimeBlocksCard` and the data move for every org's existing blocks are the
+second half -- a backfill that needs a daytime run against staging first.
+Services `.table()` 1835 → 1834. Verify at :3000: the parent Schedule
+Builder, Reports > block rosters, the AI schedule editor and a sheet-sync
+proposal all still show the school's blocks.
 
 ---
 

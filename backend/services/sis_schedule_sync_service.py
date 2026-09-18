@@ -811,6 +811,7 @@ def ai_match_leftovers(unmatched_desired, unmatched_existing):
 def propose_sync(org_id: str, sheet_url: str) -> Dict[str, Any]:
     """Fetch the sheet, diff against the org's classes, return a reviewable plan."""
     from services.sis_schedule_ai_service import _org_snapshot, _conflict_warnings
+    from services import sis_catalog_service
     from repositories.sis_class_repository import SisClassRepository
     from database import get_supabase_admin_client
 
@@ -818,7 +819,7 @@ def propose_sync(org_id: str, sheet_url: str) -> Dict[str, Any]:
     entries, warnings = parse_schedule_csv(csv_text)
 
     snapshot = _org_snapshot(org_id)
-    desired, w2 = build_desired_classes(entries, snapshot['time_blocks'], snapshot['staff'])
+    desired, w2 = build_desired_classes(entries, sis_catalog_service.time_blocks(org_id), snapshot['staff'])
     warnings += w2
 
     # admin client justified: read-only org-wide class/meeting/enrollment diff for the sync proposal; caller is the ADMIN_ROLES-gated /api/sis/schedule-sync route, nothing is written here

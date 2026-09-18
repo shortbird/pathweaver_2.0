@@ -300,7 +300,10 @@ BASELINES = {
     # gate's household read); the funnel route, the Families PATCH, the bulk
     # paste, the fee step, the waitlist release and the waiver gave up theirs
     # (-6 in services, -2 in routes). A move down a layer, not new querying.
-    'services': 1835,
+    # 2026-09-17 (M8b, first half): 1835 -> 1834. The schedule AI editor's
+    # own organizations.feature_flags read for the time blocks went; it asks
+    # sis_catalog_service.time_blocks like every other reader.
+    'services': 1834,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -579,7 +582,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2257 + 1835
+UPPER_TOTAL_BASELINE = 2257 + 1834
 
 
 def test_the_upper_layers_do_not_grow_in_total():
