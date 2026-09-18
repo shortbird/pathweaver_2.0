@@ -3,9 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { userHasFamily } from '../../contexts/FamilyScopeContext'
 import { switchSurfaceInApp } from '../../utils/appSurface'
-import { isSisAdmin, canSeeFinance, canSeeHr } from '../../pages/sis/sisRole'
-import { getPreviewTeacher } from '../../pages/sis/teacherPreview'
-import { isPathHidden, isCommunityEnabled, isPriorLearningEnabled, isGoalsEnabled, isClpEnabled } from '../../pages/sis/sisModules'
+import { navContextFor, navItemVisible } from '../../pages/sis/sisNavVisibility'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import RoleViewSwitcher from './RoleViewSwitcher'
 import InboxUnreadBadge from './InboxUnreadBadge'
@@ -29,7 +27,11 @@ const icon = (path) => (
 // superadmins); `teacherOnly: true` hides an item from admins because the admin
 // nav already carries a superset of it (Directory is People without the tabs);
 // `financeOnly: true` for the money pages, which campus coordinators don't get.
-// Carved-out admin surfaces keep their original paths (registered in SisRoutes).
+// The flags are read by navItemVisible (pages/sis/sisNavVisibility.js), which
+// the header search reads too, so what the search offers is what the nav shows.
+// `keywords` are extra words the search matches an item on -- what people call
+// it, not what the nav says. Carved-out admin surfaces keep their original
+// paths (registered in SisRoutes).
 //
 // The teacher portal (the My classes and My schedule tabs of Classes, My Time,
 // My Profile) is NOT teacherOnly. An org admin has every capability a teacher
@@ -63,14 +65,14 @@ export const NAV_SECTIONS = [
   {
     label: null,
     items: [
-      { name: 'Dashboard', path: '/', end: true, d: ICONS.home },
+      { name: 'Dashboard', path: '/', end: true, d: ICONS.home, keywords: ['home', 'overview'] },
       // People is the admin roster: one table of everyone, with role filters;
       // Directory is the read-only staff phonebook teachers get in its place.
       // Both are top-level — no "People" section wrapping a "People" link.
-      { name: 'People', path: '/people', adminOnly: true, d: ICONS.users },
-      { name: 'Directory', path: '/directory', teacherOnly: true, d: ICONS.person },
+      { name: 'People', path: '/people', adminOnly: true, d: ICONS.users, keywords: ['roster', 'users', 'staff', 'households'] },
+      { name: 'Directory', path: '/directory', teacherOnly: true, d: ICONS.person, keywords: ['staff', 'phonebook', 'contacts'] },
       // Community Hub — opt-in per org (feature_flags.sis_settings.community_enabled).
-      { name: 'Community', path: '/community', communityMode: true, d: ICONS.community },
+      { name: 'Community', path: '/community', communityMode: true, d: ICONS.community, keywords: ['hub', 'board'] },
     ],
   },
   {
@@ -83,12 +85,12 @@ export const NAV_SECTIONS = [
       // lands on its tab. Deliberately NOT adminOnly: an org admin holds every
       // capability a teacher holds, and at a microschool the admin teaches too
       // (Horizon, 2026-09-11) -- a teacher's own tabs are theirs as well.
-      { name: 'Classes', path: '/classes', d: ICONS.classes },
-      { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc },
-      { name: 'Calendar', path: '/calendar', d: ICONS.calendar },
+      { name: 'Classes', path: '/classes', d: ICONS.classes, keywords: ['courses', 'sections', 'catalog'] },
+      { name: 'CLP', path: '/clp', adminOnly: true, clpMode: true, d: ICONS.doc, keywords: ['customized learning plan', 'learning plan'] },
+      { name: 'Calendar', path: '/calendar', d: ICONS.calendar, keywords: ['events', 'schedule', 'dates', 'holidays'] },
       // Prior Learning — opt-in per org (Optio Academy today).
-      { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, priorLearningMode: true, d: ICONS.doc },
-      { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc },
+      { name: 'Prior Learning', path: '/prior-learning', adminOnly: true, priorLearningMode: true, d: ICONS.doc, keywords: ['transfer credit', 'transcript'] },
+      { name: 'Goals', path: '/goals', goalsMode: true, d: ICONS.doc, keywords: ['direction', 'subject goals'] },
     ],
   },
   {
@@ -103,15 +105,15 @@ export const NAV_SECTIONS = [
       // on its tab. Visible in preview: the page lands a preview on My
       // documents (which supports ?teacher_id=) and keeps the inbox -- always
       // the CALLER's own -- behind a banner naming whose list it is.
-      { name: 'Tasks', path: '/tasks', d: ICONS.check },
-      { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard },
-      { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc },
-      { name: 'Resources', path: '/resources', d: ICONS.books },
-      { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books },
+      { name: 'Tasks', path: '/tasks', d: ICONS.check, keywords: ['to do', 'forms', 'paperwork', 'documents'] },
+      { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard, keywords: ['enroll', 'enrollment', 'sign up', 'funnel', 'waitlist'] },
+      { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc, keywords: ['export', 'csv', 'print'] },
+      { name: 'Resources', path: '/resources', d: ICONS.books, keywords: ['handbook', 'policies', 'readings', 'acknowledgments'] },
+      { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books, keywords: ['syllabus', 'materials', 'lesson plans'] },
       // Every quest the school has made, in one list, with assign-from-here.
       // Editing stays on the curriculum that carries the quest (f9b5f2ea).
-      { name: 'Quests', path: '/quest-library', adminOnly: true, d: ICONS.books },
-      { name: 'Training', path: '/training', d: ICONS.check },
+      { name: 'Quests', path: '/quest-library', adminOnly: true, d: ICONS.books, keywords: ['quest library', 'projects', 'assign'] },
+      { name: 'Training', path: '/training', d: ICONS.check, keywords: ['staff training', 'videos', 'modules'] },
       // Messages + announcements in one place (2026-08-31; /messaging merged
       // in). Admins read the shared "{School Name}" inbox (backend:
       // ADMIN_ROLES); teachers read their own threads (/api/messages) — the
@@ -124,7 +126,7 @@ export const NAV_SECTIONS = [
       // wide announcement, a class message but only for half the class 14+, or
       // a message to an individual" (ce12a041, 2026-09-02). The path stays
       // /inbox so existing links and notifications keep working.
-      { name: 'Messaging', path: '/inbox', d: ICONS.inbox },
+      { name: 'Messaging', path: '/inbox', d: ICONS.inbox, keywords: ['inbox', 'messages', 'email', 'communication'] },
     ],
   },
   {
@@ -134,17 +136,17 @@ export const NAV_SECTIONS = [
     // rather than leaving money links scattered through Operations.
     label: 'Time & Money',
     items: [
-      { name: 'My Time', path: '/time', d: ICONS.clock },
-      { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock },
-      { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check },
-      { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card },
+      { name: 'My Time', path: '/time', d: ICONS.clock, keywords: ['clock in', 'hours', 'time card'] },
+      { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock, keywords: ['hours', 'payroll', 'approve time'] },
+      { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check, keywords: ['approval', 'quotes', 'pricing'] },
+      { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card, keywords: ['payments', 'invoices', 'charges', 'refunds', 'receipts', 'money'] },
     ],
   },
   {
     label: 'Settings',
     items: [
-      { name: 'Settings', path: '/settings', adminOnly: true, d: ICONS.gear },
-      { name: 'My Profile', path: '/my-profile', d: ICONS.person },
+      { name: 'Settings', path: '/settings', adminOnly: true, d: ICONS.gear, keywords: ['configuration', 'preferences', 'school settings'] },
+      { name: 'My Profile', path: '/my-profile', d: ICONS.person, keywords: ['account', 'phone', 'photo', 'password'] },
     ],
   },
 ]
@@ -161,20 +163,10 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
   // activeOrg is the org currently in view — for a superadmin that's the one
   // picked in the org selector, so the nav mirrors that org's admin exactly.
   const { activeOrg } = useSisOrg()
-  // Goals-mode orgs (e.g. Gryffin) set direction/subject goals after registration
-  // instead of building a schedule; the Goals tab is meaningless for others.
-  // Answered by the module system ('goals' is an opt-in module; the legacy
-  // post_registration_flow enum is its fallback source).
-  const isGoalsMode = isGoalsEnabled(activeOrg)
-  const isSuperadmin = user?.role === 'superadmin'
-  // While an admin previews a teacher's portal, render the teacher nav so the
-  // preview is faithful (the banner in SisLayout is the way back).
-  const previewing = Boolean(getPreviewTeacher())
-  const isAdmin = isSisAdmin(user) && !previewing
-  // Campus coordinators run the console but not the money (iCreate, 2026-08-01)
-  // and not the HR store (contracts, background checks — iCreate, 2026-08-09).
-  const seesFinance = canSeeFinance(user) && !previewing
-  const seesHr = canSeeHr(user) && !previewing
+  // Who this reader is, for the gates (sisNavVisibility): admin or teacher,
+  // finance and HR tiers, whether a teacher preview is on.
+  const ctx = navContextFor(user, activeOrg)
+  const { isAdmin, isSuperadmin } = ctx
 
   return (
     // Below lg the sidebar is a drawer: off-canvas until the header's menu
@@ -209,28 +201,7 @@ const SisSidebar = ({ open = false, onNavigate = () => {} }) => {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {NAV_SECTIONS.map((section) => {
-          const items = section.items.filter((it) => {
-            if (it.superadmin && !isSuperadmin) return false
-            if (it.adminOnly && !isAdmin) return false
-            if (it.teacherOnly && isAdmin) return false
-            // Pages that can only ever answer for the caller (see hideInPreview).
-            if (it.hideInPreview && previewing) return false
-            if (it.financeOnly && !seesFinance) return false
-            if (it.hrOnly && !seesHr) return false
-            // The item's building-block module is off for this org (explicit
-            // feature_flags.modules entry, or its legacy flag) — one evaluator
-            // covers the opt-outs and the opt-ins alike.
-            if (isPathHidden(it.path, activeOrg)) return false
-            // Goals tab is only for goals-mode orgs (schedule-mode orgs never set goals).
-            if (it.goalsMode && !isGoalsMode) return false
-            // Community Hub is opt-in per org.
-            if (it.communityMode && !isCommunityEnabled(activeOrg)) return false
-            // Prior Learning is opt-in per org.
-            if (it.priorLearningMode && !isPriorLearningEnabled(activeOrg)) return false
-            // CLPs are iCreate's workflow; every other school opts in.
-            if (it.clpMode && !isClpEnabled(activeOrg)) return false
-            return true
-          })
+          const items = section.items.filter((it) => navItemVisible(it, ctx))
           if (!items.length) return null
           return (
             <React.Fragment key={section.label || 'main'}>

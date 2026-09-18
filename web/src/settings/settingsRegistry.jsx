@@ -64,21 +64,27 @@ export function settingsCardsFor({ surface, org, seesFinance }) {
   })
 }
 
-/** The shared renderer: one grid of the surface's cards. */
+/**
+ * The shared renderer: one grid of the surface's cards. Each card sits in a
+ * wrapper anchored by its key (#settings-rooms), which is how the console's
+ * header search lands on one card (pages/sis/sisSearchIndex.js); scroll-mt
+ * keeps the card's title out from under the sticky header.
+ */
 export function SettingsCards({ surface, orgId, orgData, seesFinance = true, canEditSlug = false, onUpdate, onLogoChange }) {
   const org = orgData?.organization
   return (
     <div className="grid gap-6">
       {settingsCardsFor({ surface, org, seesFinance }).map(({ key, Component }) => (
-        <Component
-          key={`${key}-${orgId}`}
-          orgId={orgId}
-          org={org}
-          orgData={orgData}
-          canEditSlug={canEditSlug}
-          onUpdate={onUpdate}
-          onLogoChange={onLogoChange}
-        />
+        <div key={`${key}-${orgId}`} id={`settings-${key}`} className="scroll-mt-20">
+          <Component
+            orgId={orgId}
+            org={org}
+            orgData={orgData}
+            canEditSlug={canEditSlug}
+            onUpdate={onUpdate}
+            onLogoChange={onLogoChange}
+          />
+        </div>
       ))}
     </div>
   )

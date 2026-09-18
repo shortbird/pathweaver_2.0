@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -63,7 +63,12 @@ const CommunityPage = () => {
   const { user } = useAuth()
   const { orgId } = useSisOrg()
   const admin = isSisAdmin(user)
-  const [tab, setTab] = useState('highlights')
+  // The tab rides in the URL (?tab=lost-found), so the header search and a
+  // shared link can land on one. Highlights is the page itself: no param.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab')
+  const tab = TABS.some((t) => t.key === rawTab) ? rawTab : 'highlights'
+  const setTab = (t) => setSearchParams(t === 'highlights' ? {} : { tab: t }, { replace: true })
 
   return (
     <div>

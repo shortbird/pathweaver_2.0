@@ -1,11 +1,13 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Outlet, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import { Bars3Icon } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
 import { goToLearningSurface } from '../../utils/appSurface'
 import SisSidebar from './SisSidebar'
+import SisSearch from './SisSearch'
 import NotificationBell from '../notifications/NotificationBell'
 import { isSisAdmin, isSisStaff } from '../../pages/sis/sisRole'
+import { navContextFor } from '../../pages/sis/sisNavVisibility'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import SisOrgPicker from '../../pages/sis/SisOrgPicker'
 import { usePhoneVerificationGate } from '../../hooks/usePhoneVerificationGate'
@@ -65,7 +67,11 @@ const SisLayout = () => {
   // render returns a Spinner while auth loads, and a hook that only runs on
   // the second render is "Rendered more hooks than during the previous
   // render" -- which took the whole console down (2026-09-17).
-  const { orgId, setOrgId, orgs, isSuperadmin } = useSisOrg()
+  const { orgId, setOrgId, orgs, isSuperadmin, activeOrg } = useSisOrg()
+  // What the header search may offer this reader: the same gates the sidebar
+  // filters on, computed once per user/org rather than per keystroke. Above
+  // the guards for the same reason as useSisOrg.
+  const searchCtx = useMemo(() => navContextFor(user, activeOrg), [user, activeOrg])
 
   if (loading) return <Spinner />
 
@@ -119,7 +125,12 @@ const SisLayout = () => {
             them. Same component the learning app mounts in TopNavbar, over the
             same /api/notifications. Its links point at learning-app paths,
             which SisRoutes already hands over via LEARNING_SURFACE_PATHS
-            (/notifications and /messages are both listed). */}
+            (/notifications and /messages are both listed).
+
+            The search finds pages and tabs, not people: "announcements" opens
+            the Messaging tab of that name. It sits first in the right-hand
+            group so it can widen on focus into the free space, leaving the
+            org picker snug against the bell. */}
         <header className="sticky top-0 z-30 flex items-center gap-3 h-14 px-4 bg-white border-b border-gray-200">
           <button
             type="button"
@@ -132,6 +143,7 @@ const SisLayout = () => {
           </button>
           <Link to="/" className="lg:hidden font-semibold text-neutral-900">Optio <span className="text-xs uppercase tracking-wide text-neutral-400">SIS</span></Link>
           <div className="ml-auto flex items-center gap-3">
+            <SisSearch ctx={searchCtx} />
             <SisOrgPicker isSuperadmin={isSuperadmin} orgs={orgs} orgId={orgId} setOrgId={setOrgId} />
             <NotificationBell />
           </div>

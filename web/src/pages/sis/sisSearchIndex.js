@@ -1,0 +1,170 @@
+import { NAV_SECTIONS } from '../../components/sis/SisSidebar'
+import { REPORTS } from './reportsPage/catalog'
+import { navItemVisible } from './sisNavVisibility'
+
+/**
+ * Everything the header search can take somebody to.
+ *
+ * The console's pages are the sidebar (NAV_SECTIONS); beneath them are the
+ * places a page holds as tabs, lenses, reports and cards, which is what people
+ * actually look for -- "announcements" is a tab of Messaging, "rooms" a card
+ * on Settings, "medications" a report. Nothing in the nav says so, and after
+ * the 2026-09-17 merges (five class pages into one, six task pages into one)
+ * the nav says even less. Type the word, land on the thing.
+ *
+ * Every entry below sits `under` a nav path and inherits that page's gates
+ * (adminOnly, financeOnly, a module the org turned off ...) through
+ * navItemVisible, the same predicate the sidebar filters on. An entry may add
+ * gates of its own: the Attendance tab is admin-only on a page every teacher
+ * has, and its module can be off separately. What the search offers is what
+ * the person can open; the backend is the real gate either way.
+ *
+ * `to` is the full destination, query string and hash included. A test pins
+ * every pathname here to a route in SisRoutes.jsx.
+ */
+
+const settingsCard = (key, name, keywords, extra = {}) => ({
+  name, keywords, to: `/settings#settings-${key}`, ...extra,
+})
+
+export const SUB_ENTRIES = [
+  // Messaging. The tab keys are SchoolInboxPage's.
+  { under: '/inbox', name: 'Announcements', to: '/inbox?tab=announcements', keywords: ['announce', 'broadcast', 'email families', 'message a class', 'school wide'] },
+  { under: '/inbox', name: 'School inbox', to: '/inbox?tab=school', adminOnly: true, keywords: ['office inbox', 'threads', 'replies', 'waiting'] },
+  { under: '/inbox', name: 'My messages', to: '/inbox?tab=mine', keywords: ['direct messages', 'dm', 'threads', 'conversations'] },
+
+  // Classes. The tab keys are ClassesPage's; the two office tabs carry their
+  // old paths' modules so an org that hid them stays hidden.
+  { under: '/classes', name: 'My classes', to: '/classes?tab=mine', keywords: ['teach', 'my students', 'class page', 'quest builder'] },
+  { under: '/classes', name: 'My schedule', to: '/classes?tab=schedule', keywords: ['my week', 'timetable', 'when do I teach'] },
+  { under: '/classes', name: 'Submissions', to: '/classes?tab=submissions', path: '/submissions', keywords: ['student work', 'review', 'grade', 'evidence', 'turned in'] },
+  { under: '/classes', name: 'Class catalog', to: '/classes?tab=all', adminOnly: true, keywords: ['all classes', 'create class', 'new class', 'rosters', 'enroll in class'] },
+  { under: '/classes', name: 'Optio courses', to: '/classes?tab=courses', adminOnly: true, keywords: ['online courses', 'course library'] },
+  { under: '/classes', name: 'Attendance', to: '/classes?tab=attendance', adminOnly: true, path: '/attendance', keywords: ['present', 'absent', 'roll call', 'check in', 'late', 'excused'] },
+
+  // Tasks. The tab keys are TasksPage's; Secure documents is the HR store.
+  { under: '/tasks', name: 'My tasks', to: '/tasks', keywords: ['to do', 'waiting on me', 'my forms', 'my checklist'] },
+  { under: '/tasks', name: 'My documents', to: '/tasks?tab=documents', keywords: ['my files', 'signed', 'uploads', 'my paperwork'] },
+  { under: '/tasks', name: 'Onboarding checklist', to: '/tasks?view=checklist', path: '/onboarding', keywords: ['new hire', 'checklist', 'onboarding'] },
+  { under: '/tasks', name: 'Requests', to: '/tasks?tab=requests', adminOnly: true, keywords: ['task requests', 'submissions queue', 'office queue', 'new request'] },
+  { under: '/tasks', name: 'Assigned tasks', to: '/tasks?tab=assigned', adminOnly: true, keywords: ['assign a task', 'who owes what', 'assignments'] },
+  { under: '/tasks', name: 'Task templates', to: '/tasks?tab=templates', adminOnly: true, keywords: ['form templates', 'form builder', 'new form', 'checklist templates'] },
+  { under: '/tasks', name: 'Secure documents', to: '/tasks?tab=secure', adminOnly: true, hrOnly: true, path: '/secure-documents', keywords: ['hr', 'contracts', 'background checks', 'confidential', 'personnel files'] },
+
+  // People. Filters live in the URL (PeoplePage), so a lens is a link.
+  { under: '/people', name: 'Students', to: '/people?role=student', keywords: ['student list', 'kids', 'learners', 'enrolled'] },
+  { under: '/people', name: 'Parents', to: '/people?role=parent', keywords: ['guardians', 'parent list'] },
+  { under: '/people', name: 'Staff', to: '/people?role=staff', keywords: ['teachers', 'advisors', 'employees', 'coordinators', 'admins', 'link staff account'] },
+  { under: '/people', name: 'Families', to: '/people?family=in', keywords: ['households', 'family list'] },
+  { under: '/people', name: 'Students without a family', to: '/people?role=student&family=none', keywords: ['no household', 'orphaned students', 'not in a family'] },
+  { under: '/people', name: 'Former students and families', to: '/people?former=1', keywords: ['withdrawn', 'archived', 'left', 'alumni'] },
+
+  // Registration. Setup is the page itself; the queues are the other tab.
+  { under: '/registration', name: 'Registration form', to: '/registration', keywords: ['funnel', 'questions', 'setup', 'registration link', 'edit registration'] },
+  { under: '/registration', name: 'Enrollment queues', to: '/registration?tab=queues', keywords: ['pending', 'approve', 'waitlist', 'new families', 'applications'] },
+
+  // Community. The tab keys are CommunityPage's.
+  { under: '/community', name: 'Highlights', to: '/community?tab=highlights', keywords: ['community highlights', 'what is new'] },
+  { under: '/community', name: 'Board announcements', to: '/community?tab=announcements', keywords: ['community board', 'post announcement'] },
+  { under: '/community', name: 'Lost and found', to: '/community?tab=lost-found', keywords: ['lost & found', 'missing items', 'found'] },
+  { under: '/community', name: 'Recognition', to: '/community?tab=recognition', keywords: ['shout out', 'shout-out', 'spotlight', 'weekly win', 'thank you', 'kudos'] },
+  { under: '/community', name: 'Community events', to: '/community?tab=events', keywords: ['upcoming events', 'rsvp'] },
+  { under: '/community', name: 'Community resources', to: '/community?tab=resources', keywords: [] },
+
+  // Reports. One entry per report, from the catalog the page renders; the
+  // money report is finance-tier there and here.
+  ...REPORTS.map((r) => ({
+    under: '/reports',
+    name: r.title,
+    to: r.key === 'overview' ? '/reports' : `/reports?report=${r.key}`,
+    financeOnly: Boolean(r.money),
+    keywords: [r.key.replace(/-/g, ' '), 'report'],
+  })),
+
+  // Settings. One entry per console card (settings/settingsRegistry.jsx),
+  // anchored by its key. `path` carries the card's module where it has one.
+  { under: '/settings', financeOnly: true, ...settingsCard('org', 'Organization', ['school name', 'logo', 'features', 'ai', 'entitlements', 'prices']) },
+  { under: '/settings', ...settingsCard('login-link', 'School login link', ['login url', 'sign in link', 'share link']) },
+  { under: '/settings', path: '/classes', ...settingsCard('rooms', 'Classrooms and rooms', ['rooms', 'classrooms', 'spaces', 'locations']) },
+  { under: '/settings', path: '/classes', ...settingsCard('time-blocks', 'Class time blocks', ['blocks', 'periods', 'bell schedule', 'time slots']) },
+  { under: '/settings', path: '/calendar', ...settingsCard('calendar-categories', 'Calendar categories', ['event types', 'calendar colors']) },
+  { under: '/settings', ...settingsCard('quick-links', 'Dashboard quick links', ['shortcuts', 'links on dashboard']) },
+  { under: '/settings', path: '/classes', ...settingsCard('parent-digest', 'Parent emails', ['weekly digest', 'parent digest', 'email parents', 'due dates']) },
+  { under: '/settings', ...settingsCard('kiosk', 'Kiosk devices', ['kiosk', 'classroom device', 'ipad', 'tablet login']) },
+  { under: '/settings', ...settingsCard('help-video', 'Getting-started video', ['help video', 'welcome video', 'tutorial']) },
+  { under: '/settings', ...settingsCard('step-printing', 'Printing', ['print', 'step printing', 'worksheets']) },
+]
+
+/**
+ * The destinations THIS reader may open, flat, in nav order: each page, then
+ * what sits under it. `ctx` is navContextFor(user, activeOrg).
+ */
+export function buildSearchIndex(ctx) {
+  const index = []
+  for (const section of NAV_SECTIONS) {
+    for (const page of section.items) {
+      if (!navItemVisible(page, ctx)) continue
+      index.push({
+        id: page.path,
+        name: page.name,
+        hint: section.label || '',
+        to: page.path,
+        keywords: page.keywords || [],
+      })
+      for (const sub of SUB_ENTRIES) {
+        if (sub.under !== page.path) continue
+        // The page has already passed its own gates (the `continue` above), so
+        // the entry is checked with the page's flags as the base and its own
+        // laid over them. `path` here is the ENTRY's module, if it has one --
+        // the page's module was settled above, and re-checking it would be
+        // harmless but is not what the null means.
+        const { under: _under, to, name, keywords, ...gates } = sub
+        if (!navItemVisible({ ...page, ...gates, path: gates.path || null }, ctx)) continue
+        index.push({
+          id: to,
+          name,
+          hint: `${page.name}${section.label ? ` · ${section.label}` : ''}`,
+          to,
+          parent: page.name,
+          keywords: keywords || [],
+        })
+      }
+    }
+  }
+  return index
+}
+
+const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9&]+/g, ' ').trim()
+
+/**
+ * Rank the index against what was typed. Every word typed has to appear
+ * somewhere on an entry (name, keywords or parent page); an entry whose NAME
+ * starts with the query outranks one that merely contains it, which outranks
+ * a keyword hit, which outranks a hit on the parent's name alone. Ties keep
+ * nav order, so "class" lists Classes before its tabs.
+ */
+export function searchFeatures(index, query, limit = 8) {
+  const q = normalize(query)
+  if (!q) return []
+  const words = q.split(' ')
+  const scored = []
+  index.forEach((entry, order) => {
+    const name = normalize(entry.name)
+    const keywords = (entry.keywords || []).map(normalize)
+    const parent = normalize(entry.parent)
+    const haystack = [name, ...keywords, parent].join(' | ')
+    if (!words.every((w) => haystack.includes(w))) return
+    let score = 0
+    if (name === q) score = 5
+    else if (name.startsWith(q)) score = 4
+    else if (name.includes(q)) score = 3
+    else if (words.every((w) => name.includes(w))) score = 2.5
+    else if (keywords.some((k) => k.startsWith(q))) score = 2
+    else if (keywords.some((k) => k.includes(q))) score = 1.5
+    else if (words.every((w) => keywords.some((k) => k.includes(w)) || name.includes(w))) score = 1
+    else score = 0.5
+    scored.push({ entry, score, order })
+  })
+  scored.sort((a, b) => b.score - a.score || a.order - b.order)
+  return scored.slice(0, limit).map((s) => s.entry)
+}

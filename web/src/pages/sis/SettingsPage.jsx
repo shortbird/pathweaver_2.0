@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useOrganization } from '../../contexts/OrganizationContext'
 import { useSisOrg } from './useSisOrg'
 import { AuthContext } from '../../contexts/AuthContext'
@@ -41,6 +41,16 @@ const SettingsPage = () => {
   useEffect(() => {
     if (window.location.hash === '#registration') navigate('/registration', { replace: true })
   }, [navigate])
+
+  // Any other hash names a card (#settings-rooms, from the header search or a
+  // shared link). The browser scrolls to a hash only on load, and the cards
+  // are not on the page until the org has loaded, so scroll once they are.
+  const { hash } = useLocation()
+  const ready = !loading && !orgLoading && Boolean(orgData?.organization)
+  useEffect(() => {
+    if (!ready || !hash || hash === '#registration') return
+    document.getElementById(hash.slice(1))?.scrollIntoView?.({ block: 'start' })
+  }, [ready, hash])
 
   return (
     <div>
