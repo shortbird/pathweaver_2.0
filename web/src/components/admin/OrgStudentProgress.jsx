@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import SortHeader from '../ui/SortHeader';
 
 /**
  * OrgStudentProgress
@@ -118,26 +119,7 @@ export default function OrgStudentProgress({ orgId }) {
     });
   };
 
-  const SortHeader = ({ field, children }) => (
-    <th
-      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        {sortField === field && (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={sortDir === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}
-            />
-          </svg>
-        )}
-      </div>
-    </th>
-  );
+  const sortState = { key: sortField, dir: sortDir };
 
   if (loading) {
     return (
@@ -258,12 +240,18 @@ export default function OrgStudentProgress({ orgId }) {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <SortHeader field="name">Student</SortHeader>
-                  <SortHeader field="total_xp">Total XP</SortHeader>
-                  <SortHeader field="quests_enrolled">Quests</SortHeader>
-                  <SortHeader field="tasks_completed_period">Tasks (Period)</SortHeader>
-                  <SortHeader field="tasks_completed_all">Tasks (All)</SortHeader>
-                  <SortHeader field="last_active">Last Active</SortHeader>
+                  <SortHeader col="name" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Student</SortHeader>
+                  <SortHeader col="total_xp" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Total XP</SortHeader>
+                  <SortHeader col="quests_enrolled" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Quests</SortHeader>
+                  <SortHeader col="tasks_completed_period" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Tasks (Period)</SortHeader>
+                  <SortHeader col="tasks_completed_all" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Tasks (All)</SortHeader>
+                  <SortHeader col="last_active" sort={sortState} onSort={handleSort}
+                    className="text-left text-xs text-gray-500 uppercase tracking-wider">Last Active</SortHeader>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">

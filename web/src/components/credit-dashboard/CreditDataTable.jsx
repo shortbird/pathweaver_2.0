@@ -3,6 +3,7 @@ import FilterBar from './FilterBar'
 import AiBadge from './AiBadge'
 import StatusPill from './StatusPill'
 import { aiItemSummary } from './aiReview'
+import SortHeader from '../ui/SortHeader'
 
 /**
  * The queue as a table. Clicking a row opens it in the grader; the checkboxes
@@ -35,21 +36,7 @@ const CreditDataTable = ({
 
   const allSelected = items.length > 0 && items.every(i => selectedItems.includes(i.completion_id))
 
-  const SortHeader = ({ label, sortField }) => (
-    <th
-      onClick={() => toggleSort(sortField)}
-      className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700 select-none"
-    >
-      <span className="inline-flex items-center gap-1">
-        {label}
-        {sortKey === sortField && (
-          <svg className={`w-3 h-3 transition-transform ${sortDir === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-          </svg>
-        )}
-      </span>
-    </th>
-  )
+  const sortState = { key: sortKey, dir: sortDir }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -70,17 +57,25 @@ const CreditDataTable = ({
                   className="rounded border-gray-300 text-optio-purple focus:ring-optio-purple"
                 />
               </th>
-              <SortHeader label="Student" sortField="student_name" />
-              <SortHeader label="Task" sortField="task_title" />
-              <SortHeader label="Quest" sortField="quest_title" />
-              <SortHeader label="Subjects" sortField="pillar" />
-              <SortHeader label="XP" sortField="xp_value" />
+              <SortHeader label="Student" col="student_name" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
+              <SortHeader label="Task" col="task_title" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
+              <SortHeader label="Quest" col="quest_title" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
+              <SortHeader label="Subjects" col="pillar" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
+              <SortHeader label="XP" col="xp_value" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
               <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Evidence
               </th>
-              <SortHeader label="Status" sortField="diploma_status" />
-              {showAi && <SortHeader label="AI" sortField="ai_recommendation" />}
-              <SortHeader label="Date" sortField="submitted_at" />
+              <SortHeader label="Status" col="diploma_status" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
+              {showAi && <SortHeader label="AI" col="ai_recommendation" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />}
+              <SortHeader label="Date" col="submitted_at" sort={sortState} onSort={toggleSort}
+                className="px-3 py-2 text-left text-xs text-gray-500 uppercase tracking-wider" />
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">

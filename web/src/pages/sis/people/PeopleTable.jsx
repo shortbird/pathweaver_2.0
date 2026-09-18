@@ -5,6 +5,7 @@ import { PaymentMethodPills } from '../PaymentMethodPills'
 import { RowActions } from './RowActions'
 import { rolesOf, statusOf, isRecent } from './peopleFilters'
 import StatusPill from '../../../components/sis/ui/StatusPill'
+import SortHeader from '../../../components/ui/SortHeader'
 
 const fmtDate = (d) => {
   if (!d) return '—'
@@ -29,18 +30,6 @@ const waitingFor = (d) => {
 }
 
 const PersonStatus = ({ status }) => <StatusPill domain="person" status={status} />
-
-const SortHeader = ({ label, col, sort, onSort, className = '' }) => {
-  const arrow = sort.key === col ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''
-  return (
-    <th className={`px-4 py-3 font-medium ${className}`}>
-      <button onClick={() => onSort(col)}
-        className={`inline-flex items-center hover:text-neutral-800 ${sort.key === col ? 'text-neutral-800' : ''}`}>
-        {label}{arrow}
-      </button>
-    </th>
-  )
-}
 
 /**
  * The one People table. Every row is a person and shows every role they

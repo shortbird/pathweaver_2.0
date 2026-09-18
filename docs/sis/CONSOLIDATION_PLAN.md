@@ -44,7 +44,7 @@ and patterns instead.
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
 | M13 One detail surface per entity | 2 | 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a); 13a's ticket fixed upstream (a036e9b2), 13a/13b not started | see git log (`consolidate/M13-detail-surfaces`) | `class_form_mount` 1, `staff_phone_edit` 0 |
-| M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) not started | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`) | `person_picker` 0, `modal_shell` 0 |
+| M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c waits on the mobile OTA; e not merged) | see git log (`consolidate/M19-parent-parity`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the OTA |
 | M16 One attach path | 3 | not started | | |
 | M8b Time-block table | 3 | not started | | |
@@ -1144,6 +1144,22 @@ exempt. The billing test that pinned the private card's height class now asks
 the dialog role for the same guarantee. Verify at :3000: Billing > click an
 invoice, Record payment, Edit; People > + Add and a row's "..." menu; Task
 Center's split button; Classes > a class's Waitlist > "Other section".
+
+(e) As shipped so far (2026-09-17): `components/ui/SortHeader.jsx` is the one
+sortable column header (`label`/children, `col`, `sort` as `{key, dir}` or an
+ordered list for tiebreakers, `onSort`, `hint` for the aria-label, `className`
+for the cell); the six local copies in `CurriculumPage`, `SecureDocumentsPage`,
+`people/PeopleTable`, `admin/OrgStudentProgress`, `credit-dashboard/
+CreditDataTable` and `sis/ClassesTable` are gone and every table's own sort
+state and click semantics are unchanged (`secureDocumentsSorting.test.jsx`'s
+`Sort by <hint>` labels hold). Not done: a `SortableTable` over the 23 raw
+tables; `ui/Input`/`FormField` page by page (`input_recipe` 34, first two
+adopters landed with M18); the 94 gradient spellings (`brand_gradient`); the
+`DESIGN_SYSTEM.md` SIS section. Each is a per-page pass with no data risk,
+left for daylight. Verify at :3000: sort Classes by Days then Time (the
+level numbers show), People by Age, Secure Documents by person, Curriculum by
+Title; the org admin's student progress table and the credit dashboard still
+sort.
 
 ### M19 — Parent surface parity
 

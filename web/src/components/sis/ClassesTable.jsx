@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDownIcon, ChevronUpDownIcon } from '@heroicons/react/24/outline'
+import { ChevronDownIcon } from '@heroicons/react/24/outline'
 import ClassFieldsEditor from './ClassFieldsEditor'
-import { toDraft, draftToPayload, meetingsToForm, hhmm, fmt12ap, DAY_LETTER } from './classFields'
+import { toDraft, draftToPayload, hhmm, fmt12ap, DAY_LETTER } from './classFields'
+import SortHeader from '../ui/SortHeader'
 
 // Spreadsheet-style view of the org's classes. Rows stay scannable — name,
 // teacher, days, time, enrollment — and clicking a row expands an inline
@@ -59,26 +60,8 @@ const SORT_LABELS = {
 
 // Multi-level sort: `sort` is an ordered list of {key, dir}. Index 0 is the
 // primary sort; each further click on a new column adds a deeper tiebreaker, so
-// you can freeze one column and keep sorting within it (day, then time, …).
-const SortHeader = ({ label, sortKey, sort, onSort, className = '' }) => {
-  const idx = sort.findIndex((s) => s.key === sortKey)
-  const active = idx !== -1
-  const entry = active ? sort[idx] : null
-  return (
-    <th className={`px-4 py-2.5 ${className}`}>
-      <button type="button" onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-600 ${active ? 'text-optio-purple' : ''}`}>
-        {label}
-        {active
-          ? <>
-              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${entry.dir === 'asc' ? 'rotate-180' : ''}`} />
-              {sort.length > 1 && <span className="text-[10px] font-bold">{idx + 1}</span>}
-            </>
-          : <ChevronUpDownIcon className="w-3.5 h-3.5 text-neutral-300" />}
-      </button>
-    </th>
-  )
-}
+// you can freeze one column and keep sorting within it (day, then time, ...).
+// ui/SortHeader shows the level as a small number.
 
 const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupancy = {}, onSave, onToggleRegistration, onOpen, onDuplicate, onRoster, onArchive, onRestore, onOfferSeat }) => {
   const [drafts, setDrafts] = useState({})   // class_id -> draft (kept when collapsed)
@@ -181,16 +164,16 @@ const ClassesTable = ({ classes, staff, timeBlocks = [], rooms = [], roomOccupan
       <table className="w-full text-sm min-w-[780px]">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-wide text-neutral-400 border-b border-gray-100">
-            <SortHeader label="Name" sortKey="name" sort={sort} onSort={onSort} />
-            <SortHeader label="Teacher" sortKey="teacher" sort={sort} onSort={onSort} />
-            <SortHeader label="Days" sortKey="days" sort={sort} onSort={onSort} />
-            <SortHeader label="Time" sortKey="time" sort={sort} onSort={onSort} />
+            <SortHeader label="Name" col="name" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Teacher" col="teacher" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Days" col="days" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Time" col="time" sort={sort} onSort={onSort} className="py-2.5" />
             {/* Assigning rooms meant opening every class in turn to see which
                 room it already had (iCreate, 2026-09-02). */}
-            <SortHeader label="Room" sortKey="room" sort={sort} onSort={onSort} />
-            <SortHeader label="Ages" sortKey="ages" sort={sort} onSort={onSort} />
-            <SortHeader label="Enrolled" sortKey="enrolled" sort={sort} onSort={onSort} />
-            <SortHeader label="Waitlist" sortKey="waitlist" sort={sort} onSort={onSort} />
+            <SortHeader label="Room" col="room" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Ages" col="ages" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Enrolled" col="enrolled" sort={sort} onSort={onSort} className="py-2.5" />
+            <SortHeader label="Waitlist" col="waitlist" sort={sort} onSort={onSort} className="py-2.5" />
             <th className="px-4 py-2.5 w-8" />
           </tr>
         </thead>

@@ -4,6 +4,7 @@ import api from '../../services/api'
 import { withOrg } from './useSisOrg'
 import SearchSelect from '../../components/ui/SearchSelect'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import SortHeader from '../../components/ui/SortHeader'
 
 /**
  * Secure documents — a private, admin-managed store for sensitive SIS files
@@ -221,26 +222,11 @@ export const SecureDocumentsPanel = ({ orgId }) => {
 
   const aboutLabel = (d) => d.student_name || d.owner_name || '—'
 
-  // A sortable column header. Category has no column of its own (it rides under
-  // the document name and 2026-08-31 took that width away for the Actions
-  // column), so it is offered on the toolbar's Sort select instead — the two
-  // controls write the same state, so they cannot disagree.
-  const SortHeader = ({ label, sortKey: key, hint }) => {
-    const active = sortKey === key
-    return (
-      <th className="py-3 px-4 font-semibold text-neutral-700">
-        <button type="button" onClick={() => sortBy(key)}
-          aria-label={`Sort by ${hint}`}
-          aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-          className={`inline-flex items-center gap-1 hover:text-optio-purple ${active ? 'text-optio-purple' : ''}`}>
-          {label}
-          <span aria-hidden="true" className="text-xs">
-            {active ? (sortDir === 'asc' ? '\u2191' : '\u2193') : '\u2195'}
-          </span>
-        </button>
-      </th>
-    )
-  }
+  // Category has no column of its own (it rides under the document name and
+  // 2026-08-31 took that width away for the Actions column), so it is offered
+  // on the toolbar's Sort select instead -- the two controls write the same
+  // state, so they cannot disagree.
+  const sortState = { key: sortKey, dir: sortDir }
 
   // Sharing is per document and off by default — this store holds background
   // checks, so visibility to the person a file is about is always a decision
@@ -600,10 +586,13 @@ export const SecureDocumentsPanel = ({ orgId }) => {
                           Document, About and Date sort; Sharing and Actions are
                           not orders anybody reads the store in, and Type sorts
                           from the toolbar because it has no column. */}
-                      <SortHeader label="Document" sortKey="name" hint="name" />
-                      <SortHeader label="About" sortKey="person" hint="person" />
+                      <SortHeader label="Document" col="name" hint="name" sort={sortState} onSort={sortBy}
+                        className="font-semibold text-neutral-700" />
+                      <SortHeader label="About" col="person" hint="person" sort={sortState} onSort={sortBy}
+                        className="font-semibold text-neutral-700" />
                       <th className="py-3 px-4 font-semibold text-neutral-700">Sharing</th>
-                      <SortHeader label="Date" sortKey="date" hint="date" />
+                      <SortHeader label="Date" col="date" hint="date" sort={sortState} onSort={sortBy}
+                        className="font-semibold text-neutral-700" />
                       <th className="py-3 px-4 font-semibold text-neutral-700 text-right">Actions</th>
                     </tr>
                   </thead>

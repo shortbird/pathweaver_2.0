@@ -11,6 +11,7 @@ import { isSisAdmin } from './sisRole'
 import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
 import CurriculumResources from '../../components/sis/CurriculumResources'
 import { useConfirm } from '../../contexts/ConfirmContext'
+import SortHeader from '../../components/ui/SortHeader'
 
 /**
  * CurriculumPage — the school's curriculum library.
@@ -153,15 +154,6 @@ const carriesText = (e) => [
   e.quest_count ? `${e.quest_count} quest${e.quest_count === 1 ? '' : 's'}` : null,
   e.course_count ? `${e.course_count} course${e.course_count === 1 ? '' : 's'}` : null,
 ].filter(Boolean).join(' · ')
-
-const SortHeader = ({ label, col, sort, onSort }) => (
-  <th className="px-4 py-3 font-medium">
-    <button onClick={() => onSort(col)}
-      className={`inline-flex items-center hover:text-neutral-800 ${sort.key === col ? 'text-neutral-800' : ''}`}>
-      {label}{sort.key === col ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : ''}
-    </button>
-  </th>
-)
 
 const CurriculumPage = () => {
   const confirm = useConfirm()

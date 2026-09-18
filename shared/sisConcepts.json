@@ -565,16 +565,15 @@
     },
     {
       "id": "sort_header",
-      "means": "A sortable column header. Six copies of SortHeader with five different sort-state models over twenty-three raw tables.",
-      "owner": { "web": ["components/sis/SortableTable.jsx"] },
-      "proposed": true,
+      "means": "A sortable column header. Until M14e (2026-09-17) six tables carried their own SortHeader with five different sort-state models; now components/ui/SortHeader.jsx is the one header over the two models that survive -- {key, dir} for one column at a time, and an ordered list of them for the classes table's tiebreakers. The tables themselves are still hand-written; a SortableTable over the rows is the rest of M14e.",
+      "owner": { "web": ["components/ui/SortHeader.jsx"] },
       "forbid": {
         "web": { "pattern": "(function SortHeader\\b|const SortHeader\\s*=)", "dirs": ["pages", "components"] }
       },
-      "baseline": { "web": 6 },
+      "baseline": { "web": 0 },
       "measured": "2026-09-17",
       "lowered_by": "M14e",
-      "use_instead": "<SortableTable columns={...} rows={...} /> (M14e), one sort model, one header."
+      "use_instead": "<SortHeader label col sort onSort hint? className? /> from components/ui; the table owns what a click means (onSort), the header owns the arrow and the aria."
     },
     {
       "id": "person_picker",
