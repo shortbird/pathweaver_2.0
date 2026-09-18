@@ -100,7 +100,10 @@ def _org_snapshot(org_id: str) -> Dict[str, Any]:
                          for m in by_class.get(c['id'], [])],
         } for c in classes],
         'staff': [{'id': s['id'], 'name': s.get('name')} for s in staff],
-        'time_blocks': blocks,
+        # Times and labels only: the model snaps meetings to a block by its
+        # times, and a row id in the prompt is a token it can only misuse.
+        'time_blocks': [{'start': b.get('start'), 'end': b.get('end'), 'label': b.get('label') or ''}
+                        for b in blocks],
     }
 
 

@@ -710,12 +710,18 @@ def _meeting_slot(meeting: Dict[str, Any], blocks: List[Dict[str, Any]],
         return ''
     when = f"{_t12(meeting.get('start_time'))}-{_t12(meeting.get('end_time'))}"
     hits = []
-    for n, b in enumerate(blocks or [], start=1):
-        bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
-        if bs is None or be is None:
-            continue
-        if ms < be and me > bs:
-            hits.append((n, b))
+    # A meeting that says which block it fills (class_meetings.block_id, M8b)
+    # is that block, whatever the block's times are today; the rest are named
+    # by the blocks their times overlap.
+    if meeting.get('block_id'):
+        hits = [(n, b) for n, b in enumerate(blocks or [], start=1) if b.get('id') == meeting['block_id']]
+    if not hits:
+        for n, b in enumerate(blocks or [], start=1):
+            bs, be = _minutes(b.get('start')), _minutes(b.get('end'))
+            if bs is None or be is None:
+                continue
+            if ms < be and me > bs:
+                hits.append((n, b))
     if not hits:
         return when
     names = [(b.get('label') or '').strip() or f'Block {n}' for n, b in hits]
@@ -1001,6 +1007,7 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
             continue
         numbered.append({
             'key': f'block-{n}',
+            'id': b.get('id'),
             'label': (b.get('label') or '').strip() or f'Block {n}',
             'time': f"{_t12(b.get('start'))}-{_t12(b.get('end'))}",
             'start': bs,
@@ -1021,7 +1028,11 @@ def block_rosters_report(org_id: str, day: Optional[int] = None) -> Dict[str, An
             ms, me = _minutes(m.get('start_time')), _minutes(m.get('end_time'))
             if ms is None or me is None:
                 continue
-            hits = [b for b in numbered if ms < b['end'] and me > b['start']]
+            # The block the meeting says it fills (M8b), else the blocks its
+            # times overlap.
+            hits = [b for b in numbered if m.get('block_id') and b['id'] == m['block_id']]
+            if not hits:
+                hits = [b for b in numbered if ms < b['end'] and me > b['start']]
             if not hits:
                 time = f"{_t12(m.get('start_time'))}-{_t12(m.get('end_time'))}"
                 hits = [{'key': f'time-{ms}-{me}', 'label': time, 'time': time,

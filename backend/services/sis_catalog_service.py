@@ -7,6 +7,7 @@ the routes. Admin (service_role) client: the SIS tables are RLS-locked to
 backend-only, same justification as sis_service.py.
 """
 
+import re
 from typing import Dict, List, Any, Optional
 
 from repositories.sis_class_repository import SisClassRepository
@@ -237,17 +238,81 @@ def schedule_settings(org_id: str) -> Dict[str, Any]:
     ).data or []
     settings = ((row[0].get('feature_flags') or {}).get('sis_settings') or {}) if row else {}
     rooms = settings.get('rooms')
-    blocks = settings.get('time_blocks')
     return {
         'rooms': rooms if isinstance(rooms, list) else [],
-        'time_blocks': blocks if isinstance(blocks, list) else [],
+        'time_blocks': _block_rows(org_id, legacy=settings.get('time_blocks')),
     }
 
 
 def time_blocks(org_id: str) -> List[Dict[str, Any]]:
-    """The org's school-day blocks alone, for the readers that price a week
-    (sis_tuition_service.schedule_quote) and do not need the rooms."""
+    """The org's school-day blocks alone, in order: [{id, label, start, end,
+    sort}], for the readers that price or lay out a week and do not need the
+    rooms. Rows in sis_time_blocks since M8b (2026-09-18)."""
     return schedule_settings(org_id)['time_blocks']
+
+
+def _blocks_repo():
+    from repositories.sis_time_block_repository import SisTimeBlockRepository
+    return SisTimeBlockRepository(client=_admin())
+
+
+def _block_rows(org_id: str, legacy: Any = None) -> List[Dict[str, Any]]:
+    """The rows, or -- on a database migration 20260918220000 has not
+    reached (a local one, a test org) -- the JSON list the blob still holds.
+    Before M8b the blocks were only that list, with no ids; the first save
+    through PATCH /api/sis/settings removes the key so nothing reads it
+    twice."""
+    rows = _blocks_repo().list_for_org(org_id)
+    if rows or not isinstance(legacy, list):
+        return rows
+    return [b for b in legacy if isinstance(b, dict) and b.get('start') and b.get('end')]
+
+
+_HM = re.compile(r'^([01]?\d|2[0-3]):[0-5]\d$')
+
+
+def take_time_blocks(patch: Dict[str, Any]) -> Any:
+    """Lift the blocks out of a settings patch for save_time_blocks, leaving
+    a null in their place so the blob's legacy key is removed by the same
+    write. Returns the list, or the sentinel None-tuple () when the patch
+    did not name them. Lives here so only this module spells the key."""
+    settings = patch.get('sis_settings')
+    if not isinstance(settings, dict) or 'time_blocks' not in settings:
+        return ()
+    blocks = settings['time_blocks']
+    settings['time_blocks'] = None
+    return blocks
+
+
+def save_time_blocks(org_id: str, blocks: Any) -> Dict[str, Any]:
+    """Replace the org's blocks with `blocks` ([{id?, start, end, label}]),
+    sorted by start. Returns {'blocks': rows} or {'error': ...}.
+
+    Ids survive where the caller sent them or where a block's times match an
+    existing row, so a rename is an update and the meetings that fill the
+    block keep pointing at it (SisTimeBlockRepository.save_blocks). The
+    settings route that calls this also nulls the legacy JSON key on the
+    blob, so the rows are the one place.
+    """
+    if blocks is None:
+        blocks = []
+    if not isinstance(blocks, list):
+        return {'error': 'time_blocks must be a list'}
+    clean: List[Dict[str, Any]] = []
+    for b in blocks:
+        if not isinstance(b, dict):
+            return {'error': 'Each block needs a start and an end'}
+        start, end = str(b.get('start') or '')[:5], str(b.get('end') or '')[:5]
+        if not start and not end:
+            continue
+        if not _HM.match(start) or not _HM.match(end):
+            return {'error': 'Block times must be HH:MM'}
+        if end <= start:
+            return {'error': f"A block can't end before it starts ({start}-{end})"}
+        clean.append({'id': b.get('id') or None, 'start': start, 'end': end,
+                      'label': (b.get('label') or '').strip()})
+    clean.sort(key=lambda b: b['start'])
+    return {'blocks': _blocks_repo().save_blocks(org_id, clean)}
 
 
 def list_course_settings(org_id: str) -> Dict[str, Any]:

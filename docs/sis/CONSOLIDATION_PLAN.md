@@ -47,7 +47,7 @@ and patterns instead.
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c's mobile half shipped 2026-09-18, the server's two old shapes retire once that build is on every phone; e not merged) | see git log (`consolidate/M19-parent-parity`, `consolidate/M19c-absence-selections`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the old shapes retire |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
-| M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
+| M8b Time-block table | 3 | shipped: `sis_time_blocks` rows with ids, `class_meetings.block_id`, migration applied to prod + staging 2026-09-18 (iCreate 6 blocks, 184 meetings stamped) | see git log (`consolidate/M8b-one-blocks-reader`, `consolidate/M8b-time-block-table`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 | M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
 | M22 One library page (added 2026-09-18) | 2 | shipped | see git log (`consolidate/M22-one-library-page`) | no manifest row; four pages became tabs; `training_system` owner moved to `pages/sis/libraryPage/TrainingPanel.jsx` |
@@ -1453,6 +1453,33 @@ second half -- a backfill that needs a daytime run against staging first.
 Services `.table()` 1835 → 1834. Verify at :3000: the parent Schedule
 Builder, Reports > block rosters, the AI schedule editor and a sheet-sync
 proposal all still show the school's blocks.
+
+**As shipped, second half (2026-09-18).** Migration `20260918220000_sis_time_blocks`
+(applied to staging, then prod): `sis_time_blocks (id, organization_id, label,
+start_time, end_time, sort_order)` and `class_meetings.block_id` (FK, `ON DELETE SET
+NULL`); every org's JSON list copied into rows in list order; a meeting whose times
+are exactly one block's stamped with it (iCreate: 6 blocks, 184 of 221 meetings; the
+37 that span several blocks stay unstamped and are named by overlap as before). The
+JSON key is NOT removed by the migration -- the prod code reading it was still live
+when it ran -- so `sis_catalog_service.schedule_settings` serves rows and falls back
+to the blob's list only where no rows exist, and the first save through
+`PATCH /api/sis/settings` nulls the key (`take_time_blocks` lifts the list out of
+the patch and leaves a null for `merge_patch` to remove). `save_time_blocks` is the
+writer, over `SisTimeBlockRepository.save_blocks`, which keeps an id where the card
+sent one or where a block's times match an existing row, so a rename or a reorder is
+an update and the meetings that fill the block keep pointing at it; rows not in the
+list are deleted and their meetings' `block_id` goes null by the foreign key.
+`SisClassRepository.add_meeting` stamps `block_id` on every new meeting whose times
+fill exactly one block (the class form, the AI editor and the sheet sync all write
+through it). Readers: the two block reports name a meeting by its `block_id` first
+and by overlap second, so a retimed block keeps its rosters; the builder, the sync
+and the tuition quote read the same `{start, end, label}` keys off the rows; the AI
+prompt gets times and labels only. `TimeBlocksCard` reads the rows from
+`/api/sis/schedule-settings` (the read the class editor shares) and sends ids back.
+Repositories `.table()` 577 → 582. Not done: meetings are still keyed to a block by
+exact times at write; a block retimed after the fact keeps its meetings but new
+meetings at the old times get no block, which is the honest reading of "the times
+are the meeting's own".
 
 ---
 

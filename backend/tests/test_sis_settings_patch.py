@@ -190,3 +190,25 @@ class TestTheRoute:
         resp, repo = self._patch(client, auth_headers, teacher, {'sis_settings': {'rooms': []}})
         assert resp.status_code == 403
         repo.update_organization.assert_not_called()
+
+    def test_time_blocks_become_rows_and_leave_the_blob(self, client, auth_headers, mock_verify_token):
+        """The blocks are sis_time_blocks rows (M8b): the card's PATCH writes
+        them through save_time_blocks and the blob's legacy key is removed by
+        the same call, so the rows are the one place."""
+        rows = [{'id': 'b1', 'label': '', 'start': '09:30', 'end': '10:30', 'sort': 0}]
+        with patch('services.sis_catalog_service.save_time_blocks', return_value={'blocks': rows}) as save:
+            resp, repo = self._patch(client, auth_headers, ADMIN_ROW,
+                                     {'sis_settings': {'time_blocks': [{'start': '09:30', 'end': '10:30', 'label': ''}]}})
+        assert resp.status_code == 200, resp.get_json()
+        save.assert_called_once_with('org-1', [{'start': '09:30', 'end': '10:30', 'label': ''}])
+        assert resp.get_json()['blocks'] == rows
+        written = repo.update_organization.call_args[0][1]['feature_flags']
+        assert 'time_blocks' not in written['sis_settings']
+        assert written['sis_settings']['rooms'] == [{'name': 'Kitchen'}]
+
+    def test_a_bad_block_is_refused_before_anything_is_written(self, client, auth_headers, mock_verify_token):
+        resp, repo = self._patch(client, auth_headers, ADMIN_ROW,
+                                 {'sis_settings': {'time_blocks': [{'start': '10:30', 'end': '09:30'}]}})
+        assert resp.status_code == 400
+        assert "can't end before it starts" in resp.get_json()['error']
+        repo.update_organization.assert_not_called()

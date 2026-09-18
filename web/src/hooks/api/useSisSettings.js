@@ -22,6 +22,19 @@ import { withOrg } from '../../pages/sis/useSisOrg'
 export const patchSisSettings = (orgId, patch) =>
   api.patch(withOrg('/api/sis/settings', orgId), patch).then((r) => r.data?.feature_flags)
 
+/**
+ * The school-day blocks are rows (sis_time_blocks, M8b), not a key in the
+ * blob: the same PATCH carries them, the server writes the rows, and the
+ * answer is the rows with their ids. `readTimeBlocks` is the read the class
+ * editor and the weekly grids share (/api/sis/schedule-settings).
+ */
+export const readTimeBlocks = (orgId) =>
+  api.get(withOrg('/api/sis/schedule-settings', orgId)).then((r) => r.data?.time_blocks || [])
+
+export const saveTimeBlocks = (orgId, blocks) =>
+  api.patch(withOrg('/api/sis/settings', orgId), { sis_settings: { time_blocks: blocks } })
+    .then((r) => r.data?.blocks || [])
+
 export function useOrgSettings(orgId) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)

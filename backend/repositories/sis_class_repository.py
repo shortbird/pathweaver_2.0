@@ -196,6 +196,25 @@ class SisClassRepository(BaseRepository):
             .in_('class_id', class_ids)
         ))
 
+    def block_for_times(self, organization_id: str, start_time: Any, end_time: Any) -> Optional[str]:
+        """The id of the school block these times fill exactly, else None: a
+        meeting that IS Block 2 says so (class_meetings.block_id, M8b), so the
+        reports and the sync keep naming it Block 2 after the school renames
+        or retimes the block. A custom time, or one spanning several blocks,
+        has no block."""
+        if not start_time or not end_time:
+            return None
+        rows = (
+            self.client.table('sis_time_blocks')
+            .select('id')
+            .eq('organization_id', organization_id)
+            .eq('start_time', str(start_time)[:5])
+            .eq('end_time', str(end_time)[:5])
+            .limit(1)
+            .execute()
+        ).data or []
+        return rows[0]['id'] if rows else None
+
     def add_meeting(self, class_id: str, organization_id: str,
                     fields: Dict[str, Any]) -> Dict[str, Any]:
         payload = {
@@ -206,6 +225,8 @@ class SisClassRepository(BaseRepository):
             'start_time': fields.get('start_time'),
             'end_time': fields.get('end_time'),
             'location': fields.get('location'),
+            'block_id': fields.get('block_id')
+                or self.block_for_times(organization_id, fields.get('start_time'), fields.get('end_time')),
         }
         # Adding the same slot twice is a double submit, not a second meeting:
         # every schedule view draws one block per meeting row, so a duplicate

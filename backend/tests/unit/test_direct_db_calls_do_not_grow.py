@@ -509,7 +509,10 @@ BASELINES = {
     # fallback) in the layer that owns households; routes and services did not
     # move, and the new staff door's other lookups reuse UserRepository and
     # sis_service rather than adding queries above this layer.
-    'repositories': 579,
+    # 2026-09-18: 579 -> 584. repositories/sis_time_block_repository.py (the
+    # school-day blocks as rows, M8b) and SisClassRepository.block_for_times,
+    # which stamps class_meetings.block_id when a meeting is written.
+    'repositories': 584,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging

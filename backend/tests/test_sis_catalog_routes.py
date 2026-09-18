@@ -229,12 +229,24 @@ class TestScheduleSettingsService:
         table.execute.return_value = Mock(data=[{'feature_flags': flags}])
         return admin
 
-    def _call(self, flags):
+    def _call(self, flags, rows=None):
         from services import sis_catalog_service
-        with patch.object(sis_catalog_service, '_admin', return_value=self._org_row(flags)):
+        repo = Mock()
+        repo.list_for_org.return_value = rows or []
+        with patch.object(sis_catalog_service, '_admin', return_value=self._org_row(flags)), \
+                patch.object(sis_catalog_service, '_blocks_repo', return_value=repo):
             return sis_catalog_service.schedule_settings('org-1')
 
+    def test_blocks_are_rows_with_ids(self):
+        # sis_time_blocks since M8b; the blob's list is not consulted when rows exist.
+        row = {'id': 'b1', 'label': '', 'start': '09:30', 'end': '10:30', 'sort': 0}
+        out = self._call({'sis_settings': {'rooms': [{'name': 'Kitchen'}],
+                                           'time_blocks': [{'start': '08:00', 'end': '09:00'}]}},
+                         rows=[row])
+        assert out == {'rooms': [{'name': 'Kitchen'}], 'time_blocks': [row]}
+
     def test_returns_rooms_and_blocks(self):
+        # A database the M8b migration has not reached still answers from the blob.
         out = self._call({'sis_settings': {
             'rooms': [{'name': 'Kitchen'}],
             'time_blocks': [{'start': '09:30', 'end': '10:30'}],

@@ -339,7 +339,7 @@
     },
     {
       "id": "time_blocks_read",
-      "means": "The school's time blocks, a JSON list inside feature_flags.sis_settings with no ids. Until M8b's first half (2026-09-17) eight readers outside the catalog service unpacked the blob themselves; now every reader calls sis_catalog_service.time_blocks(org_id), so a sis_time_blocks table with stable ids (M8b's second half, a data move) will be a change behind one function. Renaming a block still orphans block rosters until then.",
+      "means": "The school's time blocks. A JSON list inside feature_flags.sis_settings with no ids until M8b: the first half (2026-09-17) put every reader behind sis_catalog_service.time_blocks(org_id); the second half (2026-09-18) made them rows in sis_time_blocks with stable ids, copied by migration 20260918220000, and class_meetings.block_id says which block a meeting fills, so renaming or retiming a block no longer renumbers the rosters. The blob's key is read only as a fallback where the migration has not run, and removed by the first save.",
       "owner": { "backend": ["services/sis_catalog_service.py"] },
       "forbid": {
         "backend": {
@@ -348,9 +348,9 @@
         }
       },
       "baseline": { "backend": 0 },
-      "measured": "2026-09-17",
+      "measured": "2026-09-18",
       "lowered_by": "M8b",
-      "use_instead": "sis_catalog_service.time_blocks(org_id); never the sis_settings blob directly."
+      "use_instead": "sis_catalog_service.time_blocks(org_id) to read, save_time_blocks(org_id, blocks) to write (PATCH /api/sis/settings routes sis_settings.time_blocks there); never the sis_settings blob directly."
     },
     {
       "id": "settings_write",
