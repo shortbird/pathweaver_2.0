@@ -145,7 +145,11 @@ def audit_removal(org_id: str, actor_id: Optional[str], action_type: str,
                   resource_type: str, resource_id: Optional[str],
                   changes: Dict[str, Any]) -> None:
     """One admin_audit_logs row for taking a person, a family, or a family
-    member off a school.
+    member off a school — and, since 2026-09-18, for the one act that goes the
+    other way: staff creating a child inside a family. The row is the same
+    shape and the question it answers is the same one ("who did this, and
+    when"), so the name is narrower than the writer; a rename would touch six
+    test patch targets for nothing.
 
     Until 2026-09-16 none of these paths wrote anything. Kayla Rose's two
     children (iCreate) were deleted some time after 2026-08-15, along with
@@ -505,3 +509,45 @@ def join_household(household_id: str, *, guardians=(), students=(),
     #   org and the relationship it is recording.
     return HouseholdRepository(client=client or _admin()).add_members(rows)
 
+
+def place_child_in_family(org_id: Optional[str], child_id: str, parent_id: str,
+                          household_id: Optional[str] = None) -> Optional[str]:
+    """Put a newly created child where the school and the family both see them.
+
+    A child account on its own is invisible to the office: org fields unset or
+    half-set, no parent links, and a place on the People page under "Students
+    without a family" rather than on the family's record. Both doors that make
+    a child outside the registration funnel finish here -- the parent's own
+    "Add a child" in Family Settings, and the staff's "Add a child" on a family
+    -- so a sibling added in September looks exactly like one registered in
+    June. Before this, the parent's door produced precisely that orphan, and
+    the office's only fix was to connect the account to the family by hand
+    (iCreate, 2026-08-28: "They're showing up twice but not sure why").
+
+    `household_id` is the family the caller is already looking at; left out, it
+    is the one the parent guards at this school. Guardians are linked to the
+    child (a dependent is linked by managed_by_parent_id instead, which
+    attach_student_to_org knows).
+
+    Returns the household the child joined, or None when there is none to join
+    -- a platform family has no household and that is not an error.
+    """
+    if not org_id:
+        return None
+    from repositories.household_repository import HouseholdRepository
+    from services import sis_service
+    # admin client justified: see the module note -- this writes rows about a
+    #   child and their guardians; the caller has already proven the family.
+    repo = HouseholdRepository(client=_admin())
+    if not household_id:
+        household_id = repo.for_guardian(parent_id, org_id)
+
+    guardians = [parent_id]
+    if household_id:
+        guardians += [m['user_id'] for m in repo.members_for_households([household_id])
+                      if m.get('relationship') != 'student']
+    sis_service.attach_student_to_org(org_id, child_id,
+                                      guardian_ids=list(dict.fromkeys(guardians)))
+    if household_id:
+        join_household(household_id, students=[child_id])
+    return household_id

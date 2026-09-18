@@ -1,14 +1,23 @@
 """
-Parent-created student accounts for teens (13+).
+Adding a child to a family, outside the registration funnel.
 
-The under-13 case is COPPA-shaped and already lives in DependentRepository:
-no email, no login, parent manages everything. This module is its sibling for
-teens — a real account the teen logs into with their own email, created BY the
-parent and linked to them, so a family never depends on the teen to sign
-themselves up.
+Two doors reach this module and they make the same child: the parent's own
+"Add a child" in Family Settings, and the office's "Add a child" on a family in
+the SIS. `create_child` is the age split both of them run — under 13 is the
+COPPA-shaped managed profile DependentRepository owns (no email, no login);
+13+ is the teen's own account, created here and linked to the parent, so a
+family never depends on the teen to sign themselves up. Neither door asks the
+caller to classify their own child.
+
+`add_child_to_household` is the office's door in full: it was added on
+2026-09-18 because there was no way to add a child a family had left off their
+registration. Staff could connect an account that already existed and nothing
+anywhere could create one, while the funnel refuses a completed registration
+("This registration is already completed"), so a family who forgot a child at
+registration had no path that did not involve re-registering.
 
 Mirrors what the registration funnel does for a 13+ kid
-(routes/icreate_registration.py::_create_org_student): create the auth user
+(services/registration_accounts_service._create_org_student): create the auth user
 unconfirmed with a throwaway password, insert the profile, send the
 set-password/verification email, and link the parent. Org parents produce org
 students (organization_id inherited, org_managed/student); platform parents
@@ -22,8 +31,9 @@ the school's connect flow instead of silently claiming a stranger's account.
 import secrets
 import time
 from datetime import date, datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+from repositories.dependent_repository import DependentRepository
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -229,3 +239,129 @@ def _link_parent(admin, parent_id: str, student_id: str) -> None:
             }).execute()
     except Exception as e:  # noqa: BLE001
         logger.warning(f'_link_parent: {parent_id[:8]}->{student_id[:8]} failed: {e}')
+
+
+def create_child(parent: Dict[str, Any], first_name: str, last_name: str,
+                 date_of_birth: date, email: str = '',
+                 avatar_url: Optional[str] = None) -> Dict[str, Any]:
+    """Make one child account for a family. Age decides the shape.
+
+    `parent` is the guardian's users row (needs id and organization_id): the
+    child inherits the school, and under 13 the parent is who manages the
+    profile. Returns {'kind': 'dependent'|'student', 'child': <users row>,
+    'invite_sent': bool}, or {'error': str, 'code': str} — a 13+ child with no
+    email is refused rather than quietly made managed, because "they have a
+    login" and "their parent runs the account" are not the same thing to say
+    to a family later.
+    """
+    if calculate_age(date_of_birth) >= 13:
+        result = create_teen_student(parent, first_name, last_name, email, date_of_birth)
+        if result.get('error'):
+            return result
+        return {'kind': 'student', 'child': result['student'],
+                'invite_sent': bool(result['student'].get('invite_sent'))}
+
+    dependent = DependentRepository(client=_admin()).create_dependent(
+        parent_id=parent['id'],
+        display_name=f'{first_name} {last_name}'.strip(),
+        date_of_birth=date_of_birth,
+        avatar_url=avatar_url,
+    )
+    return {'kind': 'dependent', 'child': dependent, 'invite_sent': False}
+
+
+def _household_guardians(household: Dict[str, Any], members: List[Dict[str, Any]]) -> List[str]:
+    """The family's adults, primary contact first — the order that decides who
+    a managed child profile belongs to."""
+    guardians = [m['user_id'] for m in members if m.get('relationship') != 'student']
+    primary = household.get('primary_contact_user_id')
+    if primary in guardians:
+        guardians = [primary] + [g for g in guardians if g != primary]
+    return guardians
+
+
+def add_child_to_household(org_id: str, household_id: str, actor_id: str,
+                           data: Dict[str, Any]) -> Dict[str, Any]:
+    """The office's "Add a child" on a family. See the module docstring for why.
+
+    Returns the created child on success, or {'error', 'status'} — including
+    the 409 {'needs_confirmation', 'duplicates'} the connect-an-account door
+    already returns, so the same "add anyway?" prompt covers both.
+
+    Deliberately not enrolled: this writes the family, not the school's
+    enrollment record. Assigning a student, like waitlisting one, stays where
+    staff already do it (PATCH /api/sis/enrollments/<student_id>, the
+    enrollment waitlist page) — adding a sibling to a family should not quietly
+    put a seat and an invoice behind them.
+    """
+    from repositories.household_repository import HouseholdRepository
+    from repositories.user_repository import UserRepository
+    from services import sis_person_service, sis_service
+    from services.registration_identity_service import parse_dob
+
+    admin = _admin()
+    household_repo = HouseholdRepository(client=admin)
+    household = household_repo.find_by_id(household_id)
+    if not household or household.get('organization_id') != org_id:
+        return {'error': 'Household not found', 'status': 404}
+
+    first_name = (data.get('first_name') or '').strip()
+    last_name = (data.get('last_name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    date_of_birth = parse_dob(data.get('date_of_birth'))
+    if not first_name or not last_name:
+        return {'error': 'First and last name are required', 'status': 400}
+    if not date_of_birth:
+        return {'error': 'A date of birth is required (YYYY-MM-DD)', 'status': 400}
+
+    members = household_repo.members_for_households([household_id])
+    guardians = _household_guardians(household, members)
+    if not guardians:
+        return {'error': 'Add a parent to this family first — a child account is '
+                         'created under their guardian.',
+                'code': 'no_guardian', 'status': 400}
+
+    # The same look-alike warning the connect-an-account door gives, asked
+    # before the account exists: adding a child to a family is exactly where
+    # the same kid gets entered twice.
+    if not data.get('confirm_duplicate'):
+        duplicates = sis_service.find_household_duplicates(
+            org_id, household_id,
+            candidate={'first_name': first_name, 'last_name': last_name,
+                       'date_of_birth': str(date_of_birth)})
+        if duplicates:
+            names = ', '.join(d['name'] for d in duplicates)
+            return {'needs_confirmation': True, 'duplicates': duplicates, 'status': 409,
+                    'error': f'This family already includes {names}, which looks like the '
+                             'same child. They may have been registered twice. Add anyway?'}
+
+    guardian_id = guardians[0]
+    parent = UserRepository(client=admin).find_by_ids(
+        [guardian_id], 'id, first_name, last_name, display_name, organization_id'
+    ).get(guardian_id)
+    if not parent:
+        return {'error': 'Household not found', 'status': 404}
+    # The family belongs to this school, so the child does, whatever the
+    # guardian's own row says — a guardian imported without an organization_id
+    # would otherwise mint a platform account inside a school's family.
+    parent = {**parent, 'organization_id': org_id}
+
+    try:
+        result = create_child(parent, first_name, last_name, date_of_birth, email=email)
+    except Exception as e:  # noqa: BLE001 — the dependent path raises where the teen path returns
+        logger.error(f'sis add-child: create failed for household {household_id}: {e}')
+        return {'error': 'Could not create the account. Please try again.', 'status': 400}
+    if result.get('error'):
+        return {**result, 'status': 400}
+
+    child = result['child']
+    sis_person_service.place_child_in_family(org_id, child['id'], guardian_id,
+                                             household_id=household_id)
+    sis_person_service.audit_removal(
+        org_id, actor_id, 'sis_household_child_added', 'household', household_id,
+        {'household_name': household.get('name'), 'child_user_id': child['id'],
+         'kind': result['kind']})
+    logger.info(f'sis add-child: {result["kind"]} {child["id"][:8]} joined household '
+                f'{household_id[:8]} at org {org_id[:8]}')
+    return {'kind': result['kind'], 'child': child,
+            'invite_sent': result['invite_sent'], 'household_id': household_id}

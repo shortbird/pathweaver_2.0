@@ -85,3 +85,38 @@ class HouseholdRepository(BaseRepository):
             .execute()
         )
         return resp.data or []
+
+    def for_guardian(self, user_id: str, organization_id: str) -> Optional[str]:
+        """The household this adult guards at one school, if any.
+
+        Asked by every path that creates a child outside the registration
+        funnel: the family already exists, and the new child belongs in it
+        rather than on the People page as a student without a family. A
+        guardian membership answers it; the primary-contact pointer is the
+        fallback for a household staff created and never added themselves to.
+
+        The funnel asks the same question inline
+        (routes/registration_funnel._existing_household_for_parent) so a
+        returning parent never spawns a second '<Last> Family'. That copy is
+        left where it is -- it runs under the funnel's own client and its tests
+        pin the shape -- and this is the answer for every other caller.
+        """
+        rows = (
+            self.client.table('household_members')
+            .select('household_id, households!inner(id, organization_id)')
+            .eq('user_id', user_id)
+            .neq('relationship', 'student')
+            .execute()
+        ).data or []
+        for row in rows:
+            if (row.get('households') or {}).get('organization_id') == organization_id:
+                return row['household_id']
+        owned = (
+            self.client.table(self.table_name)
+            .select('id')
+            .eq('organization_id', organization_id)
+            .eq('primary_contact_user_id', user_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        return owned[0]['id'] if owned else None

@@ -329,17 +329,26 @@ def _mark_duplicate_members(members: List[Dict[str, Any]]) -> None:
 
 
 def find_household_duplicates(org_id: str, household_id: str,
-                              candidate_user_id: str) -> List[Dict[str, Any]]:
+                              candidate_user_id: Optional[str] = None,
+                              candidate: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Existing student members of a household that look like the same child as
-    candidate_user_id (see likely_same_student). Empty when nothing matches."""
+    the candidate (see likely_same_student). Empty when nothing matches.
+
+    The candidate is normally an account being connected to the family, named
+    by id. `candidate` takes a bare {first_name, last_name, date_of_birth}
+    instead, for the staff door that asks the question BEFORE the account
+    exists: "add a child" to a family is exactly the moment the same child gets
+    entered twice, and the warning is worth as much before the create as after.
+    """
     from repositories.household_repository import HouseholdRepository
     admin = _admin()
-    crow = (admin.table('users')
-            .select('id, first_name, last_name, date_of_birth, preferred_name')
-            .eq('id', candidate_user_id).limit(1).execute()).data or []
-    if not crow:
-        return []
-    candidate = crow[0]
+    if candidate is None:
+        crow = (admin.table('users')
+                .select('id, first_name, last_name, date_of_birth, preferred_name')
+                .eq('id', candidate_user_id).limit(1).execute()).data or []
+        if not crow:
+            return []
+        candidate = crow[0]
     members = HouseholdRepository(client=admin).members_for_households([household_id])
     student_ids = [m['user_id'] for m in members
                    if m.get('relationship') == 'student'

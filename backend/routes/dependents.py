@@ -152,6 +152,16 @@ def create_dependent(user_id):
 
         logger.info(f"Parent {user_id} created dependent {dependent['id']}")
 
+        # Into the family too, the same way /add-child does it: the mobile app
+        # adds a child here, and a child outside the household is a student
+        # without a family on the school's People page.
+        try:
+            from services import sis_person_service
+            sis_person_service.place_child_in_family(
+                dependent.get('organization_id'), dependent['id'], user_id)
+        except Exception as e:  # noqa: BLE001 — the child exists; grouping is best-effort
+            logger.warning(f"Could not place child {dependent['id']} in the family: {e}")
+
         return jsonify({
             'success': True,
             'dependent': dependent,
@@ -245,7 +255,6 @@ def add_child(user_id):
             raise ValidationError('date_of_birth must be in YYYY-MM-DD format') from _exc
 
         from services import family_student_service
-        age = family_student_service.calculate_age(date_of_birth)
 
         # A parent who registered through the school funnel and then opens the
         # portal often re-adds the same kid, which mints a second account that
@@ -264,21 +273,35 @@ def add_child(user_id):
                           ' that account instead of adding a second one.'),
             }), 409
 
-        if age >= 13:
-            # admin client justified: reads the caller's own org to decide whether
-            # the teen becomes an org student; verify_parent_role gated entry.
-            supabase = get_supabase_admin_client()
-            parent_row = (supabase.table('users')
-                          .select('id, organization_id, first_name, display_name')
-                          .eq('id', user_id).single().execute()).data
-            result = family_student_service.create_teen_student(
-                parent_row, first_name, last_name, email, date_of_birth
-            )
-            if result.get('error'):
-                return jsonify({'success': False, 'error': result['error'],
-                                'code': result.get('code')}), 400
-            logger.info(f"Parent {user_id} created teen student {result['student']['id']}")
-            invite_sent = bool(result['student'].get('invite_sent'))
+        # admin client justified: reads the caller's own row for the org the
+        # child inherits; verify_parent_role gated entry.
+        supabase = get_supabase_admin_client()
+        parent_row = (supabase.table('users')
+                      .select('id, organization_id, first_name, display_name')
+                      .eq('id', user_id).single().execute()).data or {'id': user_id}
+        # The age split itself lives in the service, because the school's own
+        # "add a child" runs it too and the two must not drift.
+        result = family_student_service.create_child(
+            parent_row, first_name, last_name, date_of_birth,
+            email=email, avatar_url=data.get('avatar_url'))
+        if result.get('error'):
+            return jsonify({'success': False, 'error': result['error'],
+                            'code': result.get('code')}), 400
+        child = result['child']
+
+        # Into the family, not just into the school: a child created here used
+        # to land on the school's People page as a student without a family,
+        # which staff could only fix by connecting the account by hand.
+        try:
+            from services import sis_person_service
+            sis_person_service.place_child_in_family(
+                parent_row.get('organization_id'), child['id'], user_id)
+        except Exception as e:  # noqa: BLE001 — the child exists; grouping is best-effort
+            logger.warning(f"Could not place child {child['id']} in the family: {e}")
+
+        if result['kind'] == 'student':
+            logger.info(f"Parent {user_id} created teen student {child['id']}")
+            invite_sent = result['invite_sent']
             # Report the send honestly: the account exists either way, but a
             # parent told "we emailed them" when nothing was sent has no way to
             # know their teen is waiting on an email that will never arrive.
@@ -292,26 +315,16 @@ def add_child(user_id):
             return jsonify({
                 'success': True,
                 'kind': 'student',
-                'student': result['student'],
+                'student': child,
                 'invite_sent': invite_sent,
                 'message': message
             }), 201
 
-        # Under 13: the existing COPPA-shaped dependent profile.
-        # admin client justified: see file docstring; verify_parent_role gates access
-        supabase = get_supabase_admin_client()
-        dependent_repo = DependentRepository(client=supabase)
-        dependent = dependent_repo.create_dependent(
-            parent_id=user_id,
-            display_name=f'{first_name} {last_name}',
-            date_of_birth=date_of_birth,
-            avatar_url=data.get('avatar_url')
-        )
-        logger.info(f"Parent {user_id} created dependent {dependent['id']}")
+        logger.info(f"Parent {user_id} created dependent {child['id']}")
         return jsonify({
             'success': True,
             'kind': 'dependent',
-            'dependent': dependent,
+            'dependent': child,
             'message': f'Child profile created for {first_name}. You manage this profile.'
         }), 201
 
