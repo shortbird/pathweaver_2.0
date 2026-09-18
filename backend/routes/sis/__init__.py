@@ -26,6 +26,7 @@ from services import sis_staff_service
 from services import sis_payment_profile
 from services import sis_holds
 from services import sis_person_service
+from services import family_student_service
 from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
@@ -699,6 +700,31 @@ def add_household_member(user_id, household_id):
         guardian_relationship=relationship,
         primary_guardian=member_user_id if data.get('is_primary_guardian') else None)
     return jsonify({'success': True, 'member': rows[0] if rows else None}), 201
+
+
+@bp.route('/households/<household_id>/children', methods=['POST'])
+@require_role(*ADMIN_ROLES)
+def add_household_child(user_id, household_id):
+    """Create a NEW child account in this family — the sibling nobody has an
+    Optio account for yet.
+
+    The endpoint above connects a child who already has one. Neither reached
+    a child with no account at all: the registration funnel refuses a completed
+    registration, so a family who left a child off theirs could only be fixed by
+    re-registering the whole family (iCreate, 2026-09-18).
+
+    Body: first_name, last_name, date_of_birth, email (13+ only),
+    confirm_duplicate. Everything else is the service's.
+    """
+    org_id, err = sis_service.org_or_error(user_id)
+    if err:
+        return err
+    result = family_student_service.add_child_to_household(
+        org_id, household_id, user_id, request.json or {})
+    status = result.pop('status', 201)
+    if status >= 400:
+        return jsonify({'success': False, **result}), status
+    return jsonify({'success': True, **result}), status
 
 
 @bp.route('/households/<household_id>/members/<member_user_id>', methods=['DELETE'])

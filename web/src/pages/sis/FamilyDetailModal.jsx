@@ -22,6 +22,7 @@ import { queryKeys } from '../../utils/queryKeys'
 import GlassTabBar from '../../components/ui/GlassTabBar'
 import { formatCents as money } from '../../utils/money'
 import FamilyBillingPanel from './familyDetail/FamilyBillingPanel'
+import AddChildForm from './familyDetail/AddChildForm'
 
 const FUNDING_OPTIONS = [
   { value: '', label: 'Not set' },
@@ -292,6 +293,10 @@ const FamilyDetailModal = ({ household, orgId, members, onClose, onSaved, initia
 const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
   const confirm = useConfirm()
   const [adding, setAdding] = useState(false)
+  // The second door: a child nobody has an account for yet. Connecting an
+  // existing account and creating one are different enough forms that sharing
+  // one would ask staff to read both to use either.
+  const [addingChild, setAddingChild] = useState(false)
   const [form, setForm] = useState({ user_id: '', email: '', relationship: 'student' })
   const list = household.members || []
   const primaryId = household.primary_contact_user_id
@@ -335,7 +340,10 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
     <section className="border-t border-gray-100 pt-4">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Members</h4>
-        {!adding && <button onClick={() => setAdding(true)} className="text-sm text-optio-purple font-medium hover:underline">+ Add member</button>}
+        <span className="flex items-center gap-3">
+          {!addingChild && <button onClick={() => { setAddingChild(true); setAdding(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add a child</button>}
+          {!adding && <button onClick={() => { setAdding(true); setAddingChild(false) }} className="text-sm text-optio-purple font-medium hover:underline">+ Add member</button>}
+        </span>
       </div>
       <div className="space-y-1">
         {list.length === 0 && !adding && <p className="text-sm text-neutral-400">No members yet.</p>}
@@ -402,6 +410,13 @@ const MembersSection = ({ household, orgId, members, onSaved, onOpenUser }) => {
             <button onClick={() => setAdding(false)} className="text-sm text-neutral-500 hover:underline">Cancel</button>
           </div>
         </div>
+      )}
+      {addingChild && (
+        <AddChildForm
+          householdId={household.id} orgId={orgId}
+          onDone={() => { setAddingChild(false); onSaved?.() }}
+          onCancel={() => setAddingChild(false)}
+        />
       )}
     </section>
   )

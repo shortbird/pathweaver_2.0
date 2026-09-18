@@ -37,13 +37,30 @@ def _post(client, auth_headers, body, parent_org=None):
 @pytest.mark.unit
 class TestAddChild:
     def test_under_13_creates_a_managed_dependent(self, client, auth_headers, mock_verify_token):
-        with patch('routes.dependents.DependentRepository') as repo_cls:
+        # The age split lives in family_student_service, shared with the
+        # school's own add-child door, so the repository is patched there.
+        with patch('services.family_student_service.DependentRepository') as repo_cls, \
+             patch('services.sis_person_service.place_child_in_family'):
             repo_cls.return_value.create_dependent.return_value = {'id': 'kid-1'}
             resp = _post(client, auth_headers, {
                 'first_name': 'Sam', 'last_name': 'Ray', 'date_of_birth': _dob(8),
             })
         assert resp.status_code == 201
         assert resp.get_json()['kind'] == 'dependent'
+
+    def test_the_child_lands_in_the_family_not_beside_it(
+            self, client, auth_headers, mock_verify_token):
+        """A child added here used to appear on the school's People page as a
+        student without a family, which staff could only fix by connecting the
+        account by hand. The create finishes by putting them in the household."""
+        with patch('services.family_student_service.DependentRepository') as repo_cls, \
+             patch('services.sis_person_service.place_child_in_family') as place:
+            repo_cls.return_value.create_dependent.return_value = {'id': 'kid-1'}
+            resp = _post(client, auth_headers, {
+                'first_name': 'Sam', 'last_name': 'Ray', 'date_of_birth': _dob(8),
+            }, parent_org='org-1')
+        assert resp.status_code == 201
+        place.assert_called_once_with('org-1', 'kid-1', 'parent-1')
 
     def test_13_plus_creates_their_own_account(self, client, auth_headers, mock_verify_token):
         with patch('services.family_student_service.create_teen_student') as create:

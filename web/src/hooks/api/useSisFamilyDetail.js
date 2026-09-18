@@ -73,6 +73,9 @@ export const sisFamilyApi = {
     api.post('/api/sis/people/remove', { user_ids: userIds, organization_id: orgId }),
   getUser: (userId, orgId) => api.get(`/api/sis/users/${userId}?organization_id=${orgId}`),
   addMember: (householdId, body) => api.post(`/api/sis/households/${householdId}/members`, body),
+  // A child the family has no Optio account for: addMember connects one that
+  // exists, this one creates it (under 13 a managed profile, 13+ their own login).
+  addChild: (householdId, body) => api.post(`/api/sis/households/${householdId}/children`, body),
   removeMember: (householdId, userId, orgId) =>
     api.delete(`/api/sis/households/${householdId}/members/${userId}?organization_id=${orgId}`),
   message: (householdId, subject, body, orgId) =>

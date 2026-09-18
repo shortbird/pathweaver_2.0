@@ -502,7 +502,14 @@ BASELINES = {
     # and SchoolEnrollmentRepository the funnel's enrollment write (statuses
     # for a list of students, upsert). New queries in the layer that owns
     # them; routes fell by three and services did not move.
-    'repositories': 577,
+    # 2026-09-18: 577 -> 579. HouseholdRepository.for_guardian — "which family
+    # does this adult guard at this school", the question every path that
+    # creates a child outside the registration funnel has to answer before the
+    # child can join it. Two reads (the membership, then the primary-contact
+    # fallback) in the layer that owns households; routes and services did not
+    # move, and the new staff door's other lookups reuse UserRepository and
+    # sis_service rather than adding queries above this layer.
+    'repositories': 579,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
