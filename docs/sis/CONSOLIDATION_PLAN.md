@@ -43,7 +43,7 @@ and patterns instead.
 | M4 Funnel lands in SIS stores | 1 | shipped (b, c, d, e; a deliberately not); enrollment backfill run on prod 2026-09-18 (iCreate 186, Gryffin 6, Optio Academy 2) | see git log (`consolidate/M4-funnel-lands-family`) | `emergency_contacts_write` 0, `funding_source_write` 0 |
 | M18 One training system | 1 | shipped (API, form, row, report, targeting); the link store stays on org_resources, tickets left open as product calls | see git log (`consolidate/M18-one-training`) | `training_system` 0/0, `input_recipe` 34 |
 | M9 One portal, one signature capture | 2 | shipped, except the signature-request mount (kept at two on purpose) | see git log (`consolidate/M9-one-portal`) | `portal_views` 0, `signature_capture` 0, `signature_request_mount` 4 (deliberate) |
-| M13 One detail surface per entity | 2 | 13a and 13b shipped (one mount each, `RecordDoors`); 13d shipped; 13c phone shipped, tabs not; 13f confirmed done (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`) | `class_form_mount` 1, `staff_phone_edit` 0, new `student_record_mount` 1, `family_record_mount` 1 |
+| M13 One detail surface per entity | 2 | shipped: 13a, 13b, 13c (one mount each, `RecordDoors`), 13d, 13f (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`, `consolidate/M13c-staff-record`) | `class_form_mount` 1, `staff_phone_edit` 0, `student_record_mount` 1, `family_record_mount` 1, `staff_record_mount` 1; `input_recipe` 33, `brand_gradient` 88 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c's mobile half shipped 2026-09-18, the server's two old shapes retire once that build is on every phone; e not merged) | see git log (`consolidate/M19-parent-parity`, `consolidate/M19c-absence-selections`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the old shapes retire |
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
@@ -1205,6 +1205,26 @@ importing the provider back (`importCycles.test.js` caught the cycle). Manifest 
 `family_record_mount`: `<FamilyDetailModal` mounted once (baseline 1). Not done, on
 purpose: membership editing already lives on the family's Members tab and the photo
 on its header (M4e), so nothing moved there.
+
+**13c as shipped, second half (2026-09-18).** The staff record is one modal with
+three tabs. The blocker the first half recorded -- TeacherModal carries three dialog
+states, so hosting it as a tab means three nested panels -- dissolved once the form
+was read as two things: its *add* mode (email, placeholder link, onboarding
+checklist, and the two duplicate-match decision screens) is a creation dialog and
+stays `TeacherModal`, now add-only, opened from `+ Add`; its *edit* mode (name,
+email, bio, photo) is the record's Profile tab, `staffRecord/ProfilePanel.jsx`,
+beside the phone and the role editor the first half put there. `StaffProfileModal`
+became the Employment tab (`staffRecord/EmploymentPanel.jsx`, moved with its reads
+and writes unchanged) and `LinkStaffAccountModal` the Account tab
+(`staffRecord/AccountPanel.jsx`: link a placeholder, resend the setup email, view
+the portal, remove); both files are deleted. `RecordDoors` mounts the record once,
+`useRecordDoors().openStaff(row, { tab, onSaved, onViewPortal })` opens it, and the
+open row is read from the roster query so a save refreshes it; `asStaffRow` moved
+from PeoplePage to `people/peopleFilters.js` for the door to share. PeoplePage went
+from four staff dialogs to none of its own. Manifest row `staff_record_mount`
+(baseline 1; also forbids `<TeacherModal initial=`); `input_recipe` 34 to 33 and
+`brand_gradient` 94 to 88 from the deleted files and the panels drawing on
+`ui/Input` and `ui/Button`.
 
 ### M14c/d/e — Pickers, modals, inputs, tables
 

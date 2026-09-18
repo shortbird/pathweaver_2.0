@@ -2,16 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RecordDoorsProvider } from '../../components/sis/RecordDoors'
 
 // These SIS pages read their data through hooks/api (QF-03), so they need a
 // QueryClient. A fresh client per render keeps one test's cache out of the
 // next one's; retry:false makes a failed query fail the assertion rather than
 // hang through three backoff rounds.
+// RecordDoorsProvider is the console's one mount of the staff record
+// (SisLayout renders it); a page rendered bare opens nothing without it.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter><RecordDoorsProvider>{ui}</RecordDoorsProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -28,8 +31,8 @@ vi.mock('react-hot-toast', () => ({
 
 /**
  * Staff on the one People table. The Staff tab is gone (2026-09-16); a teacher
- * is a row like anyone else, and the staff modals open from "Staff record" in
- * the row menu.
+ * is a row like anyone else, and their record opens from "Staff record" in
+ * the row menu: one modal with Profile, Employment and Account tabs (M13c).
  */
 vi.mock('./SisOrgPicker', () => ({ default: () => null }))
 vi.mock('./useSisOrg', () => ({
@@ -115,15 +118,14 @@ describe('Staff on the People table', () => {
     )
   })
 
-  it('edits a teacher bio via the staff record', async () => {
+  it('edits a teacher bio on the record\'s Profile tab', async () => {
     render(<PeoplePage />)
     await openStaffRecord('Jane Doe')
-    fireEvent.click(await screen.findByText('Edit profile'))
-    fireEvent.change(screen.getByLabelText(/Bio/), { target: { value: 'Updated bio' } })
-    fireEvent.click(screen.getByText('Save changes'))
+    fireEvent.change(await screen.findByLabelText(/Bio/), { target: { value: 'Updated bio' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }))
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/api/sis/staff/s1', expect.objectContaining({
-        bio: 'Updated bio',
+        bio: 'Updated bio', first_name: 'Jane', last_name: 'Doe', email: 'jane@icreate.org',
       })),
     )
   })
@@ -135,20 +137,21 @@ describe('Staff on the People table', () => {
     expect(screen.queryByText('liz@icreate-staff.placeholder.optioeducation.com')).not.toBeInTheDocument()
   })
 
-  it('opens the staff record with the staff actions', async () => {
+  it('opens the staff record as one modal with three tabs', async () => {
     render(<PeoplePage />)
     await openStaffRecord('Liz')
-    expect(await screen.findByText('Link their account')).toBeInTheDocument()
-    expect(screen.getByText('View portal')).toBeInTheDocument()
-    expect(screen.getByText('Employment')).toBeInTheDocument()
-    expect(screen.getByText('Edit profile')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Employment' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Account' })).toBeInTheDocument()
+    // A placeholder's synthetic email is not offered for editing.
+    expect(screen.getByText(/No login yet\. Link their account on the Account tab/)).toBeInTheDocument()
   })
 
-  it('links a placeholder account via the modal', async () => {
+  it('links a placeholder account on the Account tab', async () => {
     api.post.mockResolvedValueOnce({ data: { linked: 'invited', email_sent: true } })
     render(<PeoplePage />)
     await openStaffRecord('Liz')
-    fireEvent.click(await screen.findByText('Link their account'))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Account' }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'liz@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
     await waitFor(() =>
@@ -158,14 +161,28 @@ describe('Staff on the People table', () => {
     )
   })
 
-  it('surfaces a link refusal in the modal', async () => {
+  it('surfaces a link refusal on the Account tab', async () => {
     api.post.mockRejectedValueOnce({ response: { data: { error: 'This email belongs to a student account' } } })
     render(<PeoplePage />)
     await openStaffRecord('Liz')
-    fireEvent.click(await screen.findByText('Link their account'))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Account' }))
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'kid@gmail.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Link account' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('This email belongs to a student account')
+  })
+
+  it('the Employment tab saves position and hours where StaffProfileModal used to', async () => {
+    api.put = vi.fn(() => Promise.resolve({ data: {} }))
+    render(<PeoplePage />)
+    await openStaffRecord('Jane Doe')
+    fireEvent.click(await screen.findByRole('tab', { name: 'Employment' }))
+    fireEvent.change(await screen.findByLabelText('Position'), { target: { value: 'Art teacher' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save employment' }))
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/api/sis/staff-admin/profiles/s1', expect.objectContaining({
+        position: 'Art teacher', organization_id: 'org-1',
+      })),
+    )
   })
 
   it('surfaces a backend error in the modal', async () => {

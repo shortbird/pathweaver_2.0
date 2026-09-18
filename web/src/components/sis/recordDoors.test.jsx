@@ -5,8 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RecordDoorsProvider, useRecordDoors } from './RecordDoors'
 
 /**
- * RecordDoors: the console's one mount of a student's record (M13a) and of a
- * family's (M13b).
+ * RecordDoors: the console's one mount of a student's record (M13a), a
+ * family's (M13b) and a staff member's (M13c).
  *
  * Any page, panel or roster calls openStudent with a row it holds or just an
  * id; the provider fetches the person for an id, mounts the one modal, and
@@ -46,6 +46,20 @@ vi.mock('../../pages/sis/FamilyDetailModal', () => ({
     </div>
   ),
 }))
+
+vi.mock('./StaffDetailModal', () => ({
+  default: ({ staff, initialTab, onSaved }) => (
+    <div>
+      <p>STAFF {staff.name} ({staff.id}) on {initialTab} as {(staff.roles || []).join('+')}</p>
+      <button onClick={onSaved}>save staff</button>
+    </div>
+  ),
+}))
+
+const StaffOpener = ({ arg, tab, onSaved }) => {
+  const { openStaff } = useRecordDoors()
+  return <button onClick={() => openStaff(arg, { tab, onSaved })}>open staff</button>
+}
 
 const Opener = ({ arg, onSaved }) => {
   const { openStudent } = useRecordDoors()
@@ -150,6 +164,21 @@ describe('RecordDoors', () => {
     fireEvent.click(screen.getByText('open family'))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('That family is not in this school'))
     expect(screen.queryByText(/FAMILY/)).not.toBeInTheDocument()
+  })
+
+  it('opens a staff record from a roster row, in the staff shape, on the asked-for tab', async () => {
+    const onSaved = vi.fn()
+    render(
+      <RecordDoorsProvider>
+        <StaffOpener arg={{ student_id: 't1', name: 'Kate Myers', roles: ['advisor', 'parent'], joined_at: '2026-01-01' }}
+          tab="employment" onSaved={onSaved} />
+      </RecordDoorsProvider>,
+    )
+    fireEvent.click(screen.getByText('open staff'))
+    // Only the staff roles, and `id` where the roster says `student_id`.
+    expect(await screen.findByText('STAFF Kate Myers (t1) on employment as advisor')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('save staff'))
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
 
   it('is a closed door outside the provider', () => {

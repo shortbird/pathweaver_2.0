@@ -8,6 +8,8 @@ import { queryKeys } from '../../utils/queryKeys'
 import { useSisOrg } from '../../pages/sis/useSisOrg'
 import StudentDetailModal from '../../pages/sis/StudentDetailModal'
 import FamilyDetailModal from '../../pages/sis/FamilyDetailModal'
+import StaffDetailModal from './StaffDetailModal'
+import { asStaffRow } from '../../pages/sis/people/peopleFilters'
 import { RecordDoorsContext, useRecordDoors } from './recordDoorsContext'
 
 /**
@@ -29,6 +31,8 @@ import { RecordDoorsContext, useRecordDoors } from './recordDoorsContext'
  *   openStudent(userId, { onSaved })          // an id: the record is fetched first
  *   openFamily(householdId, { tab, onSaved }) // an id or a household row; tab
  *                                             // 'billing' lands on Billing
+ *   openStaff(row, { tab, onSaved, onViewPortal }) // a roster row (or the
+ *                                             // staff endpoint's row shape)
  *
  * A family opens over a student and a student over a family (a member's name
  * in the family record, the family's name in the student's), which is why
@@ -91,8 +95,13 @@ export const RecordDoorsProvider = ({ children }) => {
   // comes from the families query, so a save that invalidates it refreshes
   // the open record; the roster feeds the add-member picker.
   const [family, setFamily] = useState(null)
+  // { row, tab, onSaved, onViewPortal } while a staff record is open. The
+  // row is what the roster (or the staff endpoint) gave the opener; once the
+  // roster query holds the person, the record reads them from there, so a
+  // save that invalidates it refreshes the open record.
+  const [staff, setStaff] = useState(null)
   const { data: familyData } = useSisHouseholds(orgId, { enabled: Boolean(orgId && family) })
-  const { data: roster = [] } = useSisRoster(orgId, { enabled: Boolean(orgId && family) })
+  const { data: roster = [] } = useSisRoster(orgId, { enabled: Boolean(orgId && (family || staff)) })
   const household = family ? (familyData?.households || []).find((h) => h.id === family.id) : null
   const memberOptions = useMemo(
     () => roster.map((r) => ({ id: r.student_id, name: r.name, email: r.email, is_student: r.is_student })),
@@ -121,9 +130,31 @@ export const RecordDoorsProvider = ({ children }) => {
     family?.onSaved?.()
   }, [orgId, queryClient, family])
 
+  const openStaff = useCallback((row, { tab = 'profile', onSaved, onViewPortal } = {}) => {
+    if (!row) return
+    setStaff({ row: row.id ? row : asStaffRow(row), tab, onSaved, onViewPortal })
+  }, [])
+  const closeStaff = useCallback(() => setStaff(null), [])
+  const staffRow = useMemo(() => {
+    if (!staff) return null
+    const fresh = roster.find((r) => r.student_id === staff.row.id)
+    return fresh ? asStaffRow(fresh) : staff.row
+  }, [staff, roster])
+  const savedStaff = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.roster(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
+    staff?.onSaved?.()
+  }, [orgId, queryClient, staff])
+  const removedStaff = useCallback(() => {
+    setStaff(null)
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.roster(orgId) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.sis.staff(orgId) })
+    staff?.onSaved?.()
+  }, [orgId, queryClient, staff])
+
   const value = useMemo(
-    () => ({ openStudent, closeStudent, openFamily, closeFamily }),
-    [openStudent, closeStudent, openFamily, closeFamily],
+    () => ({ openStudent, closeStudent, openFamily, closeFamily, openStaff, closeStaff }),
+    [openStudent, closeStudent, openFamily, closeFamily, openStaff, closeStaff],
   )
 
   return (
@@ -135,6 +166,10 @@ export const RecordDoorsProvider = ({ children }) => {
       {household && (
         <FamilyDetailModal household={household} orgId={orgId} members={memberOptions}
           initialTab={family.tab} onClose={closeFamily} onSaved={savedFamily} />
+      )}
+      {staffRow && (
+        <StaffDetailModal orgId={orgId} staff={staffRow} initialTab={staff.tab}
+          onClose={closeStaff} onSaved={savedStaff} onViewPortal={staff.onViewPortal} onRemoved={removedStaff} />
       )}
     </RecordDoorsContext.Provider>
   )

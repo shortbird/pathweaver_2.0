@@ -200,3 +200,14 @@ export const sortRows = (rows, sort) => {
     return cmp * dir
   })
 }
+
+/**
+ * A roster row in the shape the staff record reads (the staff endpoint's):
+ * `id` for `student_id`, only the staff roles, `created_at` for `joined_at`.
+ */
+export const asStaffRow = (r) => ({
+  ...r,
+  id: r.student_id,
+  roles: rolesOf(r).filter((x) => STAFF_ROLES.includes(x)),
+  created_at: r.joined_at,
+})

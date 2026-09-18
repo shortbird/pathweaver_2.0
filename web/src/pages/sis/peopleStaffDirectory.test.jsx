@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RecordDoorsProvider } from '../../components/sis/RecordDoors'
 
 /**
  * Staff on the one People table: invite tracking and the duplicate merge.
@@ -23,11 +24,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 // QueryClient. A fresh client per render keeps one test's cache out of the
 // next one's; retry:false makes a failed query fail the assertion rather than
 // hang through three backoff rounds.
+// RecordDoorsProvider is the console's one mount of the staff record
+// (SisLayout renders it); a page rendered bare opens nothing without it.
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return rtlRender(
     <QueryClientProvider client={client}>
-      <MemoryRouter>{withConfirm(ui)}</MemoryRouter>
+      <MemoryRouter><RecordDoorsProvider>{withConfirm(ui)}</RecordDoorsProvider></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -126,7 +129,7 @@ describe('staff on the table', () => {
     const row = screen.getByText('Nate Vance').closest('tr')
     fireEvent.click(row.querySelector('button[aria-label="Actions"]'))
     fireEvent.click(screen.getByText('Staff record'))
-    expect(await screen.findByText('Edit profile')).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'Employment' })).toBeInTheDocument()
   })
 })
 

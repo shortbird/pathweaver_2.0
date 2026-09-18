@@ -11,9 +11,6 @@ import { useSisOrg } from './useSisOrg'
 import SisNewUserModal from '../../components/sis/SisNewUserModal'
 import PeopleExportModal from '../../components/sis/PeopleExportModal'
 import TeacherModal from '../../components/sis/TeacherModal'
-import StaffDetailModal from '../../components/sis/StaffDetailModal'
-import LinkStaffAccountModal from '../../components/sis/LinkStaffAccountModal'
-import StaffProfileModal from '../../components/sis/StaffProfileModal'
 import { startMasquerade } from '../../services/masqueradeService'
 import { switchSurfaceInApp } from '../../utils/appSurface'
 import { setPreviewTeacher } from './teacherPreview'
@@ -22,7 +19,7 @@ import PeopleTable from './people/PeopleTable'
 import { RemovePersonModal } from './people/RemovePersonModal'
 import StaffDuplicatesBanner from './people/StaffDuplicatesBanner'
 import {
-  EMPTY_FILTERS, applyFilters, sortRows, isStaff, rolesOf, STAFF_ROLES,
+  EMPTY_FILTERS, applyFilters, sortRows, isStaff, asStaffRow,
 } from './people/peopleFilters'
 import PopMenu from '../../components/sis/ui/PopMenu'
 import { useRecordDoors } from '../../components/sis/RecordDoors'
@@ -67,17 +64,9 @@ const writeFilters = (params, f) => {
   return next
 }
 
-// StaffDetailModal and friends read the staff endpoint's row shape.
-const asStaffRow = (r) => ({
-  ...r,
-  id: r.student_id,
-  roles: rolesOf(r).filter((x) => STAFF_ROLES.includes(x)),
-  created_at: r.joined_at,
-})
-
 const PeoplePage = () => {
   const { orgId, canViewAs } = useSisOrg()
-  const { openStudent, openFamily } = useRecordDoors()
+  const { openStudent, openFamily, openStaff } = useRecordDoors()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
@@ -87,10 +76,6 @@ const PeoplePage = () => {
   const { data: roster = [], isLoading: loading, refetch } = useSisRoster(orgId)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
   const [menuFor, setMenuFor] = useState(null)
-  const [staffFor, setStaffFor] = useState(null)        // Staff record
-  const [editingStaff, setEditingStaff] = useState(null)
-  const [linking, setLinking] = useState(null)
-  const [employment, setEmployment] = useState(null)
   const [removing, setRemoving] = useState(null)
   const [adding, setAdding] = useState(null)            // 'person' | 'teacher' | 'family' | null
   const [addMenu, setAddMenu] = useState(false)
@@ -186,7 +171,8 @@ const PeoplePage = () => {
     // The backend rule (caller_may_masquerade) has let an org admin open a
     // student of their own school since August; only this gate was narrower.
     s.is_student && canViewAs && { label: 'View as student', onClick: () => viewAsStudent(s) },
-    isStaff(s) && { label: 'Staff record', onClick: () => setStaffFor(s) },
+    isStaff(s) && { label: 'Staff record', onClick: () => openStaff(s, {
+      onSaved: refresh, onViewPortal: () => openPortalPreview(s) }) },
     isStaff(s) && !s.is_placeholder && { label: 'View their portal', onClick: () => openPortalPreview(s) },
     s.household_id && { label: 'Open family', onClick: () => openFamily(s.household_id, { onSaved: refresh }) },
     { label: 'Remove from school…', danger: true, onClick: () => setRemoving(s) },
@@ -203,7 +189,6 @@ const PeoplePage = () => {
     } catch { toast.error('Could not create family') }
   }
 
-  const staffRow = staffFor ? asStaffRow(staffFor) : null
   const placeholders = useMemo(() => roster.filter((r) => r.is_placeholder).map(asStaffRow), [roster])
 
   return (
@@ -289,38 +274,13 @@ const PeoplePage = () => {
         </p>
       )}
 
-      {staffRow && (
-        <StaffDetailModal
-          orgId={orgId}
-          staff={staffRow}
-          onClose={() => setStaffFor(null)}
-          onEdit={() => { setEditingStaff(staffRow); setStaffFor(null) }}
-          onEmployment={() => { setEmployment(staffRow); setStaffFor(null) }}
-          onLink={() => { setLinking(staffRow); setStaffFor(null) }}
-          onViewPortal={() => openPortalPreview(staffFor)}
-          onRemoved={() => { setStaffFor(null); refresh() }}
-          onRolesChanged={() => { setStaffFor(null); refresh() }}
-        />
-      )}
-
-      {(adding === 'teacher' || editingStaff) && (
+      {adding === 'teacher' && (
         <TeacherModal
           orgId={orgId}
-          initial={editingStaff}
           placeholders={placeholders}
-          onClose={() => { setAdding(null); setEditingStaff(null) }}
-          onSaved={() => { setAdding(null); setEditingStaff(null); refresh() }}
+          onClose={() => setAdding(null)}
+          onSaved={() => { setAdding(null); refresh() }}
         />
-      )}
-
-      {linking && (
-        <LinkStaffAccountModal orgId={orgId} staff={linking}
-          onClose={() => setLinking(null)} onLinked={() => { setLinking(null); refresh() }} />
-      )}
-
-      {employment && (
-        <StaffProfileModal orgId={orgId} staff={employment}
-          onClose={() => setEmployment(null)} onSaved={() => { setEmployment(null); refresh() }} />
       )}
 
       {adding === 'person' && (

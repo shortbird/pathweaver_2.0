@@ -541,9 +541,9 @@
           "dirs": ["pages/sis", "components/sis"]
         }
       },
-      "baseline": { "web": 34 },
-      "measured": "2026-09-17",
-      "lowered_by": "M14e",
+      "baseline": { "web": 33 },
+      "measured": "2026-09-18",
+      "lowered_by": "M13c",
       "use_instead": "<Input> / <FormField> from components/ui. A page that needs a variant adds it there, once."
     },
     {
@@ -594,9 +594,9 @@
       "forbid": {
         "web": { "pattern": "bg-gradient-to-r from-optio-purple", "dirs": ["pages/sis", "components/sis"] }
       },
-      "baseline": { "web": 94 },
-      "measured": "2026-09-17",
-      "lowered_by": "M14e",
+      "baseline": { "web": 88 },
+      "measured": "2026-09-18",
+      "lowered_by": "M13c",
       "use_instead": "<Button variant=\"primary\"> or the .btn-primary class; see docs/design/DESIGN_SYSTEM.md."
     },
     {
@@ -699,13 +699,13 @@
     },
     {
       "id": "staff_phone_edit",
-      "means": "A staff member's phone number being edited. Four screens edited it (the teacher form, the employment profile, the teacher dashboard's prompt, My Profile); since M13c (2026-09-17) it is the staff record for anybody else and My Profile for yourself, and the dashboard's prompt is a door to My Profile.",
-      "owner": { "web": ["components/sis/StaffDetailModal.jsx", "pages/sis/MyProfilePage.jsx"] },
+      "means": "A staff member's phone number being edited. Four screens edited it (the teacher form, the employment profile, the teacher dashboard's prompt, My Profile); since M13c (2026-09-17) it is the staff record's Profile tab for anybody else and My Profile for yourself, and the dashboard's prompt is a door to My Profile.",
+      "owner": { "web": ["components/sis/staffRecord/ProfilePanel.jsx", "pages/sis/MyProfilePage.jsx"] },
       "forbid": {
         "web": {
           "pattern": "(value=\\{(form|formData)\\.phone_number\\}|setPhone\\(e\\.target\\.value\\))",
           "dirs": ["pages/sis", "components/sis"],
-          "exempt": ["pages/sis/StudentDetailModal.jsx", "pages/sis/FamilyDetailModal.jsx", "components/sis/StaffDetailModal.jsx", "pages/sis/MyProfilePage.jsx"],
+          "exempt": ["pages/sis/StudentDetailModal.jsx", "pages/sis/FamilyDetailModal.jsx", "pages/sis/MyProfilePage.jsx", "components/sis/staffRecord/ProfilePanel.jsx"],
           "unit": "files"
         }
       },
@@ -749,6 +749,22 @@
       "measured": "2026-09-18",
       "lowered_by": "M13b",
       "use_instead": "const { openFamily } = useRecordDoors(); openFamily(householdId, { tab: 'billing', onSaved }). Never mount FamilyDetailModal on a page and never link to /people?open= from inside the console; the one mount is RecordDoors.jsx (baseline 1)."
+    },
+    {
+      "id": "staff_record_mount",
+      "means": "Where a staff member's record (StaffDetailModal) is mounted. Until M13c (2026-09-18) it was a summary card whose footer opened three more dialogs (TeacherModal to edit, StaffProfileModal for employment, LinkStaffAccountModal to link a login) and PeoplePage mounted the stack of four; now the record has Profile, Employment and Account tabs, TeacherModal only adds, and components/sis/RecordDoors.jsx mounts the record once beside the student's and the family's.",
+      "owner": { "web": ["components/sis/RecordDoors.jsx"] },
+      "forbid": {
+        "web": {
+          "pattern": "<(StaffDetailModal|StaffProfileModal|LinkStaffAccountModal)\\b|<TeacherModal\\b[^>]*\\binitial=",
+          "dirs": ["pages", "components"],
+          "exempt": []
+        }
+      },
+      "baseline": { "web": 1 },
+      "measured": "2026-09-18",
+      "lowered_by": "M13c",
+      "use_instead": "const { openStaff } = useRecordDoors(); openStaff(row, { tab: 'employment' | 'account', onSaved, onViewPortal }). Never mount StaffDetailModal on a page and never give TeacherModal an `initial` to edit; the one mount is RecordDoors.jsx (baseline 1)."
     },
     {
       "id": "household_member_write",

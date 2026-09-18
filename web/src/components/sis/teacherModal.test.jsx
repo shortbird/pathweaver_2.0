@@ -70,20 +70,6 @@ describe('TeacherModal email-only add', () => {
     expect(screen.getByText(/add their\s+own name and bio/i)).toBeInTheDocument()
   })
 
-  it('still collects name and bio when editing someone who already has an account', async () => {
-    render(
-      <TeacherModal
-        orgId="org-1"
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-        initial={{ id: 's1', first_name: 'Jane', last_name: 'Doe', email: 'jane@real.com', bio: 'Coach' }}
-      />,
-    )
-    expect(await screen.findByLabelText(/first name/i)).toHaveValue('Jane')
-    expect(screen.getByLabelText(/last name/i)).toHaveValue('Doe')
-    expect(screen.getByLabelText(/bio/i)).toHaveValue('Coach')
-  })
-
   it('offers the unlinked placeholders by name so their classes are not stranded', async () => {
     // The old name-match guard cannot fire without a name, so this picker is
     // what stops an admin creating a duplicate and orphaning a placeholder's

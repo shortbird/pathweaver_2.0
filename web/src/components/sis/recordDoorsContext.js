@@ -10,7 +10,9 @@ export const RecordDoorsContext = createContext(null)
 
 // Outside the provider (tests render pages bare) the doors are closed.
 export const CLOSED_DOORS = {
-  openStudent: () => {}, closeStudent: () => {}, openFamily: () => {}, closeFamily: () => {},
+  openStudent: () => {}, closeStudent: () => {},
+  openFamily: () => {}, closeFamily: () => {},
+  openStaff: () => {}, closeStaff: () => {},
 }
 
 export const useRecordDoors = () => useContext(RecordDoorsContext) || CLOSED_DOORS

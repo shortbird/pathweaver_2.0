@@ -41,9 +41,9 @@ const KATE = {
   is_placeholder: false, login_pending: false, class_count: 2, last_active: null,
 }
 
+// The role editor is on the record's Profile tab (M13c); saving calls onSaved.
 const open = (staff = KATE, props = {}) => render(
-  <StaffDetailModal orgId="org-1" staff={staff} onClose={() => {}} onEdit={() => {}}
-    onEmployment={() => {}} onLink={() => {}} onViewPortal={() => {}} {...props} />,
+  <StaffDetailModal orgId="org-1" staff={staff} onClose={() => {}} onViewPortal={() => {}} {...props} />,
 )
 
 beforeEach(() => {
@@ -68,7 +68,7 @@ describe('setting a staff role', () => {
 
   it('makes a teacher a campus coordinator', async () => {
     const onRolesChanged = vi.fn()
-    open(KATE, { onRolesChanged })
+    open(KATE, { onSaved: onRolesChanged })
     fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Campus Coordinator/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: /Teacher/i }))  // drop the old one

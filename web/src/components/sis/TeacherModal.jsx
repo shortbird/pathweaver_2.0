@@ -5,12 +5,12 @@ import api from '../../services/api'
 import { ModalOverlay } from '../ui'
 
 /**
- * TeacherModal — add or edit a teacher on the SIS Staff page.
+ * TeacherModal — add a teacher from the People page's + Add menu.
  *
- * Collects: first/last name, email, bio, a photo, and (when adding) an optional
- * onboarding checklist to assign so the teacher lands in the portal with it
- * ready. Creating a teacher makes the account (org advisor) and sends them a
- * set-password email; the photo is uploaded separately once the account exists.
+ * Collects an email, a photo, and an optional onboarding checklist to assign
+ * so the teacher lands in the portal with it ready. Creating a teacher makes
+ * the account (org advisor) and sends them a set-password email; the photo is
+ * uploaded separately once the account exists.
  *
  * Adding needs ONLY an email (2026-07-29): the teacher fills in their own name
  * and bio when they set their password, so an admin never has to know how
@@ -23,22 +23,18 @@ import { ModalOverlay } from '../ui'
  * account", which is what carries their classes across. The backend match still
  * runs for callers that do send a name.
  *
- * Pass `initial` (a staff row from /api/sis/staff) to edit an existing member.
+ * This dialog only adds. Editing a teacher -- name, email, bio, photo -- is
+ * the Profile tab of their record (StaffDetailModal) since M13c (2026-09-18);
+ * it used to be this form's second mode, a dialog opened from the record.
  */
 
 const inputClass =
   'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent'
 
-export default function TeacherModal({ orgId, onClose, onSaved, initial = null, placeholders = [] }) {
-  const isEdit = Boolean(initial)
-  const [formData, setFormData] = useState({
-    first_name: initial?.first_name || '',
-    last_name: initial?.last_name || '',
-    email: initial?.email || '',
-    bio: initial?.bio || '',
-  })
+export default function TeacherModal({ orgId, onClose, onSaved, placeholders = [] }) {
+  const [formData, setFormData] = useState({ first_name: '', last_name: '', email: '', bio: '' })
   const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(initial?.avatar_url || null)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [templates, setTemplates] = useState([])
   const [onboardingTemplateId, setOnboardingTemplateId] = useState('')
   const [placeholderMatch, setPlaceholderMatch] = useState(null)
@@ -56,23 +52,10 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
     }
   }, [photoFile, photoPreview])
 
-  useEffect(() => {
-    if (initial) {
-      setFormData({
-        first_name: initial.first_name || '',
-        last_name: initial.last_name || '',
-        email: initial.email || '',
-        bio: initial.bio || '',
-      })
-      setPhotoPreview(initial.avatar_url || null)
-    }
-  }, [initial])
-
   // Load the org's staff onboarding checklists so the admin can assign one at
-  // add-time (the whole point of wiring onboarding into the flow). Only when
-  // adding — editing a teacher doesn't re-run onboarding.
+  // add-time (the whole point of wiring onboarding into the flow).
   useEffect(() => {
-    if (isEdit || !orgId) return
+    if (!orgId) return
     let active = true
     api.get(`/api/sis/staff-admin/onboarding/templates?organization_id=${orgId}`)
       .then((r) => {
@@ -85,7 +68,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
       })
       .catch(() => { /* non-fatal: the picker just stays empty */ })
     return () => { active = false }
-  }, [isEdit, orgId])
+  }, [orgId])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -198,31 +181,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
       return
     }
     // Adding a teacher needs nothing but an email — they supply their own name
-    // and bio when they set their password. Editing still requires a name,
-    // because by then there is one to keep.
-    if (isEdit && (!formData.first_name.trim() || !formData.last_name.trim())) {
-      setError('First and last name are required')
-      return
-    }
-    if (isEdit) {
-      setSubmitting(true)
-      try {
-        await api.patch(`/api/sis/staff/${initial.id}`, {
-          first_name: formData.first_name.trim(),
-          last_name: formData.last_name.trim(),
-          email: formData.email.trim(),
-          bio: formData.bio,
-          organization_id: orgId,
-        })
-        if (photoFile) await uploadPhoto(initial.id)
-        toast.success('Teacher updated')
-        onSaved()
-      } catch (err) {
-        setError(err?.response?.data?.error || 'Could not save teacher')
-        setSubmitting(false)
-      }
-      return
-    }
+    // and bio when they set their password.
     // The admin named who this is on the staff list — link rather than create,
     // which is the whole difference between Julia keeping her twelve classes
     // and a second Julia starting from zero.
@@ -360,7 +319,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
             <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center">
               <UserCircleIcon className="w-6 h-6 text-white" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900">{isEdit ? 'Edit Teacher' : 'Add Teacher'}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Add Teacher</h2>
           </div>
           <button
             type="button"
@@ -399,18 +358,16 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
               </label>
               <input type="email" id="email" name="email" value={formData.email}
                 onChange={handleChange} placeholder="teacher@school.org" className={inputClass}
-                required autoFocus={!isEdit} />
-              {!isEdit && (
-                <p className="text-xs text-gray-400 mt-1">
-                  That’s all you need. They’ll get an email to set their password, and add their
-                  own name and bio when they do.
-                </p>
-              )}
+                required autoFocus />
+              <p className="text-xs text-gray-400 mt-1">
+                That’s all you need. They’ll get an email to set their password, and add their
+                own name and bio when they do.
+              </p>
             </div>
 
-            {/* No phone field here: a staff member's number is edited on their
-                record (StaffDetailModal) or by themselves on My Profile, one
-                place each (M13c). */}
+            {/* No name, bio or phone fields here: the teacher supplies their
+                name and bio when they set their password, and everything about
+                them is edited on their record afterwards (M13c). */}
 
             {/* Replaces the old name-match guard: with no name typed we can't
                 detect the duplicate, so the people it could be are offered
@@ -419,7 +376,7 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
                 created!" — the previous version of this said the same thing in
                 prose and sent the admin to another screen to act on it. Now the
                 choice is on the form that would otherwise make the duplicate. */}
-            {!isEdit && placeholders.length > 0 && (
+            {placeholders.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                 <label htmlFor="link-placeholder" className="block text-sm font-medium text-amber-900 mb-1">
                   Is this someone already on the staff list?
@@ -445,64 +402,32 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
               </div>
             )}
 
-            {/* Name and bio are the teacher's to fill in, so these only appear
-                when editing someone who already has an account. */}
-            {isEdit && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-1">
-                      First Name <span className="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="first_name" name="first_name" value={formData.first_name}
-                      onChange={handleChange} className={inputClass} required />
-                  </div>
-                  <div>
-                    <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-1">
-                      Last Name <span className="text-red-500">*</span>
-                    </label>
-                    <input type="text" id="last_name" name="last_name" value={formData.last_name}
-                      onChange={handleChange} className={inputClass} required />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-                  <textarea id="bio" name="bio" value={formData.bio} onChange={handleChange}
-                    placeholder="A short introduction families will see"
-                    rows={4} className={`${inputClass} resize-none`} />
-                </div>
-              </>
-            )}
-
-            {/* Onboarding checklist (add only) */}
-            {!isEdit && (
-              <div>
-                <label htmlFor="onboarding_template" className="block text-sm font-medium text-gray-700 mb-1">
-                  Onboarding checklist
-                </label>
-                {templates.length ? (
-                  <>
-                    <select id="onboarding_template" value={onboardingTemplateId}
-                      onChange={(e) => setOnboardingTemplateId(e.target.value)} className={inputClass}>
-                      <option value="">No onboarding checklist</option>
-                      {templates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}{t.role_type ? ` (${t.role_type})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Assigned when the teacher is added; they’ll see it in their portal.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xs text-gray-400">
-                    No staff onboarding checklists yet. Create one on the Onboarding page to assign it here.
+            {/* Onboarding checklist */}
+            <div>
+              <label htmlFor="onboarding_template" className="block text-sm font-medium text-gray-700 mb-1">
+                Onboarding checklist
+              </label>
+              {templates.length ? (
+                <>
+                  <select id="onboarding_template" value={onboardingTemplateId}
+                    onChange={(e) => setOnboardingTemplateId(e.target.value)} className={inputClass}>
+                    <option value="">No onboarding checklist</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.role_type ? ` (${t.role_type})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Assigned when the teacher is added; they’ll see it in their portal.
                   </p>
-                )}
-              </div>
-            )}
+                </>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  No staff onboarding checklists yet. Create one on the Onboarding page to assign it here.
+                </p>
+              )}
+            </div>
 
             {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
           </div>
@@ -516,7 +441,6 @@ export default function TeacherModal({ orgId, onClose, onSaved, initial = null, 
             <button type="submit" disabled={submitting}
               className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity">
               {submitting ? 'Saving...'
-                : isEdit ? 'Save changes'
                 : linkTarget ? `Link ${placeholders.find((p) => p.id === linkTarget)?.name || 'their'} account`
                 : 'Add Teacher'}
             </button>
