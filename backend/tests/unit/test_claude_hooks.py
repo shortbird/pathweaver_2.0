@@ -298,7 +298,11 @@ def test_fast_gate_catches_an_undefined_name(tmp_path_factory):
     try:
         result = run_hook('fast_gate.py', _edit_event(target))
         assert result.returncode == BLOCK, result.stdout + result.stderr
-        assert 'undefined name' in result.stderr
+        # Case-folded: ruff 0.15 capitalized F821's message ("Undefined name"),
+        # and both CI and a local install take whatever `pip install ruff`
+        # gives them. The assertion is about the finding reaching the author,
+        # not about ruff's house style this month.
+        assert 'undefined name' in result.stderr.lower()
     finally:
         target.unlink(missing_ok=True)
 
