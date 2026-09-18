@@ -782,6 +782,34 @@
       "use_instead": "sis_person_service.join_household(household_id, guardians=[...], students=[...], primary_guardian=..., guardian_relationship=...) -- a script passes its own client=."
     },
     {
+      "id": "student_attach",
+      "means": "Putting a person in a family at a school: the guardian's household found or made, the guardian in it, the student given the org's student shape and parent links, the membership row, the staged directive applied once. Eleven doors each did some of these steps in their own order; since M16's second half (2026-09-18) services/sis_attach_service.py does them all (household_for_guardian, attach_guardian, attach_student, attach_family) and every door -- the funnel, the learning app's admin add-student, the People page's add-member, the three scripts -- calls it.",
+      "owner": { "backend": ["services/sis_attach_service.py"] },
+      "forbid": {
+        "backend": {
+          "pattern": "\\b(join_household|attach_student_to_org|link_guardian_to_students)\\(",
+          "dirs": ["routes", "services", "scripts"],
+          "exempt": ["services/sis_attach_service.py", "services/sis_person_service.py", "services/sis_service.py"]
+        }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-18",
+      "lowered_by": "M16",
+      "use_instead": "sis_attach_service.attach_student(org_id, student_id, household_id, source=...) / attach_guardian(...) / attach_family(org_id, guardian_id, student_ids, household_fields=..., directive=..., source=...). Never call join_household or attach_student_to_org from a route or a script; the service does the steps in the one order."
+    },
+    {
+      "id": "advisor_role_grant",
+      "means": "An existing account becoming a teacher at a school while keeping its other roles (a parent who teaches stays a parent). grant_teacher_role and link_staff_account's merge each spelled the role write and the access-added email; since M16's second half (2026-09-18) sis_service.grant_advisor_role is the one write and _send_access_added the one email.",
+      "owner": { "backend": ["services/sis_service.py"] },
+      "forbid": {
+        "backend": { "pattern": "['\"]org_role['\"]\\s*:\\s*['\"]advisor['\"]", "dirs": ["routes", "services", "scripts"] }
+      },
+      "baseline": { "backend": 0 },
+      "measured": "2026-09-18",
+      "lowered_by": "M16",
+      "use_instead": "sis_service.grant_advisor_role(org_id, target, copy_from=..., bio=...) for an existing account; sis_service.create_org_teacher for a new one. Never write org_role='advisor' elsewhere."
+    },
+    {
       "id": "duplicate_detection",
       "means": "'Is this the same person as that one.' Until M16 (2026-09-17) likely_same_student lived in sis_service and _match_existing_dependent in registration_accounts_service; now services/person_matching.py holds both -- deliberately two rules (a fuzzy look-alike for the office to judge; an exact match inside the parent's own dependents for the funnel to reuse) with one home and one explanation of why they differ. The old names stay as aliases.",
       "owner": { "backend": ["services/person_matching.py"] },

@@ -46,7 +46,7 @@ and patterns instead.
 | M13 One detail surface per entity | 2 | shipped: 13a, 13b, 13c (one mount each, `RecordDoors`), 13d, 13f (M8a) | see git log (`consolidate/M13-detail-surfaces`, `consolidate/M13a-student-surface`, `consolidate/M13b-family-surface`, `consolidate/M13c-staff-record`) | `class_form_mount` 1, `staff_phone_edit` 0, `student_record_mount` 1, `family_record_mount` 1, `staff_record_mount` 1; `input_recipe` 33, `brand_gradient` 88 |
 | M14c-e Pickers, modals, inputs, tables | 2 | (c), (d) shipped; (e) the sort header shipped, inputs (34) and gradients (94) are page-by-page and open | see git log (`consolidate/M14c-people-picker`, `consolidate/M14d-modal-shell`, `consolidate/M14e-sort-header`) | `person_picker` 0, `modal_shell` 0, `sort_header` 0, `input_recipe` 34, `brand_gradient` 94 |
 | M19 Parent surface parity | 2 | shipped (a, b, d; c's mobile half shipped 2026-09-18, the server's two old shapes retire once that build is on every phone; e not merged) | see git log (`consolidate/M19-parent-parity`, `consolidate/M19c-absence-selections`) | `route_rule_unique` 0; `absence_request_shape` stays 1 until the old shapes retire |
-| M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
+| M16 One attach path | 3 | shipped: `sis_attach_service` behind every door (funnel, admin add-student, People add-member, three scripts), one advisor-role write for the two staff-linking paths; the `+ Add` menu stays three creation dialogs behind one door (see As shipped) | see git log (`consolidate/M16-one-attach`, `consolidate/M16-attach-service`) | `household_member_write` 0, `duplicate_detection` 0, new `student_attach` 0, `advisor_role_grant` 0 |
 | M8b Time-block table | 3 | shipped: `sis_time_blocks` rows with ids, `class_meetings.block_id`, migration applied to prod + staging 2026-09-18 (iCreate 6 blocks, 184 meetings stamped) | see git log (`consolidate/M8b-one-blocks-reader`, `consolidate/M8b-time-block-table`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 | M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
@@ -1424,6 +1424,46 @@ belong to a daytime session with a staging run. Routes `.table()` 2263 → 2257.
 Verify at :3000: People > a family > Add member (student and guardian) and the
 duplicate warning still fires; the funnel's family step still lands a
 household (staging).
+
+**As shipped, second half (2026-09-18).** `services/sis_attach_service.py` is the
+one path: `household_for_guardian` (the family a parent already has here -- one they
+are a non-student member of, else one they are the primary contact of; the funnel and
+the learning-app admin path each had a copy, now
+`HouseholdRepository.household_for_guardian`), `attach_guardian` (membership row plus
+parent links to the students already there), `attach_student` (the org's student
+shape and parent links FIRST, so a refused account -- another school's, not a student
+-- is never a member the roster cannot see; then the membership row) and
+`attach_family` (household found or made from the fields given, a found one keeping
+its name and org while the rest is filled from the fresh submission; the guardian in
+it as primary contact; each student in it; the staged directive applied once). Every
+door calls it: the funnel's family step (`attach_family` with the directive), the
+learning-app admin's add-student (`attach_family`, its `_ensure_shared_household`
+deleted), the People page's add-member (`attach_student` / `attach_guardian`), and
+the three scripts under their own client (the Larson restore, the demo seed, the
+existing-accounts backfill). `attach_student_to_org`, `_ensure_parent_link` and
+`link_guardian_to_students` in `sis_service` take a `client` for that. Enrolling
+(`school_enrollments`) is deliberately not in the path: the funnel enrolls at
+completion, the People page's add-member never did. Staff linking: `grant_teacher_role`
+and `link_staff_account`'s merge each spelled "make this existing account a teacher
+here, keeping its other roles" and the access-added email; `sis_service.grant_advisor_role`
+and `_send_access_added` are the one write and the one email (the merge still refuses
+on its own terms -- a placeholder may merge into an account that is already a teacher,
+which the grant path refuses). Manifest rows `student_attach` (no `join_household` /
+`attach_student_to_org` / `link_guardian_to_students` call outside the service and the
+two definition files; scripts included) and `advisor_role_grant` (no `org_role:
+'advisor'` write outside `sis_service`). Routes `.table()` 2257 → 2248, services 1834
+→ 1833, repositories 582 → 585. `backend/tests/test_sis_attach_service.py` drives the
+service with a fake client and checks the order; the door tests assert each door
+reaches it. Landing note: the office's own "Add a child" on a family (`e39628e4`,
+another session, the same day) arrived with its own `HouseholdRepository.for_guardian`
+and `sis_person_service.place_child_in_family`; on the merge `for_guardian` became the
+one lookup behind `household_for_guardian`, and `place_child_in_family` a thin door
+onto `attach_student` (which takes the parent the child was created under as an extra
+guardian), so that twelfth door is on the path too. Not done, on purpose: the People page's `+ Add` menu stays one door over
+three dialogs (a person with a role, a teacher invite with the placeholder link and
+the two duplicate-match screens, a family name) -- they create three different
+things, and a kind switch inside one form would carry TeacherModal's decision screens
+into it, the nesting M13c just took out of the staff record.
 
 ### M8b — Time blocks as a table
 

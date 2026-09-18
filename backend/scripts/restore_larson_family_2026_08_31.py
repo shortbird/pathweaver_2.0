@@ -61,7 +61,7 @@ from dateutil.relativedelta import relativedelta  # noqa: E402
 from datetime import date  # noqa: E402
 
 from supabase import create_client  # noqa: E402
-from services import sis_person_service
+from services import sis_attach_service
 
 SUPABASE_URL = os.environ['SUPABASE_URL']
 SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ['SUPABASE_SERVICE_KEY']
@@ -216,10 +216,16 @@ def restore_household(client, parent_id, child_ids, apply_):
         return
     client.table('households').update(
         {'primary_contact_user_id': parent_id}).eq('id', HOUSEHOLD_ID).execute()
-    members = sis_person_service.join_household(
-        HOUSEHOLD_ID, guardians=[parent_id], primary_guardian=parent_id,
-        students=list(child_ids), client=client)
-    log(apply_, f"household {HOUSEHOLD_ID}: primary contact set, {len(members)} members")
+    # The one attach path (sis_attach_service, M16), under this script's client.
+    sis_attach_service.attach_guardian(ICREATE_ORG_ID, parent_id, HOUSEHOLD_ID, primary=True,
+                                       source='restore_larson', client=client)
+    attached = 0
+    for cid in child_ids:
+        res = sis_attach_service.attach_student(ICREATE_ORG_ID, cid, HOUSEHOLD_ID, source='restore_larson', client=client)
+        attached += 1 if res.get('attached') else 0
+        if not res.get('attached'):
+            log(apply_, f"child {cid} not attached: {res.get('error')}")
+    log(apply_, f"household {HOUSEHOLD_ID}: primary contact set, {1 + attached} members")
 
 
 def restore_links(client, parent_id, child_ids, apply_):

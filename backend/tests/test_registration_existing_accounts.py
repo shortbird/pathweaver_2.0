@@ -26,6 +26,7 @@ import pytest
 from flask import Flask
 
 from routes import registration_funnel as icr
+from services import sis_attach_service as attach
 from services import sis_service
 
 
@@ -290,23 +291,23 @@ class TestNameDobMatchesParentsOwnLinkedKid:
             admin, 'org1', 'tyler', 'Max', 'Tiberius', '2015-05-05') is None
 
 
-# ── _existing_household_for_parent (no duplicate households on re-registration) ─
+# ── household_for_guardian (no duplicate households on re-registration) ──────
+# The funnel's lookup moved into sis_attach_service (M16), which asks
+# HouseholdRepository.for_guardian (tests/test_sis_add_child.py pins the
+# query); these pin that the funnel's answer is the repository's.
 
 @pytest.mark.unit
 class TestExistingHouseholdForParent:
+    def _find(self, answer):
+        with patch('repositories.household_repository.HouseholdRepository') as repo_cls:
+            repo_cls.return_value.for_guardian.return_value = answer
+            return attach.household_for_guardian('org1', 'parent1', client=_FakeAdmin({}))
+
     def test_reuses_household_the_parent_guards(self):
-        admin = _FakeAdmin({'household_members': [{'household_id': 'h1'}],
-                            'households': [{'id': 'h1', 'organization_id': 'org1'}]})
-        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') == 'h1'
+        assert self._find('h1') == 'h1'
 
     def test_none_when_parent_has_no_household(self):
-        admin = _FakeAdmin({'household_members': [], 'households': []})
-        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') is None
-
-    def test_falls_back_to_primary_contact_household(self):
-        # No guardian membership row, but the parent is a household's primary contact.
-        admin = _FakeAdmin({'household_members': [], 'households': [{'id': 'h2'}]})
-        assert icr._existing_household_for_parent(admin, 'org1', 'parent1') == 'h2'
+        assert self._find(None) is None
 
 
 # ── /login platform-role guardrails ──────────────────────────────────────────

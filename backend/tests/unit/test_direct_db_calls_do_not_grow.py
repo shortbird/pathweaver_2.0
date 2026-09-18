@@ -232,7 +232,11 @@ BASELINES = {
     # went through sis_person_service.join_household, which writes through
     # HouseholdRepository.add_members (the repository's add_member now calls
     # it, so that layer's count did not move).
-    'routes': 2257,
+    # 2026-09-18 (M16, second half): 2257 -> 2248. The funnel's household
+    # lookup, update and insert and the learning-app admin's copy of the
+    # lookup and its household insert went into sis_attach_service, which
+    # reads and writes through HouseholdRepository.
+    'routes': 2248,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -303,7 +307,9 @@ BASELINES = {
     # 2026-09-17 (M8b, first half): 1835 -> 1834. The schedule AI editor's
     # own organizations.feature_flags read for the time blocks went; it asks
     # sis_catalog_service.time_blocks like every other reader.
-    'services': 1834,
+    # 2026-09-18 (M16, second half): 1834 -> 1833. grant_teacher_role and
+    # link_staff_account's merge share one role write (grant_advisor_role).
+    'services': 1833,
     # 2026-09-09: 439 -> 442. GroupRepository, owning the three reads behind the
     # Messages badge: this user's group memberships, the still-active groups
     # among them, and the unread count within one group. The badge counted
@@ -512,6 +518,9 @@ BASELINES = {
     # 2026-09-18: 579 -> 584. repositories/sis_time_block_repository.py (the
     # school-day blocks as rows, M8b) and SisClassRepository.block_for_times,
     # which stamps class_meetings.block_id when a meeting is written.
+    # 2026-09-18 (M16, second half): unchanged at 584. sis_attach_service
+    # reads the guardian's household through the for_guardian above; the
+    # funnel's and the admin path's copies of that lookup left routes/.
     'repositories': 584,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
@@ -592,7 +601,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2257 + 1834
+UPPER_TOTAL_BASELINE = 2248 + 1833
 
 
 def test_the_upper_layers_do_not_grow_in_total():

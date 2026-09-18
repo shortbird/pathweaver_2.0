@@ -95,11 +95,11 @@ class HouseholdRepository(BaseRepository):
         guardian membership answers it; the primary-contact pointer is the
         fallback for a household staff created and never added themselves to.
 
-        The funnel asks the same question inline
-        (routes/registration_funnel._existing_household_for_parent) so a
-        returning parent never spawns a second '<Last> Family'. That copy is
-        left where it is -- it runs under the funnel's own client and its tests
-        pin the shape -- and this is the answer for every other caller.
+        The funnel used to ask the same question inline
+        (registration_funnel._existing_household_for_parent) so a returning
+        parent never spawns a second '<Last> Family'; since M16's second half
+        (2026-09-18) it asks through sis_attach_service.household_for_guardian,
+        which is this, so every door gets the one answer.
         """
         rows = (
             self.client.table('household_members')

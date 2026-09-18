@@ -12,7 +12,7 @@ there under a different spelling.
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
@@ -246,12 +246,14 @@ class TestPlaceChildInFamily:
         result, attach, join, _ = self._place()
         assert result == HOUSEHOLD
         assert attach.call_args.kwargs['guardian_ids'] == ['mum-1', 'dad-1']
-        join.assert_called_once_with(HOUSEHOLD, students=['kid-1'])
+        # Through the one attach path (sis_attach_service, M16), which passes
+        # its client along.
+        join.assert_called_once_with(HOUSEHOLD, students=['kid-1'], client=ANY)
 
     def test_a_named_household_is_not_looked_up(self):
         _, _, join, repo = self._place(household_id='hh-2')
         repo.for_guardian.assert_not_called()
-        join.assert_called_once_with('hh-2', students=['kid-1'])
+        join.assert_called_once_with('hh-2', students=['kid-1'], client=ANY)
 
     def test_a_platform_family_has_nothing_to_join(self):
         """No organisation means no household and no org attach — not an error."""

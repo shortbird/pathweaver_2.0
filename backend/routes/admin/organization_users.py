@@ -30,63 +30,11 @@ from utils.org_student_credentials import (
 from utils.validation.password_validator import validate_password_strength
 from datetime import datetime
 import secrets
-from config.constants import GUARDIAN_RELATIONSHIPS
-from services import sis_person_service
+from services import sis_attach_service
 
 logger = get_logger(__name__)
 
 bp = Blueprint('organization_users', __name__)
-
-
-def _ensure_shared_household(client, org_id, guardian_id, guardian_last_name, student_id):
-    """Ensure the guardian and student share a household in this org.
-
-    Family surfaces (Schedule Builder, parent context) resolve a parent's
-    children from household membership and users.managed_by_parent_id, NOT from
-    parent_student_links. So linking a student to a guardian is only fully
-    effective if they also share a household. This find-or-creates the guardian's
-    household and adds the student as a member. Idempotent.
-    """
-    household_id = None
-
-    # 1) Reuse a household in this org where the guardian is already a guardian.
-    memberships = (client.table('household_members')
-                   .select('household_id, relationship')
-                   .eq('user_id', guardian_id).execute().data) or []
-    guardian_hh_ids = [m['household_id'] for m in memberships
-                       if m.get('relationship') in GUARDIAN_RELATIONSHIPS and m.get('household_id')]
-    if guardian_hh_ids:
-        rows = (client.table('households').select('id')
-                .in_('id', guardian_hh_ids).eq('organization_id', org_id)
-                .limit(1).execute().data) or []
-        if rows:
-            household_id = rows[0]['id']
-
-    # 2) Otherwise reuse a household they're the primary contact of, or create one,
-    #    then ensure the guardian membership row exists.
-    if not household_id:
-        owned = (client.table('households').select('id')
-                 .eq('organization_id', org_id)
-                 .eq('primary_contact_user_id', guardian_id)
-                 .limit(1).execute().data) or []
-        if owned:
-            household_id = owned[0]['id']
-        else:
-            created = (client.table('households').insert({
-                'organization_id': org_id,
-                'name': f"{(guardian_last_name or 'New').strip() or 'New'} Family",
-                'primary_contact_user_id': guardian_id,
-            }).execute().data)
-            household_id = created[0]['id']
-
-        sis_person_service.join_household(
-            household_id, guardians=[guardian_id], primary_guardian=guardian_id, client=client)
-
-    # 3) Add the student to the household. The one attach path (M16) is an
-    #    upsert, so this is idempotent without a read first.
-    sis_person_service.join_household(household_id, students=[student_id], client=client)
-
-    return household_id
 
 
 @bp.route('/<org_id>/users/add', methods=['POST'])
@@ -508,11 +456,14 @@ def create_username_student(current_user_id, current_org_id, is_superadmin, org_
                     # and other family surfaces resolve a parent's children from
                     # household membership (and managed_by_parent_id), NOT from
                     # parent_student_links, so a link alone leaves the child invisible
-                    # there. Mirror the iCreate funnel by ensuring a shared household.
-                    _ensure_shared_household(
-                        client, org_id, current_user_id,
-                        (admin_row.data or {}).get('last_name'), user_id
-                    )
+                    # there. The same attach path as the funnel and the People
+                    # page (sis_attach_service, M16): the admin's household found
+                    # or made, the admin its primary contact, the student in it.
+                    last = ((admin_row.data or {}).get('last_name') or 'New').strip() or 'New'
+                    sis_attach_service.attach_family(
+                        org_id, current_user_id, [user_id],
+                        household_fields={'name': f'{last} Family'}, source='admin_add_student',
+                        client=client)
 
                     linked_to_parent = True
                     logger.info(f"Linked student {user_id} to parent/admin {current_user_id}")

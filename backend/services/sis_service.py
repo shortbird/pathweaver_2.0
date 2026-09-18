@@ -666,7 +666,7 @@ def household_student_ids(org_id: str, household_id: str) -> List[str]:
 
 
 def attach_student_to_org(org_id: str, student_id: str,
-                          guardian_ids: Optional[List[str]] = None) -> bool:
+                          guardian_ids: Optional[List[str]] = None, client=None) -> bool:
     """Normalize an existing account into a full org student, so a student who
     'already had an Optio account' ends up indistinguishable from one created by
     the org's own flows: org fields set (org_managed/student — dependents keep
@@ -674,9 +674,12 @@ def attach_student_to_org(org_id: str, student_id: str,
 
     Refuses (returns False) rather than converting anything that isn't a plain
     student account, or moving an account between orgs. Safe to call repeatedly.
+    Called through sis_attach_service.attach_student (M16); `client` is for
+    the scripts that run under their own connection.
     """
+    db = client or _admin()
     rows = (
-        _admin().table('users')
+        db.table('users')
         .select('id, role, org_role, organization_id, is_dependent')
         .eq('id', student_id).limit(1).execute()
     ).data
@@ -698,26 +701,27 @@ def attach_student_to_org(org_id: str, student_id: str,
     # roster_import_service writes this same shape for its dependents.
     updates: Dict[str, Any] = {'organization_id': org_id, 'role': 'org_managed',
                                'org_role': 'student', 'org_roles': ['student']}
-    _admin().table('users').update(updates).eq('id', student_id).execute()
+    db.table('users').update(updates).eq('id', student_id).execute()
 
     for gid in (guardian_ids or []):
         if u.get('is_dependent'):
             continue  # dependents are linked via managed_by_parent_id, not links
-        _ensure_parent_link(gid, student_id)
+        _ensure_parent_link(gid, student_id, client=db)
     return True
 
 
-def _ensure_parent_link(guardian_id: str, student_id: str) -> None:
+def _ensure_parent_link(guardian_id: str, student_id: str, client=None) -> None:
     """Insert an approved, admin-verified parent_student_links row if one
     doesn't exist. Best-effort: a failed link must not fail the caller."""
+    db = client or _admin()
     try:
         existing = (
-            _admin().table('parent_student_links').select('id')
+            db.table('parent_student_links').select('id')
             .eq('parent_user_id', guardian_id).eq('student_user_id', student_id)
             .execute()
         ).data
         if not existing:
-            _admin().table('parent_student_links').insert({
+            db.table('parent_student_links').insert({
                 'parent_user_id': guardian_id, 'student_user_id': student_id,
                 'status': 'approved', 'admin_verified': True,
                 'admin_notes': 'Auto-linked when added to SIS household',
@@ -726,23 +730,25 @@ def _ensure_parent_link(guardian_id: str, student_id: str) -> None:
         logger.warning(f'_ensure_parent_link: {guardian_id[:8]}->{student_id[:8]} failed: {e}')
 
 
-def link_guardian_to_students(guardian_id: str, student_ids: List[str]) -> None:
+def link_guardian_to_students(guardian_id: str, student_ids: List[str], client=None) -> None:
     """Backfill parent_student_links from a newly added guardian to a
     household's existing student members. Mirrors what the student-add path
     does when guardians are already present — without this, adding members in
     the order student-then-guardian silently created no links, so the family
     looked right in the SIS while the parent's dashboard stayed empty.
-    Dependents are skipped: they're linked via managed_by_parent_id."""
+    Dependents are skipped: they're linked via managed_by_parent_id.
+    Called through sis_attach_service.attach_guardian (M16)."""
     if not student_ids:
         return
+    db = client or _admin()
     rows = (
-        _admin().table('users').select('id, is_dependent')
+        db.table('users').select('id, is_dependent')
         .in_('id', student_ids).execute()
     ).data or []
     for row in rows:
         if row.get('is_dependent'):
             continue
-        _ensure_parent_link(guardian_id, row['id'])
+        _ensure_parent_link(guardian_id, row['id'], client=db)
 
 
 def list_org_members(org_id: str) -> List[Dict[str, Any]]:
@@ -1488,6 +1494,53 @@ def describe_staff_role_candidate(org_id: str, user: Dict[str, Any]) -> Dict[str
     }}
 
 
+def grant_advisor_role(org_id: str, target: Dict[str, Any], *,
+                       copy_from: Optional[Dict[str, Any]] = None,
+                       bio: Optional[str] = None) -> List[str]:
+    """Make an existing account a teacher at this school, keeping every
+    other role it holds: the one write behind "add the teacher role to a
+    parent" (grant_teacher_role) and "link a placeholder to somebody's real
+    account" (link_staff_account's merge), which each spelled it (M16).
+
+    advisor leads the role list -- it decides the console they land in;
+    everything else (parent, org_admin, observer) is kept, so a parent who
+    teaches stays a parent. `copy_from` is the placeholder whose bio and
+    photo fill blanks on the real account; `bio` fills a blank bio from the
+    add form. Returns the merged role list."""
+    existing_roles = (_user_org_roles(target) if target.get('organization_id')
+                      else ([target['role']] if target.get('role') else []))
+    merged_roles = list(dict.fromkeys(
+        ['advisor'] + [r for r in existing_roles if r not in ('advisor', 'org_managed')]))
+    updates: Dict[str, Any] = {
+        'organization_id': org_id, 'role': 'org_managed',
+        'org_role': 'advisor', 'org_roles': merged_roles,
+    }
+    for field in ('bio', 'avatar_url'):
+        if copy_from and copy_from.get(field) and not target.get(field):
+            updates[field] = copy_from[field]
+    if bio and not target.get('bio') and 'bio' not in updates:
+        updates['bio'] = bio
+    _admin().table('users').update(updates).eq('id', target['id']).execute()
+    return merged_roles
+
+
+def _send_access_added(org_id: str, email: Optional[str], first_name: Optional[str], *, who: str) -> bool:
+    """Tell somebody their existing login now carries the teacher role.
+    Best-effort; `who` names the caller in the log line."""
+    try:
+        from app_config import Config
+        from services.email_service import email_service
+        return bool(email_service.send_staff_access_added_email(
+            user_email=email,
+            user_name=first_name or 'there',
+            org_name=_org_name(org_id),
+            login_link=f'{Config.FRONTEND_URL}/login',
+        ))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'{who}: access-added email failed for {email}: {e}')
+        return False
+
+
 def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
                        actor_id: Optional[str] = None) -> Dict[str, Any]:
     """Add the teacher role to an account that already exists.
@@ -1512,19 +1565,7 @@ def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
     if candidate.get('error'):
         return {'error': candidate['error']}
 
-    existing_roles = (_user_org_roles(target) if target.get('organization_id')
-                      else ([target['role']] if target.get('role') else []))
-    # advisor leads (it decides the console they land in); everything else is kept.
-    merged_roles = list(dict.fromkeys(
-        ['advisor'] + [r for r in existing_roles if r not in ('advisor', 'org_managed')]))
-    updates: Dict[str, Any] = {
-        'organization_id': org_id, 'role': 'org_managed',
-        'org_role': 'advisor', 'org_roles': merged_roles,
-    }
-    bio = (fields.get('bio') or '').strip()
-    if bio and not target.get('bio'):
-        updates['bio'] = bio
-    admin.table('users').update(updates).eq('id', user_id).execute()
+    merged_roles = grant_advisor_role(org_id, target, bio=(fields.get('bio') or '').strip())
 
     onboarding_assigned = False
     template_id = (fields.get('onboarding_template_id') or '').strip() or None
@@ -1537,18 +1578,8 @@ def grant_teacher_role(org_id: str, user_id: str, fields: Dict[str, Any],
         except Exception as e:  # noqa: BLE001
             logger.warning(f'grant_teacher_role: onboarding assign failed: {e}')
 
-    email_sent = False
-    try:
-        from app_config import Config
-        from services.email_service import email_service
-        email_sent = bool(email_service.send_staff_access_added_email(
-            user_email=target.get('email'),
-            user_name=target.get('first_name') or 'there',
-            org_name=_org_name(org_id),
-            login_link=f'{Config.FRONTEND_URL}/login',
-        ))
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'grant_teacher_role: access-added email failed: {e}')
+    email_sent = _send_access_added(org_id, target.get('email'), target.get('first_name'),
+                                    who='grant_teacher_role')
 
     return {'teacher': {'id': user_id,
                         'name': _full_name(target) or target.get('email'),
@@ -1716,16 +1747,10 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
         return {'error': 'This email belongs to a student account'}
 
     # Advisor becomes the primary org role; any other roles (parent, org_admin)
-    # are kept so a parent-who-teaches stays a parent too.
-    merged_roles = list(dict.fromkeys(['advisor'] + [r for r in t_roles if r != 'advisor']))
-    updates: Dict[str, Any] = {
-        'organization_id': org_id, 'role': 'org_managed',
-        'org_role': 'advisor', 'org_roles': merged_roles,
-    }
-    for field in ('bio', 'avatar_url'):
-        if ph.get(field) and not target.get(field):
-            updates[field] = ph[field]
-    admin.table('users').update(updates).eq('id', target['id']).execute()
+    # are kept so a parent-who-teaches stays a parent too -- the same write
+    # grant_teacher_role makes, with the placeholder's bio and photo filling
+    # blanks on the real account.
+    grant_advisor_role(org_id, target, copy_from=ph)
 
     synced_classes: List[str] = []
     for table, column in _INSTRUCTOR_REF_COLUMNS:
@@ -1764,17 +1789,7 @@ def link_staff_account(org_id: str, staff_id: str, email: str) -> Dict[str, Any]
         logger.warning(f'link_staff_account: placeholder cleanup failed for {staff_id[:8]}: {e}')
 
     # Tell the teacher their existing login now carries the teacher role.
-    try:
-        from app_config import Config
-        from services.email_service import email_service
-        email_service.send_staff_access_added_email(
-            user_email=email,
-            user_name=target.get('first_name') or 'there',
-            org_name=_org_name(org_id),
-            login_link=f'{Config.FRONTEND_URL}/login',
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'link_staff_account: access-added email failed for {email}: {e}')
+    _send_access_added(org_id, email, target.get('first_name'), who='link_staff_account')
 
     return {'linked': 'merged', 'staff_id': target['id'],
             'placeholder_removed': placeholder_removed}

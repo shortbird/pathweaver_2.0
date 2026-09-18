@@ -60,7 +60,7 @@ class _FakeAdmin:
 
 def _sync(household_row, answers, household_id='h1'):
     admin = _FakeAdmin(household_row)
-    with patch('routes.registration_funnel._existing_household_for_parent',
+    with patch('services.sis_attach_service.household_for_guardian',
                return_value=household_id):
         _sync_household_payment(admin, REG, answers)
     return [p for t, p in admin.updates if t == 'households']
@@ -102,6 +102,6 @@ class TestHouseholdPaymentSync:
     def test_a_database_failure_never_fails_the_registration(self):
         # The parent is mid-funnel; losing their registration over a decoration
         # would be far worse than a blank field on the Families page.
-        with patch('routes.registration_funnel._existing_household_for_parent',
+        with patch('services.sis_attach_service.household_for_guardian',
                    side_effect=RuntimeError('boom')):
             _sync_household_payment(_FakeAdmin({}), REG, {'payment_intent': ['Self-Pay']})

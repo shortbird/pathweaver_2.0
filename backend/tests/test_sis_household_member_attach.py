@@ -9,7 +9,7 @@ account isn't attachable — a refused attach must never leave a half-connected
 member (in the household but invisible to the roster).
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 
@@ -69,7 +69,7 @@ class TestAddHouseholdMemberAttach:
         resp, repo, attach = _post(client, auth_headers,
                                    {'user_id': 'k1', 'relationship': 'student'})
         assert resp.status_code == 201
-        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
+        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'], client=ANY)
         repo.add_members.assert_called_once()
 
     def test_student_by_email_resolves_account(self, client, auth_headers, mock_verify_token):
@@ -77,7 +77,7 @@ class TestAddHouseholdMemberAttach:
                                    {'email': 'kid@x.com', 'relationship': 'student'},
                                    users_rows=[{'id': 'k1'}])
         assert resp.status_code == 201
-        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
+        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'], client=ANY)
         repo.add_members.assert_called_once()
 
     def test_unknown_email_404s(self, client, auth_headers, mock_verify_token):
@@ -125,7 +125,7 @@ class TestAddHouseholdMemberAttach:
             {'user_id': 'k1', 'relationship': 'student', 'confirm_duplicate': True},
             duplicates=[{'user_id': 'k2', 'name': 'Zachary Barlow', 'email': None}])
         assert resp.status_code == 201
-        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'])
+        attach.assert_called_once_with('org-1', 'k1', guardian_ids=['g1'], client=ANY)
         repo.add_members.assert_called_once()
 
     def test_guardian_add_skips_duplicate_guard(self, client, auth_headers, mock_verify_token):
@@ -159,7 +159,7 @@ class TestAddHouseholdMemberAttach:
                                      'relationship': 'guardian'},
                                headers=auth_headers)
         assert resp.status_code == 201
-        link.assert_called_once_with('g2', ['k1', 'k2'])
+        link.assert_called_once_with('g2', ['k1', 'k2'], client=ANY)
         repo.add_members.assert_called_once()
 
 

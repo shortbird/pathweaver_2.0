@@ -88,8 +88,7 @@ from utils.auth.decorators import require_auth
 from utils.validation import sanitize_input
 from utils.registration_config import get_registration_config
 from services import academy_enrollment_service as academy_enrollment
-from services import sis_holds
-from services import sis_person_service
+from services import sis_attach_service
 from services import emergency_contacts_service as emergency_contacts
 # The one affirmation sentence every typed signature is recorded under.
 from services.sis_onboarding_service import SIGNATURE_STATEMENT
@@ -295,31 +294,6 @@ from services.registration_funnel_service import (  # noqa: E402
 
 
 
-
-
-def _existing_household_for_parent(admin, org_id, parent_id):
-    """The parent's existing SIS household in this org, if any: one they already
-    guard (school import, staff-created, or a prior registration) or are the
-    primary contact of. The family step reuses it instead of inserting a second
-    '<Last> Family', so a returning parent — e.g. a teacher registering a kid who
-    already has an account — never spawns a duplicate household."""
-    try:
-        gm = (admin.table('household_members').select('household_id')
-              .eq('user_id', parent_id).eq('relationship', 'guardian').execute()).data or []
-        hh_ids = [m['household_id'] for m in gm]
-        if hh_ids:
-            rows = (admin.table('households').select('id, organization_id')
-                    .in_('id', hh_ids).execute()).data or []
-            for h in rows:
-                if h.get('organization_id') == org_id:
-                    return h['id']
-        rows = (admin.table('households').select('id')
-                .eq('organization_id', org_id)
-                .eq('primary_contact_user_id', parent_id).limit(1).execute()).data or []
-        return rows[0]['id'] if rows else None
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f'registration: existing-household lookup failed for parent {parent_id[:8]}: {e}')
-        return None
 
 
 
@@ -784,26 +758,17 @@ def submit_family(reg_id):
         # school"). Only ever turned ON here so it never clobbers a staff toggle.
         if _answers_signal_ufa_private(reg.get('answers') or {}):
             hh_fields['ufa_private'] = True
-        # Reuse the parent's existing household instead of inserting a duplicate
-        # '<Last> Family' next to a school-imported / prior one.
-        household_id = _existing_household_for_parent(admin, org_id, parent_id)
-        if household_id:
-            # Keep any staff-set family name; fill the rest from this submission.
-            admin.table('households').update(
-                {k: v for k, v in hh_fields.items() if k not in ('name', 'organization_id')}
-            ).eq('id', household_id).execute()
-        else:
-            household_id = admin.table('households').insert(hh_fields).execute().data[0]['id']
-        # The one attach path (sis_person_service.join_household, M16): an
-        # upsert, so reusing a household never collides on an existing
-        # membership.
-        sis_person_service.join_household(
-            household_id, guardians=[parent_id], primary_guardian=parent_id,
-            students=[ck['user_id'] for ck in created_kids])
-        # The staged directive lands on the household exactly once (a hold the
-        # office staged by email, marked applied); nothing reconciles the two
-        # afterwards (sis_holds).
-        sis_holds.apply_directives(household_id, directive)
+        # The one attach path (sis_attach_service, M16): the parent's existing
+        # household is reused (a staff-set name kept, the rest filled from
+        # this submission) or one is made, the parent is its primary contact,
+        # each child joins it in the org's student shape, and the directive
+        # the office staged by email lands on it exactly once (sis_holds).
+        attached = sis_attach_service.attach_family(
+            org_id, parent_id, [ck['user_id'] for ck in created_kids],
+            household_fields=hh_fields, directive=directive, source='funnel')
+        household_id = attached['household_id']
+        for sid, why in attached['refused'].items():
+            logger.warning(f'registration family: child {sid[:8]} not attached: {why}')
     except Exception as e:  # noqa: BLE001
         logger.error(f'registration family: household creation failed: {e}')
 
@@ -991,8 +956,8 @@ def _sync_household_payment(admin, reg, answers):
     """
     from services import sis_payment_profile as payment_profile
     try:
-        household_id = _existing_household_for_parent(
-            admin, reg['organization_id'], reg['parent_user_id'])
+        household_id = sis_attach_service.household_for_guardian(
+            reg['organization_id'], reg['parent_user_id'])
         if not household_id:
             return
         row = (admin.table('households')

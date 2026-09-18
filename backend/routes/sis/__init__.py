@@ -27,6 +27,7 @@ from services import sis_payment_profile
 from services import sis_holds
 from services import sis_person_service
 from services import family_student_service
+from services import sis_attach_service
 from services import emergency_contacts_service as emergency_contacts
 from repositories.household_repository import HouseholdRepository
 from database import get_supabase_admin_client
@@ -675,30 +676,18 @@ def add_household_member(user_id, household_id):
                          'same student. They may have been registered twice. Add anyway?',
             }), 409
 
-    # Students attach to the org FIRST (org fields + parent links) so a refused
-    # attach never leaves a half-connected member: in the household but invisible
-    # to the roster. attach refuses cross-org moves and non-student accounts.
+    # The one attach path (sis_attach_service, M16): a student takes the org's
+    # student shape first and is refused, not half-connected, when the account
+    # belongs to another school or is not a student; a guardian gets parent
+    # links to the students already here.
     if relationship == 'student':
-        guardians = [m['user_id'] for m in repo.members_for_households([household_id])
-                     if m.get('relationship') != 'student']
-        if not sis_service.attach_student_to_org(org_id, member_user_id, guardian_ids=guardians):
-            return jsonify({'success': False,
-                            'error': "This account can't be connected — it may belong to "
-                                     'another school or not be a student account.'}), 409
-    else:
-        # Guardian added after students: backfill the parent links the
-        # student-add path would have created had the guardian been there first.
-        students = [m['user_id'] for m in repo.members_for_households([household_id])
-                    if m.get('relationship') == 'student']
-        sis_service.link_guardian_to_students(member_user_id, students)
-
-    # The one attach path (M16).
-    rows = sis_person_service.join_household(
-        household_id,
-        guardians=[member_user_id] if relationship != 'student' else (),
-        students=[member_user_id] if relationship == 'student' else (),
-        guardian_relationship=relationship,
-        primary_guardian=member_user_id if data.get('is_primary_guardian') else None)
+        res = sis_attach_service.attach_student(org_id, member_user_id, household_id, source='people')
+        if not res.get('attached'):
+            return jsonify({'success': False, 'error': res['error']}), 409
+        return jsonify({'success': True, 'member': res.get('member')}), 201
+    rows = sis_attach_service.attach_guardian(
+        org_id, member_user_id, household_id, relationship=relationship,
+        primary=bool(data.get('is_primary_guardian')), source='people')
     return jsonify({'success': True, 'member': rows[0] if rows else None}), 201
 
 

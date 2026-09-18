@@ -476,6 +476,14 @@ def _is_withdrawn(org_id: str, student_id: str) -> bool:
 
 # ── Joining a family ─────────────────────────────────────────────────────────
 
+def household_members(household_id: str, *, client=None) -> List[Dict[str, Any]]:
+    """The membership rows of one family ({user_id, relationship, ...}),
+    for the attach path to know who the guardians and students are."""
+    from repositories.household_repository import HouseholdRepository
+    # admin client justified: reads membership about other people; callers are gated routes or scripts.
+    return HouseholdRepository(client=client or _admin()).members_for_households([household_id])
+
+
 def join_household(household_id: str, *, guardians=(), students=(),
                    primary_guardian: Optional[str] = None, guardian_relationship: str = 'guardian',
                    client=None) -> List[Dict[str, Any]]:
@@ -534,20 +542,17 @@ def place_child_in_family(org_id: Optional[str], child_id: str, parent_id: str,
     """
     if not org_id:
         return None
-    from repositories.household_repository import HouseholdRepository
-    from services import sis_service
-    # admin client justified: see the module note -- this writes rows about a
-    #   child and their guardians; the caller has already proven the family.
-    repo = HouseholdRepository(client=_admin())
+    from services import sis_attach_service, sis_service
     if not household_id:
-        household_id = repo.for_guardian(parent_id, org_id)
-
-    guardians = [parent_id]
-    if household_id:
-        guardians += [m['user_id'] for m in repo.members_for_households([household_id])
-                      if m.get('relationship') != 'student']
-    sis_service.attach_student_to_org(org_id, child_id,
-                                      guardian_ids=list(dict.fromkeys(guardians)))
-    if household_id:
-        join_household(household_id, students=[child_id])
+        household_id = sis_attach_service.household_for_guardian(org_id, parent_id)
+    if not household_id:
+        # A platform family has no household: the org's student shape and the
+        # parent link are all there is to give.
+        sis_service.attach_student_to_org(org_id, child_id, guardian_ids=[parent_id])
+        return None
+    # The one attach path (M16): the child's org shape and links to the
+    # family's guardians and the parent they were created under, then the
+    # membership row.
+    sis_attach_service.attach_student(org_id, child_id, household_id,
+                                      source='add_child', guardian_ids=[parent_id])
     return household_id
