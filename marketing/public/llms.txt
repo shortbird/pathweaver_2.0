@@ -1,0 +1,37 @@
+# Optio
+
+> Optio turns real-life learning into official high school credit. Optio Academy, its own fully online private school, is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges (ACS WASC). Students build projects from their own interests, submit evidence (photos, video, writing, files), and a licensed teacher reviews the evidence against each task's criteria and awards XP. 2,000 XP is one high school credit on an official transcript. Students earn XP rather than letter grades while they work; every credit on the transcript is recorded as an A. There is no seat-time requirement.
+
+Company name: Optio (never "Optio Education"). School name: Optio Academy. Site: https://www.optioeducation.com. The app lives at https://app.optioeducation.com.
+
+## Stories: real student work that became credit
+
+Each story is one real submission: what the student did, the evidence they submitted, what the teacher checked, and what it counted for on the transcript. Students are anonymized unless a family has agreed to share.
+
+- [All stories](https://www.optioeducation.com/stories/)
+- [Stories RSS feed](https://www.optioeducation.com/stories/rss.xml)
+- [Physical Education stories](https://www.optioeducation.com/stories/subject/physical-education/)
+- [Fine Arts stories](https://www.optioeducation.com/stories/subject/fine-arts/)
+- [Language Arts stories](https://www.optioeducation.com/stories/subject/language-arts/)
+- [Science stories](https://www.optioeducation.com/stories/subject/science/)
+- [Electives stories](https://www.optioeducation.com/stories/subject/electives/)
+
+## How Optio works
+
+- [Optio Academy](https://www.optioeducation.com/academy/): the accredited online school, rolling admissions, self-paced, from anywhere.
+- [Philosophy](https://www.optioeducation.com/philosophy/): "The process is the goal." Why students earn XP as they work instead of being graded along the way.
+- [For schools](https://www.optioeducation.com/schools/): partner schools and microschools run on Optio and can issue credit through it.
+- [Blog](https://www.optioeducation.com/blog/)
+
+## Activities that have counted for credit
+
+- [Soccer](https://www.optioeducation.com/l/soccer/)
+- [Piano](https://www.optioeducation.com/l/piano/)
+- [Summer camp](https://www.optioeducation.com/l/camp/)
+- [Art](https://www.optioeducation.com/l/art/)
+- [Coding](https://www.optioeducation.com/l/coding/)
+- [Volunteering](https://www.optioeducation.com/l/volunteering/)
+
+## Optional
+
+- [Sitemap](https://www.optioeducation.com/sitemap-index.xml)

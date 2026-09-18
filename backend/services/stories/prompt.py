@@ -167,7 +167,10 @@ tools, software or materials helps nobody. Ask and answer about Optio:
 - One asks how a student's own project becomes an assignment and how a
   licensed teacher reviews the evidence.
 - One asks what the XP and the credit mean on a transcript.
-No answer may mention hours, seat time or logged time.
+No answer may mention hours, seat time or logged time. Students earn XP, not
+letter grades, while they work; every credit that reaches the transcript is
+recorded as an A. Do not invent any other grading rule or a GPA, and do not
+claim who recognizes the transcript beyond that it is accredited.
 
 {GUARDRAILS}
 

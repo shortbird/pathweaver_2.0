@@ -6,7 +6,8 @@ import ContactForm from '../components/ContactForm.astro'
 import EnrollBand from '../components/EnrollBand.astro'
 import FaqList from '../components/FaqList.astro'
 import WascBadge from '../components/WascBadge.astro'
-import { SITE, OFFER, SOCIAL_LINKS, appLink } from '../data/site'
+import { SITE, OFFER, appLink } from '../data/site'
+import { academyNode, faqNode, graph, organizationNode, personNode } from '../data/schema'
 import { testimonials } from '../data/testimonials'
 import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
 import { HOW_IT_WORKS } from '../data/howItWorks'
@@ -98,25 +99,14 @@ const FAQS = [
 ]
 
 const schema = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'School',
-    name: 'Optio Academy',
-    url: `${SITE.url}/academy`,
-    description: `An accredited online high school, with enrollment from kindergarten. ${WASC_ACCREDITED_PHRASE}. Credit is based on evidence of learning, with rolling admissions and self-paced learning from anywhere in the world.`,
-    email: SITE.academyEmail,
-    sameAs: SOCIAL_LINKS.map((s) => s.href),
-    parentOrganization: { '@type': 'Organization', name: 'Optio', url: SITE.url },
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: FAQS.map((f) => ({
-      '@type': 'Question',
-      name: f.q,
-      acceptedAnswer: { '@type': 'Answer', text: f.a },
-    })),
-  },
+  graph(
+    organizationNode(),
+    personNode(),
+    academyNode(
+      `An accredited online high school, with enrollment from kindergarten. ${WASC_ACCREDITED_PHRASE}. Credit is based on evidence of learning, with rolling admissions and self-paced learning from anywhere in the world.`
+    ),
+    faqNode(FAQS, `${SITE.url}/academy/#faq`)
+  ),
 ]
 ---
 

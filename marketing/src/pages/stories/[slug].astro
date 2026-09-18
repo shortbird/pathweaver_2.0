@@ -26,7 +26,7 @@ import CriteriaList from '../../components/stories/CriteriaList.astro'
 import RelatedStories from '../../components/stories/RelatedStories.astro'
 import { OFFER } from '../../data/site'
 import { creditExplainer } from '../../data/howItWorks'
-import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizationNode, personNode, videoNode } from '../../data/schema'
+import { ACADEMY_ID, ORG_ID, PERSON_ID, absolute, academyNode, breadcrumbNode, faqNode, graph, organizationNode, personNode, videoNode } from '../../data/schema'
 import type { Story } from '../../data/stories.schema'
 import {
   cardProps,
@@ -82,6 +82,9 @@ const moreEvidence = evidenceBesidesHero(story)
 const url = absolute(storyUrl(story))
 const ogImage = ogImagePath(story)
 const hasHub = hubs.has(story.subject_slug)
+// A story set at Optio Academy names the school as an entity, by @id, so an
+// answer engine ties the story to the same School the academy page declares.
+const atAcademy = story.student.setting === 'academy'
 
 const crumbs = [
   { name: 'Home', href: '/' },
@@ -129,12 +132,14 @@ const article = {
     { '@type': 'Thing', name: story.activity.label },
   ],
   keywords: [story.subject, story.activity.label, 'high school credit', 'Optio Academy'].join(', '),
+  ...(atAcademy ? { mentions: [{ '@id': ACADEMY_ID }] } : {}),
 }
 
 const schema = [
   graph(
     organizationNode(),
     personNode(),
+    ...(atAcademy ? [academyNode()] : []),
     article,
     ...(video ? [video] : []),
     breadcrumbNode(crumbs),

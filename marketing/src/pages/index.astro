@@ -7,9 +7,8 @@ import TestimonialRow from '../components/TestimonialRow.astro'
 import EnrollBand from '../components/EnrollBand.astro'
 import WascBadge from '../components/WascBadge.astro'
 import { SITE } from '../data/site'
-import { ORG_ID, WEBSITE_ID, graph, organizationNode } from '../data/schema'
+import { ORG_ID, WEBSITE_ID, academyNode, graph, organizationNode } from '../data/schema'
 import { testimonials } from '../data/testimonials'
-import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
 import { byNewest, cardProps, isPublished } from '../lib/stories'
 
 // The "It counted" strip shows real stories once there are three to show.
@@ -33,14 +32,7 @@ const schema = [
       url: SITE.url,
       publisher: { '@id': ORG_ID },
     },
-    {
-      '@type': 'School',
-      name: 'Optio Academy',
-      url: `${SITE.url}/academy`,
-      description: `A fully online private school. ${WASC_ACCREDITED_PHRASE}.`,
-      email: SITE.academyEmail,
-      parentOrganization: { '@id': ORG_ID },
-    }
+    academyNode()
   ),
 ]
 ---

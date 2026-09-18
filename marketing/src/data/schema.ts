@@ -7,11 +7,13 @@
  * Use graph(...) to emit one <script type="application/ld+json"> per page.
  * Nodes carry no @context of their own; graph() adds it once.
  */
+import { WASC_ACCREDITED_PHRASE } from './accreditation'
 import { SITE, SOCIAL_LINKS } from './site'
 
 export const ORG_ID = `${SITE.url}/#organization`
 export const PERSON_ID = `${SITE.url}/#tanner-bowman`
 export const WEBSITE_ID = `${SITE.url}/#website`
+export const ACADEMY_ID = `${SITE.url}/#academy`
 
 export const AUTHOR = {
   name: 'Dr. Tanner Bowman',
@@ -30,8 +32,30 @@ export function organizationNode() {
       url: `${SITE.url}/images/OptioLogo-FullColor.png`,
     },
     slogan: 'Real credit for real life',
+    description: SITE.description,
+    founder: { '@id': PERSON_ID },
     email: SITE.supportEmail,
     sameAs: SOCIAL_LINKS.map((s) => s.href),
+  }
+}
+
+/**
+ * Optio Academy, the school. One node with one @id, so the home page, the
+ * academy page and every story set there name the same entity; until
+ * 2026-09-18 two pages each declared their own School inline (one with a
+ * second, unlinked "Optio" Organization inside it), which an answer engine
+ * reads as two schools.
+ */
+export function academyNode(description?: string) {
+  return {
+    '@type': 'School',
+    '@id': ACADEMY_ID,
+    name: 'Optio Academy',
+    url: `${SITE.url}/academy/`,
+    description: description ?? `A fully online, WASC-accredited private school. ${WASC_ACCREDITED_PHRASE}.`,
+    email: SITE.academyEmail,
+    sameAs: SOCIAL_LINKS.map((s) => s.href),
+    parentOrganization: { '@id': ORG_ID },
   }
 }
 
