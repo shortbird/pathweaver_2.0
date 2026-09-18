@@ -34,7 +34,7 @@ export const landers: Lander[] = [
     receipt: { activity: 'A semester of piano lessons', course: 'Music', credit: '0.5 credit', icon: 'music' },
     heroImage: null,
     description:
-      'Already taking piano lessons? Optio turns them into official, WASC-accredited high school music credit. First class free.',
+      'Already taking piano lessons? Optio turns them into official, WASC-accredited high school music credit.',
   },
   {
     slug: 'soccer',
@@ -45,7 +45,7 @@ export const landers: Lander[] = [
     receipt: { activity: 'Fall club soccer season', course: 'Physical Education', credit: '0.5 credit', icon: 'ball' },
     heroImage: null,
     description:
-      'Play club or rec soccer? Optio turns your season into official, WASC-accredited high school PE credit. First class free.',
+      'Play club or rec soccer? Optio turns your season into official, WASC-accredited high school PE credit.',
   },
   {
     slug: 'camp',
@@ -56,7 +56,7 @@ export const landers: Lander[] = [
     receipt: { activity: 'Two weeks of summer camp', course: 'Science', credit: '0.5 credit', icon: 'flask' },
     heroImage: null,
     description:
-      'Went to summer camp? Optio turns what you did there into official, WASC-accredited high school science credit. First class free.',
+      'Went to summer camp? Optio turns what you did there into official, WASC-accredited high school science credit.',
   },
   {
     slug: 'art',
@@ -67,7 +67,7 @@ export const landers: Lander[] = [
     receipt: { activity: 'A sketchbook of finished pieces', course: 'Fine Arts', credit: '0.5 credit', icon: 'brush' },
     heroImage: null,
     description:
-      'Drawing, painting, or making digital art? Optio turns your practice into official, WASC-accredited fine arts credit. First class free.',
+      'Drawing, painting, or making digital art? Optio turns your practice into official, WASC-accredited fine arts credit.',
   },
   {
     slug: 'coding',
@@ -78,7 +78,7 @@ export const landers: Lander[] = [
     receipt: { activity: 'A game you built and shipped', course: 'Computer Science', credit: '0.5 credit', icon: 'controller' },
     heroImage: null,
     description:
-      'Building games, apps, or websites? Optio turns your projects into official, WASC-accredited computer science credit. First class free.',
+      'Building games, apps, or websites? Optio turns your projects into official, WASC-accredited computer science credit.',
   },
   {
     slug: 'volunteering',
@@ -89,6 +89,6 @@ export const landers: Lander[] = [
     receipt: { activity: 'A season of shelter shifts', course: 'Civics', credit: '0.5 credit', icon: 'heart' },
     heroImage: null,
     description:
-      'Volunteering in your community? Optio turns that work into official, WASC-accredited high school civics credit. First class free.',
+      'Volunteering in your community? Optio turns that work into official, WASC-accredited high school civics credit.',
   },
 ]

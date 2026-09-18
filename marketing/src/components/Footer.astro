@@ -1,5 +1,5 @@
 ---
-import { SITE, SOCIAL_LINKS, appLink } from '../data/site'
+import { SITE, OFFER, SOCIAL_LINKS, appLink } from '../data/site'
 import WascBadge from './WascBadge.astro'
 
 // Simple Icons paths (CC0), 24x24 viewBox; same set the app footer uses.
@@ -56,7 +56,7 @@ const socialPaths: Record<string, string> = {
         <h2 class="text-sm font-semibold text-neutral-300 uppercase tracking-wider mb-4">Account</h2>
         <div class="flex flex-col gap-3 text-sm">
           <a href={appLink('/login')} class="text-neutral-400 hover:text-white transition-colors">Login</a>
-          <a href="/academy#free-class" class="text-neutral-400 hover:text-white transition-colors">Try a free class</a>
+          <a href={appLink(OFFER.academyEnrollPath)} class="text-neutral-400 hover:text-white transition-colors">Enroll in Optio Academy</a>
         </div>
       </div>
 

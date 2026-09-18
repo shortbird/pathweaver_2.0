@@ -1,8 +1,10 @@
 /**
  * The three-step explainer and the credit rule, in one place. The academy
  * page and every story page say the same thing, so a first-time visitor who
- * lands on a story from a search gets the same answer a parent gets on
+ * lands on a story from a search gets the same answer a visitor gets on
  * /academy, and there is one string to edit when the wording changes.
+ *
+ * Voice: the student, second person. The teacher is "an Optio teacher".
  */
 export interface Step {
   title: string
@@ -11,15 +13,15 @@ export interface Step {
 
 export const HOW_IT_WORKS: Step[] = [
   {
-    title: 'They pick the project.',
-    body: 'Something they already care about: the sport, the song, the code, the business.',
+    title: 'Pick the project.',
+    body: 'Something you already care about: the sport, the song, the code, the business.',
   },
   {
-    title: 'They do it and capture it.',
-    body: 'Photos, videos, drafts, logged in the app as they go.',
+    title: 'Do it and capture it.',
+    body: 'Photos, videos, drafts, logged in the app as you go.',
   },
   {
-    title: 'A licensed teacher makes it count.',
+    title: 'An Optio teacher makes it count.',
     body: 'Evidence reviewed, credit awarded, straight onto a WASC-accredited transcript.',
   },
 ]
@@ -31,7 +33,7 @@ export const HOW_IT_WORKS: Step[] = [
  */
 export function creditExplainer(xpPerCredit: number): string {
   return (
-    'Optio students earn XP for finished work instead of letter grades. A licensed teacher ' +
+    'Optio students earn XP for finished work instead of letter grades. An Optio teacher ' +
     "reviews the evidence against the task's criteria and awards the XP. " +
     `${xpPerCredit.toLocaleString('en-US')} XP is one high school credit on an Optio Academy transcript.`
   )

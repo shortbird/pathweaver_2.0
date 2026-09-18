@@ -2,9 +2,8 @@
 import { getCollection } from 'astro:content'
 import Lander from '../../layouts/Lander.astro'
 import Receipt from '../../components/Receipt.astro'
-import FreeClassForm from '../../components/FreeClassForm.astro'
 import { landers } from '../../data/landers'
-import { OFFER } from '../../data/site'
+import { OFFER, appLink } from '../../data/site'
 import { byNewest, isPublished, storyUrl } from '../../lib/stories'
 
 export async function getStaticPaths() {
@@ -51,19 +50,21 @@ const { lander, examples } = Astro.props
       <div class="grid grid-cols-2 gap-4 mb-8">
         <div class="rounded-xl border border-neutral-100 bg-neutral-50 p-4">
           <p class="text-sm font-bold text-neutral-900 mb-1">What does it cost?</p>
-          <p class="text-sm text-neutral-500 font-medium">{OFFER.freeClassLine}</p>
+          <p class="text-sm text-neutral-500 font-medium">{OFFER.academyMonthly} a month. Every {OFFER.academyPerCredit} is one credit.</p>
         </div>
         <div class="rounded-xl border border-neutral-100 bg-neutral-50 p-4">
-          <p class="text-sm font-bold text-neutral-900 mb-1">Will my school accept it?</p>
-          <p class="text-sm text-neutral-500 font-medium">Transfer Guarantee: full refund if they don't.</p>
+          <p class="text-sm font-bold text-neutral-900 mb-1">Can I stay at my school?</p>
+          <p class="text-sm text-neutral-500 font-medium">Yes. Optio credit stacks with any school.</p>
         </div>
       </div>
 
-      <FreeClassForm source={`lander_${lander.slug}`} />
+      <a href={appLink(OFFER.academyEnrollPath)} data-track={`enroll_lander_${lander.slug}`} class="btn-primary btn-lg w-full">Enroll now</a>
+      <p class="text-center text-sm text-neutral-500 font-medium mt-4">
+        Questions first? <a href="/academy#get-info" data-track="lander_discovery_call" class="text-optio-purple underline">Schedule a call</a>.
+      </p>
 
       <p class="text-xs text-neutral-500 font-medium mt-6">
-        {OFFER.classPriceDetail} Credit is issued through Optio Academy, a WASC-accredited online
-        private school.
+        Credit is issued through Optio Academy, a WASC-accredited online high school. All prices in US dollars.
       </p>
 
       {examples.length > 0 && (

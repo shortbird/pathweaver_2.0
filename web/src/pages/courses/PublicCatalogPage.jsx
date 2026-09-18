@@ -165,10 +165,10 @@ const ClassesOrCourses = () => {
             <p className="text-sm text-gray-600 mb-3">
               Students design their own class in the Optio app, picking a subject
               like Math, English, or PE and building it from what they already love
-              doing. An Optio teacher reviews the work. Your first class is free.
+              doing. An Optio teacher reviews the work.
             </p>
             <a
-              href={marketingUrl('/academy#free-class')}
+              href={marketingUrl('/academy')}
               className="text-sm font-semibold text-optio-purple hover:text-optio-pink transition-colors"
             >
               Explore classes &rarr;

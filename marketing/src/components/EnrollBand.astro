@@ -1,0 +1,35 @@
+---
+/**
+ * The site's one call to action: enroll in Optio Academy. A gradient band with
+ * a heading, a single button into the app's registration funnel, and the
+ * price underneath. Replaced the free-class email form on every page when
+ * that offer retired (2026-09-17).
+ *
+ * The default slot renders under the price line for an optional follow-up,
+ * such as a "Questions? Schedule a call" link.
+ */
+import { OFFER, appLink } from '../data/site'
+
+export interface Props {
+  heading?: string
+  sub?: string
+  /** data-track value for the button, e.g. `enroll_homepage`. */
+  track: string
+  class?: string
+}
+const {
+  heading = 'Start this month.',
+  sub = `${OFFER.academyMonthly} USD a month per student.`,
+  track,
+  class: className = '',
+} = Astro.props
+---
+
+<section class={`bg-gradient-primary text-white ${className}`}>
+  <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
+    <h2 class="text-3xl sm:text-5xl font-bold leading-tight mb-8">{heading}</h2>
+    <a href={appLink(OFFER.academyEnrollPath)} data-track={track} class="btn-inverse btn-lg">Enroll now</a>
+    <p class="text-white/80 text-sm font-medium mt-6">{sub}</p>
+    <slot />
+  </div>
+</section>

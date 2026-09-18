@@ -34,18 +34,31 @@ export const SOCIAL_LINKS = [
   { name: 'TikTok', href: 'https://www.tiktok.com/@optioeducation' },
 ]
 
-/** The offer, stated once. Every page reads from here. */
+/**
+ * The offer, stated once. Every page reads from here.
+ *
+ * The site sells one thing: enrollment in Optio Academy. The free first class
+ * and the $149 individual class retired on 2026-09-17.
+ *
+ * Tuition-to-credit rule: every $100 of tuition is one high school credit, so
+ * 12 x $50 covers six credits a year and four years covers the 24-credit
+ * diploma. Extra credits beyond that pace are $100 each. Keep these in step.
+ */
 export const OFFER = {
-  freeClassLine: 'Your first class is free.',
-  classPrice: '$149',
-  classPriceDetail: '$149 per class after your first free one. One semester, 0.5 credit.',
-  transferGuarantee:
-    'If your school will not accept the credit, we refund you in full. That is the Transfer Guarantee.',
   academyMonthly: '$50',
   academyFamilyCap: '$150',
-  // 12 x $50. Every $100 of tuition covers one credit, so a year covers six
-  // and four years covers the 24-credit diploma. Keep these three in step.
   academyYearly: '$600',
+  academyFourYears: '$2,400',
   academyPerCredit: '$100',
   academyCreditsPerYear: 'six',
+  academyCreditsPerYearNumeral: '6',
+  academyDiplomaCredits: '24',
+  // Teacher support add-on. The app's registration config prices it at $500
+  // a month with tuition included (includes_program_fee), so a family pays
+  // $500, not $550.
+  academyTeacherSupportMonthly: '$500',
+  // The Optio Academy org's parent registration link in the app. `optio-academy`
+  // is the human-readable invitation code in org_invitations; the funnel it
+  // opens charges academyMonthly per student, capped at academyFamilyCap.
+  academyEnrollPath: '/enroll/optio-academy',
 }

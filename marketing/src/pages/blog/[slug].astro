@@ -2,7 +2,7 @@
 import Marketing from '../../layouts/Marketing.astro'
 import Breadcrumbs from '../../components/Breadcrumbs.astro'
 import { getCollection, render } from 'astro:content'
-import { SITE } from '../../data/site'
+import { SITE, OFFER, appLink } from '../../data/site'
 import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, graph, organizationNode, personNode } from '../../data/schema'
 
 export async function getStaticPaths() {
@@ -91,8 +91,8 @@ const schema = [
 
       <div class="mt-12 rounded-2xl bg-gradient-primary text-white p-8 text-center">
         <p class="text-xl font-bold mb-2">Real credit for real life.</p>
-        <p class="text-white/80 font-medium mb-5">Your first class is free.</p>
-        <a href="/academy#free-class" data-track="blog_post_cta" class="btn-inverse">Try a free class</a>
+        <p class="text-white/80 font-medium mb-5">{OFFER.academyMonthly} a month, from anywhere.</p>
+        <a href={appLink(OFFER.academyEnrollPath)} data-track="blog_post_cta" class="btn-inverse">Enroll now</a>
       </div>
 
       <p class="mt-8 text-sm text-neutral-500 font-medium">

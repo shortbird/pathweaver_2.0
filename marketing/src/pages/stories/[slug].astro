@@ -15,7 +15,7 @@ import Marketing from '../../layouts/Marketing.astro'
 import Breadcrumbs from '../../components/Breadcrumbs.astro'
 import Receipt from '../../components/Receipt.astro'
 import FaqList from '../../components/FaqList.astro'
-import FreeClassForm from '../../components/FreeClassForm.astro'
+import EnrollBand from '../../components/EnrollBand.astro'
 import StoryHero from '../../components/stories/StoryHero.astro'
 import HowItWorksStrip from '../../components/stories/HowItWorksStrip.astro'
 import StoryFacts from '../../components/stories/StoryFacts.astro'
@@ -148,7 +148,7 @@ const counted = lander
       href: `/l/${lander.slug}/`,
       eyebrow: `Your ${lander.activity} could count too`,
       headline: lander.headline,
-      detail: `How ${lander.activity} becomes ${lander.subject} credit. ${OFFER.freeClassLine}`,
+      detail: `How ${lander.activity} becomes ${lander.subject} credit. ${OFFER.academyMonthly} a month.`,
       track: 'story_lander',
     }
   : hasHub
@@ -163,7 +163,7 @@ const counted = lander
         href: '/academy',
         eyebrow: 'Your kid\'s work could count too',
         headline: 'How Optio Academy turns real work into credit',
-        detail: `An accredited online private school built around what students already do. ${OFFER.freeClassLine}`,
+        detail: `An accredited online high school built around what students already do. ${OFFER.academyMonthly} a month.`,
         track: 'story_academy',
       }
 ---
@@ -241,7 +241,7 @@ const counted = lander
             <h2 id="the-tasks" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">The tasks</h2>
             <p class="text-neutral-500 font-medium mb-5">
               {pending
-                ? 'Each task is submitted and reviewed on its own. XP is earned per task; the credit is the sum, once a licensed teacher awards it.'
+                ? 'Each task is submitted and reviewed on its own. XP is earned per task; the credit is the sum, once an Optio teacher awards it.'
                 : 'Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.'}
             </p>
             <TaskList rows={sections.tasks.rows} />
@@ -264,7 +264,7 @@ const counted = lander
           <section aria-labelledby="criteria">
             <h2 id="criteria" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">What the teacher checked</h2>
             <p class="text-neutral-500 font-medium mb-6">
-              The criteria belong to the task. A licensed Optio teacher marked each one from the evidence.
+              The criteria belong to the task. An Optio teacher marked each one from the evidence.
             </p>
             <CriteriaList criteria={sections.criteria.criteria} />
           </section>
@@ -321,15 +321,9 @@ const counted = lander
   />
 
   <!-- ========== CTA ========== -->
-  <section class="bg-gradient-primary text-white">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-      <h2 class="text-3xl sm:text-4xl font-bold mb-3 leading-tight">Your kid's {lander ? lander.activity : 'real work'} could be next.</h2>
-      <p class="text-white/80 font-medium mb-8">
-        One semester-length class, 0.5 credit, reviewed by a licensed teacher. {OFFER.freeClassLine}
-      </p>
-      <div class="max-w-md mx-auto [&_.form-note]:text-white/60 [&_.form-note]:text-center [&_.form-error]:text-center">
-        <FreeClassForm source={`story_${story.slug}`} inverse />
-      </div>
-    </div>
-  </section>
+  <EnrollBand
+    heading={`Your ${lander ? lander.activity : 'real work'} could be next.`}
+    sub={`Every ${OFFER.academyPerCredit} of tuition is one credit. ${OFFER.academyMonthly} a month.`}
+    track={`enroll_story_${story.slug}`}
+  />
 </Marketing>

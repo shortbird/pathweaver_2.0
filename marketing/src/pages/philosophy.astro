@@ -1,7 +1,7 @@
 ---
 import Marketing from '../layouts/Marketing.astro'
 import ContactForm from '../components/ContactForm.astro'
-import { SITE } from '../data/site'
+import { SITE, OFFER } from '../data/site'
 import { getCollection } from 'astro:content'
 
 const posts = (await getCollection('blog', ({ data }) => !data.draft))
@@ -181,7 +181,7 @@ const schema = [
       <p>
         The philosophy lives in a real school.
         <a href="/academy">Optio Academy</a> is a WASC-accredited online private school built on
-        everything above, and your student's <a href="/academy#free-class">first class is free</a>.
+        everything above, and enrollment is <a href="/academy#pricing">{OFFER.academyMonthly} a month</a>.
       </p>
     </div>
   </article>

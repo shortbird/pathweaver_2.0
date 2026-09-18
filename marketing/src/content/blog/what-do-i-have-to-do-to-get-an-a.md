@@ -32,6 +32,6 @@ Notice what that rewards. The revision earns more than the draft. In a graded cl
 
 The obvious question: if there are no grades, what goes on the transcript?
 
-Credit is based on evidence of learning, not hours in a chair. Students document real work on the Optio platform, licensed teachers review it, and credit is awarded to an official transcript through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges. Registrars get the format they expect. Students get a record of what they can actually do.
+Credit is based on evidence of learning, not hours in a chair. Students document real work on the Optio platform, Optio teachers review it, and credit is awarded to an official transcript through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges. Registrars get the format they expect. Students get a record of what they can actually do.
 
 One parent put it better than I can: "He LOVES the ability to work in any order, and he loves that it isn't graded." The learning got bigger when the grade got out of the way.

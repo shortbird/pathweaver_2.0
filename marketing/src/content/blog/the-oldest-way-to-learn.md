@@ -22,6 +22,6 @@ That's a fair question. A century of seat time built the machinery of counting: 
 
 That's the whole reason Optio exists. Credit is based on evidence of learning, not hours in a chair.
 
-A student documents the real work: the shipped game, the training log, the season, the recital. A licensed teacher reviews the evidence. Credit lands on an official transcript through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges, the same commission that accredits thousands of public and private schools.
+A student documents the real work: the shipped game, the training log, the season, the recital. An Optio teacher reviews the evidence. Credit lands on an official transcript through Optio Academy, which is accredited by the Accrediting Commission for Schools, Western Association of Schools and Colleges, the same commission that accredits thousands of public and private schools.
 
 The apprentice's way of learning, with the registrar's way of counting. Learning by doing is thousands of years old. Now it counts.

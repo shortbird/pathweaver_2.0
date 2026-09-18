@@ -4,9 +4,9 @@ import Marketing from '../layouts/Marketing.astro'
 import Receipt from '../components/Receipt.astro'
 import StoryCard from '../components/stories/StoryCard.astro'
 import TestimonialRow from '../components/TestimonialRow.astro'
-import FreeClassForm from '../components/FreeClassForm.astro'
+import EnrollBand from '../components/EnrollBand.astro'
 import WascBadge from '../components/WascBadge.astro'
-import { SITE, OFFER } from '../data/site'
+import { SITE } from '../data/site'
 import { ORG_ID, WEBSITE_ID, graph, organizationNode } from '../data/schema'
 import { testimonials } from '../data/testimonials'
 import { WASC_ACCREDITED_PHRASE } from '../data/accreditation'
@@ -47,7 +47,7 @@ const schema = [
 
 <Marketing
   title="Optio | Real Credit for Real Life"
-  description="Real life is the best education. Optio makes it count: official, WASC-accredited high school credit for the learning your kid already does. First class free."
+  description="Real life is the best education. Optio makes it count: official, WASC-accredited high school credit for the learning your kid already does."
   ogImage="/images/og/home.png"
   schema={schema}
 >
@@ -61,7 +61,7 @@ const schema = [
         Optio makes it count: official, WASC-accredited credit for the learning your kid already does.
       </p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="/academy#free-class" data-track="hero_free_class" class="btn-inverse btn-lg">Try a free class</a>
+        <a href="/academy" data-track="hero_academy" class="btn-inverse btn-lg">Explore Optio Academy</a>
         <a href="/schools" data-track="hero_for_schools" class="btn-ghost-inverse btn-lg">For schools</a>
       </div>
     </div>
@@ -81,7 +81,7 @@ const schema = [
           ))}
         </div>
         <p class="text-center text-neutral-500 font-medium mt-8">
-          Real student work, anonymized, and what a licensed teacher awarded for it.
+          Real student work, anonymized, and what an Optio teacher awarded for it.
           <a href="/stories/" data-track="home_stories" class="text-optio-purple underline">Read every story</a>.
         </p>
       </div>
@@ -113,7 +113,7 @@ const schema = [
         />
       </div>
       <p class="text-center text-neutral-500 font-medium mt-8">
-        Capture it, and it counts. Snap a photo, log the work, and a licensed teacher turns it into official credit.
+        Capture it, and it counts. Snap a photo, log the work, and an Optio teacher turns it into official credit.
       </p>
     </div>
   </section>
@@ -190,29 +190,6 @@ const schema = [
     </div>
   </section>
 
-  <!-- ========== TRANSFER GUARANTEE ========== -->
-  <section class="bg-white">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-      <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500 text-white mb-5" aria-hidden="true">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
-      </span>
-      <h2 class="text-3xl sm:text-4xl font-bold text-neutral-900 mb-4">The Transfer Guarantee</h2>
-      <p class="text-lg text-neutral-500 font-medium leading-relaxed">
-        When you finish an Optio class, we send your school an official transcript from Optio
-        Academy. If your school doesn't accept it, we'll refund you in full.
-      </p>
-    </div>
-  </section>
-
   <!-- ========== FINAL CTA ========== -->
-  <section class="bg-gradient-primary text-white">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6 py-16 sm:py-20 text-center">
-      <h2 class="text-3xl sm:text-5xl font-bold mb-8 leading-tight">Try your first class free.</h2>
-      <div class="max-w-md mx-auto [&_.form-note]:text-white/60 [&_.form-note]:text-center [&_.form-error]:text-center">
-        <FreeClassForm source="homepage" inverse />
-      </div>
-    </div>
-  </section>
+  <EnrollBand track="enroll_homepage" />
 </Marketing>

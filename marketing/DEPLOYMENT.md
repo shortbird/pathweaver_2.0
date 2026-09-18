@@ -83,8 +83,8 @@ Marketing-owned moves (301):
 | Source | Destination |
 |---|---|
 | `/how-it-works` | `/academy#how-it-works` |
-| `/classes` | `/academy#free-class` |
-| `/for-students` | `/academy#free-class` |
+| `/classes` | `/academy#pricing` |
+| `/for-students` | `/academy` |
 | `/for-families` | `/academy` |
 | `/for-schools` | `/schools` |
 

@@ -2,7 +2,7 @@
   {
     "slug": "club-basketball-season-physical-education-fixture",
     "title": "A club basketball season became PE credit (fixture)",
-    "dek": "One season of practices and games, logged as evidence, reviewed twice by a licensed teacher, and awarded 0.5 credit of Physical Education.",
+    "dek": "One season of practices and games, logged as evidence, reviewed twice by an Optio teacher, and awarded 0.5 credit of Physical Education.",
     "status": "fixture",
     "published_at": "2026-09-01T16:00:00+00:00",
     "updated_at": "2026-09-03T18:30:00+00:00",
@@ -89,11 +89,11 @@
       },
       {
         "kind": "what_it_counted_for",
-        "body_md": "The task earned 500 XP in Physical Education, which is 0.5 credit on the student's Optio Academy transcript. It appears there as one line: *Physical Education, 0.5 credit, Earned*.\n\nNo seat time was counted. The season was already happening; the log and the reflection were the extra work, and a licensed teacher reviewed them."
+        "body_md": "The task earned 500 XP in Physical Education, which is 0.5 credit on the student's Optio Academy transcript. It appears there as one line: *Physical Education, 0.5 credit, Earned*.\n\nNo seat time was counted. The season was already happening; the log and the reflection were the extra work, and an Optio teacher reviewed them."
       }
     ],
     "faq": [
-      { "q": "Does a sports season count for PE credit?", "a": "Yes, when the student documents it. Optio asks for dated evidence of sustained activity, a measurable change, and a reflection. A licensed teacher reviews the submission and awards credit to an accredited transcript." },
+      { "q": "Does a sports season count for PE credit?", "a": "Yes, when the student documents it. Optio asks for dated evidence of sustained activity, a measurable change, and a reflection. An Optio teacher reviews the submission and awards credit to an accredited transcript." },
       { "q": "How long did the review take?", "a": "Two rounds over four days. The first round asked for one more paragraph in the reflection; the second awarded the credit." },
       { "q": "Is the student named?", "a": "No. Stories are anonymized unless a family has recorded consent. This student is described by grade band only." }
     ],
@@ -176,7 +176,7 @@
     ],
     "faq": [
       { "q": "Can one project count toward two subjects?", "a": "Yes. Each task carries its own subject and XP. This project's editing task was Computer Science; the other four were Fine Arts. The transcript shows both." },
-      { "q": "Who decided the project was finished?", "a": "A licensed Optio teacher reviewed every task. Two tasks came back once for revision. The third round finalized both and awarded the credit." }
+      { "q": "Who decided the project was finished?", "a": "An Optio teacher reviewed every task. Two tasks came back once for revision. The third round finalized both and awarded the credit." }
     ],
     "credit_rule": { "xp_per_credit": 2000 },
     "hero": {
