@@ -262,11 +262,21 @@ def _fetch_in_chunks(table, columns, key, values, chunk=100):
     return out
 
 
-def _progress_for(user_ids, quest_ids):
+def _progress_for(user_ids, quest_ids, thresholds=None):
     """{(user_id, quest_id): {started, completed, done, total}} from the normal
-    quest tables — the same records that drive a learner's own dashboard."""
+    quest tables — the same records that drive a learner's own dashboard.
+
+    `thresholds` is {quest_id: xp_threshold} for the trainings that carry a
+    finish line. Crossing it counts as complete here even when the person
+    never pressed Finish on the quest itself: finishing a quest is the
+    learner's own act everywhere else on the platform, but the office asking
+    "has Josh done his orientation" wants the finish line, not the button
+    (ticket b2e109d4; Josh Hansen, 6 of 6 tasks and 150 of 100 XP, read as
+    not complete). Nothing is written -- the learner's own quest stays as
+    they left it."""
     if not user_ids or not quest_ids:
         return {}
+    thresholds = thresholds or {}
     # Scoped to these quests first, then filtered to the people asked about:
     # the row count grows with the size of the school, so every read here is
     # paged (_fetch_in_chunks).
@@ -293,15 +303,23 @@ def _progress_for(user_ids, quest_ids):
     for uq in user_quests:
         own = by_uq.get(uq['id'], [])
         finished = [t for t in own if t['id'] in done_ids]
+        earned = sum(t.get('xp_value') or 0 for t in finished)
+        needed = thresholds.get(uq['quest_id']) or 0
         out[(uq['user_id'], uq['quest_id'])] = {
             'started': True,
-            'completed': bool(uq.get('completed_at')),
+            'completed': bool(uq.get('completed_at')) or (needed > 0 and earned >= needed),
             'done': len(finished),
             'total': len(own),
-            'earned_xp': sum(t.get('xp_value') or 0 for t in finished),
+            'earned_xp': earned,
             'available_xp': sum(t.get('xp_value') or 0 for t in own),
         }
     return out
+
+
+def _thresholds(catalog):
+    """{quest_id: xp_threshold} for the catalog rows that carry one."""
+    return {c['quest_id']: c.get('xp_threshold') or 0
+            for c in catalog if c.get('kind', 'quest') == 'quest' and c.get('quest_id')}
 
 
 _NOT_STARTED = {'started': False, 'completed': False, 'done': 0, 'total': 0,
@@ -445,13 +463,13 @@ def list_training(user_id):
     if audience == 'staff':
         catalog = sis_service.filter_role_visible(user_id, catalog)
     quest_ids = [c['quest_id'] for c in catalog]
-    progress = _progress_for([user_id], quest_ids)
+    progress = _progress_for([user_id], quest_ids, _thresholds(catalog))
     for c in catalog:
         c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
     # A teacher hired after the admin pressed "assign to everyone" gets the
     # auto-assign quests here, on their first look at the page.
     if catch_up_auto_assigned(user_id, catalog, audience):
-        progress = _progress_for([user_id], quest_ids)
+        progress = _progress_for([user_id], quest_ids, _thresholds(catalog))
         for c in catalog:
             c['my_progress'] = progress.get((user_id, c['quest_id']), dict(_NOT_STARTED))
     if audience == 'staff':
@@ -955,7 +973,7 @@ def training_people(user_id, training_id):
         return err
     audience = _audience(item.get('audience'))
     people = _eligible_people(item['organization_id'], item)
-    progress = _progress_for([p['id'] for p in people], [item['quest_id']])
+    progress = _progress_for([p['id'] for p in people], [item['quest_id']], _thresholds([item]))
     return jsonify({'success': True, 'audience': audience,
                     'audiences': _row_audiences(item), 'people': [{
                         'user_id': p['id'],
@@ -1266,7 +1284,7 @@ def training_progress(user_id):
     # "which families still owe us orientation" nor "which teenagers have done it".
     staff = _audience_people(org_id, audience)
     quest_ids = [c['quest_id'] for c in catalog if c['kind'] == 'quest']
-    progress = _progress_for([s['id'] for s in staff], quest_ids)
+    progress = _progress_for([s['id'] for s in staff], quest_ids, _thresholds(catalog))
     acks = sis_training_service.link_acks_by_user([l['id'] for l in links])
 
     def _cell(c, person):

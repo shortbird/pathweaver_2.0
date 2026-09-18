@@ -12,8 +12,9 @@ import TrainingPeoplePicker from '../../../components/sis/TrainingPeoplePicker'
 import TrainingProgressTable from '../../../components/sis/TrainingProgressTable'
 import { useDeleteTrainingLink } from '../../../hooks/api/useTraining'
 import { useConfirm } from '../../../contexts/ConfirmContext'
-import { words, assignedMessage } from '../trainingCopy'
+import { words, people, accountsOf, assignedMessage } from '../trainingCopy'
 import { Input } from '../../../components/ui/Input'
+import SearchSelect from '../../../components/ui/SearchSelect'
 
 /**
  * TrainingPanel — the training a school sets: quests, and links to videos or
@@ -116,8 +117,27 @@ const TrainingPanel = () => {
     }
   }
 
+  // Publishing a quest built with "Put it on their accounts" enrols the whole
+  // audience at that moment, and nothing on the draft said so (ticket
+  // be12106a: "I'd like to publish WITHOUT assigning"). The flow she asked for
+  // exists -- untick the box, publish, then Choose people -- so the fix is to
+  // say the number before it happens: the same people the picker would list.
   const publish = async (t) => {
     try {
+      if (t.auto_assign) {
+        const who = await api.get(withOrg(`/api/sis/training/${t.id}/people`, orgId))
+        const n = (who.data?.people || []).length
+        const aud = t.audience || audience
+        const ok = await confirm({
+          title: `Publish "${t.title}" and put it on ${accountsOf(n, aud)}?`,
+          body: `It was built with "Put it on their accounts", so publishing enrols ${people(n, aud)} now `
+            + `and anyone who joins later. To publish without that, edit it and untick the box, `
+            + `then hand it out from Choose people.`,
+          confirmLabel: `Publish to ${people(n, aud)}`,
+          cancelLabel: 'Not yet',
+        })
+        if (!ok) return
+      }
       const res = await api.post(withOrg(`/api/sis/training/${t.id}/publish`, orgId), {})
       toast.success(assignedMessage(res.data?.assigned, t.audience || audience,
         `"${t.title}" published.`))
@@ -154,6 +174,9 @@ const TrainingPanel = () => {
   const [search, setSearch] = useState('')
   const matches = useCallback((title) => !search.trim()
     || (title || '').toLowerCase().includes(search.trim().toLowerCase()), [search])
+  // The report's other axis: one training, every person (ticket b2e109d4,
+  // "who has done what will get unwieldy"). '' is every column.
+  const [onlyTraining, setOnlyTraining] = useState('')
 
   // In the order the creator arranged it (hooks/useTrainingOrder): quests and
   // links on one shared scale, moved with the arrows below.
@@ -241,13 +264,27 @@ const TrainingPanel = () => {
         onAdded={() => { setEditing(null); load() }} onCancel={() => setEditing(null)} />}
 
       {!loading && training.length > 0 && (
-        <div className="mb-4 max-w-md">
-          <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder={view === 'everyone'
-              ? `Search ${words(audience).many} by name\u2026`
-              : `Search ${words(audience).quests} by name\u2026`}
-            aria-label={view === 'everyone' ? `Search ${words(audience).many}` : `Search ${words(audience).quests}`}
-            className="text-sm" />
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="w-full max-w-md">
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder={view === 'everyone'
+                ? `Search ${words(audience).many} by name\u2026`
+                : `Search ${words(audience).quests} by name\u2026`}
+              aria-label={view === 'everyone' ? `Search ${words(audience).many}` : `Search ${words(audience).quests}`}
+              className="text-sm" />
+          </div>
+          {view === 'everyone' && admin && (
+            <div className="w-full max-w-xs">
+              <SearchSelect
+                value={onlyTraining}
+                onChange={(v) => setOnlyTraining(v || '')}
+                options={ordered.map((t) => ({ id: `${t.kind}:${t.id}`, title: t.title }))}
+                getId={(t) => t.id}
+                getLabel={(t) => t.title}
+                placeholder="Every training\u2026"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -307,7 +344,7 @@ const TrainingPanel = () => {
 
       {!loading && view === 'everyone' && admin && (
         <TrainingProgressTable report={report} ordered={ordered} audience={audience}
-          personMatches={matches} />
+          personMatches={matches} onlyTraining={onlyTraining} />
       )}
 
       {picking && (

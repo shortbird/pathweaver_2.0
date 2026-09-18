@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { withConfirm, confirmText } from '../../tests/confirmTestUtils'
 
 /**
  * Training — getting the quest onto people's accounts, and building it from a
@@ -337,10 +338,18 @@ describe('saving a quest as a draft', () => {
     expect(api.post.mock.calls[0][1].is_draft).toBe(false)
   })
 
-  it('marks a draft in the list and offers to publish it', async () => {
+  it('marks a draft in the list and offers to publish it, saying who it goes to', async () => {
+    // Built with "Put it on their accounts": the button says so (ticket be12106a).
     mockGets([{ ...ITEM, is_draft: true }])
     render(<TrainingPanel />)
     expect(await screen.findByText('Draft')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^publish to everyone$/i })).toBeInTheDocument()
+  })
+
+  it('a draft built to be found says plain Publish', async () => {
+    mockGets([{ ...ITEM, is_draft: true, auto_assign: false }])
+    render(<TrainingPanel />)
+    await screen.findByText('Draft')
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeInTheDocument()
   })
 
@@ -360,12 +369,43 @@ describe('saving a quest as a draft', () => {
     expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument()
   })
 
-  it('publishes on request', async () => {
-    mockGets([{ ...ITEM, is_draft: true }])
-    api.post.mockResolvedValue({ data: { assigned: { enrolled: 5, already: 0 }, audience: 'family' } })
-    render(<TrainingPanel />)
+  it('publishes a draft built to be found on request, asking nothing', async () => {
+    mockGets([{ ...ITEM, is_draft: true, auto_assign: false }])
+    api.post.mockResolvedValue({ data: { assigned: null, audience: 'family' } })
+    render(withConfirm(<TrainingPanel />))
     fireEvent.click(await screen.findByRole('button', { name: /^publish$/i }))
 
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post.mock.calls[0][0]).toContain('/api/sis/training/tr-1/publish')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('says the number before publishing puts it on their accounts', async () => {
+    // Ticket be12106a: publishing enrolled everyone and nothing said so. The
+    // same people the picker lists are counted and named before it happens.
+    mockGets([{ ...ITEM, is_draft: true }])
+    api.get.mockImplementation((url) => {
+      if (url.includes('/training/tr-1/people')) {
+        return Promise.resolve({ data: { people: [{ user_id: 'p1' }, { user_id: 'p2' }, { user_id: 'p3' }] } })
+      }
+      if (url.includes('/training/progress')) {
+        return Promise.resolve({ data: { training: [], staff: [], required_total: 0 } })
+      }
+      return Promise.resolve({ data: { training: [{ ...ITEM, is_draft: true }] } })
+    })
+    api.post.mockResolvedValue({ data: { assigned: { enrolled: 3, already: 0 }, audience: 'family' } })
+    render(withConfirm(<TrainingPanel />))
+    fireEvent.click(await screen.findByRole('button', { name: /^publish to everyone$/i }))
+
+    expect(await confirmText()).toMatch(/put it on 3 families' accounts/i)
+    expect(api.post).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Not yet' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(api.post).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^publish to everyone$/i }))
+    await confirmText()
+    fireEvent.click(screen.getByRole('button', { name: 'Publish to 3 families' }))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
     expect(api.post.mock.calls[0][0]).toContain('/api/sis/training/tr-1/publish')
   })

@@ -5,7 +5,8 @@ import { progressLabel, progressStyle, words } from '../../pages/sis/trainingCop
  * Who has done what: one row per person, one column per training item, in
  * the creator's order. The page's search narrows the ROWS by the person's
  * name -- every column stays, so one teacher's whole progress is in view at
- * once (Tanner, 2026-09-17). Lifted out of the training page (now libraryPage/TrainingPanel) the same day,
+ * once (Tanner, 2026-09-17); the page's training picker narrows the COLUMNS
+ * to one training, every person (2026-09-18). Lifted out of the training page (now libraryPage/TrainingPanel) the same day,
  * when that page crossed the size cap; the page owns the data and this
  * renders it.
  *
@@ -16,11 +17,16 @@ import { progressLabel, progressStyle, words } from '../../pages/sis/trainingCop
  * reads "not done" on a training they were not given. `ordered` is the
  * page's arranged list, so a row just moved shows in its new place here too.
  */
-export default function TrainingProgressTable({ report, ordered = [], audience, personMatches = () => true }) {
+export default function TrainingProgressTable({
+  report, ordered = [], audience, personMatches = () => true, onlyTraining = '',
+}) {
   const people = (report?.staff || []).filter((s) => personMatches(s.name))
   const keyOf = (r) => `${r.kind}:${r.id}`
   const rank = new Map(ordered.map((r, i) => [keyOf(r), i]))
+  // `onlyTraining` ('kind:id') narrows the COLUMNS to one training, every
+  // person -- the other axis of the same table (ticket b2e109d4).
   const columns = [...(report?.training || [])]
+    .filter((t) => !onlyTraining || keyOf(t) === onlyTraining)
     .sort((a, b) => (rank.get(keyOf(a)) ?? Number.MAX_SAFE_INTEGER) - (rank.get(keyOf(b)) ?? Number.MAX_SAFE_INTEGER))
   const cellFor = (person, col) => (person.cells || [])
     .find((c) => c.kind === col.kind && c.id === col.id)

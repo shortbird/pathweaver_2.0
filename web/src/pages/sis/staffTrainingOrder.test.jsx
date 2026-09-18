@@ -158,6 +158,16 @@ describe('the creator\'s order on the Training page', () => {
 
     fireEvent.change(box, { target: { value: 'zzz' } })
     expect(screen.getByText('Nobody matches that search.')).toBeInTheDocument()
+    fireEvent.change(box, { target: { value: '' } })
+
+    // The other axis (ticket b2e109d4): one training, every person.
+    const pick = screen.getByPlaceholderText(/Every training/)
+    fireEvent.change(pick, { target: { value: 'Second' } })
+    fireEvent.mouseDown(await within(await screen.findByTestId('search-select-menu')).findByText('Second training (video)'))
+    const narrowed = screen.getAllByRole('columnheader').map((h) => h.textContent)
+    expect(narrowed).toEqual(['Staff', 'Second training (video)', 'Required done'])
+    expect(screen.getByText('Jane Bird')).toBeInTheDocument()
+    expect(screen.getByText('Omar Reyes')).toBeInTheDocument()
   })
 
   it('shows a teacher the same order with no arrows', async () => {

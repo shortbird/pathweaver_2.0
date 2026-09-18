@@ -140,8 +140,11 @@ const QuestRow = ({
         </button>
         {t.is_draft ? (
           <button onClick={onPublish}
+            title={t.auto_assign
+              ? `Goes on every ${words(audience).one}'s account when published; you will see the number first`
+              : 'Becomes visible; hand it out from Choose people or Assign to everyone'}
             className="px-2.5 py-1 rounded-lg bg-gradient-primary text-white text-xs font-semibold">
-            Publish
+            {t.auto_assign ? 'Publish to everyone' : 'Publish'}
           </button>
         ) : (
           <button onClick={onAssign} disabled={assigning}

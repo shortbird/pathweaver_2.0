@@ -119,3 +119,28 @@ def test_other_peoples_enrollments_are_left_out():
 
     assert ('u1', 'q1') in result
     assert ('someone-else', 'q1') not in result
+
+
+def test_crossing_the_finish_line_is_complete_without_pressing_finish():
+    """Ticket b2e109d4: Josh Hansen had every task done and 150 of 100 XP, and
+    the report said he was not complete because he never ended the quest on
+    the platform. For a training with a finish line, the line is the answer."""
+    rows = {
+        'user_quests': [{'id': 'uq1', 'user_id': 'u1', 'quest_id': 'q1',
+                         'completed_at': None, 'started_at': 'now'}],
+        'user_quest_tasks': [{'id': f't{i}', 'user_quest_id': 'uq1', 'xp_value': 25}
+                             for i in range(6)],
+        'quest_task_completions': [{'id': f'c{i}', 'task_id': f't{i}'} for i in range(6)],
+    }
+    calls = []
+    client = Mock()
+    client.table.side_effect = _PagedTable(rows, calls)
+    with patch.object(training, '_admin', return_value=client):
+        over = training._progress_for(['u1'], ['q1'], {'q1': 100})
+        short = training._progress_for(['u1'], ['q1'], {'q1': 200})
+        no_line = training._progress_for(['u1'], ['q1'])
+    assert over[('u1', 'q1')]['completed'] is True
+    assert over[('u1', 'q1')]['earned_xp'] == 150
+    # Under the line, and with no line at all, only the learner's own Finish counts.
+    assert short[('u1', 'q1')]['completed'] is False
+    assert no_line[('u1', 'q1')]['completed'] is False
