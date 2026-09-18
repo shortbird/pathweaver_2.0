@@ -11,15 +11,13 @@ export interface Props {
   course: string
   credit: string
   status?: string
-  /** The credit is still under review: amber "Pending review" instead of the green check. */
-  pending?: boolean
   icon?: 'ball' | 'controller' | 'music' | 'brush' | 'flask' | 'heart' | 'run' | 'pan'
   /** Photo of the activity; when set it becomes the card's header and replaces the icon */
   image?: string
   class?: string
 }
 const {
-  activity, course, credit, pending = false, status = pending ? 'Pending review' : 'Earned',
+  activity, course, credit, status = 'Earned',
   icon = 'ball', image, class: className = '',
 } = Astro.props
 
@@ -69,13 +67,9 @@ const icons = RECEIPT_ICON_PATHS
       </div>
       <div class="flex items-center justify-between gap-2">
         <span class="text-sm text-neutral-500 font-medium whitespace-nowrap">{credit}</span>
-        <span class={`inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap ${pending ? 'text-amber-700' : 'text-green-700'}`}>
+        <span class="inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-green-700">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-            {pending ? (
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            ) : (
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            )}
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
           </svg>
           {status}
         </span>

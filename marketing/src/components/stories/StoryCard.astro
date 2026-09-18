@@ -3,7 +3,9 @@
  * One story in a list: the student's evidence, then the title and dek. The
  * whole card is the link, so a video hero is shown as its poster with a play
  * badge (it plays on the page); a video with no poster is a muted, unplayed
- * <video> so the browser paints its first frame. No hero: the receipt icon.
+ * <video> so the browser paints its first frame. No hero: the student's own
+ * words (the first quote, clipped) or the document they submitted, styled as
+ * a page; only a story with none of those shows the receipt icon.
  */
 import { Image } from 'astro:assets'
 import type { StoryCardProps } from '../../lib/stories'
@@ -43,6 +45,29 @@ const isVideo = story.hero?.type === 'video'
       <video muted playsinline preload="metadata" class="w-full h-full object-cover bg-neutral-900" aria-hidden="true" tabindex="-1">
         <source src={story.hero.url} type={videoType(story.hero.url)} />
       </video>
+    ) : story.text_hero?.kind === 'quote' ? (
+      <div class="w-full h-full bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 px-5 pt-5">
+        <blockquote class="relative h-full rounded-t-xl border border-b-0 border-neutral-100 bg-white shadow-sm px-5 pt-4 overflow-hidden">
+          <p class="text-[10px] uppercase tracking-widest text-optio-purple font-semibold mb-2">In the student's own words</p>
+          <p class="text-sm leading-relaxed text-neutral-800 font-medium">{story.text_hero.excerpt}</p>
+          <span class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white to-transparent" aria-hidden="true"></span>
+        </blockquote>
+      </div>
+    ) : story.text_hero?.kind === 'document' ? (
+      <div class="w-full h-full bg-gradient-to-br from-optio-purple/10 to-optio-pink/10 px-5 pt-5">
+        <div class="h-full rounded-t-xl border border-b-0 border-neutral-100 bg-white shadow-sm px-5 pt-5 flex items-start gap-4 overflow-hidden">
+          <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-optio-purple/10 text-optio-purple flex-shrink-0" aria-hidden="true">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </span>
+          <div class="min-w-0">
+            <p class="text-[10px] uppercase tracking-widest text-optio-purple font-semibold mb-1">A document the student submitted</p>
+            <p class="text-sm font-semibold text-neutral-900 leading-snug">{story.text_hero.title}</p>
+            {story.text_hero.caption && <p class="text-sm text-neutral-500 mt-1 line-clamp-2">{story.text_hero.caption}</p>}
+          </div>
+        </div>
+      </div>
     ) : (
       <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-optio-purple/10 to-optio-pink/10">
         <span class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-white text-optio-purple shadow-sm" aria-hidden="true">
@@ -70,16 +95,12 @@ const isVideo = story.hero?.type === 'video'
     <p class="text-sm text-neutral-500 font-medium leading-relaxed line-clamp-3">{story.dek}</p>
   </div>
   <div class="border-t border-dashed border-neutral-300 bg-neutral-50/60 px-5 py-3 flex items-center justify-between gap-2">
-    <span class="text-sm font-semibold text-neutral-900">{isVideo ? 'Watch the work' : 'See the work'}</span>
-    <span class={`inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap ${story.credit_pending ? 'text-amber-700' : 'text-green-700'}`}>
+    <span class="text-sm font-semibold text-neutral-900">{isVideo ? 'Watch the work' : story.text_hero?.kind === 'quote' ? 'Read the work' : 'See the work'}</span>
+    <span class="inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap text-green-700">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-        {story.credit_pending ? (
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        ) : (
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-        )}
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
       </svg>
-      {story.credit_pending ? 'Credit pending review' : 'Earned credit'}
+      Earned credit
     </span>
   </div>
 </a>

@@ -205,19 +205,19 @@ class TestThePrompt:
         assert 'This assignment earned 0.5 credit of Science.' in text
         assert 'reads as a joke' not in text
 
-    def test_an_uncredited_source_is_told_the_review_is_open(self, source):
-        """A story drafted before the grader finalizes must not claim credit."""
+    def test_an_uncredited_source_is_written_as_earned_too(self, source):
+        """Since 2026-09-18 the public page shows every story as earned
+        credit, so the prompt keeps one voice; the pending state still rides
+        in the source for the receipt and the editor."""
         source.tasks[0].credited = False
         text = prompt_mod.build_prompt(source, student_label='A student', safe_images=[])
         assert source.credit_state == 'pending'
-        assert 'how that work is becoming credit on a transcript' in text
-        assert 'This assignment is worth 200 XP toward a Science credit once a licensed teacher awards it.' in text
-        assert 'Tasks submitted: 1. Tasks credited so far: 0.' in text
-        assert 'THE REVIEW IS STILL OPEN' in text
-        assert 'Do not write that the credit was earned, awarded,' in text
-        assert 'why the evidence is what earns it' in text
-        assert 'the page marks it pending itself; do not' in text
-        assert 'This assignment earned' not in text
+        assert 'how that work became credit on a transcript' in text
+        assert 'This assignment earned 200 XP toward a Science credit.' in text
+        assert 'why the evidence is what earned it' in text
+        assert 'REVIEW IS STILL OPEN' not in text
+        assert 'once a licensed teacher awards it' not in text
+        assert 'marks it pending' not in text
 
     def test_an_anonymized_story_names_nobody_not_even_generically(self, source):
         text = prompt_mod.build_prompt(source, student_label='A high school student',

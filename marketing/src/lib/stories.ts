@@ -84,8 +84,47 @@ export function heroStill(story: Story): string | null {
 export function evidenceBesidesHero(story: Story): EvidenceItem[] {
   const items = sectionsByKind(story).evidence?.items ?? []
   const hero = heroOf(story)
-  if (!hero) return items
-  return items.filter((i) => i.url !== hero.url)
+  if (hero) return items.filter((i) => i.url !== hero.url)
+  const text = textHeroOf(story)
+  if (!text) return items
+  // The quote or document that leads the page is not repeated beneath it.
+  return items.filter((i) => i !== text.item)
+}
+
+/**
+ * What leads a story that has no image or video: the student's first quote,
+ * else the first document they submitted. The student's work still goes
+ * above every word about it, even when the work is words.
+ */
+export type TextHero =
+  | { kind: 'quote'; text: string; caption: string | null; item: EvidenceItem }
+  | { kind: 'document'; url: string; title: string; caption: string | null; item: EvidenceItem }
+
+export function textHeroOf(story: Story): TextHero | null {
+  if (heroOf(story)) return null
+  const items = sectionsByKind(story).evidence?.items ?? []
+  const quote = items.find((i) => i.type === 'quote' && i.text?.trim())
+  if (quote) return { kind: 'quote', text: quote.text!.trim(), caption: quote.caption ?? null, item: quote }
+  const doc = items.find((i) => i.type === 'document' && i.url)
+  if (doc) {
+    return {
+      kind: 'document',
+      url: doc.url!,
+      title: doc.alt || 'A document the student submitted',
+      caption: doc.caption ?? null,
+      item: doc,
+    }
+  }
+  return null
+}
+
+/** The first `max` characters of a quote, cut at a word, for a card. */
+export function excerpt(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  if (flat.length <= max) return flat
+  const head = flat.slice(0, max)
+  const cut = head.lastIndexOf(' ')
+  return `${cut > max * 0.6 ? head.slice(0, cut) : head}\u2026`
 }
 
 /** The bucket publishes mp4, mov and webm; the extension is the backend's own, from the MIME it sniffed. */
@@ -184,10 +223,16 @@ export function cardProps(story: Story) {
     icon: story.receipt.icon,
     setting: story.student.setting,
     published_at: story.published_at,
-    credit_pending: creditPending(story),
+    text_hero: cardTextHero(story),
   }
 }
-export type StoryCardProps = ReturnType<typeof cardProps>
 
-/** True while a licensed teacher has not finalized the credit behind a story. */
-export const creditPending = (story: Story) => story.credit_state === 'pending'
+/** The text hero without the evidence item behind it: a card only renders it. */
+function cardTextHero(story: Story) {
+  const hero = textHeroOf(story)
+  if (!hero) return null
+  return hero.kind === 'quote'
+    ? { kind: 'quote' as const, excerpt: excerpt(hero.text, 240), caption: hero.caption }
+    : { kind: 'document' as const, title: hero.title, caption: hero.caption }
+}
+export type StoryCardProps = ReturnType<typeof cardProps>

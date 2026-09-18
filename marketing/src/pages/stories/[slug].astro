@@ -17,6 +17,7 @@ import Receipt from '../../components/Receipt.astro'
 import FaqList from '../../components/FaqList.astro'
 import EnrollBand from '../../components/EnrollBand.astro'
 import StoryHero from '../../components/stories/StoryHero.astro'
+import StoryTextHero from '../../components/stories/StoryTextHero.astro'
 import HowItWorksStrip from '../../components/stories/HowItWorksStrip.astro'
 import StoryFacts from '../../components/stories/StoryFacts.astro'
 import TaskList from '../../components/stories/TaskList.astro'
@@ -29,10 +30,10 @@ import { ORG_ID, PERSON_ID, absolute, breadcrumbNode, faqNode, graph, organizati
 import type { Story } from '../../data/stories.schema'
 import {
   cardProps,
-  creditPending,
   evidenceBesidesHero,
   formatDate,
   heroOf,
+  textHeroOf,
   heroStill,
   isPublished,
   isoDuration,
@@ -72,10 +73,10 @@ interface Props {
 const { story, relatedStories, hubSlugs } = Astro.props
 const hubs = new Set(hubSlugs)
 const published = isPublished(story)
-const pending = creditPending(story)
 const sections = sectionsByKind(story)
 const lander = landerFor(story)
 const hero = heroOf(story)
+const textHero = hero ? null : textHeroOf(story)
 const still = heroStill(story)
 const moreEvidence = evidenceBesidesHero(story)
 const url = absolute(storyUrl(story))
@@ -218,8 +219,10 @@ const counted = lander
       <div class="max-w-4xl mx-auto px-4 sm:px-6 pb-10 space-y-8">
         {hero ? (
           <StoryHero hero={hero} fallbackAlt={story.receipt.activity} />
+        ) : textHero ? (
+          <StoryTextHero hero={textHero} />
         ) : (
-          <Receipt {...story.receipt} pending={pending} class="max-w-sm" />
+          <Receipt {...story.receipt} class="max-w-sm" />
         )}
         <HowItWorksStrip />
         <StoryFacts story={story} hubSlugs={hubs} />
@@ -240,9 +243,7 @@ const counted = lander
           <section aria-labelledby="the-tasks">
             <h2 id="the-tasks" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">The tasks</h2>
             <p class="text-neutral-500 font-medium mb-5">
-              {pending
-                ? 'Each task is submitted and reviewed on its own. XP is earned per task; the credit is the sum, once an Optio teacher awards it.'
-                : 'Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.'}
+              Each task was submitted and reviewed on its own. XP is earned per task; the credit is the sum.
             </p>
             <TaskList rows={sections.tasks.rows} />
           </section>
@@ -251,7 +252,7 @@ const counted = lander
         {moreEvidence.length > 0 && (
           <section aria-labelledby="evidence">
             <h2 id="evidence" class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">
-              {hero ? 'More of the evidence' : 'What the student submitted as evidence'}
+              {hero || textHero ? 'More of the evidence' : 'What the student submitted as evidence'}
             </h2>
             <p class="text-neutral-500 font-medium mb-6">
               Shown as submitted, minus anything the family did not agree to share.
@@ -277,7 +278,7 @@ const counted = lander
           )}
           <p class="mt-5 text-neutral-700 font-medium leading-relaxed">{creditExplainer(xpPerCredit(story))}</p>
           <div class="mt-8 grid gap-5 sm:grid-cols-2 items-stretch">
-            <Receipt {...story.receipt} pending={pending} />
+            <Receipt {...story.receipt} />
             <a
               href={counted.href}
               data-track={counted.track}

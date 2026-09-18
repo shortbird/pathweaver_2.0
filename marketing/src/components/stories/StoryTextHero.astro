@@ -1,0 +1,40 @@
+---
+/**
+ * The lead for a story with no image or video: the student's own words, or
+ * the document they submitted, in the place a photo would take. The full
+ * quote, not an excerpt: it is the work. The evidence section beneath does
+ * not repeat it (evidenceBesidesHero).
+ */
+import type { TextHero } from '../../lib/stories'
+
+export interface Props {
+  hero: TextHero
+  class?: string
+}
+const { hero, class: className = '' } = Astro.props
+---
+
+<figure class={`rounded-2xl border border-neutral-100 bg-white overflow-hidden shadow-lg ${className}`}>
+  {hero.kind === 'quote' ? (
+    <blockquote class="px-6 sm:px-10 py-8 sm:py-10 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5">
+      <p class="text-[11px] uppercase tracking-widest text-optio-purple font-semibold mb-4">In the student's own words</p>
+      <p class="text-lg sm:text-xl leading-relaxed text-neutral-800 font-medium whitespace-pre-line">{hero.text}</p>
+    </blockquote>
+  ) : (
+    <div class="px-6 sm:px-10 py-8 sm:py-10 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 flex items-start gap-5">
+      <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white text-optio-purple shadow-sm flex-shrink-0" aria-hidden="true">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </span>
+      <div class="min-w-0">
+        <p class="text-[11px] uppercase tracking-widest text-optio-purple font-semibold mb-2">A document the student submitted</p>
+        <p class="text-lg sm:text-xl font-bold text-neutral-900 leading-snug">{hero.title}</p>
+        <a href={hero.url} target="_blank" rel="noopener" class="inline-block mt-3 text-sm font-semibold text-optio-purple hover:underline" data-track="story_hero_document">Open the PDF</a>
+      </div>
+    </div>
+  )}
+  <figcaption class="px-5 py-3 text-sm text-neutral-500 font-medium border-t border-neutral-100 bg-white">
+    {hero.caption || 'Submitted as evidence for the task.'}
+  </figcaption>
+</figure>
