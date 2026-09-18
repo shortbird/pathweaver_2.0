@@ -49,7 +49,7 @@ const StatCard = ({ label, value, accent, note }) => (
  * response can't render a tile that leads to a page the org turned off.
  */
 const ATTENTION_TILES = [
-  { key: 'attendance_alerts', label: 'Not accounted for', to: '/attendance',
+  { key: 'attendance_alerts', label: 'Not accounted for', to: '/classes?tab=attendance',
     module: '/attendance', urgent: true },
   { key: 'requests_overdue', label: 'Overdue requests', to: '/tasks?tab=requests',
     module: '/tasks', urgent: true },
@@ -75,7 +75,7 @@ const ATTENTION_TILES = [
  * office opens a class many times a day and writes to families a few times a
  * week, and the list had it the other way round. */
 const QUICK_ACTIONS = [
-  { label: 'Take attendance', to: '/attendance', module: '/attendance' },
+  { label: 'Take attendance', to: '/classes?tab=attendance', module: '/attendance' },
   { label: 'Classes', to: '/classes', module: '/classes' },
   { label: 'Add a family', to: '/people?add=family' },
   { label: 'Message families', to: '/inbox?tab=announcements' },
@@ -290,7 +290,7 @@ const SisDashboard = () => {
                     <div className="text-xs text-neutral-500">Excused / reported out</div>
                   </div>
                 </div>
-                <Link to="/attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
+                <Link to="/classes?tab=attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
                   Open attendance →
                 </Link>
               </DashboardCard>

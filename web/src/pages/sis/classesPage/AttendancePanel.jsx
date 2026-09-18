@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom'
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import Button from '../../components/ui/Button'
-import { useAuth } from '../../contexts/AuthContext'
-import { useSisOrg, withOrg } from './useSisOrg'
-import SearchSelect from '../../components/ui/SearchSelect'
-import { classLabel, meetingText } from '../../components/sis/classLabel'
-import AttendanceAlerts from '../../components/sis/AttendanceAlerts'
-import { isSisAdmin } from './sisRole'
-import { statusTone } from '../../components/sis/ui/statusMaps'
+import api from '../../../services/api'
+import Button from '../../../components/ui/Button'
+import { useAuth } from '../../../contexts/AuthContext'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import SearchSelect from '../../../components/ui/SearchSelect'
+import { classLabel, meetingText } from '../../../components/sis/classLabel'
+import AttendanceAlerts from '../../../components/sis/AttendanceAlerts'
+import { isSisAdmin } from '../sisRole'
+import { statusTone } from '../../../components/sis/ui/statusMaps'
 
 /**
  * Attendance — optimized for a teacher taking roll. Their assigned classes are
@@ -36,7 +36,7 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const AttendancePage = () => {
+export default function AttendancePanel() {
   const { user } = useAuth()
   const { orgId } = useSisOrg()
   const [classes, setClasses] = useState([])
@@ -162,19 +162,16 @@ const AttendancePage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold text-neutral-900">Attendance</h1>
-          {/* "And where are the attendance reports." (iCreate, 2026-09-01 —
-              e021e34f). They were on /reports the whole time, which is no help
-              to somebody standing on this page looking for them. */}
-          {admin && (
-            <Link to="/reports" className="text-sm text-optio-purple hover:underline">
-              Attendance reports →
-            </Link>
-          )}
+      {/* "And where are the attendance reports." (iCreate, 2026-09-01 —
+          e021e34f). They were on /reports the whole time, which is no help
+          to somebody standing on this page looking for them. */}
+      {admin && (
+        <div className="flex justify-end mb-4">
+          <Link to="/reports" className="text-sm text-optio-purple hover:underline">
+            Attendance reports →
+          </Link>
         </div>
-      </div>
+      )}
 
       {myClasses.length > 0 && (
         <div className="mb-4">
@@ -350,4 +347,3 @@ const AttendancePage = () => {
   )
 }
 
-export default AttendancePage

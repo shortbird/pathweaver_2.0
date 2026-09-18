@@ -37,7 +37,7 @@ const { api, state } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import AttendancePage from './AttendancePage'
+import AttendancePanel from './classesPage/AttendancePanel'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'advisor' } }
@@ -58,7 +58,7 @@ const pickClass = async (label) => {
 
 describe('AttendancePage', () => {
   it('marks tapped students absent and saves the WHOLE roster (untouched = present)', async () => {
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     await pickClass('Pottery')
 
     // roster appears, everyone defaults to present (four-chip control per row
@@ -85,7 +85,7 @@ describe('AttendancePage', () => {
       { id: 'c1', name: 'Pottery', primary_instructor_id: 'u1', enrolled_count: 2, meetings: [] },
       { id: 'c2', name: 'Robotics', primary_instructor_id: 'other' },
     ]
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     // chip section renders only their class, and the roster loads without any clicks
     expect(await screen.findByText('My classes')).toBeInTheDocument()
     expect(await screen.findByText('Bo')).toBeInTheDocument()
@@ -98,7 +98,7 @@ describe('AttendancePage', () => {
       { id: 'c1', name: 'Reading Tutoring', meetings: [{ day_of_week: 2, start_time: '10:30:00', end_time: '11:30:00' }] },
       { id: 'c2', name: 'Reading Tutoring', meetings: [{ day_of_week: 4, start_time: '09:30:00', end_time: '10:30:00' }] },
     ]
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     fireEvent.focus(screen.getByPlaceholderText('Search classes…'))
     expect(await screen.findByText('Reading Tutoring — Tue 10:30 AM–11:30 AM')).toBeInTheDocument()
     expect(screen.getByText('Reading Tutoring — Thu 9:30 AM–10:30 AM')).toBeInTheDocument()
@@ -106,7 +106,7 @@ describe('AttendancePage', () => {
 
   it('lets a saved absence be toggled back and re-saved as present', async () => {
     state.roster = [{ student_user_id: 's1', name: 'Bo', status: 'absent' }]
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     await pickClass('Pottery')
 
     // prior save is reflected — Absent is the active chip

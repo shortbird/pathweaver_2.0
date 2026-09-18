@@ -48,16 +48,16 @@ describe('StudentProgressTab', () => {
   })
 
   it('offers a way into this class\'s submissions', async () => {
-    /** Submissions is its own sidebar item, a long way from the page a teacher
-     *  is on when they wonder what somebody handed in (Gryffin, 2026-08-27:
-     *  "a submissions tab should be under student progress. It is hard to
-     *  figure out where to find that"). Pre-filtered to the class. */
+    /** Submissions is another tab of Classes, a long way from the page a
+     *  teacher is on when they wonder what somebody handed in (Gryffin,
+     *  2026-08-27: "a submissions tab should be under student progress. It is
+     *  hard to figure out where to find that"). Pre-filtered to the class. */
     api.get.mockResolvedValue({
       data: { quests: QUESTS, students: [student('Ada', [cell('q1'), cell('q2')])] },
     })
     render(<StudentProgressTab classId="c1" className="Art" />)
     const link = await screen.findByRole('link', { name: /Review submissions/i })
-    expect(link).toHaveAttribute('href', '/submissions?class_id=c1&from=progress')
+    expect(link).toHaveAttribute('href', '/classes?tab=submissions&class_id=c1&from=progress')
   })
 
   it('says the roster is empty rather than showing a bare table', async () => {

@@ -334,7 +334,7 @@ def _sweep_org(org_id: str) -> Dict[str, int]:
             sis_notifications.notify(
                 advisor_id, 'Take attendance',
                 f"{class_name.get(cid) or 'Your class'} is starting — mark today's absences.",
-                link='/attendance', organization_id=org_id,
+                link='/classes?tab=attendance', organization_id=org_id,
                 metadata={'class_id': cid, 'date': today.isoformat()},
             )
         counts['class_reminders'] += 1

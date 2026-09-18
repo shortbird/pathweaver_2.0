@@ -91,7 +91,7 @@ class TestCancelNotifiesTheAdminTeam:
         assert args[1] == 'Absence report cancelled'
         assert 'Sam Hearth' in args[2] and 'cancelled' in args[2]
         assert '2026-08-25' in args[2]
-        assert kwargs['link'] == '/attendance'
+        assert kwargs['link'] == '/classes?tab=attendance'
         assert kwargs['organization_id'] == 'org-1'
         assert kwargs['metadata']['cancelled'] is True
         assert kwargs['metadata']['student_id'] == 'stu-1'
@@ -144,5 +144,5 @@ class TestReportNotificationStillWorks:
         assert args[1] == 'Absence reported'
         assert args[2] == ('A guardian reported Sam Hearth will be out of '
                            'all classes on 2026-08-25.')
-        assert kwargs['link'] == '/attendance'
+        assert kwargs['link'] == '/classes?tab=attendance'
         assert 'cancelled' not in kwargs['metadata']

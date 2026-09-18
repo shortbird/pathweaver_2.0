@@ -1,0 +1,845 @@
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
+import { Squares2X2Icon, TableCellsIcon, ArrowPathIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import Button from '../../../components/ui/Button'
+import { useOrganization } from '../../../contexts/OrganizationContext'
+import { useSisOrg } from '../useSisOrg'
+import { getPreviewTeacher } from '../teacherPreview'
+import {
+  useSisClassCatalog, useCatalogPatch, sisClassApi,
+} from '../../../hooks/api/useSisClasses'
+import {
+  useSisScheduleConflicts, useConflictsPatch, acknowledgeScheduleConflict,
+} from '../../../hooks/api/useSisScheduleConflicts'
+import CreateClassModal from '../../../components/sis/CreateClassModal'
+import ScheduleAiEditor from '../../../components/sis/ScheduleAiEditor'
+import ScheduleSyncModal from '../../../components/sis/ScheduleSyncModal'
+import ClassesTable from '../../../components/sis/ClassesTable'
+import ClassesExportModal from '../../../components/sis/ClassesExportModal'
+import CoursePreviewModal from '../../../components/course/CoursePreviewModal'
+import { fmt12ap } from '../../../components/sis/classFields'
+import { useConfirm } from '../../../contexts/ConfirmContext'
+import { useAuth } from '../../../contexts/AuthContext'
+import { canSeeFinance, isSisAdmin } from '../sisRole'
+
+// What Optio charges a school per student to enroll in an Optio course. Optio
+// invoices the school directly for each enrollment — there is no in-app billing.
+
+import ClassCard from './ClassCard'
+import CourseCard from './CourseCard'
+import CourseDetailModal from './CourseDetailModal'
+import ClassDetailModal from './ClassDetailModal'
+import OPTIO_COURSE_FEE from './OPTIO_COURSE_FEE'
+import usePersistedChoice from '../../../hooks/usePersistedChoice'
+const hhmm = (t) => (t ? String(t).slice(0, 5) : '')
+
+// "HH:MM" + minutes -> "HH:MM:00" for the meetings API.
+const endTime = (start, minutes) => {
+  if (!start || !minutes) return null
+  const [h, m] = hhmm(start).split(':').map(Number)
+  const total = h * 60 + m + Number(minutes)
+  const eh = Math.floor((total % (24 * 60)) / 60)
+  const em = total % 60
+  return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`
+}
+
+// College/dual-credit course codes like "HIST 1301" — excluded from the catalog.
+const COURSE_CODE_RE = /^[A-Za-z]{2,8}\s\d{3,4}\b/
+// Optio courses a partner can enroll families into: published, public, project-based
+// enrichment (not the org's own, not credit-bearing, not a college course code).
+const isSelectableCourse = (course, orgId) =>
+  course.status === 'published' &&
+  course.visibility === 'public' &&
+  course.organization_id !== orgId &&
+  !course.credit_subject &&
+  !COURSE_CODE_RE.test((course.title || '').trim())
+
+// One teacher double-booking as a sentence, for the warning banner and the
+// post-save toast. Rows come from GET /api/sis/teacher-conflicts.
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const conflictText = (c) => {
+  const when = c.start_time && c.end_time
+    ? `both meet ${c.day_of_week != null ? `${DOW_FULL[c.day_of_week]}s ` : ''}${fmt12ap(c.start_time)}–${fmt12ap(c.end_time)}`
+    : 'meet at the same time'
+  return `${c.teacher_name} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
+}
+
+// The same sentence about a room. iCreate, 2026-09-04: "can we have a way to add
+// more than one room to a class? And a room conflict notice would be good."
+const roomConflictText = (c) => {
+  const when = c.start_time && c.end_time
+    ? `both meet ${c.day_of_week != null ? `${DOW_FULL[c.day_of_week]}s ` : ''}${fmt12ap(c.start_time)}–${fmt12ap(c.end_time)}`
+    : 'meet at the same time'
+  return `${c.room} is double-booked: ${c.class_a} and ${c.class_b} ${when}.`
+}
+
+/**
+ * One advisory warning list, with a way to answer it.
+ *
+ * iCreate, 2026-09-05 (8479edee): "the warnings section for teachers and
+ * classes is good, but I think I'd like to have a button to hit that allows me
+ * to acknowledge I've seen it, but I think it's ok, so clear it from the
+ * warnings." Both checks are deliberately advisory — a school may genuinely
+ * want two things in the gym — and a warning nobody can answer is one the
+ * office learns to scroll past, which is how the accidental double-booking gets
+ * missed.
+ *
+ * Waved-off rows are kept and shown behind a toggle rather than forgotten: the
+ * office should be able to see what it decided, and undo it.
+ */
+export const ConflictBanner = ({
+  title, conflicts = [], acknowledged = [], render, canAcknowledge, onAcknowledge,
+  // Which half to draw. Once every warning has been waved off there is nothing
+  // to act on, and an amber block at the top of the page saying so is the same
+  // banner blindness the acknowledgement was meant to cure — so the page draws
+  // the leftovers underneath the class list instead (iCreate, 2026-09-08,
+  // 04e30fca: "if all the class or teacher warnings are cleared, put the
+  // '## marked fine — show' at the bottom of the class list, and mark it as
+  // 'teachers double-booked' or whatever the title is"). Default draws both,
+  // which is what a caller with live warnings wants.
+  only,
+}) => {
+  const [showSeen, setShowSeen] = React.useState(false)
+  const [busy, setBusy] = React.useState(null)
+  const live = only === 'settled' ? [] : conflicts
+  const seen = only === 'live' ? [] : acknowledged
+  if (!live.length && !seen.length) return null
+  // Nothing is wrong any more: a quiet line, not an alert.
+  const settled = !live.length
+
+  const act = async (c, next) => {
+    setBusy(c.key)
+    try { await onAcknowledge(c, next) } finally { setBusy(null) }
+  }
+  const rowKey = (c) => c.key || `${c.class_a_id}-${c.class_b_id}`
+
+  return (
+    <div className={settled
+      ? 'mt-6 rounded-lg border border-gray-200 bg-neutral-50 px-4 py-2.5 text-sm text-neutral-600'
+      : 'mb-5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900'}>
+      {live.length > 0 && (
+        <>
+          <p className="font-semibold mb-1">{title}</p>
+          <ul className="space-y-1">
+            {live.map((c) => (
+              <li key={rowKey(c)} className="flex items-start gap-2">
+                <span className="flex-1">{render(c)}</span>
+                {canAcknowledge && c.key && (
+                  <button type="button" disabled={busy === c.key}
+                    onClick={() => act(c, true)}
+                    aria-label={`Dismiss: ${render(c)}`}
+                    className="shrink-0 rounded border border-amber-400 px-2 py-0.5 text-xs font-medium hover:bg-amber-100 disabled:opacity-50">
+                    That&apos;s fine
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {seen.length > 0 && (
+        <div className={live.length ? 'mt-2 pt-2 border-t border-amber-200' : ''}>
+          <button type="button" onClick={() => setShowSeen((v) => !v)}
+            className="text-xs underline hover:no-underline">
+            {/* Named when it stands alone: "2 marked fine" under a class list
+                says nothing about what was marked fine. */}
+            {settled ? `${title}: ` : ''}
+            {seen.length} marked fine{showSeen ? ' — hide' : ' — show'}
+          </button>
+          {showSeen && (
+            <ul className={`mt-1 space-y-1 ${settled ? 'text-neutral-500' : 'text-amber-800/80'}`}>
+              {seen.map((c) => (
+                <li key={rowKey(c)} className="flex items-start gap-2">
+                  <span className="flex-1">{render(c)}</span>
+                  {canAcknowledge && c.key && (
+                    <button type="button" disabled={busy === c.key}
+                      onClick={() => act(c, false)}
+                      aria-label={`Warn me again: ${render(c)}`}
+                      className="shrink-0 underline text-xs disabled:opacity-50">
+                      Warn me again
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The org's catalog: its own classes and the Optio courses it can enroll
+ * students into. Two tabs of the one Classes page (2026-09-17; before that
+ * this was the whole admin page at /classes, with My classes, My schedule,
+ * Attendance and Submissions as four pages beside it). `section` says which
+ * of the two the page is showing; the page owns the tab bar and takes the
+ * counts it shows on the tabs through `onCounts`.
+ */
+export default function CatalogPanel({ section = 'classes', onCounts = null }) {
+  const confirm = useConfirm()
+  const { user } = useAuth()
+  // Not while previewing a teacher: the catalog's admin-only reads (staff,
+  // course settings) are refused for the previewed role.
+  const isAdmin = isSisAdmin(user) && !getPreviewTeacher()
+  const { orgId, orgs, isSuperadmin } = useSisOrg()
+  const { organization } = useOrganization()
+  const orgName = organization?.name || orgs.find((o) => o.id === orgId)?.name || 'Org'
+  // showArchived is declared below but read here: both queries key on it.
+  const [creating, setCreating] = useState(false)
+  const [editing, setEditing] = useState(null)     // class being edited
+  const [editTab, setEditTab] = useState('details') // which tab the class modal opens on
+  const [settingsCourse, setSettingsCourse] = useState(null) // course open in the detail modal (settings/enroll/enrollments tabs)
+  const [viewingCourse, setViewingCourse] = useState(null)   // course open in the student view (review / demo to students)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = section
+  const [search, setSearch] = useState('')
+  const [showSync, setShowSync] = useState(false)  // sync-from-sheet modal
+  const [showArchived, setShowArchived] = useState(false) // include archived classes
+  // "Open all N closed" used to be the only mention of those N classes anywhere
+  // on the page, so it asked staff to bulk-publish a set they could not see.
+  const [closedOnly, setClosedOnly] = useState(false)
+  // cards | table — table is the spreadsheet view of the org's classes.
+  const [view, setView] = usePersistedChoice('sis_classes_view', 'table', {
+    validate: (v) => (v === 'cards' || v === 'table' ? v : null),
+  })
+
+  const catalog = useSisClassCatalog(orgId, { showArchived, isAdmin })
+  const conflicts = useSisScheduleConflicts(orgId)
+  const patchClass = useCatalogPatch(orgId, { showArchived, isAdmin })
+  const patchConflicts = useConflictsPatch(orgId)
+
+  const {
+    classes = [], courses = [], staff = [], courseSettings = {},
+    courseTuition = null, timeBlocks = [], rooms = [],
+  } = catalog.data || {}
+  const {
+    teacherConflicts = [], roomConflicts = [], roomOccupancy = {},
+    ackedTeacher = [], ackedRoom = [],
+  } = conflicts.data || {}
+  // No org selected is not a loading state -- the page renders its org picker.
+  const loading = !!orgId && catalog.isLoading
+
+  useEffect(() => {
+    if (catalog.isError) toast.error('Failed to load catalog')
+  }, [catalog.isError])
+
+  // Every write path used to end in load() or load(true); the silent variant
+  // existed so an inline edit would not unmount the table and jump the scroll
+  // to the top. refetch() keeps the previous data mounted while it runs, so
+  // both callers want the same thing now and there is one of it.
+  const reload = catalog.refetch
+
+
+  // ── Class write paths ───────────────────────────────────────────────────────
+  const syncMeetings = async (classId, dow, startTime, durationMin, existing = []) => {
+    for (const m of existing) {
+      await sisClassApi.deleteMeeting(classId, m.id, orgId)
+    }
+    const end = endTime(startTime, durationMin)
+    if (!dow?.length || !startTime || !end) return
+    for (const day of dow) {
+      await sisClassApi.addMeeting(classId, {
+        day_of_week: day, start_time: startTime, end_time: end, organization_id: orgId,
+      })
+    }
+  }
+
+  // The cross-check iCreate asked for: after any save that can touch a teacher
+  // or a schedule, warn right away if that class's teacher is now booked into
+  // two classes that meet at the same time. Advisory only — the save already
+  // went through, and a failed check must never break it.
+  const warnIfTeacherDoubleBooked = async (classId) => {
+    try {
+      const { data } = await conflicts.refetch()
+      const hit = (data?.teacherConflicts || [])
+        .find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      if (hit) toast(conflictText(hit), { icon: '⚠️', duration: 10000 })
+    } catch { /* advisory only */ }
+  }
+
+  // The room half of the same cross-check. Refreshes the picker's occupancy at
+  // the same time, so the next class edited sees the room it just took.
+  const warnIfRoomDoubleBooked = async (classId) => {
+    try {
+      // Same refetch as the teacher check: one query answers both, and the
+      // room picker's occupancy map refreshes with it, so the next class
+      // edited sees the room this one just took.
+      const { data } = await conflicts.refetch()
+      const hit = (data?.roomConflicts || [])
+        .find((x) => x.class_a_id === classId || x.class_b_id === classId)
+      if (hit) toast(roomConflictText(hit), { icon: '⚠️', duration: 10000 })
+    } catch { /* advisory only */ }
+  }
+
+  // "That's fine" / "warn me again" on a double-booking warning (8479edee).
+  // The row moves locally on success so the banner answers immediately; the
+  // server is the record, and the next load reads it back.
+  const setConflictAcknowledged = async (conflict, acknowledged) => {
+    const isRoom = Boolean(conflict.room)
+    try {
+      await acknowledgeScheduleConflict(orgId, conflict.key, acknowledged)
+    } catch (err) {
+      toast.error(err?.response?.data?.error || 'Could not save that')
+      return
+    }
+    const move = (live, seen) => (acknowledged
+      ? [live.filter((c) => c.key !== conflict.key), [...seen, conflict]]
+      : [[...live, conflict], seen.filter((c) => c.key !== conflict.key)])
+    // Writes into the shared query cache rather than a local useState, so the
+    // banner and the post-save re-check read the same list (QF-03).
+    patchConflicts((old) => {
+      if (isRoom) {
+        const [live, seen] = move(old.roomConflicts || [], old.ackedRoom || [])
+        return { ...old, roomConflicts: live, ackedRoom: seen }
+      }
+      const [live, seen] = move(old.teacherConflicts || [], old.ackedTeacher || [])
+      return { ...old, teacherConflicts: live, ackedTeacher: seen }
+    })
+  }
+
+  const classBody = (payload) => ({
+    name: payload.name,
+    description: payload.description,
+    location: payload.location ?? null,
+    additional_locations: payload.additional_locations ?? null,
+    primary_instructor_id: payload.primary_instructor_id ?? null,
+    capacity: payload.capacity ?? null,
+    price_cents: payload.price_cents ?? null,
+    supply_fee: payload.supply_fee ?? null,
+    supply_budget_per_student: payload.supply_budget_per_student ?? null,
+    min_age: payload.min_age ?? null,
+    max_age: payload.max_age ?? null,
+    // Assistants are sent only when the editor that produced this payload
+    // actually edits them. They were omitted entirely until 2026-08-06, so the
+    // picker in the class editor looked like it worked and then dropped the
+    // assistant on save — which is why iCreate reported not being able to find
+    // the feature at all. Spread rather than `?? null`: an editor that doesn't
+    // offer the field must leave a class's assistants alone, not wipe them.
+    ...(payload.assistant_instructor_ids !== undefined
+      ? { assistant_instructor_ids: payload.assistant_instructor_ids } : {}),
+    ...(payload.show_assistants !== undefined ? { show_assistants: payload.show_assistants } : {}),
+    ...(payload.is_visible_to_parents !== undefined ? { is_visible_to_parents: payload.is_visible_to_parents } : {}),
+    ...(payload.internal_notes !== undefined ? { internal_notes: payload.internal_notes } : {}),
+    ...(payload.registration_status ? { registration_status: payload.registration_status } : {}),
+    ...(payload.requires_full_day !== undefined ? { requires_full_day: payload.requires_full_day } : {}),
+    organization_id: orgId,
+  })
+
+
+  const handleCreate = async (payload, imageFile) => {
+    try {
+      const r = await sisClassApi.create(classBody(payload))
+      const id = r.data?.class?.id
+      if (id) {
+        await syncMeetings(id, payload.days_of_week, payload.start_time, payload.duration_minutes)
+        if (imageFile) await sisClassApi.uploadImage(id, orgId, imageFile)
+      }
+      toast.success('Class created')
+      setCreating(false)
+      reload()
+      if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not create class')
+    }
+  }
+
+  // Shared save path for the card editor and the table's inline rows.
+  const saveClass = async (cls, payload, imageFile = null) => {
+    try {
+      await sisClassApi.update(cls.id, classBody(payload))
+      await syncMeetings(cls.id, payload.days_of_week, payload.start_time, payload.duration_minutes, cls.meetings || [])
+      if (imageFile) await sisClassApi.uploadImage(cls.id, orgId, imageFile)
+      toast.success('Class updated')
+      reload()
+      warnIfTeacherDoubleBooked(cls.id)
+      warnIfRoomDoubleBooked(cls.id)
+      return true
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not update class')
+      return false
+    }
+  }
+
+  const handleUpdate = async (payload, imageFile) => {
+    // openClass, not editing: the modal is also opened by ?class=<id>, where
+    // `editing` is null and reading .id off it would throw.
+    const cls = classes.find((c) => c.id === openClass.id) || openClass
+    const ok = await saveClass(cls, payload, imageFile)
+    if (ok) closeClassModal()
+  }
+
+  // Copy a class into a new "(copy)" draft — same details, meetings, and pricing,
+  // registration left closed so it isn't published before staff review it.
+  const duplicateClass = async (c) => {
+    try {
+      const body = {
+        name: `${c.name} (copy)`,
+        description: c.description,
+        location: c.location ?? null,
+        primary_instructor_id: c.primary_instructor_id ?? null,
+        assistant_instructor_ids: c.assistant_instructor_ids ?? [],
+        show_assistants: c.show_assistants !== false,
+        is_visible_to_parents: c.is_visible_to_parents !== false,
+        capacity: c.capacity ?? null,
+        price_cents: c.price_cents ?? null,
+        supply_fee: c.supply_fee ?? null,
+        supply_budget_per_student: c.supply_budget_per_student ?? null,
+        min_age: c.min_age ?? null,
+        max_age: c.max_age ?? null,
+        requires_full_day: c.requires_full_day ?? false,
+        internal_notes: c.internal_notes ?? null,
+        registration_status: 'closed',
+        organization_id: orgId,
+      }
+      const r = await sisClassApi.create(body)
+      const id = r.data?.class?.id
+      // Recreate its meeting times on the copy.
+      for (const m of (c.meetings || [])) {
+        if (!id || m.day_of_week == null || !m.start_time || !m.end_time) continue
+        await sisClassApi.addMeeting(id, {
+          day_of_week: m.day_of_week, start_time: m.start_time, end_time: m.end_time, organization_id: orgId,
+        })
+      }
+      toast.success('Class duplicated — review and open registration when ready')
+      reload()
+      // A copy shares the original's teacher and times, so it usually IS a
+      // double-booking until the schedule is edited — say so up front.
+      if (id) { warnIfTeacherDoubleBooked(id); warnIfRoomDoubleBooked(id) }
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not duplicate class')
+    }
+  }
+
+  const openRoster = (c) => { setEditTab('roster'); setEditing(c) }
+  const openEditor = (c) => { setEditTab('details'); setEditing(c) }
+
+  // ?class=<id> opens that class's roster straight from another page. The CLP
+  // meeting screen names a dozen classes per student, and every question about
+  // one ("who else is in it, is it full") lived two searches away on this page
+  // (iCreate d48f2b63).
+  //
+  // DERIVED, not copied into state by an effect. The URL already holds "which
+  // class is open"; mirroring it into `editing` would mean a second source of
+  // truth, a synchronous setState inside an effect, and a back button that
+  // could not close what it opened. Closing clears the param instead.
+  const deepLinkClassId = searchParams.get('class')
+  const deepLinkClass = deepLinkClassId
+    ? classes.find((c) => c.id === deepLinkClassId) || null
+    : null
+  const closeClassModal = () => {
+    setEditing(null)
+    if (!deepLinkClassId) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('class')
+    setSearchParams(next, { replace: true })
+  }
+  // An explicit click beats the URL: opening another class while ?class= is
+  // still set must show the class that was clicked.
+  const openClass = editing || deepLinkClass
+  const openTab = editing ? editTab : 'roster'
+
+  // CSV export moved to ClassesExportModal: same client-side build from the
+  // already-loaded rows, but with a column picker and schedule-grid formats
+  // (iCreate asked to choose what the spreadsheet looks like).
+  const [exporting, setExporting] = useState(false)
+
+  const archiveClass = async (c) => {
+    if (!(await confirm(`Archive "${c.name}"? It will no longer accept registrations.`))) return
+    try {
+      await sisClassApi.archive(c.id, orgId)
+      toast.success('Class archived')
+      closeClassModal()
+      reload()
+    } catch { toast.error('Could not archive class') }
+  }
+
+  const restoreClass = async (c) => {
+    try {
+      await sisClassApi.restore(c.id, orgId)
+      toast.success('Class restored')
+      closeClassModal()
+      reload()
+    } catch { toast.error('Could not restore class') }
+  }
+
+  // Optimistic: flip the row in place so the expanded row / open modal stays
+  // put — a refetch that dropped the rows would collapse where you were.
+  const toggleRegistration = async (cls) => {
+    const next = cls.registration_status === 'open' ? 'closed' : 'open'
+    patchClass(cls.id, { registration_status: next })
+    try {
+      await sisClassApi.update(cls.id, { registration_status: next, organization_id: orgId })
+    } catch {
+      patchClass(cls.id, { registration_status: cls.registration_status })
+      toast.error('Could not update registration')
+    }
+  }
+
+  // Offer the open seat to the next waiting student, straight from a class row —
+  // no need to open the class and switch to the Waitlist tab. Only surfaced on
+  // rows with an open seat AND someone actually waiting (see ClassesTable).
+  const offerNextSeat = async (c) => {
+    try {
+      const r = await sisClassApi.offerNextSeat(c.id, orgId)
+      // Name who — an unnamed "next student" left the office with no record of
+      // who had been offered the seat (iCreate, 2026-08-17).
+      if (r.data?.entry) toast.success(`Seat offered to ${r.data.entry.student_name || 'the next student'}`)
+      // Nobody to offer to: the API says why (usually "they already have an
+      // offer out"), which beats a bare "No one waiting" next to a row that
+      // reads Waitlist 1.
+      else toast(r.data?.message || 'No one is waiting for this class', { icon: 'ℹ️' })
+      reload()
+    } catch (e) {
+      toast.error(e?.response?.data?.error || 'Could not offer seat')
+    }
+  }
+
+  // Every non-archived class that isn't open is invisible to families in the
+  // Schedule Builder — new classes default to closed, which is easy to miss.
+  const isClosed = (c) => c.registration_status !== 'open' && c.status !== 'archived'
+  const closedClasses = classes.filter(isClosed)
+  const openAll = async () => {
+    if (!(await confirm(`Open registration for all ${closedClasses.length} closed class${closedClasses.length === 1 ? '' : 'es'}? Families will see them in the Schedule Builder immediately.`))) return
+    try {
+      await Promise.all(closedClasses.map((c) =>
+        sisClassApi.update(c.id, { registration_status: 'open', organization_id: orgId })))
+      toast.success('Registration opened for all classes')
+    } catch {
+      toast.error('Could not open some classes — check the list')
+    }
+    // Nothing is closed any more, so leaving the filter on would show an empty
+    // page and read as "the classes are gone".
+    setClosedOnly(false)
+    reload()
+  }
+
+  // Map staff by ID for quick teacher name resolution during search and rendering
+  const staffMap = useMemo(() => {
+    const map = {}
+    for (const s of staff || []) {
+      if (s.id) map[s.id] = s
+    }
+    return map
+  }, [staff])
+
+  const classMatchesSearch = useCallback((c, query) => {
+    if (!query) return true
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+
+    // Check class name
+    if ((c.name || '').toLowerCase().includes(q)) return true
+
+    // Check primary instructor
+    const primaryName = c.primary_instructor?.name || c.primary_instructor?.display_name
+    if (primaryName && primaryName.toLowerCase().includes(q)) return true
+
+    if (c.primary_instructor_id && staffMap[c.primary_instructor_id]) {
+      const s = staffMap[c.primary_instructor_id]
+      const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+      if (sName.toLowerCase().includes(q)) return true
+    }
+
+    // Check assistant instructors
+    if (Array.isArray(c.assistant_instructors)) {
+      for (const a of c.assistant_instructors) {
+        const aName = a.name || a.display_name
+        if (aName && aName.toLowerCase().includes(q)) return true
+      }
+    }
+
+    if (Array.isArray(c.assistant_instructor_ids)) {
+      for (const aid of c.assistant_instructor_ids) {
+        const s = staffMap[aid]
+        if (s) {
+          const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+          if (sName.toLowerCase().includes(q)) return true
+        }
+      }
+    }
+
+    return false
+  }, [staffMap])
+
+  const courseMatchesSearch = useCallback((c, query) => {
+    if (!query) return true
+    const q = query.trim().toLowerCase()
+    if (!q) return true
+
+    // Check course title
+    if ((c.title || '').toLowerCase().includes(q)) return true
+
+    // Check course teacher setting
+    const cs = courseSettings[c.id]
+    if (cs) {
+      const teacherName = cs.teacher?.name || cs.teacher?.display_name || cs.teacher_name
+      if (teacherName && teacherName.toLowerCase().includes(q)) return true
+
+      const tid = cs.teacher?.id || cs.teacher_id
+      if (tid && staffMap[tid]) {
+        const s = staffMap[tid]
+        const sName = s.name || s.display_name || `${s.first_name || ''} ${s.last_name || ''}`.trim()
+        if (sName.toLowerCase().includes(q)) return true
+      }
+    }
+
+    // Direct instructor/teacher on course object
+    const directTeacher = c.primary_instructor?.name || c.primary_instructor?.display_name || c.teacher?.name
+    if (directTeacher && directTeacher.toLowerCase().includes(q)) return true
+
+    return false
+  }, [courseSettings, staffMap])
+
+  // ── Tab-scoped, searched catalog ─────────────────────────────────────────────
+  const items = useMemo(() => {
+    if (tab === 'courses') {
+      return courses
+        .filter((c) => courseMatchesSearch(c, search))
+        .map((c) => ({ kind: 'course', _name: c.title, ...c }))
+    }
+    return classes
+      .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => !closedOnly || isClosed(c))
+      .map((c) => ({ kind: 'class', _name: c.name, ...c }))
+  }, [classes, courses, tab, search, closedOnly, classMatchesSearch, courseMatchesSearch])
+
+  // Table view is the org's classes only (Optio courses aren't org-editable).
+  const tableClasses = useMemo(() => {
+    return classes
+      .filter((c) => classMatchesSearch(c, search))
+      .filter((c) => !closedOnly || isClosed(c))
+  }, [classes, search, closedOnly, classMatchesSearch])
+
+  // The page shows these on its tabs.
+  useEffect(() => { onCounts?.({ all: classes.length, courses: courses.length }) },
+    [classes.length, courses.length, onCounts])
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {tab === 'classes' && (
+          <Button size="sm" onClick={() => setCreating(true)} disabled={!orgId}>Create class</Button>
+        )}
+        {tab === 'classes' && (
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
+            <button onClick={() => setView('cards')} title="Card view" aria-pressed={view === 'cards'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'cards' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <Squares2X2Icon className="w-4 h-4" />
+            </button>
+            <button onClick={() => setView('table')} title="Table view" aria-pressed={view === 'table'}
+              className={`px-2.5 py-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-optio-purple text-white' : 'text-neutral-500 hover:bg-neutral-50'}`}>
+              <TableCellsIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search…"
+          className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple"
+        />
+        {tab === 'classes' && (
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={`text-sm px-3 py-2 rounded-lg border transition-colors ${
+              showArchived ? 'border-optio-purple text-optio-purple bg-optio-purple/5' : 'border-gray-200 text-neutral-500 hover:bg-neutral-50'
+            }`}
+          >
+            {showArchived ? 'Showing archived' : 'Show archived'}
+          </button>
+        )}
+        {tab === 'classes' && orgId && <ScheduleAiEditor orgId={orgId} onApplied={reload} />}
+        {tab === 'classes' && orgId && (
+          <button onClick={() => setShowSync(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-optio-purple/40 text-optio-purple text-sm font-medium hover:bg-optio-purple/5 transition-colors">
+            <ArrowPathIcon className="w-4 h-4" />
+            Sync from Sheet
+          </button>
+        )}
+        {tab === 'classes' && orgId && classes.length > 0 && (
+          <button onClick={() => setExporting(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-neutral-600 text-sm font-medium hover:bg-neutral-50 transition-colors">
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            Export CSV
+          </button>
+        )}
+        {tab === 'classes' && orgId && !loading && closedClasses.length > 0 && (
+          <div className="inline-flex rounded-lg border border-amber-400 overflow-hidden">
+            <button onClick={() => setClosedOnly((v) => !v)}
+              aria-pressed={closedOnly}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                closedOnly ? 'bg-amber-100 text-amber-900' : 'text-amber-700 hover:bg-amber-50'
+              }`}
+              title="Show only the classes whose registration is closed">
+              {closedOnly ? 'Showing' : 'Show'} {closedClasses.length} closed
+            </button>
+            <button onClick={openAll}
+              className="px-3 py-2 text-sm font-medium text-amber-700 border-l border-amber-400 hover:bg-amber-50 transition-colors"
+              title="Open registration for every class marked Closed">
+              Open all
+            </button>
+          </div>
+        )}
+        {closedOnly && (
+          <button onClick={() => setClosedOnly(false)}
+            className="px-3 py-2 text-sm text-neutral-500 hover:text-neutral-800 underline">
+            Clear filter
+          </button>
+        )}
+      </div>
+
+      {/* Teacher double-booking cross-check — advisory, so an intentional save
+          still goes through; this just makes sure nobody finds out on the day. */}
+      {tab === 'classes' && (
+        <ConflictBanner title="Teacher double-booked" render={conflictText} only="live"
+          conflicts={teacherConflicts} acknowledged={ackedTeacher}
+          canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+      )}
+
+      {/* Room double-booking — the same advisory as the teacher check above.
+          Separate banner rather than one merged list: they are fixed by
+          different edits, and by different people. */}
+      {tab === 'classes' && (
+        <ConflictBanner title="Room double-booked" render={roomConflictText} only="live"
+          conflicts={roomConflicts} acknowledged={ackedRoom}
+          canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+      )}
+
+      {/* Optio-course billing notice — Optio invoices the school per enrollment */}
+      {tab === 'courses' && (
+        <div className="mb-5 rounded-lg bg-optio-purple/5 border border-optio-purple/20 px-4 py-3 text-sm text-neutral-700">
+          Enrolling a student in an Optio course costs{' '}
+          <span className="font-semibold text-neutral-900">{OPTIO_COURSE_FEE} per student</span>.
+          Optio invoices the school for each enrollment when the student is added.
+        </div>
+      )}
+
+      {showSync && orgId && (
+        <ScheduleSyncModal orgId={orgId} onClose={() => setShowSync(false)} onApplied={reload} />
+      )}
+
+      {exporting && (
+        <ClassesExportModal classes={classes} orgName={orgName} seesMoney={canSeeFinance(user)}
+          onClose={() => setExporting(false)} />
+      )}
+
+      {loading && <p className="text-neutral-500">Loading…</p>}
+
+      {/* Empty state (courses tab, or classes tab in card view) */}
+      {!loading && !items.length && (tab === 'courses' || view === 'cards') && (
+        <p className="text-neutral-500">
+          {closedOnly
+            ? 'Every class has registration open.'
+            : search
+            ? 'Nothing matches your search.'
+            : tab === 'courses'
+              ? 'No Optio courses are available to enroll in yet.'
+              : 'Nothing here yet. Create a class to get started.'}
+        </p>
+      )}
+
+      {/* Classes — table view */}
+      {!loading && tab === 'classes' && view === 'table' && (
+        <ClassesTable
+          classes={tableClasses}
+          staff={staff}
+          timeBlocks={timeBlocks}
+          rooms={rooms} roomOccupancy={roomOccupancy}
+          onSave={saveClass}
+          onToggleRegistration={toggleRegistration}
+          onOpen={openEditor}
+          onRoster={openRoster}
+          onDuplicate={duplicateClass}
+          onArchive={archiveClass}
+          onRestore={restoreClass}
+          onOfferSeat={offerNextSeat}
+        />
+      )}
+
+      {/* Cards — classes (card view) or the Optio course catalog */}
+      {!loading && (tab === 'courses' || view === 'cards') && items.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {items.map((item) => (
+            item.kind === 'class' ? (
+              <ClassCard
+                key={`class-${item.id}`}
+                c={item}
+                onOpen={() => setEditing(item)}
+              />
+            ) : (
+              <CourseCard
+                key={`course-${item.id}`}
+                c={item}
+                onOpen={() => setSettingsCourse(item)}
+                onView={() => setViewingCourse(item)}
+              />
+            )
+          ))}
+        </div>
+      )}
+
+      {/* What the office has already looked at and accepted, under the list
+          rather than over it. Kept, and reversible, but out of the way — an
+          amber block at the top saying "nothing is wrong" is what teaches
+          everyone to scroll past the one that says something is (04e30fca). */}
+      {tab === 'classes' && !loading && (
+        <>
+          <ConflictBanner title="Teacher double-booked" render={conflictText} only="settled"
+            conflicts={teacherConflicts} acknowledged={ackedTeacher}
+            canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+          <ConflictBanner title="Room double-booked" render={roomConflictText} only="settled"
+            conflicts={roomConflicts} acknowledged={ackedRoom}
+            canAcknowledge={isAdmin} onAcknowledge={setConflictAcknowledged} />
+        </>
+      )}
+
+      {creating && (
+        <CreateClassModal staff={staff} timeBlocks={timeBlocks} rooms={rooms}
+          roomOccupancy={roomOccupancy} onClose={() => setCreating(false)} onSubmit={handleCreate} />
+      )}
+      {openClass && (
+        <ClassDetailModal
+          cls={classes.find((c) => c.id === openClass.id) || openClass}
+          staff={staff}
+          timeBlocks={timeBlocks}
+          rooms={rooms} roomOccupancy={roomOccupancy}
+          orgId={orgId}
+          initialTab={openTab}
+          onClose={closeClassModal}
+          onSubmit={handleUpdate}
+          onToggleRegistration={toggleRegistration}
+          onArchive={() => archiveClass(classes.find((c) => c.id === openClass.id) || openClass)}
+          onRestore={() => restoreClass(classes.find((c) => c.id === openClass.id) || openClass)}
+          onRosterChanged={() => reload()}
+        />
+      )}
+      {viewingCourse && (
+        <CoursePreviewModal courseId={viewingCourse.id} onClose={() => setViewingCourse(null)} />
+      )}
+      {settingsCourse && (
+        <CourseDetailModal
+          course={settingsCourse}
+          staff={staff}
+          current={courseSettings[settingsCourse.id]}
+          tuitionCents={courseTuition}
+          orgId={orgId}
+          isSuperadmin={isSuperadmin}
+          onClose={() => setSettingsCourse(null)}
+          onSaved={() => { setSettingsCourse(null); reload() }}
+        />
+      )}
+    </div>
+  )
+}
+
+const Row = ({ label, value }) => (
+  <div className="flex justify-between gap-3">
+    <dt className="text-neutral-400">{label}</dt>
+    <dd className="text-neutral-700 text-right">{value}</dd>
+  </div>
+)
+

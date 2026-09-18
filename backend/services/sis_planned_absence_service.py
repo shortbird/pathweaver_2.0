@@ -458,7 +458,7 @@ def _notify_admin_team(org_id: str, student_user_id: str, absence_date: str,
     for admin_id in admin_ids:
         sis_notifications.notify(
             admin_id, title, message,
-            link='/attendance',
+            link='/classes?tab=attendance',
             organization_id=org_id,
             metadata=metadata,
             service=service,

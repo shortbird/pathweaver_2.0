@@ -182,9 +182,12 @@ describe('SisSidebar', () => {
     // is the Task Center since 2026-09-17).
     expect(screen.getByText('Tasks')).toBeInTheDocument()
     expect(screen.queryByText('Task Center')).not.toBeInTheDocument()
-    // The teacher portal too: the admin tiers hold everything a teacher holds.
-    expect(screen.getByText('My Classes')).toBeInTheDocument()
-    expect(screen.getByText('My Schedule')).toBeInTheDocument()
+    // The teacher portal too: the admin tiers hold everything a teacher holds
+    // (My classes and My schedule are tabs of Classes since 2026-09-17).
+    expect(screen.getByRole('link', { name: 'Classes' })).toHaveAttribute('href', '/classes')
+    expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Attendance')).not.toBeInTheDocument()
+    expect(screen.queryByText('Submissions')).not.toBeInTheDocument()
     expect(screen.getByText('My Time')).toBeInTheDocument()
     expect(screen.getByText('My Profile')).toBeInTheDocument()
     // Directory is People without the tabs, so admins get People instead.
@@ -211,8 +214,9 @@ describe('SisSidebar', () => {
       loading: false,
     }
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
-    expect(screen.getByRole('link', { name: 'My Classes' })).toHaveAttribute('href', '/my-classes')
-    expect(screen.getByRole('link', { name: 'My Schedule' })).toHaveAttribute('href', '/my-schedule')
+    // My classes and My schedule are the first tabs of Classes, which is
+    // every staff member's page since 2026-09-17.
+    expect(screen.getByRole('link', { name: 'Classes' })).toHaveAttribute('href', '/classes')
     expect(screen.getByRole('link', { name: 'My Time' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'My Profile' })).toBeInTheDocument()
     // Still the admin console.
@@ -248,7 +252,7 @@ describe('SisSidebar', () => {
     try {
       render(<MemoryRouter><SisSidebar /></MemoryRouter>)
       expect(screen.getByText('Tasks')).toBeInTheDocument()
-      expect(screen.getByText('My Classes')).toBeInTheDocument()
+      expect(screen.getByText('Classes')).toBeInTheDocument()
     } finally {
       clearPreviewTeacher()
     }

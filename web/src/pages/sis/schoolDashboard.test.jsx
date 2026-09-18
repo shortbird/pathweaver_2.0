@@ -63,7 +63,7 @@ describe('the queues', () => {
     const alerts = await screen.findByText('Not accounted for')
     expect(alerts).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
-    expect(alerts.closest('a')).toHaveAttribute('href', '/attendance')
+    expect(alerts.closest('a')).toHaveAttribute('href', '/classes?tab=attendance')
     expect(screen.getByText('Waiting for a place').closest('a'))
       .toHaveAttribute('href', '/registration?tab=queues')
   })

@@ -62,7 +62,7 @@ const { api, apiData } = vi.hoisted(() => {
 })
 vi.mock('../../services/api', () => ({ default: api }))
 
-import SubmissionsPage from './SubmissionsPage'
+import SubmissionsPanel from './classesPage/SubmissionsPanel'
 
 beforeEach(() => {
   authState = { user: { id: 'u1', role: 'org_admin' } }
@@ -79,7 +79,7 @@ describe('SubmissionsPage', () => {
     // The evidence links are signed URLs good for an hour from the load. A
     // teacher who clicked "poems.pdf" seventy minutes in got Supabase's
     // InvalidJWT page (Gryffin, 2026-09-15, d270e78f).
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('New (2)')
     const loads = () => api.get.mock.calls.filter((c) => c[0].includes('/api/sis/submissions?')).length
     expect(loads()).toBe(1)
@@ -103,7 +103,7 @@ describe('SubmissionsPage', () => {
   })
 
   it('loads the queue with scope counts and shows the first submission', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     expect(await screen.findByText('New (2)')).toBeInTheDocument()
     expect(screen.getByText('Reviewed (1)')).toBeInTheDocument()
     // Alice appears in the rail and in the detail header
@@ -114,14 +114,14 @@ describe('SubmissionsPage', () => {
   })
 
   it('shows class, quest, and task context for the selected submission', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     expect(await screen.findByText('Biology · Cells Quest')).toBeInTheDocument()
     expect(screen.getAllByText('Build a cell model').length).toBeGreaterThan(0)
     expect(screen.getByText('100 XP')).toBeInTheDocument()
   })
 
   it('accepts a submission and auto-advances to the next one', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('My cell essay evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() =>
@@ -134,7 +134,7 @@ describe('SubmissionsPage', () => {
   })
 
   it('switches to the Reviewed scope and refetches', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('New (2)')
     fireEvent.click(screen.getByText('Reviewed (1)'))
     await waitFor(() =>
@@ -143,7 +143,7 @@ describe('SubmissionsPage', () => {
   })
 
   it('filters the queue by class', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('New (2)')
     fireEvent.change(screen.getByPlaceholderText('Filter by class…'), { target: { value: 'Art' } })
     fireEvent.mouseDown(await screen.findByText('Art'))
@@ -153,7 +153,7 @@ describe('SubmissionsPage', () => {
   })
 
   it('adjusts XP with a required reason via the gradebook endpoint', async () => {
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('100 XP')
     fireEvent.click(screen.getByText('Adjust XP'))
     fireEvent.change(screen.getByLabelText('New XP value'), { target: { value: '75' } })
@@ -168,7 +168,7 @@ describe('SubmissionsPage', () => {
 
   it('hides the XP control when the endpoint does not exist (404)', async () => {
     api.put.mockRejectedValueOnce({ response: { status: 404 } })
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('100 XP')
     fireEvent.click(screen.getByText('Adjust XP'))
     fireEvent.change(screen.getByLabelText('Reason for XP change'), { target: { value: 'Try' } })
@@ -193,7 +193,7 @@ describe('SubmissionsPage', () => {
               review: null,
             }] } })
         : Promise.resolve(apiData(u)))
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     const img = await screen.findByRole('img', { name: 'IMG_20260827_123518.jpg' })
     expect(img).toHaveAttribute('src', url)
     // The raw URL is never printed as link text.
@@ -217,7 +217,7 @@ describe('SubmissionsPage', () => {
               review: null,
             }] } })
         : Promise.resolve(apiData(u)))
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     expect(await screen.findByText('pass_checker.txt')).toBeInTheDocument()
     expect(screen.queryByText(url)).not.toBeInTheDocument()
   })
@@ -225,7 +225,7 @@ describe('SubmissionsPage', () => {
   it('offers a way back when opened from a class Student Progress tab', async () => {
     rtlRender(
       <MemoryRouter initialEntries={['/submissions?class_id=cl1&from=progress']}>
-        <SubmissionsPage />
+        <SubmissionsPanel />
       </MemoryRouter>,
     )
     const back = await screen.findByText('Back to student progress')
@@ -237,7 +237,7 @@ describe('SubmissionsPage', () => {
       url.includes('/api/sis/submissions')
         ? Promise.resolve({ data: { success: true, submissions: [], counts: { new: 0, reviewed: 0 }, total: 0 } })
         : Promise.resolve(apiData(url)))
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     expect(await screen.findByText("You're all caught up.")).toBeInTheDocument()
   })
 })
@@ -282,7 +282,7 @@ describe('accepting the last submission in the queue', () => {
 
   it('keeps it on screen instead of leaving a blank pane', async () => {
     onlyOne()
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() => expect(api.post).toHaveBeenCalled())
@@ -291,7 +291,7 @@ describe('accepting the last submission in the queue', () => {
 
   it('shows it as reviewed without a page refresh', async () => {
     onlyOne()
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     expect(await screen.findByText(/Reviewed by Nicole/)).toBeInTheDocument()
@@ -299,7 +299,7 @@ describe('accepting the last submission in the queue', () => {
 
   it('stops offering Accept on something already accepted', async () => {
     onlyOne()
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     await waitFor(() => expect(screen.queryByText('Accept')).not.toBeInTheDocument())
@@ -308,7 +308,7 @@ describe('accepting the last submission in the queue', () => {
 
   it('undoes an accidental accept in place', async () => {
     onlyOne()
-    render(<SubmissionsPage />)
+    render(<SubmissionsPanel />)
     await screen.findByText('The only evidence')
     fireEvent.click(screen.getByText('Accept'))
     fireEvent.click(await screen.findByText('Move back to New'))

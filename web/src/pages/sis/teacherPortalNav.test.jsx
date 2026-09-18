@@ -23,6 +23,7 @@ import { MemoryRouter } from 'react-router-dom'
 const authState = { user: { id: 'u1', role: 'org_managed', org_role: 'advisor' } }
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState }))
+vi.mock('../../contexts/OrganizationContext', () => ({ useOrganization: () => ({ organization: null }) }))
 vi.mock('../../pages/sis/teacherPreview', () => ({
   getPreviewTeacher: () => null,
   withPreview: (p) => p,
@@ -55,12 +56,11 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import MyClassesPage from './MyClassesPage'
+import ClassesPage from './ClassesPage'
 import StaffFormsPage from './StaffFormsPage'
 import TasksPage from './TasksPage'
 import MyDocumentsPage from './MyDocumentsPage'
 import DirectoryPage from './DirectoryPage'
-import MySchedulePage from './MySchedulePage'
 import MyTimePage from './MyTimePage'
 import MyProfilePage from './MyProfilePage'
 
@@ -70,12 +70,11 @@ beforeEach(() => {
 })
 
 const PAGES = [
-  ['My Classes', MyClassesPage],
+  ['Classes', ClassesPage],
   ['Forms', StaffFormsPage],
   ['Tasks', TasksPage],
   ['My Documents', MyDocumentsPage],
   ['Staff Directory', DirectoryPage],
-  ['My schedule', MySchedulePage],
   ['My Time', MyTimePage],
   ['My profile', MyProfilePage],
 ]

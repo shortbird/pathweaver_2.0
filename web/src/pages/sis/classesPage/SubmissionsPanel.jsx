@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import { safeHref } from '../../utils/safeHref'
-import { blockItems, isImageUrl, itemLabel } from '../../utils/evidenceItems'
-import { getPillarName } from '../../utils/pillarMappings'
-import { useSisOrg, withOrg } from './useSisOrg'
-import SearchSelect from '../../components/ui/SearchSelect'
-import { classLabel } from '../../components/sis/classLabel'
-import CreditFeedbackThread from '../../components/credit/CreditFeedbackThread'
+import api from '../../../services/api'
+import { safeHref } from '../../../utils/safeHref'
+import { blockItems, isImageUrl, itemLabel } from '../../../utils/evidenceItems'
+import { getPillarName } from '../../../utils/pillarMappings'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import SearchSelect from '../../../components/ui/SearchSelect'
+import { classLabel } from '../../../components/sis/classLabel'
+import CreditFeedbackThread from '../../../components/credit/CreditFeedbackThread'
 
 /**
  * Submissions inbox — one unified queue of everything newly submitted by
@@ -192,7 +192,7 @@ const XpAdjust = ({ completionId, orgId, xpValue, onChanged }) => {
   )
 }
 
-const SubmissionsPage = () => {
+export default function SubmissionsPanel() {
   const { orgId } = useSisOrg()
   const [searchParams] = useSearchParams()
   const [scope, setScope] = useState('new')
@@ -396,10 +396,6 @@ const SubmissionsPage = () => {
           <ArrowLeftIcon className="w-4 h-4" /> Back to student progress
         </Link>
       )}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">Submissions</h1>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {scopeTab('new', 'New')}
         {scopeTab('reviewed', 'Reviewed')}
@@ -583,4 +579,3 @@ const SubmissionsPage = () => {
   )
 }
 
-export default SubmissionsPage

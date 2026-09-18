@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { withPreview, getPreviewTeacher } from './teacherPreview'
-import BackToDashboard from '../../components/sis/BackToDashboard'
-import { fmtTime } from '../../utils/schedule'
+import api from '../../../services/api'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { withPreview, getPreviewTeacher } from '../teacherPreview'
+import { fmtTime } from '../../../utils/schedule'
 
 /**
- * MySchedulePage — the teacher's weekly view: recurring class meetings and
- * assigned duties grouped by weekday, plus one-off dated items under "Upcoming".
+ * My schedule -- the teacher's weekly view: recurring class meetings and
+ * assigned duties grouped by weekday, plus one-off dated items under
+ * "Upcoming". A tab of the one Classes page (2026-09-17; it was /my-schedule).
  * Reads GET /api/sis/teacher/schedule ({ meetings, assignments }); both use the
  * class_meetings weekday convention (0=Sun … 6=Sat) and optional specific_date.
  */
@@ -96,7 +96,7 @@ const ItemCells = ({ item }) => (
   </>
 )
 
-const MySchedulePage = () => {
+export default function MySchedulePanel() {
   const { orgId } = useSisOrg()
   const [meetings, setMeetings] = useState([])
   const [assignments, setAssignments] = useState([])
@@ -136,11 +136,7 @@ const MySchedulePage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <BackToDashboard className="mb-1" />
-        <h1 className="text-2xl font-bold text-neutral-900">My schedule</h1>
-        <p className="text-neutral-500 mt-1">Your weekly classes and duties. Tap a class to take attendance or message it.</p>
-      </div>
+      <p className="text-sm text-neutral-500">Your weekly classes and duties. Tap a class to take attendance or message it.</p>
 
       {empty && (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -216,4 +212,3 @@ const MySchedulePage = () => {
   )
 }
 
-export default MySchedulePage

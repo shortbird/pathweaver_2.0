@@ -55,7 +55,7 @@ describe('SIS admin route guards', () => {
     // Guards against the inverse failure: a nav entry losing `adminOnly` would
     // otherwise make this whole suite pass by having nothing to check.
     expect(adminOnlyPaths()).toEqual(expect.arrayContaining([
-      '/people', '/classes', '/curriculum', '/settings',
+      '/people', '/curriculum', '/settings',
     ]))
   })
 

@@ -30,7 +30,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import AttendancePage from './AttendancePage'
+import AttendancePanel from './classesPage/AttendancePanel'
 
 const CLASSES = [{ id: 'c1', name: 'Art', primary_instructor_id: 'admin-1', meetings: [], enrolled_count: 2 }]
 const ROSTER = [
@@ -49,7 +49,7 @@ beforeEach(() => {
 
 describe('admin attendance page — four statuses', () => {
   it('offers all four statuses per student and saves the one tapped', async () => {
-    render(<MemoryRouter><AttendancePage /></MemoryRouter>)
+    render(<MemoryRouter><AttendancePanel /></MemoryRouter>)
     // The single assigned class is auto-selected; roster loads.
     await screen.findByText('Ada')
 
@@ -69,7 +69,7 @@ describe('admin attendance page — four statuses', () => {
   })
 
   it('loads and preserves a status someone else already set', async () => {
-    render(<MemoryRouter><AttendancePage /></MemoryRouter>)
+    render(<MemoryRouter><AttendancePanel /></MemoryRouter>)
     await screen.findByText('Ben')
 
     // Ben came back 'excused' — saving without touching him must keep that,

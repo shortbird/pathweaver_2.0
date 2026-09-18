@@ -2,15 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { Squares2X2Icon, CalendarDaysIcon } from '@heroicons/react/24/outline'
-import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { getPreviewTeacher, withPreview } from './teacherPreview'
-import BackToDashboard from '../../components/sis/BackToDashboard'
-import usePersistedChoice from '../../hooks/usePersistedChoice'
-import { weekGrid, fmtTime, DAY_LABELS } from '../../utils/schedule'
+import api from '../../../services/api'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { getPreviewTeacher, withPreview } from '../teacherPreview'
+import usePersistedChoice from '../../../hooks/usePersistedChoice'
+import { weekGrid, fmtTime, DAY_LABELS } from '../../../utils/schedule'
 
 /**
- * MyClassesPage — the teacher's classes with meeting times and roster counts.
+ * My classes -- the teacher's classes with meeting times and roster counts,
+ * the first tab of the one Classes page (2026-09-17; it was /my-classes).
  * Two views: cards, and a weekly schedule grid so they can see at a glance when
  * they teach. Data comes pre-scoped from /api/sis/teacher/classes.
  */
@@ -22,7 +22,7 @@ const meetingLabel = (m) => {
   return `${when} ${fmtTime(m.start_time)}–${fmtTime(m.end_time)}`
 }
 
-const MyClassesPage = () => {
+export default function MyClassesPanel() {
   const { orgId } = useSisOrg()
   const navigate = useNavigate()
   const [classes, setClasses] = useState([])
@@ -50,9 +50,7 @@ const MyClassesPage = () => {
 
   return (
     <div>
-      <BackToDashboard className="mb-1" />
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900">My Classes</h1>
+      <div className="flex items-center justify-end mb-4">
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-white">
             <button onClick={() => setViewPersist('cards')} title="Card view" aria-pressed={view === 'cards'}
@@ -168,4 +166,3 @@ const MyClassesPage = () => {
   )
 }
 
-export default MyClassesPage

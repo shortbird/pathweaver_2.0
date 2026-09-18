@@ -22,6 +22,17 @@ import { useAuth } from '../contexts/AuthContext'
 // checklist is now ?view=checklist on My tasks), /onboarding the person's
 // checklist. Query strings ride along, so ?assignment=&item= from an older
 // notification still lands on the item.
+// The five class pages became one on 2026-09-17: /classes holds My classes,
+// My schedule, Submissions and, for admins, the catalog, the Optio courses
+// and Attendance, as tabs. Older links keep working with their query strings
+// (Submissions' ?class_id=&completion_id=&from= ride along).
+const ClassesRedirect = ({ tab }) => {
+  const { search } = useLocation()
+  const params = new URLSearchParams(search)
+  params.set('tab', tab)
+  return <Navigate to={`/classes?${params.toString()}`} replace />
+}
+
 const TasksRedirect = ({ view = null }) => {
   const { search } = useLocation()
   const params = new URLSearchParams(search)
@@ -108,7 +119,6 @@ const ClassesPage = lazy(() => import('../pages/sis/ClassesPage'))
 const ClpPage = lazy(() => import('../pages/sis/ClpPage'))
 const BillingPage = lazy(() => import('../pages/sis/BillingPage'))
 const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'))
-const AttendancePage = lazy(() => import('../pages/sis/AttendancePage'))
 const SchoolInboxPage = lazy(() => import('../pages/sis/SchoolInboxPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
@@ -116,7 +126,6 @@ const ResourcesPage = lazy(() => import('../pages/sis/ResourcesPage'))
 const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
-const SubmissionsPage = lazy(() => import('../pages/sis/SubmissionsPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
 const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
@@ -124,9 +133,7 @@ const QuestLibraryPage = lazy(() => import('../pages/sis/QuestLibraryPage'))
 const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
-const MyClassesPage = lazy(() => import('../pages/sis/MyClassesPage'))
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
-const MySchedulePage = lazy(() => import('../pages/sis/MySchedulePage'))
 const MyProfilePage = lazy(() => import('../pages/sis/MyProfilePage'))
 const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
@@ -172,13 +179,13 @@ const SisRoutes = () => (
       <Route path="roster" element={<Navigate to="/people" replace />} />
       <Route path="staff" element={<Navigate to="/people?role=staff" replace />} />
       <Route path="households" element={<Navigate to="/people?family=in" replace />} />
-      <Route path="classes" element={<AdminRoute><ModuleGate path="/classes"><ClassesPage /></ModuleGate></AdminRoute>} />
+      <Route path="classes" element={<ModuleGate path="/classes"><ClassesPage /></ModuleGate>} />
       <Route path="clp" element={<AdminRoute><ClpRoute><ModuleGate path="/clp"><ClpPage /></ModuleGate></ClpRoute></AdminRoute>} />
       <Route path="billing" element={<FinanceRoute><ModuleGate path="/billing"><BillingPage /></ModuleGate></FinanceRoute>} />
       <Route path="tuition" element={<FinanceRoute><ModuleGate path="/tuition"><TuitionApprovalPage /></ModuleGate></FinanceRoute>} />
-      <Route path="attendance" element={<AdminRoute><ModuleGate path="/attendance"><AttendancePage /></ModuleGate></AdminRoute>} />
+      <Route path="attendance" element={<ClassesRedirect tab="attendance" />} />
       <Route path="goals" element={<ModuleGate path="/goals"><GoalsReviewPage /></ModuleGate>} />
-      <Route path="submissions" element={<ModuleGate path="/submissions"><SubmissionsPage /></ModuleGate>} />
+      <Route path="submissions" element={<ClassesRedirect tab="submissions" />} />
       <Route path="prior-learning" element={<AdminRoute><ModuleGate path="/prior-learning"><PriorLearningPage /></ModuleGate></AdminRoute>} />
       <Route path="reports" element={<AdminRoute><ModuleGate path="/reports"><ReportsPage /></ModuleGate></AdminRoute>} />
       {/* The HR document store is the Tasks page's Secure documents tab; this
@@ -201,9 +208,9 @@ const SisRoutes = () => (
       <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
 
       {/* Teacher portal */}
-      <Route path="my-classes" element={<ModuleGate path="/my-classes"><MyClassesPage /></ModuleGate>} />
+      <Route path="my-classes" element={<ClassesRedirect tab="mine" />} />
       <Route path="my-classes/:classId" element={<ModuleGate path="/my-classes"><TeacherClassPage /></ModuleGate>} />
-      <Route path="my-schedule" element={<ModuleGate path="/my-schedule"><MySchedulePage /></ModuleGate>} />
+      <Route path="my-schedule" element={<ClassesRedirect tab="schedule" />} />
       <Route path="my-profile" element={<MyProfilePage />} />
       <Route path="directory" element={<DirectoryPage />} />
       {/* The one task surface (TasksRedirect above says what /my-tasks and

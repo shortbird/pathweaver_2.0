@@ -225,7 +225,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
             classes on the dashboard instead of having to click to see all"). */}
         <div className="lg:col-span-2">
           <DashboardCard title={`My classes${classes.length ? ` (${classes.length})` : ''}`}
-            action={<Link to="/my-classes" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
+            action={<Link to="/classes?tab=mine" className="text-sm text-optio-purple hover:underline">Weekly view</Link>}>
             {!classes.length && <p className="text-sm text-neutral-500">No classes assigned yet — talk to your administrator.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {classes.map((c) => (

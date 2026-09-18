@@ -33,7 +33,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import MySchedulePage from './MySchedulePage'
+import MySchedulePanel from './classesPage/MySchedulePanel'
 
 const LONG_NAME = 'Creative Explorers: Nature & Art (Thurs, Block 2)'
 
@@ -57,7 +57,7 @@ beforeEach(() => {
   api.get.mockResolvedValue({ data: scheduleData })
 })
 
-const renderPage = () => render(<MemoryRouter><MySchedulePage /></MemoryRouter>)
+const renderPage = () => render(<MemoryRouter><MySchedulePanel /></MemoryRouter>)
 
 describe('MySchedulePage table view', () => {
   it('shows column headers: Time, Class, Room, Ages', async () => {

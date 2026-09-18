@@ -231,7 +231,7 @@ export function MyClasses({ classes, sisEnabled }) {
         {sisEnabled ? (
           <button
             type="button"
-            onClick={() => switchSurfaceInApp('sis', '/my-classes')}
+            onClick={() => switchSurfaceInApp('sis', '/classes?tab=mine')}
             className="text-sm font-medium text-optio-purple hover:underline"
           >
             View all

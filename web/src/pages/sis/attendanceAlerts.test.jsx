@@ -46,7 +46,7 @@ const { api, state } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import AttendancePage from './AttendancePage'
+import AttendancePanel from './classesPage/AttendancePanel'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -72,7 +72,7 @@ beforeEach(() => {
 
 describe('attendance page — students not accounted for', () => {
   it('shows the open alerts and resolves one', async () => {
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     const row = (await screen.findByText('Jane Bowman')).closest('[data-alert-row]')
     expect(within(row).getByText(/not accounted for/i)).toBeInTheDocument()
     expect(screen.getByText(/Students not accounted for \(1\)/)).toBeInTheDocument()
@@ -87,7 +87,7 @@ describe('attendance page — students not accounted for', () => {
   })
 
   it("clicking the name shows the student's whole day, including the classes they made", async () => {
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'Jane Bowman' }))
 
     // The headline answer: present or late somewhere else that day.
@@ -115,7 +115,7 @@ describe('attendance page — students not accounted for', () => {
 
   it('hides the board from a teacher, whose alerts endpoint 403s anyway', async () => {
     authState = { user: { id: 'u1', role: 'advisor' } }
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     await waitFor(() => expect(api.get).toHaveBeenCalled())
     expect(screen.queryByText(/Students not accounted for/)).not.toBeInTheDocument()
     expect(api.get.mock.calls.some(([u]) => u.includes('/attendance/alerts'))).toBe(false)
@@ -123,7 +123,7 @@ describe('attendance page — students not accounted for', () => {
 
   it('renders nothing when no student is unaccounted for', async () => {
     state.alerts = []
-    render(<AttendancePage />)
+    render(<AttendancePanel />)
     await waitFor(() => expect(api.get).toHaveBeenCalled())
     expect(screen.queryByText(/Students not accounted for/)).not.toBeInTheDocument()
   })

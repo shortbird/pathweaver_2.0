@@ -207,7 +207,7 @@ describe('TeacherHome for an SIS org', () => {
   it('sends "View all" to the SIS classes list', async () => {
     renderHome()
     await userEvent.click(await screen.findByText('View all'))
-    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/my-classes')
+    expect(switchSurfaceInApp).toHaveBeenCalledWith('sis', '/classes?tab=mine')
   })
 
   it('drops the LMS quest-invitations feed entirely', async () => {

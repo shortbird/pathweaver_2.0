@@ -40,8 +40,9 @@ describe('SisSidebar module gating for the active org', () => {
 
     // Kept — Billing stays because Gryffin's brain dump requires it
     expect(screen.getByText('Billing')).toBeInTheDocument()
+    // Submissions is a tab of Classes since 2026-09-17 (hidden there when the
+    // module is off), so the entry is Classes.
     expect(screen.getByText('Classes')).toBeInTheDocument()
-    expect(screen.getByText('Submissions')).toBeInTheDocument()
     expect(screen.getByText('Goals')).toBeInTheDocument()
   })
 
@@ -50,8 +51,8 @@ describe('SisSidebar module gating for the active org', () => {
     activeOrg = withHidden([])
     render(<MemoryRouter><SisSidebar /></MemoryRouter>)
     expect(screen.queryByText('Goals')).not.toBeInTheDocument()
-    // Submissions is a general SIS tab and stays.
-    expect(screen.getByText('Submissions')).toBeInTheDocument()
+    // Classes (with Submissions as a tab) is a general SIS entry and stays.
+    expect(screen.getByText('Classes')).toBeInTheDocument()
   })
 
   it('shows every non-goals module when the active org hides none', () => {

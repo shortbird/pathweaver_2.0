@@ -187,7 +187,7 @@ const TeacherClassPage = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <Link to="/my-classes" className="text-sm text-optio-purple hover:underline">← My Classes</Link>
+          <Link to="/classes?tab=mine" className="text-sm text-optio-purple hover:underline">← My classes</Link>
           <h1 className="text-2xl font-bold text-neutral-900">{cls?.name || 'Class'}</h1>
         </div>
         <div className="flex items-center gap-2">

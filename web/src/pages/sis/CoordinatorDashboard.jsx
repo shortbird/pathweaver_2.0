@@ -113,7 +113,7 @@ const CoordinatorDashboard = ({ userName }) => {
               <div><div className="text-2xl font-bold text-amber-600">{recorded.late || 0}</div><div className="text-xs text-neutral-500">Late</div></div>
               <div><div className="text-2xl font-bold text-blue-600">{(recorded.excused || 0) + (att.reported_out || 0)}</div><div className="text-xs text-neutral-500">Excused / reported out</div></div>
             </div>
-            <Link to="/attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
+            <Link to="/classes?tab=attendance" className="block mt-3 text-sm font-semibold text-optio-purple hover:underline">
               Open attendance →
             </Link>
           </DashboardCard>

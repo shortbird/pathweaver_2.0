@@ -49,6 +49,7 @@ and patterns instead.
 | M16 One attach path | 3 | first cut shipped (one membership write, one matching module); the wider attach service, staff-linking and the + Add form are open | see git log (`consolidate/M16-one-attach`) | `household_member_write` 0, `duplicate_detection` 0 |
 | M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
+| M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
 `declined (<why>)`.
@@ -1082,6 +1083,38 @@ documents. Verify at :3000 as a teacher: `/tasks` shows two tabs, the
 checklist switch, and no office button; as an admin: six tabs, badges on
 Requests and Assigned, the split button; `/my-tasks`, `/onboarding` and a
 dashboard tile all land on the right tab.
+
+### M21 — One classes page (added 2026-09-17, after M20)
+
+Tanner, same review: "Academics sidebar has classes, my classes, and my
+schedule -- seems like those could be combined ... and submissions and
+attendance can be inside the classes page." Five pages under Academics were
+one noun seen from different directions -- mine vs. the school's, this week
+vs. the catalog, what students owe me vs. who was in the room -- with nothing
+joined across them.
+
+**As shipped (2026-09-17).** `pages/sis/ClassesPage.jsx` is a shell at
+`/classes` for every staff member; the five bodies are panels under
+`pages/sis/classesPage/`: `MyClassesPanel` (cards or the week grid),
+`MySchedulePanel` (the week as a list, with duties and what is coming up),
+`SubmissionsPanel`, and for admins `CatalogPanel` (the org's classes and the
+Optio courses -- its inner Classes/Courses tabs lifted to the page's `all` and
+`courses` tabs, with counts as badges) and `AttendancePanel`. Attendance and
+Submissions are hidden when their module is off. An admin lands on the
+catalog, a teacher on their classes. The class itself stays its own page
+(`/my-classes/:id`, `TeacherClassPage`). `/my-classes`, `/my-schedule`,
+`/attendance` and `/submissions` redirect to their tabs with query strings
+intact (the progress tab's `?class_id=&completion_id=&from=` still land);
+dashboard tiles, the teacher home's "View all", the class page's back link
+and the backend's attendance notification links point at the tabs. Academics
+in the sidebar: Classes, CLP, Calendar, Prior Learning, Goals. Not merged:
+the week grid on My classes and the week list on My schedule are still two
+renderings of the teacher's week (the list carries duties; the grid does
+not) -- the E4 leftover, a later pass. Verify at :3000 as a teacher: three
+tabs, no office button; as an admin: six tabs with counts on the first two
+office tabs, the catalog's create/edit/roster/waitlist unchanged; Take
+attendance from the dashboard lands on the Attendance tab; a class's Student
+progress > Review submissions lands on Submissions filtered to the class.
 
 ### M13 — One detail surface per entity
 

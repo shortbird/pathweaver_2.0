@@ -159,7 +159,7 @@ describe('shared/sisConcepts.json, web side', () => {
     const scanned = walk(SRC, 'pages/sis')
     expect(scanned.length, 'the walk under pages/sis found almost nothing').toBeGreaterThan(40)
     expect(scanned.some((p) => TEST_FILE.test(p)), 'test files leaked into the scan').toBe(false)
-    const lines = codeLines(fs.readFileSync(path.join(SRC, 'pages/sis/ClassesPage.jsx'), 'utf8'))
+    const lines = codeLines(fs.readFileSync(path.join(SRC, 'pages/sis/classesPage/CatalogPanel.jsx'), 'utf8'))
     expect(lines.filter((l) => l.trim()).length, 'the stripper blanked the code').toBeGreaterThan(400)
   })
 
