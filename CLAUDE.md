@@ -150,7 +150,7 @@ session may be mid-verification on it.
 
 **Testing.** While iterating, run the affected files; the Stop hook does that
 for you from what you touched. Run the full suites once before committing:
-`cd backend && pytest`, `cd web && npm run test:run`, `cd mobile && npm test`.
+`cd backend && pytest`, `cd web && npm run test:run`, `cd mobile && npm run test:run`.
 Zero failures is the bar. Do not skip, xfail or delete a test to reach it — if a
 test is genuinely wrong, say so out loud and explain why. Coverage floors and
 ratchet ceilings live in [RATCHETS.md](docs/remediation-2026-09/RATCHETS.md),

@@ -76,7 +76,7 @@ Before you commit, run all three in full:
 ```
 cd backend && pytest
 cd web && npm run test:run
-cd mobile && npm test
+cd mobile && npm run test:run
 ```
 
 Zero failures. Do not skip, xfail or delete a test to get there. If a test is

@@ -13,18 +13,21 @@ import EmptyState from '../ui/EmptyState'
 /**
  * Family quests, on the family dashboard.
  *
- * A quest the parent SET UP for the family -- private, owned by the parent,
- * with each enrolled child working through their own copy -- or one the
- * parent is themselves enrolled in (a school's training quest, or one they
- * made on their own account: that is what "New Zealand 101" on Paige's
- * dashboard is). Each card names who is on the quest with their rhythm on
- * it -- the engagement metric, not a progress bar; a member's row opens
- * THEIR copy, in family scope for a child and as the parent for the parent.
- * Children not on it yet can be added from the card, and "New family quest"
- * sets one up for whichever children the parent picks
- * (hooks/api/useFamilyQuests). A quest is listed only while somebody in the
- * family is on it -- the backend drops the rest, so a card always has at
- * least one member row.
+ * A quest somebody in the family MADE -- private, owned by the parent (set
+ * up here) or by a child (Create quest from inside the child's page), with
+ * each enrolled child working through their own copy -- or one the parent
+ * is themselves enrolled in (a school's training quest, or one they made on
+ * their own account: that is what "New Zealand 101" on Paige's dashboard
+ * is). Each card names who is on the quest with their rhythm on it -- the
+ * engagement metric, not a progress bar; a member's row opens THEIR copy,
+ * in family scope for a child and as the parent for the parent. Children
+ * not on it yet can be added from the card and arrive with the quest's task
+ * list -- a copy of a sibling's when the quest has no template, which is
+ * every parent-made quest (2026-09-18: "can I copy-paste the quest to my
+ * other kid?") -- and "New family quest" sets one up for whichever children
+ * the parent picks (hooks/api/useFamilyQuests). A quest is listed only
+ * while somebody in the family is on it -- the backend drops the rest, so a
+ * card always has at least one member row.
  *
  * Until 2026-09-15 this section was MyEnrolledQuests: the parent's own
  * enrollments only, with nothing to say whose quest it was and no way to
@@ -87,8 +90,10 @@ function MemberRow({ member, onOpen, onEnd, ending }) {
 function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) {
   const onIt = new Set(quest.members.map((m) => m.user_id))
   const notYet = kids.filter((c) => !onIt.has(c.id))
-  return (
-    <QuestListItem as="article" quest={quest} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+  // The rows and the Add buttons are the card's footer: full width, under
+  // the picture, so each row has room for its rhythm badge.
+  const footer = (
+    <>
       <div className="mt-3 space-y-0.5">
         {quest.members.map((m) => (
           <MemberRow
@@ -117,7 +122,10 @@ function FamilyQuestCard({ quest, kids, onOpen, onAdd, onEnd, adding, ending }) 
           ))}
         </div>
       )}
-    </QuestListItem>
+    </>
+  )
+  return (
+    <QuestListItem as="article" quest={quest} footer={footer} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4" />
   )
 }
 
@@ -143,8 +151,11 @@ export default function FamilyQuestsSection({ className = '' }) {
     {
       onSuccess: (res) => {
         const failed = res.data?.failed || []
-        if (failed.length) toast.error(failed[0].error || `Could not add ${child.firstName}`)
-        else toast.success(`${child.firstName} is on ${quest.title}`)
+        if (failed.length) { toast.error(failed[0].error || `Could not add ${child.firstName}`); return }
+        // The backend gives the child the quest's task list -- the template,
+        // or a copy of a sibling's -- and says how many came across.
+        const n = res.data?.enrolled?.[0]?.tasks_copied || 0
+        toast.success(n ? `${child.firstName} is on ${quest.title} with ${n} task${n === 1 ? '' : 's'}` : `${child.firstName} is on ${quest.title}`)
       },
       onError: (err) => toast.error(err.response?.data?.error || `Could not add ${child.firstName}`),
     },

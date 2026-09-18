@@ -9,7 +9,9 @@
  *
  * The writes are the same three the web dashboard makes: create (private,
  * owned by the parent) then enroll the chosen children; add a child to a
- * quest the family already has; and end one member's run at a quest --
+ * quest the family already has -- they arrive with the quest's task list, a
+ * copy of a sibling's when the quest has no template, which is every
+ * parent-made quest (2026-09-18); and end one member's run at a quest --
  * POST /api/quests/:id/end with `student_id`, the route the quest screen's
  * own End button uses, so the work and XP are kept and the quest can be
  * reopened from the child's completed quests.

@@ -1,17 +1,23 @@
 /**
  * One quest as a parent's list shows it: the picture (or the cap), the title,
  * the description, the badges beside the title, and whatever the list needs
- * underneath (the children on it, the start link). Two parent pages drew this
- * their own way -- the family's own quests on /family and the school's quests
- * on /family/forms -- and used the word "quests" for both without saying
- * whose (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, N3; M19). The headings
- * now say ("Your family's quests" / "Quests from <the school>") and the rows
- * are this one component.
+ * underneath. Two parent pages drew this their own way -- the family's own
+ * quests on /family and the school's quests on /family/forms -- and used the
+ * word "quests" for both without saying whose
+ * (docs/icreate/FRANKENSTEIN_AUDIT_2026-09-17.md, N3; M19). The headings now
+ * say ("Your family's quests" / "Quests from <the school>") and the rows are
+ * this one component.
+ *
+ * Two places for what goes underneath. `children` sit in the text column,
+ * beside the picture, for a line that belongs to the title (the start link).
+ * `footer` spans the whole row, under the picture, for content that needs the
+ * width: the family card's member rows carry a rhythm badge each, and in the
+ * text column of a three-up card they ran off the right edge (2026-09-18).
  */
 import React from 'react'
 import { AcademicCapIcon } from '@heroicons/react/24/outline'
 
-const QuestListItem = ({ quest, badges = null, children, className = '', as: Tag = 'div', imageSize = 'md' }) => {
+const QuestListItem = ({ quest, badges = null, children, footer = null, className = '', as: Tag = 'div', imageSize = 'md' }) => {
   const box = imageSize === 'sm' ? 'w-10 h-10' : 'w-14 h-14'
   return (
     <Tag className={className}>
@@ -34,6 +40,7 @@ const QuestListItem = ({ quest, badges = null, children, className = '', as: Tag
           {children}
         </div>
       </div>
+      {footer}
     </Tag>
   )
 }

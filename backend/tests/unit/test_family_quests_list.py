@@ -1,9 +1,11 @@
 """GET /api/family/quests: the family's quests, with who is on each.
 
 The family dashboard's quest section (2026-09-15). A quest is the family's
-when the parent set it up (created_by) or is enrolled in it themselves;
-every family member with an enrollment is listed as a member with their own
-progress. A child's own quests are not here -- they are the child's
+when somebody in the family made it (created_by: the parent, or -- since
+2026-09-18 -- a child, which is where Create quest from inside a child's
+page puts it) or the parent is enrolled in it themselves; every family
+member with an enrollment is listed as a member with their own progress. A
+quest a child picked from the catalog is not here -- that is the child's
 dashboard.
 """
 
@@ -22,6 +24,7 @@ NZ = 'ffffffff-ffff-4fff-8fff-ffffffffffff'      # Paige's own quest
 TRIP = '11111111-1111-4111-8111-111111111111'    # set up for the kids
 KIDS_OWN = '22222222-2222-4222-8222-222222222222'  # Romney's own pick
 CATALOG = '33333333-3333-4333-8333-333333333333'  # authored by the parent, nobody in the family on it
+MADE_FOR_ROMNEY = '44444444-4444-4444-8444-444444444444'  # made on Romney's account from inside his page
 
 
 def _innermost(view):
@@ -73,6 +76,7 @@ def _answers():
             {'id': 'uq-trip-r', 'user_id': ROMNEY, 'quest_id': TRIP, 'started_at': '2026-09-01T00:00:00+00:00', 'completed_at': None},
             {'id': 'uq-trip-s', 'user_id': SIBLING, 'quest_id': TRIP, 'started_at': '2026-09-02T00:00:00+00:00', 'completed_at': None},
             {'id': 'uq-own-r', 'user_id': ROMNEY, 'quest_id': KIDS_OWN, 'started_at': '2026-09-03T00:00:00+00:00', 'completed_at': None},
+            {'id': 'uq-made-r', 'user_id': ROMNEY, 'quest_id': MADE_FOR_ROMNEY, 'started_at': '2026-08-20T00:00:00+00:00', 'completed_at': None},
         ]
 
     def quests(filters):
@@ -84,8 +88,13 @@ def _answers():
             {'id': CATALOG, 'title': 'Explore the music industry', 'created_by': PARENT, 'is_public': False, 'created_at': '2026-01-01T00:00:00+00:00'},
             # ... and this one, which Romney picked himself.
             {'id': KIDS_OWN, 'title': 'Learn to play the guitar', 'created_by': PARENT, 'is_public': True, 'created_at': '2026-01-01T00:00:00+00:00'},
+            # Paige pressed Create quest inside Romney's page: the quest is
+            # on ROMNEY's account.
+            {'id': MADE_FOR_ROMNEY, 'title': 'Build a birdhouse', 'created_by': ROMNEY, 'is_public': False, 'created_at': '2026-08-20T00:00:00+00:00'},
         ]
-        return [r for r in rows if r['created_by'] == filters.get('created_by') and r['is_public'] == filters.get('is_public', r['is_public'])]
+        authors = filters.get('created_by')
+        authors = authors if isinstance(authors, (list, set, tuple)) else [authors]
+        return [r for r in rows if r['created_by'] in authors and r['is_public'] == filters.get('is_public', r['is_public'])]
 
     return {
         'quests': quests,
@@ -121,7 +130,7 @@ def test_lists_the_parents_own_quest_and_the_ones_set_up_for_the_children(app):
     body = _call(app, _answers(), [ROMNEY, SIBLING])
     assert body['success'] is True
     by_id = {q['id']: q for q in body['quests']}
-    assert set(by_id) == {NZ, TRIP}
+    assert set(by_id) == {NZ, TRIP, MADE_FOR_ROMNEY}
     assert KIDS_OWN not in by_id
 
     nz = by_id[NZ]
@@ -144,7 +153,36 @@ def test_each_member_carries_their_own_progress(app):
 
 def test_most_recently_started_quest_comes_first(app):
     body = _call(app, _answers(), [ROMNEY, SIBLING])
-    assert [q['id'] for q in body['quests']] == [TRIP, NZ]
+    assert [q['id'] for q in body['quests']] == [TRIP, MADE_FOR_ROMNEY, NZ]
+
+
+def test_a_private_quest_made_on_a_childs_account_is_the_familys(app):
+    # A parent who presses Create quest from inside a child's page makes the
+    # quest on the CHILD's account (/api/quests/create under @student_scope).
+    # Until 2026-09-18 it was on no family surface, so there was nowhere to
+    # put a sibling on it ("can I copy-paste the quest to my other kid?").
+    body = _call(app, _answers(), [ROMNEY, SIBLING])
+    made = next(q for q in body['quests'] if q['id'] == MADE_FOR_ROMNEY)
+    assert made['is_family_quest'] is True
+    assert [m['first_name'] for m in made['members']] == ['Romney']
+
+
+def test_a_private_quest_made_by_somebody_elses_child_is_not(app):
+    # The author filter is the family, not "any child": with Romney the only
+    # child here, a quest on Sib's account is another family's.
+    answers = _answers()
+    base_quests, base_user_quests = answers['quests'], answers['user_quests']
+    answers['quests'] = lambda filters: [
+        dict(r, created_by=SIBLING) if r['id'] == MADE_FOR_ROMNEY else r
+        for r in base_quests(dict(filters, created_by=list(filters['created_by']) + [SIBLING]))
+        if r['id'] != MADE_FOR_ROMNEY or SIBLING in filters['created_by']
+    ]
+    answers['user_quests'] = lambda filters: [
+        r for r in base_user_quests(filters)
+        if not isinstance(filters.get('user_id'), list) or r['user_id'] in filters['user_id']
+    ]
+    body = _call(app, answers, [ROMNEY])
+    assert MADE_FOR_ROMNEY not in {q['id'] for q in body['quests']}
 
 
 def test_a_quest_the_parent_authored_that_nobody_in_the_family_is_on_stays_out(app):

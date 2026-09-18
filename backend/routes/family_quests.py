@@ -23,7 +23,7 @@ them (created_by_user_id / enrolled_by_user_id; migration 20260915120000).
 Endpoints:
 - GET  /api/family/quests - The family's quests, with who is on each (2026-09-15)
 - POST /api/family/quests/create - Create a private quest as a parent
-- POST /api/family/quests/<quest_id>/enroll-children - Enroll child(ren) in a quest
+- POST /api/family/quests/<quest_id>/enroll-children - Enroll child(ren) in a quest, with its task list
 - POST /api/family/quests/<quest_id>/tasks - Create a task for a child
 - DELETE /api/family/quests/<quest_id>/tasks/<task_id> - Remove a child's task
 - POST /api/family/quests/<quest_id>/tasks/<task_id>/uncomplete - Uncomplete a child's task
@@ -92,9 +92,13 @@ def list_family_quests(user_id):
 
     Two kinds of quest belong to a family rather than to one child:
 
-      - a quest the parent SET UP -- created_by is the parent (the create
-        route below), private, worked on by whichever children the parent
-        enrolled through enroll-children;
+      - a quest somebody in the family MADE -- created_by is the parent (the
+        create route below) or one of the children, private. A parent who
+        presses Create quest from inside a child's page makes the quest on
+        the CHILD's account (/api/quests/create under @student_scope), and
+        until 2026-09-18 that quest was on no family surface: the parent
+        could see it by opening the child, but had nowhere to put a sibling
+        on it;
       - a quest the parent is themselves enrolled in. A school can assign a
         training quest straight onto a guardian's account, and a parent who
         used the ordinary /api/quests/create route is its first learner
@@ -104,15 +108,15 @@ def list_family_quests(user_id):
     child of children_of_parent -- holding an active enrollment, with that
     member's own task progress. The card can then say who is on the quest and
     how far each of them is, and offer the children who are not on it yet.
-    A child's OWN quests (ones they picked or made themselves) are not here;
-    those are the child's dashboard, reached by opening the child.
+    A quest a child PICKED from the catalog is not here; that is the child's
+    dashboard, reached by opening the child.
 
     A quest is the family's only while somebody in the family is on it.
     created_by alone is not enough: a superadmin or advisor who is also a
     parent has authored hundreds of quests -- the catalog, class quests,
     training quests -- and on 2026-09-14 every one of them showed up on the
-    owner's own family dashboard. The create route below always writes a
-    private quest, so a public one the parent authored is the catalog's, not
+    owner's own family dashboard. The create routes always write a private
+    quest, so a public one a family member authored is the catalog's, not
     the family's, even if a child picked it. Once everyone has ended their
     run the quest leaves this list; it is reachable again from each member's
     completed quests.
@@ -129,7 +133,7 @@ def list_family_quests(user_id):
 
     mine = supabase.table('quests') \
         .select('id, title, description, big_idea, image_url, header_image_url, created_by, created_at') \
-        .eq('created_by', user_id).eq('is_public', False).eq('is_active', True).is_('archived_at', 'null') \
+        .in_('created_by', family_ids).eq('is_public', False).eq('is_active', True).is_('archived_at', 'null') \
         .execute().data or []
     quests = {q['id']: q for q in mine}
 
@@ -223,7 +227,7 @@ def list_family_quests(user_id):
             'description': q.get('description') or q.get('big_idea'),
             'image_url': q.get('image_url') or q.get('header_image_url'),
             'created_by': q.get('created_by'),
-            'is_family_quest': q.get('created_by') == user_id,
+            'is_family_quest': q.get('created_by') in family_ids,
             'created_at': q.get('created_at'),
             'members': members,
         })
@@ -296,12 +300,76 @@ def create_family_quest(user_id):
         raise
 
 
+def _family_task_list(supabase, quest_id, family_ids):
+    """The fullest task list anybody in the family holds on a quest, as rows
+    of user_quest_tasks in order -- what a newly added child gets when the
+    quest has no authored template. Ended runs count: a sibling who finished
+    the quest still holds the list. Empty when nobody in the family has one.
+    Bounded by the family on one quest, so no paging.
+    """
+    enrollments = supabase.table('user_quests') \
+        .select('id') \
+        .eq('quest_id', quest_id).in_('user_id', family_ids) \
+        .execute().data or []
+    if not enrollments:
+        return []
+    tasks = supabase.table('user_quest_tasks') \
+        .select('id, user_quest_id, title, description, pillar, xp_value, order_index, is_required, '
+                'is_manual, diploma_subjects, subject_xp_distribution, success_criteria, '
+                'source_template_task_id, created_at') \
+        .in_('user_quest_id', [e['id'] for e in enrollments]).eq('approval_status', 'approved') \
+        .execute().data or []
+    by_enrollment = {}
+    for t in tasks:
+        by_enrollment.setdefault(t['user_quest_id'], []).append(t)
+    if not by_enrollment:
+        return []
+    fullest = max(by_enrollment.values(), key=len)
+    return sorted(fullest, key=lambda t: (t.get('order_index') or 0, t.get('created_at') or ''))
+
+
+def _copy_of_family_task(task, child_id, quest_id, enrollment_id, parent_id):
+    """A sibling's task, fresh for another child: the work to do -- title,
+    description, pillar, XP, success criteria, subjects -- and nothing of the
+    sibling's progress on it (no completion, feedback, revision or learning
+    moment). It names the parent as the one who put it there and the
+    sibling's row as where it came from."""
+    return {
+        'user_id': child_id,
+        'quest_id': quest_id,
+        'user_quest_id': enrollment_id,
+        'title': task['title'],
+        'description': task.get('description') or '',
+        'pillar': task.get('pillar'),
+        'xp_value': task.get('xp_value') or 100,
+        'order_index': task.get('order_index') or 0,
+        'is_required': bool(task.get('is_required')),
+        'is_manual': bool(task.get('is_manual')),
+        'approval_status': 'approved',
+        'diploma_subjects': task.get('diploma_subjects') or ['Electives'],
+        'subject_xp_distribution': task.get('subject_xp_distribution'),
+        'success_criteria': task.get('success_criteria'),
+        'source_template_task_id': task.get('source_template_task_id'),
+        'source_task_id': task.get('id'),
+        'created_by_user_id': parent_id,
+    }
+
+
 @bp.route('/quests/<quest_id>/enroll-children', methods=['POST'])
 @require_auth
 def enroll_children_in_family_quest(user_id, quest_id):
     """
-    Enroll one or more dependents in a quest.
-    Copies template tasks (if any) to each child's user_quest_tasks.
+    Enroll one or more of the parent's children in a quest.
+
+    Each child gets the quest's task list: the authored template when the
+    quest has one, otherwise a copy of the fullest list anybody in the family
+    already holds on it (_family_task_list). A parent-made quest has no
+    template -- every task a parent adds goes to ONE child's enrollment, not
+    the quest -- so until 2026-09-18 "Add <sibling>" on the family card put
+    the sibling on an empty quest and the parent retyped the whole list ("can
+    I copy-paste the quest to my other kid?"). A child who already holds a
+    list -- an ended run being picked back up -- keeps it; copying onto it
+    again would double every task, which the template copy did too.
     """
     try:
         verify_family_access(user_id)
@@ -317,8 +385,18 @@ def enroll_children_in_family_quest(user_id, quest_id):
         # admin client justified: parent enrolls a dependent in a quest; cross-user writes (user_quests for children) gated by parent role + parent->child verification
         supabase = get_supabase_admin_client()
 
+        # One definition of "my child" (all three links), one read for the
+        # whole list rather than one per child.
+        from utils.class_membership import children_of_parent
+        my_children = children_of_parent(user_id)
+        family_ids = [user_id] + sorted(my_children)
+
         # Verify quest exists. A parent may enroll their child in:
-        #   - a quest they own (created_by == parent),
+        #   - a quest anybody in the family made: their own (the create route
+        #     above), or a child's -- Create quest from inside a child's page
+        #     makes the quest on the CHILD's account (/api/quests/create under
+        #     @student_scope), and a sibling could not be put on it at all
+        #     until 2026-09-18;
         #   - any public/catalog quest (is_public), or
         #   - anything, if superadmin.
         # Private quests owned by other families stay blocked. Per-child access
@@ -327,24 +405,20 @@ def enroll_children_in_family_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        if quest.data.get('created_by') != user_id and not quest.data.get('is_public'):
+        if quest.data.get('created_by') not in family_ids and not quest.data.get('is_public'):
             user_check = supabase.table('users').select('role').eq('id', user_id).single().execute()
             if not user_check.data or user_check.data.get('role') != 'superadmin':
                 return jsonify({'success': False, 'error': 'Permission denied'}), 403
 
-        # Fetch template tasks for this quest
+        # The list each child gets: the quest's template, else the family's.
         from routes.quest_types import get_template_tasks
         from utils.template_tasks import get_valid_source_template_ids
         template_tasks = get_template_tasks(quest_id, filter_type='all')
         valid_template_ids = get_valid_source_template_ids(supabase, template_tasks)
+        family_tasks = [] if template_tasks else _family_task_list(supabase, quest_id, family_ids)
 
         enrolled = []
         failed = []
-
-        # One definition of "my child" (all three links), one read for the
-        # whole list rather than one per child.
-        from utils.class_membership import children_of_parent
-        my_children = children_of_parent(user_id)
 
         for child_id in child_ids:
             try:
@@ -359,9 +433,12 @@ def enroll_children_in_family_quest(user_id, quest_id):
 
                 enrollment_id = enrollment['id']
 
-                # Copy template tasks to user_quest_tasks
-                if template_tasks:
-                    tasks_to_insert = []
+                already = supabase.table('user_quest_tasks').select('id') \
+                    .eq('user_quest_id', enrollment_id).limit(1).execute().data
+                tasks_to_insert = []
+                if already:
+                    pass  # picked back up: the list is theirs already
+                elif template_tasks:
                     for task in template_tasks:
                         tasks_to_insert.append({
                             'user_id': child_id,
@@ -381,17 +458,22 @@ def enroll_children_in_family_quest(user_id, quest_id):
                             'source_task_id': task.get('id'),
                             'created_by_user_id': user_id,
                         })
+                else:
+                    tasks_to_insert = [
+                        _copy_of_family_task(task, child_id, quest_id, enrollment_id, user_id)
+                        for task in family_tasks
+                    ]
 
-                    if tasks_to_insert:
-                        supabase.table('user_quest_tasks').insert(tasks_to_insert).execute()
+                if tasks_to_insert:
+                    supabase.table('user_quest_tasks').insert(tasks_to_insert).execute()
 
                 # Mark personalization as complete
                 supabase.table('user_quests').update({
                     'personalization_completed': True
                 }).eq('id', enrollment_id).execute()
 
-                enrolled.append({'child_id': child_id, 'enrollment_id': enrollment_id})
-                logger.info(f"Enrolled child {child_id[:8]} in quest {quest_id[:8]} with {len(template_tasks)} tasks")
+                enrolled.append({'child_id': child_id, 'enrollment_id': enrollment_id, 'tasks_copied': len(tasks_to_insert)})
+                logger.info(f"Enrolled child {child_id[:8]} in quest {quest_id[:8]} with {len(tasks_to_insert)} tasks")
 
             except Exception as child_error:
                 logger.error(f"Failed to enroll child {child_id} in quest {quest_id}: {str(child_error)}")

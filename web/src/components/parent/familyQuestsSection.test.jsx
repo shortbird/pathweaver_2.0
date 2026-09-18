@@ -137,6 +137,29 @@ describe('FamilyQuestsSection', () => {
     expect(toast.success).toHaveBeenCalledWith('Romney is on New Zealand 101')
   })
 
+  it('says how many tasks came across with the child', async () => {
+    // A parent-made quest has no template: the backend copies a sibling's
+    // list to the new child and reports the count (2026-09-18).
+    api.post.mockResolvedValue({ data: { success: true, enrolled: [{ child_id: 'romney', enrollment_id: 'uq', tasks_copied: 4 }], failed: [] } })
+    renderSection()
+    await screen.findByText('New Zealand 101')
+    await userEvent.click(screen.getByRole('button', { name: 'Add Romney' }))
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Romney is on New Zealand 101 with 4 tasks')
+    })
+  })
+
+  it('lays the member rows under the picture, not beside it', async () => {
+    // The rows carry a rhythm badge each; in the text column beside the
+    // picture of a three-up card they ran off the right edge (2026-09-18).
+    renderSection()
+    await screen.findByText('New Zealand 101')
+    const card = screen.getByText('New Zealand 101').closest('article')
+    const header = card.firstElementChild
+    expect(header).not.toContainElement(screen.getByRole('button', { name: 'Open your copy' }))
+    expect(card).toContainElement(screen.getByRole('button', { name: 'Open your copy' }))
+  })
+
   it('sets up a new family quest for the children the parent picks', async () => {
     api.post.mockImplementation((url) => {
       if (url === '/api/family/quests/create') return Promise.resolve({ data: { success: true, quest_id: 'new', quest: { id: 'new', title: 'Bake bread' } } })
