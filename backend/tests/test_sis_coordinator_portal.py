@@ -331,13 +331,13 @@ class TestCoordinatorDashboard:
         from services.sis_coordinator_service import filter_quick_links
         links = [
             {'label': 'Opening checklist', 'url': '/resources', 'roles': ['campus_coordinator']},
-            {'label': 'Payroll', 'url': '/timesheets', 'roles': ['org_admin']},
+            {'label': 'Billing', 'url': '/billing', 'roles': ['org_admin']},
             {'label': 'Calendar', 'url': '/calendar'},
         ]
         cc = [l['label'] for l in filter_quick_links(links, ['campus_coordinator'])]
         assert cc == ['Opening checklist', 'Calendar']
         admin = [l['label'] for l in filter_quick_links(links, ['org_admin'])]
-        assert admin == ['Payroll', 'Calendar']
+        assert admin == ['Billing', 'Calendar']
 
     def test_malformed_quick_links_are_dropped(self):
         from services.sis_coordinator_service import filter_quick_links

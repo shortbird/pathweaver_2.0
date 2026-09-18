@@ -98,7 +98,6 @@ features into fake toggles or merge real toggles into fake features. So:
 | `registration` | on | Registration Builder, Waitlists & Age Gates, Schedule Builder | parent `sis`. Staff console + family funnel + both waitlist systems. The funnel *config dict* stays at `feature_flags.registration` untouched |
 | `attendance` | on | Attendance, Accountability Board | parent `sis`. Includes the nightly sweep + gap alerts |
 | `billing` | on | Tuition & Invoicing | parent `sis`, `requires: (registration)`, `min_tier: finance`. Covers billing.py, tuition.py, pay links |
-| `timesheets` | on | Timesheets | parent `sis`, `min_tier: finance` for admin views; staff keep My Time |
 | `tasks` | on | — (Task Center / My Tasks umbrella) | parent `sis` |
 | `forms` | on | Forms & Requests | parent `sis` |
 | `onboarding` | on | Onboarding Checklists | parent `sis` |
@@ -145,8 +144,8 @@ The non-obvious ones — everything else maps by name:
 
 The three marketing compositions are expressible as module sets — the model holds:
 
-- **Hybrid Microschool**: `sis:true` with defaults, `community:true`, `timesheets:false`, `secure_documents:false`.
-- **Homeschool Co-op**: `sis:true`, `billing:false`, `timesheets:false`, `community:true`; `journal`/`portfolio` are core/on already.
+- **Hybrid Microschool**: `sis:true` with defaults, `community:true`, `secure_documents:false`.
+- **Homeschool Co-op**: `sis:true`, `billing:false`, `community:true`; `journal`/`portfolio` are core/on already.
 - **Online Program**: `sis:false` (or minimal), `courses` on, `ai:true` (+ consents), `credits:true`, `transcripts:true`, `observer` on, `attendance:false`, `kiosk:false`.
 
 One granularity note: "Family Directory without the noticeboard" is not expressible —
@@ -495,8 +494,8 @@ module keys — **noted, not designed**.
 - **Parent / family**: the school hub and family pages list exactly the enabled family surfaces — invoices and pay links (`billing`), absence reporting (`attendance`), the enrollment funnel and schedule builder (`registration` + `classes`), paperwork (`onboarding`/`tasks`), calendar and directory (`calendar`/`community`). A disabled module never renders a card that 404s.
 - **Observer**: follows linked students' feed and portfolio (`observer`); every view audited; nothing else.
 - **Teacher in an LMS-only org** (`sis: false`): lands on `/dashboard`; creates a class, shares a join link, assigns quests with due dates, tracks roster progress, verifies work, runs check-ins — all `teaching` core, no SIS console anywhere. Account actions (passwords, deactivation) go through the org admin.
-- **Teacher in a full-SIS org**: the same core, plus the console portal — My Classes / My Schedule (`classes`), roll (`attendance`), gradebook and submissions, My Time (`timesheets`), My Tasks and paperwork (`tasks`/`onboarding`), the staff directory. Every read class-scoped at the repository.
-- **Campus coordinator**: the whole console via `ADMIN_ROLES` minus the money (`billing`, `timesheets` admin) and HR (`secure_documents`); pricing fields redacted from settings exactly as today.
+- **Teacher in a full-SIS org**: the same core, plus the console portal — My Classes / My Schedule (`classes`), roll (`attendance`), gradebook and submissions, My Tasks and paperwork (`tasks`/`onboarding`), the staff directory. Every read class-scoped at the repository.
+- **Campus coordinator**: the whole console via `ADMIN_ROLES` minus the money (`billing`) and HR (`secure_documents`); pricing fields redacted from settings exactly as today.
 - **Org admin (front office)**: everything the enabled set offers — People, Registration, Classes, Task Center, Reports, and the unified settings surface whose cards match the enabled modules. Sees the school's block set read-only. In an LMS-only org: `/organization` basics + the getting-started checklist.
 - **Finance admin (org_admin)**: Billing, Tuition approval, Timesheets approval, pricing settings — the `min_tier: finance` modules.
 - **Superadmin**: the org picker; sees each org **exactly as configured** (no module bypass); flips blocks in the Blocks panel with dependencies explained; masquerade unchanged.
@@ -625,7 +624,6 @@ Tier shown where above `staff`. Superadmin sees each org exactly as configured.
 | registration | — | F (funnel) | — | — | C | C | C (fees) |
 | attendance | M (kiosk) | F (absences) | — | C (take roll) | C | C | — |
 | billing | — | F (invoices, pay) | — | — | **no** | C | C |
-| timesheets | — | — | — | C (My Time) | **no** | C | C |
 | tasks / forms / onboarding | — | F | — | C (mine) | C | C | — |
 | secure_documents | — | — | — | own docs | **no** | C (hr) | — |
 | clp / goals | — | F (plan) | — | C | C | C | — |

@@ -50,6 +50,7 @@ and patterns instead.
 | M8b Time-block table | 3 | shipped: `sis_time_blocks` rows with ids, `class_meetings.block_id`, migration applied to prod + staging 2026-09-18 (iCreate 6 blocks, 184 meetings stamped) | see git log (`consolidate/M8b-one-blocks-reader`, `consolidate/M8b-time-block-table`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 | M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
+| R1 Time clock and timesheets removed (added 2026-09-18) | 2 | shipped; the DROP migration (20260918230000) runs after deploy | see git log (`remove/time-tracking`) | `timesheets` module key gone; three orgs' stale `hidden_modules` entry is ignored |
 | M22 One library page (added 2026-09-18) | 2 | shipped | see git log (`consolidate/M22-one-library-page`) | no manifest row; four pages became tabs; `training_system` owner moved to `pages/sis/libraryPage/TrainingPanel.jsx` |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,

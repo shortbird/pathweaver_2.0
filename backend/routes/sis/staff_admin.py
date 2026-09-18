@@ -1,15 +1,15 @@
 """
 SIS staff-operations admin routes — employment profiles, duties, form review,
-onboarding templates, timesheets, and the payroll CSV export.
+onboarding templates, and the staff roster export.
 
 ADMIN-ONLY: this is the employer side of the teacher portal. Teachers reach
 their own slice via routes/sis/staff_portal.py.
 
-The payroll half (timesheets, time-entry edits, approvals, payroll.csv) is
-FINANCE_ROLES, so campus coordinators run onboarding and form review without
-seeing what anyone is paid. Pay fields on the employment profile are redacted
-for them rather than the whole profile withheld -- it also carries the
-emergency contact and work schedule, which they do need.
+Campus coordinators run onboarding and form review without seeing what anyone
+is paid: pay fields on the employment profile are redacted for them rather
+than the whole profile withheld -- it also carries the emergency contact and
+work schedule, which they do need. (The timesheets and payroll CSV routes that
+were FINANCE_ROLES here were removed on 2026-09-18 with the time clock.)
 """
 
 
@@ -26,7 +26,7 @@ from services import sis_onboarding_service as onboarding
 from services import sis_form_template_service as form_templates
 from routes.sis import signature_request_views
 from database import get_supabase_admin_client
-from utils.sis_roles import ADMIN_ROLES, FINANCE_ROLES
+from utils.sis_roles import ADMIN_ROLES
 from utils.csv_response import csv_response
 
 logger = get_logger(__name__)
@@ -556,81 +556,6 @@ def release_signature_hold(user_id, assignment_id):
         return err
     return signature_request_views.release_signature_hold(
         org_id, assignment_id, include_hr=False)
-
-
-# ── Timesheets & payroll export ──────────────────────────────────────────────
-
-def _period_or_error():
-    start = request.args.get('start')
-    end = request.args.get('end')
-    if not start or not end:
-        return None, None, (jsonify({'success': False,
-                                     'error': 'start and end are required (YYYY-MM-DD)'}), 400)
-    return start, end, None
-
-
-@bp.route('/timesheets', methods=['GET'])
-@require_role(*FINANCE_ROLES)
-@require_module('timesheets')
-def timesheets(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    start, end, perr = _period_or_error()
-    if perr:
-        return perr
-    return jsonify({'success': True,
-                    'timesheets': staff.timesheet_summary(org_id, start, end),
-                    # Why the list is empty, when it is: the time clock is off
-                    # by default on every staff profile, and nothing on the page
-                    # used to say so.
-                    'setup': staff.timeclock_setup(org_id)})
-
-
-@bp.route('/time-entries/<entry_id>', methods=['PATCH'])
-@require_role(*FINANCE_ROLES)
-@require_module('timesheets')
-def edit_time_entry(user_id, entry_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    result = staff.update_time_entry(org_id, entry_id, request.get_json() or {},
-                                     edited_by=user_id)
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/timesheets/approve', methods=['POST'])
-@require_role(*FINANCE_ROLES)
-@require_module('timesheets')
-def approve_timesheet(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json() or {}
-    if not data.get('user_id') or not data.get('start') or not data.get('end'):
-        return jsonify({'success': False, 'error': 'user_id, start, end are required'}), 400
-    result = staff.approve_period(org_id, data['user_id'], data['start'], data['end'],
-                                  approved_by=user_id)
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/payroll.csv', methods=['GET'])
-@require_role(*FINANCE_ROLES)
-@require_module('timesheets')
-def payroll_csv(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    start, end, perr = _period_or_error()
-    if perr:
-        return perr
-    return csv_response(
-        f'payroll_{start}_{end}.csv',
-        ['Employee', 'Payroll ID', 'Pay Period', 'Date', 'Job/Class',
-         'Hours', 'Hourly Rate', 'Amount', 'Notes', 'Status'],
-        staff.payroll_rows(org_id, start, end))
 
 
 @bp.route('/staff-roster.csv', methods=['GET'])

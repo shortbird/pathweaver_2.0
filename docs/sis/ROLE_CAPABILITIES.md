@@ -1,6 +1,6 @@
 # What each role can do in the SIS
 
-**Last verified:** 2026-09-14 · **Generated from:** `backend/scripts/dump_role_matrix.py`
+**Last verified:** 2026-09-18 · **Generated from:** `backend/scripts/dump_role_matrix.py`
 
 iCreate asked for admin-defined roles: create a role, tick what it can see, assign
 people to it. The answer is no, and this document is the reason it can be no.
@@ -49,7 +49,7 @@ rather than listing roles. Import them; never retype a role tuple.
 |---|---|---|
 | `STAFF_ROLES` | admin, coordinator, advisor, superadmin | Anything staff touch. Class-scoped downstream for teachers. |
 | `ADMIN_ROLES` | admin, coordinator, superadmin | The front office: people, classes, registration, attendance, paperwork. |
-| `FINANCE_ROLES` | admin, superadmin | **The money.** Billing, tuition, Stripe, timesheets, payroll. |
+| `FINANCE_ROLES` | admin, superadmin | **The money.** Billing, tuition, Stripe, pay rates. |
 | `HR_ROLES` | admin, superadmin | The secure-documents store: contracts, background checks, custody and medical files. |
 | `ROLE_GRANT_ROLES` | admin, superadmin | Granting `org_admin`, or changing anybody who holds it. Not a route tier since 2026-09-14 — the service asks it per call. |
 | `MEMBER_ROLES` | everyone with a seat: student, parent, observer, advisor, coordinator, admin, superadmin | The family-facing reads (`community.py`'s feed). The route resolves the org through membership; the tuple only says who may ask. |
@@ -64,7 +64,7 @@ coordinator tier ever gains one it should not silently gain the others.
 The whole role is a subtraction, so this is the short list that matters:
 
 - **Money.** `billing.py` and `tuition.py` in full; the revenue rows in
-  `reports.py`; pay rates and timesheets in `staff_admin.py`. Pay fields are
+  `reports.py`; pay rates in `staff_admin.py`. Pay fields are
   also stripped per-field from records they legitimately read — an employment
   profile carries the emergency contact they need and the hourly rate they do
   not (`sis_staff_service.PAY_FIELDS`).

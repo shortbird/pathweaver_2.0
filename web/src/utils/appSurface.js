@@ -227,8 +227,6 @@ export const SIS_SURFACE_PATHS = [
   '/settings',
   '/submissions',
   '/tasks',
-  '/time',
-  '/timesheets',
   '/training',
   '/tuition',
   '/users',

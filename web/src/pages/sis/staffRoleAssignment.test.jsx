@@ -63,7 +63,7 @@ describe('setting a staff role', () => {
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Change' }))
     expect(screen.getByText('Campus Coordinator')).toBeInTheDocument()
-    expect(screen.getByText(/billing, timesheets and pay rates stay hidden/i)).toBeInTheDocument()
+    expect(screen.getByText(/billing and pay rates stay hidden/i)).toBeInTheDocument()
   })
 
   it('makes a teacher a campus coordinator', async () => {

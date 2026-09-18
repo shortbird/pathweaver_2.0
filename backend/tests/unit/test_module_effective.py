@@ -18,12 +18,12 @@ from modules.registry import MODULES
 CORE = {k for k, m in MODULES.items() if m.default == 'core'}
 LMS_ON = {'journal', 'courses', 'bounties', 'observer', 'friends'}
 
-# The 14 opt-out SIS module keys plus the no-legacy defaults that ride along
+# The 13 opt-out SIS module keys plus the no-legacy defaults that ride along
 # once `sis` is on.
 SIS_DEFAULT_ON = {
     'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
     'forms', 'onboarding', 'reports', 'resources', 'secure_documents',
-    'tasks', 'timesheets', 'training',
+    'tasks', 'training',
     'catalog', 'registration', 'submissions',
 }
 
@@ -44,6 +44,8 @@ def test_icreate_shape_everything_on_plus_community():
 
 
 def test_optio_academy_shape_twelve_hidden_plus_optins():
+    # 'timesheets' stays in the org's stored array: the module was removed on
+    # 2026-09-18, and a key nothing registers is ignored, not an error.
     hidden = ['attendance', 'calendar', 'classes', 'clp', 'curriculum',
               'forms', 'onboarding', 'reports', 'resources',
               'secure_documents', 'timesheets', 'training']
@@ -69,7 +71,7 @@ def test_gryffin_shape_goals_mode_and_kiosk():
                                 'post_registration_flow': 'goals'}})
     got = effective_modules_for_row(row)
     assert {'goals', 'kiosk', 'attendance', 'billing', 'classes'} <= got
-    assert {'clp', 'forms', 'onboarding', 'timesheets'} & got == set()
+    assert {'clp', 'forms', 'onboarding', 'timesheets'} & got == set()  # timesheets: no such module any more
 
 
 def test_lms_only_shape_no_sis_modules_at_all():

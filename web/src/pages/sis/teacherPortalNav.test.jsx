@@ -61,7 +61,6 @@ import StaffFormsPage from './StaffFormsPage'
 import TasksPage from './TasksPage'
 import MyDocumentsPage from './MyDocumentsPage'
 import DirectoryPage from './DirectoryPage'
-import MyTimePage from './MyTimePage'
 import MyProfilePage from './MyProfilePage'
 
 beforeEach(() => {
@@ -75,7 +74,6 @@ const PAGES = [
   ['Tasks', TasksPage],
   ['My Documents', MyDocumentsPage],
   ['Staff Directory', DirectoryPage],
-  ['My Time', MyTimePage],
   ['My profile', MyProfilePage],
 ]
 

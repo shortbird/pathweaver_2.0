@@ -119,7 +119,6 @@ const SIS_ONLY_PREFIXES = [
   '/my-profile',
   '/my-schedule',
   '/my-tasks',
-  '/my-time',
   '/onboarding',
   '/people',
   '/prior-learning',
@@ -131,15 +130,13 @@ const SIS_ONLY_PREFIXES = [
   '/sis',
   '/submissions',
   '/tasks',
-  '/time',
-  '/timesheets',
   '/training',
   '/tuition',
   '/users',
 ];
 
 /** Every prefix that has to leave the app, with the host that owns it. Longest
- *  first so "/timesheets" is never shadowed by a shorter neighbour. */
+ *  first so a longer prefix is never shadowed by a shorter neighbour. */
 const WEB_ONLY_PREFIXES: [string, WebSurface][] = [
   ...LEARNING_ONLY_PREFIXES.map((p) => [p, 'learning'] as [string, WebSurface]),
   ...SIS_ONLY_PREFIXES.map((p) => [p, 'sis'] as [string, WebSurface]),
@@ -359,8 +356,6 @@ function labelForPrefix(prefix: string): string {
     case '/attendance': return 'Attendance';
     case '/billing': return 'Billing';
     case '/tuition': return 'Tuition approvals';
-    case '/timesheets': return 'Timesheets';
-    case '/time': return 'Your time entries';
     case '/classes': return 'Classes';
     case '/my-classes': return 'Your classes';
     case '/my-schedule': return 'Your schedule';

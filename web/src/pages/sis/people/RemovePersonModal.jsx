@@ -11,7 +11,6 @@ const HISTORY_LABELS = {
   forms: 'submitted form',
   dependents: 'linked student',
   classes: 'class taught',
-  time_entries: 'time entry',
   onboarding: 'onboarding task',
 }
 

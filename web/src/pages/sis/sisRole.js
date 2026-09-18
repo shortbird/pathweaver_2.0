@@ -49,7 +49,7 @@ export const isSisAdmin = (user) => {
  *
  * iCreate, 2026-08-01: "we don't want the cc's to have access to all the
  * financial stuff". They run the campus — people, classes, registration,
- * attendance, paperwork — but billing, timesheets and payroll are not theirs.
+ * attendance, paperwork — but billing and pay rates are not theirs.
  * Someone can hold both roles; holding the higher one wins.
  */
 export const isCampusCoordinator = (user) => {

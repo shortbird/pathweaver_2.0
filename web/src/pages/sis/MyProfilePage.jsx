@@ -207,7 +207,6 @@ const MyProfilePage = () => {
         <ReadRow label="Staff type" value={STAFF_TYPE_LABEL[p.staff_type]} />
         <ReadRow label="Pay type" value={PAY_TYPE_LABEL[p.pay_type]} />
         <ReadRow label="Status" value={p.is_active === false ? 'Inactive' : 'Active'} />
-        <ReadRow label="Time clock" value={p.uses_time_clock ? 'Enabled' : 'Not used'} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">

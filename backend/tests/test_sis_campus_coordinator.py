@@ -13,7 +13,7 @@ that is what was asked for. So the tests that matter are the negative ones: not
 but "is there any route left through which they reach a pay figure".
 
 Three doors to the money, and each is checked here:
-  1. Whole modules  — billing, timesheets, payroll (FINANCE_ROLES).
+  1. Whole modules  — billing, tuition (FINANCE_ROLES).
   2. Pay fields on an operational record — the employment profile, which also
      carries the emergency contact a coordinator legitimately needs.
   3. The staff roster CSV, which carried Pay Type and Payroll ID columns.
@@ -189,22 +189,6 @@ class TestTheFinanceModulesAreActuallyGated:
                         return lines[back]
         raise AssertionError(f'no require_role found for {view_name}')
 
-    def test_timesheets_are_finance_gated(self):
-        from routes.sis import staff_admin
-        assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'timesheets')
-
-    def test_time_entry_edits_are_finance_gated(self):
-        from routes.sis import staff_admin
-        assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'edit_time_entry')
-
-    def test_timesheet_approval_is_finance_gated(self):
-        from routes.sis import staff_admin
-        assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'approve_timesheet')
-
-    def test_payroll_export_is_finance_gated(self):
-        from routes.sis import staff_admin
-        assert 'FINANCE_ROLES' in self._roles_on(staff_admin, 'payroll_csv')
-
     def test_the_whole_billing_module_is_finance_gated(self):
         """Every role gate in billing.py names FINANCE_ROLES.
 
@@ -222,7 +206,8 @@ class TestTheFinanceModulesAreActuallyGated:
 
     def test_onboarding_stays_open_to_coordinators(self):
         """The point of splitting staff_admin per-route: the operational half
-        must NOT have been dragged into the finance tier with the payroll half."""
+        must NOT have been dragged into the finance tier (the payroll half that
+        used to sit beside it was removed on 2026-09-18 with the time clock)."""
         from routes.sis import staff_admin
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_templates')
         assert 'ADMIN_ROLES' in self._roles_on(staff_admin, 'list_forms')

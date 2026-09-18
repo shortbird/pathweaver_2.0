@@ -43,7 +43,7 @@ describe('buildSearchIndex', () => {
   it('offers a teacher only what the sidebar offers a teacher', () => {
     const index = buildSearchIndex(navContextFor(teacher, fullOrg))
     // Their own console.
-    expect(names(index)).toEqual(expect.arrayContaining(['Directory', 'Classes', 'My classes', 'Announcements', 'My messages', 'My tasks', 'My Time', 'Library', 'Documents', 'Training']))
+    expect(names(index)).toEqual(expect.arrayContaining(['Directory', 'Classes', 'My classes', 'Announcements', 'My messages', 'My tasks', 'Library', 'Documents', 'Training']))
     // Not the office's.
     expect(names(index)).not.toContain('People')
     expect(names(index)).not.toContain('Curriculum')
@@ -62,7 +62,6 @@ describe('buildSearchIndex', () => {
     expect(names(index)).toEqual(expect.arrayContaining(['People', 'Attendance', 'Registration', 'Reports', 'Medications']))
     expect(names(index)).not.toContain('Billing')
     expect(names(index)).not.toContain('Tuition')
-    expect(names(index)).not.toContain('Timesheets')
     expect(names(index)).not.toContain('Payments')
     expect(names(index)).not.toContain('Secure documents')
     // The org identity card is finance-tier (settingsRegistry minTier).

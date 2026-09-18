@@ -72,7 +72,7 @@ ROLE_DESCRIPTIONS = {
     UserRole.ORG_ADMIN.value: 'Organization-level admin with access to org management tools',
     OrgRole.CAMPUS_COORDINATOR.value: (
         'Runs the campus day to day: people, classes, registration, attendance '
-        'and paperwork. No access to billing, timesheets, payroll, or pay rates.'
+        'and paperwork. No access to billing or pay rates.'
     ),
     UserRole.ORG_MANAGED.value: 'Role is controlled by the user\'s organization',
     UserRole.SUPERADMIN.value: 'Full system access to all organizations and features'

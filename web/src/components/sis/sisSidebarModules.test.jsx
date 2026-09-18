@@ -35,8 +35,8 @@ describe('SisSidebar module gating for the active org', () => {
     expect(screen.queryByText('CLP')).not.toBeInTheDocument()
     expect(screen.queryByText('Forms')).not.toBeInTheDocument()
     expect(screen.queryByText('Onboarding')).not.toBeInTheDocument()
-    expect(screen.queryByText('Timesheets')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Time')).not.toBeInTheDocument()
+    // 'timesheets' in the stored array is a key nothing registers any more
+    // (the feature went on 2026-09-18) -- ignored, not an error.
 
     // Kept — Billing stays because Gryffin's brain dump requires it
     expect(screen.getByText('Billing')).toBeInTheDocument()

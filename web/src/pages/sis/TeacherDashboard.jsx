@@ -13,8 +13,8 @@ import DashboardCard from '../../components/sis/DashboardCard'
  *
  * Class management first: pinned teacher links up top, then the teacher's
  * classes as the hero (the Today schedule card was removed by request —
- * iCreate 2026-08-31); operational items (time clock, onboarding, required
- * reading, forms) sit in a secondary rail; learning-app engagement alerts
+ * iCreate 2026-08-31); operational items (onboarding, required reading,
+ * forms) sit in a secondary rail; learning-app engagement alerts
  * drop to the bottom. One backend call (/api/sis/teacher/dashboard) feeds
  * every card.
  */
@@ -53,7 +53,6 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
   const [data, setData] = useState(null)
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
-  const [clockBusy, setClockBusy] = useState(false)
   const [alerts, setAlerts] = useState([])
   const [resolvingId, setResolvingId] = useState(null)
 
@@ -131,23 +130,10 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
     }
   }
 
-  const clock = async (action) => {
-    setClockBusy(true)
-    try {
-      await api.post(`/api/sis/teacher/time/${action}`, { organization_id: orgId })
-      toast.success(action === 'clock-in' ? 'Clocked in' : 'Clocked out')
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.error || 'Time clock error')
-    } finally {
-      setClockBusy(false)
-    }
-  }
-
   if (loading) return <p className="text-neutral-500">Loading…</p>
   if (!data) return <p className="text-neutral-500">Nothing to show yet.</p>
 
-  const { classes = [], profile = {}, open_time_entry: openEntry,
+  const { classes = [], profile = {},
     onboarding, pending_acks: pendingAcks = [], recent_forms: recentForms = [],
     staff_resources: staffResources = [], pinned_links: pinnedLinks = [],
     needs_phone: needsPhone = false } = data
@@ -257,41 +243,8 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           </DashboardCard>
         </div>
 
-        {/* Secondary rail: time clock + recent forms */}
+        {/* Secondary rail: resources, reading, forms */}
         <div className="space-y-4">
-          {profile.uses_time_clock && preview && (
-            <DashboardCard title="Time clock">
-              <p className="text-sm text-neutral-500">
-                {openEntry
-                  ? `Clocked in at ${new Date(openEntry.clock_in).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-                  : 'Not clocked in.'} Clock actions are hidden in preview.
-              </p>
-            </DashboardCard>
-          )}
-          {profile.uses_time_clock && !preview && !hidden.has('timesheets') && (
-            <DashboardCard title="Time clock">
-              {openEntry ? (
-                <div>
-                  <p className="text-sm text-neutral-600 mb-3">
-                    Clocked in at {new Date(openEntry.clock_in).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                  </p>
-                  <button onClick={() => clock('clock-out')} disabled={clockBusy}
-                    className="w-full px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-semibold disabled:opacity-50">
-                    Clock out
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => clock('clock-in')} disabled={clockBusy}
-                  className="w-full px-4 py-2 rounded-lg bg-gradient-primary text-white text-sm font-semibold disabled:opacity-50">
-                  Clock in
-                </button>
-              )}
-              <Link to="/time" className="block text-center text-sm text-optio-purple hover:underline mt-3">
-                View my hours
-              </Link>
-            </DashboardCard>
-          )}
-
           {/* The staff handbook and anything else the school keeps for teachers.
               Previously only reachable while an acknowledgment was outstanding. */}
           {staffResources.length > 0 && (

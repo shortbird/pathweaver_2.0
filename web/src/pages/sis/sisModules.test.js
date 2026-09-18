@@ -36,14 +36,16 @@ describe('sisModules', () => {
   })
 
   it('hides a path whose module is in the org list', () => {
-    const org = orgWith(['clp', 'timesheets'])
+    const org = orgWith(['clp', 'billing'])
     expect(isPathHidden('/clp', org)).toBe(true)
-    // '/time' maps to the same 'timesheets' module as '/timesheets'
-    expect(isPathHidden('/time', org)).toBe(true)
-    expect(isPathHidden('/timesheets', org)).toBe(true)
+    // '/tuition' maps to the same 'billing' module as '/billing'
+    expect(isPathHidden('/tuition', org)).toBe(true)
+    expect(isPathHidden('/billing', org)).toBe(true)
   })
 
   it('keeps paths whose module is not hidden (e.g. billing stays for Gryffin)', () => {
+    // 'timesheets' is Gryffin's real stored array; the module was removed on
+    // 2026-09-18 and an unregistered key is ignored.
     const gryffin = orgWith(['onboarding', 'timesheets', 'forms', 'clp'])
     expect(isPathHidden('/billing', gryffin)).toBe(false)
     expect(isPathHidden('/clp', gryffin)).toBe(true)

@@ -386,52 +386,6 @@ def onboarding_doc_url(user_id):
                                 any_in_org=sis_service.caller_is_admin(user_id))
 
 
-# ── Time clock ───────────────────────────────────────────────────────────────
-
-@bp.route('/time/clock-in', methods=['POST'])
-@require_role(*STAFF_ROLES)
-@require_module('timesheets')
-def clock_in(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json() or {}
-    result = staff.clock_in(org_id, user_id, job_label=data.get('job_label'),
-                            class_id=data.get('class_id'))
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result}), 201
-
-
-@bp.route('/time/clock-out', methods=['POST'])
-@require_role(*STAFF_ROLES)
-@require_module('timesheets')
-def clock_out(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    data = request.get_json() or {}
-    result = staff.clock_out(org_id, user_id, notes=data.get('notes'))
-    if result.get('error'):
-        return jsonify({'success': False, 'error': result['error']}), 400
-    return jsonify({'success': True, **result})
-
-
-@bp.route('/time/entries', methods=['GET'])
-@require_role(*STAFF_ROLES)
-@require_module('timesheets')
-def my_time_entries(user_id):
-    org_id, err = sis_service.org_or_error(user_id)
-    if err:
-        return err
-    start = request.args.get('start')
-    end = request.args.get('end')
-    if not start or not end:
-        return jsonify({'success': False, 'error': 'start and end are required (YYYY-MM-DD)'}), 400
-    return jsonify({'success': True,
-                    **staff.my_time_entries(org_id, _read_target(user_id, org_id), start, end)})
-
-
 # ── My documents (the staff member's own secure documents) ────────────────────
 
 _SECURE_DOCS_BUCKET = 'sis-secure-documents'  # PRIVATE — same store the admin page uses

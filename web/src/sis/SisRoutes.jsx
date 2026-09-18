@@ -147,8 +147,6 @@ const DirectoryPage = lazy(() => import('../pages/sis/DirectoryPage'))
 const StaffFormsPage = lazy(() => import('../pages/sis/StaffFormsPage'))
 const TasksPage = lazy(() => import('../pages/sis/TasksPage'))
 const MyDocumentsPage = lazy(() => import('../pages/sis/MyDocumentsPage'))
-const MyTimePage = lazy(() => import('../pages/sis/MyTimePage'))
-const TimesheetsPage = lazy(() => import('../pages/sis/TimesheetsPage'))
 
 // Carved-out admin surfaces — re-registered at their ORIGINAL paths so the moved
 // components' internal links keep working on the SIS host. Same lazy chunks as the
@@ -234,8 +232,6 @@ const SisRoutes = () => (
       <Route path="forms" element={<ModuleGate path="/forms"><StaffFormsPage /></ModuleGate>} />
       <Route path="onboarding" element={<ModuleGate path="/onboarding"><TasksRedirect view="checklist" /></ModuleGate>} />
       <Route path="my-documents" element={<MyDocumentsPage />} />
-      <Route path="time" element={<ModuleGate path="/time"><MyTimePage /></ModuleGate>} />
-      <Route path="timesheets" element={<FinanceRoute><ModuleGate path="/timesheets"><TimesheetsPage /></ModuleGate></FinanceRoute>} />
 
       {/* Carved-out admin surfaces (original paths preserved) */}
       <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />

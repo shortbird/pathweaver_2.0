@@ -13,7 +13,7 @@ Three tiers:
   STAFF_ROLES    Everyone who works at the school, teachers included. Class
                  scope still applies — a teacher sees their own classes.
   ADMIN_ROLES    The front office: the whole console except the money.
-  FINANCE_ROLES  Tuition, invoices, Stripe, timesheets, payroll, pay rates.
+  FINANCE_ROLES  Tuition, invoices, Stripe, pay rates.
 
 A campus coordinator is an admin in every tier but the last. That is the whole
 of the role, and it is why it is expressed as a subtraction rather than as a

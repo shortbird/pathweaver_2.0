@@ -32,9 +32,9 @@ const Label = ({ children, htmlFor }) => (
  */
 const ASSIGNABLE_ROLES = [
   { key: 'org_admin', label: 'Admin',
-    hint: 'The whole console, including tuition, invoices, timesheets and payroll.' },
+    hint: 'The whole console, including tuition, invoices and pay rates.' },
   { key: 'campus_coordinator', label: 'Campus Coordinator',
-    hint: 'Runs the campus — people, classes, registration, attendance, paperwork. No money: billing, timesheets and pay rates stay hidden.' },
+    hint: 'Runs the campus — people, classes, registration, attendance, paperwork. No money: billing and pay rates stay hidden.' },
   { key: 'advisor', label: 'Teacher',
     hint: 'Their own classes, in the teacher portal.' },
 ]

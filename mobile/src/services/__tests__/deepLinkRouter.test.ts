@@ -164,7 +164,7 @@ describe('resolveDeepLink', () => {
     expect(portal?.target).toBe('/(app)/view-on-web');
     expect(portal?.params?.path).toBe('/family/portal');
     expect(portal?.params?.label).toBe('The family portal');
-    for (const link of ['/family/required-documents', '/time', '/treehouse/facilitator', '/credit-review']) {
+    for (const link of ['/family/required-documents', '/tuition', '/treehouse/facilitator', '/credit-review']) {
       expect(resolveDeepLink(link)?.target).toBe('/(app)/view-on-web');
     }
   });
@@ -226,7 +226,9 @@ describe('which web host a handoff points at', () => {
     expect(inbox?.params?.label).toBe('The school inbox');
 
     expect(resolveDeepLink('/attendance')?.params?.surface).toBe('sis');
-    expect(resolveDeepLink('/timesheets')?.params?.surface).toBe('sis');
+    expect(resolveDeepLink('/billing')?.params?.surface).toBe('sis');
+    // The library page (M22, 2026-09-18) is where the task inbox's links land now.
+    expect(resolveDeepLink('/library?tab=training')?.params?.surface).toBe('sis');
     expect(resolveDeepLink('/people/staff')?.params?.surface).toBe('sis');
   });
 
@@ -236,11 +238,6 @@ describe('which web host a handoff points at', () => {
     // The family portal is family-facing: it lives on www, not the staff console.
     expect(resolveDeepLink('/family/portal')?.params?.surface).toBe('learning');
     expect(resolveDeepLink('/credit-dashboard')?.params?.surface).toBe('learning');
-  });
-
-  it('does not let /time shadow /timesheets', () => {
-    expect(resolveDeepLink('/time')?.params?.label).toBe('Your time entries');
-    expect(resolveDeepLink('/timesheets')?.params?.label).toBe('Timesheets');
   });
 
   // The web app owns the definitive split (it hands paths across in both

@@ -259,14 +259,6 @@
     "requires": [],
     "requires_any": []
   },
-  "timesheets": {
-    "default": "on",
-    "gate": "flags",
-    "legacy": "hidden_modules",
-    "parent": "sis",
-    "requires": [],
-    "requires_any": []
-  },
   "training": {
     "default": "on",
     "gate": "flags",

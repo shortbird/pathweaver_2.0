@@ -188,14 +188,12 @@ describe('SisSidebar', () => {
     expect(screen.queryByText('My Classes')).not.toBeInTheDocument()
     expect(screen.queryByText('Attendance')).not.toBeInTheDocument()
     expect(screen.queryByText('Submissions')).not.toBeInTheDocument()
-    expect(screen.getByText('My Time')).toBeInTheDocument()
     expect(screen.getByText('My Profile')).toBeInTheDocument()
     // Directory is People without the tabs, so admins get People instead.
     expect(screen.queryByText('Directory')).not.toBeInTheDocument()
     // Not the money.
     expect(screen.queryByText('Billing')).not.toBeInTheDocument()
     expect(screen.queryByText('Tuition')).not.toBeInTheDocument()
-    expect(screen.queryByText('Timesheets')).not.toBeInTheDocument()
     // Not the HR store (contracts, background checks).
     expect(screen.queryByText('Secure Documents')).not.toBeInTheDocument()
   })
@@ -217,7 +215,6 @@ describe('SisSidebar', () => {
     // My classes and My schedule are the first tabs of Classes, which is
     // every staff member's page since 2026-09-17.
     expect(screen.getByRole('link', { name: 'Classes' })).toHaveAttribute('href', '/classes')
-    expect(screen.getByRole('link', { name: 'My Time' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'My Profile' })).toBeInTheDocument()
     // Still the admin console.
     expect(screen.getByRole('link', { name: 'People' })).toBeInTheDocument()

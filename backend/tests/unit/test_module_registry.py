@@ -14,13 +14,15 @@ import pytest
 
 from modules.registry import CATEGORIES, DEFAULTS, GATES, MODULES, TIERS
 
-# The 14 opt-out keys are a promise already made: they are the values orgs
+# The 13 opt-out keys are a promise already made: they are the values orgs
 # carry in sis_settings.hidden_modules today (mirrors sisModules.js). Renaming
-# or removing one silently un-hides a module for a school that hid it.
+# or removing one silently un-hides a module for a school that hid it. (The
+# 14th, 'timesheets', was removed with its feature on 2026-09-18 -- nothing to
+# un-hide; the stale key in three orgs' arrays is ignored.)
 HIDDEN_MODULES_KEYS = {
     'attendance', 'billing', 'calendar', 'classes', 'clp', 'curriculum',
     'forms', 'onboarding', 'reports', 'resources', 'secure_documents',
-    'tasks', 'timesheets', 'training',
+    'tasks', 'training',
 }
 
 MODULE_KEYS_JSON = os.path.join(
@@ -71,7 +73,6 @@ def test_the_sis_switch_and_money_floors_hold():
     assert MODULES['sis'].default == 'off'
     assert MODULES['sis'].legacy == 'sis_enabled'
     assert MODULES['billing'].min_tier == 'finance'
-    assert MODULES['timesheets'].min_tier == 'finance'
     assert MODULES['secure_documents'].min_tier == 'hr'
 
 

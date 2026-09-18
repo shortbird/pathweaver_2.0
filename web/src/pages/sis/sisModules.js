@@ -14,8 +14,7 @@
  * - absent/empty config = every default-on module shows, opt-ins stay hidden;
  * - a null org (superadmin before picking one) hides nothing — the picker,
  *   not the guard, owns that moment;
- * - hiding 'timesheets' hides both Timesheets and My Time; hiding 'classes'
- *   also hides the teacher-portal class pages.
+ * - hiding 'classes' also hides the teacher-portal class pages.
  */
 
 import { moduleEnabled } from '../../modules/moduleEnabled'
@@ -37,8 +36,6 @@ export const SIS_MODULE_BY_PATH = {
   '/forms': 'forms',
   '/onboarding': 'onboarding',
   '/secure-documents': 'secure_documents',
-  '/timesheets': 'timesheets',
-  '/time': 'timesheets',
   '/classes': 'classes',
   '/my-classes': 'classes',
   '/my-schedule': 'classes',

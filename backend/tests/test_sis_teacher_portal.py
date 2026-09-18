@@ -4,8 +4,6 @@ Tests for the SIS teacher portal (iCreate teacher features, 2026-07-22):
 - Role tiers: advisors are locked out of admin-only endpoints (households,
   billing, class management) but keep the teacher portal.
 - Class scoping: an advisor only sees/reaches their own classes.
-- Time clock service rules: no double clock-in, clock-out closes the entry,
-  payroll rows only include approved entries.
 - Forms service: submit validates, admins are notified.
 """
 
@@ -57,9 +55,9 @@ class TestRoleTiers:
                                json={'organization_id': 'org-1', 'name': 'Art'})
         assert resp.status_code == 403
 
-    def test_advisor_blocked_from_timesheets_admin(self, client, auth_headers, mock_verify_token):
+    def test_advisor_blocked_from_staff_roster_export(self, client, auth_headers, mock_verify_token):
         with as_role('org_managed', org_role='advisor', org_roles=['advisor']):
-            resp = client.get('/api/sis/staff-admin/timesheets?organization_id=org-1&start=2026-07-01&end=2026-07-15',
+            resp = client.get('/api/sis/staff-admin/staff-roster.csv?organization_id=org-1',
                               headers=auth_headers)
         assert resp.status_code == 403
 
@@ -149,81 +147,6 @@ class TestTeacherPreview:
             client.get('/api/sis/teacher/classes?organization_id=org-1&teacher_id=teach-1',
                        headers=auth_headers)
         assert tc.call_args.args[0] != 'teach-1'  # falls back to the caller
-
-
-@pytest.mark.unit
-class TestTimeClockService:
-    def _client_with(self, execute_data_sequence):
-        client = Mock()
-        table = Mock()
-        client.table.return_value = table
-        for chained in ('select', 'eq', 'limit', 'in_', 'is_', 'neq', 'order',
-                        'gte', 'lte', 'insert', 'update', 'upsert'):
-            getattr(table, chained).return_value = table
-        table.execute.side_effect = [Mock(data=d) for d in execute_data_sequence] \
-            + [Mock(data=[])] * 10
-        return client
-
-    def test_clock_in_refused_without_time_clock(self):
-        from services import sis_staff_service as staff
-        client = self._client_with([[{'user_id': 'u1', 'uses_time_clock': False}]])
-        with patch('services.sis_staff_service._admin', return_value=client):
-            result = staff.clock_in('org-1', 'u1')
-        assert 'error' in result
-
-    def test_clock_in_refused_when_already_open(self):
-        from services import sis_staff_service as staff
-        client = self._client_with([
-            [{'user_id': 'u1', 'uses_time_clock': True}],   # profile
-            [{'id': 'e1', 'clock_in': '2026-07-22T15:00:00+00:00'}],  # open entry
-        ])
-        with patch('services.sis_staff_service._admin', return_value=client):
-            result = staff.clock_in('org-1', 'u1')
-        assert 'already clocked in' in result['error']
-
-    def test_clock_out_submits_entry(self):
-        from services import sis_staff_service as staff
-        client = self._client_with([
-            [{'id': 'e1', 'clock_in': '2026-07-22T15:00:00+00:00'}],  # open entry
-            [{'id': 'e1', 'status': 'submitted'}],                    # update result
-        ])
-        with patch('services.sis_staff_service._admin', return_value=client):
-            result = staff.clock_out('org-1', 'u1')
-        assert result['entry']['status'] == 'submitted'
-
-    def test_entry_hours_math(self):
-        from services.sis_staff_service import _entry_hours
-        e = {'clock_in': '2026-07-22T15:00:00+00:00', 'clock_out': '2026-07-22T18:30:00+00:00'}
-        assert _entry_hours(e) == 3.5
-        assert _entry_hours({'clock_in': '2026-07-22T15:00:00+00:00', 'clock_out': None}) == 0.0
-
-    def test_payroll_rows_only_approved_with_amounts(self):
-        from services import sis_staff_service as staff
-        summary = [{
-            'user_id': 'u1', 'name': 'Liz Teacher', 'payroll_id': 'P42',
-            'pay_type': 'hourly', 'hourly_rate_cents': 2000,
-            'entries': [
-                {'work_date': '2026-07-20', 'hours': 3.0, 'status': 'approved',
-                 'job_label': 'Art', 'notes': None},
-                {'work_date': '2026-07-21', 'hours': 2.0, 'status': 'submitted',
-                 'job_label': 'Art', 'notes': None},
-            ],
-        }]
-        with patch('services.sis_staff_service.timesheet_summary', return_value=summary):
-            rows = staff.payroll_rows('org-1', '2026-07-16', '2026-07-31')
-        assert len(rows) == 1  # submitted entry excluded
-        assert rows[0][0] == 'Liz Teacher'
-        assert rows[0][5] == 3.0     # hours
-        assert rows[0][6] == 20.0    # rate in dollars
-        assert rows[0][7] == 60.0    # amount
-
-    def test_edit_requires_reason_for_time_changes(self):
-        from services import sis_staff_service as staff
-        client = self._client_with([[{'id': 'e1', 'organization_id': 'org-1', 'user_id': 'u1'}]])
-        with patch('services.sis_staff_service._admin', return_value=client):
-            result = staff.update_time_entry('org-1', 'e1', {'clock_out': '2026-07-22T18:00:00Z'},
-                                            edited_by='admin-1')
-        assert 'reason' in result['error']
 
 
 @pytest.mark.unit

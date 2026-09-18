@@ -4,9 +4,13 @@ staff-operations layer (iCreate teacher portal, 2026-07).
 
 Covers: staff employment profiles (sis_staff_profiles), non-class duties
 (sis_staff_assignments), the teacher dashboard/schedule, teacher class rosters
-with health/safety alerts (access-logged), the staff directory, and the hourly
-time clock + timesheets + payroll CSV rows. Payroll here is an EXPORT — the
-platform never calculates or issues pay.
+with health/safety alerts (access-logged), and the staff directory. The hourly
+time clock, timesheets and payroll CSV that lived here were removed on
+2026-09-18: zero clock-ins ever, at any school, and the one school that asked
+about pay wants it derived from class attendance, not a clock
+(docs/icreate/PRESENCE_AND_PAY_DISCUSSION_2026-08-18.md). The pay fields on
+the profile stay: they are HR facts about the person, and that build would
+read them.
 
 Uses the admin client like the rest of the SIS (tables are RLS-locked to the
 backend); route-level role checks + sis_service.class_scope do authorization.
@@ -35,7 +39,7 @@ DEFAULT_TZ = 'America/Denver'
 PROFILE_FIELDS = ('position', 'staff_type', 'pay_type', 'payroll_id',
                   'hourly_rate_cents', 'emergency_contact_name',
                   'emergency_contact_phone', 'work_schedule', 'start_date',
-                  'end_date', 'is_active', 'uses_time_clock', 'phone_number')
+                  'end_date', 'is_active', 'phone_number')
 # The subset a teacher may edit on their own profile.
 SELF_PROFILE_FIELDS = ('emergency_contact_name', 'emergency_contact_phone',
                        'phone_number')
@@ -117,14 +121,14 @@ def get_staff_profile(org_id: str, user_id: str) -> Dict[str, Any]:
         .eq('organization_id', org_id).eq('user_id', user_id).limit(1).execute()
     ).data
     return rows[0] if rows else {'user_id': user_id, 'organization_id': org_id,
-                                 'is_active': True, 'uses_time_clock': False}
+                                 'is_active': True}
 
 
 def get_staff_profile_with_contact(org_id: str, user_id: str) -> Dict[str, Any]:
     """The profile plus the staff member's own phone, which lives on `users`.
 
-    Separate from get_staff_profile on purpose: that one is on the clock-in path
-    and runs for every punch, and the phone is only wanted by the profile screen.
+    Separate from get_staff_profile on purpose: that one runs on every
+    dashboard load, and the phone is only wanted by the profile screen.
     """
     profile = get_staff_profile(org_id, user_id)
     profile['phone_number'] = _user_phone(user_id)
@@ -446,7 +450,6 @@ def _user_phone(user_id: str) -> Optional[str]:
 def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
     """Everything the teacher home screen needs in one call."""
     profile = get_staff_profile(org_id, user_id)
-    open_entry = current_open_entry(org_id, user_id)
     started, first_day = _school_start(org_id, _org_now(org_id).date())
 
     onboarding = my_onboarding_summary(org_id, user_id)
@@ -498,14 +501,12 @@ def teacher_dashboard(user_id: str, org_id: str) -> Dict[str, Any]:
         'today': _today_items(user_id, org_id) if started else [],
         'school_starts': None if started else first_day,
         'classes': teacher_classes(user_id, org_id),
-        'profile': {k: profile.get(k) for k in
-                    ('position', 'uses_time_clock', 'pay_type', 'is_active')},
+        'profile': {k: profile.get(k) for k in ('position', 'pay_type', 'is_active')},
         # The office needs a number it can call when a teacher is out. Nothing
         # ever asked staff for one, so most records were blank (iCreate,
         # 2026-09-02: "we need to force the teachers to enter their phone
         # numbers too"). The dashboard asks until it has one.
         'needs_phone': not (_user_phone(user_id) or '').strip(),
-        'open_time_entry': open_entry,
         'onboarding': onboarding,
         'pending_acks': pending_acks,
         'recent_forms': forms,
@@ -802,228 +803,6 @@ def staff_directory(org_id: str) -> List[Dict[str, Any]]:
     return out
 
 
-# ── Time clock ───────────────────────────────────────────────────────────────
-
-def current_open_entry(org_id: str, user_id: str) -> Optional[Dict[str, Any]]:
-    rows = (
-        _admin().table('sis_time_entries').select('*')
-        .eq('organization_id', org_id).eq('user_id', user_id)
-        .is_('clock_out', 'null').eq('status', 'open')
-        .order('clock_in', desc=True).limit(1).execute()
-    ).data
-    return rows[0] if rows else None
-
-
-def clock_in(org_id: str, user_id: str, job_label: Optional[str] = None,
-             class_id: Optional[str] = None) -> Dict[str, Any]:
-    profile = get_staff_profile(org_id, user_id)
-    if not profile.get('uses_time_clock'):
-        return {'error': 'The time clock is not enabled for your account'}
-    if current_open_entry(org_id, user_id):
-        return {'error': 'You are already clocked in — clock out first'}
-    now = _org_now(org_id)
-    row = (_admin().table('sis_time_entries').insert({
-        'organization_id': org_id, 'user_id': user_id,
-        'clock_in': now.astimezone(timezone.utc).isoformat(),
-        'work_date': now.date().isoformat(),
-        'job_label': (job_label or '').strip() or None,
-        'class_id': class_id or None,
-        'status': 'open',
-    }).execute()).data
-    return {'entry': row[0] if row else None}
-
-
-def clock_out(org_id: str, user_id: str, notes: Optional[str] = None) -> Dict[str, Any]:
-    entry = current_open_entry(org_id, user_id)
-    if not entry:
-        return {'error': 'You are not clocked in'}
-    now = datetime.now(timezone.utc)
-    fields = {'clock_out': now.isoformat(), 'status': 'submitted',
-              'updated_at': now.isoformat()}
-    if (notes or '').strip():
-        fields['notes'] = notes.strip()
-    row = (_admin().table('sis_time_entries').update(fields)
-           .eq('id', entry['id']).execute()).data
-    return {'entry': row[0] if row else None}
-
-
-def _entry_hours(e: Dict[str, Any]) -> float:
-    if not e.get('clock_in') or not e.get('clock_out'):
-        return 0.0
-    try:
-        start = datetime.fromisoformat(e['clock_in'].replace('Z', '+00:00'))
-        end = datetime.fromisoformat(e['clock_out'].replace('Z', '+00:00'))
-    except ValueError:
-        return 0.0
-    return max(0.0, round((end - start).total_seconds() / 3600, 2))
-
-
-def my_time_entries(org_id: str, user_id: str, start: str, end: str) -> Dict[str, Any]:
-    rows = (
-        _admin().table('sis_time_entries').select('*')
-        .eq('organization_id', org_id).eq('user_id', user_id)
-        .gte('work_date', start).lte('work_date', end)
-        .order('work_date', desc=True).order('clock_in', desc=True).execute()
-    ).data or []
-    for r in rows:
-        r['hours'] = _entry_hours(r)
-    # Forgot-to-clock-out warning: an open entry from a previous local day.
-    today = _org_now(org_id).date().isoformat()
-    stale = [r for r in rows if r.get('status') == 'open' and r.get('work_date') < today]
-    return {'entries': rows, 'total_hours': round(sum(r['hours'] for r in rows), 2),
-            'forgot_clock_out': [r['id'] for r in stale]}
-
-
-# ── Timesheets (admin) ───────────────────────────────────────────────────────
-
-def timeclock_setup(org_id: str) -> Dict[str, Any]:
-    """Why the Timesheets page is empty, when it is.
-
-    The time clock is off by default on every staff profile
-    (`sis_staff_profiles.uses_time_clock` defaults to false), so a school that
-    has never turned it on for anybody sees "No time entries in this period."
-    forever, with nothing on the page naming the switch. iCreate read that as
-    the feature being broken: "Timesheets would be a nice feature if it
-    worked!" (2026-08-25). Every part of the chain was working; none of it had
-    been switched on.
-
-    So the page reports its own preconditions: how many active staff could be
-    on the clock, how many are, and who is on it without an hourly rate — that
-    last one matters because payroll.csv leaves Amount blank rather than
-    guessing a rate, and a blank column in a payroll export is the kind of
-    thing you want to learn about before payday rather than after.
-    """
-    # order_by='user_id', not the default 'id': sis_staff_profiles is keyed on
-    # (user_id, organization_id) and has no id column, and paging on a column
-    # that does not exist is a 400, not a short read.
-    rows = fetch_all_rows(lambda: (
-        _admin().table('sis_staff_profiles')
-        .select('user_id, uses_time_clock, hourly_rate_cents, is_active')
-        .eq('organization_id', org_id).is_('archived_at', 'null')
-    ), order_by='user_id')
-    active = [r for r in rows if r.get('is_active')]
-    on_clock = [r for r in active if r.get('uses_time_clock')]
-    no_rate = [r for r in on_clock if not r.get('hourly_rate_cents')]
-    names = {s['id']: s.get('name') for s in sis_service.list_org_staff(org_id)}
-    return {
-        'staff_total': len(active),
-        'clock_enabled': len(on_clock),
-        'missing_rate': [
-            {'user_id': r['user_id'], 'name': names.get(r['user_id']) or 'Unknown'}
-            for r in no_rate
-        ],
-    }
-
-
-def timesheet_summary(org_id: str, start: str, end: str) -> List[Dict[str, Any]]:
-    """Per-staff totals for a pay period, with entry detail."""
-    rows = (
-        _admin().table('sis_time_entries').select('*')
-        .eq('organization_id', org_id)
-        .gte('work_date', start).lte('work_date', end)
-        .order('work_date').execute()
-    ).data or []
-    staff = {s['id']: s for s in sis_service.list_org_staff(org_id)}
-    profiles = {p['user_id']: p for p in (
-        _admin().table('sis_staff_profiles')
-        .select('user_id, payroll_id, pay_type, hourly_rate_cents')
-        .eq('organization_id', org_id).execute()
-    ).data or []}
-    by_user: Dict[str, Dict[str, Any]] = {}
-    for r in rows:
-        r['hours'] = _entry_hours(r)
-        u = by_user.setdefault(r['user_id'], {
-            'user_id': r['user_id'],
-            'name': (staff.get(r['user_id']) or {}).get('name') or 'Unknown',
-            'payroll_id': (profiles.get(r['user_id']) or {}).get('payroll_id'),
-            'pay_type': (profiles.get(r['user_id']) or {}).get('pay_type'),
-            'hourly_rate_cents': (profiles.get(r['user_id']) or {}).get('hourly_rate_cents'),
-            'entries': [], 'total_hours': 0.0, 'approved_hours': 0.0,
-            'open_entries': 0,
-        })
-        u['entries'].append(r)
-        u['total_hours'] = round(u['total_hours'] + r['hours'], 2)
-        if r.get('status') == 'approved':
-            u['approved_hours'] = round(u['approved_hours'] + r['hours'], 2)
-        if r.get('status') == 'open':
-            u['open_entries'] += 1
-    out = list(by_user.values())
-    out.sort(key=lambda u: u['name'].lower())
-    return out
-
-
-def update_time_entry(org_id: str, entry_id: str, fields: Dict[str, Any],
-                      edited_by: str) -> Dict[str, Any]:
-    """Admin edit of a time entry — requires a reason, records the editor."""
-    rows = (_admin().table('sis_time_entries').select('*')
-            .eq('id', entry_id).limit(1).execute()).data
-    if not rows or rows[0].get('organization_id') != org_id:
-        return {'error': 'Entry not found'}
-    reason = (fields.get('edit_reason') or '').strip()
-    payload: Dict[str, Any] = {}
-    for k in ('clock_in', 'clock_out', 'work_date', 'job_label', 'notes', 'status'):
-        if k in fields:
-            payload[k] = fields[k]
-    if payload.get('status') and payload['status'] not in ('open', 'submitted', 'approved', 'rejected'):
-        return {'error': 'Invalid status'}
-    if not payload:
-        return {'error': 'Nothing to update'}
-    if not reason and any(k in payload for k in ('clock_in', 'clock_out', 'work_date')):
-        return {'error': 'An edit reason is required when changing times'}
-    now = datetime.now(timezone.utc).isoformat()
-    payload.update({'edited_by': edited_by, 'updated_at': now})
-    if reason:
-        payload['edit_reason'] = reason
-    if payload.get('status') == 'approved':
-        payload.update({'approved_by': edited_by, 'approved_at': now})
-        sis_notifications.notify(
-            rows[0]['user_id'], 'Timesheet approved',
-            'A time entry was approved.', link='/time', organization_id=org_id)
-    row = (_admin().table('sis_time_entries').update(payload)
-           .eq('id', entry_id).execute()).data
-    return {'entry': row[0] if row else None}
-
-
-def approve_period(org_id: str, user_id: str, start: str, end: str,
-                   approved_by: str) -> Dict[str, Any]:
-    """Approve all submitted entries for one staff member in a period."""
-    now = datetime.now(timezone.utc).isoformat()
-    rows = (_admin().table('sis_time_entries')
-            .update({'status': 'approved', 'approved_by': approved_by,
-                     'approved_at': now, 'updated_at': now})
-            .eq('organization_id', org_id).eq('user_id', user_id)
-            .eq('status', 'submitted')
-            .gte('work_date', start).lte('work_date', end).execute()).data or []
-    if rows:
-        sis_notifications.notify(
-            user_id, 'Timesheet approved',
-            f'{len(rows)} time entr{"y was" if len(rows) == 1 else "ies were"} approved.',
-            link='/time', organization_id=org_id)
-    return {'approved': len(rows)}
-
-
-def payroll_rows(org_id: str, start: str, end: str) -> List[List[Any]]:
-    """CSV rows for the payroll export (approved entries only). This is an
-    export for an external payroll system — no pay is calculated beyond
-    hours x stored hourly rate, and only when a rate exists."""
-    summary = timesheet_summary(org_id, start, end)
-    rows: List[List[Any]] = []
-    for staff in summary:
-        rate = staff.get('hourly_rate_cents')
-        for e in staff['entries']:
-            if e.get('status') != 'approved':
-                continue
-            amount = round(e['hours'] * rate / 100, 2) if rate else ''
-            rows.append([
-                staff['name'], staff.get('payroll_id') or '',
-                f'{start} - {end}', e.get('work_date') or '',
-                e.get('job_label') or '', e['hours'],
-                (rate / 100) if rate else '', amount,
-                e.get('notes') or '', e.get('status'),
-            ])
-    return rows
-
-
 # ── Archiving and removing staff ─────────────────────────────────────────────
 
 def _staff_history(org_id: str, staff_id: str) -> Dict[str, int]:
@@ -1046,7 +825,6 @@ def _staff_history(org_id: str, staff_id: str) -> Dict[str, int]:
 
     return {
         'classes': _count('org_classes', 'primary_instructor_id', organization_id=org_id),
-        'time_entries': _count('sis_time_entries', 'user_id', organization_id=org_id),
         'forms': _count('sis_form_submissions', 'submitted_by', organization_id=org_id),
         'onboarding': _onboarding_with_work(org_id, staff_id),
         'attendance': _count('class_attendance', 'recorded_by'),
@@ -1175,7 +953,7 @@ def delete_staff(org_id: str, staff_id: str,
 
     This exists for the placeholder rows a school creates while hiring ("Art
     Teacher TBD") and then decides against. If the person has taken attendance,
-    clocked in, filed a form, or been assigned onboarding, deletion would orphan
+    filed a form, or been assigned onboarding, deletion would orphan
     those records, so the caller is told to archive instead. Class assignments
     alone don't block: they are cleared first.
     """

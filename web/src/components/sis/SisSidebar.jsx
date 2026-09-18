@@ -33,7 +33,7 @@ const icon = (path) => (
 // it, not what the nav says. Carved-out admin surfaces keep their original
 // paths (registered in SisRoutes).
 //
-// The teacher portal (the My classes and My schedule tabs of Classes, My Time,
+// The teacher portal (the My classes and My schedule tabs of Classes,
 // My Profile) is NOT teacherOnly. An org admin has every capability a teacher
 // has, and at a microschool the admin is usually the teacher: Horizon's
 // director created her own classes, then had no way into the class page where
@@ -57,7 +57,6 @@ const ICONS = {
   card: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
   chat: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
   inbox: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
-  clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
   gear: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
 }
 
@@ -130,14 +129,14 @@ export const NAV_SECTIONS = [
     ],
   },
   {
-    // The money, plus the clock that feeds it. Grouped because it maps exactly
-    // onto the finance tier (utils/sis_roles.FINANCE_ROLES): a teacher sees only
-    // My Time here, and for a campus coordinator the whole section disappears
-    // rather than leaving money links scattered through Operations.
-    label: 'Time & Money',
+    // The money. Its own section because it maps exactly onto the finance
+    // tier (utils/sis_roles.FINANCE_ROLES): for a campus coordinator the whole
+    // section disappears rather than leaving money links scattered through
+    // Operations, and a teacher never sees it. It was "Time & Money" with a
+    // time clock and timesheets until 2026-09-18 -- removed after zero
+    // clock-ins, ever, at any school.
+    label: 'Money',
     items: [
-      { name: 'My Time', path: '/time', d: ICONS.clock, keywords: ['clock in', 'hours', 'time card'] },
-      { name: 'Timesheets', path: '/timesheets', adminOnly: true, financeOnly: true, d: ICONS.clock, keywords: ['hours', 'payroll', 'approve time'] },
       { name: 'Tuition', path: '/tuition', adminOnly: true, financeOnly: true, d: ICONS.check, keywords: ['approval', 'quotes', 'pricing'] },
       { name: 'Billing', path: '/billing', adminOnly: true, financeOnly: true, d: ICONS.card, keywords: ['payments', 'invoices', 'charges', 'refunds', 'receipts', 'money'] },
     ],

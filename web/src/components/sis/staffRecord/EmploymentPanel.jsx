@@ -49,7 +49,6 @@ const EmploymentPanel = ({ orgId, staff, onSaved }) => {
           start_date: p.start_date || '',
           end_date: p.end_date || '',
           is_active: p.is_active !== false,
-          uses_time_clock: Boolean(p.uses_time_clock),
           work_schedule: p.work_schedule || '',
           emergency_contact_name: p.emergency_contact_name || '',
           emergency_contact_phone: p.emergency_contact_phone || '',
@@ -88,7 +87,7 @@ const EmploymentPanel = ({ orgId, staff, onSaved }) => {
           hourly_rate_cents: rate,
           start_date: form.start_date || null, end_date: form.end_date || null,
         } : {}),
-        is_active: form.is_active, uses_time_clock: form.uses_time_clock,
+        is_active: form.is_active,
         work_schedule: form.work_schedule,
         emergency_contact_name: form.emergency_contact_name,
         emergency_contact_phone: form.emergency_contact_phone,
@@ -178,9 +177,6 @@ const EmploymentPanel = ({ orgId, staff, onSaved }) => {
         <div className="flex flex-col justify-end gap-1.5 text-sm text-neutral-700">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={form.is_active} onChange={set('is_active')} /> Active
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.uses_time_clock} onChange={set('uses_time_clock')} /> Uses time clock
           </label>
         </div>
       </div>

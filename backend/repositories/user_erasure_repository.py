@@ -173,8 +173,6 @@ ANONYMIZE_REFS: Tuple[Tuple[str, str], ...] = (
     ('sis_onboarding_assignments', 'assigned_by'),
     ('sis_onboarding_templates', 'created_by'),
     ('sis_staff_assignments', 'created_by'),
-    ('sis_time_entries', 'approved_by'),
-    ('sis_time_entries', 'edited_by'),
     # The FERPA disclosure trail on OTHER students' records. The row belongs to
     # the student who was looked at (`student_id`, deleted above), so only "who
     # looked" goes blank. The FK is ON DELETE SET NULL and would do this by

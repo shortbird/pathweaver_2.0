@@ -44,7 +44,7 @@ describe('moduleEnabled', () => {
     const o = org({
       sis_enabled: true,
       sis_settings: {
-        hidden_modules: ['classes', 'attendance', 'timesheets'],
+        hidden_modules: ['classes', 'attendance', 'timesheets'], // timesheets: no such module since 2026-09-18; ignored
         post_registration_flow: 'goals',
         prior_learning_enabled: true,
       },

@@ -287,8 +287,8 @@ def remove_staff(user_id, staff_id):
     """Archive a staff member, or delete them outright with ?mode=delete.
 
     Archive is the default because it is always safe. Delete is refused by the
-    service when the person has attendance, timesheets, forms, or onboarding
-    attached — it exists for the placeholder rows schools create while hiring.
+    service when the person has attendance, forms, or onboarding attached —
+    it exists for the placeholder rows schools create while hiring.
     """
     org_id, err = sis_service.org_or_error(user_id)
     if err:
@@ -1093,7 +1093,7 @@ def register_sis_routes(app):
 
     staff_portal_bp / staff_admin_bp carry a blueprint-level 'sis' baseline
     here PLUS per-route @require_module tags for the specific feature
-    (classes/forms/tasks/onboarding/timesheets/secure_documents) -- both
+    (classes/forms/tasks/onboarding/secure_documents) -- both
     gates run, so a route needs its own module AND the sis parent on.
     """
     from modules.gate import module_guard

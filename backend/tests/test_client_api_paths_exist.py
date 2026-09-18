@@ -91,7 +91,6 @@ KNOWN_DEAD = {
     '/api/quests/__param__/enrollment__param__',
     '/api/quests/__param__/progress',
     '/api/sis/reports/__param__',
-    '/api/sis/teacher/time/__param__',
     '/api/users/__param__/completed-quests',
     '/api/users/__param__/profile',
     '/api/users/__param__/settings',

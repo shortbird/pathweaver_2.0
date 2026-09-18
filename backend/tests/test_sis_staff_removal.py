@@ -36,7 +36,7 @@ STAFF = 'staff-1'
 PROFILE_COLUMNS = {
     'user_id', 'organization_id', 'position', 'staff_type', 'pay_type', 'payroll_id',
     'hourly_rate_cents', 'emergency_contact_name', 'emergency_contact_phone',
-    'work_schedule', 'start_date', 'end_date', 'is_active', 'uses_time_clock',
+    'work_schedule', 'start_date', 'end_date', 'is_active',
     'created_at', 'updated_at', 'archived_at', 'archived_by',
 }
 

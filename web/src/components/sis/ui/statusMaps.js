@@ -26,13 +26,6 @@ export const STATUS_MAPS = {
     accepted: { label: 'Accepted', tone: 'bg-green-100 text-green-700' },
     rejected: { label: 'Rejected', tone: 'bg-red-100 text-red-700' },
   },
-  /** Time entries and timesheets (MyTimePage, TimesheetsPage). */
-  timesheet: {
-    open: { label: 'Open', tone: 'bg-amber-100 text-amber-800' },
-    submitted: { label: 'Submitted', tone: 'bg-blue-100 text-blue-700' },
-    approved: { label: 'Approved', tone: 'bg-green-100 text-green-700' },
-    rejected: { label: 'Rejected', tone: 'bg-red-100 text-red-700' },
-  },
   /** An attendance mark: the day summary pill (tone) and the roster's mark
    *  buttons (solid) -- AttendancePage, TeacherClassPage, StudentDayModal. */
   attendance: {
