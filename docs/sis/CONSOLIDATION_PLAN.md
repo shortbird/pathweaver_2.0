@@ -50,6 +50,7 @@ and patterns instead.
 | M8b Time-block table | 3 | first half shipped (one reader); the table and the data move are open | see git log (`consolidate/M8b-one-blocks-reader`) | `time_blocks_read` 0 |
 | M20 One tasks page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M20-one-tasks-page`) | `legacy_tab_remap`, `queue_double_mount` owners moved to `pages/sis/TasksPage.jsx` |
 | M21 One classes page (added 2026-09-17) | 2 | shipped | see git log (`consolidate/M21-one-classes-page`) | no manifest row; five pages became tabs |
+| M22 One library page (added 2026-09-18) | 2 | shipped | see git log (`consolidate/M22-one-library-page`) | no manifest row; four pages became tabs; `training_system` owner moved to `pages/sis/libraryPage/TrainingPanel.jsx` |
 
 Status values: `not started`, `in progress (<worktree>)`, `shipped (<commit>)`,
 `declined (<why>)`.
@@ -1118,6 +1119,52 @@ tabs, no office button; as an admin: six tabs with counts on the first two
 office tabs, the catalog's create/edit/roster/waitlist unchanged; Take
 attendance from the dashboard lands on the Attendance tab; a class's Student
 progress > Review submissions lands on Submissions filtered to the class.
+
+### M22 — One library page (added 2026-09-18, after M21)
+
+Tanner, the day after M21: "resources, curriculum, quests, and maybe training
+could be combined? I'm trying to streamline SIS to make it less overwhelming."
+Four pages under Operations, and two real seams underneath them, not four
+unrelated tabs. Curriculum and Quests share a module, an admin gate and the
+same backend writers; the Quests page existed for three days because a quest
+on no curriculum was unreachable (f9b5f2ea), and its rows already linked back
+to the curriculum for editing. Resources and Training share a table -- a
+training link is an `org_resources` row with `is_training`, which
+`routes/sis/resources.py` has to filter out of the library -- and a shape:
+something the school gives a person, narrowed to an audience, with a done
+state (acknowledge, mark done). Required acks and required training links
+already flow into My tasks, so for a teacher both pages were "browse and
+check progress", not the to-do surface.
+
+**As shipped (2026-09-18).** `pages/sis/LibraryPage.jsx` is a shell at
+`/library` for every staff member; the four bodies are panels under
+`pages/sis/libraryPage/`: `DocumentsPanel` (was `ResourcesPage`),
+`TrainingPanel` (was `StaffTrainingPage`), and for admins `CurriculumPanel`
+and `QuestsPanel` (was `QuestLibraryPage`). Each tab hides on its old path's
+module; the page hides only when all three modules are off
+(`sisModules.isPathHidden('/library')`). Everyone lands on Documents. The
+old paths redirect to their tab with query strings intact, so the task
+inbox's `?highlight=` and a quest chip's `?curriculum=` still land on the
+row; the inbox and the required-reading notification now write `/library`
+links directly (`services/sis_tasks_service.py`, `routes/sis/resources.py`).
+The dashboards' "All resources" and Community's Resources tab point at
+`/library`. Operations in the sidebar: Tasks, Registration, Reports,
+Library, Messaging. The header search (61187622) gets the four tabs as
+entries under Library, and an exact keyword alias now outranks a name that
+merely contains the query, so "resources" finds Documents rather than
+Community's resources tab. Called Library, not Resources: families already
+use "Resources" for the document list on their side.
+
+Deliberately not done: Training stays whole rather than splitting into
+Tasks (the staff half) and Quests (the family and student audiences). The
+audit's F1 -- four kinds of "must do" -- is the move that would take the
+staff half; the Library tab does not get in its way. Verify at :3000 as a
+teacher: two tabs (Documents, Training), no office controls; as an admin:
+four tabs, Add resource / Add curriculum / Add quest / the training
+audience switch unchanged; `/resources`, `/training`, `/curriculum?curriculum=<id>`
+and `/quest-library` land on their tabs; a quest's curriculum chip opens the
+Curriculum tab on that entry; the dashboard's "All resources" lands on
+Documents; type "handbook", "training" and "quests" in the header search.
 
 ### M13 — One detail surface per entity
 

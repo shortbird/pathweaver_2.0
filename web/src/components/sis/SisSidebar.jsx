@@ -108,12 +108,12 @@ export const NAV_SECTIONS = [
       { name: 'Tasks', path: '/tasks', d: ICONS.check, keywords: ['to do', 'forms', 'paperwork', 'documents'] },
       { name: 'Registration', path: '/registration', adminOnly: true, d: ICONS.clipboard, keywords: ['enroll', 'enrollment', 'sign up', 'funnel', 'waitlist'] },
       { name: 'Reports', path: '/reports', adminOnly: true, d: ICONS.doc, keywords: ['export', 'csv', 'print'] },
-      { name: 'Resources', path: '/resources', d: ICONS.books, keywords: ['handbook', 'policies', 'readings', 'acknowledgments'] },
-      { name: 'Curriculum', path: '/curriculum', adminOnly: true, d: ICONS.books, keywords: ['syllabus', 'materials', 'lesson plans'] },
-      // Every quest the school has made, in one list, with assign-from-here.
-      // Editing stays on the curriculum that carries the quest (f9b5f2ea).
-      { name: 'Quests', path: '/quest-library', adminOnly: true, d: ICONS.books, keywords: ['quest library', 'projects', 'assign'] },
-      { name: 'Training', path: '/training', d: ICONS.check, keywords: ['staff training', 'videos', 'modules'] },
+      // One page for everyone (2026-09-18, M22): the document library and
+      // the training, and -- for admins -- the curriculum and every quest,
+      // as tabs. It was four entries (Resources, Curriculum, Quests,
+      // Training); every old path still lands on its tab. The page hides
+      // only when every one of its tabs' modules is off (sisModules).
+      { name: 'Library', path: '/library', d: ICONS.books, keywords: ['resources', 'documents'] },
       // Messages + announcements in one place (2026-08-31; /messaging merged
       // in). Admins read the shared "{School Name}" inbox (backend:
       // ADMIN_ROLES); teachers read their own threads (/api/messages) — the

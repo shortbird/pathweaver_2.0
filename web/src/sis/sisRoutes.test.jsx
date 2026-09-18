@@ -54,8 +54,10 @@ describe('SIS admin route guards', () => {
   it('marks at least the known front-office pages adminOnly', () => {
     // Guards against the inverse failure: a nav entry losing `adminOnly` would
     // otherwise make this whole suite pass by having nothing to check.
+    // (/curriculum was on this list until M22 made it a tab of /library;
+    // its admin gate is the page's office-tab rule now, as on /classes.)
     expect(adminOnlyPaths()).toEqual(expect.arrayContaining([
-      '/people', '/curriculum', '/settings',
+      '/people', '/reports', '/settings',
     ]))
   })
 

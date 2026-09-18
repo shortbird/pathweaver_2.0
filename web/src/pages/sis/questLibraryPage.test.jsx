@@ -17,7 +17,7 @@ import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testin
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import QuestLibraryPage from './QuestLibraryPage'
+import QuestsPanel from './libraryPage/QuestsPanel'
 
 vi.mock('react-hot-toast', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -55,13 +55,13 @@ beforeEach(() => {
   api.get.mockResolvedValue({ data: LIBRARY })
 })
 
-describe('QuestLibraryPage', () => {
+describe('QuestsPanel (was QuestLibraryPage)', () => {
   it('lists the school\'s quests from the library endpoint, with where each is in use', async () => {
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     expect(await screen.findByText('Watercolor Basics')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/sis/quests?organization_id=org-1')
     // Its curriculum is a link that opens that entry; its class is named.
-    expect(screen.getByRole('link', { name: 'Art' })).toHaveAttribute('href', '/curriculum?curriculum=cur-art')
+    expect(screen.getByRole('link', { name: 'Art' })).toHaveAttribute('href', '/library?tab=curriculum&curriculum=cur-art')
     expect(screen.getByText('Art Expeditions')).toBeInTheDocument()
     // A quest nowhere yet says so, rather than showing blanks.
     expect(screen.getByText('Not on a curriculum')).toBeInTheDocument()
@@ -70,7 +70,7 @@ describe('QuestLibraryPage', () => {
   })
 
   it('filters by title, curriculum or class as you type, without another request', async () => {
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.change(screen.getByLabelText('Search quests'), { target: { value: 'robot' } })
     expect(screen.getByText('Nothing matches that search')).toBeInTheDocument()
@@ -83,7 +83,7 @@ describe('QuestLibraryPage', () => {
   it('puts a quest on a curriculum through the quest-scoped route, and reloads', async () => {
     api.post.mockResolvedValue({ data: { success: true, added: true, pushed_to_classes: 2,
       curriculum: { id: 'cur-stem', title: 'STEM' } } })
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
     fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
 
@@ -103,7 +103,7 @@ describe('QuestLibraryPage', () => {
 
   it('assigns a quest to a class through the class page\'s own route, with the due date', async () => {
     api.post.mockResolvedValue({ data: { success: true, students_enrolled: 12 } })
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Bridge Building')
     fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[1])
 
@@ -120,7 +120,7 @@ describe('QuestLibraryPage', () => {
   })
 
   it('does not offer a curriculum or class the quest is already on', async () => {
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getAllByRole('button', { name: 'Assign' })[0])
     const dialog = await screen.findByRole('dialog')
@@ -136,7 +136,7 @@ describe('QuestLibraryPage', () => {
 
   it('builds a new quest from the top of the page and lands it in the list', async () => {
     api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 1 } })
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
 
@@ -161,7 +161,7 @@ describe('QuestLibraryPage', () => {
   it('can put the new quest straight onto a curriculum', async () => {
     api.post.mockResolvedValue({ data: { success: true, quest_id: 'q-new', task_count: 0,
       curriculum: { id: 'cur-stem', title: 'STEM' }, added: true, pushed_to_classes: 1 } })
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
     fireEvent.change(screen.getByLabelText('Quest title'), { target: { value: 'Robot Garden' } })
@@ -177,7 +177,7 @@ describe('QuestLibraryPage', () => {
   })
 
   it('will not create a quest with no title', async () => {
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     await screen.findByText('Watercolor Basics')
     fireEvent.click(screen.getByRole('button', { name: /Add quest/ }))
     expect(screen.getByRole('button', { name: 'Create quest' })).toBeDisabled()
@@ -186,7 +186,7 @@ describe('QuestLibraryPage', () => {
 
   it('says so when the school has no quests', async () => {
     api.get.mockResolvedValue({ data: { quests: [], curricula: [], classes: [] } })
-    render(<QuestLibraryPage />)
+    render(<QuestsPanel />)
     expect(await screen.findByText('No quests yet')).toBeInTheDocument()
   })
 })

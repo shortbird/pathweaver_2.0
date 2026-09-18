@@ -644,7 +644,7 @@
       "means": "Staff training. Until M18 (2026-09-17) two APIs, two targeting models and two progress reports: staff_training.py (quests, since July) and training_links.py (org_resources.is_training, since 2026-09-15). Now one catalog: GET /api/sis/training lists both kinds with `kind`, POST with kind='link' files a link, /training/<id>/done marks one, and /training/progress has one column per row; both kinds target visible_to_roles OR visible_to_user_ids. Links still live on org_resources (read through services/sis_training_service); the store was not merged.",
       "owner": {
         "backend": ["routes/sis/staff_training.py", "services/sis_training_service.py"],
-        "web": ["pages/sis/StaffTrainingPage.jsx", "components/sis/TrainingForm.jsx", "components/sis/TrainingRow.jsx"]
+        "web": ["pages/sis/libraryPage/TrainingPanel.jsx", "components/sis/TrainingForm.jsx", "components/sis/TrainingRow.jsx"]
       },
       "forbid": {
         "backend": { "pattern": "^@bp\\.route\\(", "dirs": ["routes/sis/training_links.py"] },

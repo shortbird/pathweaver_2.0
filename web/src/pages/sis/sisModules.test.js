@@ -67,6 +67,16 @@ describe('sisModules', () => {
     expect(isPathHidden('/messaging', academy)).toBe(false)
   })
 
+  it('hides the Library page only when every one of its tabs is off', () => {
+    // M22: /library is Documents (resources), Training and Curriculum/Quests
+    // (curriculum) as tabs. Each tab hides on its own module; the page goes
+    // with the last of them.
+    expect(isPathHidden('/library', orgWith([]))).toBe(false)
+    expect(isPathHidden('/library', orgWith(['resources', 'training']))).toBe(false)
+    expect(isPathHidden('/library', orgWith(['resources', 'training', 'curriculum']))).toBe(true)
+    expect(isPathHidden('/library', null)).toBe(false)
+  })
+
   it('opt-in paths hide until the org enables them; default-on paths show', () => {
     const org = orgWith(['clp'])
     // Goals and community are opt-ins -- hidden until enabled (the route

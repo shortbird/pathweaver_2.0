@@ -44,7 +44,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import ResourcesPage from './ResourcesPage'
+import DocumentsPanel from './libraryPage/DocumentsPanel'
 
 const RESOURCES = [
   { id: 'r1', title: 'Family Guidebook', url: 'https://x.test/guide.pdf', category: 'Handbook', audience: 'families' },
@@ -61,7 +61,7 @@ beforeEach(() => {
 })
 
 const show = async () => {
-  render(<MemoryRouter><ResourcesPage /></MemoryRouter>)
+  render(<MemoryRouter><DocumentsPanel /></MemoryRouter>)
   await screen.findByText('Family Guidebook')
 }
 

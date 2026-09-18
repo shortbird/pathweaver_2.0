@@ -43,7 +43,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import StaffTrainingPage from './StaffTrainingPage'
+import TrainingPanel from './libraryPage/TrainingPanel'
 
 const STAFF_QUEST = {
   id: 't1', quest_id: 'q1', title: 'Classroom management', category: 'Onboarding',
@@ -75,20 +75,20 @@ beforeEach(() => {
 
 describe('school quests by audience', () => {
   it('opens on the teacher side, unchanged from before', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     expect(await screen.findByText('Classroom management')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith(expect.stringContaining('audience=staff'))
   })
 
   it('switches to the family side', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     expect(await screen.findByText('Back to school night')).toBeInTheDocument()
   })
 
   it('sets a new quest for the audience being edited', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
@@ -107,7 +107,7 @@ describe('school quests by audience', () => {
   })
 
   it('says a family quest is the parent’s own', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
@@ -116,7 +116,7 @@ describe('school quests by audience', () => {
 
   it('hides the switch from a teacher, who only has one audience', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['advisor'] } }
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     expect(screen.queryByRole('button', { name: 'For families' })).not.toBeInTheDocument()
   })
@@ -124,14 +124,14 @@ describe('school quests by audience', () => {
 
 describe('building a quest on the page', () => {
   it('offers a builder as well as the existing-quest picker', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
     expect(await screen.findByRole('tab', { name: 'Build a new one' })).toBeInTheDocument()
   })
 
   it('builds the quest and sets it for the audience in one step', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: 'For families' }))
     fireEvent.click(await screen.findByRole('button', { name: /Add a family quest/ }))
@@ -148,7 +148,7 @@ describe('building a quest on the page', () => {
   })
 
   it('carries preset tasks into the new quest', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))
@@ -167,7 +167,7 @@ describe('building a quest on the page', () => {
   })
 
   it('will not build a quest with no title', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Classroom management')
     fireEvent.click(screen.getByRole('button', { name: /Add training/ }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Build a new one' }))

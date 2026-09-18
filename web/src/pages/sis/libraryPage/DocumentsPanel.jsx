@@ -1,24 +1,26 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import api from '../../services/api'
-import Button from '../../components/ui/Button'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { useAuth } from '../../contexts/AuthContext'
-import { isSisAdmin } from './sisRole'
-import BackToDashboard from '../../components/sis/BackToDashboard'
-import { useConfirm } from '../../contexts/ConfirmContext'
-import ModalOverlay from '../../components/ui/ModalOverlay'
-import SearchSelect from '../../components/ui/SearchSelect'
-import DocumentPreview, { isPreviewableDocument } from '../../components/evidence/preview/DocumentPreview'
+import api from '../../../services/api'
+import Button from '../../../components/ui/Button'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { useAuth } from '../../../contexts/AuthContext'
+import { isSisAdmin } from '../sisRole'
+import { useConfirm } from '../../../contexts/ConfirmContext'
+import ModalOverlay from '../../../components/ui/ModalOverlay'
+import SearchSelect from '../../../components/ui/SearchSelect'
+import DocumentPreview, { isPreviewableDocument } from '../../../components/evidence/preview/DocumentPreview'
 
 const field = 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-optio-purple'
 
 /**
- * SIS Resources — the org's document library (family guidebook, student
+ * Documents -- the org's document library (family guidebook, student
  * contract, links). Staff add documents or links here; the org's families see
  * them on the web platform's Resources page any time after registration.
+ *
+ * The Documents tab of Library (LibraryPage) since M22; it was the Resources
+ * page. The shell owns the heading and the tab bar; this is the body.
  */
-const ResourcesPage = () => {
+const DocumentsPanel = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId } = useSisOrg()
@@ -108,25 +110,18 @@ const ResourcesPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <BackToDashboard className="mb-1" />
-          <h1 className="text-2xl font-bold text-neutral-900">Resources</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          {admin && !adding && <Button size="sm" onClick={() => setAdding(true)}>Add resource</Button>}
-        </div>
-      </div>
-
-      {/* Who this page is for. iCreate asked "are teachers adding resources for
+      {/* Who this tab is for. iCreate asked "are teachers adding resources for
           their students here? Might this get too large?" — the answer is no, and
-          the copy has to say so, because the page name doesn't. */}
-      <p className="text-sm text-neutral-500 mb-5 max-w-2xl">
-        School-wide documents and links every family can refer back to — the family guidebook, student
-        contract, calendars, forms. Families find these under "Resources" in their app.
-        {' '}Material for one class goes on that class's <span className="font-medium text-neutral-600">Curriculum</span> tab
-        instead, so this list stays short and stays school-wide.
-      </p>
+          the copy has to say so, because the tab name doesn't. */}
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <p className="text-sm text-neutral-500 max-w-2xl">
+          School-wide documents and links every family can refer back to — the family guidebook, student
+          contract, calendars, forms. Families find these under "Resources" in their app.
+          {' '}Material for one class goes on that class's <span className="font-medium text-neutral-600">Curriculum</span> tab
+          instead, so this list stays short and stays school-wide.
+        </p>
+        {admin && !adding && <Button size="sm" onClick={() => setAdding(true)} className="shrink-0">Add resource</Button>}
+      </div>
 
       {(adding || editing) && (
         <ResourceForm
@@ -491,4 +486,4 @@ const ResourceForm = ({ orgId, resource, paperwork = [], staff = [], onDone, onC
   )
 }
 
-export default ResourcesPage
+export default DocumentsPanel

@@ -335,7 +335,7 @@ def _notify_staff_required_read(org_id, title, visible_to_roles=None):
         sis_notifications.notify(
             s['id'], 'Required reading',
             f'Please review and acknowledge: {title}',
-            link='/resources', organization_id=org_id)
+            link='/library', organization_id=org_id)
 
 
 @bp.route('/resources/<resource_id>', methods=['PATCH'])

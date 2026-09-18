@@ -14,7 +14,7 @@ import { render as rtlRender, screen, fireEvent, waitFor, within } from '@testin
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 
-import StaffTrainingPage from './StaffTrainingPage'
+import TrainingPanel from './libraryPage/TrainingPanel'
 
 const render = (ui) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -78,13 +78,13 @@ beforeEach(() => {
 
 describe('the creator\'s order on the Training page', () => {
   it('lists quests and links together in the arranged order, not by kind or title', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     expect(titlesInOrder()).toEqual(['First training', 'Second training (video)', 'Third training'])
   })
 
   it('moves a row and saves the whole arranged list on one scale', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     fireEvent.click(screen.getByRole('button', { name: 'Move Third training up' }))
 
@@ -97,7 +97,7 @@ describe('the creator\'s order on the Training page', () => {
   })
 
   it('cannot move the first row up or the last row down', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     expect(screen.getByRole('button', { name: 'Move First training up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move Third training down' })).toBeDisabled()
@@ -105,7 +105,7 @@ describe('the creator\'s order on the Training page', () => {
   })
 
   it('narrows the list by name and keeps the order underneath', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     const box = screen.getByLabelText(/Search/)
     fireEvent.change(box, { target: { value: 'ird' } })
@@ -139,7 +139,7 @@ describe('the creator\'s order on the Training page', () => {
       if (url.includes('/api/sis/training')) return Promise.resolve({ data: { training: TRAINING } })
       return Promise.resolve({ data: {} })
     })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     fireEvent.click(screen.getByRole('button', { name: 'Who has done what' }))
     expect(await screen.findByText('Jane Bird')).toBeInTheDocument()
@@ -162,7 +162,7 @@ describe('the creator\'s order on the Training page', () => {
 
   it('shows a teacher the same order with no arrows', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_role: 'advisor' } }
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Third training')
     expect(titlesInOrder()).toEqual(['First training', 'Second training (video)', 'Third training'])
     expect(screen.queryByRole('button', { name: /Move / })).toBeNull()

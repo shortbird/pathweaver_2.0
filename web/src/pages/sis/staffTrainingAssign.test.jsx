@@ -45,7 +45,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import { toast } from 'react-hot-toast'
-import StaffTrainingPage from './StaffTrainingPage'
+import TrainingPanel from './libraryPage/TrainingPanel'
 
 // The page reads its training links through hooks/api, so it needs a
 // QueryClient. A fresh client per render keeps one test's cache out of the
@@ -83,7 +83,7 @@ beforeEach(() => {
 
 describe('assigning training to everyone', () => {
   it('puts the quest on every account when the admin presses assign', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     const btn = await screen.findByRole('button', { name: /assign to everyone/i })
     fireEvent.click(btn)
 
@@ -93,7 +93,7 @@ describe('assigning training to everyone', () => {
   })
 
   it('says how many people actually got it, and how many already had it', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /assign to everyone/i }))
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
@@ -117,7 +117,7 @@ describe('assigning training to everyone', () => {
       vi.clearAllMocks()
       mockGets()
       api.post.mockResolvedValue({ data })
-      const view = render(<StaffTrainingPage />)
+      const view = render(<TrainingPanel />)
       fireEvent.click(await screen.findByRole('button', { name: /assign to everyone/i }))
       await waitFor(() => expect(toast.success).toHaveBeenCalled())
       expect(toast.success.mock.calls[0][0]).toContain(expected)
@@ -127,7 +127,7 @@ describe('assigning training to everyone', () => {
 
   it('reports the honest result when there is nobody to assign to yet', async () => {
     api.post.mockResolvedValue({ data: { enrolled: 0, already: 0, failed: 0 } })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /assign to everyone/i }))
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled())
@@ -135,13 +135,13 @@ describe('assigning training to everyone', () => {
   })
 
   it('shows which quests keep assigning themselves to new arrivals', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     expect(await screen.findByText(/auto-assigns to new staff/i)).toBeInTheDocument()
   })
 
   it('leaves the badge off a quest people opt into themselves', async () => {
     mockGets([{ ...ITEM, auto_assign: false }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Family orientation')
     expect(screen.queryByText(/auto-assigns to new/i)).not.toBeInTheDocument()
   })
@@ -151,7 +151,7 @@ describe('previewing the quest before committing to it', () => {
   // Previewed on the family side, since that is the audience whose quest an
   // admin has least ability to check by just opening it themselves.
   const openBuilder = async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
@@ -235,7 +235,7 @@ describe('previewing the quest before committing to it', () => {
 
 describe('the header image', () => {
   const openBuilder = async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
@@ -302,7 +302,7 @@ describe('the header image', () => {
 
 describe('saving a quest as a draft', () => {
   const openBuilder = async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }
@@ -339,14 +339,14 @@ describe('saving a quest as a draft', () => {
 
   it('marks a draft in the list and offers to publish it', async () => {
     mockGets([{ ...ITEM, is_draft: true }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     expect(await screen.findByText('Draft')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^publish$/i })).toBeInTheDocument()
   })
 
   it('replaces bulk assign with publish, since a draft is on nobody', async () => {
     mockGets([{ ...ITEM, is_draft: true }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Draft')
     expect(screen.queryByRole('button', { name: /assign to everyone/i })).not.toBeInTheDocument()
   })
@@ -354,7 +354,7 @@ describe('saving a quest as a draft', () => {
   it('can still be handed to specific people, and can be reopened', async () => {
     // The two things a draft is for: more work on it, and a small rollout.
     mockGets([{ ...ITEM, is_draft: true, quest_is_ours: true }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Draft')
     expect(screen.getByRole('button', { name: /choose people/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument()
@@ -363,7 +363,7 @@ describe('saving a quest as a draft', () => {
   it('publishes on request', async () => {
     mockGets([{ ...ITEM, is_draft: true }])
     api.post.mockResolvedValue({ data: { assigned: { enrolled: 5, already: 0 }, audience: 'family' } })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /^publish$/i }))
 
     await waitFor(() => expect(api.post).toHaveBeenCalled())
@@ -393,7 +393,7 @@ describe('reopening a quest for more editing', () => {
       if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
       return Promise.resolve({ data: { training: [{ ...ITEM, is_draft: true, quest_is_ours: true }] } })
     })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }))
   }
 
@@ -450,7 +450,7 @@ describe('reopening a quest for more editing', () => {
 
   it('does not offer to edit a shared Optio library quest', async () => {
     mockGets([{ ...ITEM, quest_is_ours: false }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Family orientation')
     expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument()
   })
@@ -473,7 +473,7 @@ describe('choosing specific people', () => {
       if (url.includes('/assignable-quests')) return Promise.resolve({ data: { quests: [] } })
       return Promise.resolve({ data: { training: [ITEM] } })
     })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /choose people/i }))
     return screen.findByRole('dialog')
   }
@@ -525,13 +525,13 @@ describe('the XP finish line on the list', () => {
   it('shows how much XP has been earned against what is needed', async () => {
     mockGets([{ ...ITEM, xp_threshold: 300, quest_is_ours: true,
       my_progress: { started: true, completed: false, done: 1, total: 4, earned_xp: 150 } }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     expect(await screen.findByText('150 of 300 XP')).toBeInTheDocument()
   })
 
   it('says nothing about XP when no finish line is set', async () => {
     mockGets([{ ...ITEM, xp_threshold: 0 }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Family orientation')
     expect(screen.queryByText(/of 0 XP/i)).not.toBeInTheDocument()
   })
@@ -539,7 +539,7 @@ describe('the XP finish line on the list', () => {
   it('lets an admin move the finish line without rebuilding the quest', async () => {
     api.patch = vi.fn(() => Promise.resolve({ data: { success: true } }))
     mockGets([{ ...ITEM, xp_threshold: 300, quest_is_ours: true }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     const field = await screen.findByLabelText(/xp required to finish family orientation/i)
     fireEvent.blur(field, { target: { value: '500' } })
 
@@ -552,7 +552,7 @@ describe('the XP finish line on the list', () => {
   it('offers no edit for a shared Optio library quest', async () => {
     // Its finish line belongs to every school using it, not this one.
     mockGets([{ ...ITEM, xp_threshold: 300, quest_is_ours: false }])
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Family orientation')
     expect(screen.queryByLabelText(/xp required to finish family orientation/i)).not.toBeInTheDocument()
   })
@@ -560,7 +560,7 @@ describe('the XP finish line on the list', () => {
 
 describe('building a training quest', () => {
   const openBuilder = async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest|add training/i }))
     fireEvent.click(await screen.findByRole('tab', { name: /build a new one/i }))
   }

@@ -241,6 +241,23 @@ describe('SisSidebar', () => {
     expect(screen.queryByText('My Documents')).not.toBeInTheDocument()
   })
 
+  it('has one Library entry — Resources, Curriculum, Quests and Training are its tabs', () => {
+    // M22 (2026-09-18): the document library and the training are every
+    // staff member's tabs; the curriculum and the quest list are the
+    // office's. One entry under Operations, not four.
+    authState = { isAuthenticated: true, effectiveRole: 'org_admin', user: { role: 'org_admin' }, loading: false }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getByRole('link', { name: 'Library' })).toHaveAttribute('href', '/library')
+    expect(screen.queryByText('Resources')).not.toBeInTheDocument()
+    expect(screen.queryByText('Curriculum')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quests')).not.toBeInTheDocument()
+    expect(screen.queryByText('Training')).not.toBeInTheDocument()
+    // A teacher gets the same door: their tabs are inside.
+    authState = { isAuthenticated: true, effectiveRole: 'advisor', user: { id: 'u3', role: 'org_managed', org_roles: ['advisor'] }, loading: false }
+    render(<MemoryRouter><SisSidebar /></MemoryRouter>)
+    expect(screen.getAllByRole('link', { name: 'Library' })).toHaveLength(2)
+  })
+
   it('keeps Tasks while previewing a teacher — the page lands the preview on documents', () => {
     // /api/sis/my-tasks deliberately takes no ?teacher_id=, so the task inbox
     // cannot answer for the teacher — but the Documents tab can, and the page

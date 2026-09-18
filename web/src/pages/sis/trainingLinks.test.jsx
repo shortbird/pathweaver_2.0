@@ -41,7 +41,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import StaffTrainingPage from './StaffTrainingPage'
+import TrainingPanel from './libraryPage/TrainingPanel'
 
 // The page's link writes go through hooks/api, so it needs a QueryClient. A fresh client per render keeps one test's cache out of the
 // next one's, and retry:false makes a failed query fail rather than hang.
@@ -92,7 +92,7 @@ beforeEach(() => {
 
 describe('adding a link', () => {
   it('is a third door in the add panel, and posts the link with its targeting', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /add training/i }))
     fireEvent.click(screen.getByRole('tab', { name: /link to a video or document/i }))
 
@@ -111,7 +111,7 @@ describe('adding a link', () => {
   })
 
   it('is offered for teachers only -- families and students still get quests', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /for families/i }))
     fireEvent.click(await screen.findByRole('button', { name: /add a family quest/i }))
     expect(screen.queryByRole('tab', { name: /link to a video or document/i })).toBeNull()
@@ -120,7 +120,7 @@ describe('adding a link', () => {
 
 describe('the list', () => {
   it('files links under the same category headings as the quests', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Whole Brain Teaching')
     expect(screen.getByText('Orientation quest')).toBeTruthy()
     expect(screen.getAllByRole('heading', { level: 2, name: /onboarding/i })).toHaveLength(1)
@@ -128,19 +128,19 @@ describe('the list', () => {
   })
 
   it('counts a required link in the required banner', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Whole Brain Teaching')
     expect(screen.getByText('0 of 2 required items complete.')).toBeTruthy()
   })
 
   it('marks it done for the caller, and can take it back', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /mark as done/i }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/api/sis/training/l-1/done?organization_id=org-1', {}))
 
     mockGets({ training: [QUEST, { ...LINK, my_done: { done_at: 'now' } }] })
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     fireEvent.click(await screen.findByRole('button', { name: /mark as not done/i }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith(
       '/api/sis/training/l-1/done?organization_id=org-1'))
@@ -149,7 +149,7 @@ describe('the list', () => {
 
 describe('who has done what', () => {
   it('adds a column per link, and a dash where the link was not aimed at the person', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Whole Brain Teaching')
     fireEvent.click(screen.getByRole('button', { name: /who has done what/i }))
     const table = await screen.findByRole('table')
@@ -165,7 +165,7 @@ describe('who has done what', () => {
 
 describe('editing a link', () => {
   it('opens the same form on the link door, filled in, and patches it as a link', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     const row = (await screen.findByText('Whole Brain Teaching')).closest('.p-4')
     fireEvent.click(within(row).getByRole('button', { name: /^edit$/i }))
     expect(screen.getByLabelText('Training link').value).toBe('https://loom.com/x')
@@ -177,7 +177,7 @@ describe('editing a link', () => {
   })
 
   it('removes a link as a link', async () => {
-    render(<StaffTrainingPage />)
+    render(<TrainingPanel />)
     await screen.findByText('Whole Brain Teaching')
     fireEvent.click(screen.getByRole('button', { name: /remove whole brain teaching/i }))
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith(

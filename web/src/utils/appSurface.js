@@ -209,6 +209,7 @@ export const SIS_SURFACE_PATHS = [
   '/goals',
   '/households',
   '/inbox',
+  '/library',
   '/messaging',
   '/my-classes',
   '/my-documents',

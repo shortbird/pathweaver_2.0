@@ -73,7 +73,7 @@ const COMPONENTS = path.resolve(__dirname, '../components')
  * other eight are hand-rolled would leave the page fetching two ways:
  *   * sis/CommunityPage.jsx (+3) — replies under a shout-out: read the thread,
  *     post one, take one back (d0c7ac4e).
- *   * sis/ResourcesPage.jsx (+1) — the staff a resource can be pinned to by
+ *   * sis/libraryPage/DocumentsPanel.jsx (+1) — the staff a resource can be pinned to by
  *     name (cf671ff2).
  * The RSVP and substitute-sheet work went into components/ rather than pages/,
  * which this census does not walk, so neither shows up here.

@@ -51,7 +51,7 @@ const { api } = vi.hoisted(() => ({
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 
-import CurriculumPage from './CurriculumPage'
+import CurriculumPanel from './libraryPage/CurriculumPanel'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -68,7 +68,7 @@ const titles = () => screen.getAllByRole('row').slice(1)
 
 describe('CurriculumPage table', () => {
   it('lists entries as rows with ages taken from the classes that teach them', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     // Reading A (6-8) + Reading B (9-11) -> the span across both sections.
     expect(screen.getByText('6–11')).toBeInTheDocument()
@@ -77,7 +77,7 @@ describe('CurriculumPage table', () => {
   })
 
   it('sorts by title by default and flips direction on a second click', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     expect(titles()).toEqual(['Astronomy', 'Clay Basics', 'Reading Workshop'])
     fireEvent.click(screen.getByRole('button', { name: /Title/ }))
@@ -85,21 +85,21 @@ describe('CurriculumPage table', () => {
   })
 
   it('sorts by ages, with untaught curriculum last', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     fireEvent.click(screen.getByRole('button', { name: /Ages/ }))
     expect(titles()).toEqual(['Reading Workshop', 'Clay Basics', 'Astronomy'])
   })
 
   it('sorts by subject', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     fireEvent.click(screen.getByRole('button', { name: /Subject/ }))
     expect(titles()).toEqual(['Clay Basics', 'Reading Workshop', 'Astronomy'])
   })
 
   it('keeps the detail behind a disclosure so the list stays scannable', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     expect(screen.queryByText(/Used by Reading A/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Reading Workshop'))
@@ -109,7 +109,7 @@ describe('CurriculumPage table', () => {
   })
 
   it('filters by search without losing the sort', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     fireEvent.change(screen.getByPlaceholderText('Search curriculum…'), { target: { value: 'read' } })
     expect(titles()).toEqual(['Reading Workshop'])

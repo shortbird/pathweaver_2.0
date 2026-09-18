@@ -37,23 +37,24 @@ describe('buildSearchIndex', () => {
     pages.forEach((p) => expect(ids(index)).toContain(p.path))
     // A tab sits right after its page, in nav order.
     const messaging = ids(index).indexOf('/inbox')
-    expect(ids(index)[messaging + 1]).toBe('/inbox?tab=announcements')
-    expect(index[messaging + 1]).toMatchObject({ name: 'Announcements', hint: 'Messaging · Operations', parent: 'Messaging' })
+    expect(index[messaging + 1]).toMatchObject({ name: 'Announcements', to: '/inbox?tab=announcements', hint: 'Messaging · Operations', parent: 'Messaging' })
   })
 
   it('offers a teacher only what the sidebar offers a teacher', () => {
     const index = buildSearchIndex(navContextFor(teacher, fullOrg))
     // Their own console.
-    expect(names(index)).toEqual(expect.arrayContaining(['Directory', 'Classes', 'My classes', 'Announcements', 'My messages', 'My tasks', 'My Time']))
+    expect(names(index)).toEqual(expect.arrayContaining(['Directory', 'Classes', 'My classes', 'Announcements', 'My messages', 'My tasks', 'My Time', 'Library', 'Documents', 'Training']))
     // Not the office's.
     expect(names(index)).not.toContain('People')
+    expect(names(index)).not.toContain('Curriculum')
+    expect(names(index)).not.toContain('Quests')
     expect(names(index)).not.toContain('Billing')
     expect(names(index)).not.toContain('Attendance')
     expect(names(index)).not.toContain('Class catalog')
     expect(names(index)).not.toContain('School inbox')
     expect(names(index)).not.toContain('Requests')
     expect(names(index)).not.toContain('Settings')
-    expect(ids(index).some((id) => id.startsWith('/reports'))).toBe(false)
+    expect(index.some((e) => e.to.startsWith('/reports'))).toBe(false)
   })
 
   it('gives a campus coordinator the console without the money or the HR store', () => {
@@ -115,6 +116,19 @@ describe('buildSearchIndex', () => {
     pathnames.forEach((p) => expect(routed, `${p} is in the search index but not in SisRoutes`).toContain(p))
   })
 
+  it('gives every entry its own id, whatever its URL', () => {
+    // A default tab shares its page's URL (My tasks is /tasks, Documents is
+    // /library); the id is what React keys the list on, so it cannot be the URL.
+    const index = buildSearchIndex(navContextFor(orgAdmin, fullOrg))
+    const seen = new Set()
+    index.forEach((e) => {
+      expect(seen.has(e.id), `${e.id} appears twice`).toBe(false)
+      seen.add(e.id)
+    })
+    expect(index.filter((e) => e.to === '/tasks')).toHaveLength(2)
+    expect(index.filter((e) => e.to === '/library')).toHaveLength(2)
+  })
+
   it('every entry sits under a page the sidebar has', () => {
     const pages = new Set(NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.path)))
     SUB_ENTRIES.forEach((e) => expect(pages, `${e.name} is under ${e.under}, which is not a nav page`).toContain(e.under))
@@ -149,6 +163,12 @@ describe('searchFeatures', () => {
     expect(searchFeatures(index, 'rooms')[0].to).toBe('/settings#settings-rooms')
     expect(searchFeatures(index, 'medications')[0].to).toBe('/reports?report=medications')
     expect(searchFeatures(index, 'lost & found')[0].to).toBe('/community?tab=lost-found')
+    // The four library pages are tabs since M22; their old names still land.
+    expect(searchFeatures(index, 'resources')[0].to).toBe('/library')
+    expect(searchFeatures(index, 'handbook')[0].to).toBe('/library')
+    expect(searchFeatures(index, 'training')[0].to).toBe('/library?tab=training')
+    expect(searchFeatures(index, 'curriculum')[0].to).toBe('/library?tab=curriculum')
+    expect(searchFeatures(index, 'quests')[0].to).toBe('/library?tab=quests')
   })
 
   it('needs every typed word to match somewhere', () => {

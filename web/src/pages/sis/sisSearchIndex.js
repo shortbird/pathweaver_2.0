@@ -63,6 +63,13 @@ export const SUB_ENTRIES = [
   { under: '/registration', name: 'Registration form', to: '/registration', keywords: ['funnel', 'questions', 'setup', 'registration link', 'edit registration'] },
   { under: '/registration', name: 'Enrollment queues', to: '/registration?tab=queues', keywords: ['pending', 'approve', 'waitlist', 'new families', 'applications'] },
 
+  // Library (M22). The tab keys are LibraryPage's; each tab carries its old
+  // path's module so an org that hid one stays hidden.
+  { under: '/library', name: 'Documents', to: '/library', path: '/resources', keywords: ['resources', 'handbook', 'policies', 'readings', 'acknowledgments', 'family guidebook', 'contract'] },
+  { under: '/library', name: 'Training', to: '/library?tab=training', path: '/training', keywords: ['staff training', 'videos', 'modules', 'who has done what', 'orientation'] },
+  { under: '/library', name: 'Curriculum', to: '/library?tab=curriculum', adminOnly: true, path: '/curriculum', keywords: ['syllabus', 'materials', 'lesson plans', 'drive folder', 'subjects'] },
+  { under: '/library', name: 'Quests', to: '/library?tab=quests', adminOnly: true, path: '/quest-library', keywords: ['quest library', 'projects', 'assign quest', 'new quest'] },
+
   // Community. The tab keys are CommunityPage's.
   { under: '/community', name: 'Highlights', to: '/community?tab=highlights', keywords: ['community highlights', 'what is new'] },
   { under: '/community', name: 'Board announcements', to: '/community?tab=announcements', keywords: ['community board', 'post announcement'] },
@@ -121,7 +128,11 @@ export function buildSearchIndex(ctx) {
         const { under: _under, to, name, keywords, ...gates } = sub
         if (!navItemVisible({ ...page, ...gates, path: gates.path || null }, ctx)) continue
         index.push({
-          id: to,
+          // Not `to`: a tab that IS its page's default (My tasks, Documents)
+          // shares the page's URL, and two entries with one id are two React
+          // keys with one value -- the list kept stale rows from the previous
+          // keystroke (found on "resources", 2026-09-18).
+          id: `${page.path} > ${name}`,
           name,
           hint: `${page.name}${section.label ? ` · ${section.label}` : ''}`,
           to,
@@ -140,8 +151,12 @@ const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9&]+/g, '
  * Rank the index against what was typed. Every word typed has to appear
  * somewhere on an entry (name, keywords or parent page); an entry whose NAME
  * starts with the query outranks one that merely contains it, which outranks
- * a keyword hit, which outranks a hit on the parent's name alone. Ties keep
- * nav order, so "class" lists Classes before its tabs.
+ * a keyword hit, which outranks a hit on the parent's name alone. One
+ * exception: a keyword that IS the query beats a name that merely contains
+ * it -- a keyword is an alias chosen because people say it ("resources" for
+ * the Documents tab), and an incidental substring elsewhere ("Community
+ * resources") must not outrank the thing they meant. Ties keep nav order,
+ * so "class" lists Classes before its tabs.
  */
 export function searchFeatures(index, query, limit = 8) {
   const q = normalize(query)
@@ -157,6 +172,7 @@ export function searchFeatures(index, query, limit = 8) {
     let score = 0
     if (name === q) score = 5
     else if (name.startsWith(q)) score = 4
+    else if (keywords.includes(q)) score = 3.5
     else if (name.includes(q)) score = 3
     else if (words.every((w) => name.includes(w))) score = 2.5
     else if (keywords.some((k) => k.startsWith(q))) score = 2

@@ -191,7 +191,7 @@ def _ack_tasks(org_id: str, user_id: str, audience: str) -> List[Dict[str, Any]]
             'assigned_by_name': None,
             'created_at': r.get('updated_at'),
             'resource_id': r['id'],
-            'link': '/training' if training else f"/resources?highlight={r['id']}",
+            'link': '/library?tab=training' if training else f"/library?highlight={r['id']}",
         })
     return out
 

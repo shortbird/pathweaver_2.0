@@ -659,7 +659,7 @@ const ResourcesTab = () => (
     <p className="text-sm text-neutral-600 mb-4 max-w-md mx-auto">
       Guidebooks, forms, and links for your community live in the Resources library. Manage them there and families see them in their app.
     </p>
-    <Link to="/resources">
+    <Link to="/library">
       <Button size="sm">Open Resources</Button>
     </Link>
   </div>

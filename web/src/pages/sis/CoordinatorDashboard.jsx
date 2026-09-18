@@ -181,7 +181,7 @@ const CoordinatorDashboard = ({ userName }) => {
               </li>
             ))}
           </ul>
-          <Link to="/resources" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
+          <Link to="/library" className="block mt-2 text-sm font-semibold text-optio-purple hover:underline">
             All resources →
           </Link>
         </DashboardCard>

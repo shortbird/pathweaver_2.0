@@ -188,7 +188,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
       )}
 
       {pendingAcks.length > 0 && (
-        <Link to="/resources" className="block rounded-xl border border-optio-purple/30 bg-optio-purple/5 p-4">
+        <Link to="/library" className="block rounded-xl border border-optio-purple/30 bg-optio-purple/5 p-4">
           <p className="text-sm font-medium text-optio-purple">
             {pendingAcks.length} document{pendingAcks.length === 1 ? '' : 's'} to review and acknowledge
           </p>
@@ -203,7 +203,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
           (iCreate 2026-08-31) — documents and forms teachers always need. */}
       {pinnedLinks.length > 0 && (
         <DashboardCard title="Links"
-          action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
+          action={<Link to="/library" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
           <div className="flex flex-wrap gap-2">
             {pinnedLinks.map((l) => (
               <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer"
@@ -296,7 +296,7 @@ const TeacherDashboard = ({ orgId, userName, preview = null }) => {
               Previously only reachable while an acknowledgment was outstanding. */}
           {staffResources.length > 0 && (
             <DashboardCard title="Teacher resources"
-              action={<Link to="/resources" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
+              action={<Link to="/library" className="text-sm text-optio-purple hover:underline">All resources</Link>}>
               <ul className="space-y-2">
                 {staffResources.slice(0, 5).map((r) => (
                   <li key={r.id}>

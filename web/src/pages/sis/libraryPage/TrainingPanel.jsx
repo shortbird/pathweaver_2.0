@@ -1,23 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-hot-toast'
 import { AcademicCapIcon, PlusIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
-import useTrainingOrder from '../../hooks/useTrainingOrder'
-import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { useAuth } from '../../contexts/AuthContext'
-import { isSisAdmin } from './sisRole'
-import TrainingForm from '../../components/sis/TrainingForm'
-import TrainingRow from '../../components/sis/TrainingRow'
-import TrainingPeoplePicker from '../../components/sis/TrainingPeoplePicker'
-import TrainingProgressTable from '../../components/sis/TrainingProgressTable'
-import { useDeleteTrainingLink } from '../../hooks/api/useTraining'
-import { useConfirm } from '../../contexts/ConfirmContext'
-import { words, assignedMessage } from './trainingCopy'
-import { Input } from '../../components/ui/Input'
+import useTrainingOrder from '../../../hooks/useTrainingOrder'
+import api from '../../../services/api'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { useAuth } from '../../../contexts/AuthContext'
+import { isSisAdmin } from '../sisRole'
+import TrainingForm from '../../../components/sis/TrainingForm'
+import TrainingRow from '../../../components/sis/TrainingRow'
+import TrainingPeoplePicker from '../../../components/sis/TrainingPeoplePicker'
+import TrainingProgressTable from '../../../components/sis/TrainingProgressTable'
+import { useDeleteTrainingLink } from '../../../hooks/api/useTraining'
+import { useConfirm } from '../../../contexts/ConfirmContext'
+import { words, assignedMessage } from '../trainingCopy'
+import { Input } from '../../../components/ui/Input'
 
 /**
- * StaffTrainingPage — the training a school sets: quests, and links to videos
- * or documents.
+ * TrainingPanel — the training a school sets: quests, and links to videos or
+ * documents. The Training tab of Library (LibraryPage) since M22; it was the
+ * Training page. The shell owns the heading and the tab bar.
  *
  * Three audiences (iCreate, 2026-08-06: "admin need to be able to create quests
  * for all their teachers and families"):
@@ -44,7 +45,7 @@ import { Input } from '../../components/ui/Input'
  * quest on their account, which is why the student audience has no page here.
  */
 
-const StaffTrainingPage = () => {
+const TrainingPanel = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId, activeOrg } = useSisOrg()
@@ -176,9 +177,6 @@ const StaffTrainingPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Training</h1>
-      </div>
       <p className="text-sm text-neutral-500 mb-6">
         {admin
           ? 'Quests your school sets for its teachers and its families. Open one to start it on the web platform \u2014 progress shows up here automatically.'
@@ -328,4 +326,4 @@ const StaffTrainingPage = () => {
   )
 }
 
-export default StaffTrainingPage
+export default TrainingPanel

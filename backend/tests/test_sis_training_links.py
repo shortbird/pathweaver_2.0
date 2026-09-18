@@ -380,6 +380,6 @@ class TestTheOtherPagesLeaveItAlone:
         with patch.object(tasks, '_admin', return_value=client), \
              patch.object(sis_service, 'filter_role_visible', side_effect=lambda _u, rows: rows):
             out = {t['resource_id']: t for t in tasks._ack_tasks(ORG, TEACHER, 'staff')}
-        assert out['l-1']['link'] == '/training'
+        assert out['l-1']['link'] == '/library?tab=training'
         assert out['l-1']['title'] == 'Training: Whole Brain Teaching'
-        assert out['r-1']['link'] == '/resources?highlight=r-1'
+        assert out['r-1']['link'] == '/library?highlight=r-1'

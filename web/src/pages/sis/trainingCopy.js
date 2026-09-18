@@ -1,8 +1,8 @@
 /**
- * The Training page's copy: what each audience calls its people, and the
+ * The Training tab's copy: what each audience calls its people, and the
  * labels a quest's progress and XP get. Pure functions, no React -- split
- * out of StaffTrainingPage.jsx when training links pushed it to the
- * component-size cap (componentSize.test.js).
+ * out of the training page (now libraryPage/TrainingPanel.jsx) when training
+ * links pushed it to the component-size cap (componentSize.test.js).
  */
 
 export const progressLabel = (p) => {

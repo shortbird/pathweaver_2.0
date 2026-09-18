@@ -33,6 +33,17 @@ const ClassesRedirect = ({ tab }) => {
   return <Navigate to={`/classes?${params.toString()}`} replace />
 }
 
+// The four library pages became one on 2026-09-18 (M22): /library holds
+// Documents (was /resources), Training, and for admins Curriculum and Quests
+// (was /quest-library), as tabs. Query strings ride along: the task inbox's
+// /resources?highlight= and a quest chip's /curriculum?curriculum= still land.
+const LibraryRedirect = ({ tab }) => {
+  const { search } = useLocation()
+  const params = new URLSearchParams(search)
+  params.set('tab', tab)
+  return <Navigate to={`/library?${params.toString()}`} replace />
+}
+
 const TasksRedirect = ({ view = null }) => {
   const { search } = useLocation()
   const params = new URLSearchParams(search)
@@ -122,15 +133,12 @@ const TuitionApprovalPage = lazy(() => import('../pages/sis/TuitionApprovalPage'
 const SchoolInboxPage = lazy(() => import('../pages/sis/SchoolInboxPage'))
 const RegistrationPage = lazy(() => import('../pages/sis/RegistrationPage'))
 const CalendarPage = lazy(() => import('../pages/sis/CalendarPage'))
-const ResourcesPage = lazy(() => import('../pages/sis/ResourcesPage'))
 const CommunityPage = lazy(() => import('../pages/sis/CommunityPage'))
 const SettingsPage = lazy(() => import('../pages/sis/SettingsPage'))
 const GoalsReviewPage = lazy(() => import('../pages/sis/GoalsReviewPage'))
 const ReportsPage = lazy(() => import('../pages/sis/ReportsPage'))
 const PriorLearningPage = lazy(() => import('../pages/sis/PriorLearningPage'))
-const CurriculumPage = lazy(() => import('../pages/sis/CurriculumPage'))
-const QuestLibraryPage = lazy(() => import('../pages/sis/QuestLibraryPage'))
-const StaffTrainingPage = lazy(() => import('../pages/sis/StaffTrainingPage'))
+const LibraryPage = lazy(() => import('../pages/sis/LibraryPage'))
 
 // Teacher portal pages (advisors; admins can open them too)
 const TeacherClassPage = lazy(() => import('../pages/sis/TeacherClassPage'))
@@ -197,13 +205,16 @@ const SisRoutes = () => (
       <Route path="inbox" element={<SchoolInboxPage />} />
       <Route path="registration" element={<AdminRoute><ModuleGate path="/registration"><RegistrationPage /></ModuleGate></AdminRoute>} />
       <Route path="calendar" element={<ModuleGate path="/calendar"><CalendarPage /></ModuleGate>} />
-      <Route path="resources" element={<ModuleGate path="/resources"><ResourcesPage /></ModuleGate>} />
-      <Route path="curriculum" element={<AdminRoute><ModuleGate path="/curriculum"><CurriculumPage /></ModuleGate></AdminRoute>} />
-      {/* The school's quests in one list, with assign-from-here. Same module
-          and the same admin gate as Curriculum, which is where each quest is
-          edited (Molly, f9b5f2ea). */}
-      <Route path="quest-library" element={<AdminRoute><ModuleGate path="/quest-library"><QuestLibraryPage /></ModuleGate></AdminRoute>} />
-      <Route path="training" element={<ModuleGate path="/training"><StaffTrainingPage /></ModuleGate>} />
+      {/* The library (LibraryRedirect above says what the four old paths
+          became). No page-level module gate: each tab hides on its own
+          module, and the page is off the nav only when all of them are
+          (sisModules). The admin tabs are gated inside the page, as on
+          /classes and /tasks; the backend's ADMIN_ROLES is the real gate. */}
+      <Route path="library" element={<ModuleGate path="/library"><LibraryPage /></ModuleGate>} />
+      <Route path="resources" element={<LibraryRedirect tab="documents" />} />
+      <Route path="training" element={<LibraryRedirect tab="training" />} />
+      <Route path="curriculum" element={<LibraryRedirect tab="curriculum" />} />
+      <Route path="quest-library" element={<LibraryRedirect tab="quests" />} />
       <Route path="community" element={<ModuleGate path="/community"><CommunityPage /></ModuleGate>} />
       <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
 

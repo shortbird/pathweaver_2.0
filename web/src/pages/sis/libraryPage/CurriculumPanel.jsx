@@ -4,17 +4,19 @@ import { toast } from 'react-hot-toast'
 import {
   BookOpenIcon, LinkIcon, PencilSquareIcon, TrashIcon, PlusIcon,
 } from '@heroicons/react/24/outline'
-import api from '../../services/api'
-import { useSisOrg, withOrg } from './useSisOrg'
-import { useAuth } from '../../contexts/AuthContext'
-import { isSisAdmin } from './sisRole'
-import CurriculumFields, { curriculumFieldsOf } from '../../components/sis/CurriculumFields'
-import CurriculumResources from '../../components/sis/CurriculumResources'
-import { useConfirm } from '../../contexts/ConfirmContext'
-import SortHeader from '../../components/ui/SortHeader'
+import api from '../../../services/api'
+import { useSisOrg, withOrg } from '../useSisOrg'
+import { useAuth } from '../../../contexts/AuthContext'
+import { isSisAdmin } from '../sisRole'
+import CurriculumFields, { curriculumFieldsOf } from '../../../components/sis/CurriculumFields'
+import CurriculumResources from '../../../components/sis/CurriculumResources'
+import { useConfirm } from '../../../contexts/ConfirmContext'
+import SortHeader from '../../../components/ui/SortHeader'
 
 /**
- * CurriculumPage — the school's curriculum library.
+ * CurriculumPanel — the school's curriculum library. The Curriculum tab of
+ * Library (LibraryPage) since M22; it was the Curriculum page. The shell owns
+ * the heading and the tab bar.
  *
  * Deliberately independent of the timetable: an entry can exist for a subject
  * nobody is teaching this semester, and one entry (e.g. Reading Workshop) can
@@ -155,7 +157,7 @@ const carriesText = (e) => [
   e.course_count ? `${e.course_count} course${e.course_count === 1 ? '' : 's'}` : null,
 ].filter(Boolean).join(' · ')
 
-const CurriculumPage = () => {
+const CurriculumPanel = () => {
   const confirm = useConfirm()
   const { user } = useAuth()
   const { orgId } = useSisOrg()
@@ -235,9 +237,6 @@ const CurriculumPage = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Curriculum</h1>
-      </div>
       <p className="text-sm text-neutral-500 mb-6">
         Your curriculum library. Link the Drive folder once and attach it to the classes that use it —
         their teachers see it on the class page. Students never see this.
@@ -395,4 +394,4 @@ const CurriculumPage = () => {
   )
 }
 
-export default CurriculumPage
+export default CurriculumPanel

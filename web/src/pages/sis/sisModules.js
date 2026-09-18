@@ -71,8 +71,17 @@ export function getHiddenModules(organization) {
   return hidden
 }
 
+// The Library page (M22) is four tabs on three modules. It has no module of
+// its own: a tab hides on its module, and the page hides only when every tab
+// would -- an org that turned off resources, training and curriculum has no
+// library to open, and one that turned off any two still does.
+const LIBRARY_TAB_PATHS = ['/resources', '/training', '/curriculum']
+
 /** True when `path`'s module is off for the active org (null org hides nothing). */
 export function isPathHidden(path, organization) {
+  if (path === '/library') {
+    return Boolean(organization) && LIBRARY_TAB_PATHS.every((p) => isPathHidden(p, organization))
+  }
   const mod = SIS_MODULE_BY_PATH[path]
   if (!mod || !organization) return false
   return !moduleEnabled(organization, mod)

@@ -2,27 +2,29 @@ import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { BookOpenIcon, PlusIcon } from '@heroicons/react/24/outline'
-import { useSisOrg } from './useSisOrg'
+import { useSisOrg } from '../useSisOrg'
 import {
   useSisQuestLibrary, useAddQuestToCurriculum, useAssignQuestToClass, useCreateLibraryQuest,
-} from '../../hooks/api/useSisQuestLibrary'
-import QuestDraftForm, { blankTask } from '../../components/sis/QuestDraftForm'
-import QuestAiDraftPanel from '../../components/sis/QuestAiDraftPanel'
-import { Input } from '../../components/ui/Input'
-import { Modal } from '../../components/ui/Modal'
-import SearchSelect from '../../components/ui/SearchSelect'
-import EmptyState from '../../components/ui/EmptyState'
-import Button from '../../components/ui/Button'
+} from '../../../hooks/api/useSisQuestLibrary'
+import QuestDraftForm, { blankTask } from '../../../components/sis/QuestDraftForm'
+import QuestAiDraftPanel from '../../../components/sis/QuestAiDraftPanel'
+import { Input } from '../../../components/ui/Input'
+import { Modal } from '../../../components/ui/Modal'
+import SearchSelect from '../../../components/ui/SearchSelect'
+import EmptyState from '../../../components/ui/EmptyState'
+import Button from '../../../components/ui/Button'
 
 /**
- * QuestLibraryPage -- every quest the school owns, in one list, with where
- * each one is in use and a way to put it somewhere from here.
+ * QuestsPanel -- every quest the school owns, in one list, with where each
+ * one is in use and a way to put it somewhere from here.
  *
  * Quests were reachable only through the curriculum that carried them, and a
  * quest on no curriculum yet was not reachable at all. Molly (iCreate,
  * 2026-09-14, f9b5f2ea): "I'd like it to be a separate tab under operations.
  * And from there, all the quests would be listed, and we can assign them as
- * needed from there."
+ * needed from there." It was its own page for three days; since M22 it is
+ * the Quests tab of Library, beside the Curriculum tab that edits them --
+ * the tab she asked for, on the page where quests live.
  *
  * Assigning means what it means on the other screens, through the same two
  * writes: onto a curriculum (POST /api/sis/quests/<id>/curricula, the writer
@@ -233,7 +235,7 @@ export function NewQuestPanel({ curricula, orgId, onDone, onCancel }) {
   )
 }
 
-export default function QuestLibraryPage() {
+export default function QuestsPanel() {
   const { orgId } = useSisOrg()
   const { data, isLoading, isError, error } = useSisQuestLibrary(orgId)
   const quests = data?.quests || []
@@ -259,10 +261,10 @@ export default function QuestLibraryPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Quests</h1>
       <p className="text-sm text-neutral-500 mb-6">
         Every quest your school has made, wherever it was made. Put one on a curriculum to keep it
-        for next term, or assign it straight to a class. To edit a quest, open the curriculum it is on.
+        for next term, or assign it straight to a class. To edit a quest, open the curriculum it is on
+        (the Curriculum tab).
       </p>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -324,7 +326,7 @@ export default function QuestLibraryPage() {
                   <td className="px-3 py-3 text-neutral-700">{q.task_count}</td>
                   <td className="px-3 py-3">
                     <Chips items={q.curricula} labelOf={(c) => c.title}
-                      hrefOf={(c) => `/curriculum?curriculum=${c.id}`}
+                      hrefOf={(c) => `/library?tab=curriculum&curriculum=${c.id}`}
                       empty="Not on a curriculum" />
                   </td>
                   <td className="px-3 py-3">

@@ -50,7 +50,7 @@ const { api } = vi.hoisted(() => ({
 vi.mock('../../services/api', () => ({ default: api }))
 
 import { toast } from 'react-hot-toast'
-import CurriculumPage from './CurriculumPage'
+import CurriculumPanel from './libraryPage/CurriculumPanel'
 
 const RESOURCES = {
   quests: [{ id: 'q1', title: 'Reading log', is_active: true }],
@@ -80,12 +80,12 @@ beforeEach(() => {
 
 describe('what a curriculum carries', () => {
   it('says so on the library row', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     expect(await screen.findByText('3 quests · 1 course')).toBeInTheDocument()
   })
 
   it('lists the quests when the row is opened', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
   })
@@ -95,7 +95,7 @@ describe('what a curriculum carries', () => {
     // quest onto every active class on this curriculum, which is what an admin
     // assumed all along. The half still worth saying out loud is the asymmetry —
     // removing here does NOT pull it back off a class in progress.
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     expect(await screen.findByText(/goes straight onto every active class/i)).toBeInTheDocument()
     expect(screen.getByText(/classes keep\s+what they have/i)).toBeInTheDocument()
@@ -103,7 +103,7 @@ describe('what a curriculum carries', () => {
 
   it('tells the admin how many classes the quest reached', async () => {
     api.put.mockResolvedValue({ data: { success: true, attached: 2, pushed_to_classes: 3 } })
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     const picker = await screen.findByPlaceholderText('Add a quest…')
     fireEvent.focus(picker)
@@ -112,7 +112,7 @@ describe('what a curriculum carries', () => {
   })
 
   it('attaches a quest from the library screen, without going via a class', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     const picker = await screen.findByPlaceholderText('Add a quest…')
     fireEvent.focus(picker)
@@ -128,7 +128,7 @@ describe('what a curriculum carries', () => {
     // The picker mixes the school's own with Optio's public library, and the
     // label says which is which (iCreate asked whether the list was school-only).
     // Carried over from the course picker, which this panel no longer has.
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     const picker = await screen.findByPlaceholderText('Add a quest…')
     fireEvent.focus(picker)
@@ -137,14 +137,14 @@ describe('what a curriculum carries', () => {
   })
 
   it('offers no way to attach a course', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     await screen.findByText('Reading log')
     expect(screen.queryByPlaceholderText('Add a course…')).not.toBeInTheDocument()
   })
 
   it('does not go looking for courses it can no longer attach', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     await screen.findByText('Reading log')
     expect(api.get.mock.calls.some(([url]) => url.includes('/assignable-courses'))).toBe(false)
@@ -152,7 +152,7 @@ describe('what a curriculum carries', () => {
 
   it('shows a teacher what the curriculum carries but no way to change it', async () => {
     authState = { user: { id: 'u2', role: 'org_managed', org_roles: ['advisor'] } }
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Add a quest…')).not.toBeInTheDocument()
@@ -164,7 +164,7 @@ describe('what a curriculum carries', () => {
 
 describe('building a quest from the curriculum page', () => {
   const open = async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     await screen.findByText('Reading log')
   }
@@ -232,7 +232,7 @@ describe('building a quest from the curriculum page', () => {
  */
 describe('editing a curriculum manages what it carries', () => {
   it('shows the quests, with the picker, inside the Edit panel', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Reading Workshop' }))
     expect(await screen.findByText('Reading log')).toBeInTheDocument()
@@ -241,7 +241,7 @@ describe('editing a curriculum manages what it carries', () => {
   })
 
   it('collapses the row disclosure when Edit opens, so the panel is not doubled', async () => {
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     fireEvent.click(await screen.findByText('Reading Workshop'))
     await screen.findByText('Reading log')
     fireEvent.click(screen.getByRole('button', { name: 'Edit Reading Workshop' }))
@@ -255,7 +255,7 @@ describe('editing a curriculum manages what it carries', () => {
     api.post.mockResolvedValue({ data: { curriculum: { id: 'cur9' } } })
     const NEW = { id: 'cur9', title: 'New Unit', subject: '', description: '', drive_url: '',
       notes: null, is_active: true, quest_count: 0, course_count: 0, classes: [] }
-    render(<CurriculumPage />)
+    render(<CurriculumPanel />)
     await screen.findByText('Reading Workshop')
     fireEvent.click(screen.getByRole('button', { name: /Add curriculum/ }))
     // Before the entry exists there is nothing to attach to — the panel says so.

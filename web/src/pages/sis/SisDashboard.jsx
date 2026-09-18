@@ -209,7 +209,7 @@ const SisDashboard = () => {
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
                   Noticeboard
                 </h2>
-                <Link to="/resources" className="text-sm text-optio-purple hover:underline">
+                <Link to="/library" className="text-sm text-optio-purple hover:underline">
                   Manage links
                 </Link>
               </div>
