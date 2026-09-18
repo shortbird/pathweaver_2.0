@@ -29,16 +29,18 @@ the calendar has closed on the real one:
 Idempotent on the demo slug: a second run finds the org and stops. Run from
 backend/ with the venv and the prod .env:
 
-    ICREATE_DEMO_PASSWORD=... .venv/bin/python scripts/seed_icreate_demo_org.py
+    .venv/bin/python scripts/seed_icreate_demo_org.py            # prompts for the parent's password
+    .venv/bin/python scripts/seed_icreate_demo_org.py --password ...
     .venv/bin/python scripts/seed_icreate_demo_org.py --teardown
 """
 import argparse
 import copy
+import getpass
 import os
 import secrets
 import sys
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -47,8 +49,10 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
 # utils before database: importing database first trips the utils.auth cycle.
+from services import sis_service  # noqa: E402
 from utils.admin_client import admin_client  # noqa: E402
 from utils.db_fetch import fetch_all_rows  # noqa: E402
+from utils.timestamps import now_iso as _now  # noqa: E402
 
 SOURCE_SLUG = 'icreate'
 DEMO_SLUG = 'icreate-demo'
@@ -128,10 +132,6 @@ NEIGHBOURS = [
 # admin client justified: a one-off seed run by hand against the prod project;
 # it creates a whole sibling org, which no RLS-scoped caller could.
 admin = admin_client()
-
-
-def _now():
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _org_by_slug(slug):
@@ -254,9 +254,11 @@ def clone_instructors(classes, org_id):
             'display_name': u.get('display_name') or f'{first} {last}'.strip(),
             'preferred_name': u.get('preferred_name'),
             'avatar_url': u.get('avatar_url'), 'bio': u.get('bio'),
-            'role': 'org_managed', 'org_role': 'advisor', 'org_roles': ['advisor'],
-            'organization_id': org_id,
+            'role': 'org_managed', 'organization_id': org_id,
         })
+        # The teacher role is one write, shared with the console's add form
+        # and the placeholder merge (sisConcepts advisor_role_grant).
+        sis_service.grant_advisor_role(org_id, {'id': uid, 'organization_id': org_id, 'role': 'org_managed'})
         mapping[u['id']] = uid
     print(f'instructors: {len(mapping)}')
     return mapping
@@ -569,13 +571,14 @@ def teardown():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--teardown', action='store_true', help='remove the demo org and everyone in it')
+    ap.add_argument('--password', help="the demo parent's login password; prompted for when omitted")
     args = ap.parse_args()
     if args.teardown:
         teardown()
         return
-    password = os.environ.get('ICREATE_DEMO_PASSWORD')
+    password = args.password or getpass.getpass("Demo parent's password: ")
     if not password:
-        sys.exit('Set ICREATE_DEMO_PASSWORD in the environment before seeding.')
+        sys.exit('A password for the demo parent is required to seed.')
     seed(password)
 
 
