@@ -104,7 +104,6 @@ def person_removal_preview(user_id, target_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    from services import sis_person_service
     result = sis_person_service.removal_preview(org_id, target_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
@@ -124,7 +123,6 @@ def remove_person(user_id, target_id):
     if err:
         return err
     mode = (request.args.get('mode') or 'archive').strip().lower()
-    from services import sis_person_service
     result = sis_person_service.remove_person(org_id, target_id, actor_id=user_id, mode=mode)
     if result.get('error'):
         status = 404 if 'not found' in result['error'] else 409
@@ -555,7 +553,6 @@ def withdraw_household(user_id, household_id):
     org_id, err = sis_service.org_or_error(user_id)
     if err:
         return err
-    from services import sis_person_service
     result = sis_person_service.withdraw_household(org_id, household_id, actor_id=user_id)
     if result.get('error'):
         return jsonify({'success': False, 'error': result['error']}), 404
