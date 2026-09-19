@@ -43,6 +43,7 @@ from services.peer_policy_service import PeerPolicyError
 from utils.api_response import success_response, error_response
 from utils.auth.decorators import require_auth, require_org_admin, validate_uuid_param
 from utils.auth.relationships import require_relationship_to, student_scope
+from utils.client_ip import get_real_ip
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -269,10 +270,14 @@ def put_child_policy(user_id, student_id):
     many. The relationship gate admits staff; the service narrows that to the
     org admin, and only for a student with no parent linked."""
     data = request.get_json() or {}
+    # One address, from the one hop-counting reader. The raw header is
+    # "client, proxy" behind Cloudflare, and parental_consent_log.ip_address
+    # is inet: every consent write in prod failed on it, so nobody could turn
+    # Friends on (Paige Hanna, 2026-09-19).
     try:
         result = policy_svc.set_policy(
             student_id, user_id, data,
-            ip_address=request.headers.get('X-Forwarded-For', request.remote_addr),
+            ip_address=get_real_ip(),
             user_agent=request.headers.get('User-Agent'),
         )
         return success_response(data=result)
