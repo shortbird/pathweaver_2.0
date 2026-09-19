@@ -82,7 +82,10 @@ describe('AbsenceReportingPage multi-child selection', () => {
     render(<AbsenceReportingPage />)
     const ada = await screen.findByRole('button', { name: 'Ada' })
     const linus = screen.getByRole('button', { name: 'Linus' })
-    expect(ada).toHaveAttribute('aria-pressed', 'true')
+    // The buttons paint one render before the default-selection effect
+    // ticks Ada; under CI load that render is what findByRole returns
+    // (release run 35455648604, 2026-09-19), so wait for the tick.
+    await waitFor(() => expect(ada).toHaveAttribute('aria-pressed', 'true'))
     expect(linus).toHaveAttribute('aria-pressed', 'false')
 
     await userEvent.click(linus)
