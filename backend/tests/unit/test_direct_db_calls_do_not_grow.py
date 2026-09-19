@@ -236,7 +236,11 @@ BASELINES = {
     # lookup, update and insert and the learning-app admin's copy of the
     # lookup and its household insert went into sis_attach_service, which
     # reads and writes through HouseholdRepository.
-    'routes': 2248,
+    # 2026-09-19: 2248 -> 2245. The family-cover route's three direct users
+    # reads and writes went into UserRepository (family_cover_pointers,
+    # set_family_cover) when the photo started to be shared across a platform
+    # family's co-parents.
+    'routes': 2245,
     # 2026-09-09: 1828 -> 1830. The deletion sweep's reactivation guard, in
     # account_deletion_service: one read for dependents added after the request,
     # one write to rescind it. The sweep is a cron entrypoint that already owns
@@ -529,7 +533,11 @@ BASELINES = {
     # 2026-09-18: 586 -> 587. TaskRepository.find_approved_on_quest_for_users,
     # every family member's list on one quest, so a child added to a
     # parent-made quest gets a copy of a sibling's tasks.
-    'repositories': 587,
+    # 2026-09-19: 587 -> 588. UserRepository.set_family_cover, one write that
+    # points a whole platform family's rows at (or away from) the family
+    # photo; the three direct users calls in routes/parent/family_cover.py
+    # left routes/ for it and family_cover_pointers (which reuses find_by_ids).
+    'repositories': 588,
     # 2026-09-09: 135 -> 136. class_membership.children_in_classes, the inverse
     # of parents_of_students: which of a guardian's children sit in each of a
     # set of classes. It answers "whose class chat is this?" for the messaging
@@ -609,7 +617,7 @@ def test_direct_db_calls_do_not_grow(layer):
 
 #: routes/ + services/ combined. A call may move DOWN a layer; the total may not
 #: grow. Keep this equal to BASELINES['routes'] + BASELINES['services'].
-UPPER_TOTAL_BASELINE = 2248 + 1833
+UPPER_TOTAL_BASELINE = 2245 + 1833
 
 
 def test_the_upper_layers_do_not_grow_in_total():

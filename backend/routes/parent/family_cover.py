@@ -8,15 +8,20 @@ DELETE /api/parent/family-cover  -> removes it
 A family that has a household row (every SIS family) has ONE photo:
 households.image_url, the same one the office sets on the family record --
 two uploads in two buckets for one concept was audit NB4 (M4). A platform
-family with no household row keeps the parent's own users.family_cover_url,
-so a co-parent there sets their own. Both are stored privately and signed on
-read.
+family with no household row keeps it on users.family_cover_url of whichever
+parent set it last; the co-parents (every other parent of the caller's
+children, per utils.class_membership) read that row, an upload clears
+theirs, and a remove clears everyone's. It used to be the caller's own row
+only, so a mother saw "Add a family photo" under the picture her husband had
+already put up (2026-09-19). Both are stored privately and signed on read.
 """
 
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from repositories.household_repository import HouseholdRepository
+from repositories.user_repository import UserRepository
 from services import sis_billing_service as billing
+from utils import class_membership
 from utils.auth.decorators import require_auth
 from utils.image_utils import store_image_upload
 from utils.logger import get_logger
@@ -41,14 +46,28 @@ def _household_for(user_id):
     return rows[0] if rows else None
 
 
+def _co_parents(user_id):
+    """Every other parent of this parent's children -- the rest of a platform
+    family, which has no household row to name its members."""
+    children = class_membership.children_of_parent(user_id)
+    return sorted(class_membership.parents_of_students(children) - {user_id}) if children else []
+
+
+def _platform_family_cover(users, user_id):
+    """The pointer on the caller's own row, else the one a co-parent set."""
+    family = [user_id] + _co_parents(user_id)
+    pointers = users.family_cover_pointers(family)
+    return next((pointers[uid] for uid in family if pointers.get(uid)), None)
+
+
 def _current(supabase, user_id):
     """(signed url, household row or None)."""
     hh = _household_for(user_id)
     if hh:
         row = HouseholdRepository(client=supabase).find_by_id(hh['id']) or {}
         return sign_stored_url(row.get('image_url'), HOUSEHOLD_BUCKET), hh
-    row = supabase.table('users').select('family_cover_url').eq('id', user_id).single().execute().data or {}
-    return sign_stored_url(row.get('family_cover_url'), USER_BUCKET), None
+    pointer = _platform_family_cover(UserRepository(client=supabase), user_id)
+    return sign_stored_url(pointer, USER_BUCKET), None
 
 
 @bp.route('/family-cover', methods=['GET'])
@@ -84,7 +103,11 @@ def upload_family_cover(user_id):
         return jsonify({'success': True, 'family_cover_url': sign_stored_url(pointer, HOUSEHOLD_BUCKET)})
     pointer = store_image_upload(supabase, request.files['cover'], f'family-covers/{user_id}',
                                  max_bytes=10 * 1024 * 1024, gate=_gate)
-    supabase.table('users').update({'family_cover_url': pointer}).eq('id', user_id).execute()
+    users = UserRepository(client=supabase)
+    users.set_family_cover([user_id], pointer)
+    # The photo now lives on this row; a co-parent's older one would otherwise
+    # win on their own phone.
+    users.set_family_cover(_co_parents(user_id), None)
     logger.info(f"Parent {user_id[:8]} set a family photo")
     return jsonify({'success': True, 'family_cover_url': sign_stored_url(pointer, USER_BUCKET)})
 
@@ -98,5 +121,5 @@ def remove_family_cover(user_id):
     if hh:
         HouseholdRepository(client=supabase).update(hh['id'], {'image_url': None})
     else:
-        supabase.table('users').update({'family_cover_url': None}).eq('id', user_id).execute()
+        UserRepository(client=supabase).set_family_cover([user_id] + _co_parents(user_id), None)
     return jsonify({'success': True, 'family_cover_url': None})

@@ -414,6 +414,35 @@ class UserRepository(BaseRepository):
             return False
 
     # ========================================================================
+    # FAMILY PHOTO (platform families with no household row)
+    # ========================================================================
+
+    def family_cover_pointers(self, user_ids: List[str]) -> Dict[str, Optional[str]]:
+        """{user_id: users.family_cover_url} for each of these parents, None
+        where the row holds no photo. One read for the whole family, so
+        routes/parent/family_cover can find the photo whichever co-parent set
+        it (2026-09-19: a mother saw "Add a family photo" under the picture
+        her husband had already put up)."""
+        ids = [uid for uid in (user_ids or []) if uid]
+        rows = self.find_by_ids(ids, 'id, family_cover_url') if ids else {}
+        return {uid: (rows.get(uid) or {}).get('family_cover_url') for uid in ids}
+
+    def set_family_cover(self, user_ids: List[str], pointer: Optional[str]) -> None:
+        """Point every one of these parents' rows at `pointer` (None clears).
+        One write for the whole family."""
+        ids = [uid for uid in (user_ids or []) if uid]
+        if not ids:
+            return
+        try:
+            (self.client.table(self.table_name)
+             .update({'family_cover_url': pointer})
+             .in_('id', ids)
+             .execute())
+        except APIError as e:
+            logger.error(f"Error setting family cover for {len(ids)} users: {e}")
+            raise DatabaseError("Failed to set family cover") from e
+
+    # ========================================================================
     # ADMIN USER MANAGEMENT METHODS
     # ========================================================================
 

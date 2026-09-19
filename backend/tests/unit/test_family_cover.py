@@ -2,18 +2,20 @@
 shares with the child avatar route (utils.image_utils.store_image_upload)."""
 
 import io
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from flask import Flask
 from werkzeug.datastructures import FileStorage
 
 from middleware.error_handler import ValidationError
+from repositories.user_repository import UserRepository
 from routes.parent import family_cover
 from utils.image_utils import store_image_upload
 
 
 PARENT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+CO_PARENT = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 
 def _innermost(view):
@@ -56,56 +58,124 @@ class TestStoreImageUpload:
 
 
 class TestFamilyCoverRoutes:
-    """A platform family with no household row: the photo is the parent's own
-    users.family_cover_url (the SIS family is TestFamilyCoverOnTheHousehold)."""
+    """A platform family with no household row: the photo sits on
+    users.family_cover_url of whichever parent set it last, and every
+    co-parent reads it (the SIS family is TestFamilyCoverOnTheHousehold)."""
 
     @pytest.fixture(autouse=True)
-    def _no_household(self):
-        with patch.object(family_cover, '_household_for', return_value=None):
+    def _platform_family(self):
+        with patch.object(family_cover, '_household_for', return_value=None), \
+                patch.object(family_cover, '_co_parents', return_value=[CO_PARENT]):
             yield
 
-    def _client(self):
-        client = MagicMock()
-        client.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
-            'family_cover_url': 'https://x.supabase.co/storage/v1/object/public/user-uploads/family-covers/p/1.jpg',
-        }
-        return client
+    def _users(self, pointers=None):
+        users = MagicMock(spec=UserRepository)
+        users.family_cover_pointers.return_value = pointers or {}
+        return users
 
-    def test_get_signs_the_stored_pointer(self, app):
-        client = self._client()
+    def _get(self, app, users):
         with app.test_request_context('/api/parent/family-cover'), \
-                patch.object(family_cover, 'get_supabase_admin_client', return_value=client), \
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=MagicMock()), \
+                patch.object(family_cover, 'UserRepository', return_value=users), \
                 patch.object(family_cover, 'sign_stored_url', side_effect=lambda v, b: f'signed:{v}' if v else None):
-            body = _innermost(family_cover.get_family_cover)(PARENT).get_json()
-        assert body['family_cover_url'].startswith('signed:')
+            return _innermost(family_cover.get_family_cover)(PARENT).get_json()
 
-    def test_post_stores_the_image_on_the_parent_row(self, app):
-        client = self._client()
+    def test_get_signs_the_parents_own_pointer(self, app):
+        users = self._users({PARENT: 'own', CO_PARENT: None})
+        body = self._get(app, users)
+        users.family_cover_pointers.assert_called_once_with([PARENT, CO_PARENT])
+        assert body['family_cover_url'] == 'signed:own'
+
+    def test_get_reads_the_photo_a_co_parent_set(self, app):
+        # The 2026-09-19 report: the mother's row is empty, the father's holds
+        # the picture, and her phone said "Add a family photo".
+        users = self._users({PARENT: None, CO_PARENT: 'theirs'})
+        assert self._get(app, users)['family_cover_url'] == 'signed:theirs'
+
+    def test_get_prefers_the_parents_own_row_when_both_hold_one(self, app):
+        users = self._users({PARENT: 'own', CO_PARENT: 'theirs'})
+        assert self._get(app, users)['family_cover_url'] == 'signed:own'
+
+    def test_get_is_null_when_nobody_has_set_one(self, app):
+        users = self._users({PARENT: None, CO_PARENT: None})
+        assert self._get(app, users)['family_cover_url'] is None
+
+    def test_post_stores_the_image_on_the_parent_row_and_clears_the_co_parents(self, app):
+        users = self._users()
         data = {'cover': (io.BytesIO(b'jpegbytes'), 'us.jpg', 'image/jpeg')}
         with app.test_request_context('/api/parent/family-cover', method='POST', data=data,
                                       content_type='multipart/form-data'), \
-                patch.object(family_cover, 'get_supabase_admin_client', return_value=client), \
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=MagicMock()), \
+                patch.object(family_cover, 'UserRepository', return_value=users), \
                 patch.object(family_cover, 'store_image_upload', return_value='pointer') as store, \
                 patch.object(family_cover, 'sign_stored_url', side_effect=lambda v, b: f'signed:{v}'):
             body = _innermost(family_cover.upload_family_cover)(PARENT).get_json()
         assert store.call_args.args[2] == f'family-covers/{PARENT}'
-        client.table.return_value.update.assert_called_with({'family_cover_url': 'pointer'})
-        client.table.return_value.update.return_value.eq.assert_called_with('id', PARENT)
+        assert users.set_family_cover.call_args_list == [call([PARENT], 'pointer'), call([CO_PARENT], None)]
         assert body == {'success': True, 'family_cover_url': 'signed:pointer'}
 
     def test_post_without_a_file_is_a_validation_error(self, app):
         with app.test_request_context('/api/parent/family-cover', method='POST'), \
-                patch.object(family_cover, 'get_supabase_admin_client', return_value=self._client()):
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=MagicMock()):
             with pytest.raises(ValidationError):
                 _innermost(family_cover.upload_family_cover)(PARENT)
 
-    def test_delete_clears_the_row(self, app):
-        client = self._client()
+    def test_delete_clears_the_whole_family(self, app):
+        users = self._users()
         with app.test_request_context('/api/parent/family-cover', method='DELETE'), \
-                patch.object(family_cover, 'get_supabase_admin_client', return_value=client):
+                patch.object(family_cover, 'get_supabase_admin_client', return_value=MagicMock()), \
+                patch.object(family_cover, 'UserRepository', return_value=users):
             body = _innermost(family_cover.remove_family_cover)(PARENT).get_json()
-        client.table.return_value.update.assert_called_with({'family_cover_url': None})
+        users.set_family_cover.assert_called_once_with([PARENT, CO_PARENT], None)
         assert body == {'success': True, 'family_cover_url': None}
+
+
+class TestCoParents:
+    """The rest of a platform family is every other parent of the caller's
+    children, through utils.class_membership (managed_by_parent_id and
+    approved parent_student_links both count)."""
+
+    def test_the_other_parents_of_the_callers_children(self):
+        with patch.object(family_cover.class_membership, 'children_of_parent', return_value={'kid-1'}), \
+                patch.object(family_cover.class_membership, 'parents_of_students',
+                             return_value={PARENT, CO_PARENT}) as parents_of:
+            assert family_cover._co_parents(PARENT) == [CO_PARENT]
+        parents_of.assert_called_once_with({'kid-1'})
+
+    def test_a_parent_with_no_children_has_no_co_parents(self):
+        with patch.object(family_cover.class_membership, 'children_of_parent', return_value=set()), \
+                patch.object(family_cover.class_membership, 'parents_of_students') as parents_of:
+            assert family_cover._co_parents(PARENT) == []
+        parents_of.assert_not_called()
+
+
+class TestUserRepositoryFamilyCover:
+    def test_pointers_are_keyed_by_every_id_asked_for(self):
+        client = MagicMock()
+        client.table.return_value.select.return_value.in_.return_value.execute.return_value.data = [
+            {'id': PARENT, 'family_cover_url': 'pointer'},
+        ]
+        got = UserRepository(client=client).family_cover_pointers([PARENT, CO_PARENT])
+        assert got == {PARENT: 'pointer', CO_PARENT: None}
+        client.table.return_value.select.assert_called_with('id, family_cover_url')
+        client.table.return_value.select.return_value.in_.assert_called_with('id', [PARENT, CO_PARENT])
+
+    def test_no_ids_means_no_query(self):
+        client = MagicMock()
+        assert UserRepository(client=client).family_cover_pointers([]) == {}
+        client.table.assert_not_called()
+
+    def test_set_writes_one_pointer_to_every_row(self):
+        client = MagicMock()
+        UserRepository(client=client).set_family_cover([PARENT, CO_PARENT], 'pointer')
+        client.table.assert_called_with('users')
+        client.table.return_value.update.assert_called_with({'family_cover_url': 'pointer'})
+        client.table.return_value.update.return_value.in_.assert_called_with('id', [PARENT, CO_PARENT])
+
+    def test_set_with_no_ids_is_a_no_op(self):
+        client = MagicMock()
+        UserRepository(client=client).set_family_cover([], None)
+        client.table.assert_not_called()
 
 
 class TestFamilyCoverOnTheHousehold:
