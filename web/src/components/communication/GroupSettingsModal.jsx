@@ -10,18 +10,21 @@ import {
   ShieldCheckIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../contexts/AuthContext'
+import { useConfirm } from '../../contexts/ConfirmContext'
 import {
   useGroup,
   useUpdateGroup,
   useAddMember,
   useRemoveMember,
   useLeaveGroup,
+  useDeleteGroup,
   useAvailableMembers,
   useUpdateGroupSettings
 } from '../../hooks/api/useGroupMessages'
 
 const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   const { user } = useAuth()
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState('members')
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -41,6 +44,7 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   const addMemberMutation = useAddMember()
   const removeMemberMutation = useRemoveMember()
   const leaveGroupMutation = useLeaveGroup()
+  const deleteGroupMutation = useDeleteGroup()
   const updateSettingsMutation = useUpdateGroupSettings()
 
   const groupDetails = groupData?.group || group
@@ -50,6 +54,9 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
 
   // Check if current user is admin
   const isAdmin = members.some(m => m.user_id === user?.id && m.role === 'admin')
+  // The backend refuses to let the only admin leave (the group would be
+  // ownerless), so Leave is not offered to them; Delete is what they can do.
+  const isSoleAdmin = isAdmin && members.filter(m => m.role === 'admin').length === 1
 
   // Reset state when modal opens
   useEffect(() => {
@@ -91,7 +98,7 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   }
 
   const handleRemoveMember = async (userId) => {
-    if (!confirm('Are you sure you want to remove this member?')) return
+    if (!(await confirm('Are you sure you want to remove this member?'))) return
 
     try {
       await removeMemberMutation.mutateAsync({
@@ -117,10 +124,24 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
   }
 
   const handleLeaveGroup = async () => {
-    if (!confirm('Are you sure you want to leave this group?')) return
+    if (!(await confirm('Are you sure you want to leave this group?'))) return
 
     try {
       await leaveGroupMutation.mutateAsync(group.id)
+      onClose()
+    } catch (error) {
+      // Error handled by mutation
+    }
+  }
+
+  const handleDeleteGroup = async () => {
+    const ok = await confirm(
+      `Delete "${groupDetails?.name || 'this group'}"? It disappears for every member. The messages are kept.`
+    )
+    if (!ok) return
+
+    try {
+      await deleteGroupMutation.mutateAsync(group.id)
       onClose()
     } catch (error) {
       // Error handled by mutation
@@ -471,15 +492,35 @@ const GroupSettingsModal = ({ isOpen, onClose, group }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          <button
-            onClick={handleLeaveGroup}
-            disabled={leaveGroupMutation.isPending}
-            className="w-full py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            Leave Group
-          </button>
+        <div className="p-4 border-t border-gray-200 space-y-2">
+          {isSoleAdmin ? (
+            <p className="text-xs text-neutral-500 text-center">
+              You are the only admin, so you cannot leave. Delete the group instead.
+            </p>
+          ) : (
+            <button
+              onClick={handleLeaveGroup}
+              disabled={leaveGroupMutation.isPending}
+              className="w-full py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+              Leave Group
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={handleDeleteGroup}
+              disabled={deleteGroupMutation.isPending}
+              className={`w-full py-2 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 ${
+                isSoleAdmin
+                  ? 'text-red-600 border border-red-300 hover:bg-red-50'
+                  : 'text-neutral-500 hover:text-red-600 hover:bg-red-50'
+              }`}
+            >
+              <TrashIcon className="w-5 h-5" />
+              Delete Group
+            </button>
+          )}
         </div>
       </div>
     </div>

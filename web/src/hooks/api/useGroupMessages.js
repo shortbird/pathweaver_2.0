@@ -145,6 +145,30 @@ export const useRemoveMember = () => {
   })
 }
 
+// Delete group (admin only). Soft: the backend marks it inactive and it leaves
+// every member's list. Mobile has had this since its group chat shipped; the
+// web modal offered only Leave, which the backend refuses for the only admin,
+// so a teacher who made a group by mistake had no way out of it (Karin
+// Jaccard, iCreate, 2026-09-19; Sentry OPTIO-BACKEND 7742875693 and -689).
+export const useDeleteGroup = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (groupId) => {
+      const response = await api.delete(`/api/groups/${groupId}`)
+      return response.data.data || response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      toast.success('Group deleted')
+    },
+    onError: (error) => {
+      const message = error.response?.data?.error || 'Failed to delete group'
+      toast.error(message)
+    }
+  })
+}
+
 // Leave group
 export const useLeaveGroup = () => {
   const queryClient = useQueryClient()

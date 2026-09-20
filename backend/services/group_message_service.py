@@ -824,6 +824,9 @@ class GroupMessageService(BaseService):
 
             return True
 
+        except ValueError:
+            # The two rules above. The route answers 403 and logs them once.
+            raise
         except Exception as e:
             logger.error(f"Error removing member: {str(e)}")
             raise

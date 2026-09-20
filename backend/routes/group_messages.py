@@ -294,7 +294,10 @@ def leave_group(user_id: str, group_id: str):
         })
 
     except ValueError as e:
-        logger.error(f"Error leaving group: {str(e)}")
+        # A rule, not a fault: "you are the only admin" is the service doing
+        # its job. Logged at error it opened two Sentry issues per click
+        # (OPTIO-BACKEND 7742875693 and 7742875689, 2026-09-19).
+        logger.warning(f"Leave group refused: {str(e)}")
         return error_response(str(e), status_code=403, error_code="forbidden")
 
     except Exception as e:
