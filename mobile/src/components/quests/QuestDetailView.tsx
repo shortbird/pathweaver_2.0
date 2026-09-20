@@ -51,6 +51,7 @@ import { ClassDetailHeader } from '@/src/components/class/ClassDetailHeader';
 import { getSubject } from '@/src/components/class/SUBJECTS';
 import { EditMomentModal } from '@/src/components/journal/EditMomentModal';
 import { TaskEditModal } from '@/src/components/tasks/TaskEditModal';
+import { EditEvidenceTextSheet, replaceBlockText } from '@/src/components/quests/EditEvidenceTextSheet';
 import type { LearningEvent } from '@/src/hooks/useJournal';
 import { useThemeColors } from '@/src/hooks/useThemeColors';
 import { showAlert, confirmAlert } from '@/src/utils/alerts';
@@ -277,6 +278,7 @@ function TaskItem({
   const [evidenceBlocks, setEvidenceBlocks] = useState<any[]>([]);
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [evidenceSheetVisible, setEvidenceSheetVisible] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<any | null>(null);
   const c = useThemeColors();
   const viewerUserId = useAuthStore((s) => s.user?.id || null);
   const pillar = pillarColors[task.pillar] || pillarColors.stem;
@@ -429,6 +431,21 @@ function TaskItem({
       setEvidenceBlocks(previous);
       setCompleteError("That evidence couldn't be removed. Try again.");
     }
+  };
+
+  // Which blocks this viewer may reword. A student's own text block, on their
+  // own task: a parent's blocks go through the helper endpoints, which have
+  // no edit, and nothing but text has words to fix (Tami Eastman, 2026-09-20:
+  // "I just noticed some spelling errors and I either have to delete it and
+  // start again or let the spelling error remain").
+  const canEditBlock = (block: any) =>
+    !task.is_moment && !studentId && (block.block_type || block.type) === 'text';
+
+  const handleEditBlockText = async (text: string) => {
+    const updated = replaceBlockText(evidenceBlocks, editingBlock, text);
+    await saveBlocks(updated, task.is_completed ? 'completed' : 'draft');
+    setEvidenceBlocks(updated);
+    refetchEvidence();
   };
 
   const confirmRemoveBlock = async (block: any) => {
@@ -618,16 +635,28 @@ function TaskItem({
                     <View key={block.id || idx} className="relative">
                       <EvidenceBlockDisplay block={block} />
                       <UploaderLabel block={block} />
-                      {canRemoveBlock(block) && (
-                        <Pressable
-                          onPress={(e) => { e.stopPropagation(); confirmRemoveBlock(block); }}
-                          hitSlop={8}
-                          accessibilityLabel="Remove this evidence"
-                          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 items-center justify-center"
-                        >
-                          <Ionicons name="close" size={15} color="#FFFFFF" />
-                        </Pressable>
-                      )}
+                      <HStack className="absolute top-1 right-1 gap-1">
+                        {canEditBlock(block) && (
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation(); setEditingBlock(block); }}
+                            hitSlop={8}
+                            accessibilityLabel="Edit this evidence"
+                            className="w-7 h-7 rounded-full bg-black/50 items-center justify-center"
+                          >
+                            <Ionicons name="pencil" size={14} color="#FFFFFF" />
+                          </Pressable>
+                        )}
+                        {canRemoveBlock(block) && (
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation(); confirmRemoveBlock(block); }}
+                            hitSlop={8}
+                            accessibilityLabel="Remove this evidence"
+                            className="w-7 h-7 rounded-full bg-black/50 items-center justify-center"
+                          >
+                            <Ionicons name="close" size={15} color="#FFFFFF" />
+                          </Pressable>
+                        )}
+                      </HStack>
                     </View>
                   ))}
                 </VStack>
@@ -762,6 +791,14 @@ function TaskItem({
           : task.is_completed
             ? (_new, combined) => saveBlocks(combined, 'completed')
             : undefined}
+      />
+
+      {/* Reword one text block in place; the rest of the document is untouched. */}
+      <EditEvidenceTextSheet
+        visible={!!editingBlock}
+        block={editingBlock}
+        onClose={() => setEditingBlock(null)}
+        onSave={handleEditBlockText}
       />
     </Pressable>
   );
