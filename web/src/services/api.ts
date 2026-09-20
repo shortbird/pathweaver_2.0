@@ -875,22 +875,33 @@ export const helperEvidenceAPI = {
  * Task Steps API
  * AI-powered task step breakdowns for neurodivergent-supportive learning
  */
+// Family scope: a parent working on a child's task passes { studentId } and
+// every call names the child (query string on reads and the delete, body on
+// the posts), the same way evidenceDocumentService does. Without it the
+// backend scoped every read by the caller and a parent's Break It Down was a
+// 500 (Sentry OPTIO-WEB 7741782549, 2026-09-19).
+const stepsScope = (studentId?: string | null) => (studentId ? { student_id: studentId } : {})
+
 export const taskStepsAPI = {
   // Generate AI-powered steps for a task
-  generateSteps: (taskId: string, granularity = 'quick') =>
-    api.post(`/api/tasks/${taskId}/steps/generate`, { granularity }),
+  generateSteps: (taskId: string, granularity = 'quick', { studentId }: { studentId?: string | null } = {}) =>
+    api.post(`/api/tasks/${taskId}/steps/generate`, { granularity, ...stepsScope(studentId) }),
 
   // Get all steps for a task (including nested sub-steps)
-  getSteps: (taskId: string) => api.get(`/api/tasks/${taskId}/steps`),
+  getSteps: (taskId: string, { studentId }: { studentId?: string | null } = {}) =>
+    api.get(`/api/tasks/${taskId}/steps`, { params: stepsScope(studentId) }),
 
   // Toggle a step's completion status
-  toggleStep: (taskId: string, stepId: string) => api.put(`/api/tasks/${taskId}/steps/${stepId}/toggle`, {}),
+  toggleStep: (taskId: string, stepId: string, { studentId }: { studentId?: string | null } = {}) =>
+    api.put(`/api/tasks/${taskId}/steps/${stepId}/toggle`, stepsScope(studentId)),
 
   // Drill down into a step (for "I'm stuck" feature)
-  drillDown: (taskId: string, stepId: string) => api.post(`/api/tasks/${taskId}/steps/${stepId}/drill-down`, {}),
+  drillDown: (taskId: string, stepId: string, { studentId }: { studentId?: string | null } = {}) =>
+    api.post(`/api/tasks/${taskId}/steps/${stepId}/drill-down`, stepsScope(studentId)),
 
   // Delete all steps for a task
-  deleteSteps: (taskId: string) => api.delete(`/api/tasks/${taskId}/steps`),
+  deleteSteps: (taskId: string, { studentId }: { studentId?: string | null } = {}) =>
+    api.delete(`/api/tasks/${taskId}/steps`, { params: stepsScope(studentId) }),
 }
 
 /**

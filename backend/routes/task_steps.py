@@ -9,10 +9,12 @@ Supports generating steps, drill-down for stuck users, and step management.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from utils.ai_access import require_ai_access
+from utils.guardian_scope import GuardianAccessError, resolve_student_scope_from_request
 from utils.logger import get_logger
 from services.task_steps_service import (
     task_steps_service,
     AIGenerationError,
+    TaskStepsNotFound,
 )
 # Straight from where it is defined. It used to come via task_steps_service,
 # which imported it without ever using it -- an accidental re-export that broke
@@ -22,6 +24,28 @@ from services.base_ai_service import AIServiceOverloadedError
 logger = get_logger(__name__)
 
 bp = Blueprint('task_steps', __name__, url_prefix='/api/tasks')
+
+
+def _owner(user_id: str) -> str:
+    """Whose steps this request is about.
+
+    Steps hang off a user_quest_tasks row, and a parent working through a
+    child's quest as themselves (the family scope, 2026-09-14) sends the
+    child's id as `student_id`. Every route here used to scope by the caller
+    alone, so the parent's click reached a task they do not own and the
+    service's `.single()` turned the empty read into a 500 (Sentry
+    OPTIO-BACKEND 7741782500, 2026-09-19). Guardian-checked like every other
+    delegated read; a stranger's `student_id` is a 403 from the route.
+    """
+    return resolve_student_scope_from_request(user_id, discloses='task_steps').student_id
+
+
+def _not_found(message: str):
+    return jsonify({'success': False, 'error': message}), 404
+
+
+def _forbidden(exc: GuardianAccessError):
+    return jsonify({'success': False, 'error': str(exc)}), 403
 
 
 @bp.route('/<task_id>/steps/generate', methods=['POST'])
@@ -36,7 +60,8 @@ def generate_steps(user_id: str, task_id: str):
     Returns:
         200: { success: true, steps: [...], granularity: str }
         400: Validation error
-        403: AI access denied
+        403: AI access denied, or student_id names a child you do not guard
+        404: Task not found for that student
         500: Generation error
     """
     # Check AI access for task_breakdown feature
@@ -50,11 +75,17 @@ def generate_steps(user_id: str, task_id: str):
 
         result = task_steps_service.generate_steps(
             task_id=task_id,
-            user_id=user_id,
+            user_id=_owner(user_id),
             granularity=granularity
         )
 
         return jsonify(result), 200
+
+    except GuardianAccessError as e:
+        return _forbidden(e)
+
+    except TaskStepsNotFound as e:
+        return _not_found(str(e))
 
     except ValueError as e:
         logger.warning(f"Validation error generating steps: {e}")
@@ -107,10 +138,16 @@ def drill_down_step(user_id: str, task_id: str, step_id: str):
         result = task_steps_service.drill_down_step(
             step_id=step_id,
             task_id=task_id,
-            user_id=user_id
+            user_id=_owner(user_id)
         )
 
         return jsonify(result), 200
+
+    except GuardianAccessError as e:
+        return _forbidden(e)
+
+    except TaskStepsNotFound as e:
+        return _not_found(str(e))
 
     except ValueError as e:
         logger.warning(f"Validation error drilling down step: {e}")
@@ -155,13 +192,16 @@ def get_steps(user_id: str, task_id: str):
     try:
         steps = task_steps_service.get_steps(
             task_id=task_id,
-            user_id=user_id
+            user_id=_owner(user_id)
         )
 
         return jsonify({
             'success': True,
             'steps': steps
         }), 200
+
+    except GuardianAccessError as e:
+        return _forbidden(e)
 
     except Exception as e:
         logger.error(f"Error fetching steps for task {task_id}: {e}")
@@ -186,10 +226,16 @@ def toggle_step(user_id: str, task_id: str, step_id: str):
         result = task_steps_service.toggle_step(
             step_id=step_id,
             task_id=task_id,
-            user_id=user_id
+            user_id=_owner(user_id)
         )
 
         return jsonify(result), 200
+
+    except GuardianAccessError as e:
+        return _forbidden(e)
+
+    except TaskStepsNotFound as e:
+        return _not_found(str(e))
 
     except ValueError as e:
         logger.warning(f"Validation error toggling step: {e}")
@@ -219,10 +265,13 @@ def delete_all_steps(user_id: str, task_id: str):
     try:
         result = task_steps_service.delete_all_steps(
             task_id=task_id,
-            user_id=user_id
+            user_id=_owner(user_id)
         )
 
         return jsonify(result), 200
+
+    except GuardianAccessError as e:
+        return _forbidden(e)
 
     except Exception as e:
         logger.error(f"Error deleting steps for task {task_id}: {e}")

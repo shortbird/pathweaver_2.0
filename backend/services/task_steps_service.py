@@ -23,6 +23,23 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class TaskStepsNotFound(ValueError):
+    """The task or step is not there for this student.
+
+    Its own class so the route can answer 404 rather than the 400 every other
+    ValueError here means. It used to be unreachable: the lookups below went
+    through PostgREST's `.single()`, which raises PGRST116 on zero rows before
+    the `if not data` check ever ran, and the route's catch-all made that a
+    500 (Sentry OPTIO-BACKEND 7741782500, 2026-09-19).
+    """
+
+
+def _one(result):
+    """The first row of a `.limit(1)` read, or None."""
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
 class TaskStepsService(BaseAIService):
     """
     Service for generating and managing AI-powered task step breakdowns.
@@ -69,21 +86,17 @@ class TaskStepsService(BaseAIService):
             granularity = 'quick'
 
         # Fetch task details
-        task_result = self.supabase.table('user_quest_tasks').select(
+        task = _one(self.supabase.table('user_quest_tasks').select(
             'id, title, description, pillar, xp_value, quest_id'
-        ).eq('id', task_id).eq('user_id', user_id).single().execute()
+        ).eq('id', task_id).eq('user_id', user_id).limit(1).execute())
 
-        if not task_result.data:
-            raise ValueError("Task not found or not owned by user")
-
-        task = task_result.data
+        if not task:
+            raise TaskStepsNotFound("Task not found or not owned by user")
 
         # Fetch quest context for better step generation
-        quest_result = self.supabase.table('quests').select(
+        quest = _one(self.supabase.table('quests').select(
             'title, description, big_idea'
-        ).eq('id', task['quest_id']).single().execute()
-
-        quest = quest_result.data if quest_result.data else {}
+        ).eq('id', task['quest_id']).limit(1).execute()) or {}
 
         # Delete existing top-level steps for this task/user/granularity
         self.supabase.table('task_steps').delete().eq(
@@ -140,25 +153,21 @@ class TaskStepsService(BaseAIService):
             Dict with generated sub-steps
         """
         # Fetch the parent step
-        step_result = self.supabase.table('task_steps').select(
+        parent_step = _one(self.supabase.table('task_steps').select(
             'id, title, description, generation_depth, granularity'
-        ).eq('id', step_id).eq('task_id', task_id).eq('user_id', user_id).single().execute()
+        ).eq('id', step_id).eq('task_id', task_id).eq('user_id', user_id).limit(1).execute())
 
-        if not step_result.data:
-            raise ValueError("Step not found or not owned by user")
-
-        parent_step = step_result.data
+        if not parent_step:
+            raise TaskStepsNotFound("Step not found or not owned by user")
 
         # Limit drill-down depth to prevent infinite recursion
         if parent_step['generation_depth'] >= 3:
             raise ValueError("Maximum drill-down depth reached")
 
         # Fetch task for context
-        task_result = self.supabase.table('user_quest_tasks').select(
+        task = _one(self.supabase.table('user_quest_tasks').select(
             'id, title, description, pillar'
-        ).eq('id', task_id).single().execute()
-
-        task = task_result.data if task_result.data else {}
+        ).eq('id', task_id).limit(1).execute()) or {}
 
         # Delete existing sub-steps for this parent
         self.supabase.table('task_steps').delete().eq(
@@ -231,14 +240,12 @@ class TaskStepsService(BaseAIService):
         Toggle a step's completion status.
         """
         # Fetch current step
-        step_result = self.supabase.table('task_steps').select(
+        step = _one(self.supabase.table('task_steps').select(
             'id, is_completed'
-        ).eq('id', step_id).eq('task_id', task_id).eq('user_id', user_id).single().execute()
+        ).eq('id', step_id).eq('task_id', task_id).eq('user_id', user_id).limit(1).execute())
 
-        if not step_result.data:
-            raise ValueError("Step not found or not owned by user")
-
-        step = step_result.data
+        if not step:
+            raise TaskStepsNotFound("Step not found or not owned by user")
         new_status = not step['is_completed']
 
         update_data = {

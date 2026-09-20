@@ -13,6 +13,7 @@ import { taskStepsAPI } from '../../services/api'
 import { useAIAccess } from '../../contexts/AIAccessContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useOrganization, useOrgFeature } from '../../contexts/OrganizationContext'
+import { useStudentScope } from '../../hooks/useStudentScope'
 import { printStepsReceipt } from '../../utils/stepsReceiptPrinter'
 import StepItem from './StepItem'
 import logger from '../../utils/logger'
@@ -35,6 +36,9 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
   // Per-org tool: schools with a kiosk receipt printer opt in via
   // organizations.feature_flags.step_printing (org Settings tab).
   const canPrintSteps = useOrgFeature('step_printing')
+  // Family scope: a parent working on a child's task names the child on every
+  // steps call, or the backend looks for a task the parent does not own.
+  const { studentId, scopeId } = useStudentScope()
 
   // State
   const [steps, setSteps] = useState([])
@@ -49,12 +53,12 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
     if (isOpen && taskId) {
       fetchSteps()
     }
-  }, [isOpen, taskId])
+  }, [isOpen, taskId, scopeId])
 
   const fetchSteps = async () => {
     setIsLoading(true)
     try {
-      const response = await taskStepsAPI.getSteps(taskId)
+      const response = await taskStepsAPI.getSteps(taskId, { studentId })
       if (response.data?.success) {
         setSteps(response.data.steps || [])
       }
@@ -68,7 +72,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
   const handleGenerate = async () => {
     setIsGenerating(true)
     try {
-      const response = await taskStepsAPI.generateSteps(taskId, granularity)
+      const response = await taskStepsAPI.generateSteps(taskId, granularity, { studentId })
       if (response.data?.success) {
         setSteps(response.data.steps || [])
         toast.success(
@@ -90,7 +94,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
   const handleToggleStep = async (stepId) => {
     setTogglingStepId(stepId)
     try {
-      const response = await taskStepsAPI.toggleStep(taskId, stepId)
+      const response = await taskStepsAPI.toggleStep(taskId, stepId, { studentId })
       if (response.data?.success) {
         setSteps(prevSteps => updateStepInTree(prevSteps, stepId, response.data.is_completed))
       }
@@ -105,7 +109,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
   const handleDrillDown = async (stepId) => {
     setDrillingDownStepId(stepId)
     try {
-      const response = await taskStepsAPI.drillDown(taskId, stepId)
+      const response = await taskStepsAPI.drillDown(taskId, stepId, { studentId })
       if (response.data?.success) {
         await fetchSteps()
         toast.success('Step broken down further')
@@ -134,7 +138,7 @@ const TaskStepsModal = ({ isOpen, onClose, taskId, taskTitle, isTaskCompleted })
 
   const handleDeleteSteps = async () => {
     try {
-      await taskStepsAPI.deleteSteps(taskId)
+      await taskStepsAPI.deleteSteps(taskId, { studentId })
       setSteps([])
       toast.success('Steps cleared')
     } catch (error) {
